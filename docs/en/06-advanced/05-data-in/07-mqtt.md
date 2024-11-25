@@ -3,6 +3,22 @@ title: MQTT
 slug: /advanced-features/data-connectors/mqtt
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/mqtt-01.png';
+import imgStep02 from '../../assets/mqtt-02.png';
+import imgStep03 from '../../assets/mqtt-03.png';
+import imgStep04 from '../../assets/mqtt-04.png';
+import imgStep05 from '../../assets/mqtt-05.png';
+import imgStep06 from '../../assets/mqtt-06.png';
+import imgStep07 from '../../assets/mqtt-07.png';
+import imgStep08 from '../../assets/mqtt-08.png';
+import imgStep09 from '../../assets/mqtt-09.png';
+import imgStep10 from '../../assets/mqtt-10.png';
+import imgStep11 from '../../assets/mqtt-11.png';
+import imgStep12 from '../../assets/mqtt-12.png';
+import imgStep13 from '../../assets/mqtt-13.png';
+import imgStep14 from '../../assets/mqtt-14.png';
+
 This section explains how to create a data migration task through the Explorer interface to migrate data from MQTT to the current TDengine cluster.
 
 ## Overview
@@ -17,7 +33,9 @@ TDengine can use the MQTT connector to subscribe to data from an MQTT broker and
 
 On the Data Ingestion page, click the **+Add Data Source** button to go to the Add Data Source page.
 
-![mqtt-01.png](../../assets/mqtt-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -29,7 +47,9 @@ The agent is optional. If needed, you can select an agent from the dropdown list
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-![mqtt-02.png](../../assets/mqtt-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure Connection and Authentication Information
 
@@ -41,13 +61,17 @@ In the **User** field, enter the username for the MQTT broker.
 
 In the **Password** field, enter the password for the MQTT broker.
 
-![mqtt-03.png](../../assets/mqtt-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure SSL Certificates
 
 If the MQTT broker uses SSL certificates, upload the certificate file in the **SSL Certificate** field.
 
-![mqtt-04.png](../../assets/mqtt-04.png)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 ### 5. Configure Collection Information
 
@@ -65,7 +89,9 @@ In the **Subscription Topics and QoS Configuration** field, enter the Topic name
 
 Click the **Connectivity Check** button to test if the data source is available.
 
-![mqtt-05.png](../../assets/mqtt-05.png)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 ### 6. Configure MQTT Payload Parsing
 
@@ -98,17 +124,23 @@ or
 
 The parsing result is shown below:
 
-![mqtt-06.png](../../assets/mqtt-06.png)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 Click the **Magnifier Icon** to preview the parsing result.
 
-![mqtt-07.png](../../assets/mqtt-07.png)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 #### 6.2 Field Splitting
 
 In the **Extract or Split from Column** section, enter the fields to extract or split from the message body. For example, to split the `message` field into `message_0` and `message_1`, select the `split` extractor, enter `-` as the separator, and `2` as the number.
 
-![mqtt-08.png](../../assets/mqtt-08.png)
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 Click **Delete** to remove the current extraction rule.
 
@@ -116,19 +148,25 @@ Click **Add more** to add more extraction rules.
 
 Click the **Magnifier Icon** to preview the extraction/split results.
 
-![mqtt-09.png](../../assets/mqtt-09.png)
+<figure>
+<Image img={imgStep09} alt=""/>
+</figure>
 
 #### 6.3 Data Filtering
 
 In the **Filter** section, enter filtering conditions. For example, entering `id != 1` will filter out data where the `id` is equal to `1`, and only data with `id` not equal to 1 will be written to TDengine.
 
-![mqtt-10.png](../../assets/mqtt-10.png)
+<figure>
+<Image img={imgStep10} alt=""/>
+</figure>
 
 Click **Delete** to remove the current filter rule.
 
 Click the **Magnifier Icon** to preview the filtering results.
 
-![mqtt-11.png](../../assets/mqtt-11.png)
+<figure>
+<Image img={imgStep11} alt=""/>
+</figure>
 
 #### 6.4 Table Mapping
 
@@ -136,11 +174,15 @@ In the **Target Supertable** dropdown list, select a target supertable, or click
 
 In the **Mapping** section, enter the mapping rule for the target table’s name. For example, enter `t_{id}`. Fill in the mapping rules according to your needs, and mapping supports setting default values.
 
-![mqtt-12.png](../../assets/mqtt-12.png)
+<figure>
+<Image img={imgStep12} alt=""/>
+</figure>
 
 Click **Preview** to view the mapping results.
 
-![mqtt-13.png](../../assets/mqtt-13.png)
+<figure>
+<Image img={imgStep13} alt=""/>
+</figure>
 
 ### 7. Advanced Options
 
@@ -152,7 +194,9 @@ When saving raw data, the following two parameters are enabled:
 
 **Raw Data Storage Directory:** Set the path for storing raw data. If an agent is used, this path refers to the server where the agent is located; otherwise, it refers to the server where taosX is running. You can use placeholders like `DATA_DIR` and `:id` as part of the path.
 
-![mqtt-14](../../assets/mqtt-14.png)
+<figure>
+<Image img={imgStep14} alt=""/>
+</figure>
 
 ### 8. Completion
 

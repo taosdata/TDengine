@@ -3,6 +3,12 @@ title: TDengine 2.x
 slug: /advanced-features/data-connectors/tdengine-2
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep1 from '../../assets/tdengine-2-01.png';
+import imgStep2 from '../../assets/tdengine-2-02.png';
+import imgStep3 from '../../assets/tdengine-2-03.png';
+import imgStep4 from '../../assets/tdengine-2-04.png';
+
 This section explains how to create a data migration task through the Explorer interface to migrate data from the TDengine 2.x to the current cluster.
 
 ## Feature Overview
@@ -24,12 +30,25 @@ For more detailed information, we recommend reading the description of each form
 ## Steps
 
 First, click the "Data Ingestion" menu on the left, then click the "Add Data Source" button on the right.
-![Step 1](../../assets/tdengine-2-01.png)
+
+<figure>
+<Image img={imgStep1} alt="Add data source"/>
+<figcaption>Figure 1. Add a data source</figcaption>
+</figure>
 
 Next, enter the task name, such as "migrate-test", and select the type "TDengine2". At this point, the form will switch to the dedicated TDengine2 migration form, which contains many options, each with a detailed description, as shown in the images below.
 
-![Step 2](../../assets/tdengine-2-02.png)
-![Step 3](../../assets/tdengine-2-03.png)
-![Step 4](../../assets/tdengine-2-04.png)
+<figure>
+<Image img={imgStep2} alt="Add data source"/>
+<figcaption>Figure 2. Add a data source</figcaption>
+</figure>
+<figure>
+<Image img={imgStep3} alt="Add data source"/>
+<figcaption>Figure 3. Add a data source</figcaption>
+</figure>
+<figure>
+<Image img={imgStep4} alt="Add data source"/>
+<figcaption>Figure 4. Add a data source</figcaption>
+</figure>
 
 After clicking the "Submit" button to submit the task, return to the "Data Source" task list page, where you can monitor the task's execution status.

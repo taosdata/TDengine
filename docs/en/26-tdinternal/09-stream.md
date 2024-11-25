@@ -3,11 +3,19 @@ title: Stream Processing Engine
 slug: /inside-tdengine/stream-processing-engine
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../assets/stream-processing-engine-01.png';
+import imgStep02 from '../assets/stream-processing-engine-02.png';
+import imgStep03 from '../assets/stream-processing-engine-03.png';
+
 ## Stream Computing Architecture
 
 The architecture of TDengine's stream computing is illustrated in the figure below. When a user inputs SQL to create a stream, the SQL is first parsed on the client side to generate the logical execution plan and its related attribute information necessary for stream computing execution. Next, the client sends this information to the mnode. The mnode dynamically converts the logical execution plan into a physical execution plan using the vgroups information from the database where the data source (super) table resides and further generates a Directed Acyclic Graph (DAG) for the stream task. Finally, the mnode initiates a distributed transaction, distributing the tasks to each vgroup, thereby starting the entire stream computing process.
 
-![Stream Computing Architecture](../assets/stream-processing-engine-01.png)
+<figure>
+<Image img={imgStep01} alt="Stream processing architecture"/>
+<figcaption>Figure 1. Stream processing architecture</figcaption>
+</figure>
 
 The mnode contains the following four logical modules related to stream computing:
 
@@ -64,7 +72,10 @@ Whether out-of-order writing will affect the stream computing results of the cor
 
 Each activated stream computing instance consists of multiple stream tasks distributed across different vnodes. These stream tasks exhibit similarities in the overall architecture, including an in-memory input queue and output queue for executing time series data, as well as a storage system for maintaining local state, as shown in the figure below. This design ensures high performance and low latency for stream computing tasks while providing good scalability and fault tolerance.
 
-![Composition of Stream Computing Tasks](../assets/stream-processing-engine-02.png)
+<figure>
+<Image img={imgStep02} alt="Composition of stream processing tasks"/>
+<figcaption>Figure 2. Composition of stream processing tasks</figcaption>
+</figure>
 
 According to the different tasks undertaken by stream tasks, they can be classified into three categories—source task, agg task, and sink task.
 
@@ -82,7 +93,10 @@ The sink task is responsible for receiving the output results from agg tasks or 
 
 The three types of tasks each perform their respective roles in the stream computing architecture, distributed across different levels. Clearly, the number of source tasks directly depends on the number of vnodes, with each source task independently responsible for processing data in its respective vnode, without interference from other source tasks and without constraints of order. However, it is noteworthy that if the final stream computing result is aggregated into a single table, only one sink task will be deployed on the vnode where that table resides. The cooperative relationships among these three types of tasks are illustrated in the figure below, collectively forming the complete execution process of stream computing tasks.
 
-![Stream Computing Task Relationship Diagram](../assets/stream-processing-engine-03.png)
+<figure>
+<Image img={imgStep02} alt="Relationships between tasks"/>
+<figcaption>Figure 3. Relationships between tasks</figcaption>
+</figure>
 
 ## Stream Computing Nodes
 

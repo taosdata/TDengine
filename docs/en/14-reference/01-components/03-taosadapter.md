@@ -4,6 +4,8 @@ sidebar_label: taosAdapter
 slug: /tdengine-reference/components/taosadapter
 ---
 
+import Image from '@theme/IdealImage';
+import imgAdapter from '../../assets/taosadapter-01.png';
 import Prometheus from "../../10-third-party/01-collection/_prometheus.mdx"
 import CollectD from "../../10-third-party/01-collection/_collectd.mdx"
 import StatsD from "../../10-third-party/01-collection/_statsd.mdx"
@@ -25,7 +27,10 @@ taosAdapter offers the following features:
 
 ## taosAdapter Architecture Diagram
 
-![TDengine Database taosAdapter Architecture](../../assets/taosadapter-01.webp)
+<figure>
+<Image img={imgAdapter} alt="taosAdapter architecture"/>
+<figcaption>Figure 1. taosAdapter architecture</figcaption>
+</figure>
 
 ## taosAdapter Deployment Method
 

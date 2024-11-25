@@ -3,6 +3,17 @@ title: OPC UA
 slug: /advanced-features/data-connectors/opc-ua
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep1 from '../../assets/opc-ua-01.png';
+import imgStep2 from '../../assets/opc-ua-02.png';
+import imgStep3 from '../../assets/opc-ua-03.png';
+import imgStep4 from '../../assets/opc-ua-04.png';
+import imgStep5 from '../../assets/opc-ua-05.png';
+import imgStep6 from '../../assets/opc-ua-06.png';
+import imgStep7 from '../../assets/opc-ua-07.png';
+import imgStep8 from '../../assets/opc-ua-08.png';
+import imgStep9 from '../../assets/opc-ua-09.png';
+
 This section explains how to create a data migration task through the Explorer interface, syncing data from an OPC-UA server to the current TDengine cluster.
 
 ## Overview
@@ -19,7 +30,9 @@ TDengine can efficiently read data from the OPC-UA server and write it to TDengi
 
 On the Data Ingestion page, click the **+Add Data Source** button to go to the Add Data Source page.
 
-![add.png](../../assets/opc-ua-01.png)
+<figure>
+<Image img={imgStep1} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -31,7 +44,9 @@ The agent is optional. If needed, you can select a designated agent from the dro
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-![basic.png](../../assets/opc-ua-02.png)
+<figure>
+<Image img={imgStep2} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
@@ -50,7 +65,9 @@ If you select Sign or SignAndEncrypt as the security mode, you must select a val
 5. Aes128Sha256RsaOaep: Uses AES-128 algorithm for encrypting and decrypting communication data, encrypts the digital signature using SHA-256 algorithm, and uses RSA algorithm and OAEP mode for encrypting and decrypting symmetric communication keys.
 6. Aes256Sha256RsaPss: Uses AES-256 algorithm for encrypting and decrypting communication data, encrypts the digital signature using SHA-256 algorithm, and uses RSA algorithm and PSS mode for encrypting and decrypting symmetric communication keys.
 
-![endpoint.png](../../assets/opc-ua-03.png)
+<figure>
+<Image img={imgStep3} alt=""/>
+</figure>
 
 ### 4. Choose Authentication Method
 
@@ -60,7 +77,9 @@ As shown in the image below, switch the tab to choose different authentication m
 2. Username
 3. Certificate access: This can be the same as the security communication certificate or a different one.
 
-![auth](../../assets/opc-ua-04.png)
+<figure>
+<Image img={imgStep4} alt=""/>
+</figure>
 
 After configuring the connection properties and authentication method, click the **Connectivity Check** button to check if the data source is available. If you are using a security communication certificate or authentication certificate, the certificate must be trusted by the OPC UA server; otherwise, it will fail the check.
 
@@ -154,13 +173,17 @@ Specify the supertable and subtable where the data will be written by configurin
 
 Configure the **Primary Key Column**: select `origin_ts` to use the original timestamp of the OPC data point as the primary key in TDengine, or select `received_ts` to use the received timestamp as the primary key in TDengine. You can also configure the **Primary Key Alias** to specify the name of the timestamp column in TDengine.
 
-![point.png](../../assets/opc-ua-05.png)
+<figure>
+<Image img={imgStep5} alt=""/>
+</figure>
 
 ### 6. Collection Configuration
 
 In the collection configuration, configure the collection mode, collection interval, collection timeout, and other options for the current task.
 
-![connect](../../assets/opc-ua-06.png)
+<figure>
+<Image img={imgStep6} alt=""/>
+</figure>
 
 As shown in the image above:
 
@@ -180,7 +203,9 @@ When **Data Points Set** is configured using the **Select Data Points** method, 
 
 ### 7. Advanced Options
 
-![advance options](../../assets/opc-ua-07.png)
+<figure>
+<Image img={imgStep7} alt=""/>
+</figure>
 
 As shown in the image above, advanced options can be configured to further optimize performance, logging, and more.
 
@@ -211,10 +236,14 @@ Click the **Submit** button to complete the OPC UA to TDengine data synchronizat
 
 While the task is running, click **Edit**, then click the **Add Data Points** button to append data points to the CSV file.
 
-![Add Data Points](../../assets/opc-ua-08.png)
+<figure>
+<Image img={imgStep8} alt=""/>
+</figure>
 
 In the pop-up form, fill in the data point information.
 
-![Data Points Form](../../assets/opc-ua-09.png)
+<figure>
+<Image img={imgStep9} alt=""/>
+</figure>
 
 Click the **Confirm** button to complete the addition of data points.

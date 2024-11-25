@@ -3,6 +3,17 @@ title: TDengine 3.x
 slug: /advanced-features/data-connectors/tdengine-3
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep1 from '../../assets/tdengine-3-01.png';
+import imgStep2 from '../../assets/tdengine-3-02.png';
+import imgStep3 from '../../assets/tdengine-3-03.png';
+import imgStep4 from '../../assets/tdengine-3-04.png';
+import imgStep5 from '../../assets/tdengine-3-05.png';
+import imgStep6 from '../../assets/tdengine-3-06.png';
+import imgStep7 from '../../assets/tdengine-3-07.png';
+import imgStep8 from '../../assets/tdengine-3-08.png';
+import imgStep9 from '../../assets/tdengine-3-09.png';
+
 This document explains how to use the Explorer interface to subscribe to data from another cluster into the current one.
 
 ## Preparation
@@ -13,19 +24,25 @@ Create the necessary subscription topic on the source cluster. You can subscribe
 
 Open the Explorer interface for the source cluster, click on the "Data Subscription" menu on the left, and then click on "Add New Topic."
 
-![Preparation Step 1](../../assets/tdengine-3-01.png)
+<figure>
+<Image img={imgStep1} alt=""/>
+</figure>
 
 ### Step 2: Add a New Topic
 
 Enter the topic name and select the database you want to subscribe to.
 
-![Preparation Step 2](../../assets/tdengine-3-02.png)
+<figure>
+<Image img={imgStep2} alt=""/>
+</figure>
 
 ### Step 3: Copy the Topic's DSN
 
 Click the "Create" button, go back to the topic list, and copy the topic's **DSN** for later use.
 
-![Preparation Step 3](../../assets/tdengine-3-03.png)
+<figure>
+<Image img={imgStep3} alt=""/>
+</figure>
 
 ## Create a Subscription Task
 
@@ -34,7 +51,9 @@ Click the "Create" button, go back to the topic list, and copy the topic's **DSN
 1. Click the "Data Ingestion" menu on the left.
 2. Click "Add Data Source."
 
-![Step 1](../../assets/tdengine-3-04.png)
+<figure>
+<Image img={imgStep4} alt=""/>
+</figure>
 
 ### Step 2: Enter Data Source Information
 
@@ -44,7 +63,9 @@ Click the "Create" button, go back to the topic list, and copy the topic's **DSN
 4. Paste the DSN copied from the preparation step into the **Topic DSN** field. For example: `tmq+ws://root:taosdata@localhost:6041/topic`
 5. After completing the above steps, click the "Connectivity Check" button to test connectivity with the source.
 
-![Step 2](../../assets/tdengine-3-05.png)
+<figure>
+<Image img={imgStep5} alt=""/>
+</figure>
 
 ### Step 3: Configure Subscription Settings and Submit the Task
 
@@ -58,18 +79,29 @@ Click the "Create" button, go back to the topic list, and copy the topic's **DSN
 8. Compression. Enable WebSocket compression to reduce network bandwidth usage.
 9. Click the "Submit" button to submit the task.
 
-![Step 3](../../assets/tdengine-3-06.png)
+<figure>
+<Image img={imgStep6} alt=""/>
+</figure>
 
 ## Monitoring Task Progress
 
 After submitting the task, return to the data source page to view the task status. The task will first be added to the execution queue and will start running shortly after.
-![Step 4](../../assets/tdengine-3-07.png)
+
+<figure>
+<Image img={imgStep7} alt=""/>
+</figure>
 
 Click the "View" button to monitor dynamic statistical information about the task.
-![Step 5](../../assets/tdengine-3-08.png)
+
+<figure>
+<Image img={imgStep8} alt=""/>
+</figure>
 
 You can also click the collapse button on the left to expand the task's activity information. If the task encounters any issues, detailed explanations will be provided here.
-![Step 6](../../assets/tdengine-3-09.png)
+
+<figure>
+<Image img={imgStep9} alt=""/>
+</figure>
 
 ## Advanced Usage
 

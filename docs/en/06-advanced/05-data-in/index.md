@@ -3,13 +3,24 @@ title: Data Connectors
 slug: /advanced-features/data-connectors
 ---
 
+import Image from '@theme/IdealImage';
+import imgZeroCode from '../../assets/data-connectors-01.png';
+import imgSampleData from '../../assets/data-connectors-02.png';
+import imgJsonParsing from '../../assets/data-connectors-03.png';
+import imgRegexParsing from '../../assets/data-connectors-04.png';
+import imgResults from '../../assets/data-connectors-05.png';
+import imgSplit from '../../assets/data-connectors-06.png';
+
 ## Overview
 
 TDengine Enterprise is equipped with a powerful visual data management tool—taosExplorer. With taosExplorer, users can easily configure tasks in their browsers to seamlessly import data from various sources into TDengine with zero code. During the import process, TDengine automatically extracts, filters, and transforms data to ensure its quality. This zero-code data source access approach has successfully transformed TDengine into an outstanding time-series big data aggregation platform. Users do not need to deploy additional ETL tools, significantly simplifying the overall architecture design and improving data processing efficiency.
 
 The following figure illustrates the system architecture of the zero-code access platform.
 
-![Zero-Code Data Access Architecture](../../assets/data-connectors-01.png)
+<figure>
+<Image img={imgZeroCode} alt="Zero-code access platform"/>
+<figcaption>Figure 1. Zero-code access platform</figcaption>
+</figure>
 
 ## Supported Data Sources
 
@@ -43,7 +54,10 @@ This step is only required for unstructured data sources. Currently, MQTT and Ka
 
 #### Sample Data
 
-![Sample Data](../../assets/data-connectors-02.png)
+<figure>
+<Image img={imgZeroCode} alt="Sample data"/>
+<figcaption>Figure 2. Sample data</figcaption>
+</figure>
 
 As shown in the figure, the textarea input box contains the sample data, which can be obtained in three ways:
 
@@ -83,7 +97,10 @@ The following nested JSON structure can automatically parse the fields `groupid`
 {"groupid": 170001, "data": { "voltage": "221V", "current": 12.3 }, "ts": "2023-12-18T22:12:00", "inuse": true, "location": [{"province": "beijing", "city":"chaoyang", "street": "datun"}]}
 ```
 
-![JSON Parsing](../../assets/data-connectors-03.png)
+<figure>
+<Image img={imgJsonParsing} alt="JSON parsing"/>
+<figcaption>Figure 3. JSON parsing</figcaption>
+</figure>
 
 ##### Regex Regular Expression
 
@@ -93,7 +110,10 @@ You can use **named capture groups** in regular expressions to extract multiple 
 (?<ip>\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)\s-\s-\s\[(?<ts>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s\+\d{4})\]\s"(?<method>[A-Z]+)\s(?<url>[^\s"]+).*(?<status>\d{3})\s(?<length>\d+)
 ```
 
-![Regex Parsing](../../assets/data-connectors-04.png)
+<figure>
+<Image img={imgRegexParsing} alt="Regex parsing"/>
+<figcaption>Figure 4. Regex parsing</figcaption>
+</figure>
 
 ##### UDT Custom Parsing Script
 
@@ -127,7 +147,10 @@ let v3 = data["voltage"].split(",");
 
 The final parsed result is as follows:
 
-![UDT](../../assets/data-connectors-05.png)
+<figure>
+<Image img={imgResults} alt="Parsed results"/>
+<figcaption>Figure 5. Parsed results</figcaption>
+</figure>
 
 ### Extracting or Splitting
 
@@ -143,7 +166,10 @@ The voltage parsed using the JSON rules is expressed as a string with units. Ult
 
 As shown in the figure, you can use the split rule on the source field `ts` to split it into date and time, and use regex to extract the voltage value and unit from the `voltage` field. The split rule requires setting the **delimiter** and **number of splits**, and the naming convention for the split fields is `{original_field_name}_{order_number}`, while the Regex rule is the same as in the parsing process, using **named capture groups** to name the extracted fields.
 
-![Splitting and Extracting](../../assets/data-connectors-06.png)
+<figure>
+<Image img={imgSplit} alt="Splitting and extracting data"/>
+<figcaption>Figure 6. Splitting and extracting data</figcaption>
+</figure>
 
 ### Filtering
 

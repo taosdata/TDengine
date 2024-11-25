@@ -3,6 +3,15 @@ title: Oracle Database
 slug: /advanced-features/data-connectors/oracle-database
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/oracle-database-01.png';
+import imgStep02 from '../../assets/oracle-database-02.png';
+import imgStep03 from '../../assets/oracle-database-03.png';
+import imgStep04 from '../../assets/oracle-database-04.png';
+import imgStep05 from '../../assets/oracle-database-05.png';
+import imgStep06 from '../../assets/oracle-database-06.png';
+import imgStep07 from '../../assets/oracle-database-07.png';
+
 This section explains how to create data migration tasks through the Explorer interface to migrate data from Oracle to the current TDengine cluster.
 
 ## Function Overview
@@ -17,7 +26,9 @@ TDengine can efficiently read data from Oracle and write it to TDengine for hist
 
 Click the **+Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![Common-zh00-EnterDataSourcePage.png](../../assets/oracle-database-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -29,13 +40,17 @@ The **Agent** field is optional; if needed, you can select a specified agent fro
 
 The **Target Database** field is required; you can first click the **+Create Database** button on the right to create a new database.
 
-![oracle-01.png](../../assets/oracle-database-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
 In the **Connection Configuration** area, fill in the *`source Oracle database connection information`*, as shown below:
 
-![oracle-02.png](../../assets/oracle-database-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure Authentication Information
 
@@ -43,7 +58,9 @@ In the **User** field, enter the user for the source Oracle database; this user 
 
 In the **Password** field, enter the login password for the user in the source Oracle database.
 
-![ oracle-03.png](../../assets/oracle-database-04.png)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 Then click the **Check Connectivity** button; users can click this button to check if the information filled in above can successfully retrieve data from the source Oracle database.
 
@@ -75,7 +92,9 @@ To solve the problem of migration data disorder, sorting conditions should be ad
 
 **Delay Duration** is an integer range from 1 to 30; to avoid the loss of delayed written data in real-time synchronization scenarios, each synchronization task will read data before the specified delay duration.
 
-![ oracle-04.png](../../assets/oracle-database-05.png)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 ### 6. Configure Data Mapping
 
@@ -91,7 +110,9 @@ In the **Mapping** section, select the supertable to map to TDengine and specify
 
 Click **Preview** to view the mapping results.
 
-![oracle-05.png](../../assets/oracle-database-06.png)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 ### 7. Configure Advanced Options
 
@@ -101,7 +122,9 @@ The **Advanced Options** area is folded by default; click the `>` button on the 
 
 **Batch Size** is the maximum number of messages or rows sent at one time. The default is 10,000.
 
-![oracle-06.png](../../assets/oracle-database-07.png)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 ### 8. Completion
 

@@ -3,6 +3,15 @@ title: Data Subscription Engine
 slug: /inside-tdengine/data-subscription-engine
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../assets/data-subscription-engine-01.png';
+import imgStep02 from '../assets/data-subscription-engine-02.png';
+import imgStep03 from '../assets/data-subscription-engine-03.png';
+import imgStep04 from '../assets/data-subscription-engine-04.png';
+import imgStep05 from '../assets/data-subscription-engine-05.png';
+import imgStep06 from '../assets/data-subscription-engine-06.png';
+import imgStep07 from '../assets/data-subscription-engine-07.png';
+
 Data subscription, as a core function of TDengine, provides users with the ability to flexibly acquire the data they need. By understanding its internal principles, users can utilize this feature more effectively to meet various real-time data processing and monitoring needs.
 
 ## Basic Concepts
@@ -13,7 +22,10 @@ Similar to Kafka, using TDengine data subscription requires defining a topic. A 
 
 As shown in the figure below, the data tables involved in each topic are distributed across multiple vnodes (equivalent to Kafka's partitions), with each vnode's data stored in WAL files, where the data in the WAL files is written sequentially. Since the WAL files store not only data but also metadata and write messages, the version numbers of the data are not continuous.
 
-![Data Distribution of Topics](../assets/data-subscription-engine-01.png)
+<figure>
+<Image img={imgStep01} alt="Data distribution of topics"/>
+<figcaption>Figure 1. Data distribution of topics</figcaption>
+</figure>
 
 TDengine automatically creates indexes for WAL files to support fast random access. Through flexible and configurable file switching and retention mechanisms, users can specify the retention time and size of WAL files as needed. In this way, the WAL is transformed into a persistent storage engine that maintains the order of event arrivals.
 
@@ -39,7 +51,10 @@ When creating consumers, a consumer group must be specified. Consumers within th
 - With 3 consumers, 2 will consume 1 vnode each, while the remaining 1 consumer will consume the remaining 2 vnodes;
 - With 5 consumers, 4 will each consume 1 vnode, while the remaining 1 consumer will not participate in consumption.
 
-![Consumers Retrieve Data](../assets/data-subscription-engine-02.png)
+<figure>
+<Image img={imgStep02} alt="Consumers retrieve data"/>
+<figcaption>Figure 2. Consumers retrieve data</figcaption>
+</figure>
 
 When a new consumer is added to a consumer group, the system will automatically reallocate consumers through a rebalancing mechanism. This process is transparent to users and requires no manual intervention. The rebalancing mechanism ensures that data is redistributed among consumers, achieving load balancing.
 
@@ -53,13 +68,19 @@ When a consumer first consumes data, it can determine the consumption position b
 
 It is important to note that consumers in different consumer groups do not share consumption progress even if they consume the same topic. This design ensures the independence of each consumer group, allowing them to process data independently without interference from each other. The figure below illustrates this process clearly.
 
-![Consumption Progress](../assets/data-subscription-engine-03.png)
+<figure>
+<Image img={imgStep03} alt="Consumption progress"/>
+<figcaption>Figure 3. Consumption progress</figcaption>
+</figure>
 
 ## Data Subscription Architecture
 
 The data subscription system can be logically divided into two core modules: the client and the server. The client is responsible for creating consumers, obtaining the vnode list exclusive to these consumers, and retrieving the required data from the server while maintaining necessary state information. The server focuses on managing topic and consumer-related information, processing subscription requests from the client. It dynamically allocates consumption nodes through the implementation of a rebalancing mechanism to ensure continuity of the consumption process and consistency of the data while tracking and managing consumption progress. The data subscription architecture is shown in the figure below:
 
-![Data Subscription Architecture](../assets/data-subscription-engine-04.png)
+<figure>
+<Image img={imgStep04} alt="Data subscription architecture"/>
+<figcaption>Figure 4. Data subscription architecture</figcaption>
+</figure>
 
 After successfully establishing a connection with the server, the user must first specify a consumer group and a topic to create the corresponding consumer instance. Subsequently, the client submits a subscription request to the server. At this point, the consumer's status is marked as rebalancing, indicating that it is in the rebalance phase. The consumer will then periodically send requests to the server to retrieve the vnode list pending consumption until the server allocates the corresponding vnode to it. Once the allocation is complete, the consumer's status is updated to ready, marking the successful completion of the subscription process. At this point, the client can officially start sending consumption data requests to the vnode.
 
@@ -79,7 +100,10 @@ The data of each topic may be distributed across multiple vnodes. The server exe
 
 As shown in the figure below, c1 represents consumer 1, c2 represents consumer 2, and g1 represents consumer group 1. Initially, g1 has only c1 consuming data. c1 sends subscription information to the mnode, which allocates all 4 vnodes containing data to c1. When c2 is added to g1, c2 sends subscription information to the mnode. The mnode detects that g1 needs to be redistributed and starts the rebalance process, after which c2 will consume two of the vnodes. The allocation information will also be sent to the vnodes through the mnode, while both c1 and c2 will obtain their vnode information and start consuming.
 
-![Rebalance Process](../assets/data-subscription-engine-05.png)
+<figure>
+<Image img={imgStep05} alt="Rebalancing process"/>
+<figcaption>Figure 5. Rebalancing process</figcaption>
+</figure>
 
 The rebalance timer checks every 2 seconds to see if rebalancing is needed. During the rebalancing process, if the state obtained by the consumer is not ready, it cannot consume data. Only after the rebalance is successfully completed and the consumer obtains the allocated vnode's offset can it consume normally; otherwise, the consumer will retry a specified number of times before reporting an error.
 
@@ -87,7 +111,10 @@ The rebalance timer checks every 2 seconds to see if rebalancing is needed. Duri
 
 The consumer's state transition process is shown in the figure below. In the initial state, the consumer that has just initiated a subscription is in a rebalancing state, indicating that the consumer is not yet ready for data consumption. Once the mnode detects a consumer in the rebalancing state, it will initiate the rebalance process, and upon success, the consumer's state will change to ready, indicating that the consumer is prepared. Subsequently, when the consumer obtains its ready status and the allocated vnode list through timed query endpoint messages, it can officially start consuming data.
 
-![Consumer State Transition](../assets/data-subscription-engine-06.png)
+<figure>
+<Image img={imgStep06} alt="Consumer state transition"/>
+<figcaption>Figure 6. Consumer state transition</figcaption>
+</figure>
 
 If the consumer's heartbeat is lost for more than 12 seconds, after the rebalance process, its state will be updated to clear, and the consumer will be deleted from the system.
 
@@ -99,6 +126,9 @@ Time series data is stored on vnodes, and the essence of consumption is to read 
 
 As shown in the figure below, the vnode can automatically commit consumption progress by setting parameters or manually commit consumption progress after the client processes the data. If the consumption progress is stored in the vnode, then when consumers in the same consumer group change, they will still continue from the previous progress of consumption. Otherwise, depending on the configuration parameters, consumers can choose to consume the oldest or latest data.
 
-![Consumption Progress Management](../assets/data-subscription-engine-07.png)
+<figure>
+<Image img={imgStep07} alt="Consumption process management"/>
+<figcaption>Figure 7. Consumption process management</figcaption>
+</figure>
 
 The earliest parameter indicates that the consumer starts consuming from the oldest data in the WAL files, while the latest parameter indicates that consumption starts from the latest data (i.e., the newly written data) in the WAL files. These two parameters only take effect when the consumer first consumes data or has not submitted consumption progress. If progress is submitted during the consumption process, such as submitting the progress when consuming the 3rd data in the WAL file (i.e., commit offset=3), then the next time a new consumer in the same consumer group and topic consumes the same vnode, it will start from the 4th data. This design ensures that consumers can flexibly choose the starting position for consuming data according to their needs while maintaining the persistence of consumption progress and synchronization between consumers.

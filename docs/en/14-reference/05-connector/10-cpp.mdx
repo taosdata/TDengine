@@ -229,8 +229,8 @@ By using the parameter binding interface for data insertion, you can avoid the r
 
 1. Call `ws_stmt_init()` to create a parameter binding object;
 2. Call `ws_stmt_prepare()` to parse the INSERT statement;
-3. If the INSERT statement reserves the table name but does not reserve TAGS, call `ws_stmt_set_tbname()` to set the table name;
-4. If the INSERT statement reserves both the table name and TAGS (for example, when the INSERT statement uses the automatic table creation method), call `ws_stmt_set_tbname_tags()` to set the table name and the values of TAGS;
+3. If the INSERT statement reserves the table name but does not reserve tags, call `ws_stmt_set_tbname()` to set the table name;
+4. If the INSERT statement reserves both the table name and tags (for example, when the INSERT statement uses the automatic table creation method), call `ws_stmt_set_tbname_tags()` to set the table name and the values of tags;
 5. Call `ws_stmt_bind_param_batch()` to set the VALUES in a multi-row manner;
 6. Call `ws_stmt_add_batch()` to add the currently bound parameters to the batch process;
 7. You can repeat steps 3 to 6 to add more data rows to the batch process;
@@ -267,7 +267,7 @@ The specific functions related to the interface are as follows (you can also ref
     - name: [input] Pointer to a string constant containing the subtable name.
   - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
 - `int ws_stmt_set_tbname_tags(WS_STMT *stmt, const char *name, const WS_MULTI_BIND *bind, uint32_t len);`
-  - **Interface Description**: (Only supports replacing parameter values in INSERT statements) When both the table name and TAGS in the SQL statement use `?` placeholders, this function can bind specific values for the table name and TAGS. The most typical usage scenario is with INSERT statements that use automatic table creation features (currently, specifying specific TAGS columns is not supported). The number of columns in the TAGS parameter must exactly match the number required in the SQL statement.
+  - **Interface Description**: (Only supports replacing parameter values in INSERT statements) When both the table name and tags in the SQL statement use `?` placeholders, this function can bind specific values for the table name and tags . The most typical usage scenario is with INSERT statements that use automatic table creation features (currently, specifying specific tag columns is not supported). The number of columns in the `TAGS` parameter must exactly match the number required in the SQL statement.
   - **Parameter Description**:
     - stmt: [input] Pointer to a valid precompiled SQL statement object.
     - name: [input] Pointer to a string constant containing the subtable name.
@@ -760,8 +760,8 @@ Starting from versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved 
 
 1. Call `taos_stmt_init()` to create a parameter binding object;
 2. Call `taos_stmt_prepare()` to parse the INSERT statement;
-3. If the INSERT statement reserves a table name but does not reserve TAGS, call `taos_stmt_set_tbname()` to set the table name;
-4. If the INSERT statement reserves both a table name and TAGS (for example, if the INSERT statement uses the automatic table creation method), call `taos_stmt_set_tbname_tags()` to set the table name and the values of TAGS;
+3. If the INSERT statement reserves a table name but does not reserve tags, call `taos_stmt_set_tbname()` to set the table name;
+4. If the INSERT statement reserves both a table name and tags (for example, if the INSERT statement uses the automatic table creation method), call `taos_stmt_set_tbname_tags()` to set the table name and the values of `TAGS`;
 5. Call `taos_stmt_bind_param_batch()` to set the VALUES in bulk, or call `taos_stmt_bind_param()` to set the VALUES one by one;
 6. Call `taos_stmt_add_batch()` to add the currently bound parameters to the batch;
 7. You can repeat steps 3 to 6 to add more data rows to the batch;
@@ -801,7 +801,7 @@ The specific functions related to the interface are as follows (you can also ref
     - `name`: [Input] Pointer to a string constant containing the subtable name.
   - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_MULTI_BIND* tags)`
-  - **Interface Description**: (Added in version 2.1.2.0, only supports replacing parameter values in the INSERT statement) When both the table name and TAGS in the SQL statement use `?` placeholders, this function can be used to bind specific table names and TAGS values. The most typical usage scenario is for INSERT statements that use automatic table creation (the current version does not support specifying specific TAGS columns). The number of columns in the TAGS parameter must match the number required in the SQL statement.
+  - **Interface Description**: (Added in version 2.1.2.0, only supports replacing parameter values in the INSERT statement) When both the table name and tags in the SQL statement use `?` placeholders, this function can be used to bind specific table names and tag values. The most typical usage scenario is for INSERT statements that use automatic table creation (the current version does not support specifying specific tag columns). The number of columns in the `TAGS` parameter must match the number required in the SQL statement.
   - **Parameter Description**:
     - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
     - `name`: [Input] Pointer to a string constant containing the subtable name.

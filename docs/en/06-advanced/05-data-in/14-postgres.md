@@ -3,6 +3,16 @@ title: PostgreSQL
 slug: /advanced-features/data-connectors/postgresql
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/postgresql-01.png';
+import imgStep02 from '../../assets/postgresql-02.png';
+import imgStep03 from '../../assets/postgresql-03.png';
+import imgStep04 from '../../assets/postgresql-04.png';
+import imgStep05 from '../../assets/postgresql-05.png';
+import imgStep06 from '../../assets/postgresql-06.png';
+import imgStep07 from '../../assets/postgresql-07.png';
+import imgStep08 from '../../assets/postgresql-08.png';
+
 This section explains how to create data migration tasks through the Explorer interface to migrate data from PostgreSQL to the current TDengine cluster.
 
 ## Function Overview
@@ -17,7 +27,9 @@ TDengine can efficiently read data from PostgreSQL and write it to TDengine for 
 
 Click the **+Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![Common-zh00-EnterDataSourcePage.png](../../assets/postgresql-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -29,13 +41,17 @@ The **Agent** field is optional; if needed, you can select a specified agent fro
 
 The **Target Database** field is required; you can first click the **+Create Database** button on the right to create a new database.
 
-![postgres-01.png](../../assets/postgresql-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
 In the **Connection Configuration** area, fill in the *`source PostgreSQL database connection information`*, as shown below:
 
-![postgres-02.png](../../assets/postgresql-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure Authentication Information
 
@@ -43,7 +59,9 @@ In the **User** field, enter the user for the source PostgreSQL database; this u
 
 In the **Password** field, enter the login password for the user in the source PostgreSQL database.
 
-![ postgres-03.png](../../assets/postgresql-04.png)  
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 ### 5. Configure Connection Options
 
@@ -51,7 +69,9 @@ In the **Application Name** field, set the application name to identify the conn
 
 In the **SSL Mode** field, set whether to negotiate a secure SSL TCP/IP connection with the server or prioritize how to negotiate it. The default value is PREFER. Optional values include DISABLE, ALLOW, PREFER, and REQUIRE.
 
-![ postgres-04.png](../../assets/postgresql-05.png)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 Then click the **Check Connectivity** button; users can click this button to check if the information filled in above can successfully retrieve data from the source PostgreSQL database.
 
@@ -83,7 +103,9 @@ To solve the problem of migration data disorder, sorting conditions should be ad
 
 **Delay Duration** is an integer range from 1 to 30; to avoid the loss of delayed written data in real-time synchronization scenarios, each synchronization task will read data before the specified delay duration.
 
-![ postgres-05.png](../../assets/postgresql-06.png)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 ### 7. Configure Data Mapping
 
@@ -99,7 +121,9 @@ In the **Mapping** section, select the supertable to map to TDengine and specify
 
 Click **Preview** to view the mapping results.
 
-![postgres-06.png](../../assets/postgresql-07.png)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 ### 8. Configure Advanced Options
 
@@ -109,7 +133,9 @@ The **Advanced Options** area is folded by default; click the `>` button on the 
 
 **Batch Size** is the maximum number of messages or rows sent at one time. The default is 10,000.
 
-![postgres-07.png](../../assets/postgresql-08.png)
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 ### 9. Completion
 

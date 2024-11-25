@@ -5,6 +5,18 @@ slug: /third-party-tools/visualization/grafana
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/grafana-01.png';
+import imgStep02 from '../../assets/grafana-02.png';
+import imgStep03 from '../../assets/grafana-03.png';
+import imgStep04 from '../../assets/grafana-04.png';
+import imgStep05 from '../../assets/grafana-05.png';
+import imgStep06 from '../../assets/grafana-06.png';
+import imgStep07 from '../../assets/grafana-07.png';
+import imgStep08 from '../../assets/grafana-08.png';
+import imgStep09 from '../../assets/grafana-09.png';
+import imgStep10 from '../../assets/grafana-10.png';
+import imgStep11 from '../../assets/grafana-11.png';
 
 ## Overview
 
@@ -18,10 +30,12 @@ Currently, TDengine supports Grafana versions 7.5 and above. It is recommended t
 
 To allow Grafana to properly add TDengine as a data source, the following preparations are required.
 
-- Grafana service has been deployed and is running normally.  
+- Grafana service has been deployed and is running normally.
+
   :::note
   Ensure that the account running Grafana has write permissions for its installation directory; otherwise, you may be unable to install plugins later.
   :::
+
 - TDengine cluster has been deployed and is running normally.
 - taosAdapter has been installed and is running normally. For specific details, please refer to the [taosAdapter usage manual](../../../tdengine-reference/components/taosadapter/).
 
@@ -272,7 +286,9 @@ For a detailed introduction to these features, please refer to [Distinctive Quer
 With the foundational knowledge gained earlier, we can configure a dashboard based on the TDengine data source for time series data display.
 In the main Grafana interface, create a dashboard and click 【Add Query】 to enter the panel query page:
 
-![TDengine Database Grafana plugin create dashboard](../../assets/grafana-01.webp)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 As shown in the image above, select the `TDengine` data source in the “Query” section, and you can enter the corresponding SQL for querying in the query box. Continuing with the smart meter example, we will **use virtual data** here to ensure the curve is aesthetically pleasing.
 
@@ -286,7 +302,9 @@ Suppose we want to query the average current size over a period of time, using t
 
 In the top custom variable, if we select the value of `selected_groups` as 1, the query for the average current of all devices with `groupid` 1 in the `meters` supertable would change as shown below:
 
-![TDengine Database Grafana plugin create dashboard](../../assets/grafana-02.webp)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 :::note
 
@@ -303,7 +321,9 @@ Suppose we want to query the average current size over a period of time, display
 
 After completing the settings, the data will be displayed grouped by `groupid`, as shown below:
 
-![TDengine Database Grafana plugin create dashboard](../../assets/grafana-03.webp)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 For more information on creating monitoring interfaces using Grafana and other related information, please refer to the official [Grafana documentation](https://grafana.com/docs/).
 
@@ -316,7 +336,9 @@ For more information on creating monitoring interfaces using Grafana and other r
 
 In the data source configuration page, you can import the TDinsight panel as a monitoring visualization tool for your TDengine cluster. If the TDengine server is version 3.0, please select `TDinsight for 3.x` for import. Note that TDinsight for 3.x requires running and configuring taoskeeper.
 
-![TDengine Database Grafana plugin import dashboard](../../assets/grafana-04.webp)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 Dashboards compatible with TDengine 2.* have been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)).
 
@@ -380,17 +402,23 @@ In the Grafana UI, navigate to “Home” -> “Alerting” -> “Contact points
 
 “Integration”: Select the contact type; here, choose Email and fill in the email address for receiving notifications.  
 
-![TDengine Database Grafana plugin alert email](../../assets/grafana-05.webp)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 ### Configure Notification Policies
 
 After configuring contact points, you will see an existing Default Policy.
 
-![TDengine Database Grafana plugin Notification default policy](../../assets/grafana-06.webp)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 Click the right “...” -> “Edit” to modify the default notification policy, opening the configuration window:
 
-![TDengine Database Grafana plugin Notification](../../assets/grafana-07.webp)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 Then configure the following parameters:
 
@@ -425,7 +453,9 @@ In the “Define query and alert condition” section, configure the alarm rule.
 
 After completing the settings, the interface will look like this:
 
-![TDengine Database Grafana plugin Alert Rules](../../assets/grafana-08.webp)
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 Grafana’s “Expression” supports various operations and calculations on data. The types include:
 
@@ -448,7 +478,9 @@ As shown in the previous screenshot, we set it to trigger an alarm when the maxi
 
 #### Configure Rule Evaluation Strategy
 
-![TDengine Database Grafana plugin Alert Evaluation Behavior](../../assets/grafana-09.webp)
+<figure>
+<Image img={imgStep09} alt=""/>
+</figure>
 
 Configure the following:
 
@@ -458,7 +490,9 @@ Configure the following:
 
 #### Configure Labels and Alarm Channels
 
-![TDengine Database Grafana plugin Alert Labels and Notifications](../../assets/grafana-10.webp)
+<figure>
+<Image img={imgStep10} alt=""/>
+</figure>
 
 Complete the configuration:
 
@@ -467,6 +501,8 @@ Complete the configuration:
 
 #### Configure Notification Content
 
-![TDengine Database Grafana plugin Alert Labels and Notifications](../../assets/grafana-11.webp)
+<figure>
+<Image img={imgStep11} alt=""/>
+</figure>
 
 Set the “Summary” and “Description,” so if the alarm triggers, you will receive an alarm notification.

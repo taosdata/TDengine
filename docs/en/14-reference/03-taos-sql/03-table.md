@@ -68,7 +68,7 @@ CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
 ```
 
-This creates a data table using the specified supertable as a template and can also specify values for some TAGS columns (unspecified TAGS columns will be set to NULL).
+This creates a data table using the specified supertable as a template and can also specify values for some tag columns (unspecified tag columns will be set to NULL).
 
 ### Batch Create Subtables
 

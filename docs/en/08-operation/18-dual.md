@@ -3,6 +3,9 @@ title: Active-Standby Deployment
 slug: /operations-and-maintenance/active-standby-deployment
 ---
 
+import Image from '@theme/IdealImage';
+import imgDual from '../assets/active-standby-deployment-01.png';
+
 This section introduces the configuration and usage of the TDengine Active-Active System.
 
 1. Some users can only deploy two servers due to the uniqueness of their deployment environment, while also hoping to achieve a certain level of service high availability and data high reliability. This article primarily describes the product behavior of the TDengine Active-Active System based on two key technologies: data replication and client failover. This includes the architecture, configuration, and operation and maintenance of the Active-Active System. The TDengine Active-Active feature can be used in resource-constrained environments, as previously mentioned, as well as in disaster recovery scenarios between two TDengine clusters (regardless of resources). The Active-Active feature is unique to TDengine Enterprise and was first released in version 3.3.0.0. It is recommended to use the latest version.
@@ -16,7 +19,9 @@ This section introduces the configuration and usage of the TDengine Active-Activ
 
 Note: The diagram below uses a single TDengine instance as an example, but in actual deployment, one host in the diagram can be replaced by any number of TDengine clusters.
 
-![Active-Standby.png](../assets/active-standby-deployment-01.png)
+<figure>
+<Image img={imgDual} alt=""/>
+</figure>
 
 ## Configuration
 

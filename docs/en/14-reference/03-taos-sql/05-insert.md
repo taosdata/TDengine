@@ -67,7 +67,7 @@ INSERT INTO
 
 **Normal Syntax Explanation**
 
-1. The USING clause is the auto-create table syntax. If the user is unsure whether a table exists when writing data, they can use the auto-create table syntax to create the non-existent table; if the table already exists, a new table will not be created. When auto-creating a table, it is required to use a supertable as a template and specify the TAGS values for the data table. It is also possible to specify only a portion of the TAGS columns, with unspecified TAGS columns set to NULL.
+1. The USING clause is the auto-create table syntax. If the user is unsure whether a table exists when writing data, they can use the auto-create table syntax to create the non-existent table; if the table already exists, a new table will not be created. When auto-creating a table, it is required to use a supertable as a template and specify the tag values for the data table. It is also possible to specify only a portion of the tag columns, with unspecified tag columns set to NULL.
 
 2. You can use the `INSERT ... subquery` statement to insert data from TDengine into the specified table. The subquery can be any query statement. This syntax can only be used for subtables and basic tables and does not support auto-creating tables.
 
@@ -114,13 +114,13 @@ INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-
 
 ## Automatically Create Tables When Inserting Records
 
-If the user is unsure whether a certain table exists while writing data, they can use the auto-create table syntax to create non-existent tables; if the table already exists, a new table will not be created. When auto-creating a table, it is required to use a supertable as a template and specify the TAGS values for the data table. For example:
+If the user is unsure whether a certain table exists while writing data, they can use the auto-create table syntax to create non-existent tables; if the table already exists, a new table will not be created. When auto-creating a table, it is required to use a supertable as a template and specify the tag values for the data table. For example:
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
 ```
 
-You can also specify only some TAGS column values during auto-creation, and unspecified TAGS columns will be set to NULL. For example:
+You can also specify only some tag column values during auto-creation, and unspecified tag columns will be set to NULL. For example:
 
 ```sql
 INSERT INTO d21001 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);

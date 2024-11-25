@@ -4,6 +4,9 @@ sidebar_label: taosX
 slug: /tdengine-reference/components/taosx
 ---
 
+import Image from '@theme/IdealImage';
+import imgTdx from '../../assets/taosx-01.png';
+
 taosX is a core component in TDengine Enterprise that provides zero-code data access capabilities. taosX supports two running modes: service mode and command-line mode. This section describes how to use taosX in both ways. To use taosX, you must first install the TDengine Enterprise installation package.
 
 ## Command-Line Mode
@@ -148,7 +151,7 @@ The `-w` parameter cannot be used alone; it is only valid when used with `-u` (u
 
 5. Configure Data Synchronization through `--transform` or `-T` (supports synchronization between versions 2.6 to 3.0 and 3.0); this process performs operations on table names and table fields. Currently, this cannot be set through Explorer. Configuration descriptions are as follows:
 
-   1. AddTag, to add a TAG to the table. Set example: `-T add-tag:<tag1>=<value1>`.
+   1. AddTag, to add a tag to the table. Set example: `-T add-tag:<tag1>=<value1>`.
    2. Rename Table:
        2.1 Rename Table Scope:
            2.1.1 RenameTable: Rename all matching tables.
@@ -531,7 +534,10 @@ The taosX Parser plugin is a dynamic library developed in C/Rust language, requi
 
 After completing plugin development, ensure that the compilation environment is compatible with the target runtime environment. Copy the compiled plugin dynamic library to the plugin directory. When taosX starts, it will initialize and load the plugin when the system first uses it. You can check whether it has loaded successfully in the Kafka or MQTT data access configuration page of Explorer. As shown in the image below, if it loads successfully, it will appear in the parser selection list.
 
-![Plugin Example](../../assets/taosx-01.png)
+<figure>
+<Image img={imgTdx} alt="taosX plugin example"/>
+<figcaption>Figure 1. taosX plugin example</figcaption>
+</figure>
 
 The plugin directory reuses the plugins configuration in the `taosx.toml` configuration file, appending `/parsers` as the plugin installation path. The default value in a UNIX environment is `/usr/local/taos/plugins/parsers`, and in Windows, it is `C:\TDengine\plugins\parsers`.
 

@@ -4,9 +4,15 @@ description: Detailed introduction to connectors for various languages and REST 
 slug: /tdengine-reference/client-libraries
 ---
 
+import Image from '@theme/IdealImage';
+import imgClientLib from '../../assets/client-libraries-01.png';
+
 TDengine provides a rich set of application development interfaces. To help users quickly develop their applications, TDengine supports connectors for multiple programming languages. Official connectors include those for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support both native interfaces (taosc) and WebSocket interfaces to connect to the TDengine cluster. Community developers have also contributed several unofficial connectors, such as ADO.NET, Lua, and PHP connectors.
 
-![TDengine Database connector architecture](../../assets/client-libraries-01.webp)
+<figure>
+<Image img={imgClientLib} alt="TDengine client library architecture"/>
+<figcaption>Figure 1. TDengine client library architecture</figcaption>
+</figure>
 
 ## Supported Platforms
 

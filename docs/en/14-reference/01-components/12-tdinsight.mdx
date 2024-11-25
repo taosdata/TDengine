@@ -6,6 +6,14 @@ slug: /tdengine-reference/components/tdinsight
 
 import Tabs from '@theme/Tabs'
 import TabItem from '@theme/TabItem'
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/tdinsight-01.png';
+import imgStep02 from '../../assets/tdinsight-02.png';
+import imgStep03 from '../../assets/tdinsight-03.png';
+import imgStep04 from '../../assets/tdinsight-04.png';
+import imgStep05 from '../../assets/tdinsight-05.png';
+import imgStep06 from '../../assets/tdinsight-06.png';
+import imgStep07 from '../../assets/tdinsight-07.png';
 
 TDinsight is a solution for monitoring TDengine using Grafana.
 
@@ -45,7 +53,9 @@ The TDinsight dashboard is designed to provide usage and status information abou
 
 This section includes the current information and status of the cluster.
 
-![TDengine Database TDinsight mnodes overview](../../assets/tdinsight-01.webp)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 **Metrics Details (from top to bottom, left to right):**
 
@@ -63,7 +73,9 @@ This section includes the current information and status of the cluster.
 
 This section includes basic information about the cluster's dnodes.
 
-![TDengine Database TDinsight mnodes overview](../../assets/tdinsight-02.webp)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 **Metrics Details:**
 
@@ -74,7 +86,9 @@ This section includes basic information about the cluster's dnodes.
 
 This section includes basic information about the cluster's mnodes.
 
-![TDengine Database TDinsight mnodes overview](../../assets/tdinsight-03.webp)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 **Metrics Details:**
 
@@ -85,7 +99,9 @@ This section includes basic information about the cluster's mnodes.
 
 This section includes statistical metrics for SQL execution in the cluster.
 
-![TDengine Database TDinsight requests](../../assets/tdinsight-04.webp)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 **Metrics Details:**
 
@@ -99,7 +115,9 @@ This section includes statistical metrics for SQL execution in the cluster.
 
 This section includes statistical metrics for tables in the cluster.
 
-![TDengine Database TDinsight database](../../assets/tdinsight-05.webp)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 **Metrics Details:**
 
@@ -112,7 +130,9 @@ This section includes statistical metrics for tables in the cluster.
 
 This section presents the resource usage status of all data nodes in the cluster, with each data node displayed as a row.
 
-![TDengine Database TDinsight dnode-usage](../../assets/tdinsight-06.webp)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 **Metrics Details (from top to bottom, left to right):**
 
@@ -134,7 +154,9 @@ This section presents the resource usage status of all data nodes in the cluster
 
 This section includes detailed statistics of taosAdapter REST and WebSocket requests.
 
-![TDengine Database TDinsight monitor taosadapter](../../assets/tdinsight-07.webp)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 **Metrics Details:**
 

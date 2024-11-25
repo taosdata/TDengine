@@ -3,6 +3,12 @@ title: Seeq
 slug: /third-party-tools/analytics/seeq
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/seeq-01.png';
+import imgStep02 from '../../assets/seeq-02.png';
+import imgStep03 from '../../assets/seeq-03.png';
+import imgStep04 from '../../assets/seeq-04.png';
+
 Seeq is an advanced analytics software designed for manufacturing and the Industrial Internet of Things (IIOT). It supports new features that leverage machine learning innovations within process manufacturing organizations. These features enable organizations to deploy their own or third-party machine learning algorithms to frontline process engineers and subject matter experts, thereby scaling the efforts of individual data scientists to many frontline employees.
 
 With the TDengine Java connector, Seeq can easily support querying the time-series data provided by TDengine and offer capabilities for data display, analysis, and forecasting.
@@ -46,7 +52,9 @@ CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS 
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
 
-![Seeq demo schema](../../assets/seeq-01.webp)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### Data Construction Method
 
@@ -245,7 +253,9 @@ Log in with a Seeq administrator account and create a new data source.
 
 Log in to the Seeq service page and create a new Seeq Workbench. You can display or forecast data by selecting data sources and different tools as needed. For detailed usage instructions, refer to the [official knowledge base](https://support.seeq.com/space/KB/146440193/Seeq+Workbench).
 
-![Seeq Workbench](../../assets/seeq-02.webp)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### Further Data Analysis with Seeq Data Lab Server
 
@@ -314,7 +324,9 @@ plt.show()
 
 The output of the program will be:
 
-![Seeq forecast result](../../assets/seeq-03.webp)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ## Configuring Seeq Data Source to Connect to TDengine Cloud
 
@@ -381,7 +393,9 @@ Configuring the Seeq data source to connect to TDengine Cloud is not fundamental
 
 ### Example Seeq Workbench Interface with TDengine Cloud as Data Source
 
-![Seeq workbench with TDengine cloud](../../assets/seeq-04.webp)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 ## Solution Summary
 

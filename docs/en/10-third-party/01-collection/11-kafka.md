@@ -5,17 +5,27 @@ description: A Detailed Guide on Using TDengine Kafka Connector
 slug: /third-party-tools/data-collection/kafka-connect
 ---
 
+import Image from '@theme/IdealImage';
+import imgKafkaConnect from '../../assets/kafka-connect-01.png';
+import imgKafkaIntegration from '../../assets/kafka-connect-02.png';
+
 The TDengine Kafka Connector includes two plugins: the TDengine Source Connector and the TDengine Sink Connector. Users can simply provide a configuration file to synchronize data from a specified topic in Kafka (either in batches or in real-time) to TDengine, or to synchronize data from a specified database in TDengine (either in batches or in real-time) to Kafka.
 
 ## What is Kafka Connect?
 
 Kafka Connect is a component of [Apache Kafka](https://kafka.apache.org/) that makes it easy to connect other systems, such as databases, cloud services, and file systems, to Kafka. Data can flow into Kafka from other systems via Kafka Connect, and vice versa. The plugins that read data from other systems are called Source Connectors, while those that write data to other systems are called Sink Connectors. Source and Sink Connectors do not connect directly to Kafka Brokers; instead, the Source Connector hands off the data to Kafka Connect, while the Sink Connector receives data from Kafka Connect.
 
-![TDengine Database Kafka Connector -- Kafka Connect structure](../../assets/kafka-connect-01.webp)
+<figure>
+<Image img={imgKafkaConnect} alt="Kafka Connect structure"/>
+<figcaption>Figure 1. Kafka Connect structure</figcaption>
+</figure>
 
 The TDengine Source Connector is used to read data in real-time from TDengine and send it to Kafka Connect. The TDengine Sink Connector is used to receive data from Kafka Connect and write it to TDengine.
 
-![TDengine Database Kafka Connector -- streaming integration with kafka connect](../../assets/kafka-connect-02.webp)
+<figure>
+<Image img={imgKafkaIntegration} alt="Streaming integration with Kafka Connect"/>
+<figcaption>Figure 2. Streaming integration with Kafka Connect</figcaption>
+</figure>
 
 ## Prerequisites
 

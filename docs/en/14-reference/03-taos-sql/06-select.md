@@ -122,7 +122,7 @@ Query statements can specify some or all columns as return results. Both data co
 
 ### Wildcards
 
-The wildcard `*` can be used to refer to all columns. For basic tables and subtables, the result only includes normal columns. For supertables, it also includes TAG columns.
+The wildcard `*` can be used to refer to all columns. For basic tables and subtables, the result only includes normal columns. For supertables, it also includes tag columns.
 
 ```sql
 SELECT * FROM d1001;

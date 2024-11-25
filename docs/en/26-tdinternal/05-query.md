@@ -3,6 +3,10 @@ title: Query Engine
 slug: /inside-tdengine/query-engine
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../assets/query-engine-01.png';
+import imgStep02 from '../assets/query-engine-02.png';
+
 As a high-performance time-series big data platform, TDengine’s query and computation capabilities are core components. The platform offers rich query processing features, including not only standard aggregate queries but also advanced functionalities like time-series window queries and statistical aggregation. These query tasks require close collaboration between taosc, vnode, qnode, and mnode. In a complex supertable aggregation query scenario, multiple vnodes and qnodes may need to work together to handle the query and computation tasks. For definitions and introductions to vnode, qnode, and mnode, please refer to [Architecture](../architecture/).
 
 ## Roles of Modules in Query Computation
@@ -83,7 +87,10 @@ To efficiently aggregate data from different data collection points, TDengine in
 
 Using supertables, applications can easily perform aggregation or statistical operations on all or part of the tables under a supertable by specifying tag filtering conditions. This design simplifies application development and improves data processing efficiency and flexibility. The multi-table aggregation query process is illustrated below:
 
-![Multi-Table Aggregation Query Process](../assets/query-engine-01.png)
+<figure>
+<Image img={imgStep01} alt="Multi-table aggregation query process"/>
+<figcaption>Figure 1. Multi-table aggregation query process</figcaption>
+</figure>
 
 The steps are as follows:
 
@@ -125,7 +132,10 @@ TDengine uses appropriate cache management strategies for different cache object
 
 To ensure cache validity and system performance, TDengine periodically checks the cache list for expired data and deletes it. This regular cleaning mechanism prevents excessive useless data from accumulating, conserving system resources while maintaining cache data accuracy. The cache scheme is illustrated below:
 
-![Cache Scheme](../assets/query-engine-02.png)
+<figure>
+<Image img={imgStep02} alt="Cache scheme"/>
+<figcaption>Figure 2. Cache scheme</figcaption>
+</figure>
 
 - **Metadata Cache:** Includes information about databases, supertables, users, nodes, views, and virtual nodes, as well as table schemas and their mapping to virtual nodes. Caching metadata in taosc avoids frequent requests to mnode/vnode. taosc uses a fixed-size cache, following a first-come-first-served policy until the cache is full. When the cache is full, some entries are evicted to accommodate new requests.
 - **Time-Series Data Cache:** Time-series data is first cached in vnode memory as a SkipList. When the flush condition is met, the data is compressed and written to storage files, then cleared from the cache.

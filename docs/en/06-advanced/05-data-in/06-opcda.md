@@ -3,6 +3,16 @@ title: OPC DA
 slug: /advanced-features/data-connectors/opc-da
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep1 from '../../assets/opc-da-01.png';
+import imgStep2 from '../../assets/opc-da-02.png';
+import imgStep3 from '../../assets/opc-da-03.png';
+import imgStep4 from '../../assets/opc-da-04.png';
+import imgStep5 from '../../assets/opc-da-05.png';
+import imgStep6 from '../../assets/opc-da-06.png';
+import imgStep7 from '../../assets/opc-da-07.png';
+import imgStep8 from '../../assets/opc-da-08.png';
+
 This section explains how to create a data migration task through the Explorer interface, syncing data from an OPC-DA server to the current TDengine cluster.
 
 ## Overview
@@ -19,7 +29,9 @@ TDengine can efficiently read data from the OPC-DA server and write it to TDengi
 
 On the Data Ingestion page, click the **+Add Data Source** button to go to the Add Data Source page.
 
-![add.png](../../assets/opc-da-01.png)
+<figure>
+<Image img={imgStep1} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -31,7 +43,9 @@ If the taosX service is running on the same server as the OPC-DA server, the age
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-![basic.png](../../assets/opc-da-02.png)
+<figure>
+<Image img={imgStep2} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
@@ -39,7 +53,9 @@ In the **Connection Configuration** section, fill in the **OPC-DA Server Address
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![endpoint.png](../../assets/opc-da-03.png)
+<figure>
+<Image img={imgStep3} alt=""/>
+</figure>
 
 ### 4. Configure Data Points Set
 
@@ -131,13 +147,17 @@ Specify the supertable and subtable where the data will be written by configurin
 
 Configure the **Primary Key Column**: select origin_ts to use the original timestamp of the OPC data point as the primary key in TDengine, or select received_ts to use the received timestamp as the primary key in TDengine. You can also configure the **Primary Key Alias** to specify the name of the timestamp column in TDengine.
 
-![point.png](../../assets/opc-da-04.png)
+<figure>
+<Image img={imgStep4} alt=""/>
+</figure>
 
 ### 5. Collection Configuration
 
 In the collection configuration, configure the collection interval, connection timeout, and collection timeout options for the current task.
 
-![collect](../../assets/opc-da-05.png)
+<figure>
+<Image img={imgStep5} alt=""/>
+</figure>
 
 As shown in the image above:
 
@@ -155,7 +175,9 @@ When **Data Points Set** is configured using the **Select Data Points** method, 
 
 ### 6. Advanced Options
 
-![advance options](../../assets/opc-da-06.png)
+<figure>
+<Image img={imgStep6} alt=""/>
+</figure>
 
 As shown in the image above, advanced options can be configured to further optimize performance, logging, and more.
 
@@ -186,10 +208,14 @@ Click the **Submit** button to complete the OPC DA to TDengine data synchronizat
 
 While the task is running, click **Edit**, then click the **Add Data Points** button to append data points to the CSV file.
 
-![Add Data Points](../../assets/opc-da-07.png)
+<figure>
+<Image img={imgStep7} alt=""/>
+</figure>
 
 In the pop-up form, fill in the data point information.
 
-![Data Points Form](../../assets/opc-da-08.png)
+<figure>
+<Image img={imgStep8} alt=""/>
+</figure>
 
 Click the **Confirm** button to complete the addition of data points.

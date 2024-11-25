@@ -3,6 +3,18 @@ title: InfluxDB
 slug: /advanced-features/data-connectors/influxdb
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/influxdb-01.png';
+import imgStep02 from '../../assets/influxdb-02.png';
+import imgStep03 from '../../assets/influxdb-03.png';
+import imgStep04 from '../../assets/influxdb-04.png';
+import imgStep05 from '../../assets/influxdb-05.png';
+import imgStep06 from '../../assets/influxdb-06.png';
+import imgStep07 from '../../assets/influxdb-07.png';
+import imgStep08 from '../../assets/influxdb-08.png';
+import imgStep09 from '../../assets/influxdb-09.png';
+import imgStep10 from '../../assets/influxdb-10.png';
+
 This section explains how to create a data migration task through the Explorer interface to migrate data from InfluxDB to the current TDengine cluster.
 
 ## Function Overview
@@ -17,7 +29,9 @@ During task execution, progress information is saved to disk, so if the task is 
 
 Click the **+Add Data Source** button in the top left of the data writing page to enter the Add Data Source page, as shown below:
 
-![Common-zh00-EnterDataSourcePage.png](../../assets/influxdb-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -29,13 +43,17 @@ The **Agent** field is optional. If needed, you can select a specified agent fro
 
 The **Target Database** is required. Since InfluxDB stores data in various time precisions such as seconds, milliseconds, microseconds, and nanoseconds, you need to select a *`nanosecond-precision database`*. You can also click the **+Create Database** button on the right to create a new database.
 
-![InfluxDB-02zh-SelectTheTypeAsInfluxDB.png](../../assets/influxdb-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
 In the **Connection Configuration** area, fill in the *`connection information of the source InfluxDB database`*, as shown below:
 
-![InfluxDB-03zh-FillInTheConnectionInformation.png](../../assets/influxdb-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure Authentication Information
 
@@ -44,24 +62,35 @@ In the **Authentication** section, there are two tabs, *`1.x version`* and *`2.x
   **Version**: Select the version of the source InfluxDB database from the dropdown.  
   **User**: Enter the user for the source InfluxDB database, and the user must have read access in the organization.  
   **Password**: Enter the password for the above user in the source InfluxDB database.  
-  ![InfluxDB-04zh-SelectVersion1.x.png](../../assets/influxdb-04.png)  
+  <figure>
+  <Image img={imgStep04} alt=""/>
+  </figure>
   *`2.x version`*  
   **Version**: Select the version of the source InfluxDB database from the dropdown.  
   **Organization ID**: Enter the organization ID of the source InfluxDB database, which is a string composed of hexadecimal characters, not the organization name. This can be obtained from the Organization->About page of the InfluxDB console.  
   **Token**: Enter the access token for the source InfluxDB database, which must have read access in the organization.  
   **Add Database Retention Policy**: This is a *`Yes/No`* toggle item. InfluxQL requires a combination of the database and retention policy (DBRP) to query data. Some 2.x versions and the InfluxDB Cloud version require manually adding this mapping. Turning on this switch allows the connector to automatically add this during task execution.  
-  ![InfluxDB-05zh-SelectVersion2.x.png](../../assets/influxdb-05.png)
+  <figure>
+  <Image img={imgStep05} alt=""/>
+  </figure>
 
 Below the **Authentication** area, there is a **Connectivity Check** button. Users can click this button to check whether the information entered above can correctly retrieve data from the source InfluxDB database. The check results are shown below:  
   **Failure**  
-  ![InfluxDB-06zh-ConnectivityCheckFailed.png](../../assets/influxdb-06.png)  
+  <figure>
+  <Image img={imgStep06} alt=""/>
+  </figure>
   **Success**  
-  ![InfluxDB-07zh-ConnectivityCheckSuccessful.png](../../assets/influxdb-07.png)
+  <figure>
+  <Image img={imgStep07} alt=""/>
+  </figure>
 
 ### 5. Configure Task Information
 
 **Bucket**: In InfluxDB, a bucket is a namespace for storing data. Each task must specify a bucket. Users need to click the **Get Schema** button on the right to fetch the data structure information of the current source InfluxDB database and then select from the dropdown box, as shown below:
-![InfluxDB-08zh-GetSchemaAndSelectOneBucket.png](../../assets/influxdb-08.png)
+
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 **Measurements**: This is optional. Users can select one or more measurements to synchronize. If not specified, all will be synchronized.
 
@@ -76,8 +105,14 @@ Below the **Authentication** area, there is a **Connectivity Check** button. Use
 ### 6. Configure Advanced Options
 
 The **Advanced Options** section is collapsed by default. Click the `>` on the right to expand it, as shown below:
-![InfluxDB-09zh-AdvancedOptionsExpandButton.png](../../assets/influxdb-09.png)
-![InfluxDB-10zh-AdvancedOptionsExpand.png](../../assets/influxdb-10.png)
+
+<figure>
+<Image img={imgStep09} alt=""/>
+</figure>
+
+<figure>
+<Image img={imgStep10} alt=""/>
+</figure>
 
 ### 7. Completion
 

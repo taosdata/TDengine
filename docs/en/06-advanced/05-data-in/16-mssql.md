@@ -4,6 +4,16 @@ sidebar_label: SQL Server
 slug: /advanced-features/data-connectors/sql-server
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/sql-server-01.png';
+import imgStep02 from '../../assets/sql-server-02.png';
+import imgStep03 from '../../assets/sql-server-03.png';
+import imgStep04 from '../../assets/sql-server-04.png';
+import imgStep05 from '../../assets/sql-server-05.png';
+import imgStep06 from '../../assets/sql-server-06.png';
+import imgStep07 from '../../assets/sql-server-07.png';
+import imgStep08 from '../../assets/sql-server-08.png';
+
 This section explains how to create data migration tasks through the Explorer interface to migrate data from Microsoft SQL Server to the current TDengine cluster.
 
 ## Function Overview
@@ -16,7 +26,9 @@ Microsoft SQL Server is one of the most popular relational databases. Many syste
 
 Click the **+Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![Common-zh00-EnterDataSourcePage.png](../../assets/sql-server-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -28,13 +40,17 @@ The **Agent** field is optional; if needed, you can select a specified agent fro
 
 The **Target Database** field is required; you can first click the **+Create Database** button on the right to create a new database.
 
-![mssql-01.png](../../assets/sql-server-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
 In the **Connection Configuration** area, fill in the *`source Microsoft SQL Server database connection information`*, as shown below:
 
-![mssql-02.png](../../assets/sql-server-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure Authentication Information
 
@@ -42,7 +58,9 @@ In the **User** field, enter the user for the source Microsoft SQL Server databa
 
 In the **Password** field, enter the login password for the user in the source Microsoft SQL Server database.
 
-![ mssql-03.png](../../assets/sql-server-04.png)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 ### 5. Configure Connection Options
 
@@ -56,7 +74,9 @@ In the **Trust Server Certificate** field, set whether to trust the server certi
 
 In the **Trust Certificate CA** field, set whether to trust the server's certificate CA. If a CA file is uploaded, the server certificate will be verified against the provided CA certificate in addition to the system trust store.
 
-![ mssql-04.png](../../assets/sql-server-05.png)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 Then click the **Check Connectivity** button; users can click this button to check if the information filled in above can successfully retrieve data from the source Microsoft SQL Server database.
 
@@ -88,7 +108,9 @@ To solve the problem of migration data disorder, sorting conditions should be ad
 
 **Delay Duration** is an integer range from 1 to 30; to avoid the loss of delayed written data in real-time synchronization scenarios, each synchronization task will read data before the specified delay duration.
 
-![ mssql-05.png](../../assets/sql-server-06.png)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 ### 7. Configure Data Mapping
 
@@ -104,7 +126,9 @@ In the **Mapping** section, select the supertable to map to TDengine and specify
 
 Click **Preview** to view the mapping results.
 
-![mssql-06.png](../../assets/sql-server-07.png)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 ### 8. Configure Advanced Options
 
@@ -114,7 +138,9 @@ The **Advanced Options** area is folded by default; click the `>` button on the 
 
 **Batch Size** is the maximum number of messages or rows sent at one time. The default is 10,000.
 
-![mssql-07.png](../../assets/sql-server-08.png)
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 ### 9. Completion
 

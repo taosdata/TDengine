@@ -3,6 +3,16 @@ title: AVEVA Historian
 slug: /advanced-features/data-connectors/aveva-historian
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/aveva-historian-01.png';
+import imgStep02 from '../../assets/aveva-historian-02.png';
+import imgStep03 from '../../assets/aveva-historian-03.png';
+import imgStep04 from '../../assets/aveva-historian-04.png';
+import imgStep05 from '../../assets/aveva-historian-05.png';
+import imgStep06 from '../../assets/aveva-historian-06.png';
+import imgStep07 from '../../assets/aveva-historian-07.png';
+import imgStep08 from '../../assets/aveva-historian-08.png';
+
 This section explains how to create data migration/data synchronization tasks through the Explorer interface to migrate/synchronize data from AVEVA Historian to the current TDengine cluster.
 
 ## Function Overview
@@ -17,7 +27,9 @@ TDengine can efficiently read data from AVEVA Historian and write it to TDengine
 
 Click the **+Add Data Source** button on the data writing page to enter the Add Data Source page.
 
-![avevaHistorian-01.png](../../assets/aveva-historian-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -29,7 +41,9 @@ The **Agent** field is optional; if needed, you can select a specified agent fro
 
 In the **Target Database** dropdown list, select a target database, or click the **+Create Database** button on the right.
 
-![avevaHistorian-02.png](../../assets/aveva-historian-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
@@ -39,7 +53,9 @@ In the **Authentication** area, fill in the **Username** and **Password**.
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![avevaHistorian-03.png](../../assets/aveva-historian-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure Data Collection Information
 
@@ -61,7 +77,9 @@ In the **Task End Time** field, enter the end time for the data migration task.
 
 In the **Query Time Window** field, specify a time interval; the data migration task will segment the time window according to this interval.
 
-![avevaHistorian-04.png](../../assets/aveva-historian-04.png)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 #### 4.2. Synchronize Data from the History Table
 
@@ -83,7 +101,9 @@ In the **Real-Time Synchronization Interval** field, specify a time interval for
 
 In the **Out-of-Order Time Limit** field, specify a time interval; data that arrives later than this interval may be lost during real-time synchronization.
 
-![avevaHistorian-05.png](../../assets/aveva-historian-05.png)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 #### 4.3. Synchronize Data from the Live Table
 
@@ -97,7 +117,9 @@ In the **Tags** field, enter the list of tags to migrate, separated by commas (,
 
 In the **Real-Time Synchronization Interval** field, specify a time interval for polling real-time data.
 
-![avevaHistorian-06.png](../../assets/aveva-historian-06.png)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 ### 5. Configure Data Mapping
 
@@ -113,7 +135,9 @@ In the **Mapping** section, select the supertable to map to TDengine, and specif
 
 Click **Preview** to view the mapping results.
 
-![avevaHistorian-07.png](../../assets/aveva-historian-07.png)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 ### 6. Configure Advanced Options
 
@@ -131,7 +155,9 @@ In the **Maximum Retention Days** field, set the maximum retention days for the 
 
 In the **Raw Data Storage Directory** field, set the path to save the raw data.
 
-![avevaHistorian-08.png](../../assets/aveva-historian-08.png)
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 ### 7. Completion
 

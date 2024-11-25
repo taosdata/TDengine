@@ -3,6 +3,17 @@ title: CSV File
 slug: /advanced-features/data-connectors/csv-file
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/csv-file-01.png';
+import imgStep02 from '../../assets/csv-file-02.png';
+import imgStep03 from '../../assets/csv-file-03.png';
+import imgStep04 from '../../assets/csv-file-04.png';
+import imgStep05 from '../../assets/csv-file-05.png';
+import imgStep06 from '../../assets/csv-file-06.png';
+import imgStep07 from '../../assets/csv-file-07.png';
+import imgStep10 from '../../assets/csv-file-10.png';
+import imgStep11 from '../../assets/csv-file-11.png';
+
 This section explains how to create a data migration task through the Explorer interface to migrate data from CSV to the current TDengine cluster.
 
 ## Function Overview
@@ -15,7 +26,9 @@ Import one or more CSV files into TDengine.
 
 Click the **+Add Data Source** button on the data writing page to enter the Add Data Source page.
 
-![csv-01.png](../../assets/csv-file-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -25,7 +38,9 @@ Select **CSV** from the **Type** dropdown list.
 
 In the **Target Database** dropdown list, select a target database, or click the **+Create Database** button on the right.
 
-![csv-02.png](../../assets/csv-file-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure CSV Options
 
@@ -39,7 +54,9 @@ In the **Field Quotation Character** section, select the character used to surro
 
 In the **Comment Prefix Character** section, select the character; if any line in the CSV file begins with this character, that line will be ignored; the default is "#".
 
-![csv-03.png](../../assets/csv-file-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure CSV File Parsing
 
@@ -49,11 +66,15 @@ Upload the CSV file locally, for example: test-json.csv; this sample CSV file wi
 
 After clicking **Select File**, choose test-json.csv, then click **Parse** to preview the identified columns.
 
-![csv-04.png](../../assets/csv-file-04.png)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 **Preview Parsing Results**
 
-![csv-05.png](../../assets/csv-file-05.png)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 #### 4.2 Field Splitting
 
@@ -63,11 +84,15 @@ Click **Delete** to remove the current extraction rule.
 
 Click **Add** to add more extraction rules.
 
-![csv-06.png](../../assets/csv-file-06.png)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 Click the **Magnifying Glass Icon** to preview the extraction or splitting results.
 
-![csv-07.png](../../assets/csv-file-07.png)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 <!-- In the **Filtering** section, enter filtering conditions, such as: `id != 1`, so that only data where id is not 1 will be written to TDengine.
 Click **Delete** to remove the current filtering rule.
@@ -84,11 +109,15 @@ In the **Target Supertable** dropdown list, select a target supertable, or click
 
 In the **Mapping** section, fill in the subtable name in the target supertable, for example: `t_${groupid}`.
 
-![csv-10.png](../../assets/csv-file-10.png)
+<figure>
+<Image img={imgStep10} alt=""/>
+</figure>
 
 Click **Preview** to see the mapping results.
 
-![csv-11.png](../../assets/csv-file-11.png)
+<figure>
+<Image img={imgStep11} alt=""/>
+</figure>
 
 ### 5. Completion
 

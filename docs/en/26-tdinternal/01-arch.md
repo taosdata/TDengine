@@ -4,6 +4,12 @@ description: TDengine architecture design, including clusters, storage, caching 
 slug: /inside-tdengine/architecture
 ---
 
+import Image from '@theme/IdealImage';
+import imgArch from '../assets/architecture-01.png';
+import imgFlow from '../assets/architecture-02.png';
+import imgLeader from '../assets/architecture-03.png';
+import imgFollower from '../assets/architecture-04.png';
+
 ## Cluster and Basic Logical Units
 
 TDengine's design assumes that individual hardware and software systems are unreliable and that no single computer can provide sufficient computing and storage capacity to handle massive data volumes. Therefore, from day one, TDengine has been designed as a distributed, highly reliable architecture, supporting horizontal scaling. This way, hardware failures or software errors on any single or multiple servers will not affect the availability and reliability of the system. Additionally, with node virtualization and load-balancing technology, TDengine efficiently utilizes heterogeneous clusters' computing and storage resources to reduce hardware investment.
@@ -12,9 +18,10 @@ TDengine's design assumes that individual hardware and software systems are unre
 
 The logical structure of TDengine's distributed architecture is shown below:
 
-![TDengine Database Architecture Diagram](../assets/architecture-01.webp)
-
-<center> Figure 1: TDengine Architecture Diagram </center>
+<figure>
+<Image img={imgArch} alt="TDengine architecture diagram"/>
+<figcaption>Figure 1. TDengine architecture diagram</figcaption>
+</figure>
 
 A complete TDengine system runs on one or more physical nodes. Logically, it includes data nodes (dnode), TDengine application drivers (taosc), and applications (app). The system contains one or more data nodes, which form a cluster. Applications interact with the TDengine cluster through the taosc API. Below is a brief introduction to each logical unit.
 
@@ -152,9 +159,10 @@ Additionally, TDengine uses an internal messaging mechanism to ensure all nodes 
 
 The following outlines the typical workflow for inserting data, illustrating the relationships between vnodes, mnodes, `taosc`, and applications.
 
-![TDengine Database Typical Operation Flow](../assets/architecture-02.webp)
-
-<center> Figure 2: TDengine Typical Operation Flow </center>
+<figure>
+<Image img={imgFlow} alt="Typical operation flow in TDengine"/>
+<figcaption>Figure 2. Typical operation flow in TDengine</figcaption>
+</figure>
 
 1. The application sends an insert request via JDBC or other API interfaces.
 2. `Taosc` checks its cache to see if it has the vgroup-info of the database containing the table. If found, it proceeds to step 4. If not, `taosc` sends a `get vgroup-info` request to the mnode.
@@ -228,9 +236,10 @@ This design guarantees data reliability and consistency in a distributed environ
 
 The **leader vnode** follows the write process outlined below:
 
-![TDengine Database Leader Write Process](../assets/architecture-03.webp)
-
-<center> Figure 3: TDengine Leader Write Process </center>
+<figure>
+<Image img={imgLeader} alt="Leader write process"/>
+<figcaption>Figure 3. Leader write process</figcaption>
+</figure>
 
 1. **Step 1**: The **leader vnode** receives the write request from the application, validates it, and proceeds to Step 2.
 2. **Step 2**: The **vnode** writes the original data packet into the **Write-Ahead Log (WAL)**. If the `wal_level` is set to 2 and `wal_fsync_period` is set to 0, TDengine immediately writes the WAL data to disk, ensuring data recovery in case of a crash.
@@ -243,9 +252,10 @@ The **leader vnode** follows the write process outlined below:
 
 The write process for **follower vnode** is as follows:
 
-![TDengine Database Follower Write Process](../assets/architecture-04.webp)
-
-<center> Figure 4: TDengine Follower Write Process </center>
+<figure>
+<Image img={imgFollower} alt="Follower write process"/>
+<figcaption>Figure 4. Follower write process</figcaption>
+</figure>
 
 1. **Step 1**: The **follower vnode** receives the data insertion request forwarded by the **leader vnode**.
 2. **Step 2**: The **vnode** writes the original data packet to the **WAL**. If `wal_level` is set to 2 and `wal_fsync_period` is 0, the data is immediately persisted to disk to prevent data loss during crashes.
@@ -253,7 +263,7 @@ The write process for **follower vnode** is as follows:
 
 Compared to the **leader vnode**, the **follower vnode** process omits forwarding and confirmation steps. However, memory writes and WAL operations are identical.
 
-### Master-Slave Election
+### Leader Election
 
 Each `vnode` maintains a **version number** that is persisted when data is stored in memory. Every time data, whether time-series or metadata, is updated, the version number increments to accurately track changes.
 

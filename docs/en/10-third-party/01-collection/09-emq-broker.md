@@ -4,6 +4,19 @@ description: Writing to TDengine Using EMQX Broker
 slug: /third-party-tools/data-collection/emqx-platform
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/emqx-platform-01.png';
+import imgStep02 from '../../assets/emqx-platform-02.png';
+import imgStep03 from '../../assets/emqx-platform-03.png';
+import imgStep04 from '../../assets/emqx-platform-04.png';
+import imgStep05 from '../../assets/emqx-platform-05.png';
+import imgStep06 from '../../assets/emqx-platform-06.png';
+import imgStep07 from '../../assets/emqx-platform-07.png';
+import imgStep08 from '../../assets/emqx-platform-08.png';
+import imgStep09 from '../../assets/emqx-platform-09.png';
+import imgStep10 from '../../assets/emqx-platform-10.png';
+import imgStep11 from '../../assets/emqx-platform-11.png';
+
 MQTT is a popular data transmission protocol for the Internet of Things, and [EMQX](https://github.com/emqx/emqx) is an open-source MQTT Broker software. Without any code, you can use the "Rules" feature in the EMQX Dashboard to perform simple configurations to directly write MQTT data into TDengine. EMQX supports saving data to TDengine via sending to web services and also provides a native TDengine driver implementation for direct saving in the enterprise edition.
 
 ## Prerequisites
@@ -38,13 +51,17 @@ Since the configuration interface differs across EMQX versions, the example belo
 
 Open your browser and navigate to `http://IP:18083` to log into the EMQX Dashboard. The default username is `admin` and the password is `public`.
 
-![TDengine Database EMQX login dashboard](../../assets/emqx-platform-01.webp)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### Create Rule
 
 Select "Rule" under the "Rule Engine" on the left and click the "Create" button:
 
-![TDengine Database EMQX rule engine](../../assets/emqx-platform-02.webp)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### Edit SQL Field
 
@@ -59,15 +76,21 @@ FROM
 
 Here, `payload` represents the entire message body, and `sensor/data` is the message topic selected for this rule.
 
-![TDengine Database EMQX create rule](../../assets/emqx-platform-03.webp)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### Add Action Handler
 
-![TDengine Database EMQX](../../assets/emqx-platform-04.webp)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 ### Add Resource
 
-![TDengine Database EMQX create resource](../../assets/emqx-platform-05.webp)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 Select "Send Data to Web Service" and click the "Create Resource" button:
 
@@ -77,7 +100,9 @@ Select "WebHook" and fill in the "Request URL" with the address for taosAdapter 
 
 Keep the other attributes at their default values.
 
-![TDengine Database EMQX edit resource](../../assets/emqx-platform-06.webp)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 ### Edit Action
 
@@ -108,7 +133,9 @@ INSERT INTO test.sensor_data VALUES(
 )
 ```
 
-![TDengine Database EMQX edit action](../../assets/emqx-platform-07.webp)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 Finally, click the "Create" button at the bottom left to save the rule.
 
@@ -120,7 +147,9 @@ Finally, click the "Create" button at the bottom left to save the rule.
 
 Note: You can initially set a smaller value for CLIENT_NUM in the code during the test to avoid overwhelming hardware performance with a large number of concurrent clients.
 
-![TDengine Database EMQX client num](../../assets/emqx-platform-08.webp)
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 ## Execute Test to Simulate Sending MQTT Data
 
@@ -129,17 +158,24 @@ npm install mqtt mockjs --save --registry=https://registry.npm.taobao.org
 node mock.js
 ```
 
-![TDengine Database EMQX run-mock](../../assets/emqx-platform-09.webp)
+<figure>
+<Image img={imgStep09} alt=""/>
+</figure>
 
 ## Verify EMQX Received Data
 
 Refresh the rule engine interface in the EMQX Dashboard to see how many records were correctly received:
 
-![TDengine Database EMQX rule matched](../../assets/emqx-platform-10.webp)
+<figure>
+<Image img={imgStep10} alt=""/>
+</figure>
 
 ## Verify Data Written to TDengine
 
 Log into TDengine CLI and query the corresponding database and table to verify whether the data has been correctly written to TDengine:
 
-![TDengine Database EMQX result in taos](../../assets/emqx-platform-11.webp)
+<figure>
+<Image img={imgStep11} alt=""/>
+</figure>
+
 For detailed usage of EMQX, please refer to the [EMQX Official Documentation](https://docs.emqx.com/en/emqx/latest/data-integration/rules.html#rule-engine).

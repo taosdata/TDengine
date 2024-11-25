@@ -4,6 +4,13 @@ description: TDengine's unique querying capabilities for time series data
 slug: /tdengine-reference/sql-manual/time-series-extensions
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/time-series-extensions-01.png';
+import imgStep02 from '../../assets/time-series-extensions-02.png';
+import imgStep03 from '../../assets/time-series-extensions-03.png';
+import imgStep04 from '../../assets/time-series-extensions-04.png';
+import imgStep05 from '../../assets/time-series-extensions-05.png';
+
 On top of supporting standard SQL, TDengine also offers a series of unique query syntaxes that meet the needs of time series business scenarios, greatly facilitating the development of applications in these contexts.
 
 The unique queries provided by TDengine include data partitioning queries and time window partitioning queries.
@@ -106,7 +113,9 @@ Time windows can be further divided into sliding time windows and tumbling time 
 
 The INTERVAL clause is used to produce equal time period windows, while SLIDING specifies the time for the window to slide forward. Each executed query is a time window that moves forward in time. When defining continuous queries, it is necessary to specify the size of the time window and the forward sliding time for each execution. As shown in the figure, [t0s, t0e], [t1s, t1e], and [t2s, t2e] represent the time window ranges for executing three continuous queries, with the sliding time range indicating the forward sliding of the window. Query filtering, aggregation, and other operations are executed independently for each time window. When SLIDING is equal to INTERVAL, the sliding window is equivalent to the tumbling window.
 
-![TDengine Database Time Window Illustration](../../assets/time-series-extensions-01.webp)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 The INTERVAL and SLIDING clauses need to be used in conjunction with aggregate and selection functions. The following SQL statement is invalid:
 
@@ -130,7 +139,9 @@ When using time windows, the following should be noted:
 
 State windows are defined using integers (boolean values) or strings to identify the state variable of the device when records are generated. Records with the same state variable value belong to the same state window, and the window closes when the value changes. As shown in the figure below, the state windows determined by the state variable are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
-![TDengine Database Time Window Illustration](../../assets/time-series-extensions-02.webp)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 The `STATE_WINDOW` is used to determine the column that defines the state window. For example:
 
@@ -154,7 +165,9 @@ SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 
 
 Session windows are determined based on the values of the timestamp primary key of records to determine whether they belong to the same session. As shown in the figure below, if the continuous interval of the timestamps is less than or equal to 12 seconds, the following 6 records form 2 session windows: [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30]. This is because the interval between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, exceeding the continuous interval (12 seconds).
 
-![TDengine Database Time Window Illustration](../../assets/time-series-extensions-03.webp)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 Records within the `tol_value` time interval are considered to belong to the same window; if the timestamps of two consecutive records exceed `tol_val`, a new window is automatically opened.
 
@@ -178,7 +191,9 @@ For example, the following SQL statement illustrates the event window partitioni
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![TDengine Database Event Window Illustration](../../assets/time-series-extensions-04.webp)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 ### Count Windows
 
@@ -190,7 +205,9 @@ The following SQL statement illustrates the count window partitioning:
 select _wstart, _wend, count(*) from t count_window(4);
 ```
 
-![count_window](https://github.com/taosdata/TDengine/assets/38781207/ff86278e-cbff-477f-a866-6e5cc150b712)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 ### Timestamp Pseudo Columns
 

@@ -5,6 +5,8 @@ slug: /developer-guide/ingesting-data-efficiently
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import Image from '@theme/IdealImage';
+import imgThread from '../assets/ingesting-data-efficiently-01.png';
 
 This section introduces how to efficiently write data to TDengine.
 
@@ -56,7 +58,10 @@ The following example program demonstrates how to efficiently write data, with t
 - The client program hashes received data based on the associated table name (or subtable name) to determine the corresponding Queue index, ensuring that data belonging to a specific table (or subtable) is processed by a designated thread.
 - Each sub-thread writes the data from its associated message queue to TDengine after emptying the queue or reaching a predefined data volume threshold, and continues processing the subsequently received data.
 
-![Thread model for efficient writing example scenario in TDengine](../assets/ingesting-data-efficiently-01.webp)
+<figure>
+<Image img={imgThread} alt="Thread model for efficient writing example"/>
+<figcaption>Figure 1. Thread model for efficient writing example</figcaption>
+</figure>
 
 ### Example Code {#code}
 

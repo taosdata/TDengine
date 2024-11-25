@@ -5,6 +5,8 @@ slug: /developer-guide/connecting-to-tdengine
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import Image from '@theme/IdealImage';
+import imgConnect from '../assets/connecting-to-tdengine-01.png';
 import ConnJava from "./_connect_java.mdx";
 import ConnGo from "./_connect_go.mdx";
 import ConnRust from "./_connect_rust.mdx";
@@ -29,7 +31,10 @@ TDengine provides three methods for establishing connections:
 2. Establish a connection to taosd via the REST API provided by the taosAdapter component; this method is referred to as "REST connection."
 3. Establish a connection to taosd via the WebSocket API provided by the taosAdapter component; this method is referred to as "WebSocket connection."
 
-![TDengine connection type](../assets/connecting-to-tdengine-01.webp)
+<figure>
+<Image img={imgConnect} alt="Connecting to TDengine"/>
+<figcaption>Figure 1. Connecting to TDengine</figcaption>
+</figure>
 
 Regardless of the method used to establish a connection, the connectors provide similar API operations for databases and can execute SQL statements. The only difference lies in how the connection is initialized, and users should not notice any difference in usage. For various connection methods and language connector support, refer to: [Feature Support](../../tdengine-reference/client-libraries/#feature-support).
 

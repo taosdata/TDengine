@@ -3,6 +3,16 @@ title: MongoDB
 slug: /advanced-features/data-connectors/mongodb
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/mongodb-01.png';
+import imgStep02 from '../../assets/mongodb-02.png';
+import imgStep03 from '../../assets/mongodb-03.png';
+import imgStep04 from '../../assets/mongodb-04.png';
+import imgStep05 from '../../assets/mongodb-05.png';
+import imgStep06 from '../../assets/mongodb-06.png';
+import imgStep07 from '../../assets/mongodb-07.png';
+import imgStep08 from '../../assets/mongodb-08.png';
+
 This section explains how to create data migration tasks through the Explorer interface to migrate data from MongoDB to the current TDengine cluster.
 
 ## Function Overview
@@ -15,7 +25,9 @@ MongoDB is a product that sits between relational and non-relational databases a
 
 Click the **+Add Data Source** button in the upper right corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![Common-zh00-EnterDataSourcePage.png](../../assets/mongodb-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -27,13 +39,17 @@ The **Agent** field is optional; if needed, you can select a specified agent fro
 
 The **Target Database** field is required; you can select a specified database from the dropdown or click the **+Create Database** button on the right to create a new database.
 
-![mongodb-01.png](../../assets/mongodb-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
 In the **Connection Configuration** area, fill in the *`source MongoDB database connection information`*, as shown below:
 
-![mongodb-02.png](../../assets/mongodb-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure Authentication Information
 
@@ -43,7 +59,9 @@ In the **Password** field, enter the login password for the user in the source M
 
 In the **Authentication Database** field, enter the database in MongoDB that stores user information, which defaults to admin.
 
-![mongodb-03.png](../../assets/mongodb-04.png)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 ### 5. Configure Connection Options
 
@@ -54,7 +72,9 @@ In the **SSL Certificate** field, set whether to use an encrypted connection, wh
 1. **CA File**: Upload the SSL encrypted certificate authorization file.
 2. **Certificate File**: Upload the SSL encrypted certificate file.
 
-![ mongodb-04.png](../../assets/mongodb-05.png)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 Then click the **Check Connectivity** button; users can click this button to check if the information filled in above can successfully retrieve data from the source MongoDB database.
 
@@ -104,7 +124,9 @@ In the **Query Sorting** field, specify sorting conditions for executing the que
 
 **Delay Duration** is an integer range from 1 to 30; to avoid the loss of delayed written data in real-time synchronization scenarios, each synchronization task will read data before the specified delay duration.
 
-![ mongodb-05.png](../../assets/mongodb-06.png)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 ### 7. Configure Data Mapping
 
@@ -120,7 +142,9 @@ In the **Filtering** section, enter filtering conditions; for example, entering 
 
 In the **Mapping** section, select the supertable to map to TDengine and specify the columns to map to the supertable. After configuration, click the **Preview** button on the right to view the mapping results.
 
-![mongodb-06.png](../../assets/mongodb-07.png)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 ### 8. Configure Advanced Options
 
@@ -130,7 +154,9 @@ The **Advanced Options** area is folded by default; click the `>` button on the 
 
 **Batch Size** is the maximum number of messages or rows sent at one time. The default is 10,000.
 
-![mongodb-07.png](../../assets/mongodb-08.png)
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 ### 9. Completion
 

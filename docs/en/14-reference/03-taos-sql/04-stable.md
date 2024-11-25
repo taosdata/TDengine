@@ -26,13 +26,13 @@ table_option: {
 
 **Usage Instructions**
 
-1. The maximum number of columns in a supertable is 4096, including TAG columns; the minimum number is 3, which includes one timestamp primary key, one TAG column, and one data column.
+1. The maximum number of columns in a supertable is 4096, including tag columns; the minimum number is 3, which includes one timestamp primary key, one tag column, and one data column.
 2. In addition to the timestamp primary key column, a second column can also be designated as an additional primary key using the PRIMARY KEY keyword. The second column designated as the primary key must be of integer or string type (varchar).
-3. The TAGS syntax specifies the tag columns for the supertable, which must adhere to the following conventions:
-    - The TIMESTAMP column in TAGS requires a provided value when writing data and does not support arithmetic operations, such as NOW + 10s.
-    - TAGS column names cannot be the same as other column names.
-    - TAGS column names cannot be reserved keywords.
-    - TAGS allows a maximum of 128 tags, at least 1, with a total length not exceeding 16 KB.
+3. The `TAGS` syntax specifies the tag columns for the supertable, which must adhere to the following conventions:
+    - The TIMESTAMP data type in a tag columnrequires a provided value when writing data and does not support arithmetic operations, such as NOW + 10s.
+    - Tag column names cannot be the same as other column names.
+    - Tag column names cannot be reserved keywords.
+    - Tag allows a maximum of 128 tags, at least 1, with a total length not exceeding 16 KB.
 4. For the usage of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/).
 5. For parameter descriptions in table_options, please refer to [Table Creation SQL Description](../manage-tables/).
 

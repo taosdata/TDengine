@@ -3,6 +3,16 @@ title: MySQL
 slug: /advanced-features/data-connectors/mysql
 ---
 
+import Image from '@theme/IdealImage';
+import imgStep01 from '../../assets/mysql-01.png';
+import imgStep02 from '../../assets/mysql-02.png';
+import imgStep03 from '../../assets/mysql-03.png';
+import imgStep04 from '../../assets/mysql-04.png';
+import imgStep05 from '../../assets/mysql-05.png';
+import imgStep06 from '../../assets/mysql-06.png';
+import imgStep07 from '../../assets/mysql-07.png';
+import imgStep08 from '../../assets/mysql-08.png';
+
 This section explains how to create data migration tasks through the Explorer interface to migrate data from MySQL to the current TDengine cluster.
 
 ## Function Overview
@@ -15,7 +25,9 @@ MySQL is one of the most popular relational databases. Many systems have used or
 
 Click the **+Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![Common-zh00-EnterDataSourcePage.png](../../assets/mysql-01.png)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
 ### 2. Configure Basic Information
 
@@ -27,13 +39,17 @@ The **Agent** field is optional; if needed, you can select a specified agent fro
 
 The **Target Database** field is required; you can first click the **+Create Database** button on the right to create a new database.
 
-![mysql-01.png](../../assets/mysql-02.png)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
 ### 3. Configure Connection Information
 
 In the **Connection Configuration** area, fill in the *`source MySQL database connection information`*, as shown below:
 
-![mysql-02.png](../../assets/mysql-03.png)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
 ### 4. Configure Authentication Information
 
@@ -41,7 +57,9 @@ In the **User** field, enter the user for the source MySQL database; this user m
 
 In the **Password** field, enter the login password for the user in the source MySQL database.
 
-![ mysql-03.png](../../assets/mysql-04.png)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
 ### 5. Configure Connection Options
 
@@ -49,7 +67,9 @@ In the **Character Set** field, set the character set for the connection. The de
 
 In the **SSL Mode** field, set whether to negotiate a secure SSL TCP/IP connection with the server or prioritize how to negotiate it. The default value is PREFERRED. Optional values include DISABLED, PREFERRED, REQUIRED.
 
-![ mysql-04.png](../../assets/mysql-05.png)
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
 
 Then click the **Check Connectivity** button; users can click this button to check if the information filled in above can successfully retrieve data from the source MySQL database.
 
@@ -81,7 +101,9 @@ To solve the problem of migration data disorder, sorting conditions should be ad
 
 **Delay Duration** is an integer range from 1 to 30; to avoid the loss of delayed written data in real-time synchronization scenarios, each synchronization task will read data before the specified delay duration.
 
-![ mysql-05.png](../../assets/mysql-06.png)
+<figure>
+<Image img={imgStep06} alt=""/>
+</figure>
 
 ### 7. Configure Data Mapping
 
@@ -97,7 +119,9 @@ In the **Mapping** section, select the supertable to map to TDengine and specify
 
 Click **Preview** to view the mapping results.
 
-![mysql-06.png](../../assets/mysql-07.png)
+<figure>
+<Image img={imgStep07} alt=""/>
+</figure>
 
 ### 8. Configure Advanced Options
 
@@ -107,7 +131,9 @@ The **Advanced Options** area is folded by default; click the `>` button on the 
 
 **Batch Size** is the maximum number of messages or rows sent at one time. The default is 10,000.
 
-![mysql-07.png](../../assets/mysql-08.png)
+<figure>
+<Image img={imgStep08} alt=""/>
+</figure>
 
 ### 9. Completion
 

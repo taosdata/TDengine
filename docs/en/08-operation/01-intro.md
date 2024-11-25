@@ -3,6 +3,9 @@ title: TDengine Components
 slug: /operations-and-maintenance/tdengine-components
 ---
 
+import Image from '@theme/IdealImage';
+import imgEcosys from '../assets/tdengine-components-01.png';
+
 In the TDengine installation package, in addition to the TDengine database engine (taosd), several additional components are provided to facilitate user usage. The components include:
 
 - **taosAdapter**: Acts as a bridge between applications and TDengine.
@@ -13,7 +16,10 @@ In the TDengine installation package, in addition to the TDengine database engin
 
 The following diagram shows the topological architecture of the entire TDengine product ecosystem (components taosX and taosX Agent are only available in TDengine Enterprise).
 
-![TDengine Product Ecosystem Topology](../assets/tdengine-components-01.png)
+<figure>
+<Image img={imgEcosys} alt="TDengine ecosystem"/>
+<figcaption>TDengine ecosystem</figcaption>
+</figure>
 
 ## taosd
 
