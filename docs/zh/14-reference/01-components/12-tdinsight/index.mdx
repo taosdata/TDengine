@@ -159,7 +159,16 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 14个告警规则具体配置如下：  
 
-【表格】  
+| 规则名称    | 规则阈值                   | 无监控数据时的行为            | 数据扫描间隔      |持续时间      |
+| ------ | -------------------------- | ---------------------------- | ------------------------------------------------------- |-------- |
+| -v     | --plugin-version           | TDENGINE_PLUGIN_VERSION      | TDengine 数据源插件版本，默认使用最新版。               | |
+| -P     | --grafana-provisioning-dir | GF_PROVISIONING_DIR          | Grafana 配置目录，默认为`/etc/grafana/provisioning/`    |  |
+| -G     | --grafana-plugins-dir      | GF_PLUGINS_DIR               | Grafana 插件目录，默认为`/var/lib/grafana/plugins`。    | |
+| -O     | --grafana-org-id           | GF_ORG_ID                    | Grafana 组织 ID，默认为 1。                             | |
+| -n     | --tdengine-ds-name         | TDENGINE_DS_NAME             | TDengine 数据源名称，默认为 TDengine。                  | |
+| -a     | --tdengine-api             | TDENGINE_API                 | TDengine REST API 端点。默认为`http://127.0.0.1:6041`。 | |
+| -u     | --tdengine-user            | TDENGINE_USER                | TDengine 用户名。 [默认值：root]                        | |
+| -p     | --tdengine-password        | TDENGINE_PASSWORD            | TDengine 密码。 [默认：taosdata]                        | |
 
 用户可参考上述告警规则，根据自己业务需求进行修改与完善。
 
