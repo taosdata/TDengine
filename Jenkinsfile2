@@ -472,6 +472,7 @@ pipeline {
                                 pre_test_build_win()
                                 run_win_ctest()
                                 run_win_test()
+                                }
                             }
                         }
                     }
@@ -486,6 +487,7 @@ pipeline {
                                 } else {
                                 pre_test()
                                 pre_test_build_mac()
+                                }
                             }
                         }
                     }
@@ -556,22 +558,21 @@ pipeline {
                                        cd ${WKC}/tests/parallel_test
                                        ./run_scan_container.sh -d ${WKDIR} -b ${BRANCH_NAME}_${BUILD_ID}  -f ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt ''' + extra_param + '''
                                     '''
-                                    if ( file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/) {
-]                                    sh '''
-                                        cd ${WKC}/tests/parallel_test
-                                        export DEFAULT_RETRY_TIME=2
-                                        date
-                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
-                                    '''
+                                    if ( file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/ ) {
+                                        sh '''
+                                            cd ${WKC}/tests/parallel_test
+                                            export DEFAULT_RETRY_TIME=2
+                                            date
+                                            ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
+                                        '''
                                     } else {
                                         sh '''
-                                        cd ${WKC}/tests/parallel_test
-                                        export DEFAULT_RETRY_TIME=2
-                                        date
-                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
+                                            cd ${WKC}/tests/parallel_test
+                                            export DEFAULT_RETRY_TIME=2
+                                            date
+                                            ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
                                     '''
                                     }
-
                                 }
                             }
                         }
