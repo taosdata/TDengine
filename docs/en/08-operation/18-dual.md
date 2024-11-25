@@ -1,6 +1,6 @@
 ---
 title: Active-Active Deployment
-slug: /operations-and-maintenance/active-standby-deployment
+slug: /operations-and-maintenance/active-active-deployment
 ---
 
 import Image from '@theme/IdealImage';
