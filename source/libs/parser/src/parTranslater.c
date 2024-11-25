@@ -15192,11 +15192,12 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
 
   pReq->tagName = taosStrdup(colName);
   if (NULL == pReq->tagName) {
-    return terrno;
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
   }
+
   pReq->pTagArray = taosArrayInit(1, sizeof(STagVal));
   if (NULL == pReq->pTagArray) {
-    return terrno;
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
   }
   pReq->colId = pSchema->colId;
   pReq->tagType = pSchema->type;
@@ -15246,7 +15247,11 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
       }
     }
   }
-
+_err:
+  if (code != 0) {
+    taosArrayDestroy(pReq->pTagArray);
+    taosMemoryFree(pReq->tagName);
+  }
   return code;
 }
 static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
@@ -15363,7 +15368,7 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
     SAlterTableStmt* pTagStmt = NULL;
     SNode*           pNode = NULL;
     FOREACH(pNode, pNodeList) {
-      SMultiTagUpateVal val;
+      SMultiTagUpateVal val = {0};
       pTagStmt = (SAlterTableStmt*)pNode;
       code = buildUpdateTagValReqImpl2(pCxt, pTagStmt, pTableMeta, pTagStmt->colName, &val);
       if (TSDB_CODE_SUCCESS != code) {
