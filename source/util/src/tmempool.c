@@ -29,7 +29,7 @@ threadlocal bool  threadPoolEnabled = true;
 SMemPoolMgmt gMPMgmt = {0};
 SMPStrategyFp gMPFps[] = {
   {NULL}, 
-  {NULL,        mpDirectAlloc, mpDirectFree, mpDirectGetMemSize, mpDirectRealloc, NULL,               NULL,             mpDirectTrim},
+  {NULL,        mpDirectFullAlloc, mpDirectFullFree, mpDirectGetMemSize, mpDirectFullRealloc, NULL,               NULL,             mpDirectTrim},
   {mpChunkInit, mpChunkAlloc,  mpChunkFree,  mpChunkGetMemSize,  mpChunkRealloc,  mpChunkInitSession, mpChunkUpdateCfg, NULL}
 };
 
@@ -303,7 +303,7 @@ int32_t mpPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
 }
 
 
-int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) {
+int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pSession) {
     (void)atomic_add_fetch_64(&pPool->allocMemSize, size);
@@ -1253,7 +1253,7 @@ _return:
 
 void *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* fileName, int32_t lineNo) {
   if (0 == tsMemPoolDebug) {
-    return taosMemMalloc(size);
+    return mpDirectAlloc(poolHandle, ((SMPSession*)session)->pJob, size);
   }
   
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1283,7 +1283,7 @@ _return:
 
 void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t size, char* fileName, int32_t lineNo) {
   if (0 == tsMemPoolDebug) {
-    return taosMemCalloc(num, size);
+    return mpDirectCalloc(poolHandle, ((SMPSession*)session)->pJob, num, size);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1315,7 +1315,7 @@ _return:
 
 void *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t size, char* fileName, int32_t lineNo) {
   if (0 == tsMemPoolDebug) {
-    return taosMemRealloc(ptr, size);
+    return mpDirectRealloc(poolHandle, ((SMPSession*)session)->pJob, ptr, size);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1366,7 +1366,7 @@ _return:
 
 char *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char* fileName, int32_t lineNo) {
   if (0 == tsMemPoolDebug) {
-    return taosStrdupi(ptr);
+    return mpDirectStrdup(poolHandle, ((SMPSession*)session)->pJob, ptr);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1402,7 +1402,7 @@ _return:
 
 char *taosMemPoolStrndup(void* poolHandle, void* session, const char *ptr, int64_t size, char* fileName, int32_t lineNo) {
   if (0 == tsMemPoolDebug) {
-    return taosStrndupi(ptr, size);
+    return mpDirectStrndup(poolHandle, ((SMPSession*)session)->pJob, ptr, size);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1440,7 +1440,7 @@ _return:
 
 void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
   if (0 == tsMemPoolDebug) {
-    taosMemFree(ptr);
+    mpDirectFree(poolHandle, ((SMPSession*)session)->pJob, ptr);
     return;
   }
 
@@ -1466,7 +1466,7 @@ void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName,
 
 int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
   if (0 == tsMemPoolDebug) {
-    return taosMemSize(ptr);;
+    return taosMemSize(ptr);
   }
 
   int64_t code = 0;
@@ -1488,7 +1488,7 @@ int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, cha
 
 void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment, int64_t size, char* fileName, int32_t lineNo) {
   if (0 == tsMemPoolDebug) {
-    return taosMemMallocAlign(alignment, size);
+    return mpDirectAlignAlloc(poolHandle, ((SMPSession*)session)->pJob, alignment, size);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;

@@ -23,6 +23,7 @@ extern "C" {
 #include "os.h"
 #include "tlockfree.h"
 #include "thash.h"
+#include "tglobal.h"
 
 #define MP_CHUNK_CACHE_ALLOC_BATCH_SIZE 1000
 #define MP_NSCHUNK_CACHE_ALLOC_BATCH_SIZE 500
@@ -481,11 +482,39 @@ enum {
     }                                \
   } while (0)
 
+#define MP_CHECK_QUOTA(_pool, _job, _size)     do {                                                           \
+    if (*(_pool)->cfg.jobQuota > 0) {                                                            \
+      int64_t cAllocSize = atomic_add_fetch_64(&(_job)->job.allocMemSize, (_size));                  \
+      if (cAllocSize / 1048576UL > *(_pool)->cfg.jobQuota) {                                         \
+        uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, (_job)->job.jobId, cAllocSize, *(_pool)->cfg.jobQuota);                  \
+        (_pool)->cfg.cb.reachFp(pJob->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);                  \
+        terrno = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;                  \
+        return NULL;                                                            \
+      }                  \
+    }                  \
+    if (atomic_load_64(&tsCurrentAvailMemorySize) <= ((atomic_load_32((_pool)->cfg.reserveSize) * 1048576UL) + (_size))) {                  \
+      uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %dMB",                   \
+          (_pool)->name, atomic_load_64(&tsCurrentAvailMemorySize), (_size), *(_pool)->cfg.reserveSize);                  \
+      (_pool)->cfg.cb.reachFp((_job)->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);                  \
+      terrno = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;                  \
+      return NULL;                  \
+    }       \
+  } while (0)
+
+
 // direct
-int32_t mpDirectAlloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint32_t alignment, void** ppRes);
+void* mpDirectAlloc(SMemPool* pPool, SMPJob* pJob, int64_t size);
+void* mpDirectAlignAlloc(SMemPool* pPool, SMPJob* pJob, uint32_t alignment, int64_t size);
+void* mpDirectCalloc(SMemPool* pPool, SMPJob* pJob, int64_t num, int64_t size);
+void  mpDirectFree(SMemPool* pPool, SMPJob* pJob, void *ptr);
+void* mpDirectRealloc(SMemPool* pPool, SMPJob* pJob, void* ptr, int64_t size);
+void* mpDirectStrdup(SMemPool* pPool, SMPJob* pJob, const void* ptr);
+void* mpDirectStrndup(SMemPool* pPool, SMPJob* pJob, const void* ptr, int64_t size);
+
+int32_t mpDirectFullAlloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint32_t alignment, void** ppRes);
 int64_t mpDirectGetMemSize(SMemPool* pPool, SMPSession* pSession, void *ptr);
-void    mpDirectFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* origSize);
-int32_t mpDirectRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t* size, int64_t* origSize);
+void    mpDirectFullFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* origSize);
+int32_t mpDirectFullRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t* size, int64_t* origSize);
 int32_t mpDirectTrim(SMemPool* pPool, SMPSession* pSession, int32_t size, bool* trimed);
 
 // chunk
@@ -499,7 +528,7 @@ int32_t mpChunkUpdateCfg(SMemPool* pPool);
 
 
 int32_t mpPopIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, void** ppRes);
-int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size);
+int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size);
 void    mpUpdateAllocSize(SMemPool* pPool, SMPSession* pSession, int64_t size, int64_t addSize);
 int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup* pHead);
 int32_t mpMalloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint32_t alignment, void** ppRes);
