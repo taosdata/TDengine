@@ -290,8 +290,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
-             pMgmt->statusSeq);
+      dGInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->pData->dnodeId);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
         dError("failed to write dnode file");
@@ -306,6 +305,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       // Try to use cfg file in current dnode.
       if (configRsp.forceReadConfig) {
         if (configRsp.isConifgVerified) {
+          uInfo("force read config and check config verified");
           code = taosPersistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
           if (code != TSDB_CODE_SUCCESS) {
             dError("failed to persist global config since %s", tstrerror(code));
@@ -320,6 +320,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       }
       // Try to use cfg from mnode sdb.
       if (!configRsp.isVersionVerified) {
+        uInfo("config version not verified, update config");
         needUpdate = true;
         code = taosPersistGlobalConfig(configRsp.array, pMgmt->path, configRsp.cver);
         if (code != TSDB_CODE_SUCCESS) {

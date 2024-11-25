@@ -141,7 +141,7 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
   obj = sdbGetRowObj(pRow);
   if (obj == NULL) goto _OVER;
   int32_t dataPos = 0;
-  // TODO(beryl):free it.
+
   SDB_GET_BINARY(pRaw, dataPos, obj->name, CFG_NAME_MAX_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, (int32_t *)&obj->dtype, _OVER)
   switch (obj->dtype) {
@@ -161,6 +161,8 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &len, _OVER)
       char *buf = taosMemoryMalloc(len + 1);
       SDB_GET_BINARY(pRaw, dataPos, buf, len, _OVER)
+      obj->fval = atof(buf);
+      taosMemoryFree(buf);
       break;
     case CFG_DTYPE_STRING:
     case CFG_DTYPE_DIR:
@@ -180,6 +182,7 @@ _OVER:
   if (terrno != 0) {
     mError("cfg failed to decode from raw:%p since %s", pRaw, terrstr());
     taosMemoryFreeClear(pRow);
+    taosMemoryFreeClear(obj->str);
     return NULL;
   }
 
@@ -223,7 +226,6 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
       configRsp.array = diffArray;
     } else {
       configRsp.isConifgVerified = 1;
-      taosArrayDestroy(diffArray);
     }
   } else {
     configRsp.array = taosGetGlobalCfg(tsCfg);
@@ -235,17 +237,21 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   }
 
   int32_t contLen = tSerializeSConfigRsp(NULL, 0, &configRsp);
-  void   *pHead = rpcMallocCont(contLen);
+  if (contLen < 0) {
+    code = contLen;
+    goto _OVER;
+  }
+  void *pHead = rpcMallocCont(contLen);
   contLen = tSerializeSConfigRsp(pHead, contLen, &configRsp);
-  taosArrayDestroy(diffArray);
   if (contLen < 0) {
     code = contLen;
     goto _OVER;
   }
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pHead;
-_OVER:
 
+_OVER:
+  taosArrayDestroy(diffArray);
   mndReleaseDnode(pMnode, pDnode);
   return TSDB_CODE_SUCCESS;
 }
@@ -254,6 +260,7 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   int    code = -1;
   size_t sz = 0;
 
+  mInfo("init write cfg to sdb");
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "init-write-config");
   if (pTrans == NULL) {
     mError("failed to init write cfg in create trans, since %s", terrstr());
@@ -264,6 +271,7 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   SConfigObj *obj = mndInitConfigVersion();
   if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
     mError("failed to init mnd config version, since %s", terrstr());
+    goto _OVER;
   }
   sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
 
@@ -275,7 +283,6 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
     }
     taosMemoryFree(obj);
   }
-  if ((code = mndTransCheckConflict(pMnode, pTrans)) != 0) goto _OVER;
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
 _OVER:
@@ -540,20 +547,19 @@ _err:
   TAOS_RETURN(code);
 }
 
-// TODO(beryl):add more log.
 static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue) {
   int32_t     code = -1;
   int32_t     lino = -1;
   SConfigObj *pVersion = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (pVersion == NULL) {
-    mWarn("failed to acquire tsmmConfigVersion while update config, since %s", terrstr());
+    mError("failed to acquire tsmmConfigVersion while update config, since %s", terrstr());
     code = terrno;
     goto _OVER;
   }
   pVersion->i32 = ++tsmmConfigVersion;
   SConfigObj *pObj = sdbAcquire(pMnode->pSdb, SDB_CFG, name);
   if (pObj == NULL) {
-    mWarn("failed to acquire mnd config:%s while update config, since %s", name, terrstr());
+    mError("failed to acquire mnd config:%s while update config, since %s", name, terrstr());
     code = terrno;
     goto _OVER;
   }

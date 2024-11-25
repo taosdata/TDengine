@@ -41,12 +41,6 @@ typedef struct {
   int64_t  lastIndex;
 } SMnodeOpt;
 
-typedef struct {
-  int32_t       version;
-  SArray        *pArray;
-  TdThreadMutex mutex;
-} SMnodeConfig;
-
 /* ------------------------ SMnode ------------------------ */
 /**
  * @brief Open a mnode.
