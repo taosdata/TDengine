@@ -15340,9 +15340,10 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
 
 static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                          SVAlterTbReq* pReq) {
-  SName   tbName = {0};
-  SArray* pTsmas = NULL;
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SName     tbName = {0};
+  SArray*   pTsmas = NULL;
+  SHashObj* pUnique = NULL;
   if (pCxt->pMetaCache) {
     toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
     code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
@@ -15365,21 +15366,37 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
       return terrno;
     }
 
+    pUnique = taosHashInit(nTagValues, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (pUnique == NULL) {
+      TAOS_CHECK_GOTO(terrno, NULL, _err);
+    }
+
     SAlterTableStmt* pTagStmt = NULL;
     SNode*           pNode = NULL;
+    int8_t           dummpy = 0;
     FOREACH(pNode, pNodeList) {
       SMultiTagUpateVal val = {0};
       pTagStmt = (SAlterTableStmt*)pNode;
-      code = buildUpdateTagValReqImpl2(pCxt, pTagStmt, pTableMeta, pTagStmt->colName, &val);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
+
+      SMultiTagUpateVal* p = taosHashGet(pUnique, pTagStmt->colName, strlen(pTagStmt->colName));
+      if (p) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+        TAOS_CHECK_GOTO(code, NULL, _err);
       }
+
+      code = taosHashPut(pUnique, pTagStmt->colName, strlen(pTagStmt->colName), &dummpy, sizeof(dummpy));
+      TAOS_CHECK_GOTO(code, NULL, _err);
+
+      code = buildUpdateTagValReqImpl2(pCxt, pTagStmt, pTableMeta, pTagStmt->colName, &val);
+      TAOS_CHECK_GOTO(code, NULL, _err);
+
       if (taosArrayPush(pReq->pMultiTag, &val) == NULL) {
-        return terrno;
+        TAOS_CHECK_GOTO(terrno, NULL, _err);
       }
     }
   }
-
+_err:
+  taosHashCleanup(pUnique);
   return code;
 }
 
@@ -15661,18 +15678,6 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
-static void deleTagVal(void* val) {
-  SMultiTagUpateVal* pTag = val;
-  taosMemoryFree(pTag->tagName);
-  for (int i = 0; i < taosArrayGetSize(pTag->pTagArray); ++i) {
-    STagVal* p = (STagVal*)taosArrayGet(pTag->pTagArray, i);
-    if (IS_VAR_DATA_TYPE(p->type)) {
-      taosMemoryFreeClear(p->pData);
-    }
-  }
-
-  taosArrayDestroy(pTag->pTagArray);
-}
 static void destoryAlterTbReq(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->tbName);
   taosMemoryFree(pReq->colName);
@@ -15686,7 +15691,7 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
     }
   }
   if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    taosArrayDestroyEx(pReq->pMultiTag, deleTagVal);
+    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpateVal);
   }
 
   taosArrayDestroy(pReq->pTagArray);

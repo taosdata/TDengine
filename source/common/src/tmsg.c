@@ -10678,6 +10678,18 @@ _exit:
   return code;
 }
 
+void tfreeMultiTagUpateVal(void *val) {
+  SMultiTagUpateVal *pTag = val;
+  taosMemoryFree(pTag->tagName);
+  for (int i = 0; i < taosArrayGetSize(pTag->pTagArray); ++i) {
+    STagVal *p = (STagVal *)taosArrayGet(pTag->pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+
+  taosArrayDestroy(pTag->pTagArray);
+}
 int32_t tEncodeSVAlterTbRsp(SEncoder *pEncoder, const SVAlterTbRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;
