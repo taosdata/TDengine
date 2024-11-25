@@ -109,15 +109,7 @@ In the **Target Supertable** dropdown list, select a target supertable, or click
 
 In the **Mapping** section, fill in the subtable name in the target supertable, for example: `t_${groupid}`.
 
-<figure>
-<Image img={imgStep10} alt=""/>
-</figure>
-
 Click **Preview** to see the mapping results.
-
-<figure>
-<Image img={imgStep11} alt=""/>
-</figure>
 
 ### 5. Completion
 

@@ -164,12 +164,7 @@ The parsed data may not meet the requirements of the target table. For instance,
 
 The voltage parsed using the JSON rules is expressed as a string with units. Ultimately, it is hoped to store the voltage and current values as integers for statistical analysis, which requires further splitting of the voltage; in addition, the date is expected to be split into date and time for storage.
 
-As shown in the figure, you can use the split rule on the source field `ts` to split it into date and time, and use regex to extract the voltage value and unit from the `voltage` field. The split rule requires setting the **delimiter** and **number of splits**, and the naming convention for the split fields is `{original_field_name}_{order_number}`, while the Regex rule is the same as in the parsing process, using **named capture groups** to name the extracted fields.
-
-<figure>
-<Image img={imgSplit} alt="Splitting and extracting data"/>
-<figcaption>Figure 6. Splitting and extracting data</figcaption>
-</figure>
+You can use the split rule on the source field `ts` to split it into date and time, and use regex to extract the voltage value and unit from the `voltage` field. The split rule requires setting the **delimiter** and **number of splits**, and the naming convention for the split fields is `{original_field_name}_{order_number}`, while the Regex rule is the same as in the parsing process, using **named capture groups** to name the extracted fields.
 
 ### Filtering
 

@@ -236,14 +236,6 @@ Click the **Submit** button to complete the OPC UA to TDengine data synchronizat
 
 While the task is running, click **Edit**, then click the **Add Data Points** button to append data points to the CSV file.
 
-<figure>
-<Image img={imgStep8} alt=""/>
-</figure>
-
 In the pop-up form, fill in the data point information.
-
-<figure>
-<Image img={imgStep9} alt=""/>
-</figure>
 
 Click the **Confirm** button to complete the addition of data points.

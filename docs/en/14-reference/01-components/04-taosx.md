@@ -532,12 +532,7 @@ The taosX Parser plugin is a dynamic library developed in C/Rust language, requi
 
 ### Plugin Deployment
 
-After completing plugin development, ensure that the compilation environment is compatible with the target runtime environment. Copy the compiled plugin dynamic library to the plugin directory. When taosX starts, it will initialize and load the plugin when the system first uses it. You can check whether it has loaded successfully in the Kafka or MQTT data access configuration page of Explorer. As shown in the image below, if it loads successfully, it will appear in the parser selection list.
-
-<figure>
-<Image img={imgTdx} alt="taosX plugin example"/>
-<figcaption>Figure 1. taosX plugin example</figcaption>
-</figure>
+After completing plugin development, ensure that the compilation environment is compatible with the target runtime environment. Copy the compiled plugin dynamic library to the plugin directory. When taosX starts, it will initialize and load the plugin when the system first uses it. You can check whether it has loaded successfully in the Kafka or MQTT data access configuration page of Explorer.
 
 The plugin directory reuses the plugins configuration in the `taosx.toml` configuration file, appending `/parsers` as the plugin installation path. The default value in a UNIX environment is `/usr/local/taos/plugins/parsers`, and in Windows, it is `C:\TDengine\plugins\parsers`.
 
