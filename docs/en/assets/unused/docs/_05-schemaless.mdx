@@ -1,0 +1,39 @@
+---
+title: Schemaless API
+sidebar_label: Schemaless API
+description: A detailed introduction to the Schemaless API provided by TDengine.
+---
+
+TDengine provides a Schemaless API that is compatible with InfluxDB (v1) and OpenTSDB line protocols. Third-party software that writes data using InfluxDB (v1) or OpenTSDB line protocols can directly write data to the TDengine database without modifying the code, simply by changing the configured EndPoint URL.
+
+### Writing with InfluxDB Line Protocol
+
+You can configure any application that supports the InfluxDB (v1) line protocol to access the address `http://<fqdn>:6041/<APIEndPoint>` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
+```text
+/influxdb/v1/write?<param1=value1>?<param2=value2>...
+```
+
+The supported InfluxDB query parameters are as follows:
+
+- `db`: Specifies the database name used by TDengine
+- `precision`: The time precision used by TDengine
+- `u`: TDengine username
+- `p`: TDengine password
+- `ttl`: The lifecycle of automatically created sub-tables, determined by the TTL parameter of the first data in the sub-table, which cannot be updated. For more information, please refer to the [table creation documentation](/../../taos-sql/table/#创建表) regarding the TTL parameter.
+
+Note: Currently, token authentication for InfluxDB is not supported; only Basic authentication and query parameter authentication are supported.
+
+Reference link: [InfluxDB v1 Write API](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
+
+### Writing with OpenTSDB Line Protocol
+
+You can configure any application that supports OpenTSDB line protocol to access the address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:
+
+```text
+/opentsdb/v1/put/json/<db>
+/opentsdb/v1/put/telnet/<db>
+```
+
+Reference links:
+  - [OpenTSDB JSON](http://opentsdb.net/docs/build/html/api_http/put.html)
+  - [OpenTSDB Telnet](http://opentsdb.net/docs/build/html/api_telnet/put.html)

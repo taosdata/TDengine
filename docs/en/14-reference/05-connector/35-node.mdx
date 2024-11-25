@@ -1,0 +1,419 @@
+---
+sidebar_label: Node.js
+title: Node.js Client Library
+slug: /tdengine-reference/client-libraries/node
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import RequestId from "./_request_id.mdx";
+
+`@tdengine/websocket` is the official Node.js connector for TDengine. Node.js developers can use it to develop applications that access TDengine databases.
+
+The source code for the Node.js connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-node/tree/main).
+
+## Connection Method
+
+The Node.js connector currently only supports WebSocket connections, which connect to TDengine instances through the WebSocket interface provided by taosAdapter.
+
+For a detailed introduction to connection methods, please refer to: [Connection Methods](../../../developer-guide/connecting-to-tdengine/)
+
+## Supported Platforms
+
+Supports Node.js version 14 and above.
+
+## Version History
+
+| Node.js Connector Version |         Major Changes         |   TDengine Version    |
+| :-----------------------: | :---------------------------: | :-------------------: |
+|        3.1.0             | New version released, supports WebSocket connection |  3.2.0.0 and higher |
+
+## Error Handling
+
+After calling the connector API and encountering an error, you can retrieve the error information and error code using try-catch.
+
+Error Description: Node.js connector error codes range from 100 to 110; any other errors correspond to errors from other TDengine functional modules.
+
+For specific connector error codes, please refer to:
+
+| Error Code | Description                                                  | Suggested Actions                                                                         |
+| ---------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| 100        | invalid variables                                            | Invalid parameters, please check the respective interface specifications and adjust the parameter types and sizes. |
+| 101        | invalid url                                                  | Invalid URL, please check if the URL is correct.                                       |
+| 102        | received server data but did not find a callback for processing | Received data from the server but did not find an upper callback for processing.       |
+| 103        | invalid message type                                         | The received message type is unrecognized, please check if the server is functioning normally. |
+| 104        | connection creation failed                                   | Connection creation failed, please check if the network is functioning normally.        |
+| 105        | websocket request timeout                                    | Request timed out.                                                                        |
+| 106        | authentication fail                                         | Authentication failed, please check if the username and password are correct.          |
+| 107        | unknown sql type in tdengine                                | Please check the data types supported by TDengine.                                      |
+| 108        | connection has been closed                                  | The connection has been closed, please check if the connection is closed before trying to use it again, or if the connection is functioning normally. |
+| 109        | fetch block data parse fail                                 | Failed to parse the fetched query data.                                                  |
+| 110        | websocket connection has reached its maximum limit          | WebSocket connection limit reached.                                                     |
+
+- [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
+- For errors from other TDengine functional modules, please refer to [Error Codes](../../error-codes/)
+
+## Data Type Mapping
+
+The following table maps TDengine DataType to Node.js DataType
+
+| TDengine DataType | Node.js DataType|
+|-------------------|-----------------|
+| TIMESTAMP         | bigint          |
+| TINYINT           | number          |
+| SMALLINT          | number          |
+| INT               | number          |
+| BIGINT            | bigint          |
+| TINYINT UNSIGNED  | number          |
+| SMALLINT UNSIGNED | number          |
+| INT UNSIGNED      | number          |
+| BIGINT UNSIGNED   | bigint          |
+| FLOAT             | number          |
+| DOUBLE            | number          |
+| BOOL              | boolean         |
+| BINARY            | string          |
+| NCHAR             | string          |
+| JSON              | string          |
+| VARBINARY         | ArrayBuffer     |
+| GEOMETRY          | ArrayBuffer     |
+
+**Note**: JSON type is only supported in tags.
+
+## More Example Programs
+
+| Example Program                                                                                                                            | Example Program Description                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js)                           | Basic usage such as establishing connections, executing SQL, etc. |
+| [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/stmt_example.js)                         | Example of binding parameters for insertion.    |
+| [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/line_example.js)                         | Example of line protocol insertion.              |
+| [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/tmq_example.js)                           | Example of subscription usage.                    |
+| [all_type_query](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/all_type_query.js)                     | Example supporting all types.                     |
+| [all_type_stmt](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/all_type_stmt.js)                       | Example supporting all types for parameter binding. |
+
+## Usage Restrictions
+
+- The Node.js connector (`@tdengine/websocket`) supports Node.js version 14 and above; versions below 14 may have package compatibility issues.
+- Currently only WebSocket connections are supported; taosAdapter needs to be started in advance.
+- After using the connector, you need to call `taos.connectorDestroy();` to release connector resources.
+
+## Common Issues
+
+1. "Unable to establish connection" or "Unable to resolve FQDN"
+
+   **Reason**: This is usually due to incorrect configuration of the FQDN. You can refer to [How to Thoroughly Understand TDengine's FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html).
+
+## API Reference
+
+The Node.js connector (`@tdengine/websocket`) connects to TDengine instances through the WebSocket interface provided by taosAdapter.
+
+### URL Specification
+
+```text
+[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+- **protocol**: Use the WebSocket protocol to establish a connection. For example, `ws://localhost:6041`.
+- **username/password**: Database username and password.
+- **host/port**: Host address and port number. For example, `localhost:6041`.
+- **database**: Database name.
+- **params**: Other parameters. For example, token.
+
+- Complete URL Example:
+
+```js
+    ws://root:taosdata@localhost:6041
+```
+
+### WSConfig
+
+In addition to obtaining connections through the specified URL, you can also use WSConfig to specify parameters for establishing connections.
+
+```js
+try {
+    let url = 'ws://127.0.0.1:6041'
+    let conf = WsSql.NewConfig(url)
+    conf.setUser('root')
+    conf.setPwd('taosdata')
+    conf.setDb('db')
+    conf.setTimeOut(500)
+    let wsSql = await WsSql.open(conf);
+} catch (e) {
+    console.error(e);
+}
+```
+
+The configuration in WSConfig is as follows:
+
+- setUrl(url string): Sets the taosAdapter connection address URL, as detailed in the above URL specification.
+- setUser(user: string): Sets the database username.
+- setPwd(pws: string): Sets the database password.
+- setDb(db: string): Sets the database name.
+- setTimeOut(ms: number): Sets the connection timeout, in milliseconds.
+- setToken(token: string): Sets the taosAdapter authentication token.
+
+### Connection Features
+
+- `static async open(wsConfig: WSConfig): Promise<WsSql>`
+  - **Interface Description**: Establishes a taosAdapter connection.
+  - **Parameter Description**:
+    - `wsConfig`: Connection configuration, as detailed in the WSConfig section above.
+  - **Return Value**: Connection object.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `destroyed()`
+  - **Interface Description**: Releases and destroys resources.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+### Get taosc Version
+
+- `async version(): Promise<string>`
+  - **Interface Description**: Gets the taosc client version.
+  - **Return Value**: taosc client version number.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+### Execute SQL
+
+- `async exec(sql: string, reqId?: number): Promise<TaosResult>`
+  - **Interface Description**: Executes an SQL statement.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Return Value**: Execution result
+
+    ```js
+    TaosResult {
+        affectRows: number,   // Number of affected rows
+        timing: number,       // Execution duration
+        totalTime: number,    // Total response time
+    }    
+    ```
+
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `async query(sql: string, reqId?: number): Promise<WSRows>`
+  - **Interface Description**: Queries data.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Return Value**: WSRows dataset object.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+### Dataset
+
+- `getMeta(): Array<TDengineMeta> | null`
+  - **Interface Description**: Gets the number, type, and length of the query result's columns.
+  - **Return Value**: Array of TDengineMeta data objects.
+
+    ```js
+    export interface TDengineMeta {
+        name: string,
+        type: string,
+        length: number,
+    }
+    ```
+
+- `async next(): Promise<boolean>`
+  - **Interface Description**: Moves the cursor from the current position to the next row. Used to iterate through the query result set.
+  - **Return Value**: Returns true if the new current row is valid; returns false if there are no more rows in the result set.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `getData(): Array<any>`
+  - **Interface Description**: Returns one row of data from the query.
+  - **Return Value**: Returns one row of data from the query; this interface needs to be used together with the next interface.  
+
+- `async close(): Promise<void>`
+  - **Interface Description**: Releases the result set after data reading is complete.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+### Schemaless Insertion
+
+- `async schemalessInsert(lines: Array<string>, protocol: SchemalessProto, precision: Precision, ttl: number, reqId?: number): Promise<void>`
+  - **Interface Description**: Performs schemaless insertion.
+  - **Parameter Description**:
+    - `lines`: Array of data to be written; for specific data formats for schemaless writing, refer to `Schemaless Writing`.
+    - `protocol`: Protocol type
+      - `SchemalessProto.InfluxDBLineProtocol`: InfluxDB Line Protocol.
+      - `SchemalessProto.OpenTSDBTelnetLineProtocol`: OpenTSDB text line protocol.
+      - `SchemalessProto.OpenTSDBJsonFormatProtocol`: JSON protocol format.
+    - `precision`: Time precision
+      - `Precision.HOURS`:  Hour
+      - `Precision.MINUTES`: Minute
+      - `Precision.SECONDS`: Second
+      - `Precision.MILLI_SECONDS`: Millisecond
+      - `Precision.MICRO_SECONDS`: Microsecond
+      - `Precision.NANO_SECONDS`: Nanosecond
+    - `ttl`: Table expiration time, in days.
+    - `reqId`: Used for issue tracking, optional.
+  - **Exception**: Throws `TaosResultError` if the connection fails.
+
+### Parameter Binding
+
+- `async stmtInit(reqId?: number): Promise<WsStmt>`
+  - **Interface Description**: Creates a stmt object using the WsSql object.
+  - **Parameter Description**:
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Return Value**: stmt object.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `async prepare(sql: string): Promise<void>`
+  - **Interface Description**: Binds a precompiled SQL statement.
+  - **Parameter Description**:
+    - `sql`: Precompiled SQL statement.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `async setTableName(tableName: string): Promise<void>`
+  - **Interface Description**: Sets the name of the table where data will be written.
+  - **Parameter Description**:
+    - `tableName`: The table name; if you need to specify the database, use `db_name.table_name`.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- To set the bound data, use the following interfaces, which are similar to `setBoolean` except for the value types:
+  - `setBoolean(params: any[])`
+  - `setTinyInt(params: any[])`
+  - `setUTinyInt(params: any[])`
+  - `setSmallInt(params: any[])`
+  - `setUSmallInt(params: any[])`
+  - `setInt(params: any[])`
+  - `setUInt(params: any[])`
+  - `setBigint(params: any[])`
+  - `setUBigint(params: any[])`
+  - `setFloat(params: any[])`
+  - `setDouble(params: any[])`
+  - `setVarchar(params: any[])`
+  - `setBinary(params: any[])`
+  - `setNchar(params: any[])`
+  - `setJson(params: any[])`
+  - `setVarBinary(params: any[])`
+  - `setGeometry(params: any[])`
+  - `setTimestamp(params: any[])`
+
+- `async setTags(paramsArray: StmtBindParams): Promise<void>`
+  - **Interface Description**: Sets the table tags data for automatic table creation.
+  - **Parameter Description**:
+    - `paramsArray`: Tags data.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `async bind(paramsArray: StmtBindParams): Promise<void>`
+  - **Interface Description**: Binds data.
+  - **Parameter Description**:
+    - `paramsArray`: Data to be bound.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `async batch(): Promise<void>`
+  - **Interface Description**: Submits bound data.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `async exec(): Promise<void>`
+  - **Interface Description**: Executes all the bound data for writing.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+- `getLastAffected()`  
+  - **Interface Description**: Gets the number of rows written.
+  - **Return Value**: Number of rows written.
+
+- `async close(): Promise<void>`
+  - **Interface Description**: Closes the stmt object.
+  - **Exception**: Throws `TDWebSocketClientError` if the connection fails.
+
+### Data Subscription
+
+- **Supported Attributes for Creating a Consumer**:
+  - taos.TMQConstants.CONNECT_USER: Username.
+  - taos.TMQConstants.CONNECT_PASS: Password.
+  - taos.TMQConstants.GROUP_ID: The group the consumer belongs to.
+  - taos.TMQConstants.CLIENT_ID: Client ID.
+  - taos.TMQConstants.WS_URL: URL address of the taosAdapter.
+  - taos.TMQConstants.AUTO_OFFSET_RESET: Determines whether to consume the latest data (latest) or include old data (earliest).
+  - taos.TMQConstants.ENABLE_AUTO_COMMIT: Whether to allow automatic commits.
+  - taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS: Interval for automatic commits.
+  - taos.TMQConstants.CONNECT_MESSAGE_TIMEOUT: Data transmission timeout parameter, in ms, default is 10000 ms.
+
+- `static async newConsumer(wsConfig: Map<string, any>): Promise<WsConsumer>`
+  - **Interface Description**: Consumer constructor.
+  - **Parameter Description**:
+    - `wsConfig`: Consumer attribute configuration for creation.
+  - **Return Value**: WsConsumer consumer object.
+  - **Exception**: Throws `TDWebSocketClientError` if an exception occurs during execution.
+
+- `async subscribe(topics: Array<string>, reqId?: number): Promise<void>`
+  - **Interface Description**: Subscribes to a group of topics.
+  - **Parameter Description**:
+    - `topics`: List of topics to subscribe to.
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Exception**: Throws `TDWebSocketClientError` if the operation fails.
+
+- `async unsubscribe(reqId?: number): Promise<void>`
+  - **Interface Description**: Unsubscribes.
+  - **Parameter Description**:
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Exception**: Throws `TDWebSocketClientError` if the operation fails.
+
+- `async poll(timeoutMs: number, reqId?: number): Promise<Map<string, TaosResult>>`
+  - **Interface Description**: Polls for messages.
+  - **Parameter Description**:
+    - `timeoutMs`: The timeout for polling, in milliseconds.
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Return Value**: `Map<string, TaosResult>` corresponding data for each topic.
+  - **Exception**: Throws `TDWebSocketClientError` if the operation fails.
+
+- `async subscription(reqId?: number): Promise<Array<string>>`
+  - **Interface Description**: Gets all currently subscribed topics.
+  - **Parameter Description**:
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Return Value**: `Array<string>` list of topics.
+  - **Exception**: Throws `TDWebSocketClientError` if the operation fails.
+
+- `async commit(reqId?: number): Promise<Array<TopicPartition>>`
+  - **Interface Description**: Commits the offset of the currently processed message.
+  - **Parameter Description**:
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Return Value**: `Array<TopicPartition>` consumption progress for each topic.
+  - **Exception**: Throws `TDWebSocketClientError` if the operation fails.
+
+- `async committed(partitions: Array<TopicPartition>, reqId?: number): Promise<Array<TopicPartition>>`
+  - **Interface Description**: Gets the last committed offset for a set of partitions.
+  - **Parameter Description**:
+    - `partitions`: A parameter of type `Array<TopicPartition>`, representing the set of partitions to query.
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Return Value**: `Array<TopicPartition>`, the last committed offset for the set of partitions.
+  - **Exception**: Throws `TDWebSocketClientError` if an error occurs while fetching the committed offsets.
+
+- `async seek(partition: TopicPartition, reqId?: number): Promise<void>`
+  - **Interface Description**: Sets the offset for the given partition to a specified position.
+  - **Parameter Description**:
+    - `partition`: A parameter of type `TopicPartition`, representing the partition to operate on and the offset to set.
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Exception**: Throws `TDWebSocketClientError` if an error occurs while setting the offset.
+
+- `async positions(partitions: Array<TopicPartition>, reqId?: number): Promise<Array<TopicPartition>>`
+  - **Interface Description**: Gets the current offset for a given partition.
+  - **Parameter Description**:
+    - `partitions`: A parameter of type `Array<TopicPartition>`, representing the partitions to query.
+    - `reqId`: Request ID (optional), used for issue tracking.
+  - **Return Value**: `Array<TopicPartition>`, the last committed offset for the set of partitions.
+  - **Exception**: Throws `TDWebSocketClientError` if an error occurs while fetching the offsets.
+
+- `async seekToBeginning(partitions: Array<TopicPartition>): Promise<void>`
+  - **Interface Description**: Sets the offset for a set of partitions to the earliest offset.
+  - **Parameter Description**:
+    - `partitions`: A parameter of type `Array<TopicPartition>`, representing the set of partitions to operate on.
+  - **Exception**: Throws `TDWebSocketClientError` if an error occurs while setting the offset.
+
+- `async seekToEnd(partitions: Array<TopicPartition>): Promise<void>`
+  - **Interface Description**: Sets the offset for a set of partitions to the latest offset.
+  - **Parameter Description**:
+    - `partitions`: A parameter of type `Array<TopicPartition>`, representing the set of partitions to operate on.
+  - **Exception**: Throws `TDWebSocketClientError` if an error occurs while setting the offset.
+
+- `async assignment(topics?: string[]): Promise<Array<TopicPartition>>`
+  - **Interface Description**: Gets the currently assigned partitions for the consumer, either for specified partitions or all.
+  - **Parameter Description**:
+    - `topics`: Specifies the partitions to retrieve (optional); if not filled, retrieves all partitions.
+  - **Return Value**: Returns an `Array<TopicPartition>`, representing all currently assigned partitions for the consumer.
+  - **Exception**: Throws `TDWebSocketClientError` if an error occurs while fetching the assigned partitions.
+
+- `async close(): Promise<void>`
+  - **Interface Description**: Closes the TMQ connection.
+  - **Exception**: Throws `TDWebSocketClientError` if the operation fails.

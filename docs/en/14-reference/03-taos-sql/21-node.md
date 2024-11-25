@@ -1,42 +1,38 @@
 ---
-title: Cluster
-sidebar_label: Cluster
-description: This document describes the SQL statements related to cluster management in TDengine.
+title: Manage Nodes
+description: Detailed analysis of SQL commands for managing cluster nodes
+slug: /tdengine-reference/sql-manual/manage-nodes
 ---
 
-The physical entities that form TDengine clusters are known as data nodes (dnodes). Each dnode is a process running on the operating system of the physical machine. Dnodes can contain virtual nodes (vnodes), which store time-series data. Virtual nodes are formed into vgroups, which have 1 or 3 vnodes depending on the replica setting. If you want to enable replication on your cluster, it must contain at least three nodes. Dnodes can also contain management nodes (mnodes). Each cluster has up to three mnodes. Finally, dnodes can contain query nodes (qnodes), which compute time-series data, thus separating compute from storage. A single dnode can contain a vnode, qnode, and mnode.
+The physical entities that make up a TDengine cluster are called dnodes (short for data nodes), which are processes running on the operating system. Within a dnode, virtual nodes (vnodes) can be created to handle time-series data storage. In a multi-node cluster environment, when a database has a replica of 3, each vgroup in that database consists of 3 vnodes. When a database has a replica of 1, each vgroup consists of 1 vnode. To configure a database for multiple replicas, the number of dnodes in the cluster must be at least 3. A dnode can also create management nodes (mnodes), with a maximum of three mnodes per cluster. In TDengine version 3.0.0.0, a new logical node type called qnode (query node) was introduced to support the separation of computing and storage. Qnodes and vnodes can coexist in the same dnode or be completely separated onto different dnodes.
 
-## Create a Dnode
+## Create Data Node
 
 ```sql
 CREATE DNODE {dnode_endpoint | dnode_host_name PORT port_val}
 ```
 
-Enter the dnode_endpoint in hostname:port format. You can also specify the hostname and port as separate parameters.
+Here, `dnode_endpoint` is in the format of `hostname:port`, and you can also specify the hostname and port separately.
 
-Create the dnode before starting the corresponding dnode process. The dnode can then join the cluster based on the value of the firstEp parameter. Each dnode is assigned an ID after it joins a cluster.
+In practice, it is recommended to create the dnode first and then start the corresponding dnode process so that it can immediately join the cluster based on the firstEP in its configuration file. Each dnode is assigned an ID after successfully joining.
 
-## View Dnodes
+## View Data Nodes
 
 ```sql
 SHOW DNODES;
 ```
 
-The preceding SQL command shows all dnodes in the cluster with the ID, endpoint, and status.
+This command lists all the data nodes in the cluster, including fields such as the dnode ID, endpoint, and status.
 
-## Delete a DNODE
+## Delete Data Node
 
 ```sql
-DROP DNODE dnode_id [force] [unsafe]
+DROP DNODE dnode_id
 ```
 
-Note that deleting a dnode does not stop its process. You must stop the process after the dnode is deleted.
+Note that deleting a dnode does not stop the corresponding process. It is recommended to delete a dnode before stopping its associated process.
 
-Only online node is allowed to be deleted. Drop is executed with force option if the offline node need to be deleted.
-
-Drop is executed with unsafe option if the node with single replica is offline, and the data on it is not able to be restored.
-
-## Modify Dnode Configuration
+## Modify Data Node Configuration
 
 ```sql
 ALTER DNODE dnode_id dnode_option
@@ -67,65 +63,73 @@ dnode_option: {
 }
 ```
 
-The parameters that you can modify through this statement are the same as those located in the dnode configuration file. Modifications that you make through this statement take effect immediately, while modifications to the configuration file take effect when the dnode restarts.
+The above syntax allows modifying these configuration items in a way similar to how they are configured in the dnode configuration file, with the difference being that the modifications take effect immediately and do not require restarting the dnode.
 
-`value` is the value of the parameter, which needs to be in character format. For example, modify the log output level of dnode 1 to debug:
+The value is the parameter value, which should be in character format. For example, to modify the log output level of dnode 1 to debug:
 
 ```sql
 ALTER DNODE 1 'debugFlag' '143';
 ```
 
-## Add an Mnode
+## Add Management Node
 
 ```sql
 CREATE MNODE ON DNODE dnode_id
 ```
 
-TDengine automatically creates an mnode on the firstEp node. You can use this statement to create more mnodes for higher system availability. A cluster can have a maximum of three mnodes. Each dnode can contain only one mnode.
+By default, a MNODE is created on the firstEP node when the system starts. Users can use this command to create additional MNODEs to improve system availability. A maximum of three MNODEs can exist in a cluster, and only one MNODE can be created on each DNODE.
 
-## View Mnodes
+## View Management Nodes
 
 ```sql
 SHOW MNODES;
 ```
 
-This statement shows all mnodes in the cluster with the ID, dnode, and status.
+This command lists all the management nodes in the cluster, including their ID, the DNODE they are on, and their status.
 
-## Delete an Mnode
+## Delete Management Node
 
 ```sql
 DROP MNODE ON DNODE dnode_id;
 ```
 
-This statement deletes the mnode located on the specified dnode.
+This command deletes the MNODE on the specified DNODE.
 
-## Create a Qnode
+## Create Query Node
 
 ```sql
 CREATE QNODE ON DNODE dnode_id;
 ```
 
-TDengine does not automatically create qnodes on startup. You can create qnodes as necessary for compute/storage separation. Each dnode can contain only one qnode. If a qnode is created on a dnode whose supportVnodes parameter is not 0, a vnode and qnode may coexist on the dnode. Each dnode can have a maximum of one vnode, one qnode, and one mnode. However, you can configure your cluster so that vnodes, qnodes, and mnodes are located on separate dnodes. If you set supportVnodes to 0 for a dnode, you can then decide whether to deploy an mnode or a qnode on it. In this way you can physically separate virtual node types.
+By default, there are no QNODEs in the system, and users can create QNODEs to achieve separation of computing and storage. Only one QNODE can be created on each DNODE. If the `supportVnodes` parameter of a DNODE is not 0, and a QNODE is created on it, that DNODE will have both vnodes for storage management and qnodes for query computation. Additionally, if an MNODE is created on the same DNODE, all three types of logical nodes can coexist. However, through configuration, these nodes can also be completely separated. Setting the `supportVnodes` parameter of a DNODE to 0 allows for the creation of either an MNODE or a QNODE, achieving a physical separation of the three logical nodes.
 
-## View Qnodes
+## View Query Nodes
 
 ```sql
 SHOW QNODES;
 ```
 
-This statement shows all qnodes in the cluster with the ID and dnode.
+This command lists all the query nodes in the cluster, including their ID and the DNODE they are on.
 
-## Delete a Qnode
+## Delete Query Node
 
 ```sql
 DROP QNODE ON DNODE dnode_id;
 ```
 
-This statement deletes the mnode located on the specified dnode. This does not affect the status of the dnode.
+This command deletes the QNODE on the specified DNODE, but it does not affect the status of that DNODE.
+
+## Query Cluster Status
+
+```sql
+SHOW CLUSTER ALIVE;
+```
+
+This command checks whether the current cluster is available, returning values: 0 for unavailable, 1 for fully available, and 2 for partially available (some nodes in the cluster are offline, but others can still operate normally).
 
 ## Modify Client Configuration
 
-The client configuration can also be modified in a similar way to other cluster components.
+If the client is viewed as part of the broader cluster, you can dynamically modify client configuration parameters with the following command.
 
 ```sql
 ALTER LOCAL local_option
@@ -140,7 +144,7 @@ local_option: {
 }
 ```
 
-The parameters that you can modify through this statement are the same as those located in the client configuration file. Modifications that you make through this statement take effect immediately, while modifications to the configuration file take effect when the client restarts.
+The parameters in the above syntax are the same as those configured in the client configuration file, but they take effect immediately without restarting the client.
 
 ## View Client Configuration
 

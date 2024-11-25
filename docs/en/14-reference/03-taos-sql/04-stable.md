@@ -1,10 +1,10 @@
 ---
-title: Supertable
-sidebar_label: Supertable
-description: This document describes how to create and perform operations on supertables.
+title: Manage Supertables
+description: Various management operations on supertables
+slug: /tdengine-reference/sql-manual/manage-supertables
 ---
 
-## Create a Supertable
+## Create Supertable
 
 ```sql
 CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...) TAGS (create_definition [, create_definition] ...) [table_options]
@@ -22,52 +22,52 @@ table_option: {
     COMMENT 'string_value'
   | SMA(col_name [, col_name] ...)  
 }
-
 ```
 
-**More explanations**
-1. Each supertable can have a maximum of 4096 columns, including tags. The minimum number of columns is 3: a timestamp column used as the key, one tag column, and one data column.
-2. Since version 3.3.0.0, besides the timestamp, you can specify another column as primary key using `PRIMARY KEY` keyword, the column specified using `primary key` must be type of integer or varchar.
-2. The TAGS keyword defines the tag columns for the supertable. The following restrictions apply to tag columns:
-    - A tag column can use the TIMESTAMP data type, but the values in the column must be fixed numbers. Timestamps including formulae, such as "now + 10s", cannot be stored in a tag column.
-    - The name of a tag column cannot be the same as the name of any other column.
-    - The name of a tag column cannot be a reserved keyword.
-    - Each supertable must contain between 1 and 128 tags. The total length of the TAGS keyword cannot exceed 16 KB.
-3. Regarding how to use `ENCODE` and `COMPRESS`, please refer to [Encode and Compress for Column](../compress).
-3. For more information about table parameters, see [Create a Table](../table).
+**Usage Instructions**
 
-## View a Supertable
+1. The maximum number of columns in a supertable is 4096, including TAG columns; the minimum number is 3, which includes one timestamp primary key, one TAG column, and one data column.
+2. In addition to the timestamp primary key column, a second column can also be designated as an additional primary key using the PRIMARY KEY keyword. The second column designated as the primary key must be of integer or string type (varchar).
+3. The TAGS syntax specifies the tag columns for the supertable, which must adhere to the following conventions:
+    - The TIMESTAMP column in TAGS requires a provided value when writing data and does not support arithmetic operations, such as NOW + 10s.
+    - TAGS column names cannot be the same as other column names.
+    - TAGS column names cannot be reserved keywords.
+    - TAGS allows a maximum of 128 tags, at least 1, with a total length not exceeding 16 KB.
+4. For the usage of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/).
+5. For parameter descriptions in table_options, please refer to [Table Creation SQL Description](../manage-tables/).
 
-### View All Supertables
+## View Supertable
 
-```
+### Show All Supertables in the Current Database
+
+```sql
 SHOW STABLES [LIKE tb_name_wildcard];
 ```
 
-The preceding SQL statement shows all supertables in the current TDengine database.
+View all supertables within the database.
 
-### View the CREATE Statement for a Supertable
+### Show Creation Statement of a Supertable
 
-```
+```sql
 SHOW CREATE STABLE stb_name;
 ```
 
-The preceding SQL statement can be used in migration scenarios. It returns the CREATE statement that was used to create the specified supertable. You can then use the returned statement to create an identical supertable on another TDengine database.
+Commonly used for database migration. For an existing supertable, it returns its creation statement; executing this statement in another cluster will create a supertable with the same structure.
 
-## View the Supertable Schema
+### Get Structure Information of a Supertable
 
-```
+```sql
 DESCRIBE [db_name.]stb_name;
 ```
 
-### View tag information for all child tables in the supertable
+### Get Tag Information of All Subtables in a Supertable
 
-```
+```sql
 SHOW TABLE TAGS FROM table_name [FROM db_name];
 SHOW TABLE TAGS FROM [db_name.]table_name;
 ```
 
-```
+```text
 taos> SHOW TABLE TAGS FROM st1;
              tbname             |     id      |         loc          |
 ======================================================================
@@ -79,9 +79,9 @@ Query OK, 3 rows in database (0.004455s)
 
 The first column of the returned result set is the subtable name, and the subsequent columns are the tag columns.
 
-If you already know the name of the tag column, you can use the following statement to get the value of the specified tag column.
+If you already know the tag column names, you can use the following statement to obtain the values of the specified tag columns.
 
-```
+```text
 taos> SELECT DISTINCT TBNAME, id FROM st1;
              tbname             |     id      |
 ===============================================
@@ -91,11 +91,11 @@ taos> SELECT DISTINCT TBNAME, id FROM st1;
 Query OK, 3 rows in database (0.002891s)
 ```
 
-It should be noted that DISTINCT and TBNAME in the SELECT statement are essential, and TDengine will optimize the statement according to them, so that it can return the tag value correctly and quickly even when there is no data or a lot of data.
+Note that the DISTINCT in the SELECT statement and TBNAME are both essential; TDengine will optimize the statement based on these to ensure that tag values are returned correctly and quickly, regardless of whether there is no data or the data volume is very large.
 
-### View the tag information of a subtable
+### Get Tag Information of a Specific Subtable
 
-```
+```text
 taos> SHOW TAGS FROM st1s1;
    table_name    |     db_name     |   stable_name   |    tag_name     |    tag_type     |    tag_value    |
 ============================================================================================================
@@ -104,9 +104,9 @@ taos> SHOW TAGS FROM st1s1;
 Query OK, 2 rows in database (0.003684s)
 ```
 
-Similarly, you can also use the SELECT statement to query the value of the specified tag column.
+Similarly, you can also use a SELECT statement to query the values of specified tag columns.
 
-```
+```text
 taos> SELECT DISTINCT TBNAME, id, loc FROM st1s1;
      tbname      |     id      |       loc       |
 ==================================================
@@ -114,17 +114,21 @@ taos> SELECT DISTINCT TBNAME, id, loc FROM st1s1;
 Query OK, 1 rows in database (0.001884s)
 ```
 
-## Drop STable
+## Drop Supertable
 
-```
+```sql
 DROP STABLE [IF EXISTS] [db_name.]stb_name
 ```
 
-Note: Deleting a supertable will delete all subtables created from the supertable, including all data within those subtables.
+Dropping an STABLE will automatically delete all subtables created through the STABLE and all data within those subtables.
 
-**Note**：Dropping a supertable doesn't release the disk space occupied by the table, instead all the rows in the table are marked as deleted, so these data will not occur when querying. The disk space will be released when the system automatically performs `compact` operation or the user performs `compact` manually. 
+:::note
 
-## Modify a Supertable
+Dropping a supertable does not immediately release the disk space occupied by that table; instead, it marks the data of that table as deleted, and these data will not appear in queries. However, the release of disk space will be delayed until the system automatically or manually performs data compaction.
+
+:::
+
+## Modify Supertable
 
 ```sql
 ALTER STABLE [db_name.]tb_name alter_table_clause
@@ -146,82 +150,81 @@ alter_table_options:
 alter_table_option: {
     COMMENT 'string_value'
 }
-
 ```
 
-**More explanations**
+**Usage Instructions**
 
-Modifications to the table schema of a supertable take effect on all subtables within the supertable. You cannot modify the table schema of subtables individually. When you modify the tag schema of a supertable, the modifications automatically take effect on all of its subtables.
+Modifying the structure of a supertable will take effect on all its subtables. It is not possible to modify the table structure for a specific subtable. Changes to tag structures must be issued on the supertable, and TDengine will automatically apply these changes to all subtables of that supertable.
 
-- ADD COLUMN: adds a column to the supertable.
-- DROP COLUMN: deletes a column from the supertable.
-- MODIFY COLUMN: changes the length of a BINARY or NCHAR column. Note that you can only specify a length greater than the current length.
-- ADD TAG: adds a tag to the supertable.
-- DROP TAG: deletes a tag from the supertable. When you delete a tag from a supertable, it is automatically deleted from all subtables within the supertable.
-- MODIFY TAG: modifies the definition of a tag in the supertable. You can use this keyword to change the length of a BINARY or NCHAR tag column. Note that you can only specify a length greater than the current length.
-- RENAME TAG: renames a specified tag in the supertable. When you rename a tag in a supertable, it is automatically renamed in all subtables within the supertable.
-- Like odinary tables, the primary key of a supertable cannot be modified or added or deleted using ADD/DROP COLUMN.
+- ADD COLUMN: Add a column.
+- DROP COLUMN: Remove a column.
+- MODIFY COLUMN: Change the width of a column; the data column type must be nchar or binary, and this instruction can be used to increase its width only, not decrease it.
+- ADD TAG: Add a tag to the supertable.
+- DROP TAG: Remove a tag from the supertable. When a tag is removed from the supertable, all subtables of that supertable will automatically delete that tag as well.
+- MODIFY TAG: Change the width of a tag in the supertable. The tag type can only be nchar or binary, and this instruction can be used to increase its width only, not decrease it.
+- RENAME TAG: Change the name of a tag in the supertable. When a tag name is changed in the supertable, all subtables of that supertable will automatically update that tag name as well.
+- Similar to basic tables, the primary key column of a supertable cannot be modified, nor can primary key columns be added or deleted using ADD/DROP COLUMN.
 
-### Add a Column
+### Add Column
 
-```
+```sql
 ALTER STABLE stb_name ADD COLUMN col_name column_type;
 ```
 
-### Delete a Column
+### Drop Column
 
-```
+```sql
 ALTER STABLE stb_name DROP COLUMN col_name;
 ```
 
-### Modify the Data Length
+### Modify Column Width
 
-```
+```sql
 ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
 ```
 
-The preceding SQL statement changes the length of a BINARY or NCHAR data column. Note that you can only specify a length greater than the current length.
+If the data column type is variable-length (BINARY or NCHAR), this instruction can be used to modify its width (only to increase, not decrease).
 
-### Add A Tag
+### Add Tag
 
-```
+```sql
 ALTER STABLE stb_name ADD TAG tag_name tag_type;
 ```
 
-The preceding SQL statement adds a tag of the specified type to the supertable. A supertable cannot contain more than 128 tags. The total length of all tags in a supertable cannot exceed 16 KB.
+Add a new tag to the supertable and specify the type of the new tag. The total number of tags cannot exceed 128, with a total length not exceeding 16KB.
 
-### Remove A Tag
+### Drop Tag
 
-```
+```sql
 ALTER STABLE stb_name DROP TAG tag_name;
 ```
 
-The preceding SQL statement deletes a tag from the supertable. When you delete a tag from a supertable, it is automatically deleted from all subtables within the supertable.
+Remove a tag from the supertable. When a tag is removed from the supertable, all subtables of that supertable will automatically delete that tag.
 
-### Change A Tag
+### Rename Tag
 
-```
+```sql
 ALTER STABLE stb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
-The preceding SQL statement renames a tag in the supertable. When you rename a tag in a supertable, it is automatically renamed in all subtables within the supertable.
+Change the name of a tag in the supertable. When a tag name is changed in the supertable, all subtables of that supertable will automatically update that tag name as well.
 
-### Change Tag Length
+### Modify Tag Width
 
-```
+```sql
 ALTER STABLE stb_name MODIFY TAG tag_name data_type(length);
 ```
 
-The preceding SQL statement changes the length of a BINARY or NCHAR tag column. Note that you can only specify a length greater than the current length. (Available in 2.1.3.0 and later versions)
+If the tag type is variable-length (BINARY or NCHAR), this instruction can be used to modify its width (only to increase, not decrease). (Added in version 2.1.3.0)
 
-### View a Supertable
-You can run projection and aggregate SELECT queries on supertables, and you can filter by tag or column by using the WHERE keyword.
+### Supertable Query
 
-If you do not include an ORDER BY clause, results are returned by subtable. These results are not ordered. You can include an ORDER BY clause in your query to strictly order the results.
+You can use the SELECT statement to perform projection and aggregation queries on supertables. In the WHERE clause, you can filter and select tags and columns.
 
-
+If no ORDER BY clause is added in the supertable query, the returned order is to first return all data of one subtable, and then return all data of the next subtable, so the returned data is unordered. If an ORDER BY clause is added, the data will be returned strictly in the order specified by the ORDER BY clause.
 
 :::note
-All tag operations except for updating the value of a tag must be performed on the supertable and not on individual subtables. If you add a tag to an existing supertable, the tag is automatically added with a null value to all subtables within the supertable.
+
+Except for updating the tag values, which operate on subtables, all other tag operations (adding tags, dropping tags, etc.) can only act on the STABLE and cannot operate on individual subtables. After adding a tag to the STABLE, all tables established based on that STABLE will automatically have the new tag, and all newly added tags will have their default values set to NULL.
 
 :::
