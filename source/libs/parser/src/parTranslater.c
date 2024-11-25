@@ -15256,9 +15256,6 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
 static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                         char* colName, SVAlterTbReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
-  // if (NULL == pReq->tagName) {
-  //   return terrno;
-  // }
 
   SSchema* pSchema = getTagSchema(pTableMeta, colName);
   if (NULL == pSchema) {
