@@ -26,9 +26,23 @@ class TDTestCase:
         tdLog.info(f"insert data.")
         jfile = etool.curFile(__file__, "window.json")
         etool.benchMark(json=jfile)
+        
+    def testWithoutAggFunc(self):
+        tdSql.query("select _wstart,_wend, tbname from db.stb partition by tbname event_window start with voltage >2 end with voltage > 15 slimit 5 limit 5")
+        tdSql.checkRows(25)
+        tdSql.query("select _wstart,_wend, tbname from db.stb partition by tbname count_window(600) slimit 5 limit 5;")
+        tdSql.checkRows(25)
+        tdSql.query("select _wstart,_wend from db.stb event_window start with voltage >2 end with voltage > 15 limit 10;")
+        tdSql.checkRows(10)
+        tdSql.query("select _wstart,_wend from db.stb count_window(60000)")
+        tdSql.checkRows(10)
+        tdSql.query("select _wstart,_wend, tbname from db.stb partition by tbname  count_window(60000)")
+        tdSql.checkRows(12)
 
     # run
     def run(self):
+        self.testWithoutAggFunc()
+        
         # TD-31660
         sql = "select _wstart,_wend,count(voltage),tbname from db.stb partition by tbname event_window start with voltage >2 end with voltage > 15 slimit 5 limit 5"
         tdSql.query(sql)

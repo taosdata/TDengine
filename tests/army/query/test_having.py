@@ -219,40 +219,50 @@ class TDTestCase(TBase):
         tdSql.query("SELECT _WSTART, _WEND, COUNT(*) FROM ct_win INTERVAL(15m) having count(*) > 1;")
         tdSql.checkRows(5)
         tdSql.checkData(0, 2, 2)
+        tdSql.query("SELECT _WSTART, _WEND FROM ct_win INTERVAL(15m) having count(*) > 1;")
+        tdSql.checkRows(5)
 
-        tdSql.error("SELECT _WSTART, _WEND, COUNT(*) FROM ct_win INTERVAL(15m) having voltage > 12;");
+        tdSql.error("SELECT _WSTART, _WEND, COUNT(*) FROM ct_win INTERVAL(15m) having voltage > 12;")
 
         tdSql.query("SELECT _wstart, _wend, COUNT(*) AS cnt, FIRST(ts) AS fst, voltage FROM ct_win \
-                    STATE_WINDOW(voltage) having count(*) > 3;");
+                    STATE_WINDOW(voltage) having count(*) > 3;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 4)
+        tdSql.query("SELECT _wstart, _wend, voltage FROM ct_win \
+                    STATE_WINDOW(voltage) having count(*) > 3;")
+        tdSql.checkRows(1)
 
         tdSql.error("SELECT _wstart, _wend, COUNT(*) AS cnt, FIRST(ts) AS fst, voltage FROM ct_win \
-                    STATE_WINDOW(voltage) having phase > 0.26;");
+                    STATE_WINDOW(voltage) having phase > 0.26;")
 
-        tdSql.query("SELECT _wstart, _wend, COUNT(*), FIRST(ts) FROM ct_win SESSION(ts, 10m) having count(*) > 3;");
+        tdSql.query("SELECT _wstart, _wend, COUNT(*), FIRST(ts) FROM ct_win SESSION(ts, 10m) having count(*) > 3;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 5)
+        tdSql.query("SELECT _wstart, _wend FROM ct_win SESSION(ts, 10m) having count(*) > 3;")
+        tdSql.checkRows(1)
 
-        tdSql.error("SELECT _wstart, _wend, COUNT(*), FIRST(ts) FROM ct_win SESSION(ts, 10m) having voltage > 12;");
+        tdSql.error("SELECT _wstart, _wend, COUNT(*), FIRST(ts) FROM ct_win SESSION(ts, 10m) having voltage > 12;")
 
         tdSql.query("select _wstart, _wend, count(*), first(voltage), last(voltage) from ct_win \
-                    event_window start with voltage <= 12 end with voltage >= 17 having count(*) > 3;");
+                    event_window start with voltage <= 12 end with voltage >= 17 having count(*) > 3;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 7)
         tdSql.checkData(0, 3, 11)
         tdSql.checkData(0, 4, 18)
 
         tdSql.error("select _wstart, _wend, count(*) from ct_win \
-            event_window start with voltage <=12 end with voltage >= 17 having phase > 0.2;");
+            event_window start with voltage <=12 end with voltage >= 17 having phase > 0.2;")
 
         tdSql.query(
-            "select _wstart, _wend, count(*), sum(voltage) from ct_win count_window(4) having sum(voltage) > 57;");
+            "select _wstart, _wend, count(*), sum(voltage) from ct_win count_window(4) having sum(voltage) > 57;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 4)
         tdSql.checkData(0, 3, 61)
+        tdSql.query(
+            "select _wstart, _wend from ct_win count_window(4) having sum(voltage) > 57;")
+        tdSql.checkRows(1)
 
-        tdSql.error("select _wstart, _wend, count(*), sum(voltage) from ct_win count_window(4) having voltage > 12;");
+        tdSql.error("select _wstart, _wend, count(*), sum(voltage) from ct_win count_window(4) having voltage > 12;")
 
 
     def prepare_stream_window_data(self):
