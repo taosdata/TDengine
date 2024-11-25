@@ -77,7 +77,7 @@ def check_docs(){
 
         file_only_tdgpt_change_except = sh (
             script: '''
-                cat ${file_no_doc_changed} |grep -v  "forecastoperator.c\\|anomalywindowoperator.c" || :
+                echo ${file_no_doc_changed} |grep -v  "forecastoperator.c\\|anomalywindowoperator.c" || :
             ''',
             returnStdout: true
         ).trim()
