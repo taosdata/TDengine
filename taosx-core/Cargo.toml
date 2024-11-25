@@ -70,14 +70,14 @@ tokio = { version = "1", features = [
     "fs",
 ] }
 tokio-util = { version = "0.7", features = ["full"] }
-tokio-stream = "0.1.14"
+tokio-stream = { version = "0.1.14", features = ["time"] }
 tokio-process-terminate = { version = "0.3" }
 toml = "0.8.5"
 zstd = "0.13.0"
 either = "1.8"
 serde_regex = "1"
 tinytemplate = "1.2.1"
-serde_json_path = "0.6.0"
+serde_json_path = "0.7"
 csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
 notify = "6.1.1"
@@ -171,6 +171,8 @@ bitfield = { version = "0.16.1" }
 deadpool-tiberius = "0.1.8"
 file-guard = "0.2.0"
 config = "0.14.0"
+snafu = "0.8.5"
+parking_lot = "0.12.3"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }

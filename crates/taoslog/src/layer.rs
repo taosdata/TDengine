@@ -123,7 +123,7 @@ impl<Q, S, M> TaosLayer<Q, S, M> {
 
         let mut qid_field = None;
 
-        let print_stacktrace = event.metadata().level() >= &tracing::Level::DEBUG;
+        let print_stacktrace = tracing::enabled!(tracing::Level::DEBUG);
 
         let mut spans = vec![];
         if let Some(scope) = scope {

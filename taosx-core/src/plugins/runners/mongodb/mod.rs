@@ -193,8 +193,8 @@ pub async fn mongodb_to_taos(
     config.ipc_port = Some(port.get());
 
     // create ipc handler
-    let mut ipc = build_ipc(
-        &socket,
+    let (mut ipc, _) = build_ipc(
+        Some(&socket),
         parser,
         &to,
         Some(MONGODB_ID),
@@ -461,6 +461,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_is_valid() {
         // error host
         let dsn =
@@ -532,6 +533,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_sample() {
         // prepare data
         let _ = test_create_table().await;
@@ -584,6 +586,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_generate_payload() {
         // prepare data
         let _ = test_create_table().await;

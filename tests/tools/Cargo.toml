@@ -1,0 +1,25 @@
+[package]
+name = "taosx-tools"
+edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow = "1.0.91"
+chrono.workspace = true
+clap.workspace = true
+flume = "0.11.1"
+fundu.workspace = true
+rand = "0.8.5"
+rayon.workspace = true
+rumqttc = "0.24.0"
+serde = { version = "1.0.213", features = ["derive"] }
+serde_json = "1.0.132"
+serde_with.workspace = true
+snafu = "0.8.5"
+tokio = { version = "1.41.0", features = ["full"] }
+tokio-util = "0.7.12"
+toml = "0.8.19"
+
+[lints]
+workspace = true

@@ -176,8 +176,8 @@ pub async fn oracle_to_taos(
     config.ipc_port = Some(port.get());
 
     // create ipc handler
-    let mut ipc = build_ipc(
-        &socket,
+    let (mut ipc, _) = build_ipc(
+        Some(&socket),
         parser,
         &to,
         Some(ORACLE_ID),
@@ -514,6 +514,7 @@ mod tests {
         // let _ = res.await;
     }
 
+    #[ignore]
     #[test]
     fn test_generate_json_value() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();

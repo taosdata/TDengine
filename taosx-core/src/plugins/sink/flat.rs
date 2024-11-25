@@ -258,7 +258,7 @@ pub async fn flat_write_with_sql(
     for (stable, messages) in groups.into_iter() {
         let instant = std::time::Instant::now();
         let sqls = message_to_sql(messages.iter().copied(), target_precision, true, true);
-        tracing::debug!(
+        tracing::trace!(
             stable = stable.as_deref(),
             sqls = sqls.len(),
             cost = ?instant.elapsed(),
@@ -273,7 +273,7 @@ pub async fn flat_write_with_sql(
                 qid.add_sub_batch_id();
                 match write_stable_with_sql(pool, taos, qid.get(), &records, cancel).await {
                     Ok(n) => {
-                        tracing::debug!(stable, rows = n, "write stable success");
+                        tracing::trace!(stable, rows = n, "write stable success");
 
                         count += n;
                         metrics.add_inserted_sqls(1_u64);
@@ -1207,7 +1207,6 @@ async fn consume_flat_record_with_sink(
 
 #[framed]
 #[instrument(skip_all)]
-
 pub async fn ipc_flat_stream_worker_vgroup(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
@@ -1521,7 +1520,6 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
 
 #[framed]
 #[instrument(skip_all, fields(precision = %target_precision))]
-
 pub async fn ipc_flat_stream_worker_concurrent(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,

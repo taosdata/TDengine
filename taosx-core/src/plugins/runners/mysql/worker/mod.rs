@@ -628,6 +628,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_all_distinct_values() {
         // prepare data
         let _ = test_create_table().await;

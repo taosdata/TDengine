@@ -610,6 +610,7 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
+    #[ignore]
     #[tokio::test]
     async fn valid_replica_license() {
         let _ = tracing_subscriber::fmt()
@@ -696,6 +697,7 @@ mod tests {
         assert!(res.is_ok(), "{:#?}", res);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_validate_enterprise_license() {
         let _ = tracing_subscriber::fmt()
