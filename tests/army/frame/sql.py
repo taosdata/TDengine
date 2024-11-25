@@ -787,6 +787,38 @@ class TDSql:
             return "INT UNSIGNED"
         if self.cursor.istype(col, "BIGINT UNSIGNED"):
             return "BIGINT UNSIGNED"
+        
+    def check_query_col_data(self, sql1, sql2, colNum):
+        """
+        Execute sql1 and store the colNum-th column of each row in an array.
+        Execute sql2 and compare the corresponding column of the result with the previously stored result.
+        Return True if they are the same, otherwise return False.
+
+        Args:
+            sql1 (str): The first SQL query to execute.
+            sql2 (str): The second SQL query to execute.
+            colNum (int): The column number to compare (0-based index).
+
+        Returns:
+            bool: True if the colNum-th column of the results of sql1 and sql2 are the same, otherwise False.
+        """
+
+        # Execute sql1 and store the colNum-th column of each row in an array
+        self.cursor.execute(sql1)
+        result1 = self.cursor.fetchall()
+        col1_data = [row[colNum] for row in result1]
+
+        # Execute sql2 and compare the colNum-th column of the result with the previously stored result
+        self.cursor.execute(sql2)
+        result2 = self.cursor.fetchall()
+        col2_data = [row[colNum] for row in result2]
+
+        # Compare the two arrays
+        if col1_data == col2_data:
+            return
+        else:
+            tdLog.info(f"[sql1]:{sql1}, [sql2]:{sql2}, col:{colNum} {col1_data} != {col2_data}")
+            raise Exception
 
     '''
     def taosdStatus(self, state):

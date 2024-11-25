@@ -370,23 +370,31 @@ class TDTestCase:
         tdSql.checkRows(nonempty_tb_num)
 
         # state window
-        tdSql.query(f"select tbname, count(*), c1 from {self.dbname}.{self.stable} partition by tbname state_window(c1)")
+        sql1 = f"select tbname, c1, count(*) from {self.dbname}.{self.stable} partition by tbname state_window(c1) order by tbname, c1"
+        sql2 = f"select tbname, c1 from {self.dbname}.{self.stable} partition by tbname state_window(c1) order by tbname, c1"
+        tdSql.query(sql1)
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
         
-        tdSql.query(f"select tbname, c1 from {self.dbname}.{self.stable} partition by tbname state_window(c1)")
-        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.check_query_col_data(sql1, sql2, 0)
+        tdSql.check_query_col_data(sql1, sql2, 1)
 
         # session window
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname session(ts, 5s)")
         tdSql.checkRows(nonempty_tb_num)
-        tdSql.query(f"select tbname, _wstart from {self.dbname}.{self.stable} partition by tbname session(ts, 5s)")
-        tdSql.checkRows(nonempty_tb_num)
+        sql1 = f"select tbname, _wstart, count(c1) from {self.dbname}.{self.stable} partition by tbname session(ts, 5s) order by tbname, _wstart"
+        sql2 = f"select tbname, _wstart from {self.dbname}.{self.stable} partition by tbname session(ts, 5s) order by tbname, _wstart"
+        tdSql.check_query_col_data(sql1, sql2, 0)
+        tdSql.check_query_col_data(sql1, sql2, 1)
 
         # event window
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9;")
         tdSql.checkRows(nonempty_tb_num)
         tdSql.query(f"select tbname from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9;")
         tdSql.checkRows(nonempty_tb_num)
+        sql1 = f"select tbname, _wstart, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 order by tbname, _wstart"
+        sql2 = f"select tbname, _wstart  from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 order by tbname, _wstart"
+        tdSql.check_query_col_data(sql1, sql2, 0)
+        tdSql.check_query_col_data(sql1, sql2, 1)
 
     def test_event_window(self, nonempty_tb_num):
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and 1=1;")

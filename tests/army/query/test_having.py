@@ -228,9 +228,13 @@ class TDTestCase(TBase):
                     STATE_WINDOW(voltage) having count(*) > 3;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 4)
+        start = tdSql.res[0][0]
+        end = tdSql.res[0][1]
         tdSql.query("SELECT _wstart, _wend, voltage FROM ct_win \
                     STATE_WINDOW(voltage) having count(*) > 3;")
         tdSql.checkRows(1)
+        tdSql.checkData(0, 0, start)
+        tdSql.checkData(0, 1, end)
 
         tdSql.error("SELECT _wstart, _wend, COUNT(*) AS cnt, FIRST(ts) AS fst, voltage FROM ct_win \
                     STATE_WINDOW(voltage) having phase > 0.26;")
@@ -238,8 +242,12 @@ class TDTestCase(TBase):
         tdSql.query("SELECT _wstart, _wend, COUNT(*), FIRST(ts) FROM ct_win SESSION(ts, 10m) having count(*) > 3;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 5)
+        start = tdSql.res[0][0]
+        end = tdSql.res[0][1]
         tdSql.query("SELECT _wstart, _wend FROM ct_win SESSION(ts, 10m) having count(*) > 3;")
         tdSql.checkRows(1)
+        tdSql.checkData(0, 0, start)
+        tdSql.checkData(0, 1, end)
 
         tdSql.error("SELECT _wstart, _wend, COUNT(*), FIRST(ts) FROM ct_win SESSION(ts, 10m) having voltage > 12;")
 
@@ -258,9 +266,13 @@ class TDTestCase(TBase):
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 4)
         tdSql.checkData(0, 3, 61)
+        start = tdSql.res[0][0]
+        end = tdSql.res[0][1]
         tdSql.query(
             "select _wstart, _wend from ct_win count_window(4) having sum(voltage) > 57;")
         tdSql.checkRows(1)
+        tdSql.checkData(0, 0, start)
+        tdSql.checkData(0, 1, end)
 
         tdSql.error("select _wstart, _wend, count(*), sum(voltage) from ct_win count_window(4) having voltage > 12;")
 
