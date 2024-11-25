@@ -1,0 +1,1138 @@
+---
+sidebar_label: C/C++
+title: C/C++ Client Library
+slug: /tdengine-reference/client-libraries/cpp
+---
+
+C/C++ developers can use TDengine's client driver, the C/C++ connector (hereafter referred to as the TDengine client driver), to develop their own applications that connect to the TDengine cluster for data storage, querying, and other functions. The API of the TDengine client driver is similar to MySQL's C API. When using the application, you need to include the TDengine header file, which lists the function prototypes of the provided API; the application must also link to the corresponding dynamic library on its platform.  
+The TDengine client driver provides two dynamic libraries: `taosws` and `taos`, which support WebSocket connections and native connections, respectively. The difference between WebSocket and native connections is that the WebSocket connection method does not require the client and server versions to match exactly, while the native connection does. In terms of performance, the WebSocket connection is also close to the native connection, so we generally recommend using the WebSocket connection method.
+
+Below, we will introduce the usage methods for both connection types separately.
+
+## WebSocket Connection Method
+
+The WebSocket connection method requires the use of the `taosws.h` header file and the `taosws` dynamic library.
+
+```c
+#include <taosws.h>
+```
+
+After TDengine server or client installation, `taosws.h` is located at:
+
+- Linux: `/usr/local/taos/include`
+- Windows: `C:\TDengine\include`
+- macOS: `/usr/local/include`
+
+The dynamic library for the TDengine client driver is located at:
+
+- Linux: `/usr/local/taos/driver/libtaosws.so`
+- Windows: `C:\TDengine\driver\taosws.dll`
+- macOS: `/usr/local/lib/libtaosws.dylib`
+
+### Supported Platforms
+
+Please refer to the [list of supported platforms](../#supported-platforms).
+
+### Version History
+
+| TDengine Client Version |     Major Changes           |   TDengine Version    |
+| :----------------------: | :-------------------------: | :------------------: |
+|        3.3.3.0          | First release, providing comprehensive support for SQL execution, parameter binding, schema-less writing, and data subscription. |       3.3.2.0 and higher    |
+
+### Error Codes
+
+In the design of the C interface, error codes are represented as integers, with each error code corresponding to a specific error state. Unless otherwise specified, when the return value of an API is an integer, _0_ indicates success, while other values indicate the reason for failure; when the return value is a pointer, _NULL_ indicates failure.  
+The separate error codes for the WebSocket connection method can be found in `taosws.h`:
+
+| Error Code | Error Description | Possible Scenarios or Causes | Suggested User Actions |
+|------------|-------------------|-----------------------------|------------------------|
+| 0xE000     | DSN Error         | DSN does not conform to specifications | Check if the DSN string conforms to specifications |
+| 0xE001     | Internal Error    | Uncertain                    | Preserve context and logs, report issue on GitHub |
+| 0xE002     | Connection Closed  | Network disconnection         | Please check network conditions and view `taosadapter` logs. |
+| 0xE003     | Send Timeout      | Network disconnection         | Please check network conditions |
+| 0xE004     | Receive Timeout    | Slow query or network disconnection | Investigate `taosadapter` logs |
+
+For other error codes, please refer to the `taoserror.h` file in the same directory, and for detailed native connection error code explanations, refer to: [Error Codes](../../error-codes/).
+
+:::info
+
+WebSocket connection error codes only retain the last two bytes of the native connection error codes.
+
+:::
+
+### Sample Programs
+
+This section showcases sample code demonstrating common access methods for accessing the TDengine cluster using the client driver.
+
+- Synchronous Query Example: [Synchronous Query](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws/query_data_demo.c)
+- Parameter Binding Example: [Parameter Binding](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws/stmt_insert_demo.c)
+- Schema-less Writing Example: [Schema-less Writing](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws/sml_insert_demo.c)
+- Subscription and Consumption Example: [Subscription and Consumption](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws/tmq_demo.c)
+
+:::info
+
+For more example code and downloads, please visit [GitHub](https://github.com/taosdata/TDengine/tree/main/docs/examples/c-ws).
+
+:::
+
+### API Reference
+
+Below, we introduce the DSN, basic API, synchronous query API, parameter binding API, schema-less writing API, and data subscription API for the TDengine client driver.
+
+#### DSN
+
+The C/C++ WebSocket connector represents connection information through a DSN connection descriptor string. The basic structure of the DSN descriptor string is as follows:
+
+```text
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+The meanings of each part are shown in the table below:
+
+- **driver**: The driver name must be specified so that the connector can select how to create the connection. Supported driver names include:
+  - **taos**: Default driver, supports SQL execution, parameter binding, schema-less writing.
+  - **tmq**: Uses TMQ to subscribe to data.
+- **protocol**: Explicitly specify how to establish the connection. For example, `taos+ws://localhost:6041` specifies establishing a connection via WebSocket.
+  - **http/ws**: Uses WebSocket protocol.
+  - **https/wss**: Enables SSL/TLS protocol in WebSocket connection mode.
+- **username/password**: Username and password used to create the connection.
+- **host/port**: Specifies the server and port for creating the connection. When the server address and port are not specified, the WebSocket connection defaults to `localhost:6041`.
+- **database**: Specifies the name of the default database to connect to, which is optional.
+- **params**: Other optional parameters.
+
+An example of a complete DSN descriptor string is as follows: `taos+ws://localhost:6041/test`, which indicates using WebSocket (`ws`) to connect to the server `localhost` via port `6041`, and specifying the default database as `test`.
+
+#### Basic API
+
+The basic API is used to create database connections and provide a runtime environment for executing other APIs.
+
+- `char *ws_get_client_info()`
+  - **Interface Description**: Get client version information.
+  - **Return Value**: Returns client version information.
+- `WS_TAOS *ws_connect(const char *dsn)`
+  - **Interface Description**: Create a database connection and initialize the connection context.
+  - **Parameter Description**:
+    - dsn: [input] Connection information, see the above DSN section.
+  - **Return Value**: Returns the database connection; a null value indicates failure. The application must save the returned parameter for subsequent use.
+  :::info
+  A single process can connect to multiple TDengine clusters based on different DSNs.
+  :::
+- `const char *ws_get_server_info(WS_TAOS *taos)`
+  - **Interface Description**: Get server version information.
+  - **Parameter Description**:
+    - taos: [input] Pointer to the database connection, which is established through the `ws_connect()` function.
+  - **Return Value**: Returns server version information.
+- `int32_t ws_select_db(WS_TAOS *taos, const char *db)`
+  - **Interface Description**: Set the current default database to `db`.
+  - **Parameter Description**:
+    - taos: [input] Pointer to the database connection, which is established through the `ws_connect()` function.
+    - db: [input] Database name.
+  - **Return Value**: `0`: success, non-`0`: failure, details can be found in the error code page.
+- `int32_t ws_get_current_db(WS_TAOS *taos, char *database, int len, int *required)`
+  - **Interface Description**: Get the current database name.
+  - **Parameter Description**:
+    - taos: [input] Pointer to the database connection, which is established through the `ws_connect()` function.
+    - database: [output] Stores the current database name.
+    - len: [input] The size of the database buffer.
+    - required: [output] Stores the space required for the current database name (including the last '\0').
+  - **Return Value**: `0`: success, `-1`: failure; you can call `ws_errstr(NULL)` to get more detailed error information.
+    - If `database == NULL` or `len <= 0`, it returns failure.
+    - If `len` is less than the space required to store the database name (including the last '\0'), it also returns failure.
+- `int32_t ws_close(WS_TAOS *taos);`
+  - **Interface Description**: Close the connection.
+  - **Parameter Description**:
+    - taos: [input] Pointer to the database connection, which is established through the `ws_connect()` function.
+  - **Return Value**: `0`: success, non-`0`: failure; details can be found on the error code page.
+
+#### Synchronous Queries
+
+This section introduces APIs that belong to synchronous interfaces. After the application call, it will block and wait for a response until the return result or error message is obtained.
+
+- `WS_RES *ws_query(WS_TAOS *taos, const char *sql)`
+  - **Interface Description**: Execute an SQL statement, which can be DQL, DML, or DDL statements.
+  - **Parameter Description**:
+    - taos: [input] Pointer to the database connection, which is established through the `ws_connect()` function.
+    - sql: [input] The SQL statement to be executed.
+  - **Return Value**: You cannot determine if the execution result failed by checking whether the return value is `NULL`; instead, you need to call the `ws_errno()` function to parse the error code in the result set.
+    - `ws_errno` Return Value: `0`: success, `-1`: failure; for details, call the `ws_errstr` function to get the error message.
+- `int32_t ws_result_precision(const WS_RES *rs)`
+  - **Interface Description**: Returns the precision category of the timestamp field in the result set.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: `0`: milliseconds, `1`: microseconds, `2`: nanoseconds.
+- `WS_ROW ws_fetch_row(WS_RES *rs)`
+  - **Interface Description**: Fetch data from the query result set row by row.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: Non-`NULL`: success, `NULL`: failure; you can call `ws_errstr(NULL)` for more detailed error information.
+- `int32_t ws_fetch_raw_block(WS_RES *rs, const void **pData, int32_t *numOfRows)`
+  - **Interface Description**: Batch fetch data from the query result set.
+  - **Parameter Description**:
+    - res: [input] The result set.
+    - pData: [output] Used to store a data block fetched from the result set.
+    - numOfRows: [output] Used to store the number of rows in the fetched data block.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `int32_t ws_num_fields(const WS_RES *rs)` and `int32_t ws_field_count(const WS_RES *rs)`
+  - **Interface Description**: These two APIs are equivalent and used to get the number of columns in the query result set.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: The return value is the number of columns in the result set.
+- `int32_t ws_affected_rows(const WS_RES *rs)`
+  - **Interface Description**: Get the number of rows affected by the executed SQL statement.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: The return value indicates the number of affected rows.
+- `int64_t ws_affected_rows64(const WS_RES *rs)`
+  - **Interface Description**: Get the number of rows affected by the executed SQL statement.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: The return value indicates the number of affected rows.
+- `const struct WS_FIELD *ws_fetch_fields(WS_RES *rs)`
+  - **Interface Description**: Get the attributes of each column of data in the query result set (column name, data type, length). This can be used with `ws_num_fields()` to parse the data of a tuple (a row) returned by `ws_fetch_row()`.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: Non-`NULL`: success, returns a pointer to the WS_FIELD structure, where each element represents the metadata of a column. `NULL`: failure.
+- `int32_t ws_stop_query(WS_RES *rs)`
+  - **Interface Description**: Stop the execution of the current query.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `int32_t ws_free_result(WS_RES *rs)`
+  - **Interface Description**: Release the query result set and related resources. After the query is completed, it is essential to call this API to release resources; otherwise, it may lead to memory leaks in the application. However, be cautious that after releasing resources, calling functions like `ws_fetch_fields()` to obtain query results will cause the application to crash.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `const char *ws_errstr(WS_RES *rs)`
+  - **Interface Description**: Get the reason for the failure of the most recent API call; the return value is a string indicating the error message.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: A string indicating the error message.
+- `int32_t ws_errno(WS_RES *rs)`
+  - **Interface Description**: Get the reason for the failure of the most recent API call; the return value is an error code.
+  - **Parameter Description**:
+    - res: [input] The result set.
+  - **Return Value**: A string indicating the error message.
+
+:::note
+
+TDengine recommends that each thread of the database application establish a separate connection or build a connection pool based on threads. Do not share the connection (WS\_TAOS\*) structure between different threads in the application. Another point to note is that during the execution of the above synchronous APIs, you should not call APIs like pthread_cancel to forcibly terminate threads, as it involves synchronous operations of some modules. Forcibly terminating threads may cause exceptions such as deadlocks.
+
+:::
+
+#### Parameter Binding
+
+In addition to directly calling `ws_query()` for data insertion through SQL execution, TDengine also provides a Prepare API that supports parameter binding, similar to MySQL. Currently, it only supports using the question mark `?` to represent the parameters to be bound.
+
+By using the parameter binding interface for data insertion, you can avoid the resource consumption of SQL syntax parsing, significantly improving insertion performance in most cases. The typical steps for this operation are as follows:
+
+1. Call `ws_stmt_init()` to create a parameter binding object;
+2. Call `ws_stmt_prepare()` to parse the INSERT statement;
+3. If the INSERT statement reserves the table name but does not reserve tags, call `ws_stmt_set_tbname()` to set the table name;
+4. If the INSERT statement reserves both the table name and tags (for example, when the INSERT statement uses the automatic table creation method), call `ws_stmt_set_tbname_tags()` to set the table name and the values of tags;
+5. Call `ws_stmt_bind_param_batch()` to set the VALUES in a multi-row manner;
+6. Call `ws_stmt_add_batch()` to add the currently bound parameters to the batch process;
+7. You can repeat steps 3 to 6 to add more data rows to the batch process;
+8. Call `ws_stmt_execute()` to execute the prepared batch command;
+9. After execution, call `ws_stmt_close()` to release all resources.
+
+Note: If `ws_stmt_execute()` is successful and you do not need to change the SQL statement, you can reuse the parsing result from `ws_stmt_prepare()` to directly bind new data in steps 3 to 6. However, if execution fails, it is not advisable to continue working in the current context; instead, it is recommended to release resources and restart from the `ws_stmt_init()` step.
+
+The specific functions related to the interface are as follows (you can also refer to the [stmt_insert_demo.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c-ws/stmt_insert_demo.c) file for examples of using these functions):
+
+- `WS_STMT *ws_stmt_init(const WS_TAOS *taos)`
+  - **Interface Description**: Initializes a precompiled SQL statement object.
+  - **Parameter Description**:
+    - taos: [input] Pointer to the database connection, which is established through the `ws_connect()` function.
+  - **Return Value**: Non-`NULL`: success, returns a pointer to the WS_STMT structure representing the precompiled SQL statement object. `NULL`: failure; for details, call the `ws_stmt_errstr()` function to get the error message.
+- `int ws_stmt_prepare(WS_STMT *stmt, const char *sql, unsigned long len)`
+  - **Interface Description**: Parses a precompiled SQL statement and binds the parsing result and parameter information to `stmt`.
+  - **Parameter Description**:
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+    - sql: [input] The SQL statement to be parsed.
+    - len: [input] The length of the parameter `sql`. If `len` is greater than 0, this parameter will be used as the length of the SQL statement; if it equals 0, the length of the SQL statement will be automatically determined.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `int ws_stmt_bind_param_batch(WS_STMT *stmt, const WS_MULTI_BIND *bind, uint32_t len)`
+  - **Interface Description**: Passes data to be bound in a multi-column manner; you must ensure that the order and number of data columns passed here match the VALUES parameters in the SQL statement exactly.
+  - **Parameter Description**:
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+    - bind: [input] Pointer to a valid WS_MULTI_BIND structure, which contains the list of parameters to be batch-bound to the SQL statement.
+    - len: [input] The number of elements in the `bind` array.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `int ws_stmt_set_tbname(WS_STMT *stmt, const char *name)`
+  - **Interface Description**: (Only supports replacing parameter values in INSERT statements) When the table name in the SQL statement uses a `?` placeholder, this function can be used to bind a specific table name.
+  - **Parameter Description**:
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+    - name: [input] Pointer to a string constant containing the subtable name.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `int ws_stmt_set_tbname_tags(WS_STMT *stmt, const char *name, const WS_MULTI_BIND *bind, uint32_t len);`
+  - **Interface Description**: (Only supports replacing parameter values in INSERT statements) When both the table name and tags in the SQL statement use `?` placeholders, this function can bind specific values for the table name and tags . The most typical usage scenario is with INSERT statements that use automatic table creation features (currently, specifying specific tag columns is not supported). The number of columns in the `TAGS` parameter must exactly match the number required in the SQL statement.
+  - **Parameter Description**:
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+    - name: [input] Pointer to a string constant containing the subtable name.
+    - tags: [input] Pointer to a valid WS_MULTI_BIND structure, which contains the values of the subtable tags.
+    - len: [input] The number of elements in the `bind` array.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `int ws_stmt_add_batch(WS_STMT *stmt)`
+  - **Interface Description**: Adds the currently bound parameters to the batch process. After calling this function, you can call `ws_stmt_bind_param_batch()` again to bind new parameters. Note that this function only supports INSERT/IMPORT statements; calling it for other SQL statements like SELECT will return an error.
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `int ws_stmt_execute(WS_STMT *stmt, int32_t *affected_rows)`
+  - **Interface Description**: Executes the prepared statement. Currently, a statement can only be executed once.
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+    - affected_rows: [output] The number of rows successfully written.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `int ws_stmt_affected_rows(WS_STMT *stmt)`
+  - **Interface Description**: Gets the number of rows affected after executing the precompiled SQL statement.
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Returns the number of affected rows.
+- `int ws_stmt_affected_rows_once(WS_STMT *stmt)`
+  - **Interface Description**: Gets the number of rows affected by executing a bound statement once.
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Returns the number of affected rows.
+- `int32_t ws_stmt_close(WS_STMT *stmt)`
+  - **Interface Description**: After execution, releases all resources.
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: `0`: success. Non-`0`: failure; for details, refer to the error code page.
+- `const char *ws_stmt_errstr(WS_STMT *stmt)`
+  - **Interface Description**: Used to get error information when other STMT APIs return an error (returning an error code or a NULL pointer).
+    - stmt: [input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Returns a pointer to a string containing the error information.
+
+#### Schemaless Insertion
+
+In addition to writing data using SQL or the parameter binding API, you can also perform inserts using a Schemaless approach. This method allows you to skip the pre-creation of supertables/data subtable structures and directly write data. The TDengine system automatically creates and maintains the necessary table structures based on the content of the data being written. For more information on using Schemaless, refer to the [Schemaless Ingestion](../../../developer-guide/schemaless-ingestion/) chapter. Here, we introduce the C/C++ APIs associated with it.
+
+- `WS_RES *ws_schemaless_insert_raw(WS_TAOS *taos, const char *lines, int len, int32_t *totalRows, int protocal, int precision)`
+  - **Interface Description**: Executes a batch insert operation in a schemaless manner, writing line protocol text data into TDengine. The `lines` pointer and the length `len` indicate the data, addressing the issue of raw interface data being truncated due to the presence of '\0'.
+    - taos: [input] Pointer to the database connection, established through the `ws_connect()` function.
+    - lines: [input] Text data, a schemaless text string that meets parsing format requirements.
+    - len: [input] Total length (in bytes) of the data buffer `lines`.
+    - totalRows: [output] Pointer to an integer, used to return the total number of successfully inserted records.
+    - protocol: [input] Row protocol type, used to identify the format of the text data.
+    - precision: [input] Timestamp precision string in the text data.
+  - **Return Value**: Returns a pointer to the WS_RES structure, which contains the result of the insert operation. Applications can use `ws_errstr()` to obtain error information or `ws_errno()` to get the error code. In some cases, the returned WS_RES may be `NULL`; in such situations, you can still safely obtain error code information by calling `ws_errno()`. The returned WS_RES must be released by the caller to avoid memory leaks.
+
+:::note
+
+The protocol type is an enumeration that includes the following formats:
+
+- `WS_TSDB_SML_LINE_PROTOCOL`: InfluxDB Line Protocol
+- `WS_TSDB_SML_TELNET_PROTOCOL`: OpenTSDB Telnet text line protocol
+- `WS_TSDB_SML_JSON_PROTOCOL`: OpenTSDB JSON protocol format
+
+The definitions for timestamp resolution are found in the `taosws.h` file, as follows:
+
+- `WS_TSDB_SML_TIMESTAMP_NOT_CONFIGURED` = 0,
+- `WS_TSDB_SML_TIMESTAMP_HOURS`,
+- `WS_TSDB_SML_TIMESTAMP_MINUTES`,
+- `WS_TSDB_SML_TIMESTAMP_SECONDS`,
+- `WS_TSDB_SML_TIMESTAMP_MILLI_SECONDS`,
+- `WS_TSDB_SML_TIMESTAMP_MICRO_SECONDS`,
+- `WS_TSDB_SML_TIMESTAMP_NANO_SECONDS`
+
+:::
+
+It is important to note that the timestamp resolution parameter is effective only when the protocol type is `WS_SML_LINE_PROTOCOL`. For the OpenTSDB text protocol, timestamp parsing follows its official parsing rules — the precision of the timestamp is determined by the number of characters it contains.
+
+**Other Related Interfaces for Schemaless**
+
+- `WS_RES *ws_schemaless_insert_raw_with_reqid(WS_TAOS *taos, const char *lines, int len, int32_t *totalRows, int protocal, int precision, uint64_t reqid)`
+  - **Interface Description**: Executes a batch insert operation in a schemaless manner, writing line protocol text data into TDengine. The `lines` pointer and the length `len` indicate the data, addressing the issue of raw interface data being truncated due to the presence of '\0'. The `reqid` parameter is passed to trace the entire function call chain.
+    - taos: [input] Pointer to the database connection, established through the `ws_connect()` function.
+    - lines: [input] Text data, a schemaless text string that meets parsing format requirements.
+    - len: [input] Total length (in bytes) of the data buffer `lines`.
+    - totalRows: [output] Pointer to an integer, used to return the total number of successfully inserted records.
+    - protocol: [input] Row protocol type, used to identify the format of the text data.
+    - precision: [input] Timestamp precision string in the text data.
+    - reqid: [input] Specified request ID for tracking the calling request. The request ID (`reqid`) can establish an association between requests and responses between the client and server, which is very useful for tracing and debugging in distributed systems.
+  - **Return Value**: Returns a pointer to the WS_RES structure, which contains the result of the insert operation. Applications can use `ws_errstr()` to obtain error information or `ws_errno()` to get the error code. In some cases, the returned WS_RES may be `NULL`; in such situations, you can still safely obtain error code information by calling `ws_errno()`. The returned WS_RES must be released by the caller to avoid memory leaks.
+- `WS_RES *ws_schemaless_insert_raw_ttl(WS_TAOS *taos, const char *lines, int len, int32_t *totalRows, int protocal, int precision, int ttl)`
+  - **Interface Description**: Executes a batch insert operation in a schemaless manner, writing line protocol text data into TDengine. The `lines` pointer and the length `len` indicate the data, addressing the issue of raw interface data being truncated due to the presence of '\0'. The `ttl` parameter is passed to control the TTL expiration time for the created table.
+    - taos: [input] Pointer to the database connection, established through the `ws_connect()` function.
+    - lines: [input] Text data, a schemaless text string that meets parsing format requirements.
+    - len: [input] Total length (in bytes) of the data buffer `lines`.
+    - totalRows: [output] Pointer to an integer, used to return the total number of successfully inserted records.
+    - protocol: [input] Row protocol type, used to identify the format of the text data.
+    - precision: [input] Timestamp precision string in the text data.
+    - ttl: [input] Specified Time-To-Live (TTL), in days. Records will be automatically deleted after exceeding this lifetime.
+  - **Return Value**: Returns a pointer to the WS_RES structure, which contains the result of the insert operation. Applications can use `ws_errstr()` to obtain error information or `ws_errno()` to get the error code. In some cases, the returned WS_RES may be `NULL`; in such situations, you can still safely obtain error code information by calling `ws_errno()`. The returned WS_RES must be released by the caller to avoid memory leaks.
+- `WS_RES *ws_schemaless_insert_raw_ttl_with_reqid(WS_TAOS *taos, const char *lines, int len, int32_t *totalRows, int protocal, int precision, int ttl, uint64_t reqid)`
+  - **Interface Description**: Executes a batch insert operation in a schemaless manner, writing line protocol text data into TDengine. The `lines` pointer and the length `len` indicate the data, addressing the issue of raw interface data being truncated due to the presence of '\0'. The `ttl` parameter is passed to control the TTL expiration time for the created table. The `reqid` parameter is passed to trace the entire function call chain.
+    - taos: [input] Pointer to the database connection, established through the `ws_connect()` function.
+    - lines: [input] Text data, a schemaless text string that meets parsing format requirements.
+    - len: [input] Total length (in bytes) of the data buffer `lines`.
+    - totalRows: [output] Pointer to an integer, used to return the total number of successfully inserted records.
+    - protocol: [input] Row protocol type, used to identify the format of the text data.
+    - precision: [input] Timestamp precision string in the text data.
+    - ttl: [input] Specified Time-To-Live (TTL), in days. Records will be automatically deleted after exceeding this lifetime.
+    - reqid: [input] Specified request ID for tracking the calling request. The request ID (`reqid`) can establish an association between requests and responses between the client and server, which is very useful for tracing and debugging in distributed systems.
+  - **Return Value**: Returns a pointer to the WS_RES structure, which contains the result of the insert operation. Applications can use `ws_errstr()` to obtain error information or `ws_errno()` to get the error code. In some cases, the returned WS_RES may be `NULL`; in such situations, you can still safely obtain error code information by calling `ws_errno()`. The returned WS_RES must be released by the caller to avoid memory leaks.
+
+:::note
+
+- The above three interfaces are extension interfaces, primarily used to pass `ttl` and `reqid` parameters during schemaless writing and can be used as needed.
+- Interfaces with `ttl` can pass the `ttl` parameter to control the expiration time of the table.
+- Interfaces with `reqid` can trace the entire call chain by passing the `reqid` parameter.
+
+:::
+
+#### Data Subscription
+
+- `const char *ws_tmq_errstr(ws_tmq_t *tmq)`
+  - **Interface Description**: Used to retrieve error information for data subscriptions.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure, which represents a TMQ consumer object.
+  - **Return Value**: Returns a pointer to a string containing error information; the return value is non-NULL, but the error information may be an empty string.
+- `ws_tmq_conf_t *ws_tmq_conf_new(void);`
+  - **Interface Description**: Creates a new TMQ configuration object.
+  - **Return Value**: Non-NULL: Success, returns a pointer to a `ws_tmq_conf_t` structure used to configure TMQ behavior and features. NULL: Failure; call `ws_errstr(NULL)` for more detailed error information.
+- `enum ws_tmq_conf_res_t ws_tmq_conf_set(ws_tmq_conf_t *conf, const char *key, const char *value)`
+  - **Interface Description**: Sets configuration items in the TMQ configuration object for consumption parameters.
+    - conf: [input] Pointer to a valid `ws_tmq_conf_t` structure representing a TMQ configuration object.
+    - key: [input] The key name of the configuration item.
+    - value: [input] The value of the configuration item.
+  - **Return Value**: Returns a `ws_tmq_conf_res_t` enumeration value indicating the result of the configuration setting.
+    - WS_TMQ_CONF_OK: Successfully set the configuration item.
+    - WS_TMQ_CONF_INVALID_KEY: Invalid key value.
+    - WS_TMQ_CONF_UNKNOWN: Invalid key name.
+- `int32_t ws_tmq_conf_destroy(ws_tmq_conf_t *conf)`
+  - **Interface Description**: Destroys a TMQ configuration object and releases related resources.
+    - conf: [input] Pointer to a valid `ws_tmq_conf_t` structure representing a TMQ configuration object.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(NULL)` for more detailed error information.
+- `ws_tmq_list_t *ws_tmq_list_new(void)`
+  - **Interface Description**: Creates a `ws_tmq_list_t` structure to store subscribed topics.
+  - **Return Value**: Non-NULL: Success, returns a pointer to a `ws_tmq_list_t` structure. NULL: Failure; call `ws_tmq_errstr(NULL)` for more detailed error information.
+- `int32_t ws_tmq_list_append(ws_tmq_list_t *list, const char *topic)`
+  - **Interface Description**: Adds a topic to the `ws_tmq_list_t` structure.
+    - list: [input] Pointer to a valid `ws_tmq_list_t` structure representing a TMQ list object.
+    - topic: [input] Topic name.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(NULL)` for more detailed error information.
+- `int32_t ws_tmq_list_destroy(ws_tmq_list_t *list);`
+  - **Interface Description**: Destroys the `ws_tmq_list_t` structure; the result from `ws_tmq_list_new` needs to be released via this interface.
+    - list: [input] Pointer to a valid `ws_tmq_list_t` structure representing a TMQ list object.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(NULL)` for more detailed error information.
+- `int32_t ws_tmq_list_get_size(ws_tmq_list_t *list);`
+  - **Interface Description**: Gets the number of topics in the `ws_tmq_list_t` structure.
+    - list: [input] Pointer to a valid `ws_tmq_list_t` structure representing a TMQ list object.
+  - **Return Value**: `>=0`: Success, returns the number of topics in the `ws_tmq_list_t` structure. `-1`: Failure, indicating the input parameter list is NULL.
+- `char **ws_tmq_list_to_c_array(const ws_tmq_list_t *list, uint32_t *topic_num);`
+  - **Interface Description**: Converts the `ws_tmq_list_t` structure to a C array, with each element being a string pointer.
+    - list: [input] Pointer to a valid `ws_tmq_list_t` structure representing a TMQ list object.
+    - topic_num: [input] Number of elements in the list.
+  - **Return Value**: Non-NULL: Success, returns a C array where each element is a string pointer representing a topic name. NULL: Failure, indicating the input parameter list is NULL.
+- `ws_tmq_t *ws_tmq_consumer_new(ws_tmq_conf_t *conf, const char *dsn, char *errstr, int errstr_len)`
+  - **Interface Description**: Creates a `ws_tmq_t` structure for consuming data. After consuming data, call `tmq_consumer_close` to close the consumer.
+    - conf: [input] Pointer to a valid `ws_tmq_conf_t` structure representing a TMQ configuration object.
+    - dsn: [input] DSN information string; refer to the DSN section above for specifics. A common valid DSN is "tmq+ws://root:taosdata@localhost:6041".
+    - errstr: [output] Pointer to a valid character buffer for receiving error information that may arise during creation. Memory allocation/deallocation is the caller's responsibility.
+    - errstrLen: [input] Specifies the size of the `errstr` buffer (in bytes).
+  - **Return Value**: Non-NULL: Success, returns a pointer to a `ws_tmq_t` structure representing a TMQ consumer object. NULL: Failure; error information is stored in the `errstr` parameter.
+- `int32_t ws_tmq_subscribe(ws_tmq_t *tmq, const ws_tmq_list_t *topic_list)`
+  - **Interface Description**: Subscribes to a list of topics. After consuming data, call `ws_tmq_unsubscribe` to cancel the subscription.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+    - topic_list: [input] Pointer to a valid `ws_tmq_list_t` structure containing one or more topic names; currently only one topic name is supported.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int32_t ws_tmq_unsubscribe(ws_tmq_t *tmq)`
+  - **Interface Description**: Cancels the subscribed topic list. Must be used in conjunction with `ws_tmq_subscribe`.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `WS_RES *ws_tmq_consumer_poll(ws_tmq_t *tmq, int64_t timeout)`
+  - **Interface Description**: Polls for consuming data. Each consumer can only call this interface in a single-threaded manner.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+    - timeout: [input] Polling timeout, in milliseconds; negative value indicates a default timeout of 1 second.
+  - **Return Value**: Non-NULL: Success, returns a pointer to a `WS_RES` structure containing the received message. NULL: Failure, indicating no data. The `WS_RES` result is consistent with that returned by `taos_query`, and various interfaces can be used to obtain information from `WS_RES`, such as schema, etc.
+- `int32_t ws_tmq_consumer_close(ws_tmq_t *tmq)`
+  - **Interface Description**: Closes the `ws_tmq_t` structure. Must be used in conjunction with `ws_tmq_consumer_new`.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int32_t ws_tmq_get_topic_assignment(ws_tmq_t *tmq, const char *pTopicName, struct ws_tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
+  - **Interface Description**: Returns information about the vgroup assigned to the current consumer; each vgroup's information includes `vgId`, maximum and minimum offsets of the WAL, and the currently consumed offset.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [input] Topic name to query assignment information.
+    - assignment: [output] Pointer to a pointer of `tmq_topic_assignment` structure for receiving assignment information. The data size is `numOfAssignment`, which needs to be released via the `tmq_free_assignment` interface.
+    - numOfAssignment: [output] Pointer to an integer for receiving the number of valid vgroups assigned to this consumer.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int32_t ws_tmq_free_assignment(struct ws_tmq_topic_assignment *pAssignment, int32_t numOfAssignment)`
+  - **Interface Description**: Frees the information of the vgroup assigned to the current consumer; each vgroup's information includes `vgId`, maximum and minimum offsets of the WAL, and the currently consumed offset.
+    - pAssignment: [input] Pointer to an array of valid `ws_tmq_topic_assignment` structures containing vgroup assignment information.
+    - numOfAssignment: [input] Number of elements in the array pointed to by `pAssignment`.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int64_t ws_tmq_committed(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+  - **Interface Description**: Retrieves the committed offset for the TMQ consumer object for a specific topic and vgroup.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [input] Topic name to query the committed offset.
+    - vgId: [input] ID of the vgroup.
+  - **Return Value**: `>=0`: Success, returns an `int64_t` value indicating the committed offset. `<0`: Failure, the return value is the error code; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int32_t ws_tmq_commit_sync(ws_tmq_t *tmq, const WS_RES *rs)`
+  - **Interface Description**: Synchronizes the submission of the message offsets processed by the TMQ consumer object.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+    - rs: [input] Pointer to a valid `WS_RES` structure containing the processed message. If NULL, commits the current progress of all vgroups consumed by the current consumer.
+  - **Return Value**: `0`: Success, offset has been successfully committed. Non-`0`: Failure; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int32_t ws_tmq_commit_offset_sync(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+  - **Interface Description**: Synchronizes the submission of the offset for the TMQ consumer object for a specific topic and vgroup.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [input] Topic name for which to commit the offset.
+    - vgId: [input] ID of the virtual group (vgroup).
+    - offset: [input] The offset to commit.
+  - **Return Value**: `0`: Success, offset has been successfully committed. Non-`0`: Failure; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int64_t ws_tmq_position(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+  - **Interface Description**: Retrieves the current consumption position, i.e., the next position of the consumed data.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [input] Topic name to query the current position.
+    - vgId: [input] ID of the virtual group (vgroup).
+  - **Return Value**: `>=0`: Success, returns an `int64_t` value indicating the position offset. `<0`: Failure, the return value is the error code; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int32_t ws_tmq_offset_seek(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+  - **Interface Description**: Sets the TMQ consumer object's offset for a specific topic and vgroup to the specified position.
+    - tmq: [input] Pointer to a valid `ws_tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [input] Topic name to query the current position.
+    - vgId: [input] ID of the virtual group (vgroup).
+    - offset: [input] Offset of the virtual group (vgroup).
+  - **Return Value**: `0`: Success. Non-`0`: Failure; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int64_t ws_tmq_get_vgroup_offset(const WS_RES *rs)`
+  - **Interface Description**: Extracts the current consumption position offset of the vgroup from the message result obtained from the TMQ consumer.
+    - rs: [input] Pointer to a valid `WS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: `>=0`: Success, returns an `int64_t` value indicating the current consumption position offset. `<0`: Failure, the return value is the error code; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `int32_t ws_tmq_get_vgroup_id(const WS_RES *rs)`
+  - **Interface Description**: Extracts the ID of the vgroup from the message result obtained from the TMQ consumer.
+    - rs: [input] Pointer to a valid `WS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: `>=0`: Success, returns an `int32_t` value indicating the vgroup ID. `<0`: Failure, the return value is the error code; call `ws_tmq_errstr(tmq)` for more detailed error information.
+- `const char *ws_tmq_get_table_name(const WS_RES *rs)`
+  - **Interface Description**: Retrieves the table name from the message result obtained from the TMQ consumer.
+    - rs: [input] Pointer to a valid `WS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: Non-NULL: Success, returns a `const char *` pointer pointing to the table name string. NULL: Failure, indicating an invalid input parameter.
+- `enum ws_tmq_res_t ws_tmq_get_res_type(const WS_RES *rs)`
+  - **Interface Description**: Retrieves the message type from the message result obtained from the TMQ consumer.
+    - rs: [input] Pointer to a valid `WS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: Returns a `ws_tmq_res_t` enumeration value indicating the message type.
+    - The `ws_tmq_res_t` indicates the data type consumed, defined as follows:
+
+      ```c
+      typedef enum ws_tmq_res_t {
+      WS_TMQ_RES_INVALID = -1,   // Invalid
+      WS_TMQ_RES_DATA = 1,       // Data type
+      WS_TMQ_RES_TABLE_META = 2, // Metadata type
+      WS_TMQ_RES_METADATA = 3     // Both metadata and data types, i.e., auto table creation
+      } tmq_res_t;
+      ```
+
+- `const char *ws_tmq_get_topic_name(const WS_RES *rs)`
+  - **Interface Description**: Retrieves the topic name from the message result obtained from the TMQ consumer.
+    - rs: [input] Pointer to a valid `WS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: Non-NULL: Success, returns a `const char *` pointer pointing to the topic name string. NULL: Failure, indicating an invalid input parameter.
+- `const char *ws_tmq_get_db_name(const WS_RES *rs)`
+  - **Interface Description**: Retrieves the database name from the message result obtained from the TMQ consumer.
+    - rs: [input] Pointer to a valid `WS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: Non-NULL: Success, returns a `const char *` pointer pointing to the database name string. NULL: Failure, indicating an invalid input parameter.
+
+## Native Connection Method
+
+The native connection method requires the use of the `taos.h` header file and the `taos` dynamic library.
+
+```c
+#include <taos.h>
+```
+
+After installing the TDengine server or client, `taos.h` can be found at:
+
+- Linux: `/usr/local/taos/include`
+- Windows: `C:\TDengine\include`
+- macOS: `/usr/local/include`
+
+The dynamic library for the TDengine client driver is located at:
+
+- Linux: `/usr/local/taos/driver/libtaos.so`
+- Windows: `C:\TDengine\driver\taos.dll`
+- macOS: `/usr/local/lib/libtaos.dylib`
+
+### Supported Platforms
+
+Please refer to the [supported platforms list](../#supported-platforms).
+
+### Supported Versions
+
+The version number of the TDengine client driver has a strong correspondence with the version number of the TDengine server. It is recommended to use a client driver that is exactly the same as the TDengine server. Although lower versions of the client driver can be compatible with higher versions of the server when the first three segments of the version number match (i.e., only the fourth segment differs), this is not the recommended practice. It is strongly advised against using a higher version of the client driver to access a lower version of the server.
+
+### Error Codes
+
+In the design of the C interface, error codes are represented as integer types, with each error code corresponding to a specific error state. Unless otherwise specified, when the API return value is an integer, _0_ indicates success, while other values represent error codes indicating the reason for failure. When the return value is a pointer, _NULL_ indicates failure.  
+
+All error codes and their corresponding descriptions can be found in the `taoserror.h` file. For detailed error code explanations, refer to: [Error Codes](../../error-codes/).
+
+### Sample Programs
+
+This section showcases sample code demonstrating common access methods for accessing a TDengine cluster using the client driver.
+
+- Sync Query Example: [Sync Query](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/demo.c)
+- Async Query Example: [Async Query](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/asyncdemo.c)
+- Parameter Binding Example: [Parameter Binding](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/prepare.c)
+- Schemaless Insert Example: [Schemaless Insert](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/schemaless.c)
+- Subscription and Consumption Example: [Subscription and Consumption](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/tmq.c)
+
+For more sample code and downloads, please visit [GitHub](https://github.com/taosdata/TDengine/tree/main/docs/examples/c). You can also find the examples in the `examples/c` directory under the installation path. This directory contains a makefile, which can be used to compile the executable file by simply executing `make` in a Linux/macOS environment.
+
+:::note
+
+When compiling in an ARM environment, please remove `-msse4.2` from the makefile, as this option is only supported on x64/x86 hardware platforms.
+
+:::
+
+### API Reference
+
+The following sections introduce the basic APIs, synchronous APIs, asynchronous APIs, parameter binding APIs, schemaless writing APIs, and data subscription APIs of the TDengine client driver.
+
+#### Basic APIs
+
+The basic APIs are used to establish a database connection and provide a runtime environment for the execution of other APIs.
+
+- `int taos_init()`
+  - **Interface Description**: Initializes the runtime environment. If this API is not explicitly called, it will be automatically called when `taos_connect()` is invoked, so it is generally unnecessary for the application to call it manually.
+  - **Return Value**: `0`: success, non-`0`: failure. You can call the function `taos_errstr(NULL)` for more detailed error information.
+- `void taos_cleanup()`
+  - **Interface Description**: Cleans up the runtime environment, and should be called before the application exits.
+- `int taos_options(TSDB_OPTION option, const void * arg, ...)`
+  - **Interface Description**: Sets client options. Currently, it supports locale (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), timezone (`TSDB_OPTION_TIMEZONE`), and configuration file path (`TSDB_OPTION_CONFIGDIR`). The default settings for locale, character set, and timezone are based on the current settings of the operating system.
+  - **Parameter Description**:
+    - `option`: [Input] Type of the option to set.
+    - `arg`: [Input] Value for the option to set.
+  - **Return Value**: `0`: success, `-1`: failure.
+- `char *taos_get_client_info()`
+  - **Interface Description**: Retrieves the client version information.
+  - **Return Value**: Returns the client version information.
+- `TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);`
+  - **Interface Description**: Creates a database connection and initializes the connection context.
+  - **Parameter Description**:
+    - `ip`: [Input] FQDN of any node in the TDengine cluster.
+    - `user`: [Input] Username.
+    - `pass`: [Input] Password.
+    - `db`: [Input] Database name. If not provided, the connection can still be established, allowing the user to create a new database. If a database name is provided, it indicates that the database already exists, and it will be used as the default.
+    - `port`: [Input] Port on which the `taosd` program listens.
+  - **Return Value**: Returns the database connection; if the return value is `NULL`, it indicates failure. The application should save the returned parameter for later use.
+  :::info
+  Multiple TDengine clusters can be connected within the same process using different host/port combinations.
+  :::
+- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`  
+  - **Interface Description**: Functions the same as `taos_connect`, except the `pass` parameter is replaced by `auth`.
+  - **Parameter Description**:
+    - `ip`: [Input] FQDN of any node in the TDengine cluster.
+    - `user`: [Input] Username.
+    - `auth`: [Input] MD5 hash of the original password (32 lowercase characters).
+    - `db`: [Input] Database name. If not provided, the connection can still be established, allowing the user to create a new database. If a database name is provided, it indicates that the database already exists, and it will be used as the default.
+    - `port`: [Input] Port on which the `taosd` program listens.
+  - **Return Value**: Returns the database connection; if the return value is `NULL`, it indicates failure. The application should save the returned parameter for later use.
+- `char *taos_get_server_info(TAOS *taos)`
+  - **Interface Description**: Retrieves the server version information.
+  - **Parameter Description**:
+    - `taos`: [Input] Pointer to the database connection, established through the `taos_connect()` function.
+  - **Return Value**: Returns the server version information.
+- `int taos_select_db(TAOS *taos, const char *db)`
+  - **Interface Description**: Sets the current default database to `db`.
+  - **Parameter Description**:
+    - `taos`: [Input] Pointer to the database connection, established through the `taos_connect()` function.
+    - `db`: [Input] Database name.
+  - **Return Value**: `0`: success, non-`0`: failure. Refer to the error code page for details.
+- `int taos_get_current_db(TAOS *taos, char *database, int len, int *required)`
+  - **Interface Description**: Retrieves the current database name.
+  - **Parameter Description**:
+    - `taos`: [Input] Pointer to the database connection, established through the `taos_connect()` function.
+    - `database`: [Output] Storage for the current database name.
+    - `len`: [Input] Size of the `database` buffer.
+    - `required`: [Output] Storage for the space required for the current database name (including the trailing '\0').
+  - **Return Value**: `0`: success, `-1`: failure. You can call `taos_errstr(NULL)` for more detailed error information.
+    - If `database == NULL` or `len <= 0`, it returns failure.
+    - If `len` is less than the space required to store the database name (including the trailing '\0'), it returns failure, and the data assigned to `database` will be truncated, ending with '\0'.
+    - If `len` is greater than or equal to the space required to store the database name (including the trailing '\0'), it returns success, and `database` will contain the database name ending with '\0'.
+- `int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)`
+  - **Interface Description**: Sets the event callback function.
+  - **Parameter Description**:
+    - `taos`: [Input] Pointer to the database connection, established through the `taos_connect()` function.
+    - `fp`: [Input] Pointer to the event callback function. Function declaration: `typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type)`, where `param` is a user-defined parameter, `ext` is an extended parameter (depends on the event type; for `TAOS_NOTIFY_PASSVER`, it returns the user password version), and `type` is the event type.
+    - `param`: [Input] User-defined parameter.
+    - `type`: [Input] Event type. Possible values: 1) `TAOS_NOTIFY_PASSVER`: User password has changed.
+  - **Return Value**: `0`: success, `-1`: failure. You can call `taos_errstr(NULL)` for more detailed error information.
+- `void taos_close(TAOS *taos)`
+  - **Interface Description**: Closes the connection.
+  - **Parameter Description**:
+    - `taos`: [Input] Pointer to the database connection, established through the `taos_connect()` function.
+
+#### Synchronous Query
+
+This section introduces APIs that are all synchronous interfaces. After the application calls them, it will block and wait for a response until it receives a return result or error message.
+
+- `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
+  - **Interface Description**: Executes an SQL statement, which can be a DQL, DML, or DDL statement.
+  - **Parameter Description**:
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `sql`: [Input] The SQL statement to be executed.
+  - **Return Value**: The success or failure of the execution cannot be determined by whether the return value is `NULL`. Instead, you need to call the `taos_errno()` function to parse the error code in the result set.
+    - `taos_errno` Return Value: `0`: success, `-1`: failure. For more details, call the `taos_errstr` function to get an error message.
+- `int taos_result_precision(TAOS_RES *res)`
+  - **Interface Description**: Returns the precision category of the timestamp field in the result set.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+  - **Return Value**: `0`: milliseconds, `1`: microseconds, `2`: nanoseconds.
+- `TAOS_ROW taos_fetch_row(TAOS_RES *res)`
+  - **Interface Description**: Fetches data from the result set row by row.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+  - **Return Value**: Non-`NULL`: success, `NULL`: failure. You can call `taos_errstr(NULL)` for more detailed error information.
+- `int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)`
+  - **Interface Description**: Fetches data from the result set in batches.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+    - `rows`: [Output] Used to store the rows fetched from the result set.
+  - **Return Value**: The return value is the number of rows fetched; returns `0` if there are no more rows.
+- `int taos_num_fields(TAOS_RES *res)` and `int taos_field_count(TAOS_RES *res)`
+  - **Interface Description**: These two APIs are equivalent and are used to obtain the number of columns in the result set.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+  - **Return Value**: Returns the number of columns in the result set.
+- `int* taos_fetch_lengths(TAOS_RES *res)`
+  - **Interface Description**: Retrieves the lengths of each field in the result set.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+  - **Return Value**: Returns an array whose length is equal to the number of columns in the result set.
+- `int taos_affected_rows(TAOS_RES *res)`
+  - **Interface Description**: Retrieves the number of rows affected by the executed SQL statement.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+  - **Return Value**: Indicates the number of affected rows.
+- `TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)`
+  - **Interface Description**: Retrieves the attributes of each column in the result set (column name, data type, length). It can be used with `taos_num_fields()` to parse the data returned by `taos_fetch_row()` for one tuple (one row).
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+  - **Return Value**: Non-`NULL`: success, returns a pointer to the `TAOS_FIELD` structure, with each element representing the metadata for a column. `NULL`: failure.
+- `void taos_stop_query(TAOS_RES *res)`
+  - **Interface Description**: Stops the execution of the current query.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+- `void taos_free_result(TAOS_RES *res)`
+  - **Interface Description**: Releases the query result set and related resources. It is essential to call this API to release resources after the query is complete; otherwise, it may lead to memory leaks in the application. However, note that if resources are released, calling functions like `taos_consume()` to fetch query results afterward will cause the application to crash.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+- `char *taos_errstr(TAOS_RES *res)`
+  - **Interface Description**: Retrieves the reason for the last API call failure, returning a string that identifies the error message.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+  - **Return Value**: A string that identifies the error message.
+- `int taos_errno(TAOS_RES *res)`
+  - **Interface Description**: Retrieves the reason for the last API call failure, returning the error code.
+  - **Parameter Description**:
+    - `res`: [Input] The result set.
+  - **Return Value**: The error code.
+
+:::note
+
+In versions 2.0 and above, TDengine recommends that each thread of the database application establish an independent connection or create a connection pool based on the thread. It is not recommended to share the connection (TAOS\*) structure across different threads in the application. Operations such as queries and writes based on the TAOS structure are thread-safe, but stateful commands like "USE statement" may interfere with each other between threads. Additionally, the C language connector can dynamically establish new connections to the database as needed (this process is invisible to the user), and it is recommended to only call `taos_close()` to close connections when the program exits.
+
+Another important note is that during the execution of the aforementioned synchronous APIs, you should not call APIs like `pthread_cancel` to forcibly terminate threads. This is because some modules involve synchronized operations, and forcibly ending a thread could lead to issues such as deadlocks and other exceptional situations.
+
+:::
+
+#### Asynchronous Query
+
+TDengine also provides higher-performance asynchronous APIs for handling data insertion and query operations. Under the same hardware and software environment, the speed of data insertion using asynchronous APIs can be 2 to 4 times faster than that of synchronous APIs. Asynchronous APIs adopt a non-blocking calling method, returning immediately before the system actually completes a specific database operation. The calling thread can perform other tasks, thereby improving the overall performance of the application. Asynchronous APIs are particularly advantageous in cases of significant network latency.
+
+All asynchronous APIs require the application to provide corresponding callback functions. The parameters for the callback function are set as follows: the first two parameters are consistent, while the third parameter varies depending on the API. The first parameter, `param`, is what the application provides when calling the asynchronous API; it helps the application retrieve the specific operation context during the callback. The second parameter is the result set of the SQL operation; if it is empty (for example, an insert operation), it indicates that no records are returned; if it is not empty (for example, a select operation), it indicates that records are returned.
+
+Asynchronous APIs place higher demands on users, who can choose to use them selectively based on specific application scenarios. Below are two important asynchronous APIs:
+
+- `void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);`
+  - **Interface Description**: Asynchronously executes an SQL statement.
+  - **Parameter Description**:
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `sql`: [Input] The SQL statement to be executed.
+    - `fp`: User-defined callback function. The third parameter, `code`, indicates whether the operation was successful; `0` means success, and a negative number indicates failure (the reason for failure can be obtained by calling `taos_errstr()`). In defining the callback function, the application primarily processes the second parameter, `TAOS_RES *`, which is the result set returned by the query.
+    - `param`: User-defined parameter for the callback.
+- `void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);`
+  - **Interface Description**: Batch retrieves the result set of an asynchronous query. This can only be used in conjunction with `taos_query_a()`.
+  - **Parameter Description**:
+    - `res`: The result set returned during the callback of `taos_query_a()`.
+    - `fp`: Callback function. Its parameter, `param`, is user-defined and can be any structure passed to the callback function; `numOfRows` is the number of rows retrieved (not the total number of rows in the query result set). In the callback function, the application can call `taos_fetch_row()` to iterate forward and retrieve each row of records in the batch. After reading all records in a block, the application needs to continue calling `taos_fetch_rows_a()` in the callback function to retrieve the next batch of records until the returned number of records, `numOfRows`, is zero (indicating that the result return is complete) or the number of records is negative (indicating a query error).
+
+TDengine's asynchronous APIs all use a non-blocking calling mode. Applications can simultaneously open multiple tables with multiple threads and can perform queries or insert operations on each opened table simultaneously. It is important to note that **the client application must ensure that operations on the same table are fully serialized**, meaning that no second insert or query operation can be executed while the previous operation on the same table is not yet completed (i.e., has not returned).
+
+#### Parameter Binding
+
+In addition to directly calling `taos_query()` for queries, TDengine also provides a Prepare API that supports parameter binding, which is similar to MySQL. Currently, it only supports using a question mark `?` to represent the parameters to be bound.
+
+Starting from versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved support for data writing (INSERT) scenarios with the parameter binding interface. This way, when writing data through the parameter binding interface, it avoids the resource consumption of SQL syntax parsing, thus significantly improving writing performance in most cases. The typical operation steps are as follows:
+
+1. Call `taos_stmt_init()` to create a parameter binding object;
+2. Call `taos_stmt_prepare()` to parse the INSERT statement;
+3. If the INSERT statement reserves a table name but does not reserve tags, call `taos_stmt_set_tbname()` to set the table name;
+4. If the INSERT statement reserves both a table name and tags (for example, if the INSERT statement uses the automatic table creation method), call `taos_stmt_set_tbname_tags()` to set the table name and the values of `TAGS`;
+5. Call `taos_stmt_bind_param_batch()` to set the VALUES in bulk, or call `taos_stmt_bind_param()` to set the VALUES one by one;
+6. Call `taos_stmt_add_batch()` to add the currently bound parameters to the batch;
+7. You can repeat steps 3 to 6 to add more data rows to the batch;
+8. Call `taos_stmt_execute()` to execute the prepared batch instruction;
+9. After execution, call `taos_stmt_close()` to release all resources.
+
+:::note
+
+If `taos_stmt_execute()` executes successfully and you do not need to change the SQL statement, you can reuse the parsing result of `taos_stmt_prepare()` and directly bind new data in steps 3 to 6. However, if an error occurs during execution, it is recommended not to continue working in the current context. Instead, release the resources and restart from the `taos_stmt_init()` step.
+
+:::
+
+The specific functions related to the interface are as follows (you can also refer to [prepare.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c/prepare.c) for examples of how to use the corresponding functions):
+
+- `TAOS_STMT* taos_stmt_init(TAOS *taos)`
+  - **Interface Description**: Initializes a precompiled SQL statement object.
+  - **Parameter Description**:
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+  - **Return Value**: Non-`NULL`: success, returns a pointer to a `TAOS_STMT` structure representing the precompiled SQL statement object. `NULL`: failure. For more details, call `taos_stmt_errstr()` to get an error message.
+- `int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
+  - **Interface Description**: Parses a precompiled SQL statement and binds the parsing result and parameter information to `stmt`.
+  - **Parameter Description**:
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+    - `sql`: [Input] The SQL statement to be parsed.
+    - `length`: [Input] The length of the `sql` parameter. If `length` is greater than 0, this parameter will be used as the SQL statement length; if it equals 0, the length of the SQL statement will be automatically determined.
+  - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
+- `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind)`
+  - **Interface Description**: Binds parameters to a precompiled SQL statement. It is less efficient than `taos_stmt_bind_param_batch()`, but it can support non-INSERT SQL statements.
+  - **Parameter Description**:
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+    - `bind`: [Input] Pointer to a valid `TAOS_MULTI_BIND` structure, which contains the list of parameters to be bound to the SQL statement. Ensure that the number and order of elements in this array completely match the parameters in the SQL statement. The usage of `TAOS_MULTI_BIND` is similar to `MYSQL_BIND` in MySQL.
+  - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
+- `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
+  - **Interface Description**: (Added in version 2.1.1.0, only supports replacing parameter values in the INSERT statement) When the table name in the SQL statement uses a `?` placeholder, this function can be used to bind a specific table name.
+  - **Parameter Description**:
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+    - `name`: [Input] Pointer to a string constant containing the subtable name.
+  - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
+- `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_MULTI_BIND* tags)`
+  - **Interface Description**: (Added in version 2.1.2.0, only supports replacing parameter values in the INSERT statement) When both the table name and tags in the SQL statement use `?` placeholders, this function can be used to bind specific table names and tag values. The most typical usage scenario is for INSERT statements that use automatic table creation (the current version does not support specifying specific tag columns). The number of columns in the `TAGS` parameter must match the number required in the SQL statement.
+  - **Parameter Description**:
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+    - `name`: [Input] Pointer to a string constant containing the subtable name.
+    - `tags`: [Input] Pointer to a valid `TAOS_MULTI_BIND` structure, which contains the values for the subtable tags.
+  - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
+- `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
+  - **Interface Description**: (Added in version 2.1.1.0, only supports replacing parameter values in the INSERT statement) Passes the data to be bound in a multi-column manner. The order and quantity of the data passed must match the parameters in the SQL statement's VALUES.
+  - **Parameter Description**:
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+    - `bind`: [Input] Pointer to a valid `TAOS_MULTI_BIND` structure, which contains the parameters to be batch bound to the SQL statement.
+  - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
+- `int taos_stmt_add_batch(TAOS_STMT *stmt)`
+  - **Interface Description**: Adds the currently bound parameters to the batch. After calling this function, you can call `taos_stmt_bind_param()` or `taos_stmt_bind_param_batch()` again to bind new parameters. Note that this function only supports INSERT/IMPORT statements; it will return an error for other SQL statements like SELECT.
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
+- `int taos_stmt_execute(TAOS_STMT *stmt)`
+  - **Interface Description**: Executes the prepared statement. Currently, each statement can only be executed once.
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
+- `int taos_stmt_affected_rows(TAOS_STMT *stmt)`
+  - **Interface Description**: Retrieves the number of rows affected by the executed precompiled SQL statement.
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Returns the number of affected rows.
+- `int taos_stmt_affected_rows_once(TAOS_STMT *stmt)`
+  - **Interface Description**: Retrieves the number of rows affected by executing the bound statement once.
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Returns the number of affected rows.
+- `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
+  - **Interface Description**: Obtains the result set of the statement. The usage of the result set is consistent with that of non-parameterized calls. After use, the application should call `taos_free_result()` to release resources.
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Non-`NULL`: success, returns a pointer to the query result set. `NULL`: failure. For more details, call `taos_stmt_errstr()` to get an error message.
+- `int taos_stmt_close(TAOS_STMT *stmt)`
+  - **Interface Description**: Releases all resources after execution.
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: `0`: success. Non-`0`: failure. For more details, refer to the error code page.
+- `char * taos_stmt_errstr(TAOS_STMT *stmt)`
+  - **Interface Description**: (Added in version 2.1.3.0) Used to obtain error information when other STMT APIs return errors (error codes or null pointers).
+    - `stmt`: [Input] Pointer to a valid precompiled SQL statement object.
+  - **Return Value**: Returns a pointer to a string containing the error message.
+
+#### Schemaless Writing
+
+In addition to using SQL or parameter binding APIs for data writing, you can also write data using the Schemaless approach. Schemaless allows you to write data without the need to pre-create the structure of supertables or data subtables. Instead, you can directly write data, and the TDengine system will automatically create and maintain the required table structure based on the content of the written data. For more information on how to use Schemaless, refer to the [Schemaless Ingestion](../../../developer-guide/schemaless-ingestion/) chapter. Here, we introduce the corresponding C/C++ APIs for Schemaless writing.
+
+- `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
+  - **Interface Description**: Executes a schemaless bulk insert operation, writing line protocol text data into TDengine.
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `lines`: [Input] Text data. A schemaless text string that meets the parsing format requirements.
+    - `numLines`: [Input] The number of lines in the text data, which cannot be 0.
+    - `protocol`: [Input] The line protocol type, used to identify the text data format.
+    - `precision`: [Input] The precision string of timestamps in the text data.
+  - **Return Value**: Returns a pointer to a `TAOS_RES` structure that contains the result of the insert operation. The application can use `taos_errstr()` to obtain error information or `taos_errno()` to obtain error codes. In some cases, the returned `TAOS_RES` may be `NULL`; you can still safely call `taos_errno()` to get error code information. The returned `TAOS_RES` must be released by the caller to prevent memory leaks.
+
+:::note
+
+The protocol type is an enumeration that includes the following formats:
+
+- `TSDB_SML_LINE_PROTOCOL`: InfluxDB line protocol.
+- `TSDB_SML_TELNET_PROTOCOL`: OpenTSDB Telnet text line protocol.
+- `TSDB_SML_JSON_PROTOCOL`: OpenTSDB JSON protocol format.
+
+The definitions for timestamp resolution are provided in the `taos.h` file, as follows:
+
+- `TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0`
+- `TSDB_SML_TIMESTAMP_HOURS`
+- `TSDB_SML_TIMESTAMP_MINUTES`
+- `TSDB_SML_TIMESTAMP_SECONDS`
+- `TSDB_SML_TIMESTAMP_MILLI_SECONDS`
+- `TSDB_SML_TIMESTAMP_MICRO_SECONDS`
+- `TSDB_SML_TIMESTAMP_NANO_SECONDS`
+
+:::
+
+It is important to note that the timestamp resolution parameter is only effective when the protocol type is `SML_LINE_PROTOCOL`. For the OpenTSDB text protocol, the timestamp parsing follows its official parsing rules — the time precision is determined by the number of characters in the timestamp.
+
+**Other Related Schemaless Interfaces**:
+
+- `TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int64_t reqid)`
+  - **Interface Description**: Executes a schemaless bulk insert operation, writing line protocol text data into TDengine. The `reqid` parameter is used to trace the entire function call chain.
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `lines`: [Input] Text data. A schemaless text string that meets the parsing format requirements.
+    - `numLines`: [Input] The number of lines in the text data, which cannot be 0.
+    - `protocol`: [Input] The line protocol type, used to identify the text data format.
+    - `precision`: [Input] The precision string of timestamps in the text data.
+    - `reqid`: [Input] The specified request ID, used to trace the call request. The request ID (reqid) can be used to establish an association between requests and responses between the client and the server, which is very useful for tracing and debugging in distributed systems.
+  - **Return Value**: Returns a pointer to a `TAOS_RES` structure that contains the result of the insert operation. The application can use `taos_errstr()` to obtain error information or `taos_errno()` to obtain error codes. In some cases, the returned `TAOS_RES` may be `NULL`; you can still safely call `taos_errno()` to get error code information. The returned `TAOS_RES` must be released by the caller to prevent memory leaks.
+- `TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision)`
+  - **Interface Description**: Executes a schemaless bulk insert operation, writing line protocol text data into TDengine. The `lines` pointer and length `len` are used to indicate the data, addressing the issue of raw interface data being truncated due to containing '\0'.
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `lines`: [Input] Text data. A schemaless text string that meets the parsing format requirements.
+    - `len`: [Input] The total length (in bytes) of the data buffer `lines`.
+    - `totalRows`: [Output] Pointer to an integer, which will return the total number of records successfully inserted.
+    - `protocol`: [Input] The line protocol type, used to identify the text data format.
+    - `precision`: [Input] The precision string of timestamps in the text data.
+  - **Return Value**: Returns a pointer to a `TAOS_RES` structure that contains the result of the insert operation. The application can use `taos_errstr()` to obtain error information or `taos_errno()` to obtain error codes. In some cases, the returned `TAOS_RES` may be `NULL`; you can still safely call `taos_errno()` to get error code information. The returned `TAOS_RES` must be released by the caller to prevent memory leaks.
+- `TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int64_t reqid)`
+  - **Interface Description**: Executes a schemaless bulk insert operation, writing line protocol text data into TDengine. The `lines` pointer and length `len` indicate the data, addressing the issue of raw interface data being truncated due to containing '\0'. The `reqid` parameter is used to trace the entire function call chain.
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `lines`: [Input] Text data. A schemaless text string that meets the parsing format requirements.
+    - `len`: [Input] The total length (in bytes) of the data buffer `lines`.
+    - `totalRows`: [Output] Pointer to an integer, which will return the total number of records successfully inserted.
+    - `protocol`: [Input] The line protocol type, used to identify the text data format.
+    - `precision`: [Input] The precision string of timestamps in the text data.
+    - `reqid`: [Input] The specified request ID, used to trace the call request. The request ID (reqid) can be used to establish an association between requests and responses between the client and the server, which is very useful for tracing and debugging in distributed systems.
+  - **Return Value**: Returns a pointer to a `TAOS_RES` structure that contains the result of the insert operation. The application can use `taos_errstr()` to obtain error information or `taos_errno()` to obtain error codes. In some cases, the returned `TAOS_RES` may be `NULL`; you can still safely call `taos_errno()` to get error code information. The returned `TAOS_RES` must be released by the caller to prevent memory leaks.
+- `TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl)`
+  - **Interface Description**: Executes a schemaless bulk insert operation, writing line protocol text data into TDengine. The `ttl` parameter controls the expiration time for the created table.
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `lines`: [Input] Text data. A schemaless text string that meets the parsing format requirements.
+    - `numLines`: [Input] The number of lines in the text data, which cannot be 0.
+    - `protocol`: [Input] The line protocol type, used to identify the text data format.
+    - `precision`: [Input] The precision string of timestamps in the text data.
+    - `ttl`: [Input] The specified time-to-live (TTL) in days. Records will be automatically deleted after exceeding this time.
+  - **Return Value**: Returns a pointer to a `TAOS_RES` structure that contains the result of the insert operation. The application can use `taos_errstr()` to obtain error information or `taos_errno()` to obtain error codes. In some cases, the returned `TAOS_RES` may be `NULL`; you can still safely call `taos_errno()` to get error code information. The returned `TAOS_RES` must be released by the caller to prevent memory leaks.
+- `TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl, int64_t reqid)`
+  - **Interface Description**: Executes a schemaless bulk insert operation, writing line protocol text data into TDengine. The `ttl` parameter controls the expiration time for the created table. The `reqid` parameter is used to trace the entire function call chain.
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `lines`: [Input] Text data. A schemaless text string that meets the parsing format requirements.
+    - `numLines`: [Input] The number of lines in the text data, which cannot be 0.
+    - `protocol`: [Input] The line protocol type, used to identify the text data format.
+    - `precision`: [Input] The precision string of timestamps in the text data.
+    - `ttl`: [Input] The specified time-to-live (TTL) in days. Records will be automatically deleted after exceeding this time.
+    - `reqid`: [Input] The specified request ID, used to trace the call request. The request ID (reqid) can be used to establish an association between requests and responses between the client and the server, which is very useful for tracing and debugging in distributed systems.
+  - **Return Value**: Returns a pointer to a `TAOS_RES` structure that contains the result of the insert operation. The application can use `taos_errstr()` to obtain error information or `taos_errno()` to obtain error codes. In some cases, the returned `TAOS_RES` may be `NULL`; you can still safely call `taos_errno()` to get error code information. The returned `TAOS_RES` must be released by the caller to prevent memory leaks.
+- `TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl)`
+  - **Interface Description**: Executes a schemaless bulk insert operation, writing line protocol text data into TDengine. The `lines` pointer and length `len` indicate the data, addressing the issue of raw interface data being truncated due to containing '\0'. The `ttl` parameter controls the expiration time for the created table.
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `lines`: [Input] Text data. A schemaless text string that meets the parsing format requirements.
+    - `len`: [Input] The total length (in bytes) of the data buffer `lines`.
+    - `totalRows`: [Output] Pointer to an integer, which will return the total number of records successfully inserted.
+    - `protocol`: [Input] The line protocol type, used to identify the text data format.
+    - `precision`: [Input] The precision string of timestamps in the text data.
+    - `ttl`: [Input] The specified time-to-live (TTL) in days. Records will be automatically deleted after exceeding this time.
+  - **Return Value**: Returns a pointer to a `TAOS_RES` structure that contains the result of the insert operation. The application can use `taos_errstr()` to obtain error information or `taos_errno()` to obtain error codes. In some cases, the returned `TAOS_RES` may be `NULL`; you can still safely call `taos_errno()` to get error code information. The returned `TAOS_RES` must be released by the caller to prevent memory leaks.
+- `TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl, int64_t reqid)`
+  - **Interface Description**: Executes a schemaless bulk insert operation, writing line protocol text data into TDengine. The `lines` pointer and length `len` indicate the data, addressing the issue of raw interface data being truncated due to containing '\0'. The `ttl` parameter controls the expiration time for the created table. The `reqid` parameter is used to trace the entire function call chain.
+    - `taos`: [Input] Pointer to the database connection, which is established through the `taos_connect()` function.
+    - `lines`: [Input] Text data. A schemaless text string that meets the parsing format requirements.
+    - `len`: [Input] The total length (in bytes) of the data buffer `lines`.
+    - `totalRows`: [Output] Pointer to an integer, which will return the total number of records successfully inserted.
+    - `protocol`: [Input] The line protocol type, used to identify the text data format.
+    - `precision`: [Input] The precision string of timestamps in the text data.
+    - `ttl`: [Input] The specified time-to-live (TTL) in days. Records will be automatically deleted after exceeding this time.
+    - `reqid`: [Input] The specified request ID, used to trace the call request. The request ID (reqid) can be used to establish an association between requests and responses between the client and the server, which is very useful for tracing and debugging in distributed systems.
+  - **Return Value**: Returns a pointer to a `TAOS_RES` structure that contains the result of the insert operation. The application can use `taos_errstr()` to obtain error information or `taos_errno()` to obtain error codes. In some cases, the returned `TAOS_RES` may be `NULL`; you can still safely call `taos_errno()` to get error code information. The returned `TAOS_RES` must be released by the caller to prevent memory leaks.
+
+:::note
+
+- The above seven interfaces are extended interfaces primarily used for passing `ttl` and `reqid` parameters during schemaless writing as needed.
+- The `_raw` interfaces use the `lines` pointer and length `len` to indicate data, addressing the issue of raw interface data being truncated due to containing '\0'. The `totalRows` pointer returns the number of parsed data rows.
+- The `_ttl` interfaces can pass the `ttl` parameter to control the expiration time for the created table.
+- The `_reqid` interfaces can pass the `reqid` parameter to trace the entire function call chain.
+
+:::
+
+#### Data Subscription
+
+- `const char *tmq_err2str(int32_t code)`
+  - **Interface Description**: Converts the error code of the data subscription into an error message.
+    - code: [Input] The error code of the data subscription.
+  - **Return Value**: Returns a pointer to a string containing the error message. The return value is non-NULL, but the error message may be an empty string.
+- `tmq_conf_t *tmq_conf_new()`
+  - **Interface Description**: Creates a new TMQ configuration object.
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to the `tmq_conf_t` structure used to configure the behavior and features of TMQ. `NULL`: Failure; you can call the `taos_errstr(NULL)` function for more detailed error information.
+- `tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value)`
+  - **Interface Description**: Sets a configuration item in the TMQ configuration object for configuring consumption parameters.
+    - conf: [Input] Pointer to a valid `tmq_conf_t` structure representing a TMQ configuration object.
+    - key: [Input] The key name of the configuration item.
+    - value: [Input] The value of the configuration item.
+  - **Return Value**: Returns a `tmq_conf_res_t` enumeration value indicating the result of the configuration setting.
+    - `TMQ_CONF_OK`: Successfully set the configuration item.
+    - `TMQ_CONF_INVALID_KEY`: Invalid key value.
+    - `TMQ_CONF_UNKNOWN`: Invalid key name.
+- `void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
+  - **Interface Description**: Sets the automatic commit callback function in the TMQ configuration object.
+    - conf: [Input] Pointer to a valid `tmq_conf_t` structure representing a TMQ configuration object.
+    - cb: [Input] Pointer to a valid `tmq_commit_cb` callback function pointer, which will be called to confirm the message processing status after the message is consumed.
+    - param: [Input] User-defined parameters passed to the callback function.
+    The definition of the automatic commit callback function is as follows:
+
+  ```c
+  typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param))
+  ```
+
+- `void tmq_conf_destroy(tmq_conf_t *conf)`
+  - **Interface Description**: Destroys a TMQ configuration object and releases related resources.
+    - conf: [Input] Pointer to a valid `tmq_conf_t` structure representing a TMQ configuration object.
+- `tmq_list_t *tmq_list_new()`
+  - **Interface Description**: Creates a `tmq_list_t` structure for storing subscribed topics.
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to the `tmq_list_t` structure. `NULL`: Failure; you can call the `taos_errstr(NULL)` function for more detailed error information.
+- `int32_t tmq_list_append(tmq_list_t *list, const char* topic)`
+  - **Interface Description**: Adds a topic to the `tmq_list_t` structure.
+    - list: [Input] Pointer to a valid `tmq_list_t` structure representing a TMQ list object.
+    - topic: [Input] Topic name.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `void tmq_list_destroy(tmq_list_t *list)`
+  - **Interface Description**: Destroys the `tmq_list_t` structure; the result of `tmq_list_new` needs to be released using this interface.
+    - list: [Input] Pointer to a valid `tmq_list_t` structure representing a TMQ list object.
+- `int32_t tmq_list_get_size(const tmq_list_t *list)`
+  - **Interface Description**: Gets the number of topics in the `tmq_list_t` structure.
+    - list: [Input] Pointer to a valid `tmq_list_t` structure representing a TMQ list object.
+  - **Return Value**: `>=0`: Success, returns the number of topics in the `tmq_list_t` structure. `-1`: Failure, indicating that the input parameter `list` is NULL.
+- `char **tmq_list_to_c_array(const tmq_list_t *list)`
+  - **Interface Description**: Converts the `tmq_list_t` structure into a C array, where each element is a string pointer.
+    - list: [Input] Pointer to a valid `tmq_list_t` structure representing a TMQ list object.
+  - **Return Value**: Non-`NULL`: Success, returns a C array where each element is a string pointer representing a topic name. `NULL`: Failure, indicating that the input parameter `list` is NULL.
+- `tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen)`
+  - **Interface Description**: Creates a `tmq_t` structure for consuming data; after consuming the data, you need to call `tmq_consumer_close` to close the consumer.
+    - conf: [Input] Pointer to a valid `tmq_conf_t` structure representing a TMQ configuration object.
+    - errstr: [Output] Pointer to a valid character buffer to receive any error messages that may occur during the creation process. Memory allocation and release are the caller's responsibility.
+    - errstrLen: [Input] Specifies the size of the `errstr` buffer (in bytes).
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to the `tmq_t` structure representing a TMQ consumer object. `NULL`: Failure; error messages are stored in the `errstr` parameter.
+- `int32_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list)`
+  - **Interface Description**: Subscribes to the topic list; after consuming the data, you need to call `tmq_subscribe` to unsubscribe.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - topic_list: [Input] Pointer to a valid `tmq_list_t` structure containing one or more topic names.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `int32_t tmq_unsubscribe(tmq_t *tmq)`
+  - **Interface Description**: Cancels the subscription to the topic list. This needs to be used in conjunction with `tmq_subscribe`.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `int32_t tmq_subscription(tmq_t *tmq, tmq_list_t **topic_list)`
+  - **Interface Description**: Gets the subscribed topic list.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - topic_list: [Output] Pointer to a pointer to a `tmq_list_t` structure that will receive the currently subscribed topic list.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout)`
+  - **Interface Description**: Polls for consuming data. Each consumer can only call this interface in a single thread.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - timeout: [Input] The polling timeout in milliseconds; a negative number indicates a default timeout of 1 second.
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to a `TAOS_RES` structure that contains the received message. `NULL`: Failure, indicating no data. The `TAOS_RES` result is consistent with the result returned by `taos_query`, and various interfaces can be used to obtain information from the `TAOS_RES`, such as schema, etc.
+- `int32_t tmq_consumer_close(tmq_t *tmq)`
+  - **Interface Description**: Closes the `tmq_t` structure. This needs to be used in conjunction with `tmq_consumer_new`.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `int32_t tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
+  - **Interface Description**: Returns the information of the vgroup allocated to the current consumer, including vgId, the maximum and minimum offset of the WAL, and the current consumption offset for each vgroup.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [Input] The topic name for which to query allocation information.
+    - assignment: [Output] Pointer to a pointer to a `tmq_topic_assignment` structure for receiving allocation information. The data size is `numOfAssignment`, which needs to be released through the `tmq_free_assignment` interface.
+    - numOfAssignment: [Output] Pointer to an integer for receiving the count of valid vgroups allocated to this consumer.
+  - **Return Value**: `0`: Success. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `void tmq_free_assignment(tmq_topic_assignment* pAssignment)`
+  - **Interface Description**: Returns the information of the vgroup allocated to the current consumer, including vgId, the maximum and minimum offsets of the WAL, and the current consumption offset for each vgroup.
+    - pAssignment: [Input] Pointer to an array of valid `tmq_topic_assignment` structures containing vgroup allocation information.
+- `int64_t tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+  - **Interface Description**: Gets the committed offset for a specific topic and vgroup from the TMQ consumer object.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [Input] The topic name for which to query the committed offset.
+    - vgId: [Input] The ID of the vgroup.
+  - **Return Value**: `>=0`: Success, returns an `int64_t` value representing the committed offset. `<0`: Failure, the return value is the error code; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `int32_t tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg)`
+  - **Interface Description**: Synchronously submits the offset of the processed message by the TMQ consumer object.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - msg: [Input] Pointer to a valid `TAOS_RES` structure containing the processed message. If NULL, submit the current progress of all vgroups consumed by the current consumer.
+  - **Return Value**: `0`: Success, the offset has been successfully submitted. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `void tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param)`
+  - **Interface Description**: Asynchronously submits the offset of the processed message by the TMQ consumer object.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - msg: [Input] Pointer to a valid `TAOS_RES` structure containing the processed message. If NULL, submit the current progress of all vgroups consumed by the current consumer.
+    - cb: [Input] A pointer to a callback function that will be called when the submission is complete.
+    - param: [Input] A user-defined parameter that will be passed to the callback function.
+- `int32_t tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+  - **Interface Description**: Synchronously submits the offset of a specific topic and vgroup by the TMQ consumer object.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [Input] The topic name for which to submit the offset.
+    - vgId: [Input] The ID of the virtual group (vgroup).
+    - offset: [Input] The offset to submit.
+  - **Return Value**: `0`: Success, the offset has been successfully submitted. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `void tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param)`
+  - **Interface Description**: Asynchronously submits the offset of a specific topic and vgroup by the TMQ consumer object.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [Input] The topic name for which to submit the offset.
+    - vgId: [Input] The ID of the virtual group (vgroup).
+    - offset: [Input] The offset to submit.
+    - cb: [Input] A pointer to a callback function that will be called when the submission is complete.
+    - param: [Input] A user-defined parameter that will be passed to the callback function.
+    :::note
+  - The commit interface is divided into two types, each type has synchronous and asynchronous interfaces:
+  - The first type: Submit based on the message, submit the progress in the message; if the message is NULL, submit the current progress of all vgroups consumed by the current consumer: `tmq_commit_sync`/`tmq_commit_async`.
+  - The second type: Submit based on the offset of a specific topic and vgroup: `tmq_commit_offset_sync`/`tmq_commit_offset_async`.
+  :::
+- `int64_t tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+  - **Interface Description**: Gets the current consumption position, which is the next position after the data has been consumed.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [Input] The topic name for which to query the current position.
+    - vgId: [Input] The ID of the virtual group (vgroup).
+  - **Return Value**: `>=0`: Success, returns an `int64_t` value representing the current position offset. `<0`: Failure, the return value is the error code; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+  - `int32_t tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+  - **Interface Description**: Sets the offset of the TMQ consumer object at a specific topic and vgroup to the specified position.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+    - pTopicName: [Input] The topic name for which to query the current position.
+    - vgId: [Input] The ID of the virtual group (vgroup).
+    - offset: [Input] The ID of the virtual group (vgroup).
+  - **Return Value**: `0`: Success. Non-`0`: Failure; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `int64_t tmq_get_vgroup_offset(TAOS_RES* res)`
+  - **Interface Description**: Extracts the current consumption data position offset of the vgroup from the message result obtained from the TMQ consumer.
+    - res: [Input] Pointer to a valid `TAOS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: `>=0`: Success, returns an `int64_t` value representing the current consumption position offset. `<0`: Failure, the return value is the error code; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `int32_t tmq_get_vgroup_id(TAOS_RES *res)`
+  - **Interface Description**: Extracts the ID of the vgroup from the message result obtained from the TMQ consumer.
+    - res: [Input] Pointer to a valid `TAOS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: `>=0`: Success, returns an `int32_t` value representing the ID of the vgroup. `<0`: Failure, the return value is the error code; you can call the `char *tmq_err2str(int32_t code)` function for more detailed error information.
+- `TAOS *tmq_get_connect(tmq_t *tmq)`
+  - **Interface Description**: Obtains the connection handle to the TDengine database from the TMQ consumer object.
+    - tmq: [Input] Pointer to a valid `tmq_t` structure representing a TMQ consumer object.
+  - **Return Value**: Non-`NULL`: Success, returns a `TAOS *` type pointer to the connection handle to the TDengine database. `NULL`: Failure, indicating an invalid input parameter.
+- `const char *tmq_get_table_name(TAOS_RES *res)`
+  - **Interface Description**: Gets the table name to which the message belongs from the message result obtained from the TMQ consumer.
+    - res: [Input] Pointer to a valid `TAOS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: Non-`NULL`: Success, returns a `const char *` type pointer to the table name string. `NULL`: Failure, indicating an invalid input parameter.
+- `tmq_res_t tmq_get_res_type(TAOS_RES *res)`
+  - **Interface Description**: Gets the message type from the message result obtained from the TMQ consumer.
+    - res: [Input] Pointer to a valid `TAOS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: Returns a `tmq_res_t` type enumeration value representing the message type.
+    - `tmq_res_t` represents the type of data consumed, defined as follows:
+
+    ```c
+    typedef enum tmq_res_t {
+    TMQ_RES_INVALID = -1,   // Invalid
+    TMQ_RES_DATA = 1,       // Data type
+    TMQ_RES_TABLE_META = 2, // Metadata type
+    TMQ_RES_METADATA = 3    // Contains both metadata and data types, i.e., automatic table creation
+    } tmq_res_t;
+    ```
+
+- `const char *tmq_get_topic_name(TAOS_RES *res)`
+  - **Interface Description**: Gets the topic name to which the message belongs from the message result obtained from the TMQ consumer.
+    - res: [Input] Pointer to a valid `TAOS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: Non-`NULL`: Success, returns a `const char *` type pointer to the topic name string. `NULL`: Failure, indicating an invalid input parameter.
+- `const char *tmq_get_db_name(TAOS_RES *res)`
+  - **Interface Description**: Gets the database name to which the message belongs from the message result obtained from the TMQ consumer.
+    - res: [Input] Pointer to a valid `TAOS_RES` structure containing the message obtained from polling the TMQ consumer.
+  - **Return Value**: Non-`NULL`: Success, returns a `const char *` type pointer to the database name string. `NULL`: Failure, indicating an invalid input parameter.
