@@ -1,5 +1,5 @@
-taostest --setup=cluster/stream_snapshot.yaml --case=stream_computing/stream_snapshot.py --coverage --disable_collection
-taostest --setup=coverage_test.yaml --case=stream_computing/stream_computing_test.py --coverage --disable_collection
+taostest --setup=cluster/stream_snapshot.yaml --case=stream_computing/stream_snapshot.py --coverage --keep --disable_collection
+taostest --setup=coverage_test.yaml --case=stream_computing/stream_computing_test.py --coverage --keep --disable_collection
 taostest --setup=coverage_test.yaml --case=taosc_insert/alter_table.py --coverage  --keep --disable_collection
 taostest --use=coverage_test.yaml --case=taosc_insert/delete_data.py  --keep --disable_collection
 taostest --use=coverage_test.yaml --case=taosc_insert/alter_insert.py  --keep --disable_collection
