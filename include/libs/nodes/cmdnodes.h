@@ -330,7 +330,7 @@ typedef struct SAlterDnodeStmt {
 
 typedef struct {
   ENodeType type;
-  char      url[TSDB_ANAL_ANODE_URL_LEN + 3];
+  char      url[TSDB_ANALYTIC_ANODE_URL_LEN + 3];
 } SCreateAnodeStmt;
 
 typedef struct {

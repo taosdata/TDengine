@@ -251,6 +251,7 @@ typedef struct SQueryTableDataCond {
   int32_t      type;       // data block load type:
   bool         skipRollup;
   STimeWindow  twindows;
+  STimeWindow  extTwindows[2];
   int64_t      startVersion;
   int64_t      endVersion;
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock

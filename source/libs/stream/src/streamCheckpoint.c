@@ -385,6 +385,10 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     }
   }
 
+#if 0
+  taosMsleep(20*1000);
+#endif
+
   if (taskLevel == TASK_LEVEL__SOURCE) {
     int8_t type = pTask->outputInfo.type;
     pActiveInfo->allUpstreamTriggerRecv = 1;
