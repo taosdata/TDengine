@@ -236,7 +236,7 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   pTsdb->rCache.pTSchema = NULL;
   pTsdb->rCache.ctxArray = taosArrayInit(16, sizeof(SLastUpdateCtx));
   if (!pTsdb->rCache.ctxArray) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err7);
+    TAOS_CHECK_GOTO(terrno, &lino, _err7);
   }
 
   TAOS_RETURN(code);
@@ -744,7 +744,7 @@ static int32_t tsdbCacheUpdateFromIMem(STsdb *pTsdb) {
   // 1, get all uids from imem
   aUid = taosArrayInit(nTbData, sizeof(TABLEID));
   if (!aUid) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   TAOS_CHECK_GOTO(tsdbMemTableUids(imem, aUid), &lino, _exit);
 
@@ -1671,12 +1671,7 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
     }
   }
 
-  // 3. do update
-  code = tsdbCacheUpdate(pTsdb, suid, uid, ctxArray);
-  if (code < TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, %s tsdbCacheUpdate failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-  }
+  TAOS_CHECK_GOTO(tsdbCacheUpdate(pTsdb, suid, uid, ctxArray), &lino, _exit);
 
 _exit:
   if (code) {
@@ -1693,12 +1688,11 @@ _exit:
 int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlockData *pBlockData) {
   int32_t      code = 0, lino = 0;
   STSDBRowIter iter = {0};
+  STSchema    *pTSchema = NULL;
+  SArray      *ctxArray = NULL;
 
   TSDBROW lRow = tsdbRowFromBlockData(pBlockData, pBlockData->nRow - 1);
-
-  STSchema *pTSchema = NULL;
-  int32_t   sver = TSDBROW_SVERSION(&lRow);
-  SArray   *ctxArray = NULL;
+  int32_t sver = TSDBROW_SVERSION(&lRow);
 
   TAOS_CHECK_RETURN(metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema));
 
@@ -1749,12 +1743,7 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   }
 
   // 2. prepare last row
-  code = tsdbRowIterOpen(&iter, &lRow, pTSchema);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s tsdbRowIterOpen failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-    TAOS_CHECK_GOTO(code, &lino, _exit);
-  }
+  TAOS_CHECK_GOTO(tsdbRowIterOpen(&iter, &lRow, pTSchema), &lino, _exit);
   for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal; pColVal = tsdbRowIterNext(&iter)) {
     SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST_ROW, .tsdbRowKey = tsdbRowKey, .colVal = *pColVal};
     if (!taosArrayPush(ctxArray, &updateCtx)) {
@@ -1762,12 +1751,7 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
     }
   }
 
-  // 3. do update
-  code = tsdbCacheUpdate(pTsdb, suid, uid, ctxArray);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, %s tsdbCacheUpdate failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-  }
+  TAOS_CHECK_GOTO(tsdbCacheUpdate(pTsdb, suid, uid, ctxArray), &lino, _exit);
 
 _exit:
   tsdbRowClose(&iter);
