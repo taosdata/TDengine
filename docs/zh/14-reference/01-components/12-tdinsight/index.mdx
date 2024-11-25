@@ -145,6 +145,24 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 还有上述分类的细分维度折线图。
 
+### 预配置告警规则自动导入
+
+涛思总结用户使用经验，整理出14个常用的告警规则（alert rule），能够对集群关键指标进行监测并及时上报指标异常、超限等告警信息。  
+从TDengine-server 3.3.4.3版本（tdengine-datasource 3.6.3）开始，TDengine Datasource 支持预配置告警规则自动导入功能，用户可将14个告警规则一键导入Grafana，直接使用。  
+预配置告警规则导入方法如下图所示，在tdengine-datasource setting界面，打开Load TDengine Alert开关，即可导入所有预配置告警规则；如不需要，点击Clear TDengine Alert按钮即可删除所有预配置告警规则。  
+
+【图片】  
+
+导入后，点击Grafana左侧Alert rules，即可看到所有告警规则。  
+
+【图片】  
+
+14个告警规则具体配置如下：  
+
+【表格】  
+
+用户可参考上述告警规则，根据自己业务需求进行修改与完善。
+
 ## 升级
 下面三种方式都可以进行升级：
 - 用图形界面，若有新版本，可以在 ”TDengine Datasource“ 插件页面点击 update 升级。
