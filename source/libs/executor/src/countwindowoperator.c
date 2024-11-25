@@ -225,6 +225,8 @@ _end:
 }
 
 static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  CHECK_CONDITION_FAILED(pOperator->info != NULL);
+  CHECK_CONDITION_FAILED(pOperator->pTaskInfo != NULL);
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SCountWindowOperatorInfo* pInfo = pOperator->info;
@@ -232,6 +234,7 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   SExprSupp*                pExprSup = &pOperator->exprSupp;
   int32_t                   order = pInfo->binfo.inputTsOrder;
   SSDataBlock*              pRes = pInfo->binfo.pRes;
+  CHECK_CONDITION_FAILED(pRes != NULL);
 
   blockDataCleanup(pRes);
 

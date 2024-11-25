@@ -337,7 +337,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pOperator || (pOperator->exprSupp.numOfExprs > 0 && pCtx == NULL)) {
+  if (!pOperator || (pOperator->exprSupp.numOfExprs > 0 && pCtx == NULL)) {
     qError("%s failed at line %d since pCtx is NULL.", __func__, __LINE__);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }

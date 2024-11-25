@@ -564,7 +564,7 @@ SSDataBlock* doApplyIndefinitFunction1(SOperatorInfo* pOperator) {
 
 int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
-
+  CHECK_CONDITION_FAILED(pOperator->info != NULL);
   SIndefOperatorInfo* pIndefInfo = pOperator->info;
   SOptrBasicInfo*     pInfo = &pIndefInfo->binfo;
   SExprSupp*          pSup = &pOperator->exprSupp;
@@ -1177,6 +1177,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 _exit:
   if(processByRowFunctionCtx) {
     taosArrayDestroy(processByRowFunctionCtx);
+  }
+  if(code) {
+    qError("project apply functions failed at: %s:%d", __func__, lino);
   }
   return code;
 }

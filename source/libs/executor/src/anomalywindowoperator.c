@@ -171,8 +171,6 @@ _error:
 }
 
 static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  CHECK_CONDITION_FAILED(pOperator != NULL);
-  CHECK_CONDITION_FAILED(ppRes != NULL);
   CHECK_CONDITION_FAILED(pOperator->info != NULL);
   CHECK_CONDITION_FAILED(pOperator->pTaskInfo != NULL);
   int32_t                     code = TSDB_CODE_SUCCESS;
