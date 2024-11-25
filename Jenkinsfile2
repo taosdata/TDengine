@@ -394,7 +394,7 @@ def run_win_test() {
 }
 
 pipeline {
-    agent none
+    agent any
     options { skipDefaultCheckout() } 
     environment{
         WKDIR = '/var/lib/jenkins/workspace'
@@ -415,7 +415,6 @@ pipeline {
         }
         
         stage ('pre for build docs') {
-            agent any
             when {
                 beforeAgent true
                 expression { env.CHANGE_BRANCH =~ /(?i)doc.*/ || file_zh_changed != '' || file_en_changed != '' }
@@ -427,7 +426,6 @@ pipeline {
         }
 
         stage('build Docs') {
-            agent any
             when {
                 beforeAgent true
                 expression { env.CHANGE_BRANCH =~ /(?i)doc.*/ || file_zh_changed != '' || file_en_changed != '' }
@@ -460,7 +458,6 @@ pipeline {
         }
 
         stage('run test') {
-            agent any
             when {
                 expression {
                     file_no_doc_changed != '' && env.CHANGE_TARGET != 'docs-cloud'
