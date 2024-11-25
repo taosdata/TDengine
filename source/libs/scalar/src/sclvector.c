@@ -2128,7 +2128,9 @@ int32_t vectorIsNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
 }
 
 int32_t vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
-  pRight->tz = pLeft->tz;
+  if (pRight != NULL) {
+    pRight->tz = pLeft->tz;
+  }
   for (int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 0 : 1;
     if (v) {
@@ -2142,7 +2144,9 @@ int32_t vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
 }
 
 int32_t vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
-  pRight->tz = pLeft->tz;
+  if (pRight != NULL) {
+    pRight->tz = pLeft->tz;
+  }
   SCL_ERR_RET(vectorConvertSingleColImpl(pLeft, pOut, NULL, -1, -1));
   for (int32_t i = 0; i < pOut->numOfRows; ++i) {
     if (colDataIsNull_s(pOut->columnData, i)) {

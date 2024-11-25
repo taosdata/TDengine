@@ -873,7 +873,7 @@ void getTimezoneStr(char *tz) {
       break;
     }
     zi += sizeof("zoneinfo");
-    memcpy(tz, zi, TD_TIMEZONE_LEN - (zi - tz));
+    memmove(tz, zi, TD_TIMEZONE_LEN - (zi - tz));
     goto END;
   } while (0);
 
