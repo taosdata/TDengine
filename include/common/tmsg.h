@@ -676,7 +676,7 @@ typedef struct {
   int32_t tsSlowLogThreshold;
   int32_t tsSlowLogMaxLen;
   int32_t tsSlowLogScope;
-  int32_t tsSlowLogThresholdTest;
+  int32_t tsSlowLogThresholdTest;   //Obsolete
   char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN];
 } SMonitorParas;
 
@@ -2187,8 +2187,9 @@ int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq
 
 typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
-  char value[TSDB_CONFIG_VALUE_LEN + 1];
+  char value[TSDB_CONFIG_PATH_LEN + 1];
   char scope[TSDB_CONFIG_SCOPE_LEN + 1];
+  char info[TSDB_CONFIG_INFO_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {
@@ -2307,6 +2308,7 @@ typedef struct {
 typedef struct {
   SExplainRsp rsp;
   uint64_t    qId;
+  uint64_t    cId;
   uint64_t    tId;
   int64_t     rId;
   int32_t     eId;
@@ -2660,6 +2662,7 @@ typedef struct SSubQueryMsg {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2689,6 +2692,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int32_t  execId;
 } SQueryContinueReq;
@@ -2723,6 +2727,7 @@ typedef struct {
   SMsgHead        header;
   uint64_t        sId;
   uint64_t        queryId;
+  uint64_t        clientId;
   uint64_t        taskId;
   int32_t         execId;
   SOperatorParam* pOpParam;
@@ -2738,6 +2743,7 @@ typedef struct {
 
 typedef struct {
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2784,6 +2790,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2797,6 +2804,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2813,6 +2821,7 @@ typedef struct {
   SMsgHead        header;
   uint64_t        sId;
   uint64_t        queryId;
+  uint64_t        clientId;
   uint64_t        taskId;
   int64_t         refId;
   int32_t         execId;
@@ -3220,6 +3229,7 @@ int tDecodeSVCreateTbBatchRsp(SDecoder* pCoder, SVCreateTbBatchRsp* pRsp);
 typedef struct {
   char*    name;
   uint64_t suid;  // for tmq in wal format
+  int64_t  uid;
   int8_t   igNotExists;
 } SVDropTbReq;
 
@@ -3788,7 +3798,14 @@ typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
-} SVPauseStreamTaskReq, SVResetStreamTaskReq;
+} SVPauseStreamTaskReq;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+  int64_t  chkptId;
+} SVResetStreamTaskReq;
 
 typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
@@ -4261,6 +4278,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   uint32_t sqlLen;
   uint32_t phyLen;

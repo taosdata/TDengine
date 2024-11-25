@@ -1065,7 +1065,7 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
+**功能说明**：将时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
 
 **返回结果数据类型**：VARCHAR 类型。
 
@@ -1109,7 +1109,7 @@ return_timestamp: {
 }
 ```
 
-**功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
+**功能说明**：将日期时间格式的字符串转换成为时间戳。
 
 **返回结果数据类型**：BIGINT, TIMESTAMP。
 
@@ -1257,8 +1257,8 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
-- `expr1`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
-- `expr2`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr1`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr2`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 - `time_unit`：见使用说明。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
@@ -1301,7 +1301,7 @@ use_current_timezone: {
 
 **返回结果数据类型**：TIMESTAMP。
 
-**应用字段**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**应用字段**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **适用于**：表和超级表。
 
@@ -1364,7 +1364,7 @@ WEEK(expr [, mode])
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
-- `expr`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 - `mode`：0 - 7 之间的整数。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
@@ -1424,7 +1424,7 @@ WEEKOFYEAR(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1451,7 +1451,7 @@ WEEKDAY(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示 表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1478,7 +1478,7 @@ DAYOFWEEK(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1988,7 +1988,7 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**功能说明**：返回该列数据首次出现的值。该函数功能与 distinct 相似。对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
+**功能说明**：返回该列数据去重后的值。该函数功能与 distinct 相似。对于相同的数据，返回时间戳最小的一条，对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
 
 **返回数据类型**：同应用的字段。
 

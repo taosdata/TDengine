@@ -20,6 +20,11 @@
 #include "tref.h"
 #include "trpc.h"
 
+typedef struct SCtgViewTaskParam {
+  bool    forceFetch;
+  SArray* pTableReqs;
+} SCtgViewTaskParam;
+
 void ctgIsTaskDone(SCtgJob* pJob, CTG_TASK_TYPE type, bool* done) {
   SCtgTask* pTask = NULL;
 
@@ -500,7 +505,7 @@ int32_t ctgInitGetTbTagTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
 int32_t ctgInitGetViewsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   SCtgTask task = {0};
-
+  SCtgViewTaskParam* p = param;
   task.type = CTG_TASK_GET_VIEW;
   task.taskId = taskIdx;
   task.pJob = pJob;
@@ -511,7 +516,8 @@ int32_t ctgInitGetViewsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   }
 
   SCtgViewsCtx* ctx = task.taskCtx;
-  ctx->pNames = param;
+  ctx->pNames = p->pTableReqs;
+  ctx->forceFetch = p->forceFetch;
   ctx->pResList = taosArrayInit(pJob->viewNum, sizeof(SMetaRes));
   if (NULL == ctx->pResList) {
     qError("QID:0x%" PRIx64 " taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->viewNum,
@@ -849,13 +855,12 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   int32_t tbCfgNum = (int32_t)taosArrayGetSize(pReq->pTableCfg);
   int32_t tbTagNum = (int32_t)taosArrayGetSize(pReq->pTableTag);
   int32_t viewNum = (int32_t)ctgGetTablesReqNum(pReq->pView);
-  int32_t tbTsmaNum = (int32_t)taosArrayGetSize(pReq->pTableTSMAs);
+  int32_t tbTsmaNum = tsQuerySmaOptimize ? (int32_t)taosArrayGetSize(pReq->pTableTSMAs) : 0;
   int32_t tsmaNum = (int32_t)taosArrayGetSize(pReq->pTSMAs);
   int32_t tbNameNum = (int32_t)ctgGetTablesReqNum(pReq->pTableName);
 
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
                     userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum;
-
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
   if (NULL == *job) {
     ctgError("failed to calloc, size:%d,QID:0x%" PRIx64, (int32_t)sizeof(SCtgJob), pConn->requestId);
@@ -1014,7 +1019,8 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   }
 
   if (viewNum > 0) {
-    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_VIEW, pReq->pView, NULL));
+    SCtgViewTaskParam param = {.forceFetch = pReq->forceFetchViewMeta, .pTableReqs = pReq->pView};
+    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_VIEW, &param, NULL));
   }
   if (tbTsmaNum > 0) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_TSMA, pReq->pTableTSMAs, NULL));
@@ -3712,16 +3718,14 @@ int32_t ctgLaunchGetViewsTask(SCtgTask* pTask) {
   bool              tbMetaDone = false;
   SName*            pName = NULL;
 
-  /*
-    ctgIsTaskDone(pJob, CTG_TASK_GET_TB_META_BATCH, &tbMetaDone);
-    if (tbMetaDone) {
-      CTG_ERR_RET(ctgBuildViewNullRes(pTask, pCtx));
-      TSWAP(pTask->res, pCtx->pResList);
+  ctgIsTaskDone(pJob, CTG_TASK_GET_TB_META_BATCH, &tbMetaDone);
+  if (tbMetaDone && !pCtx->forceFetch) {
+    CTG_ERR_RET(ctgBuildViewNullRes(pTask, pCtx));
+    TSWAP(pTask->res, pCtx->pResList);
 
-      CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
-      return TSDB_CODE_SUCCESS;
-    }
-  */
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    return TSDB_CODE_SUCCESS;
+  }
 
   int32_t dbNum = taosArrayGetSize(pCtx->pNames);
   int32_t fetchIdx = 0;

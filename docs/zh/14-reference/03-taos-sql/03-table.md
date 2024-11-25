@@ -227,7 +227,7 @@ DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
 如下 SQL 语句可以列出当前数据库中的所有表名。
 
 ```sql
-SHOW TABLES [LIKE tb_name_wildchar];
+SHOW TABLES [LIKE tb_name_wildcard];
 ```
 
 ### 显示表创建语句

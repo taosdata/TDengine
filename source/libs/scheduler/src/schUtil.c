@@ -293,6 +293,18 @@ void schCloseJobRef(void) {
   }
 }
 
+int32_t initClientId(void) {
+  int32_t code = taosGetSystemUUIDU64(&schMgmt.clientId);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to generate clientId since %s", tstrerror(code));
+    SCH_ERR_RET(code);
+  }
+  qInfo("initialize");
+  return TSDB_CODE_SUCCESS;
+}
+
+uint64_t getClientId(void) { return schMgmt.clientId; }
+
 uint64_t schGenTaskId(void) { return atomic_add_fetch_64(&schMgmt.taskId, 1); }
 
 #ifdef BUILD_NO_CALL
