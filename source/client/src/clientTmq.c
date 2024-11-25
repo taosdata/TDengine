@@ -1271,10 +1271,21 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
     taosMsleep(500);
   }
 
-  // init ep timer
-  tmq->epTimer = taosTmrStart(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(tmq->refId), tmqMgmt.timer);
-  // init auto commit timer
-  tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, (void*)(tmq->refId), tmqMgmt.timer);
+  if (tmq->epTimer == NULL){
+    tmq->epTimer = taosTmrStart(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(tmq->refId), tmqMgmt.timer);
+    if (tmq->epTimer == NULL) {
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto FAIL;
+    }
+  }
+
+  if (tmq->autoCommit && tmq->commitTimer == NULL){
+    tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, (void*)(tmq->refId), tmqMgmt.timer);
+    if (tmq->commitTimer == NULL) {
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto FAIL;
+    }
+  }
 
 FAIL:
   taosArrayDestroyP(req.topicNames, taosMemoryFree);
