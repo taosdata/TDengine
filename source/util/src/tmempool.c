@@ -1730,7 +1730,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
 
 
 void taosAutoMemoryFree(void *ptr) {
-  if (NULL != gMemPoolHandle) {
+  if (NULL != gMemPoolHandle && threadPoolEnabled && threadPoolSession) {
     taosMemPoolFree(gMemPoolHandle, threadPoolSession, ptr, __FILE__, __LINE__);
   } else {
     taosMemFree(ptr);
