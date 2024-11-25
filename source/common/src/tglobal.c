@@ -2808,7 +2808,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
       }
     }
   }
-  cJSON_AddItemToObject(json, "configs", cField);
+  if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
   *serialized = cJSON_Print(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
@@ -2890,7 +2890,7 @@ int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t sz = taosArrayGetSize(array);
-  tEncodeI32(pEncoder, sz);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, sz));
   for (int i = 0; i < sz; i++) {
     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, item->name));
@@ -2930,7 +2930,7 @@ int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t sz = 0;
-  tDecodeI32(pDecoder, &sz);
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &sz));
   for (int i = 0; i < sz; i++) {
     SConfigItem item = {0};
     TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item.name));
@@ -2961,9 +2961,15 @@ int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array) {
           break;
       }
     }
-    taosArrayPush(array, &item);
+    if (taosArrayPush(array, &item) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
   }
 _exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to deserialize SConfigItem at line:%d, since %s", lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -3008,7 +3014,10 @@ int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *d
     SConfigItem *dItem = (SConfigItem *)taosArrayGet(dArray, i);
     if (!compareSConfigItem(mItem, dItem)) {
       code = TSDB_CODE_FAILED;
-      taosArrayPush(diffArray, mItem);
+      if (taosArrayPush(diffArray, mItem) == NULL) {
+        code = terrno;
+        return code;
+      }
     }
   }
 

@@ -215,7 +215,11 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SDnodeObj *pDnode = NULL;
   int32_t    code = -1;
 
-  tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
+  code = tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
+  if (code != 0) {
+    mError("failed to deserialize config req, since %s", terrstr());
+    goto _OVER;
+  }
   SArray    *diffArray = taosArrayInit(16, sizeof(SConfigItem));
   SConfigRsp configRsp = {0};
   configRsp.forceReadConfig = configReq.forceReadConfig;
@@ -315,7 +319,10 @@ int32_t mndInitReadCfg(SMnode *pMnode) {
       mInfo("failed to acquire mnd config:%s, since %s", item->name, terrstr());
       continue;
     }
-    cfgUpdateItem(item, newObj);
+    code = cfgUpdateItem(item, newObj);
+    if (code != 0) {
+      mError("failed to update mnd config:%s, since %s", item->name, terrstr());
+    }
     sdbRelease(pMnode->pSdb, newObj);
   }
 _OVER:
