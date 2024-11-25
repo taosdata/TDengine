@@ -379,9 +379,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     }
 
     if ((pEntry->lastHbMsgId == req.msgId) && (pEntry->lastHbMsgTs == req.ts)) {
-      mError("vgId:%d HbMsgId:%d already handled, bh msg discard", pEntry->nodeId, req.msgId);
+      mError("vgId:%d HbMsgId:%d already handled, bh msg discard, and send HbRsp", pEntry->nodeId, req.msgId);
 
-      terrno = TSDB_CODE_INVALID_MSG;
+      terrno = TSDB_CODE_SUCCESS;
       doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
 
       streamMutexUnlock(&execInfo.lock);
