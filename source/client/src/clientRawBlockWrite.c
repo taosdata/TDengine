@@ -763,7 +763,50 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
-      
+      int32_t nTags = taosArrayGetSize(vAlterTbReq.pMultiTag);
+      if (nTags <= 0) {
+        uError("processAlterTable parse multi tags error");
+        goto end;
+      }
+
+      cJSON* tags = cJSON_CreateArray();
+      RAW_NULL_CHECK(tags);
+      for (int32_t i = 0; i < nTags; i++) {
+        SMultiTagUpateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
+        cJSON*             tagName = cJSON_CreateString(pTagVal->tagName);
+        RAW_NULL_CHECK(tagName);
+        RAW_FALSE_CHECK(cJSON_AddItemToObject(tags, "colName", tagName));
+
+        if (pTagVal->tagType == TSDB_DATA_TYPE_JSON) {
+          uError("processAlterTable isJson false");
+          goto end;
+        }
+        bool isNull = pTagVal->isNull;
+        if (!isNull) {
+          char*   buf = NULL;
+          int64_t bufSize = 0;
+          if (pTagVal->tagType == TSDB_DATA_TYPE_VARBINARY) {
+            bufSize = pTagVal->nTagVal * 2 + 2 + 3;
+          } else {
+            bufSize = pTagVal->nTagVal + 3;
+          }
+          buf = taosMemoryCalloc(bufSize, 1);
+          RAW_NULL_CHECK(buf);
+          if (dataConverToStr(buf, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL) !=
+              TSDB_CODE_SUCCESS) {
+            taosMemoryFree(buf);
+            goto end;
+          }
+          cJSON* colValue = cJSON_CreateString(buf);
+          RAW_NULL_CHECK(colValue);
+          RAW_FALSE_CHECK(cJSON_AddItemToObject(tags, "colValue", colValue));
+          taosMemoryFree(buf);
+        }
+        cJSON* isNullCJson = cJSON_CreateBool(isNull);
+        RAW_NULL_CHECK(isNullCJson);
+        RAW_FALSE_CHECK(cJSON_AddItemToObject(tags, "colValueNull", isNullCJson));
+      }
+      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tags", tags));
       break;
     }
 
