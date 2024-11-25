@@ -463,17 +463,19 @@ pipeline {
                         WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
                     }
                     steps {
-                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 126, unit: 'MINUTES'){
-                                if (file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/) {
-                                    sh '''
-                                        echo "skip windows test because of tdgpt codes changed"
-                                    '''
-                                } else {
-                                    pre_test_win()
-                                    pre_test_build_win()
-                                    run_win_ctest()
-                                    run_win_test()
+                        script {
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                timeout(time: 126, unit: 'MINUTES'){
+                                    if (file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/) {
+                                        sh '''
+                                            echo "skip windows test because of tdgpt codes changed"
+                                        '''
+                                    } else {
+                                        pre_test_win()
+                                        pre_test_build_win()
+                                        run_win_ctest()
+                                        run_win_test()
+                                    }
                                 }
                             }
                         }
