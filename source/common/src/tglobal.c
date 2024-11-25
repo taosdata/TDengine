@@ -528,7 +528,6 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 }
 
 int32_t taosAddClientLogCfg(SConfig *pCfg) {
-<<<<<<< HEAD
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "configDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_BOTH_LAZY, CFG_CATEGORY_LOCAL));
@@ -659,7 +658,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_DYN_BOTH_LAZY, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "useAdapter", tsUseAdapter, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
-<<<<<<< HEAD
       cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX,
                                 CFG_SCOPE_CLIENT, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
@@ -858,11 +856,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "rsyncPort", tsRsyncPort, 1, 65535, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "snodeAddress", tsSnodeAddress, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "checkpointBackupDir", tsCheckpointBackupDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
-
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "telemetryInterval", tsTelemInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "telemetryServer", tsTelemServer, CFG_SCOPE_SERVER, CFG_DYN_BOTH));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "telemetryPort", tsTelemPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tmqMaxTopicNum", tmqMaxTopicNum, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
@@ -2254,7 +2247,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"queryRsmaTolerance", &tsQueryRsmaTolerance},
                                          {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"uptimeInterval", &tsUptimeInterval},
-                                         {"slowLogThresholdTest", &tsSlowLogThresholdTest},
 
                                          {"slowLogMaxLen", &tsSlowLogMaxLen},
                                          {"slowLogScope", &tsSlowLogScope},
@@ -2288,7 +2280,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
                                          {"ttlChangeOnWrite", &tsTtlChangeOnWrite},
 
-                                         {"keepAliveIdle", &tsKeepAliveIdle},
                                          {"logKeepDays", &tsLogKeepDays},
                                          {"maxStreamBackendCache", &tsMaxStreamBackendCache},
                                          {"mqRebalanceInterval", &tsMqRebalanceInterval},
