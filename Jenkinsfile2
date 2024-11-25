@@ -85,6 +85,7 @@ def check_docs(){
         echo "file_zh_changed: ${file_zh_changed}"
         echo "file_en_changed: ${file_en_changed}"
         echo "file_no_doc_changed: ${file_no_doc_changed}"
+        echo "file_only_tdgpt_change_except: ${file_only_tdgpt_change_except}"
     }
 }
 
