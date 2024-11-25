@@ -467,9 +467,7 @@ pipeline {
                             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                                 timeout(time: 126, unit: 'MINUTES'){
                                     if (file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/) {
-                                        sh '''
-                                            echo "skip windows test because of tdgpt codes changed"
-                                        '''
+                                        echo "skip windows test because of tdgpt codes changed"
                                     } else {
                                         pre_test_win()
                                         pre_test_build_win()
@@ -484,13 +482,15 @@ pipeline {
                 stage('mac test') {
                     agent{label " Mac_catalina "}
                     steps {
-                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 60, unit: 'MINUTES'){
-                                if (file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/) {
-                                    echo "skip mac test because of tdgpt codes changed"
-                                } else {
-                                pre_test()
-                                pre_test_build_mac()
+                        script {
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                timeout(time: 60, unit: 'MINUTES'){
+                                    if (file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/) {
+                                        echo "skip mac test because of tdgpt codes changed"
+                                    } else {
+                                        pre_test()
+                                        pre_test_build_mac()
+                                    }
                                 }
                             }
                         }
