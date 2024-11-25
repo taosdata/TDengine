@@ -30,7 +30,7 @@ taos> DESCRIBE meters;
  groupid                        | INT                |           4 | TAG        |
 ```
 
-The dataset contains data from 4 smart meters, corresponding to 4 child tables according to TDengine's modeling rules, with names d1001, d1002, d1003, and d1004 respectively.
+The dataset contains data from 4 smart meters, corresponding to 4 subtables according to TDengine's modeling rules, with names d1001, d1002, d1003, and d1004 respectively.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

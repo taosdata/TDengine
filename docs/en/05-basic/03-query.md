@@ -633,5 +633,5 @@ The table below lists the different types of joins supported in TDengine, along 
 
    The limitations on query result ordering include:
 
-   - For simple table queries, subqueries without grouping or ordering, results will be ordered by the primary key column from the driving table.
-   - For super table queries, Full Join, or queries with grouping conditions but no ordering, the results will not have a fixed order. If ordering is required, an `ORDER BY` clause should be used. In cases where a function depends on an ordered timeline, missing a valid timeline will prevent the function from working properly.
+   - For basic table queries, subqueries without grouping or ordering, results will be ordered by the primary key column from the driving table.
+   - For supertable queries, Full Join, or queries with grouping conditions but no ordering, the results will not have a fixed order. If ordering is required, an `ORDER BY` clause should be used. In cases where a function depends on an ordered timeline, missing a valid timeline will prevent the function from working properly.

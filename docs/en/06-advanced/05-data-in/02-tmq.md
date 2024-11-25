@@ -7,7 +7,7 @@ This document explains how to use the Explorer interface to subscribe to data fr
 
 ## Preparation
 
-Create the necessary subscription topic on the source cluster. You can subscribe to the entire database, a super table, or a sub-table. In this example, we will demonstrate subscribing to a database named `test`.
+Create the necessary subscription topic on the source cluster. You can subscribe to the entire database, a supertable, or a subtable. In this example, we will demonstrate subscribing to a database named `test`.
 
 ### Step 1: Access the Data Subscription page
 
@@ -74,5 +74,5 @@ You can also click the collapse button on the left to expand the task's activity
 ## Advanced Usage
 
 1. The FROM DSN supports multiple Topics, separated by commas. For example: `tmq+ws://root:taosdata@localhost:6041/topic1,topic2,topic3`
-2. In the FROM DSN, you can also use database names, super table names, or sub-table names in place of the Topic names. For example: `tmq+ws://root:taosdata@localhost:6041/db1,db2,db3`. In this case, it is not necessary to create Topics in advance; `taosX` will automatically recognize the use of database names and create the database subscription Topics in the source cluster.
+2. In the FROM DSN, you can also use database names, supertable names, or subtable names in place of the Topic names. For example: `tmq+ws://root:taosdata@localhost:6041/db1,db2,db3`. In this case, it is not necessary to create Topics in advance; `taosX` will automatically recognize the use of database names and create the database subscription Topics in the source cluster.
 3. The FROM DSN supports the `group.id` parameter to explicitly specify the group ID for the subscription. If not specified, a randomly generated group ID will be used.

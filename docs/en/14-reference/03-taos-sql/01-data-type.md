@@ -22,7 +22,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 
 ## Data Types
 
-In TDengine, the following data types can be used in the data model of a regular table.
+In TDengine, the following data types can be used in the data model of a table.
 
 | #   |     **Type**      | **Bytes** | **Description**                                                                                                                                                                                                                                                                                                          |
 | --- | :---------------: | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

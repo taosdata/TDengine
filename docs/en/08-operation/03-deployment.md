@@ -32,13 +32,13 @@ To ensure consistency and stability across the physical nodes in the cluster, pl
 
 #### 4. Modify Configuration
 
-Modify the TDengine configuration file (all nodes' configuration files need to be modified). Suppose the endpoint of the first dnode to be started is `h1.taosdata.com:6030`, its related cluster configuration parameters are as follows.
+Modify the TDengine configuration file (all nodes' configuration files need to be modified). Suppose the endpoint of the first dnode to be started is `h1.tdengine.com:6030`, its related cluster configuration parameters are as follows.
 
 ```shell
 # firstEp is the first dnode to connect after each dnode starts
-firstEp h1.taosdata.com:6030
+firstEp h1.tdengine.com:6030
 # Must be configured to the FQDN of this dnode. If the machine only has one hostname, this line can be commented out or deleted
-fqdn h1.taosdata.com
+fqdn h1.tdengine.com
 # Configure the port for this dnode, default is 6030
 serverPort 6030
 ```
@@ -57,26 +57,26 @@ For dnodes that wish to join the cluster, it is essential to ensure that the par
 
 #### 5. Start
 
-Follow the previous steps to start the first dnode, for example, `h1.taosdata.com`. Then execute `taos` in the terminal to start the TDengine CLI program and execute the command `show dnodes` to view information about all dnodes currently in the cluster.
+Follow the previous steps to start the first dnode, for example, `h1.tdengine.com`. Then execute `taos` in the terminal to start the TDengine CLI program and execute the command `show dnodes` to view information about all dnodes currently in the cluster.
 
 ```shell
 taos> show dnodes;
  id | endpoint          | vnodes | support_vnodes | status | create_time          | note |
 =================================================================================
- 1 | h1.taosdata.com:6030 | 0 | 1024 | ready | 2022-07-16 10:50:42.673 | |
+ 1 | h1.tdengine.com:6030 | 0 | 1024 | ready | 2022-07-16 10:50:42.673 | |
 ```
 
-You can see that the endpoint of the newly started dnode is `h1.taosdata.com:6030`. This address is the first Ep of the newly created cluster.
+You can see that the endpoint of the newly started dnode is `h1.tdengine.com:6030`. This address is the first Ep of the newly created cluster.
 
 #### 6. Add dnode
 
-Following the previous steps, start taosd on each physical node. Each dnode needs to have its `firstEp` parameter in the `taos.cfg` file set to the endpoint of the first node of the new cluster, which in this case is `h1.taosdata.com:6030`. On the machine where the first dnode resides, execute `taos` in the terminal to open the TDengine CLI program, then log into the TDengine cluster and execute the following SQL.
+Following the previous steps, start taosd on each physical node. Each dnode needs to have its `firstEp` parameter in the `taos.cfg` file set to the endpoint of the first node of the new cluster, which in this case is `h1.tdengine.com:6030`. On the machine where the first dnode resides, execute `taos` in the terminal to open the TDengine CLI program, then log into the TDengine cluster and execute the following SQL.
 
 ```shell
-create dnode "h2.taosdata.com:6030"
+create dnode "h2.tdengine.com:6030"
 ```
 
-This command adds the endpoint of the new dnode to the cluster's endpoint list. You must enclose `fqdn:port` in double quotes; otherwise, a runtime error will occur. Remember to replace the example `h2.taosdata.com:6030` with the endpoint of this new dnode. Then execute the following SQL to check whether the new node has successfully joined. If the dnode you wish to add is currently offline, please refer to the "Common Issues" section at the end of this section for resolution.
+This command adds the endpoint of the new dnode to the cluster's endpoint list. You must enclose `fqdn:port` in double quotes; otherwise, a runtime error will occur. Remember to replace the example `h2.tdengine.com:6030` with the endpoint of this new dnode. Then execute the following SQL to check whether the new node has successfully joined. If the dnode you wish to add is currently offline, please refer to the "Common Issues" section at the end of this section for resolution.
 
 ```shell
 show dnodes;
@@ -753,8 +753,6 @@ clusterDomainSuffix: ""
 # The helm/k8s support will use environment variables for taos.cfg,
 # converting an upper-snake-cased variable like `TAOS_DEBUG_FLAG`,
 # to a camelCase taos config variable `debugFlag`.
-#
-# See the variable list at https://www.taosdata.com/cn/documentation/administrator .
 #
 # Note:
 # 1. firstEp/secondEp: should not be set here, it's auto generated at scale-up.

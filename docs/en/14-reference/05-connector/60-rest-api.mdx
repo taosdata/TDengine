@@ -4,7 +4,7 @@ description: Detailed introduction to the RESTful API provided by TDengine.
 slug: /tdengine-reference/client-libraries/rest-api
 ---
 
-To support the development of various types of platforms, TDengine provides an API that conforms to RESTful design standards, known as the REST API. To minimize the learning curve, unlike other database REST APIs, TDengine directly operates the database through SQL statements included in the HTTP POST request body, requiring only a URL. For usage of the REST API, refer to the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1965.html).
+To support the development of various types of platforms, TDengine provides an API that conforms to RESTful design standards, known as the REST API. To minimize the learning curve, unlike other database REST APIs, TDengine directly operates the database through SQL statements included in the HTTP POST request body, requiring only a URL.
 
 :::note
 One difference from the native connector is that the RESTful interface is stateless, so the `USE db_name` command has no effect. All references to table names and supertable names must specify the database name prefix. It supports specifying the db_name in the RESTful URL; in this case, if the SQL statement does not specify a database name prefix, the db_name specified in the URL will be used.
@@ -20,12 +20,12 @@ If the TDengine server is already installed, you can verify it as follows.
 
 Use the `curl` tool (ensure it is installed) in an Ubuntu environment to verify whether the RESTful interface is functioning correctly. Before verification, ensure that the taosAdapter service is running. In Linux systems, this service is managed by systemd by default, and you can start it with the command `systemctl start taosadapter`.
 
-The following example lists all databases. Please replace `h1.taosdata.com` and `6041` (the default value) with the actual FQDN and port number of the running TDengine service:
+The following example lists all databases. Please replace `h1.tdengine.com` and `6041` (the default value) with the actual FQDN and port number of the running TDengine service:
 
 ```bash
 curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
   -d "select name, ntables, status from information_schema.ins_databases;" \
-  h1.taosdata.com:6041/rest/sql
+  h1.tdengine.com:6041/rest/sql
 ```
 
 The following return value indicates successful verification:

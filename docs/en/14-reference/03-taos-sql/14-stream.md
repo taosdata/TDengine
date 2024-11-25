@@ -30,9 +30,9 @@ subquery: SELECT select_list
     window_clause
 ```
 
-It supports session windows, state windows, sliding windows, event windows, and count windows. Note that state windows, event windows, and count windows must be used with `PARTITION BY tbname` when combined with super tables. If the data source table has a composite primary key, calculations for state windows, event windows, and count windows are not supported.
+It supports session windows, state windows, sliding windows, event windows, and count windows. Note that state windows, event windows, and count windows must be used with `PARTITION BY tbname` when combined with supertables. If the data source table has a composite primary key, calculations for state windows, event windows, and count windows are not supported.
 
-`stb_name` is the name of the super table that saves the calculation results. If this super table does not exist, it will be automatically created; if it does exist, it will check the schema information of the columns. For more details, see **Writing to Existing Super Tables**.
+`stb_name` is the name of the supertable that saves the calculation results. If this supertable does not exist, it will be automatically created; if it does exist, it will check the schema information of the columns. For more details, see **Writing to Existing Supertables**.
 
 The `TAGS` clause defines the rules for creating TAGs in stream processing, allowing the generation of custom TAG values for each partition. For more details, see **Custom TAG**.
 
@@ -43,7 +43,7 @@ column_definition:
     type_name [COMMENT 'string_value']
 ```
 
-The `subtable` clause defines the naming rules for the sub-tables created in stream processing. For more details, see the **partition** section of stream processing.
+The `subtable` clause defines the naming rules for the subtables created in stream processing. For more details, see the **partition** section of stream processing.
 
 ```sql
 window_clause: {
@@ -63,11 +63,11 @@ Here, `SESSION` is the session window, where `tol_val` is the maximum range of t
 
 The definition of the windows is identical to that in the distinguished query for time series data. For more details, see [TDengine Distinguished Queries](../time-series-extensions/).
 
-For example, the following statements create stream processing tasks. The first stream processing task automatically creates a super table named `avg_vol`, calculates the average voltage of these meters with a one-minute time window and a 30-second forward increment, and writes the results from the `meters` table into the `avg_vol` table. Data from different partitions will create sub-tables and write to different sub-tables.
+For example, the following statements create stream processing tasks. The first stream processing task automatically creates a supertable named `avg_vol`, calculates the average voltage of these meters with a one-minute time window and a 30-second forward increment, and writes the results from the `meters` table into the `avg_vol` table. Data from different partitions will create subtables and write to different subtables.
 
-The second stream processing task automatically creates a super table named `streamt0`, aggregates data in order of timestamp with a window starting condition of `voltage < 0` and an ending condition of `voltage > 9`, writing the results from the `meters` table into the `streamt0` table, creating separate sub-tables for different partitions.
+The second stream processing task automatically creates a supertable named `streamt0`, aggregates data in order of timestamp with a window starting condition of `voltage < 0` and an ending condition of `voltage > 9`, writing the results from the `meters` table into the `streamt0` table, creating separate subtables for different partitions.
 
-The third stream processing task automatically creates a super table named `streamt1`, aggregates data in order of timestamp with 10 data rows as a group, and writes the results from the `meters` table into the `streamt1` table, creating separate sub-tables for different partitions.
+The third stream processing task automatically creates a supertable named `streamt1`, aggregates data in order of timestamp with 10 data rows as a group, and writes the results from the `meters` table into the `streamt1` table, creating separate subtables for different partitions.
 
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS

@@ -96,12 +96,6 @@ The following table maps TDengine DataType to Node.js DataType
 - Currently only WebSocket connections are supported; taosAdapter needs to be started in advance.
 - After using the connector, you need to call `taos.connectorDestroy();` to release connector resources.
 
-## Common Issues
-
-1. "Unable to establish connection" or "Unable to resolve FQDN"
-
-   **Reason**: This is usually due to incorrect configuration of the FQDN. You can refer to [How to Thoroughly Understand TDengine's FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html).
-
 ## API Reference
 
 The Node.js connector (`@tdengine/websocket`) connects to TDengine instances through the WebSocket interface provided by taosAdapter.

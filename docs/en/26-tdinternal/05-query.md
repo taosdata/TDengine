@@ -60,7 +60,7 @@ By adopting SQL as the query language, TDengine significantly reduces the learni
 
 - **Grouping Extension:** TDengine extends standard SQL’s grouping function by introducing the `partition by` clause. Users can segment input data based on custom dimensions and perform any type of query operation within each group, such as constants, aggregations, scalars, and expressions.
 - **Limiting Extension:** To meet the need for limiting output in grouped queries, TDengine introduces the `slimit` and `soffset` clauses to restrict the number of groups. When used with the `partition by` clause, the limit applies within each group rather than globally.
-- **Tag Query Support:** TDengine supports tag queries. Tags, as attributes of child tables, can be used as pseudo-columns in queries. For scenarios focusing only on tag columns without time-series data, TDengine introduces tag keywords to accelerate queries, avoiding time-series data scans.
+- **Tag Query Support:** TDengine supports tag queries. Tags, as attributes of subtables, can be used as pseudo-columns in queries. For scenarios focusing only on tag columns without time-series data, TDengine introduces tag keywords to accelerate queries, avoiding time-series data scans.
 - **Window Query Support:** TDengine supports various window queries, including time windows, state windows, session windows, event windows, and count windows. It will also support more flexible user-defined windows in the future.
 - **Join Query Extensions:** In addition to traditional joins like inner, outer, semi, and anti-semi joins, TDengine supports time-series-specific joins, such as ASOF Join and Window Join, providing users with more convenient and flexible join capabilities.
 
@@ -129,4 +129,4 @@ To ensure cache validity and system performance, TDengine periodically checks th
 
 - **Metadata Cache:** Includes information about databases, supertables, users, nodes, views, and virtual nodes, as well as table schemas and their mapping to virtual nodes. Caching metadata in taosc avoids frequent requests to mnode/vnode. taosc uses a fixed-size cache, following a first-come-first-served policy until the cache is full. When the cache is full, some entries are evicted to accommodate new requests.
 - **Time-Series Data Cache:** Time-series data is first cached in vnode memory as a SkipList. When the flush condition is met, the data is compressed and written to storage files, then cleared from the cache.
-- **Latest Data Cache (last/last_row):** Caches the latest data to improve query efficiency. Latest data is organized in a key-value format, where the key is the child table ID, and the value is the last non-null row and the latest row in the child table.
+- **Latest Data Cache (last/last_row):** Caches the latest data to improve query efficiency. Latest data is organized in a key-value format, where the key is the subtable ID, and the value is the last non-null row and the latest row in the subtable.

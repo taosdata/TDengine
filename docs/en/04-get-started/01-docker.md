@@ -96,7 +96,7 @@ After inserting data with taosBenchmark as described above, you can use the TDen
    taos
    ```
 
-2. Query the total number of records in the `meters` super table:
+2. Query the total number of records in the `meters` supertable:
 
    ```sql
    SELECT COUNT(*) FROM test.meters;

@@ -7,7 +7,7 @@ This section explains how to create a data migration task through the Explorer i
 
 ## Feature Overview
 
-`taosX` uses SQL queries to retrieve data from the source cluster and writes the query results to the target database. Specifically, `taosX` treats a sub-table's data for a specific time period as the basic unit of the query, and the data to be migrated is written to the target database in batches.
+`taosX` uses SQL queries to retrieve data from the source cluster and writes the query results to the target database. Specifically, `taosX` treats a subtable's data for a specific time period as the basic unit of the query, and the data to be migrated is written to the target database in batches.
 
 `taosX` supports three migration modes:
 
@@ -15,7 +15,7 @@ This section explains how to create a data migration task through the Explorer i
 2. **realtime** mode: Synchronizes data from the task creation time onward. The task will continue running unless manually stopped.
 3. **both** mode: Executes history mode first, then switches to realtime mode.
 
-In each migration mode, you can specify whether to migrate the table structure. If "always" is selected, the table structure will be synced to the target database before migrating the data. If there are many sub-tables, this process may take a while. If you are sure that the target database already has the same table schema as the source database, it is recommended to select "none" to save time.
+In each migration mode, you can specify whether to migrate the table structure. If "always" is selected, the table structure will be synced to the target database before migrating the data. If there are many subtables, this process may take a while. If you are sure that the target database already has the same table schema as the source database, it is recommended to select "none" to save time.
 
 During task execution, progress is saved to disk, so if a task is paused and restarted, or automatically recovers from an error, it will not restart from the beginning.
 

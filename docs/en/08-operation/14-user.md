@@ -106,10 +106,10 @@ resources: {
 
 The related parameters are described as follows.
 
-- resources: The databases or tables that can be accessed. The part before the dot is the database name, and the part after the dot is the table name. `dbname.tbname` means the table `tbname` in the database `dbname` must be a regular table or a supertable. `dbname.*` means all tables in the database `dbname`. `*.*` means all tables in all databases.
+- resources: The databases or tables that can be accessed. The part before the dot is the database name, and the part after the dot is the table name. `dbname.tbname` means the table `tbname` in the database `dbname` must be a basic table or a supertable. `dbname.*` means all tables in the database `dbname`. `*.*` means all tables in all databases.
 - tag_filter: Filtering conditions for supertables.
 
-The above SQL can grant access to a single database, all databases, a regular table or supertable under a database, or all child tables of a supertable that meet the filtering conditions using a combination of `dbname.tbname` and the `with` clause.
+The above SQL can grant access to a single database, all databases, a basic table or supertable under a database, or all subtables of a supertable that meet the filtering conditions using a combination of `dbname.tbname` and the `with` clause.
 The following SQL grants read permission for the database `power` to the user `test`.
 
 ```sql
@@ -122,7 +122,7 @@ The following SQL grants all permissions on the supertable `meters` in the datab
 grant all on power.meters to test
 ```
 
-The following SQL grants write permission for the child table of the supertable `meters` with the label value `groupId` equal to 1 to the user `test`.
+The following SQL grants write permission for the subtable of the supertable `meters` with the label value `groupId` equal to 1 to the user `test`.
 
 ```sql
 grant all on power.meters with groupId=1 to test

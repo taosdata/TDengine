@@ -17,7 +17,7 @@ For more information about topics, see [Create a Topic](../../tdengine-reference
 
 ## Consumers and Consumer Groups
 
-Consumers that subscribe to a topic receive the latest data in real time. A single consumer can subscribe to multiple topics. If the topic corresponds to a super table or database, the data may be distributed across multiple different nodes or data shards.
+Consumers that subscribe to a topic receive the latest data in real time. A single consumer can subscribe to multiple topics. If the topic corresponds to a supertable or database, the data may be distributed across multiple different nodes or data shards.
 
 You can also create consumer groups to enable multithreaded, distributed data consumption. The consumers in a consumer group share consumption progress, while consumers in different consumer groups do not share consumption progress even if they consume the same topic.
 

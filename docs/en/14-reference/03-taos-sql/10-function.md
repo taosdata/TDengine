@@ -857,15 +857,15 @@ SUBSTRING_INDEX(expr, delim, count)
 **Example**:
 
 ```sql
-taos> select substring_index('www.taosdata.com','.',2);
- substring_index('www.taosdata.com','.',2) |
+taos> select substring_index('www.tdengine.com','.',2);
+ substring_index('www.tdengine.com','.',2) |
 ============================================
  www.taosdata                              |
 
-taos> select substring_index('www.taosdata.com','.',-2);
- substring_index('www.taosdata.com','.',-2) |
+taos> select substring_index('www.tdengine.com','.',-2);
+ substring_index('www.tdengine.com','.',-2) |
 =============================================
- taosdata.com                               |
+ tdengine.com                               |
 ```
 
 #### UPPER
@@ -2047,7 +2047,7 @@ CSUM(expr)
 **Usage Instructions**:
 
 - Does not support operations like +, -, \*, /; for example, `csum(col1) + csum(col2)`.
-- Can only be used with aggregation functions. This function can be applied to both ordinary tables and supertables.
+- Can only be used with aggregation functions. This function can be applied to both basic tables and supertables.
 
 ### DERIVATIVE
 
@@ -2243,7 +2243,7 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
-**Description**: Checks whether all dnodes in the server are online; if so, it returns success; otherwise, it returns a connection error. To query the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which behaves differently from `SELECT SERVER_STATUS();`. If some nodes in the cluster are unavailable, it does not return an error but rather different status codes; for more details, refer to [SHOW CLUSTER ALIVE](https://docs.taosdata.com/reference/taos-sql/show/#show-cluster-alive).
+**Description**: Checks whether all dnodes in the server are online; if so, it returns success; otherwise, it returns a connection error. To query the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which behaves differently from `SELECT SERVER_STATUS();`. If some nodes in the cluster are unavailable, it does not return an error but rather different status codes; for more details, refer to [SHOW CLUSTER ALIVE](../show-commands/#show-cluster-alive).
 
 ### CURRENT_USER
 

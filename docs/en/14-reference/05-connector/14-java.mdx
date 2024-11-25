@@ -234,8 +234,6 @@ The supported configuration parameters for native connection URLs are as follows
 - batchfetch: true: Retrieve result sets in batches during query execution; false: Retrieve result sets one row at a time. The default value is: true. Enabling batch retrieval can effectively improve query performance when querying large amounts of data.
 - batchErrorIgnore: true: When executing `executeBatch` on a Statement, if one SQL execution fails, it will continue to execute the subsequent SQL. false: No further SQL statements will be executed after the failed SQL. The default value is: false.
 
-For using JDBC native connections, please refer to the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1955.html).
-
 **Establishing Connections Using the TDengine Client Driver Configuration File**  
 
 When connecting to a TDengine cluster using JDBC native connections, you can use the TDengine client driver configuration file to specify parameters like `firstEp`, `secondEp`, etc. In this case, do not specify `hostname` and `port` in the JDBC URL.
@@ -1615,5 +1613,4 @@ The interfaces of `ReferenceDeserializer` and `MapDeserializer` are not directly
 
 ## Appendix
 
-- `taos-jdbcdriver Javadoc`: [taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)  
 - `JDBC Javadoc`: [JDBC Reference doc](https://docs.oracle.com/javase/8/docs/api/java/sql/package-summary.html)

@@ -4,7 +4,7 @@ title: ODBC Client Library
 slug: /tdengine-reference/client-libraries/odbc
 ---
 
-TDengine ODBC is an ODBC driver implemented for TDengine, allowing applications on Windows systems (such as [PowerBI](https://powerbi.microsoft.com/zh-cn/)) to access tables/views in the TDengine database through the ODBC standard interface, whether they are local, remote, or cloud-based.
+TDengine ODBC is an ODBC driver implemented for TDengine, allowing applications on Windows systems (such as [PowerBI](https://powerbi.microsoft.com/)) to access tables/views in the TDengine database through the ODBC standard interface, whether they are local, remote, or cloud-based.
 
 TDengine ODBC offers two connection methods to the TDengine database: WebSocket (recommended) and Native connections. When using it, different connection methods can be set for the TDengine data source. When accessing cloud services, the WebSocket connection method must be used.
 
@@ -52,7 +52,7 @@ TDengine ODBC supports two connection methods to the TDengine database: WebSocke
 
     4.2 **Connection Type**: (mandatory), select the connection type, here we choose **WebSocket**.
 
-    4.3 **URL**: (mandatory), ODBC data source URL, for example: `http://localhost:6041`, for cloud service the URL example is: `https://gw.cloud.taosdata.com?token=your_token`.
+    4.3 **URL**: (mandatory), ODBC data source URL, for example: `http://localhost:6041`, for cloud service the URL example is: `https://gw.cloud.tdengine.com?token=your_token`.
 
     4.4 **Database**: (optional), the default database to connect to.
 

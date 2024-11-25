@@ -16,7 +16,7 @@ If the specified location already contains data files, `taosdump` will prompt th
 
 There are two installation methods for `taosdump`:
 
-- Install the official `taosTools` installation package. You can find and download `taosTools` from the [Release History page](https://docs.taosdata.com/releases/tools/).
+- Install TDengine. taosdump is included in the installation package.
 - Compile `taos-tools` separately and install it. For details, please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository.
 
 ## Common Use Cases
@@ -118,6 +118,4 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
-
-Report bugs to <support@taosdata.com>.
 ```

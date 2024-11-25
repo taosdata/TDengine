@@ -16,7 +16,7 @@ To enable EMQX to add TDengine as a data source, the following preparations are 
 
 ## Install and Start EMQX
 
-Users can download the installation package from the [EMQX official website](https://www.emqx.io/zh/downloads) according to their operating system and execute the installation. After installation, start the EMQX service using `sudo emqx start` or `sudo systemctl start emqx`.
+Users can download the installation package from the [EMQX official website](https://www.emqx.com/en/downloads-and-install/broker) according to their operating system and execute the installation. After installation, start the EMQX service using `sudo emqx start` or `sudo systemctl start emqx`.
 
 Note: This document is based on EMQX version v4.4.5; other versions may have different configuration interfaces, methods, and features due to version upgrades.
 
@@ -29,8 +29,6 @@ CREATE DATABASE test;
 USE test;
 CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volume FLOAT, pm10 FLOAT, pm25 FLOAT, so2 FLOAT, no2 FLOAT, co FLOAT, sensor_id NCHAR(255), area TINYINT, coll_time TIMESTAMP);
 ```
-
-Note: The table structure is based on the blog [Data Transfer, Storage, and Display: Building an MQTT IoT Data Visualization Platform with EMQX + TDengine](https://www.taosdata.com/blog/2020/08/04/1722.html). Subsequent operations will refer to this blog scenario, so please modify it according to your actual application scenario.
 
 ## Configure EMQX Rules
 
@@ -144,6 +142,4 @@ Refresh the rule engine interface in the EMQX Dashboard to see how many records 
 Log into TDengine CLI and query the corresponding database and table to verify whether the data has been correctly written to TDengine:
 
 ![TDengine Database EMQX result in taos](../../assets/emqx-platform-11.webp)
-
-For detailed usage of TDengine, please refer to the [TDengine Official Documentation](https://docs.taosdata.com/).
-For detailed usage of EMQX, please refer to the [EMQX Official Documentation](https://www.emqx.io/docs/zh/v4.4/rule/rule-engine.html).
+For detailed usage of EMQX, please refer to the [EMQX Official Documentation](https://docs.emqx.com/en/emqx/latest/data-integration/rules.html#rule-engine).

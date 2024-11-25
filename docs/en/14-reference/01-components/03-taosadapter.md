@@ -31,7 +31,7 @@ taosAdapter offers the following features:
 
 ### Installing taosAdapter
 
-taosAdapter is part of the TDengine server software. If you are using the TDengine server, no additional steps are needed to install taosAdapter. You can download the TDengine server installation package from the [Taos Data official website](https://docs.taosdata.com/releases/tdengine/). If you need to deploy taosAdapter separately on a server outside the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to compile taosAdapter from the source code, you can refer to the documentation on [Building taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md).
+taosAdapter is part of the TDengine server software. If you are using the TDengine server, no additional steps are needed to install taosAdapter. If you need to deploy taosAdapter separately on a server outside the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to compile taosAdapter from the source code, you can refer to the documentation on [Building taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md).
 
 ### Starting/Stopping taosAdapter
 
@@ -165,7 +165,7 @@ AllowWebSockets
 
 If you are not making interface calls through a browser, there is no need to worry about these configurations.
 
-For details on the CORS protocol, please refer to: [https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) or [https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS).
+For details on the CORS protocol, please refer to: [https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) or [https://developer.mozilla.org/docs/Web/HTTP/CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS).
 
 :::
 
