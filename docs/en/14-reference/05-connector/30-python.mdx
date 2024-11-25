@@ -1,0 +1,612 @@
+---
+sidebar_label: Python
+title: Python Client Library
+slug: /tdengine-reference/client-libraries/python
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import RequestId from "./_request_id.mdx";
+
+`taospy` is the official Python connector for TDengine. `taospy` provides a rich set of APIs that allow Python applications to easily use TDengine.
+
+The source code for the Python connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
+
+## Connection Methods
+
+`taospy` mainly provides three forms of connectors. Generally, we recommend using **WebSocket connection**.
+
+- **Native connection**, corresponding to the `taos` module of the `taospy` package. It connects to the TDengine instance through the TDengine client driver (taosc), supporting data writing, querying, data subscription, schemaless interfaces, and parameter binding interfaces, among other functions.
+- **REST connection**, corresponding to the `taosrest` module of the `taospy` package. It connects to the TDengine instance via the HTTP interface provided by taosAdapter and does not support features like schemaless and data subscriptions.
+- **WebSocket connection**, corresponding to the `taos-ws-py` package, which can be installed optionally. It connects to the TDengine instance via the WebSocket interface provided by taosAdapter, with a few functional differences compared to the native connection.
+
+For a detailed introduction to the connection methods, please refer to: [Connection Methods](../../../developer-guide/connecting-to-tdengine/)
+
+In addition to wrapping the native and REST interfaces, `taospy` also provides a programming interface that conforms to the [Python Database API Specification (PEP 249)](https://peps.python.org/pep-0249/). This makes `taospy` easy to integrate with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
+
+The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "native connection" in the following text; while using the REST or WebSocket interface provided by taosAdapter to establish a connection with the server is referred to as "REST connection" or "WebSocket connection."
+
+## Supported Platforms
+
+- The platforms supported by the native connection are consistent with the platforms supported by the TDengine client.
+- The REST connection supports all platforms that can run Python.
+
+### Supported Features
+
+- The native connection supports all core functionalities of TDengine, including: connection management, executing SQL, parameter binding, subscriptions, and schemaless writing.
+- The features supported by the REST connection include: connection management and executing SQL. (By executing SQL, it can: manage databases, manage tables and supertables, write data, query data, create continuous queries, etc.)
+
+## Version History
+
+Regardless of which version of TDengine is used, it is recommended to use the latest version of `taospy`.
+
+| Python Connector Version | Major Changes |
+|:------------------------:|:-------------:|
+| 2.7.15                   | Added support for VARBINARY and GEOMETRY types |
+| 2.7.14                   | Fixed known issues |
+| 2.7.13                   | Added tmq synchronous commit offset interface |
+| 2.7.12                   | 1. Added support for varbinary type (STMT does not support varbinary) <br/> 2. Improved query performance (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209)) |
+| 2.7.9                    | Data subscription supports fetching consumption progress and resetting consumption progress |
+| 2.7.8                    | Added `execute_many` |
+
+| Python WebSocket Connector Version | Major Changes |
+|:----------------------------------:|:-------------:|
+| 0.3.2                              | Optimized WebSocket SQL query and insert performance, modified README and documentation, fixed known issues |
+| 0.2.9                              | Fixed known issues |
+| 0.2.5                              | 1. Data subscription supports fetching consumption progress and resetting consumption progress <br/> 2. Supports schemaless <br/> 3. Supports STMT |
+| 0.2.4                              | Added unsubscribe method for data subscription |
+
+## Handling Exceptions
+
+The Python connector may produce four types of exceptions:
+
+- Exceptions specific to the Python connector
+- Exceptions from the native connection method
+- Exceptions from the WebSocket connection method
+- Exceptions related to data subscription
+- Errors from other functionality modules of TDengine, please refer to [Error Codes](../../error-codes/)
+
+| Error Type        | Description                                               | Suggested Actions                       |
+|-------------------|-----------------------------------------------------------|-----------------------------------------|
+| InterfaceError     | The version of taosc is too low and does not support the interface used | Please check the TDengine client version |
+| ConnectionError     | Database connection error                                  | Please check the TDengine server status and connection parameters |
+| DatabaseError      | Database error                                           | Please check the TDengine server version and upgrade the Python connector to the latest version |
+| OperationalError    | Operational error                                        | API usage error, please check the code |
+| ProgrammingError    | Interface call error                                    | Please check if the submitted data is correct |
+| StatementError      | stmt related exceptions                                  | Please check if the bound parameters match the SQL |
+| ResultError         | Data operation error                                    | Please check if the data being operated matches the data type in the database |
+| SchemalessError     | Schemaless related exceptions                            | Please check if the data format and corresponding protocol type are correct |
+| TmqError            | tmq related exceptions                                   | Please check if the Topic and consumer configurations are correct |
+
+In Python, exceptions are usually handled using try-except. For more information on exception handling, please refer to the [Python Errors and Exceptions documentation](https://docs.python.org/3/tutorial/errors.html).  
+For errors from other functionality modules of TDengine, please refer to [Error Codes](../../error-codes/).
+
+All database operations of the Python Connector will directly raise exceptions if an error occurs, and it is the responsibility of the application to handle these exceptions. For example:
+
+```python
+{{#include docs/examples/python/handle_exception.py}}
+```
+
+## Data Type Mapping
+
+TDengine currently supports timestamp, numeric, character, and boolean types. The corresponding type conversion to Python is as follows:
+
+| TDengine DataType | Python DataType |
+|:------------------|:----------------|
+| TIMESTAMP         | datetime        |
+| INT               | int             |
+| BIGINT            | int             |
+| FLOAT             | float           |
+| DOUBLE            | int             |
+| SMALLINT          | int             |
+| TINYINT           | int             |
+| BOOL              | bool            |
+| BINARY            | str             |
+| NCHAR             | str             |
+| JSON              | str             |
+| GEOMETRY          | bytearray       |
+| VARBINARY         | bytearray       |
+
+## Example Program Summary
+
+| Example Program Link                                                                                                   | Example Program Content            |
+|-------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py)                  | Parameter binding, binding multiple rows at once |
+| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py)                      | Parameter binding, binding one row at a time  |
+| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)              | InfluxDB line protocol writing     |
+| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)                      | Using JSON type tags               |
+| [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)              | TMQ subscription                   |
+| [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | Example supporting all types       |
+| [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py) | Example for parameter binding supporting all types |
+
+For source code of example programs, please refer to:
+
+1. [More examples for native](https://github.com/taosdata/taos-connector-python/tree/main/examples)
+2. [More examples for WebSocket](https://github.com/taosdata/taos-connector-python/tree/main/taos-ws-py/examples)
+
+## About Nanoseconds (nanosecond)
+
+Due to the current inadequacy of Python's support for nanoseconds (see links below), the current implementation returns integers when the precision is nanoseconds, rather than the datetime type returned for milliseconds and microseconds. Application developers need to handle this themselves and are advised to use `pandas`'s `to_datetime()`. If Python officially supports nanoseconds in the future, the Python connector may modify the relevant interfaces. For more information, see [https://www.python.org/dev/peps/pep-0564/](https://www.python.org/dev/peps/pep-0564/).
+
+## Frequently Asked Questions
+
+Feel free to [ask questions or report issues](https://github.com/taosdata/taos-connector-python/issues).
+
+## API Reference
+
+### WebSocket Connection
+
+#### URL Specification
+
+```text
+[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+- **protocol**: Establish a connection using the WebSocket protocol. For example, `ws://localhost:6041`
+- **username/password**: Username and password for the database.
+- **host/port**: Host address and port number. For example, `localhost:6041`
+- **database**: Database name.
+- **params**: Other parameters. For example, token.
+
+#### Establishing Connection
+
+- `fn connect(dsn: Option<&str>, args: Option<&PyDict>) -> PyResult<Connection>`
+  - **Interface Description**: Establish a taosAdapter connection.
+  - **Parameter Description**:
+    - `dsn`: Type `Option<&str>` optional, Data Source Name (DSN), used to specify the location and authentication information of the database to connect.
+    - `args`: Type `Option<&PyDict>` optional, provided as a Python dictionary, used to set
+      - `user`: Database username
+      - `password`: Database password.
+      - `host`: Host address
+      - `port`: Port number
+      - `database`: Database name
+  - **Return Value**: Connection object.
+  - **Exception**: Throws `ConnectionError` exception if the operation fails.
+- `fn cursor(&self) -> PyResult<Cursor>`
+  - **Interface Description**: Creates a new database cursor object for executing SQL commands and queries.
+  - **Return Value**: Database cursor object.
+  - **Exception**: Throws `ConnectionError` exception if the operation fails.
+
+#### Executing SQL
+
+- `fn execute(&self, sql: &str) -> PyResult<i32>`
+  - **Interface Description**: Executes an SQL statement.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+  - **Return Value**: Number of affected rows.
+  - **Exception**: Throws `QueryError` exception if the operation fails.
+- `fn execute_with_req_id(&self, sql: &str, req_id: u64) -> PyResult<i32>`
+  - **Interface Description**: Executes an SQL statement with a req_id.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+    - `reqId`: Used for tracking issues.
+  - **Return Value**: Number of affected rows.
+  - **Exception**: Throws `QueryError` exception if the operation fails.
+- `fn query(&self, sql: &str) -> PyResult<TaosResult>`
+  - **Interface Description**: Queries data.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+  - **Return Value**: `TaosResult` dataset object.
+  - **Exception**: Throws `QueryError` exception if the operation fails.
+- `fn query_with_req_id(&self, sql: &str, req_id: u64) -> PyResult<TaosResult>`
+  - **Interface Description**: Queries an SQL statement with a req_id.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+    - `reqId`: Used for tracking issues.
+  - **Return Value**: `TaosResult` dataset object.
+  - **Exception**: Throws `QueryError` exception if the operation fails.
+
+#### Dataset
+
+The `TaosResult` object can be iterated over to obtain the queried data.
+
+- `fn fields(&self) -> Vec<TaosField>`
+  - **Interface Description**: Gets field information of the queried data, including: name, type, and field length.
+  - **Return Value**: `Vec<TaosField>` array of field information.
+- `fn field_count(&self) -> i32`
+  - **Interface Description**: Gets the number of records queried.
+  - **Return Value**: `i32` the number of records queried.
+
+#### Schemaless Writing
+
+- `fn schemaless_insert(&self, lines: Vec<String>, protocol: PySchemalessProtocol, precision: PySchemalessPrecision, ttl: i32, req_id: u64) -> PyResult<()>`
+  - **Interface Description**: Schemaless writing.
+  - **Parameter Description**:
+    - `lines`: The data array to be written, please refer to `Schemaless Writing` for the specific data format.
+    - `protocol`: Protocol type
+      - `PySchemalessProtocol::Line`: InfluxDB line protocol (Line Protocol).
+      - `PySchemalessProtocol::Telnet`: OpenTSDB text line protocol.
+      - `PySchemalessProtocol::Json`: JSON protocol format
+    - `precision`: Timestamp precision
+      - `PySchemalessPrecision::Hour`: Hours
+      - `PySchemalessPrecision::Minute`: Minutes
+      - `PySchemalessPrecision::Second`: Seconds
+      - `PySchemalessPrecision::Millisecond`: Milliseconds
+      - `PySchemalessPrecision::Microsecond`: Microseconds
+      - `PySchemalessPrecision::Nanosecond`: Nanoseconds
+    - `ttl`: Table expiration time, in days.
+    - `reqId`: Used for tracking issues.
+  - **Exception**: Throws `DataError` or `OperationalError` exception if the operation fails.
+
+#### Parameter Binding
+
+- `fn statement(&self) -> PyResult<TaosStmt>`
+  - **Interface Description**: Creates a stmt object using the connection object.
+  - **Return Value**: stmt object.
+  - **Exception**: Throws `ConnectionError` exception if the operation fails.
+- `fn prepare(&mut self, sql: &str) -> PyResult<()>`
+  - **Interface Description**: Binds a precompiled SQL statement.
+  - **Parameter Description**:
+    - `sql`: The precompiled SQL statement.
+  - **Exception**: Throws `ProgrammingError` exception if the operation fails.
+- `fn set_tbname(&mut self, table_name: &str) -> PyResult<()>`
+  - **Interface Description**: Sets the table name where the data will be written.
+  - **Parameter Description**:
+    - `tableName`: The table name, if a specific database needs to be specified, e.g., `db_name.table_name`.
+  - **Exception**: Throws `ProgrammingError` exception if the operation fails.
+- `fn set_tags(&mut self, tags: Vec<PyTagView>) -> PyResult<()>`
+  - **Interface Description**: Sets the tags data for the table, used for automatic table creation.
+  - **Parameter Description**:
+    - `paramsArray`: Tags data.
+  - **Exception**: Throws `ProgrammingError` exception if the operation fails.
+- `fn bind_param(&mut self, params: Vec<PyColumnView>) -> PyResult<()>`
+  - **Interface Description**: Binds the data.
+  - **Parameter Description**:
+    - `paramsArray`: Data to be bound.
+  - **Exception**: Throws `ProgrammingError` exception if the operation fails.
+- `fn add_batch(&mut self) -> PyResult<()>`
+  - **Interface Description**: Commits the bound data.
+  - **Exception**: Throws `ProgrammingError` exception if the operation fails.
+- `fn execute(&mut self) -> PyResult<usize>`
+  - **Interface Description**: Executes all the bound data for writing.
+  - **Return Value**: Number of rows written.
+  - **Exception**: Throws `QueryError` exception if the operation fails.
+- `fn affect_rows(&mut self) -> PyResult<usize>`
+  - **Interface Description**: Gets the number of rows written.
+  - **Return Value**: Number of rows written.
+- `fn close(&self) -> PyResult<()>`
+  - **Interface Description**: Closes the stmt object.
+
+#### Data Subscription
+
+- **Supported Attributes for Creating a Consumer**:
+  - host: Host address.
+  - port: Port number.
+  - group.id: The group the consumer belongs to.
+  - client.id: Client ID.
+  - td.connect.user: Database username.
+  - td.connect.pass: Database password.
+  - td.connect.token: Connection token for the database.
+  - auto.offset.reset: Determines whether to consume the latest data (latest) or include old data (earliest).
+  - enable.auto.commit: Whether to allow automatic commits.
+  - auto.commit.interval.ms: Interval for automatic commits.
+
+- `fn Consumer(conf: Option<&PyDict>, dsn: Option<&str>) -> PyResult<Self>`
+  - **Interface Description**: Consumer constructor.
+    - `conf`: Type `Option<&PyDict>`, optional, provided as a Python dictionary; refer to the attribute list for specific configurations.
+    - `dsn`: Type `Option<&str>`, optional, Data Source Name (DSN) used to specify the location and authentication information for the database to connect.
+  - **Return Value**: Consumer object.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn subscribe(&mut self, topics: &PyList) -> PyResult<()>`
+  - **Interface Description**: Subscribes to a group of topics.
+  - **Parameter Description**:
+    - `topics`: List of topics to subscribe to.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn unsubscribe(&mut self)`
+  - **Interface Description**: Unsubscribes.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn poll(&mut self, timeout: Option<f64>) -> PyResult<Option<Message>>`
+  - **Interface Description**: Polls for messages.
+  - **Parameter Description**:
+    - `timeoutMs`: The timeout for polling, in milliseconds.
+  - **Return Value**: `Message` data corresponding to each topic.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn commit(&mut self, message: &mut Message) -> PyResult<()>`
+  - **Interface Description**: Commits the offset of the currently processed message.
+  - **Parameter Description**:
+    - `message`: Type `Message`, the current message's offset being processed.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn assignment(&mut self) -> PyResult<Option<Vec<TopicAssignment>>>`
+  - **Interface Description**: Gets the currently assigned partitions for the consumer.
+  - **Return Value**: Returns a type `Vec<TopicAssignment>`, which are all the partitions currently assigned to the consumer.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn seek(&mut self, topic: &str, vg_id: i32, offset: i64) -> PyResult<()>`
+  - **Interface Description**: Sets the offset for the given partition to the specified position.
+  - **Parameter Description**:
+    - `topic`: Subscribed topic.
+    - `vg_id`: vgroup ID.
+    - `offset`: The offset to be set.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn committed(&mut self, topic: &str, vg_id: i32) -> PyResult<i64>`
+  - **Interface Description**: Gets the last committed offset for the subscribed topic's vgroup ID partition.
+  - **Parameter Description**:
+    - `topic`: Subscribed topic.
+    - `vg_id`: vgroup ID.
+  - **Return Value**: `i64`, the last committed offset for the partition.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn position(&mut self, topic: &str, vg_id: i32) -> PyResult<i64>`
+  - **Interface Description**: Gets the current offset for the given partition.
+  - **Parameter Description**:
+    - `topic`: Subscribed topic.
+    - `vg_id`: vgroup ID.
+  - **Return Value**: `i64`, the last committed offset for the partition.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+- `fn close(&mut self)`
+  - **Interface Description**: Closes the tmq connection.
+  - **Exception**: Throws `ConsumerException` if the operation fails.
+
+### Native Connection
+
+#### Establishing Connection
+
+- `def connect(*args, **kwargs):`
+  - **Interface Description**: Establishes a taosAdapter connection.
+  - **Parameter Description**:
+    - `kwargs`: Provided as a Python dictionary, can be used to set
+      - `user`: Database username
+      - `password`: Database password.
+      - `host`: Host address
+      - `port`: Port number
+      - `database`: Database name
+      - `timezone`: Timezone
+  - **Return Value**: `TaosConnection` connection object.
+  - **Exception**: Throws `AttributeError` or `ConnectionError` if the operation fails.
+
+- `def cursor(self)`
+  - **Interface Description**: Creates a new database cursor object for executing SQL commands and queries.
+  - **Return Value**: Database cursor object.
+
+#### Executing SQL
+
+- `def execute(self, operation, req_id: Optional[int] = None)`
+  - **Interface Description**: Executes an SQL statement.
+  - **Parameter Description**:
+    - `operation`: The SQL statement to be executed.
+    - `reqId`: Used for issue tracking.
+  - **Return Value**: Number of affected rows.
+  - **Exception**: Throws `ProgrammingError` if the operation fails.
+
+- `def query(self, sql: str, req_id: Optional[int] = None) -> TaosResult`
+  - **Interface Description**: Queries data.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+    - `reqId`: Used for issue tracking.
+  - **Return Value**: `TaosResult` dataset object.
+  - **Exception**: Throws `ProgrammingError` if the operation fails.
+
+#### Dataset
+
+The `TaosResult` object can be iterated over to obtain the queried data.
+
+- `def fields(&self)`
+  - **Interface Description**: Gets field information of the queried data, including: name, type, and field length.
+  - **Return Value**: `TaosFields` list of field information.
+  
+- `def field_count(&self)`
+  - **Interface Description**: Gets the number of records queried.
+  - **Return Value**: Number of records queried.
+
+- `def fetch_all_into_dict(self)`
+  - **Interface Description**: Converts all records into a dictionary.
+  - **Return Value**: Returns a list of dictionaries.
+
+#### Schemaless Writing
+
+- `def schemaless_insert(&self, lines: List[str], protocol: SmlProtocol, precision: SmlPrecision, req_id: Optional[int] = None, ttl: Optional[int] = None) -> int:`
+  - **Interface Description**: Schemaless writing.
+  - **Parameter Description**:
+    - `lines`: The data array to be written; please refer to `Schemaless Writing` for the specific data format.
+    - `protocol`: Protocol type
+      - `SmlProtocol.LINE_PROTOCOL`: InfluxDB line protocol (Line Protocol).
+      - `SmlProtocol.TELNET_PROTOCOL`: OpenTSDB text line protocol.
+      - `SmlProtocol.JSON_PROTOCOL`: JSON protocol format.
+    - `precision`: Timestamp precision
+      - `SmlPrecision.Hour`: Hours
+      - `SmlPrecision.Minute`: Minutes
+      - `SmlPrecision.Second`: Seconds
+      - `SmlPrecision.Millisecond`: Milliseconds
+      - `SmlPrecision.Microsecond`: Microseconds
+      - `SmlPrecision.Nanosecond`: Nanoseconds
+    - `ttl`: Table expiration time, in days.
+    - `reqId`: Used for issue tracking.
+  - **Return Value**: Number of affected rows.
+  - **Exception**: Throws `SchemalessError` if the operation fails.
+
+#### Parameter Binding
+
+- `def statement(self, sql=None)`
+  - **Interface Description**: Creates a stmt object using the connection object; if sql is not empty, it will call prepare.
+  - **Parameter Description**:
+    - `sql`: The precompiled SQL statement.
+  - **Return Value**: stmt object.
+  - **Exception**: Throws `StatementError` if the operation fails.
+
+- `def prepare(self, sql)`
+  - **Interface Description**: Binds a precompiled SQL statement.
+  - **Parameter Description**:
+    - `sql`: The precompiled SQL statement.
+  - **Exception**: Throws `StatementError` if the operation fails.
+
+- `def set_tbname(self, name)`
+  - **Interface Description**: Sets the table name where the data will be written.
+  - **Parameter Description**:
+    - `name`: Table name; if a specific database needs to be specified, e.g., `db_name.table_name`.
+  - **Exception**: Throws `StatementError` if the operation fails.
+
+- `def set_tbname_tags(self, name, tags):`
+  - **Interface Description**: Sets the table and tags data for automatic table creation.
+  - **Parameter Description**:
+    - `name`: Table name; if a specific database needs to be specified, e.g., `db_name.table_name`.
+    - `tags`: Tags data.
+  - **Exception**: Throws `StatementError` if the operation fails.
+
+- `def bind_param(self, params, add_batch=True)`
+  - **Interface Description**: Binds a set of data and submits.
+  - **Parameter Description**:
+    - `params`: Data to be bound.
+    - `add_batch`: Whether to submit the bound data.
+  - **Exception**: Throws `StatementError` if the operation fails.
+
+- `def bind_param_batch(self, binds, add_batch=True)`
+  - **Interface Description**: Binds multiple sets of data and submits.
+  - **Parameter Description**:
+    - `binds`: Data to be bound.
+    - `add_batch`: Whether to submit the bound data.
+  - **Exception**: Throws `StatementError` if the operation fails.
+
+- `def add_batch(self)`
+  - **Interface Description**: Submits the bound data.
+  - **Exception**: Throws `StatementError` if the operation fails.
+
+- `def execute(self)`
+  - **Interface Description**: Executes all the bound data for writing.
+  - **Exception**: Throws `StatementError` if the operation fails.
+
+- `def affected_rows(self)`
+  - **Interface Description**: Gets the number of rows written.
+  - **Return Value**: Number of rows written.
+
+- `def close(&self)`
+  - **Interface Description**: Closes the stmt object.
+
+#### Data Subscription
+
+- **Supported Attributes for Creating a Consumer**:
+  - td.connect.ip: Host address.
+  - td.connect.port: Port number.
+  - group.id: The group the consumer belongs to.
+  - client.id: Client ID.
+  - td.connect.user: Database username.
+  - td.connect.pass: Database password.
+  - td.connect.token: Connection token for the database.
+  - auto.offset.reset: Determines whether to consume the latest data (latest) or include old data (earliest).
+  - enable.auto.commit: Whether to allow automatic commits.
+  - auto.commit.interval.ms: Interval for automatic commits.
+
+- `def Consumer(configs)`
+  - **Interface Description**: Consumer constructor.
+    - `configs`: Provided as a Python dictionary; refer to the attribute list for specific configurations.
+  - **Return Value**: Consumer object.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def subscribe(self, topics)`
+  - **Interface Description**: Subscribes to a group of topics.
+  - **Parameter Description**:
+    - `topics`: List of topics to subscribe to.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def unsubscribe(self)`
+  - **Interface Description**: Unsubscribes.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def poll(self, timeout: float = 1.0)`
+  - **Interface Description**: Polls for messages.
+  - **Parameter Description**:
+    - `timeout`: The timeout for polling, in milliseconds.
+  - **Return Value**: `Message` data corresponding to each topic.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def commit(self, message: Message = None, offsets: [TopicPartition] = None)`
+  - **Interface Description**: Commits the offset of the currently processed message.
+  - **Parameter Description**:
+    - `message`: Type `Message`, the current message's offset being processed.
+    - `offsets`: Type `[TopicPartition]`, commits the offsets of a batch of messages.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def assignment(self)`
+  - **Interface Description**: Gets the currently assigned partitions for the consumer.
+  - **Return Value**: Returns a type `[TopicPartition]`, which are all the partitions currently assigned to the consumer.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def seek(self, partition)`
+  - **Interface Description**: Sets the offset for the given partition to the specified position.
+  - **Parameter Description**:
+    - `partition`: The offset to be set.
+      - `topic`: Subscribed topic
+      - `partition`: Partition
+      - `offset`: Offset
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def committed(self, partitions)`
+  - **Interface Description**: Gets the last committed offset for the subscribed topic's partition.
+  - **Parameter Description**:
+    - `partition`: The offset to be set.
+      - `topic`: Subscribed topic
+      - `partition`: Partition
+  - **Return Value**: `partition`, the last committed offset for the partition.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def position(self, partitions)`
+  - **Interface Description**: Gets the current offset for the given partition.
+  - **Parameter Description**:
+    - `partition`: The offset to be set.
+      - `topic`: Subscribed topic
+      - `partition`: Partition
+  - **Return Value**: `partition`, the last committed offset for the partition.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+- `def close(self)`
+  - **Interface Description**: Closes the tmq connection.
+  - **Exception**: Throws `TmqError` if the operation fails.
+
+### REST Connection
+
+- `def connect(**kwargs) -> TaosRestConnection`
+  - **Interface Description**: Establishes a taosAdapter connection.
+  - **Parameter Description**:
+    - `kwargs`: Provided as a Python dictionary; can be used to set
+      - `user`: Database username
+      - `password`: Database password.
+      - `host`: Host address
+      - `port`: Port number
+      - `database`: Database name
+  - **Return Value**: Connection object.
+  - **Exception**: Throws `ConnectError` if the operation fails.
+
+- `def execute(self, sql: str, req_id: Optional[int] = None) -> Optional[int]`
+  - **Interface Description**: Executes an SQL statement.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+    - `reqId`: Used for issue tracking.
+  - **Return Value**: Number of affected rows.
+  - **Exception**: Throws `ConnectError` or `HTTPError` if the operation fails.
+
+- `def query(self, sql: str, req_id: Optional[int] = None) -> Result`
+  - **Interface Description**: Queries data.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+    - `reqId`: Used for issue tracking.
+  - **Return Value**: `Result` dataset object.
+  - **Exception**: Throws `ConnectError` or `HTTPError` if the operation fails.
+- `RestClient(self, url: str, token: str = None, database: str = None, user: str = "root", password: str = "taosdata", timeout: int = None, convert_timestamp: bool = True, timezone: Union[str, datetime.tzinfo] = None)`
+  - **Interface Description**: Establishes a taosAdapter connection client.
+  - **Parameter Description**:
+    - `url`: URL of the taosAdapter REST service.
+    - `user`: Database username.
+    - `password`: Database password.
+    - `database`: Database name.
+    - `timezone`: Timezone.
+    - `timeout`: HTTP request timeout, in seconds.
+    - `convert_timestamp`: Whether to convert timestamps from STR type to datetime type.
+    - `timezone`: Timezone.
+  - **Return Value**: Connection object.
+  - **Exception**: Throws `ConnectError` if the operation fails.
+
+- `def sql(self, q: str, req_id: Optional[int] = None) -> dict`
+  - **Interface Description**: Executes an SQL statement.
+  - **Parameter Description**:
+    - `sql`: The SQL statement to be executed.
+    - `reqId`: Used for issue tracking.
+  - **Return Value**: Returns a list of dictionaries.
+  - **Exception**: Throws `ConnectError` or `HTTPError` if the operation fails.
