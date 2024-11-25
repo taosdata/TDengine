@@ -458,9 +458,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -541,7 +539,8 @@ int32_t taosAddClientLogCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "qDebugFlag", qDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "cDebugFlag", cDebugFlag, 0, 255, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tqClientDebugFlag", tqClientDebugFlag, 0, 255, CFG_SCOPE_CLIENT, CFG_DYN_SERVER));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "tqClientDebugFlag", tqClientDebugFlag, 0, 255, CFG_SCOPE_CLIENT, CFG_DYN_SERVER));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -594,8 +593,10 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "smlChildTableName", tsSmlChildTableName, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "smlAutoChildTableNameDelimiter", tsSmlAutoChildTableNameDelimiter,
                                  CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
@@ -2019,14 +2020,17 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
-        {"dDebugFlag", &dDebugFlag},       {"vDebugFlag", &vDebugFlag},     {"mDebugFlag", &mDebugFlag},
-        {"wDebugFlag", &wDebugFlag},       {"azDebugFlag", &azDebugFlag},   {"sDebugFlag", &sDebugFlag},
-        {"tsdbDebugFlag", &tsdbDebugFlag}, {"tqDebugFlag", &tqDebugFlag},   {"fsDebugFlag", &fsDebugFlag},
-        {"udfDebugFlag", &udfDebugFlag},   {"smaDebugFlag", &smaDebugFlag}, {"idxDebugFlag", &idxDebugFlag},
-        {"tdbDebugFlag", &tdbDebugFlag},   {"tmrDebugFlag", &tmrDebugFlag}, {"uDebugFlag", &uDebugFlag},
-        {"smaDebugFlag", &smaDebugFlag},   {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},
-        {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
-        {"tqClientDebugFlag", &tqClientDebugFlag},
+        {"dDebugFlag", &dDebugFlag},       {"vDebugFlag", &vDebugFlag},
+        {"mDebugFlag", &mDebugFlag},       {"wDebugFlag", &wDebugFlag},
+        {"azDebugFlag", &azDebugFlag},     {"sDebugFlag", &sDebugFlag},
+        {"tsdbDebugFlag", &tsdbDebugFlag}, {"tqDebugFlag", &tqDebugFlag},
+        {"fsDebugFlag", &fsDebugFlag},     {"udfDebugFlag", &udfDebugFlag},
+        {"smaDebugFlag", &smaDebugFlag},   {"idxDebugFlag", &idxDebugFlag},
+        {"tdbDebugFlag", &tdbDebugFlag},   {"tmrDebugFlag", &tmrDebugFlag},
+        {"uDebugFlag", &uDebugFlag},       {"smaDebugFlag", &smaDebugFlag},
+        {"rpcDebugFlag", &rpcDebugFlag},   {"qDebugFlag", &qDebugFlag},
+        {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},
+        {"sndDebugFlag", &sndDebugFlag},   {"tqClientDebugFlag", &tqClientDebugFlag},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
