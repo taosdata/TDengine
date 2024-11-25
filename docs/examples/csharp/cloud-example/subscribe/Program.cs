@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using TDengine.Driver;
 using TDengine.Driver.Client;
 using TDengine.TMQ;
+using System.Text.Json;
 
 namespace Cloud.Examples
 {
@@ -18,32 +19,25 @@ namespace Cloud.Examples
         static void Main(string[] args)
         {
 
-            var cloudEndPoint = Environment.GetEnvironmentVariable("CLOUD_ENDPOINT");
-            var cloudToken = Environment.GetEnvironmentVariable("CLOUD_TOKEN");
+            var cloudEndPoint = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_ENDPOINT");
+            var cloudToken = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_TOKEN");
             _host = cloudEndPoint.ToString();
             _token = cloudToken.ToString();
-            var connectionString = $"protocol=WebSocket;host={cloudEndPoint};port=443;useSSL=true;token={cloudToken};";
-            // Connect to TDengine server using WebSocket
-            var builder = new ConnectionStringBuilder(connectionString);
+
             try
             {
-               // Open connection with using block, it will close the connection automatically
-               using (var client = DbDriver.Open(builder))
-               {
-                  client.Exec("CREATE TOPIC IF NOT EXISTS topic_meters as SELECT * from test.meters");
-                  var consumer = CreateConsumer();
-                  // insert data
-                  Task.Run(InsertData);
-                  // consume message
-                  Consume(consumer);
-                  // seek
-                  Seek(consumer);
-                  // commit
-                  CommitOffset(consumer);
-                  // close
-                  Close(consumer);
-                  Console.WriteLine("Done");
-              }
+                var consumer = CreateConsumer();
+                // insert data
+                Task.Run(InsertData);
+                // consume message
+                Consume(consumer);
+                // seek
+                Seek(consumer);
+                // commit
+                CommitOffset(consumer);
+                // close
+                Close(consumer);
+                Console.WriteLine("Done");
             }
             catch (TDengineError e)
             {
@@ -81,7 +75,7 @@ namespace Cloud.Examples
          static void Consume(IConsumer<Dictionary<string, object>> consumer)
         {
             // ANCHOR: subscribe
-            _topic = "topic_meters";
+            _topic = "<TDC_TOPIC>";
             try
             {
                 // subscribe
@@ -96,9 +90,7 @@ namespace Cloud.Examples
                         foreach (var message in cr.Message)
                         {
                             // handle message
-                            Console.WriteLine(
-                                $"data: {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
-                                $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
+                            Console.WriteLine($"data: "+JsonSerializer.Serialize(message));
                         }
                     }
                 }
