@@ -429,9 +429,7 @@ var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
 <TabItem value="node" label="Node.js">
 
 ```javascript
-let endpoint = os.environ['TDENGINE_CLOUD_ENDPOINT'];
-let token = os.environ['TDENGINE_CLOUD_TOKEN'];
-let url = `${endpoint}?token=${token}`;
+let url = process.env.TDENGINE_CLOUD_TMQ;
 let configMap = new Map([
   [taos.TMQConstants.GROUP_ID, 'gId'],
   [taos.TMQConstants.CLIENT_ID, 'clientId'],

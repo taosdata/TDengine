@@ -1,29 +1,10 @@
 const taos = require('@tdengine/websocket');
 
-const url = process.env.TDENGINE_CLOUD_URL;
+const url = process.env.TDENGINE_CLOUD_TMQ;
 const topic = 'topic_meters';
 const topics = [topic];
 const groupId = 'group1';
 const clientId = 'client1';
-
-async function prepare() {
-  if (!url) {
-    console.error('Please set TDENGINE_CLOUD_URL');
-    process.exit(1);
-  }
-  let sql =
-    'create topic if not exists ' + topic + ' as select * from test.meters';
-  let conf = new taos.WSConfig(url);
-  try {
-    let conn = await taos.sqlConnect(conf);
-    await conn.exec(sql);
-  } catch (err) {
-    console.error(
-      `Failed to create topic, topic: ${topic}, ErrCode: ${err.code}, ErrMessage: ${err.message}`
-    );
-    throw err;
-  }
-}
 
 async function createConsumer() {
   let configMap = new Map([
