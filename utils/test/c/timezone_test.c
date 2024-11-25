@@ -78,7 +78,6 @@ void timezone_insert_test(){
 
   /*
    select today();
-   select cast(1 as timestamp) + '2013-04-12T10:52:01';
    tsConver.sim
    "COMPACT DATABASE test START WITH '2023-03-07 14:01:23' END WITH '2023-03-08 14:01:23'"
    TK_TIMEZONE

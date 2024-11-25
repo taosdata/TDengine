@@ -1764,10 +1764,11 @@ TEST(clientCase, func_timezone_Test) {
   check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE(1704142800000, 1d, 0))", "2024-01-01T02:00:00.000+0200");   // 2024-01-01 23:00:00+0200
   check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE(ts, 1w, 1)) from db1.ntb", "2023-12-28T00:00:00.000+0200");   // 2024-01-01 23:00:00+0200
 
-//  int64_t now = get_sql_result(pConn, "select now(),now() + 2d");
-//  int64_t locationNow = now + 2 * 3600;
-//  check_sql_result_partial(pConn, "select TO_ISO8601(today())", "T00:00:00.000+0200");   // 2024-01-01 23:00:00+0200
-//  check_sql_result_partial(pConn, "select TO_ISO8601(now())", "+0200");   // 2024-01-01 23:00:00+0200
+  // TODAY
+  check_sql_result_partial(pConn, "select TO_ISO8601(today())", "T00:00:00.000+0200");
+
+  // NOW
+  check_sql_result_partial(pConn, "select TO_ISO8601(now())", "+0200");
 
   // WEEKDAY
   check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01')", 0);
@@ -1830,6 +1831,29 @@ TEST(clientCase, func_timezone_Test) {
   check_sql_result(pConn, "select TO_CHAR(ts,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", "2024-01-02 05:00:00");   // use timezone in server UTC-8
   check_sql_result(pConn, "select TO_CHAR(cast(1704142800000 as timestamp), 'yyyy-mm-dd hh24:mi:ss tzh')", "2024-01-01 23:00:00 +02");
   check_sql_result(pConn, "select TO_CHAR(cast(1704142800000 as timestamp), 'yyyy-mm-dd hh24:mi:ss')", "2024-01-01 23:00:00");
+
+  // TIMEDIFF
+  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001+02') from db1.ntb", -21600001);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001') from db1.ntb", -1);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TIMEDIFF('2024-01-01T23:00:00.001', '2024-01-01T13:00:00.000-08')", 1);
+
+  // CAST
+  check_sql_result_integer(pConn, "select CAST(c1 as timestamp) from db1.ntb", 1704121200000);
+  check_sql_result_integer(pConn, "select CAST('2024-01-01T23:00:00.000+02' as timestamp)", 1704142800000);
+  check_sql_result_integer(pConn, "select CAST('2024-01-01T23:00:00.000' as timestamp)", 1704142800000);
+
+  taos_close(pConn);
+
+  // hash join
+  pConn = getConnWithOption("UTC+1");
+
+  execQuery(pConn, "drop database if exists db1");
+  execQuery(pConn, "create database db1");
+  execQuery(pConn, "create table db1.ntb (ts timestamp, c1 binary(32), c2 int)");
+  execQuery(pConn, "create table db1.ntb1 (ts timestamp, c1 binary(32), c2 int)");
+  execQuery(pConn, "insert into db1.ntb values(1703987400000, '2023-12-31 00:50:00', 1)");   // 2023-12-31 00:50:00-0100
+  execQuery(pConn, "insert into db1.ntb1 values(1704070200000, '2023-12-31 23:50:00', 11)");   // 2023-12-31 23:50:00-0100
+  checkRows(pConn, "select a.ts,b.ts from db1.ntb a join db1.ntb1 b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d)", 1);
 
   taos_close(pConn);
 

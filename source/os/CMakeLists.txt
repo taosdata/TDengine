@@ -1,5 +1,6 @@
 aux_source_directory(src OS_SRC)
-add_library(os STATIC ${OS_SRC})
+aux_source_directory(src/timezone OS_TZ)
+add_library(os STATIC ${OS_SRC} ${OS_TZ})
 target_include_directories(
     os
     PUBLIC "${TD_SOURCE_DIR}/include/os"

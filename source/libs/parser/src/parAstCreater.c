@@ -1063,6 +1063,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   }
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
+  func->tz = pCxt->pQueryCxt->timezone;
   return (SNode*)func;
 _err:
   nodesDestroyNode((SNode*)func);

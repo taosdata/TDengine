@@ -635,10 +635,15 @@ if(${TD_LINUX} AND ${BUILD_WITH_S3})
 endif()
 
 execute_process(
-        COMMAND make TZDIR=${SHARE_OUTPUT_PATH}/timezone clean all posix_only
+        COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean all posix_only
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
 )
 
+set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+        ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+        DESTINATION ${TZ_SRC_DIR})
 # ================================================================================================
 # Build test
 # ================================================================================================
