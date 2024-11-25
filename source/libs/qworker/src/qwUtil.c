@@ -276,9 +276,9 @@ void qwFreeTaskHandle(SQWTaskCtx *ctx) {
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(&ctx->taskHandle);
   if (otaskHandle && otaskHandle == atomic_val_compare_exchange_ptr(&ctx->taskHandle, otaskHandle, NULL)) {
-    taosEnableFullMemPoolUsage(ctx->memPoolSession);
+    taosEnableMemPoolUsage(ctx->memPoolSession);
     qDestroyTask(otaskHandle);
-    taosDisableFullMemPoolUsage();
+    taosDisableMemPoolUsage();
 
     qDebug("task handle destroyed");
   }

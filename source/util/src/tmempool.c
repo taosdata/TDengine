@@ -1252,7 +1252,7 @@ _return:
 
 
 void *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* fileName, int32_t lineNo) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     return mpDirectAlloc(poolHandle, ((SMPSession*)session)->pJob, size);
   }
   
@@ -1282,7 +1282,7 @@ _return:
 }
 
 void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t size, char* fileName, int32_t lineNo) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     return mpDirectCalloc(poolHandle, ((SMPSession*)session)->pJob, num, size);
   }
 
@@ -1314,7 +1314,7 @@ _return:
 }
 
 void *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t size, char* fileName, int32_t lineNo) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     return mpDirectRealloc(poolHandle, ((SMPSession*)session)->pJob, ptr, size);
   }
 
@@ -1365,7 +1365,7 @@ _return:
 }
 
 char *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char* fileName, int32_t lineNo) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     return mpDirectStrdup(poolHandle, ((SMPSession*)session)->pJob, ptr);
   }
 
@@ -1401,7 +1401,7 @@ _return:
 }
 
 char *taosMemPoolStrndup(void* poolHandle, void* session, const char *ptr, int64_t size, char* fileName, int32_t lineNo) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     return mpDirectStrndup(poolHandle, ((SMPSession*)session)->pJob, ptr, size);
   }
 
@@ -1439,7 +1439,7 @@ _return:
 
 
 void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     mpDirectFree(poolHandle, ((SMPSession*)session)->pJob, ptr);
     return;
   }
@@ -1465,7 +1465,7 @@ void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName,
 }
 
 int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     return taosMemSize(ptr);
   }
 
@@ -1487,7 +1487,7 @@ int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, cha
 }
 
 void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment, int64_t size, char* fileName, int32_t lineNo) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     return mpDirectAlignAlloc(poolHandle, ((SMPSession*)session)->pJob, alignment, size);
   }
 
@@ -1546,7 +1546,7 @@ void taosMemPoolModDestroy(void) {
 
 
 int32_t taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo, bool* trimed) {
-  if (0 == tsMemPoolDebug) {
+  if (0 == tsMemPoolFullFunc) {
     return taosMemTrim(size, trimed);
   }
 

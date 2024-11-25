@@ -152,11 +152,11 @@ int32_t taosMemoryPoolInit(mpReserveFailFp, mpReserveReachFp);
 extern void* gMemPoolHandle;
 extern threadlocal void* threadPoolSession;
 extern threadlocal bool  threadPoolEnabled;
-extern int8_t tsMemPoolDebug;
+extern int8_t tsMemPoolFullFunc;
 
 
-#define taosEnableFullMemPoolUsage(_session) do { threadPoolSession = _session; tsEnableRandErr = true;} while (0) 
-#define taosDisableFullMemPoolUsage() do { threadPoolSession = NULL; tsEnableRandErr = false;} while (0) 
+#define taosEnableMemPoolUsage(_session) do { threadPoolSession = _session; tsEnableRandErr = true;} while (0) 
+#define taosDisableMemPoolUsage() do { threadPoolSession = NULL; tsEnableRandErr = false;} while (0) 
 
 #define taosSaveDisableMemPoolUsage(_enable, _randErr) do { (_enable) = threadPoolEnabled; (_randErr) = tsEnableRandErr; threadPoolEnabled = false; tsEnableRandErr = false;} while (0) 
 #define taosRestoreEnableMemPoolUsage(_enable, _randErr) do { threadPoolEnabled = (_enable); tsEnableRandErr = (_randErr);} while (0) 

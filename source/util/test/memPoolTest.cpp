@@ -1576,12 +1576,15 @@ TEST(PerfTest, allocLatency) {
 
 
 #if 0
-TEST(FuncTest, SingleThreadTest) {
-  char* caseName = "FuncTest:SingleThreadTest";
+TEST(poolFuncTest, SingleThreadTest) {
+  char* caseName = "poolFuncTest:SingleThreadTest";
   SMPTestParam param = {0};
   param.reserveMode = true; 
   param.threadNum = 1;
   param.jobQuota = 1024;
+  param.enableMemPool = true;
+
+  tsMemPoolFullFunc = 0;
 
   mptPrintTestBeginInfo(caseName, &param);
 
@@ -1592,14 +1595,16 @@ TEST(FuncTest, SingleThreadTest) {
 }
 #endif
 #if 0
-TEST(EnablePoolFuncTest, MultiThreadTest) {
-  char* caseName = "FuncTest:MultiThreadTest";
+TEST(poolFuncTest, MultiThreadTest) {
+  char* caseName = "poolFuncTest:MultiThreadTest";
   SMPTestParam param = {0};
   param.reserveMode = true; 
   param.threadNum = 6;
   param.jobQuota = 1024;
   param.randTask = true;
   param.enableMemPool = true;
+
+  tsMemPoolFullFunc = 0;
 
   mptPrintTestBeginInfo(caseName, &param);
 
@@ -1610,7 +1615,48 @@ TEST(EnablePoolFuncTest, MultiThreadTest) {
 }
 #endif
 
+#if 0
+TEST(poolFullFuncTest, SingleThreadTest) {
+  char* caseName = "poolFullFuncTest:SingleThreadTest";
+  SMPTestParam param = {0};
+  param.reserveMode = true; 
+  param.threadNum = 1;
+  param.jobQuota = 1024;
+  param.enableMemPool = true;
+
+  tsMemPoolFullFunc = 1;
+
+  mptPrintTestBeginInfo(caseName, &param);
+
+  for (int32_t i = 0; i < mptCtrl.caseLoopTimes; ++i) {
+    mptRunCase(&param, i);
+  }
+
+}
+#endif
 #if 1
+TEST(poolFullFuncTest, MultiThreadTest) {
+  char* caseName = "poolFullFuncTest:MultiThreadTest";
+  SMPTestParam param = {0};
+  param.reserveMode = true; 
+  param.threadNum = 6;
+  param.jobQuota = 1024;
+  param.randTask = true;
+  param.enableMemPool = true;
+
+  tsMemPoolFullFunc = 1;
+
+  mptPrintTestBeginInfo(caseName, &param);
+
+  for (int32_t i = 0; i < mptCtrl.caseLoopTimes; ++i) {
+    mptRunCase(&param, i);
+  }
+
+}
+#endif
+
+
+#if 0
 TEST(DisablePoolFuncTest, MultiThreadTest) {
   char* caseName = "FuncTest:MultiThreadTest";
   SMPTestParam param = {0};
