@@ -519,9 +519,6 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       code = makeNode(type, sizeof(SAlterTableStmt), &pNode);
       break;
-    case QUERY_NODE_ALTER_TABLE_MULTI_STMT:
-      code = makeNode(type, sizeof(SAlterTableMultiStmt), &pNode);
-      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
@@ -1360,13 +1357,15 @@ void nodesDestroyNode(SNode* pNode) {
       SAlterTableStmt* pStmt = (SAlterTableStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyNode((SNode*)pStmt->pVal);
-      break;
-    }
-    case QUERY_NODE_ALTER_TABLE_MULTI_STMT: {
-      SAlterTableMultiStmt* pStmt = (SAlterTableMultiStmt*)pNode;
-      // nodesDestroyList(pStmt->pTables);
-      // nodesDestroyNode((SNode*)pStmt->pOptions);
-      // nodesDestroyNode((SNode*)pStmt->pVal);
+      if (pStmt->pNodeListTagValue != NULL) {
+        SNodeList* pNodeList = pStmt->pNodeListTagValue;
+        SNode*     pSubNode = NULL;
+        FOREACH(pSubNode, pNodeList) {
+          SAlterTableStmt* pSubAlterTable = (SAlterTableStmt*)pSubNode;
+          nodesDestroyNode((SNode*)pSubAlterTable->pOptions);
+          nodesDestroyNode((SNode*)pSubAlterTable->pVal);
+        }
+      }
       break;
     }
     case QUERY_NODE_CREATE_USER_STMT: {

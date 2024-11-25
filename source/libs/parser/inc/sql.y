@@ -390,14 +390,14 @@ alter_table_clause(A) ::=
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 
 
-%type column_eq_value_list                                                              { SNodeList* }
-%destructor column_eq_value_list                                                        { nodesDestroyList($$); }
-column_eq_value(A) ::= column_name(C) NK_EQ tags_literal(D).                      { A = createAlterSingleTagColumnNode(pCxt, &C, D); }            
-column_eq_value_list(A) ::= column_eq_value(B).                                    { A = createNodeList(pCxt, B); }
-column_eq_value_list(A) ::= column_eq_value_list(B) NK_COMMA column_eq_value(C).      { A = addNodeToList(pCxt, B, C);}
+%type column_tag_value_list                                                              { SNodeList* }
+%destructor column_tag_value_list                                                        { nodesDestroyList($$); }
+column_tag_value(A) ::= column_name(C) NK_EQ tags_literal(D).                      { A = createAlterSingleTagColumnNode(pCxt, &C, D); }            
+column_tag_value_list(A) ::= column_tag_value(B).                                    { A = createNodeList(pCxt, B); }
+column_tag_value_list(A) ::= column_tag_value_list(B) NK_COMMA column_tag_value(C).      { A = addNodeToList(pCxt, B, C);}
 
 alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_eq_value_list(C).                             { A = createAlterTableSetMultiTagValue(pCxt, B, C); }
+  full_table_name(B) SET TAG column_tag_value_list(C).                             { A = createAlterTableSetMultiTagValue(pCxt, B, C); }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }

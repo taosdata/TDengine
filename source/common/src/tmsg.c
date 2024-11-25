@@ -10521,7 +10521,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
         TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->isNull));
         TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->tagType));
         if (!pTag->isNull) {
-          TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pTag->pTagVal, pReq->nTagVal));
+          TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pTag->pTagVal, pTag->nTagVal));
         }
       }
       break;

@@ -145,8 +145,12 @@ static int32_t vnodePreProcessAlterTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SVAlterTbReq vAlterTbReq = {0};
   int64_t      ctimeMs = taosGetTimestampMs();
   if (tDecodeSVAlterTbReqSetCtime(&dc, &vAlterTbReq, ctimeMs) < 0) {
+    taosArrayDestroy(vAlterTbReq.pMultiTag);
+    vAlterTbReq.pMultiTag = NULL;
     goto _exit;
   }
+  taosArrayDestroy(vAlterTbReq.pMultiTag);
+  vAlterTbReq.pMultiTag = NULL;
 
   code = 0;
 
@@ -666,10 +670,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
     } break;
     case TDMT_VND_STREAM_TASK_RESET: {
-      if (pVnode->restored && vnodeIsLeader(pVnode) &&
-           (code = tqProcessTaskResetReq(pVnode->pTq, pMsg)) < 0) {
-          goto _err;
-        }
+      if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessTaskResetReq(pVnode->pTq, pMsg)) < 0) {
+        goto _err;
+      }
 
     } break;
     case TDMT_VND_ALTER_CONFIRM:
@@ -690,7 +693,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_DROP_INDEX:
       vnodeProcessDropIndexReq(pVnode, ver, pReq, len, pRsp);
       break;
-    case TDMT_VND_STREAM_CHECK_POINT_SOURCE: // always return true
+    case TDMT_VND_STREAM_CHECK_POINT_SOURCE:  // always return true
       tqProcessTaskCheckPointSourceReq(pVnode->pTq, pMsg, pRsp);
       break;
     case TDMT_VND_STREAM_TASK_UPDATE:  // always return true
@@ -1367,6 +1370,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   }
 
 _exit:
+  taosArrayDestroy(vAlterTbReq.pMultiTag);
   tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);

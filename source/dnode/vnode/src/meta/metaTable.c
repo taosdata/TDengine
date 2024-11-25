@@ -2109,7 +2109,7 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
   }
 
   int32_t nTagVals = taosArrayGetSize(pAlterTbReq->pMultiTag);
-  pTagTable = taosHashInit(nTagVals, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pTagTable = taosHashInit(nTagVals, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pTagTable == NULL) {
     ret = terrno;
     goto _err;
@@ -2143,7 +2143,7 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
     }
     iCol++;
   }
-  if (taosArrayGetSize(updateTagColumnIds) == nUpdateTagVal) {
+  if (taosArrayGetSize(updateTagColumnIds) != nUpdateTagVal) {
     terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
     goto _err;
   }

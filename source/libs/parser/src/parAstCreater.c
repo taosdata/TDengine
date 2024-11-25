@@ -2555,6 +2555,7 @@ SNode* createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* pTagName,
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
   pStmt->pVal = (SValueNode*)pVal;
+  pStmt->pNodeListTagValue = NULL;
   return (SNode*)pStmt;
 _err:
   return NULL;

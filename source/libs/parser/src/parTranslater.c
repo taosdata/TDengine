@@ -15184,11 +15184,7 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                          char* colName, SMultiTagUpateVal* pReq) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == pReq->tagName) {
-    return terrno;
-  }
-
+  int32_t  code = TSDB_CODE_SUCCESS;
   SSchema* pSchema = getTagSchema(pTableMeta, colName);
   if (NULL == pSchema) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
@@ -15360,7 +15356,7 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
     return buildUpdateTagValReqImpl(pCxt, head, pTableMeta, head->colName, pReq);
   } else {
     pReq->pMultiTag = taosArrayInit(nTagValues, sizeof(SMultiTagUpateVal));
-    if (NULL == pReq->pTagArray) {
+    if (pReq->pMultiTag == NULL) {
       return terrno;
     }
 
@@ -15373,7 +15369,9 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
-      TAOS_UNUSED(taosArrayPush(pReq->pMultiTag, &val));
+      if (taosArrayPush(pReq->pMultiTag, &val) == NULL) {
+        return terrno;
+      }
     }
   }
 
@@ -15658,6 +15656,18 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
+static void deleTagVal(void* val) {
+  SMultiTagUpateVal* pTag = val;
+  taosMemoryFree(pTag->tagName);
+  for (int i = 0; i < taosArrayGetSize(pTag->pTagArray); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pTag->pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+
+  taosArrayDestroy(pTag->pTagArray);
+}
 static void destoryAlterTbReq(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->tbName);
   taosMemoryFree(pReq->colName);
@@ -15670,6 +15680,10 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
       taosMemoryFreeClear(p->pData);
     }
   }
+  if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    taosArrayDestroyEx(pReq->pMultiTag, deleTagVal);
+  }
+
   taosArrayDestroy(pReq->pTagArray);
   if (pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }
@@ -16374,7 +16388,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       code = rewriteDropSuperTable(pCxt, pQuery);
       break;
-    case QUERY_NODE_ALTER_TABLE_MULTI_STMT:
     case QUERY_NODE_ALTER_TABLE_STMT:
       code = rewriteAlterTable(pCxt, pQuery);
       break;

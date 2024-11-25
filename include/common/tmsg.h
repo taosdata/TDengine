@@ -352,7 +352,6 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_ANODE_STMT,
   QUERY_NODE_DROP_ANODE_STMT,
   QUERY_NODE_UPDATE_ANODE_STMT,
-  QUERY_NODE_ALTER_TABLE_MULTI_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'

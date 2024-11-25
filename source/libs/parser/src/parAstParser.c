@@ -970,7 +970,6 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return collectMetaKeyFromDropStable(pCxt, (SDropSuperTableStmt*)pStmt);
     case QUERY_NODE_ALTER_TABLE_STMT:
-    case QUERY_NODE_ALTER_TABLE_MULTI_STMT:
       return collectMetaKeyFromAlterTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return collectMetaKeyFromAlterStable(pCxt, (SAlterTableStmt*)pStmt);
