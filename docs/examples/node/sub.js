@@ -31,7 +31,6 @@ async function createConsumer() {
 }
 
 async function testConsumer() {
-  await prepare();
   let consumer = await createConsumer();
 
   try {
