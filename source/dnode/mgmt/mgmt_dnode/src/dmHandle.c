@@ -476,10 +476,11 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       return code;
     }
   }
-  TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
-  if (cfgReq.version > 0) {
-    tsdmConfigVersion = cfgReq.version;
+  if (isConifgItemLazyMode(pItem)) {
+    TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
+    return TSDB_CODE_INVALID_MSG;
   }
+
   if (pItem->category == CFG_CATEGORY_GLOBAL) {
     code = taosPersistGlobalConfig(taosGetGlobalCfg(pCfg), pMgmt->path, tsdmConfigVersion);
     if (code != TSDB_CODE_SUCCESS) {
@@ -490,6 +491,9 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to persist local config since %s", tstrerror(code));
     }
+  }
+  if (cfgReq.version > 0) {
+    tsdmConfigVersion = cfgReq.version;
   }
   return TSDB_CODE_SUCCESS;
 }

@@ -3037,3 +3037,11 @@ void printConfigNotMatch(SArray *array) {
     }
   }
 }
+
+bool isConifgItemLazyMode(SConfigItem *item) {
+  if (item->dynScope == CFG_DYN_CLIENT_LAZY || item->dynScope == CFG_DYN_SERVER_LAZY ||
+      item->dynScope == CFG_DYN_BOTH_LAZY) {
+    return true;
+  }
+  return false;
+}
