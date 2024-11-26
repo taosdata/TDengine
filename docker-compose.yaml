@@ -8,7 +8,6 @@ services:
       - $HOME/.cargo/git:/root/.cargo/git
       - $PWD:$PWD
       - ../taos-connector-rust:/taos-connector-rust
-      - $HOME:$HOME
       - ./:/app/
       - ./target/centos7:/app/target
     command:

@@ -401,7 +401,7 @@ case "${PLATFORM}" in
     export TARGET_DIR=$PWD/target/${PLATFORM}
     mkdir -p $TARGET_DIR
     docker run --platform $PLATFORM --rm \
-      -v .:/app -v $HOME:$HOME \
+      -v .:/app \
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
@@ -412,7 +412,7 @@ case "${PLATFORM}" in
     export TARGET_DIR=$PWD/target/centos7
     mkdir -p $TARGET_DIR
     docker run --rm \
-      -v .:/app -v $HOME:$HOME \
+      -v .:/app \
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
