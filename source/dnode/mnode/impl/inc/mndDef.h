@@ -423,10 +423,10 @@ typedef struct {
   int8_t  s3Compact;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
+  int8_t  compactTimeOffset;
   int32_t compactInterval;
-  int32_t compactStartTime;
-  int32_t compactEndTime;
-  int32_t compactTimeOffset;
+  int64_t compactStartTime;
+  int64_t compactEndTime;
 } SDbCfg;
 
 typedef struct {

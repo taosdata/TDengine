@@ -1344,9 +1344,9 @@ typedef struct {
   char    dnodeListStr[TSDB_DNODE_LIST_LEN];
   // 1. add auto-compact parameters
   int32_t compactInterval;
-  int32_t compactStartTime;
-  int32_t compactEndTime;
-  int32_t compactTimeOffset;
+  int64_t compactStartTime;
+  int64_t compactEndTime;
+  int8_t compactTimeOffset;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1380,9 +1380,9 @@ typedef struct {
   int8_t  withArbitrator;
   // 1. add auto-compact parameters
   int32_t compactInterval;
-  int32_t compactStartTime;
-  int32_t compactEndTime;
-  int32_t compactTimeOffset;
+  int64_t compactStartTime;
+  int64_t compactEndTime;
+  int8_t  compactTimeOffset;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);

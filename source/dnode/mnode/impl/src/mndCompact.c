@@ -858,7 +858,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   return 0;
 }
 
-void mndCompactPullup(SMnode *pMnode) {
+static void mndCompactPullup(SMnode *pMnode) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   SArray *pArray = taosArrayInit(sdbGetSize(pSdb, SDB_COMPACT), sizeof(int32_t));
@@ -891,8 +891,58 @@ void mndCompactPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
+static int32_t mndProcessAutoCompact(SRpcMsg *pReq) {
+  int32_t code = 0, lino = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  int64_t now = taosGetTimestampMs();
+
+  void *pDbIter = NULL;
+  while (1) {
+    SDbObj *pDb = NULL;
+    pDbIter = sdbFetch(pSdb, SDB_DB, pDbIter, (void **)&pDb);
+    if (pDbIter == NULL) break;
+
+    if ((pDb->cfg.compactInterval == 0) || (pDb->cfg.compactStartTime == pDb->cfg.compactEndTime)) {
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    if (pDb->cfg.compactStartTime > pDb->cfg.compactEndTime) {
+      mWarn("db:%s compact start time is greater than end time", pDb->name);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    // check if there is an unfinished compact task for this db
+    bool  hasCompact = false;
+    void *pCompactIter = NULL;
+    while (1) {
+      SCompactObj *pCompact = NULL;
+      pCompactIter = sdbFetch(pSdb, SDB_COMPACT, pCompactIter, (void **)&pCompact);
+      if (pCompactIter == NULL) break;
+      if (0 == strncmp(pCompact->dbname, pDb->name, TSDB_DB_FNAME_LEN) == 0) {
+        hasCompact = true;
+        sdbRelease(pSdb, pCompact);
+        break;
+      }
+      sdbRelease(pSdb, pCompact);
+    }
+    if (hasCompact) {
+      mInfo("db:%s skip auto compact since unfinished compact task", pDb->name);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    sdbRelease(pSdb, pDb);
+  }
+
+  return 0;
+}
+
 static int32_t mndProcessCompactTimer(SRpcMsg *pReq) {
   mTrace("start to process compact timer");
   mndCompactPullup(pReq->info.node);
+  TAOS_UNUSED(mndProcessAutoCompact(pReq));
   return 0;
 }

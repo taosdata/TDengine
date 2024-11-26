@@ -111,12 +111,12 @@ typedef struct SDatabaseOptions {
   int8_t      withArbitrator;
   // for auto-compact
   SValueNode* pCompactIntervalNode;
-  int32_t     compactInterval;
+  int32_t     compactInterval;   // minutes
   SNodeList*  pCompactTimeRangeList;
-  int32_t     compactStartTime;
-  int32_t     compactEndTime;
+  int32_t     compactStartTime;  // minutes
+  int32_t     compactEndTime;    // minutes
   SValueNode* pCompactTimeOffsetNode;
-  int32_t     compactTimeOffset;
+  int32_t     compactTimeOffset; // hours
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

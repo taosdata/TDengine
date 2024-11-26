@@ -3939,9 +3939,9 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
 
   // auto-compact parameters
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactInterval));
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactStartTime));
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactEndTime));
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactTimeOffset));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->compactStartTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->compactEndTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
 
   tEndEncode(&encoder);
 
@@ -4036,9 +4036,9 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->compactInterval));
-    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->compactStartTime));
-    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->compactEndTime));
-    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->compactTimeOffset));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->compactStartTime));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->compactEndTime));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->compactTimeOffset));
   } else {
     pReq->compactInterval = 0;
     pReq->compactStartTime = 0;
@@ -4098,9 +4098,9 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->withArbitrator));
   // auto compact config
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactInterval));
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactStartTime));
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactEndTime));
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactTimeOffset));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->compactStartTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->compactEndTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
   tEndEncode(&encoder);
 
 _exit:
@@ -4172,9 +4172,9 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   // auto compact config
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->compactInterval));
-    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->compactStartTime));
-    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->compactEndTime));
-    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->compactTimeOffset));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->compactStartTime));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->compactEndTime));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->compactTimeOffset));
   } else {
     pReq->compactInterval = 0;
     pReq->compactStartTime = 0;

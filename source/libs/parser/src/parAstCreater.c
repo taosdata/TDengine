@@ -2001,14 +2001,17 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       }
       break;
     case DB_OPTION_COMPACT_INTERVAL:
-      pDbOptions->pCompactIntervalNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      if (TK_NK_INTEGER == ((SToken*)pVal)->type) {
+        pDbOptions->compactInterval = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      } else {
+        pDbOptions->pCompactIntervalNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      }
       break;
     case DB_OPTION_COMPACT_TIME_RANGE:
       pDbOptions->pCompactTimeRangeList = pVal;
       break;
     case DB_OPTION_COMPACT_TIME_OFFSET:
-      pDbOptions->pCompactTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
-      ;
+      pDbOptions->compactTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;
@@ -2018,6 +2021,8 @@ _err:
   nodesDestroyNode(pOptions);
   return NULL;
 }
+
+
 
 SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
   return setDatabaseOptionImpl(pCxt, pOptions, type, pVal, false);

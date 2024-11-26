@@ -7577,8 +7577,8 @@ static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const cha
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, int32_t val, int32_t minVal,
-                                  int32_t maxVal) {
+static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, int64_t val, int64_t minVal,
+                                  int64_t maxVal) {
   return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_DB_OPTION, pName, val, minVal, maxVal, true);
 }
 
@@ -7928,21 +7928,31 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
 }
 
 static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if (NULL == pOptions->pCompactIntervalNode) return TSDB_CODE_SUCCESS;
-
-  if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactIntervalNode)) {
-    return pCxt->errCode;
+  int32_t code = 0;
+  int64_t interval = 0;
+  if (NULL != pOptions->pCompactIntervalNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactIntervalNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_MINUTE != pOptions->pCompactIntervalNode->unit &&
+        TIME_UNIT_HOUR != pOptions->pCompactIntervalNode->unit &&
+        TIME_UNIT_DAY != pOptions->pCompactIntervalNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_interval unit: %c, only %c, %c, %c allowed",
+                                     pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR,
+                                     TIME_UNIT_DAY);
+    }
+    interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
+    if (interval != 0) {
+      code = checkDbRangeOption(pCxt, "compact_interval", pOptions->compactInterval, TSDB_MIN_COMPACT_INTERVAL,
+                                pOptions->keep[2]);
+    }
+  } else if (pOptions->compactInterval != 0) {
+    interval = pOptions->compactInterval * 1440;  // convert to minutes
+    code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, pOptions->keep[2]);
   }
-  if (TIME_UNIT_MINUTE != pOptions->pCompactIntervalNode->unit &&
-      TIME_UNIT_HOUR != pOptions->pCompactIntervalNode->unit) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_interval unit: %c, only %c, %c allowed",
-                                   pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR);
-  }
-  pOptions->compactInterval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
-
-  // TODO: check the semantic of compact_interval
-  return TSDB_CODE_SUCCESS;
+  if (code == 0) pOptions->compactInterval = interval;
+  return code;
 }
 
 static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
@@ -7963,40 +7973,56 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, SDatabaseO
   if (DEAL_RES_ERROR == translateValue(pCxt, pEnd)) {
     return pCxt->errCode;
   }
-  if (TIME_UNIT_MINUTE != pStart->unit && TIME_UNIT_HOUR != pStart->unit && TIME_UNIT_DAY != pStart->unit) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range start unit: %c, only %c, %c, %c allowed",
-                                   pStart->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+  if (IS_DURATION_VAL(pStart->flag)) {
+    if (TIME_UNIT_MINUTE != pStart->unit && TIME_UNIT_HOUR != pStart->unit && TIME_UNIT_DAY != pStart->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_range start unit: %c, only %c, %c, %c allowed",
+                                     pStart->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+    }
+  } else {
+    pStart->datum.i *= 1440;
   }
-  if (TIME_UNIT_MINUTE != pEnd->unit && TIME_UNIT_HOUR != pEnd->unit && TIME_UNIT_DAY != pEnd->unit) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range end unit: %c, only %c, %c, %c allowed",
-                                   pEnd->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+  if (IS_DURATION_VAL(pEnd->flag)) {
+    if (TIME_UNIT_MINUTE != pEnd->unit && TIME_UNIT_HOUR != pEnd->unit && TIME_UNIT_DAY != pEnd->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_range end unit: %c, only %c, %c, %c allowed",
+                                     pEnd->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+    }
+  } else {
+    pStart->datum.i *= 1440;
   }
   pOptions->compactStartTime = getBigintFromValueNode(pStart);
   pOptions->compactEndTime = getBigintFromValueNode(pEnd);
 
-  // TODO: check the semantic of compact_time_range
+  if (pOptions->compactStartTime >= pOptions->compactEndTime) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range, start time should be less than end time");
+  }
+  if (pOptions->compactStartTime < -pOptions->keep[2] || pOptions->compactStartTime > -pOptions->daysPerFile) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range, start_time should be in range: [%" PRIi64
+                                   "m, %" PRId64 "m]",
+                                   -pOptions->keep[2], -pOptions->daysPerFile);
+  }
+  if (pOptions->compactEndTime < -pOptions->keep[2] || pOptions->compactEndTime > -pOptions->daysPerFile) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range, end time should be in range: [%" PRIi64
+                                   "m, %" PRId64 "m]",
+                                   -pOptions->keep[2], -pOptions->daysPerFile);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t checkDbCompactTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if (NULL == pOptions->pCompactTimeOffsetNode) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactTimeOffsetNode)) {
-    return pCxt->errCode;
-  }
-  if (TIME_UNIT_MINUTE != pOptions->pCompactTimeOffsetNode->unit &&
-      TIME_UNIT_HOUR != pOptions->pCompactTimeOffsetNode->unit) {
+  if (pOptions->compactTimeOffset < TSDB_MIN_COMPACT_TIME_OFFSET ||
+      pOptions->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_offset unit: %c, only %c, %c allowed",
-                                   pOptions->pCompactTimeOffsetNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR);
+                                   "Invalid option compact_time_offset: %d"
+                                   " valid range: [%d, %d]",
+                                   pOptions->compactTimeOffset, TSDB_MIN_COMPACT_TIME_OFFSET,
+                                   TSDB_MAX_COMPACT_TIME_OFFSET);
   }
-  pOptions->compactTimeOffset = getBigintFromValueNode(pOptions->pCompactTimeOffsetNode);
-
-  // TODO: check the semantic of compact_time_offset
   return TSDB_CODE_SUCCESS;
 }
 

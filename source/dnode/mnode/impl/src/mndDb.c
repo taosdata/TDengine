@@ -37,7 +37,7 @@
 #include "tjson.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 27
+#define DB_RESERVE_SIZE 6
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -151,6 +151,10 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.withArbitrator, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.encryptAlgorithm, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->tsmaVersion, _OVER);
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compactTimeOffset, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.compactStartTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.compactEndTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -250,6 +254,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.withArbitrator, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.encryptAlgorithm, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->tsmaVersion, _OVER);
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compactTimeOffset, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.compactStartTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -365,6 +373,10 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.s3KeepLocal = pNew->cfg.s3KeepLocal;
   pOld->cfg.s3Compact = pNew->cfg.s3Compact;
   pOld->cfg.withArbitrator = pNew->cfg.withArbitrator;
+  pOld->cfg.compactInterval = pNew->cfg.compactInterval;
+  pOld->cfg.compactStartTime = pNew->cfg.compactStartTime;
+  pOld->cfg.compactEndTime = pNew->cfg.compactEndTime;
+  pOld->cfg.compactTimeOffset = pNew->cfg.compactTimeOffset;
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   taosWUnLockLatch(&pOld->lock);
