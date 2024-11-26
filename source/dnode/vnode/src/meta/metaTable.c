@@ -2074,6 +2074,9 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
 
   if (tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData) != 0) {
     metaError("meta/table: failed to get tb db, uid:%" PRId64, uid);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
+    return terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
 
   if ((ctbEntry.pBuf = taosMemoryMalloc(nData)) == NULL) {
@@ -2329,6 +2332,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   if (tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData) != 0) {
     metaError("meta/table: failed to get tb db, uid:%" PRId64, uid);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
   }
 
   if ((ctbEntry.pBuf = taosMemoryMalloc(nData)) == NULL) {
