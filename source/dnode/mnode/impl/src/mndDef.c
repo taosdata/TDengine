@@ -758,7 +758,7 @@ SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
-      pObj->str = pItem->str;
+      pObj->str = taosStrdup(pItem->str);
       break;
   }
   return pObj;

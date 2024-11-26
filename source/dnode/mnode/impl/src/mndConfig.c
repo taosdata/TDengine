@@ -66,6 +66,7 @@ int32_t taosGetConfigObjSize(SConfigObj *obj) {
   if (obj->dtype == CFG_DTYPE_STRING || obj->dtype == CFG_DTYPE_DIR || obj->dtype == CFG_DTYPE_LOCALE ||
       obj->dtype == CFG_DTYPE_CHARSET || obj->dtype == CFG_DTYPE_TIMEZONE) {
     if (obj->str != NULL) {
+      size += sizeof(int32_t);
       size += strlen(obj->str) + 1;
     }
   }

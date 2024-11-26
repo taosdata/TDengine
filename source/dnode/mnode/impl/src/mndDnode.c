@@ -1145,7 +1145,10 @@ SArray *initVariablesFromItems(SArray *pItems) {
         strcpy(info.category, "unknown");
         break;
     }
-    taosArrayPush(pInfos, &info);
+    if (NULL == taosArrayPush(pInfos, &info)) {
+      mError("failed to push info to array while init variables from items,since %s", tstrerror(terrno));
+      return NULL;
+    }
   }
 
   return pInfos;
