@@ -2049,7 +2049,9 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
   }
 
   if (tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData) != 0) {
+    tdbTbcClose(pUidIdxc);
     metaError("meta/table: failed to get uid index, uid:%" PRId64, uid);
+    return terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
   oversion = ((SUidIdxVal *)pData)[0].version;
 
@@ -2302,7 +2304,9 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   }
 
   if (tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData) != 0) {
+    tdbTbcClose(pUidIdxc);
     metaError("meta/table: failed to get uid index, uid:%" PRId64, uid);
+    return terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
   oversion = ((SUidIdxVal *)pData)[0].version;
 

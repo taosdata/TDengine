@@ -179,4 +179,6 @@ if $rows != 1  then
   return -1
 endi
 
+sql alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=NULL,tagCol6=NULL,tagCol7=NULL
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
