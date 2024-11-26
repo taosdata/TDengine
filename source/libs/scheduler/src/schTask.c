@@ -588,11 +588,11 @@ int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = taosHashPut(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
   if (0 != code) {
     if (HASH_NODE_EXIST(code)) {
-      SCH_TASK_ELOG("task already in execTask list, code:%x", code);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_TASK_DLOG("task already in execTask list, code:%x", code);
+      return TSDB_CODE_SUCCESS;
     }
 
-    SCH_TASK_ELOG("taosHashPut task to execTask list failed, errno:%d", errno);
+    SCH_TASK_ELOG("taosHashPut task to execTask list failed, errno:0x%x", errno);
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -1311,6 +1311,11 @@ int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
     pTask->delayLaunchPar.rId = pJob->refId;
     pTask->delayLaunchPar.queryId = pJob->queryId;
     pTask->delayLaunchPar.taskId = pTask->taskId;
+
+    if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXEC) {
+      SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
+      SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXEC);
+    }
 
     if (NULL == pTask->delayTimer) {
       pTask->delayTimer = taosTmrStart(schHandleTimerEvent, pTask->delayExecMs, (void *)&pTask->delayLaunchPar, schMgmt.timer);

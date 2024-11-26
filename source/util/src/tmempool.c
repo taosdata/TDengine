@@ -1016,6 +1016,8 @@ void mpUpdateSystemAvailableMemorySize() {
   }
 
   atomic_store_64(&tsCurrentAvailMemorySize, sysAvailSize);
+
+  uDebug("system available memory size: %" PRId64, sysAvailSize);
 }
 
 void* mpMgmtThreadFunc(void* param) {
