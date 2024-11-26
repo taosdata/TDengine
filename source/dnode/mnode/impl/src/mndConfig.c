@@ -112,8 +112,9 @@ SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
       if (obj->str != NULL) {
-        SDB_SET_INT32(pRaw, dataPos, strlen(obj->str), _OVER)
-        SDB_SET_BINARY(pRaw, dataPos, obj->str, strlen(obj->str), _OVER)
+        int32_t len = strlen(obj->str) + 1;
+        SDB_SET_INT32(pRaw, dataPos, len, _OVER)
+        SDB_SET_BINARY(pRaw, dataPos, obj->str, len, _OVER)
       } else {
         SDB_SET_INT32(pRaw, dataPos, 0, _OVER)
       }
@@ -184,7 +185,7 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
     case CFG_DTYPE_TIMEZONE:
       SDB_GET_INT32(pRaw, dataPos, &len, _OVER)
       if (len > 0) {
-        obj->str = taosMemoryMalloc(len + 1);
+        obj->str = taosMemoryMalloc(len);
         SDB_GET_BINARY(pRaw, dataPos, obj->str, len, _OVER)
       }
       break;
