@@ -7,7 +7,6 @@ COPY ./release/taosx-agent /usr/bin/taosx-agent
 COPY ./release/plugins/taosx-influxdb.jar /taosx/plugins/influxdb/taosx-influxdb.jar
 COPY ./release/plugins/taosx-opentsdb.jar /taosx/plugins/opentsdb/taosx-opentsdb.jar
 COPY ./release/plugins/taosx-opc /taosx/plugins/opc/taosx-opc
-COPY ./release/plugins/taosx-mqtt /taosx/plugins/mqtt/taosx-mqtt
 
 RUN chmod +x /tini \
   && apt update \

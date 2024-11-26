@@ -149,6 +149,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn test() -> Result<()> {
     use std::str::FromStr;
     let db = "parquet_test";

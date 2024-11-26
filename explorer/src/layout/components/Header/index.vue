@@ -116,9 +116,9 @@ export default {
           if (to.name != "Login") {
             this.getLicense()
           }
-          next();
+          next && next();
         } catch (error) {
-          console.log('err');
+          console.log(error);
         }
       },
       immediate: true

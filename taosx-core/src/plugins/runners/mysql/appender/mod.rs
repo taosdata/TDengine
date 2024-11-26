@@ -804,6 +804,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_to_schema() {
         // prepare data

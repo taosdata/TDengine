@@ -91,8 +91,8 @@ pub async fn influxdb_to_taos(
         let _ = fs::copy(&config_path, path);
     }
     // create socket channel
-    let mut ipc = build_ipc(
-        format!("127.0.0.1:{ipc_port}").as_str(),
+    let (mut ipc, _) = build_ipc(
+        Some(format!("127.0.0.1:{ipc_port}").as_str()),
         None,
         &to,
         Some("influxdb"),

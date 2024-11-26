@@ -25,7 +25,6 @@ COPY ./release/taos-explorer /usr/bin/taos-explorer
 COPY ./release/plugins/taosx-influxdb.jar /taosx/plugins/influxdb/taosx-influxdb.jar
 COPY ./release/plugins/taosx-opentsdb.jar /taosx/plugins/opentsdb/taosx-opentsdb.jar
 COPY ./release/plugins/taosx-opc /taosx/plugins/opc/taosx-opc
-COPY ./release/plugins/taosx-mqtt /taosx/plugins/mqtt/taosx-mqtt
 
 ENV LC_CTYPE=en_US.UTF-8
 ENV LANG=en_US.UTF-8

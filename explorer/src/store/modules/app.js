@@ -60,6 +60,7 @@ const state = {
   csvParser: null,
   csvtags:[],//用来保存csv的tag,有的时候是超级表，否则位普通表
   csvfiles: [],
+  csvFileListener: {},
   opcnodesfiles: [],
   opccertfiles: [],
   opcprivatefiles: [],
@@ -205,6 +206,9 @@ const mutations = {
   SET_CSV_TRANSFORMER_PARSER:(state,data)=>{
     state.csvTransformerParser=data
   },
+  SET_CSV_RAW_DATA:(state,data)=>{
+    state.csvRawData = data
+  },
   SET_FILTER_PARSE_DATA:(state,data)=>{
     state.transformerFilterParseData=data
   },
@@ -290,6 +294,9 @@ const mutations = {
   },
   SET_CSV_FILES: (state, data) => {
     state.csvfiles = data;
+  },
+  SET_CSV_FILE_LISTENER: (state, data) => {
+    state.csvFileListener = data;
   },
   SET_CSV_PARSER: (state, data) => {
     state.csvParser = data;
