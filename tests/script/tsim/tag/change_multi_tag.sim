@@ -131,4 +131,52 @@ if $rows != 1  then
   return -1
 endi
 
+sql alter table $tbj set tag tagCol1=true
+sql alter table $tb set tag tagCol1=true
+
+sql select * from $mt where tagCol1 = true 
+if $rows != 3  then
+  return -1
+endi
+
+sql alter table $tb set tag tagCol1=false
+
+sql alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=-10000,tagCol6="empty1",tagCol7="empty2"
+
+sql select * from $mt where tagCol1 = true 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol2 = -10 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol3 = -100 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol4 = -1000 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol5 = -10000 
+if $rows != 1  then
+  return -1
+endi
+
+
+sql select * from $mt where tagCol6 = "empty1" 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol7 = "empty2" 
+if $rows != 1  then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
