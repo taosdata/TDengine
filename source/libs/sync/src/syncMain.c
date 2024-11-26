@@ -982,7 +982,10 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
 
     bool stopped = taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid), syncEnv()->pTimerManager,
                                 &pSyncTimer->pTimer);
-    if (stopped) sError("vgId:%d, failed to reset hb timer success", pSyncNode->vgId);
+    if (stopped) {
+      sError("vgId:%d, failed to reset hb timer success", pSyncNode->vgId);
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
   } else {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("vgId:%d, start ctrl hb timer error, sync env is stop", pSyncNode->vgId);
@@ -1627,7 +1630,10 @@ int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
   if (syncIsInit()) {
     bool stopped = taosTmrReset(pSyncNode->FpPingTimerCB, pSyncNode->pingTimerMS, (void*)pSyncNode->rid,
                                 syncEnv()->pTimerManager, &pSyncNode->pPingTimer);
-    if (stopped) sError("vgId:%d, failed to reset ping timer, ms:%d", pSyncNode->vgId, pSyncNode->pingTimerMS);
+    if (stopped) {
+      sError("vgId:%d, failed to reset ping timer, ms:%d", pSyncNode->vgId, pSyncNode->pingTimerMS);
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
     atomic_store_64(&pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
   } else {
     sError("vgId:%d, start ping timer error, sync env is stop", pSyncNode->vgId);
