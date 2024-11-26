@@ -410,6 +410,7 @@ mod tests {
             .unwrap();
 
         let rows = query.select_all("select * from t_metric").await.unwrap();
+        dbg!(&rows.len());
         // assert_eq!(rows.len(), 7);
         // clear data
         let _ = test_clear_data().await;
@@ -440,6 +441,7 @@ mod tests {
                 }
             }
         }
+        dbg!(&rows.len());
         // assert_eq!(rows.len(), 7);
         // clear data
         let _ = test_clear_data().await;
@@ -459,7 +461,7 @@ mod tests {
             .unwrap();
 
         let rows = query.top_n("select * from t_metric", 5).await.unwrap();
-        dbg!(&rows);
+        dbg!(&rows.len());
         // assert_eq!(rows.len(), 3);
         // clear data
         let _ = test_clear_data().await;
