@@ -15391,6 +15391,7 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
       TAOS_CHECK_GOTO(code, NULL, _err);
 
       if (taosArrayPush(pReq->pMultiTag, &val) == NULL) {
+        tfreeMultiTagUpateVal((void*)&val);
         TAOS_CHECK_GOTO(terrno, NULL, _err);
       }
     }
