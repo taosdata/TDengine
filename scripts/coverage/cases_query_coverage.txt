@@ -13,6 +13,7 @@ taostest --use=coverage_test.yaml --case=Query/queryscript/stable_query/stable_q
 taostest --use=coverage_test.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_1.py --keep --disable_collection
 taostest --use=coverage_test.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_2.py --keep --disable_collection
 taostest --use=coverage_test.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_3.py --keep --disable_collection
+taostest --use=coverage_test.yaml --case=Query/queryscript/scene_query/meters/meters_one_big_table.py --keep --disable_collection
 
 taostest --use=coverage_test.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_last_row_1.py --keep --disable_collection
 taostest --use=coverage_test.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_last_row_2.py --keep --disable_collection
