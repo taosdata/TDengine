@@ -77,7 +77,7 @@ static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas *p
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogScope));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogMaxLen));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThreshold));
-  TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest)); //Obsolete
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest));  // Obsolete
   TAOS_CHECK_RETURN(tEncodeCStr(encoder, pMonitorParas->tsSlowLogExceptDb));
   return 0;
 }
@@ -88,7 +88,7 @@ static int32_t tDeserializeSMonitorParas(SDecoder *decoder, SMonitorParas *pMoni
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogScope));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogMaxLen));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThreshold));
-  TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest)); //Obsolete
+  TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest));  // Obsolete
   TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pMonitorParas->tsSlowLogExceptDb));
   return 0;
 }
@@ -2255,9 +2255,9 @@ int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAl
   int32_t numOfAlgos = 0;
   void   *pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAnalyticsUrl   *pUrl = pIter;
-    size_t      nameLen = 0;
-    const char *name = taosHashGetKey(pIter, &nameLen);
+    SAnalyticsUrl *pUrl = pIter;
+    size_t         nameLen = 0;
+    const char    *name = taosHashGetKey(pIter, &nameLen);
     if (nameLen > 0 && nameLen <= TSDB_ANALYTIC_ALGO_KEY_LEN && pUrl->urlLen > 0) {
       numOfAlgos++;
     }
@@ -2270,9 +2270,9 @@ int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAl
 
   pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAnalyticsUrl   *pUrl = pIter;
-    size_t      nameLen = 0;
-    const char *name = taosHashGetKey(pIter, &nameLen);
+    SAnalyticsUrl *pUrl = pIter;
+    size_t         nameLen = 0;
+    const char    *name = taosHashGetKey(pIter, &nameLen);
     if (nameLen > 0 && pUrl->urlLen > 0) {
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, nameLen));
       TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)name, nameLen));
@@ -2310,11 +2310,10 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
   int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
-
-  int32_t      numOfAlgos = 0;
-  int32_t      nameLen;
-  int32_t      type;
-  char         name[TSDB_ANALYTIC_ALGO_KEY_LEN];
+  int32_t       numOfAlgos = 0;
+  int32_t       nameLen;
+  int32_t       type;
+  char          name[TSDB_ANALYTIC_ALGO_KEY_LEN];
   SAnalyticsUrl url = {0};
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
@@ -5710,6 +5709,7 @@ int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->name));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->value));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->scope));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->category));
   return 0;
 }
 
@@ -5717,6 +5717,7 @@ int32_t tDecodeSVariablesInfo(SDecoder *pDecoder, SVariablesInfo *pInfo) {
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->name));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->value));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->scope));
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->category));
   return 0;
 }
 

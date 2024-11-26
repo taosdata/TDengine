@@ -822,6 +822,32 @@ int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen) {
+  int32_t len = 0;
+  switch (pItem->category) {
+    case CFG_CATEGORY_LOCAL:
+      len = tsnprintf(buf, bufSize, "local");
+      break;
+    case CFG_CATEGORY_GLOBAL:
+      len = tsnprintf(buf, bufSize, "global");
+      break;
+    default:
+      uError("invalid category:%d", pItem->category);
+      TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+
+  if (len < 0) {
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+  }
+
+  if (len > bufSize) {
+    len = bufSize;
+  }
+
+  *pLen = len;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
 void cfgDumpCfgArrayS3(SArray *array, bool tsc, bool dump) {
   char    src[CFG_SRC_PRINT_LEN + 1] = {0};
   char    name[CFG_NAME_PRINT_LEN + 1] = {0};

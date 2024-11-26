@@ -146,6 +146,7 @@ const char *cfgDtypeStr(ECfgDataType type);
 
 int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
+int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump);

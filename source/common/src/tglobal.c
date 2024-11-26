@@ -2709,7 +2709,7 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
   char   buf[30];
   cJSON *json = cJSON_CreateObject();
   if (json == NULL) goto _exit;
-  json = cJSON_AddNumberToObject(json, "version", version);
+  if (cJSON_AddNumberToObject(json, "version", version) == NULL) goto _exit;
   if (json == NULL) goto _exit;
   int sz = taosArrayGetSize(array);
 
@@ -2725,38 +2725,31 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
         case CFG_DTYPE_NONE:
           break;
         case CFG_DTYPE_BOOL:
-          cField = cJSON_AddBoolToObject(cField, item->name, item->bval);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddBoolToObject(cField, item->name, item->bval) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT32:
-          cField = cJSON_AddNumberToObject(cField, item->name, item->i32);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddNumberToObject(cField, item->name, item->i32) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT64:
           (void)sprintf(buf, "%" PRId64, item->i64);
-          cField = cJSON_AddStringToObject(cField, item->name, buf);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
           (void)sprintf(buf, "%f", item->fval);
-          cField = cJSON_AddStringToObject(cField, item->name, buf);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_STRING:
         case CFG_DTYPE_DIR:
         case CFG_DTYPE_LOCALE:
         case CFG_DTYPE_CHARSET:
         case CFG_DTYPE_TIMEZONE:
-          cField = cJSON_AddStringToObject(cField, item->name, item->str);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddStringToObject(cField, item->name, item->str) == NULL) goto _exit;
           break;
       }
     }
   }
-  if (!cJSON_AddItemToObject(json, "configs", cField)) {
-    goto _exit;
-  }
+  if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
   *serialized = cJSON_Print(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
@@ -2784,31 +2777,26 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
         case CFG_DTYPE_NONE:
           break;
         case CFG_DTYPE_BOOL:
-          cField = cJSON_AddBoolToObject(cField, item->name, item->bval);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddBoolToObject(cField, item->name, item->bval) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT32:
-          cField = cJSON_AddNumberToObject(cField, item->name, item->i32);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddNumberToObject(cField, item->name, item->i32) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT64:
           (void)sprintf(buf, "%" PRId64, item->i64);
-          cField = cJSON_AddStringToObject(cField, item->name, buf);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
           (void)sprintf(buf, "%f", item->fval);
-          cField = cJSON_AddStringToObject(cField, item->name, buf);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_STRING:
         case CFG_DTYPE_DIR:
         case CFG_DTYPE_LOCALE:
         case CFG_DTYPE_CHARSET:
         case CFG_DTYPE_TIMEZONE:
-          cField = cJSON_AddStringToObject(cField, item->name, item->str);
-          if (cField == NULL) goto _exit;
+          if (cJSON_AddStringToObject(cField, item->name, item->str) == NULL) goto _exit;
           break;
       }
     }
@@ -2846,7 +2834,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
   char *serialized = NULL;
   TAOS_CHECK_GOTO(globalConfigSerialize(version, array, &serialized), &lino, _exit);
 
-  if (taosWriteFile(pConfigFile, serialized, strlen(serialized) < 0)) {
+  if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;
     code = TAOS_SYSTEM_ERROR(errno);
     uError("failed to write file:%s since %s", filename, tstrerror(code));

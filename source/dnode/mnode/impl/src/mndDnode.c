@@ -1079,6 +1079,78 @@ static void getSlowLogScopeString(int32_t scope, char *result) {
   }
 }
 
+SArray *initVariablesFromItems(SArray *pItems) {
+  if (pItems == NULL) {
+    return NULL;
+  }
+
+  int32_t sz = taosArrayGetSize(pItems);
+
+  SArray *pInfos = taosArrayInit(sz, sizeof(SVariablesInfo));
+  for (int32_t i = 0; i < sz; ++i) {
+    SConfigItem   *pItem = taosArrayGet(pItems, i);
+    SVariablesInfo info = {0};
+    strcpy(info.name, pItem->name);
+
+    // init info value
+    switch (pItem->dtype) {
+      case CFG_DTYPE_NONE:
+        break;
+      case CFG_DTYPE_BOOL:
+        sprintf(info.value, "%d", pItem->bval);
+        break;
+      case CFG_DTYPE_INT32:
+        sprintf(info.value, "%d", pItem->i32);
+        break;
+      case CFG_DTYPE_INT64:
+        sprintf(info.value, "%" PRId64, pItem->i64);
+        break;
+      case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
+        sprintf(info.value, "%f", pItem->fval);
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        sprintf(info.value, "%s", pItem->str);
+        break;
+    }
+
+    // init info scope
+    switch (pItem->scope) {
+      case CFG_SCOPE_SERVER:
+        strcpy(info.scope, "server");
+        break;
+      case CFG_SCOPE_CLIENT:
+        strcpy(info.scope, "client");
+        break;
+      case CFG_SCOPE_BOTH:
+        strcpy(info.scope, "both");
+        break;
+      default:
+        strcpy(info.scope, "unknown");
+        break;
+    }
+    // init info category
+    switch (pItem->category) {
+      case CFG_CATEGORY_GLOBAL:
+        strcpy(info.category, "global");
+        break;
+      case CFG_CATEGORY_LOCAL:
+        strcpy(info.category, "local");
+        break;
+      default:
+        strcpy(info.category, "unknown");
+        break;
+    }
+    taosArrayPush(pInfos, &info);
+  }
+
+  return pInfos;
+}
+
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
   int32_t           code = -1;
@@ -1087,90 +1159,13 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  rsp.variables = taosArrayInit(16, sizeof(SVariablesInfo));
-  if (NULL == rsp.variables) {
-    mError("failed to alloc SVariablesInfo array while process show variables req");
-    code = terrno;
-    goto _OVER;
-  }
-
   SVariablesInfo info = {0};
 
-  (void)strcpy(info.name, "statusInterval");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
-  (void)strcpy(info.scope, "server");
-  // fill info.info
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
+  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg));
+  if (rsp.variables == NULL) {
     code = terrno;
     goto _OVER;
   }
-
-  (void)strcpy(info.name, "timezone");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
-  (void)strcpy(info.scope, "both");
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  (void)strcpy(info.name, "locale");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
-  (void)strcpy(info.scope, "both");
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  (void)strcpy(info.name, "charset");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
-  (void)strcpy(info.scope, "both");
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  (void)strcpy(info.name, "monitor");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
-  (void)strcpy(info.scope, "server");
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  (void)strcpy(info.name, "monitorInterval");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
-  (void)strcpy(info.scope, "server");
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  (void)strcpy(info.name, "slowLogThreshold");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
-  (void)strcpy(info.scope, "server");
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  (void)strcpy(info.name, "slowLogMaxLen");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
-  (void)strcpy(info.scope, "server");
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  char scopeStr[64] = {0};
-  getSlowLogScopeString(tsSlowLogScope, scopeStr);
-  (void)strcpy(info.name, "slowLogScope");
-  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
-  (void)strcpy(info.scope, "server");
-  if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
   void   *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
