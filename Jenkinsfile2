@@ -576,32 +576,18 @@ pipeline {
                                             date
                                             ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
                                         '''
-                                    } else {
-                                        if ( file_only_tdgpt_change_except != '' ) {
-                                            sh '''
-                                                cd ${WKC}/tests/parallel_test
-                                                export DEFAULT_RETRY_TIME=2
-                                                date
-                                                ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
-                                            '''
-                                        }
+                                    }
+                                    if ( file_only_tdgpt_change_except != '' ) {
+                                        sh '''
+                                            cd ${WKC}/tests/parallel_test
+                                            export DEFAULT_RETRY_TIME=2
+                                            date
+                                            ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
+                                        '''
                                     }
                                 }
                             }
                         }
-                        /*catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 15, unit: 'MINUTES'){
-                                script {
-                                    sh '''
-                                        echo "packaging ..."
-                                        date
-                                        rm -rf ${WKC}/release/*
-                                        cd ${WKC}/packaging
-                                        ./release.sh -v cluster -n 3.0.0.100 -s static
-                                    '''
-                                }
-                            }
-                        }*/
                     }
                 }
             }
