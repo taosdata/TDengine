@@ -2152,6 +2152,15 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
         uInfo("%s set from %f to %f", optName, *pVar, flag);
         *pVar = flag;
       } break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE: {
+        char *pVar = pOptions[d].optionVar;
+        tstrncpy(pVar, pItem->str, strlen(pItem->str));
+        uInfo("%s set to %s", optName, pVar);
+      } break;
       default:
         code = TSDB_CODE_INVALID_CFG;
         break;
