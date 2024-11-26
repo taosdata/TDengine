@@ -100,6 +100,8 @@ void destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   taosMemoryFree(pFillSup->next.pRowVal);
   taosMemoryFree(pFillSup->nextNext.pRowVal);
 
+  taosMemoryFree(pFillSup->pOffsetInfo);
+
   taosMemoryFree(pFillSup);
 }
 
@@ -1573,10 +1575,7 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
 
     pFillInfo->pResRow->key = INT64_MIN;
     pFillInfo->pResRow->pRowVal = taosMemoryCalloc(1, pFillSup->rowSize);
-    if (!pFillInfo->pResRow->pRowVal) {
-      code = terrno;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+    QUERY_CHECK_NULL(pFillInfo->pResRow->pRowVal, code, lino, _end, terrno);
 
     for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
       SColumnInfoData* pColData = taosArrayGet(pRes->pDataBlock, i);
@@ -1588,6 +1587,21 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
       }
       pCell->bytes = pColData->info.bytes;
       pCell->type = pColData->info.type;
+    }
+
+    int32_t numOfResCol = taosArrayGetSize(pRes->pDataBlock);
+    if (numOfResCol < pFillSup->numOfAllCols) {
+      int32_t* pTmpBuf = (int32_t*)taosMemoryRealloc(pFillSup->pOffsetInfo, pFillSup->numOfAllCols * sizeof(int32_t));
+      QUERY_CHECK_NULL(pTmpBuf, code, lino, _end, terrno);
+      pFillSup->pOffsetInfo = pTmpBuf;
+
+      SResultCellData* pCell = getResultCell(pFillInfo->pResRow, numOfResCol - 1);
+      int32_t preLength = pFillSup->pOffsetInfo[numOfResCol - 1] + pCell->bytes + sizeof(SResultCellData);
+      for (int32_t i = numOfResCol; i < pFillSup->numOfAllCols; i++) {
+        pFillSup->pOffsetInfo[i] = preLength;
+        pCell = getResultCell(pFillInfo->pResRow, i);
+        preLength += pCell->bytes + sizeof(SResultCellData);
+      }
     }
 
     pFillInfo->pNonFillRow = taosMemoryCalloc(1, sizeof(SResultRowData));

@@ -475,6 +475,7 @@ typedef struct SStreamFillSupporter {
   STimeWindow    winRange;
   int32_t        pkColBytes;
   __compar_fn_t  comparePkColFn;
+  int32_t*       pOffsetInfo;
 } SStreamFillSupporter;
 
 typedef struct SStreamScanInfo {
@@ -884,6 +885,7 @@ typedef struct SStreamIntervalSliceOperatorInfo {
   struct SOperatorInfo* pOperator;
   bool                  hasFill;
   bool                  hasInterpoFunc;
+  int32_t*              pOffsetInfo;
 } SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
