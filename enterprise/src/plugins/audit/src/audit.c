@@ -78,7 +78,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   char clientAddress[50] = {0};
   if(pReq != NULL){
     char ip[24] = {0};
-    taosIp2String(pReq->info.conn.clientIp, ip);
+    tinet_ntoa(ip, pReq->info.conn.clientIp);
 
     sprintf(clientAddress, "%s:%d", ip, pReq->info.conn.clientPort);
   }
@@ -177,7 +177,7 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
 
   if(pReq != NULL){
     char ip[24] = {0};
-    taosIp2String(pReq->info.conn.clientIp, ip);
+    tinet_ntoa(ip, pReq->info.conn.clientIp);
 
     sprintf(record->clientAddress, "%s:%d", ip, pReq->info.conn.clientPort);
   }
