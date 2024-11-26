@@ -98,7 +98,7 @@ typedef struct SMemPoolCallBack {
 
 typedef struct SMemPoolCfg {
   //bool               reserveMode;
-  int32_t           *reserveSize;    //MB
+  int64_t            reserveSize;
   //int32_t           *upperLimitSize; //MB
   //int64_t            retireUnitSize;
   int32_t           *jobQuota;       //MB

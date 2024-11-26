@@ -41,7 +41,9 @@ void* mpDirectCalloc(SMemPool* pPool, SMPJob* pJob, int64_t num, int64_t size) {
 }
 
 void mpDirectFree(SMemPool* pPool, SMPJob* pJob, void *ptr) {
-  (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, taosMemSize(ptr));
+  if (*pPool->cfg.jobQuota > 0) {
+    (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, taosMemSize(ptr));
+  }
   taosMemFree(ptr);
 }
 

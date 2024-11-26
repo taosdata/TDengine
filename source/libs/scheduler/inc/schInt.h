@@ -254,6 +254,7 @@ typedef struct SSchTask {
   SArray         *parents;         // the data destination tasks, get data from current task, element is SQueryTask*
   void           *handle;          // task send handle
   bool            registerdHb;     // registered in hb
+  SSchTimerParam  delayLaunchPar; 
 } SSchTask;
 
 typedef struct SSchJobAttr {

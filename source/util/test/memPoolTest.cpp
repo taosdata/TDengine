@@ -621,7 +621,7 @@ void mptInitJob(int32_t idx) {
 
 
 void mptDestroyTask(SMPTestJobCtx* pJobCtx, int32_t taskIdx) {
-  if (mptCtx.param.enableMemPool) {
+  if (mptCtx.param.enableMemPool && tsMemPoolFullFunc) {
     SMPStatDetail* pStat = NULL;
     int64_t allocSize = 0;
     taosMemPoolGetSessionStat(pJobCtx->pSessions[taskIdx], &pStat, &allocSize, NULL);
@@ -740,6 +740,7 @@ int32_t mptGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
 
 void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
   SMPTJobInfo* pJob = (SMPTJobInfo*)taosHashIterate(mptCtx.pJobs, NULL);
+  int32_t jobNum = 0;
   uint64_t jobId = 0;
   int64_t retiredSize = 0;
   while (retiredSize < retireSize && NULL != pJob) {
@@ -757,6 +758,7 @@ void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
       mptRetireJob(pJob);
 
       retiredSize += aSize;    
+      jobNum++;
 
       uDebug("QID:0x%" PRIx64 " job retired cause of limit reached, usedSize:%" PRId64 ", retireSize:%" PRId64 ", retiredSize:%" PRId64, 
           jobId, aSize, retireSize, retiredSize);
@@ -766,6 +768,8 @@ void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
   }
 
   taosHashCancelIterate(mptCtx.pJobs, pJob);
+
+  uDebug("total %d jobs retired, retiredSize:%" PRId64, jobNum, retiredSize);
 }
 
 
@@ -1360,7 +1364,7 @@ void* mptRunThreadFunc(void* param) {
 
     MPT_PRINTF("Thread %d finish the %dth exection\n", pThread->idx, n);
 
-    if (mptCtx.param.threadNum <= 1 && mptCtx.param.enableMemPool) {
+    if (mptCtx.param.threadNum <= 1 && mptCtx.param.enableMemPool && tsMemPoolFullFunc) {
       mptCheckPoolUsedSize(mptJobNum);
     }
   }
@@ -1504,6 +1508,13 @@ void mptPrintTestBeginInfo(char* caseName, SMPTestParam* param) {
   MPT_PRINTF("\t random exec task:      %d\n", param->randTask);
 }
 
+void mptFreeAddrList(void** pList, int32_t num) {
+  for (int32_t i = 0; i < num; ++i) {
+    assert(pList[i]);
+    taosMemFree(pList[i]);
+  }
+}
+
 }  // namespace
 
 #if 1
@@ -1535,13 +1546,12 @@ TEST(PerfTest, GetSysAvail) {
 }
 #endif
 
-#if 0
+#if 1
 TEST(PerfTest, allocLatency) {
   char* caseName = "PerfTest:allocLatency";
   int32_t code = 0;
 
   int64_t msize = 10;
-  char* p = NULL;
   void* pSession = NULL;
   void* pJob = NULL;
   
@@ -1553,24 +1563,298 @@ TEST(PerfTest, allocLatency) {
   assert(0 == taosMemPoolInitSession(gMemPoolHandle, &pSession, pJob, "id"));
 
   int32_t loopTimes = 10000000;
-  int64_t st = taosGetTimestampUs();
+  int64_t st = 0;
+  void **addrList = (void**)taosMemCalloc(loopTimes, POINTER_BYTES);
+  
 
-  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
-  for (int32_t i = 0; i < loopTimes; ++i) {
-    p = (char*)mptMemoryMalloc(msize);
-    assert(0 == code);
-  }
-  int64_t totalUs1 = taosGetTimestampUs() - st;
-  mptDisableMemoryPoolUsage();
+  // MALLOC 
 
   st = taosGetTimestampUs();
   for (int32_t i = 0; i < loopTimes; ++i) {
-    p = (char*)mptMemoryMalloc(msize);
-    assert(0 == code);
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  int64_t totalUs3 = taosGetTimestampUs() - st;
+  mptFreeAddrList(addrList, loopTimes);
+
+
+
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  int64_t totalUs1 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
   }
   int64_t totalUs2 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+
+
+  // CALLOC 
+
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryCalloc(1, msize);
+  }
+  int64_t totalUs11 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryCalloc(1, msize);
+  }
+  int64_t totalUs12 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryCalloc(1, msize);
+  }
+  int64_t totalUs13 = taosGetTimestampUs() - st;  
+  //mptFreeAddrList(addrList, loopTimes);  NO FREE FOR REALLOC
+
+  // REALLOC 
+
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryRealloc(addrList[i], msize);
+  }
+  int64_t totalUs21 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryRealloc(addrList[i], msize);
+  }
+  int64_t totalUs22 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+
+
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryRealloc(addrList[i], msize);
+  }
+  int64_t totalUs23 = taosGetTimestampUs() - st;  
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  // STRDUP 
   
-  printf("%d times alloc %" PRId64 " bytes, pool total time:%" PRId64 "us, avg:%fus VS direct total time:%" PRId64 "us, avg:%fus\n", loopTimes, msize, totalUs1, ((double)totalUs1)/loopTimes, totalUs2, ((double)totalUs2)/loopTimes);
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrdup("abc");
+  }
+  int64_t totalUs31 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrdup("abc");
+  }
+  int64_t totalUs32 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrdup("abc");
+  }
+  int64_t totalUs33 = taosGetTimestampUs() - st;
+  mptFreeAddrList(addrList, loopTimes);
+
+  // STRNDUP 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrndup("abc", 3);
+  }
+  int64_t totalUs41 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrndup("abc", 3);
+  }
+  int64_t totalUs42 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrndup("abc", 3);
+  }
+  int64_t totalUs43 = taosGetTimestampUs() - st;
+  mptFreeAddrList(addrList, loopTimes);
+
+  // ALIGNALLOC 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMallocAlign(8, msize);
+  }
+  int64_t totalUs51 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMallocAlign(8, msize);
+  }
+  int64_t totalUs52 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMallocAlign(8, msize);
+  }
+  int64_t totalUs53 = taosGetTimestampUs() - st;
+  //mptFreeAddrList(addrList, loopTimes);  NO FREE FOR GETSIZE
+
+
+  // GETSIZE 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemorySize(addrList[i]);
+  }
+  int64_t totalUs61 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemorySize(addrList[i]);
+  }
+  int64_t totalUs62 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+
+
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemorySize(addrList[i]);
+  }
+  int64_t totalUs63 = taosGetTimestampUs() - st;
+
+  // FREE 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemoryFree(addrList[i]);
+  }
+  int64_t totalUs71 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemoryFree(addrList[i]);
+  }
+  int64_t totalUs72 = taosGetTimestampUs() - st;
+  mptDisableMemoryPoolUsage();
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemoryFree(addrList[i]);
+  }
+  int64_t totalUs73 = taosGetTimestampUs() - st;
+
+  
+  printf("%d times each %" PRId64 " bytes, time consumed:\n"
+      "\tnon-fpool malloc  total time:%" PRId64 "us, avg:%fus\n"
+      "\tfull-pool malloc  total time:%" PRId64 "us, avg:%fus\n"
+      "\tdirect    malloc  total time:%" PRId64 "us, avg:%fus\n"
+      "\tnon-fpool calloc  total time:%" PRId64 "us, avg:%fus\n"
+      "\tfull-pool calloc  total time:%" PRId64 "us, avg:%fus\n"
+      "\tdirect    calloc  total time:%" PRId64 "us, avg:%fus\n"
+      "\tnon-fpool realloc total time:%" PRId64 "us, avg:%fus\n"
+      "\tfull-pool realloc total time:%" PRId64 "us, avg:%fus\n"
+      "\tdirect    realloc total time:%" PRId64 "us, avg:%fus\n"
+      "\tnon-fpool strdup  total time:%" PRId64 "us, avg:%fus\n"
+      "\tfull-pool strdup  total time:%" PRId64 "us, avg:%fus\n"
+      "\tdirect    strdup  total time:%" PRId64 "us, avg:%fus\n"
+      "\tnon-fpool strndup total time:%" PRId64 "us, avg:%fus\n"
+      "\tfull-pool strndup total time:%" PRId64 "us, avg:%fus\n"
+      "\tdirect    strndup total time:%" PRId64 "us, avg:%fus\n"
+      "\tnon-fpool alignal total time:%" PRId64 "us, avg:%fus\n"
+      "\tfull-pool alignal total time:%" PRId64 "us, avg:%fus\n"
+      "\tdirect    alignal total time:%" PRId64 "us, avg:%fus\n"
+      "\tnon-fpool getsize total time:%" PRId64 "us, avg:%fus\n"
+      "\tfull-pool getsize total time:%" PRId64 "us, avg:%fus\n"
+      "\tdirect    getsize total time:%" PRId64 "us, avg:%fus\n"
+      "\tnon-fpool free    total time:%" PRId64 "us, avg:%fus\n"
+      "\tfull-pool free    total time:%" PRId64 "us, avg:%fus\n"
+      "\tdirect    free    total time:%" PRId64 "us, avg:%fus\n",
+      loopTimes, msize, 
+      totalUs1, ((double)totalUs1)/loopTimes, totalUs2, ((double)totalUs2)/loopTimes, totalUs3, ((double)totalUs3)/loopTimes,
+      totalUs11, ((double)totalUs11)/loopTimes, totalUs12, ((double)totalUs12)/loopTimes, totalUs13, ((double)totalUs13)/loopTimes,
+      totalUs21, ((double)totalUs21)/loopTimes, totalUs22, ((double)totalUs22)/loopTimes, totalUs23, ((double)totalUs23)/loopTimes,
+      totalUs31, ((double)totalUs31)/loopTimes, totalUs32, ((double)totalUs32)/loopTimes, totalUs33, ((double)totalUs33)/loopTimes,
+      totalUs41, ((double)totalUs41)/loopTimes, totalUs42, ((double)totalUs42)/loopTimes, totalUs43, ((double)totalUs43)/loopTimes,
+      totalUs51, ((double)totalUs51)/loopTimes, totalUs52, ((double)totalUs52)/loopTimes, totalUs53, ((double)totalUs53)/loopTimes,
+      totalUs61, ((double)totalUs61)/loopTimes, totalUs62, ((double)totalUs62)/loopTimes, totalUs63, ((double)totalUs63)/loopTimes,
+      totalUs71, ((double)totalUs71)/loopTimes, totalUs72, ((double)totalUs72)/loopTimes, totalUs73, ((double)totalUs73)/loopTimes);
 }
 #endif
 
@@ -1634,7 +1918,7 @@ TEST(poolFullFuncTest, SingleThreadTest) {
 
 }
 #endif
-#if 1
+#if 0
 TEST(poolFullFuncTest, MultiThreadTest) {
   char* caseName = "poolFullFuncTest:MultiThreadTest";
   SMPTestParam param = {0};

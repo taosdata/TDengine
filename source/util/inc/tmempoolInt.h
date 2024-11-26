@@ -485,16 +485,16 @@ enum {
 #define MP_CHECK_QUOTA(_pool, _job, _size)     do {                                                           \
     if (*(_pool)->cfg.jobQuota > 0) {                                                            \
       int64_t cAllocSize = atomic_add_fetch_64(&(_job)->job.allocMemSize, (_size));                  \
-      if (cAllocSize / 1048576UL > *(_pool)->cfg.jobQuota) {                                         \
+      if ((cAllocSize / 1048576L) > *(_pool)->cfg.jobQuota) {                                         \
         uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %dMB", (_job)->job.jobId, cAllocSize, *(_pool)->cfg.jobQuota);                  \
         (_pool)->cfg.cb.reachFp(pJob->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);                  \
         terrno = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;                  \
         return NULL;                                                            \
       }                  \
     }                  \
-    if (atomic_load_64(&tsCurrentAvailMemorySize) <= ((atomic_load_32((_pool)->cfg.reserveSize) * 1048576UL) + (_size))) {                  \
-      uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %dMB",                   \
-          (_pool)->name, atomic_load_64(&tsCurrentAvailMemorySize), (_size), *(_pool)->cfg.reserveSize);                  \
+    if (atomic_load_64(&tsCurrentAvailMemorySize) <= ((_pool)->cfg.reserveSize + (_size))) {                  \
+      uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %" PRId64 " bytes",                   \
+          (_pool)->name, atomic_load_64(&tsCurrentAvailMemorySize), (_size), (_pool)->cfg.reserveSize);                  \
       (_pool)->cfg.cb.reachFp((_job)->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);                  \
       terrno = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;                  \
       return NULL;                  \

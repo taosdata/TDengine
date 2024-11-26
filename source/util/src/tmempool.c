@@ -169,8 +169,8 @@ int32_t mpUpdateCfg(SMemPool* pPool) {
     MP_ERR_RET((*gMPFps[gMPMgmt.strategy].updateCfgFp)(pPool));
   }
 
-  uDebug("memPool %s cfg updated, reserveSize:%dMB, jobQuota:%dMB, threadNum:%d", 
-      pPool->name, *pPool->cfg.reserveSize, *pPool->cfg.jobQuota, pPool->cfg.threadNum);
+  uDebug("memPool %s cfg updated, reserveSize:%" PRId64 ", jobQuota:%dMB, threadNum:%d", 
+      pPool->name, pPool->cfg.reserveSize, *pPool->cfg.jobQuota, pPool->cfg.threadNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -321,10 +321,10 @@ int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size) {
     MP_RET(code);
   }
 
-  if (atomic_load_64(&tsCurrentAvailMemorySize) <= ((atomic_load_32(pPool->cfg.reserveSize) * 1048576UL) + size)) {
+  if (atomic_load_64(&tsCurrentAvailMemorySize) <= (pPool->cfg.reserveSize + size)) {
     code = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;
-    uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %dMB", 
-        pPool->name, atomic_load_64(&tsCurrentAvailMemorySize), size, *pPool->cfg.reserveSize);
+    uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %" PRId64 " bytes", 
+        pPool->name, atomic_load_64(&tsCurrentAvailMemorySize), size, pPool->cfg.reserveSize);
     pPool->cfg.cb.reachFp(pJob->job.jobId, pJob->job.clientId, code);
     (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
     MP_RET(code);
@@ -1026,7 +1026,7 @@ void* mpMgmtThreadFunc(void* param) {
   while (0 == atomic_load_8(&gMPMgmt.modExit)) {
     mpUpdateSystemAvailableMemorySize();
 
-    retireSize = atomic_load_32(pPool->cfg.reserveSize) * 1048576UL - tsCurrentAvailMemorySize;
+    retireSize = pPool->cfg.reserveSize - tsCurrentAvailMemorySize;
     if (retireSize > 0) {
       (*pPool->cfg.cb.failFp)(retireSize, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
     }
@@ -1697,7 +1697,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
     return code;
   }
 
-  cfg.reserveSize = &tsMinReservedMemorySize;
+  cfg.reserveSize = tsMinReservedMemorySize * 1048576UL;
 
   int64_t freeSizeAfterRes = sysAvailSize - tsMinReservedMemorySize * 1048576UL;
   if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {

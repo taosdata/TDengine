@@ -403,9 +403,11 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, 
       pCtx->periodMs = tsRedirectMaxPeriod;
     }
 
-    int64_t leftTime = tsMaxRetryWaitTime - lastTime;
-    pTask->delayExecMs = leftTime < pCtx->periodMs ? leftTime : pCtx->periodMs;
-
+    if (SCH_IS_DATA_BIND_TASK(pTask)) {    
+      int64_t leftTime = tsMaxRetryWaitTime - lastTime;
+      pTask->delayExecMs = leftTime < pCtx->periodMs ? leftTime : pCtx->periodMs;
+    }
+    
     pCtx->roundTimes = 0;
 
     goto _return;
@@ -1294,7 +1296,6 @@ void schHandleTimerEvent(void *param, void *tmrId) {
   int64_t  rId = pTimerParam->rId;
   uint64_t queryId = pTimerParam->queryId;
   uint64_t taskId = pTimerParam->taskId;
-  taosMemoryFree(pTimerParam);
 
   if (schProcessOnCbBegin(&pJob, &pTask, queryId, rId, taskId)) {
     return;
@@ -1307,18 +1308,12 @@ void schHandleTimerEvent(void *param, void *tmrId) {
 
 int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
   if (pTask->delayExecMs > 0) {
-    SSchTimerParam *param = taosMemoryMalloc(sizeof(SSchTimerParam));
-    if (NULL == param) {
-      SCH_TASK_ELOG("taosMemoryMalloc %d failed", (int)sizeof(SSchTimerParam));
-      SCH_ERR_RET(terrno);
-    }
-
-    param->rId = pJob->refId;
-    param->queryId = pJob->queryId;
-    param->taskId = pTask->taskId;
+    pTask->delayLaunchPar.rId = pJob->refId;
+    pTask->delayLaunchPar.queryId = pJob->queryId;
+    pTask->delayLaunchPar.taskId = pTask->taskId;
 
     if (NULL == pTask->delayTimer) {
-      pTask->delayTimer = taosTmrStart(schHandleTimerEvent, pTask->delayExecMs, (void *)param, schMgmt.timer);
+      pTask->delayTimer = taosTmrStart(schHandleTimerEvent, pTask->delayExecMs, (void *)&pTask->delayLaunchPar, schMgmt.timer);
       if (NULL == pTask->delayTimer) {
         SCH_TASK_ELOG("start delay timer failed, handle:%p", schMgmt.timer);
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -1327,7 +1322,7 @@ int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
       return TSDB_CODE_SUCCESS;
     }
 
-    if (taosTmrReset(schHandleTimerEvent, pTask->delayExecMs, (void *)param, schMgmt.timer, &pTask->delayTimer)) {
+    if (taosTmrReset(schHandleTimerEvent, pTask->delayExecMs, (void *)&pTask->delayLaunchPar, schMgmt.timer, &pTask->delayTimer)) {
       SCH_TASK_ELOG("taosTmrReset delayExec timer failed, handle:%p", schMgmt.timer);
     }
 
