@@ -30,7 +30,7 @@ SMemPoolMgmt gMPMgmt = {0};
 SMPStrategyFp gMPFps[] = {
   {NULL}, 
   {NULL,        mpDirectFullAlloc, mpDirectFullFree, mpDirectGetMemSize, mpDirectFullRealloc, NULL,               NULL,             mpDirectTrim},
-  {mpChunkInit, mpChunkAlloc,  mpChunkFree,  mpChunkGetMemSize,  mpChunkRealloc,  mpChunkInitSession, mpChunkUpdateCfg, NULL}
+  //{mpChunkInit, mpChunkAlloc,  mpChunkFree,  mpChunkGetMemSize,  mpChunkRealloc,  mpChunkInitSession, mpChunkUpdateCfg, NULL}
 };
 
 
@@ -242,7 +242,9 @@ int32_t mpInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
     MP_ERR_RET((*gMPFps[gMPMgmt.strategy].initFp)(pPool, poolName, cfg));
   }
 
-  MP_ERR_RET(mpInitPosStat(&pPool->stat.posStat, false));
+  if (tsMemPoolFullFunc) {
+    MP_ERR_RET(mpInitPosStat(&pPool->stat.posStat, false));
+  }
   
   return TSDB_CODE_SUCCESS;
 }
@@ -943,6 +945,10 @@ void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPSt
 }
 
 void mpCheckStatDetail(void* poolHandle, void* session, char* detailName) {
+  if (0 == tsMemPoolFullFunc) {
+    return;
+  }
+  
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
   SMPCtrlInfo* pCtrl = NULL;
@@ -1115,7 +1121,7 @@ void taosMemPoolPrintStat(void* poolHandle, void* session, char* procName) {
   SMPSession* pSession = (SMPSession*)session;
   char detailName[128];
 
-  if (NULL != pSession) {
+  if (NULL != pSession && MP_GET_FLAG(pSession->ctrl.funcFlags, MP_CTRL_FLAG_PRINT_STAT)) {
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "Session");
     detailName[sizeof(detailName) - 1] = 0;
     mpPrintStatDetail(&pSession->ctrl, &pSession->stat.statDetail, detailName, pSession->maxAllocMemSize);
@@ -1125,15 +1131,15 @@ void taosMemPoolPrintStat(void* poolHandle, void* session, char* procName) {
     mpPrintPosStat(&pSession->ctrl, &pSession->stat.posStat, detailName);
   }
 
-  if (NULL != pPool) {
+  if (NULL != pPool && MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_PRINT_STAT)) {
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, pPool->name);
     detailName[sizeof(detailName) - 1] = 0;
     mpPrintSessionStat(&gMPMgmt.ctrl, &pPool->stat.statSession, detailName);
     mpPrintStatDetail(&gMPMgmt.ctrl, &pPool->stat.statDetail, detailName, pPool->maxAllocMemSize);
 
-    snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolNode");
-    detailName[sizeof(detailName) - 1] = 0;
-    mpPrintNodeStat(&gMPMgmt.ctrl, pPool->stat.nodeStat, detailName);
+    //snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolNode");
+    //detailName[sizeof(detailName) - 1] = 0;
+    //mpPrintNodeStat(&gMPMgmt.ctrl, pPool->stat.nodeStat, detailName);
     
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolPos");
     detailName[sizeof(detailName) - 1] = 0;
@@ -1200,14 +1206,13 @@ void taosMemPoolDestroySession(void* poolHandle, void* session) {
     uWarn("null pointer of poolHandle %p or session %p", poolHandle, session);
     return;
   }
+
+  if (tsMemPoolFullFunc) {
+    (void)atomic_add_fetch_64(&pPool->stat.statSession.destroyNum, 1);
+    mpCheckStatDetail(pPool, pSession, "DestroySession");
+    mpDestroyPosStat(&pSession->stat.posStat);
+  }
   
-  //TODO;
-
-  (void)atomic_add_fetch_64(&pPool->stat.statSession.destroyNum, 1);
-
-  mpCheckStatDetail(pPool, pSession, "DestroySession");
-
-  mpDestroyPosStat(&pSession->stat.posStat);
   taosMemFreeClear(pSession->sessionId);
 
   TAOS_MEMSET(pSession, 0, sizeof(*pSession));
@@ -1233,7 +1238,9 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, c
     MP_ERR_JRET((*gMPFps[gMPMgmt.strategy].initSessionFp)(pPool, pSession));
   }
 
-  MP_ERR_JRET(mpInitPosStat(&pSession->stat.posStat, true));
+  if (tsMemPoolFullFunc) {
+    MP_ERR_JRET(mpInitPosStat(&pSession->stat.posStat, true));
+  }
   
   pSession->pJob = (SMPJob*)pJob;
 
@@ -1526,10 +1533,11 @@ void taosMemPoolClose(void* poolHandle) {
   
   SMemPool* pPool = (SMemPool*)poolHandle;
 
-  mpCheckStatDetail(pPool, NULL, "PoolClose");
-
-  mpDestroyPosStat(&pPool->stat.posStat);
-
+  if (tsMemPoolFullFunc) {
+    mpCheckStatDetail(pPool, NULL, "PoolClose");
+    mpDestroyPosStat(&pPool->stat.posStat);
+  }
+  
   taosMemoryFree(pPool->name);
   mpDestroyCacheGroup(&pPool->sessionCache);
 

@@ -35,7 +35,7 @@ void qwStopAllTasks(SQWorker *mgmt) {
 
     sId = ctx->sId;
 
-    qwStopTask(QW_FPARAMS(), ctx);
+    (void)qwStopTask(QW_FPARAMS(), ctx);
 
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
   }
@@ -1633,7 +1633,7 @@ void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode) {
     qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, 
         jobId, clientId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
 
-    qwRetireJob(pJob);
+    (void)qwRetireJob(pJob);
   } else {
     qDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
   }
@@ -1641,6 +1641,7 @@ void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode) {
 
 void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
+  int32_t jobNum = 0;
   int64_t retiredSize = 0;
   while (retiredSize < retireSize && NULL != pJob) {
     if (atomic_load_8(&pJob->retired)) {
@@ -1650,17 +1651,21 @@ void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
 
     if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
       int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
+      bool retired = qwRetireJob(pJob);
+      if (retired) {
+        retiredSize += aSize;   
+      }
+      
+      jobNum++;
 
-      qwRetireJob(pJob);
-
-      retiredSize += aSize;    
-
-      qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job retired in batch, usedSize:%" PRId64 ", retireSize:%" PRId64, 
-      pJob->memInfo->jobId, pJob->memInfo->clientId, aSize, retireSize);
+      qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job mark retired in batch, retired:%d, usedSize:%" PRId64 ", retireSize:%" PRId64, 
+      pJob->memInfo->jobId, pJob->memInfo->clientId, retired, aSize, retireSize);
     }
 
     pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
   }
+
+  qDebug("total %d jobs mark retired, direct retiredSize:%" PRId64 " targetRetireSize:%" PRId64, jobNum, retiredSize, retireSize);
 }
 
 

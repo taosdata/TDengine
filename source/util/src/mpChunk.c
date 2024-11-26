@@ -19,7 +19,7 @@
 #include "tlog.h"
 #include "tutil.h"
 
-
+#if 0
 int32_t mpChunkNew(SMemPool* pPool, SMPChunk** ppChunk) {
   SMPChunk* pChunk = NULL;
   MP_ERR_RET(mpPopIdleNode(pPool, &pPool->chunk.chunkCache, (void**)&pChunk));
@@ -315,4 +315,5 @@ int32_t mpChunkUpdateCfg(SMemPool* pPool) {
   return TSDB_CODE_SUCCESS;
 }
 
+#endif
 

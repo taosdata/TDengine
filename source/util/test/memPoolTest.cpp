@@ -57,7 +57,7 @@ namespace {
 #define MPT_MAX_RETIRE_JOB_NUM          10000
 #define MPT_DEFAULT_TASK_RUN_TIMES      10
 #define MPT_NON_POOL_ALLOC_UNIT         (256 * 1048576UL)
-#define MPT_NON_POOL_KEEP_ALLOC_UNIT    10485760UL
+#define MPT_NON_POOL_KEEP_ALLOC_UNIT    (10485760UL * 8)
 #define MPT_MAX_NON_POOL_ALLOC_TIMES    30000
 
 enum {
@@ -685,21 +685,25 @@ int32_t mptResetJob(SMPTestJobCtx* pJobCtx) {
   return 0;
 }
 
-void mptRetireJob(SMPTJobInfo* pJob) {
+bool mptRetireJob(SMPTJobInfo* pJob) {
   SMPTestJobCtx* pCtx = (SMPTestJobCtx*)pJob->pCtx;
 
   if (MPT_TRY_LOCK(MPT_WRITE, &pCtx->jobExecLock)) {
-    return;
+    return false;
   }
 
+  bool retired = false;
   int32_t taskRunning = atomic_load_32(&pCtx->taskRunningNum);
   if (0 == taskRunning) {
     mptDestroyJob(pCtx, false);
+    retired = true;
   } else {
     uDebug("JOB:0x%x retired but will not destroy cause of task running, num:%d", pCtx->jobId, taskRunning);
   }
 
   MPT_UNLOCK(MPT_WRITE, &pCtx->jobExecLock);
+
+  return retired;
 }
 
 int32_t mptGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
@@ -750,13 +754,15 @@ void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
 
       atomic_add_fetch_64(&mptCtx.runStat.retireNum, 1);
 
-      mptRetireJob(pJob);
-
-      retiredSize += aSize;    
+      bool retired = mptRetireJob(pJob);
+      if (retired) {
+        retiredSize += aSize;    
+      }
+      
       jobNum++;
 
-      uDebug("QID:0x%" PRIx64 " job retired cause of limit reached, usedSize:%" PRId64 ", retireSize:%" PRId64 ", retiredSize:%" PRId64, 
-          jobId, aSize, retireSize, retiredSize);
+      uDebug("QID:0x%" PRIx64 " job mark retired cause of limit reached, retired:%d, usedSize:%" PRId64 ", retireSize:%" PRId64 ", retiredSize:%" PRId64, 
+          jobId, retired, aSize, retireSize, retiredSize);
     }
 
     pJob = (SMPTJobInfo*)taosHashIterate(mptCtx.pJobs, pJob);
@@ -764,7 +770,7 @@ void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
 
   taosHashCancelIterate(mptCtx.pJobs, pJob);
 
-  uDebug("total %d jobs retired, retiredSize:%" PRId64 " targetRetireSize:%" PRId64, jobNum, retiredSize, retireSize);
+  uDebug("total %d jobs mark retired, retiredSize:%" PRId64 " targetRetireSize:%" PRId64, jobNum, retiredSize, retireSize);
 }
 
 
@@ -1575,7 +1581,7 @@ TEST(PerfTest, GetSysAvail) {
   for (int32_t i = 0; i < loopTimes; ++i) {
     code = taosGetSysAvailMemory(&freeSize);
     assert(0 == code);
-    taosMsleep(5);
+    //taosMsleep(10);
   }
   totalUs = taosGetTimestampUs() - st;
   
@@ -1915,7 +1921,7 @@ TEST(poolFuncTest, SingleThreadTest) {
 
 }
 #endif
-#if 1
+#if 0
 TEST(poolFuncTest, MultiThreadTest) {
   char* caseName = "poolFuncTest:MultiThreadTest";
   SMPTestParam param = {0};

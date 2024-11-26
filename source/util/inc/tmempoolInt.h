@@ -229,7 +229,7 @@ typedef struct SMPSessionChunk {
 } SMPSessionChunk;
 
 typedef struct SMPSession {
-  SMPListNode        list;
+  //SMPListNode        list;
 
   char*              sessionId;
   SMPJob*            pJob;
@@ -237,7 +237,7 @@ typedef struct SMPSession {
   int64_t            allocMemSize;
   int64_t            maxAllocMemSize;
 
-  SMPSessionChunk    chunk;
+  //SMPSessionChunk    chunk;
 
   SMPStatInfo        stat;
 } SMPSession; 
