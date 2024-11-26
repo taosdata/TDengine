@@ -15,7 +15,7 @@ The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is
 
 ## Installation
 
-To run TDengine CLI to access TDengine cloud, please download and install recent [TDengine client installation package](https://docs.tdengine.com/release-history/tdengine/) first.
+To run TDengine CLI to access TDengine cloud, please download and install recent [TDengine client installation package](/release-history/tdengine/) first.
 
 ## Config
 

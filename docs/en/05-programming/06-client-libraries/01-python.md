@@ -22,6 +22,7 @@ The source code for the Python client library is hosted on [GitHub](https://gith
 2. The connection to the server using the REST or WebSocket interface provided by taosAdapter is referred to hereinafter as a "REST connection" or "WebSocket connection".
 :::
 
+For detailed information on how to establish a connection, please refer to: [Programming - Connect - Python](../../connect/python/).
 
 ## Installation
 

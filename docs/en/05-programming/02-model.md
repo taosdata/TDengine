@@ -13,7 +13,7 @@ The characteristics of time-series data from different data collection points ma
 
 ![TDengine create-database](./create-database.png)
 
-For more details please refer to [Database](https://docs.tdengine.com/tdengine-reference/sql-manual/manage-databases/).
+For more details please refer to [Database](https://docs.tdengine.com/cloud/tdengine-reference/sql-manual/manage-databases/).
 
 :::note IMPORTANT
 
@@ -39,7 +39,7 @@ At most 4096 (or 1024 prior to version 2.1.7.0) columns are allowed in a STable.
 
 ## Create Table
 
-A specific table needs to be created for each data collection point. Similar to RDBMS, table name and schema are required to create a table. Additionally, one or more tags can be created for each table. To create a table, a STable needs to be used as template and the values need to be specified for the tags. For example, for the meters in [Table 1](/concept/), the table can be created using below SQL statement.
+A specific table needs to be created for each data collection point. Similar to RDBMS, table name and schema are required to create a table. Additionally, one or more tags can be created for each table. To create a table, a STable needs to be used as template and the values need to be specified for the tags. For example, for the meters in [Table 1](../../concept/), the table can be created using below SQL statement.
 
 ```sql
 CREATE TABLE power.d101 USING meters TAGS ("California.SanFrancisco", 2);
