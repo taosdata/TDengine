@@ -1232,11 +1232,6 @@ void clearExpiredState(SStreamFileState* pFileState) {
         int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
         qTrace("clear expired file, ts:%" PRId64 ". %s at line %d res:%d", pKey->ts, __func__, __LINE__, code_file);
       }
-
-      if (pFileState->hasFillCatch == false) {
-        int32_t code_file = streamStateFillDel_rocksdb(pFileState->pFileStore, pKey);
-        qTrace("force clear expired file, ts:%" PRId64 ". %s at line %d res %d", pKey->ts, __func__, __LINE__, code_file);
-      }
     }
     taosArrayRemoveBatch(pWinStates, 0, size - 1, NULL);
   }

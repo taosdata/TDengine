@@ -1909,7 +1909,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     qDebug("===stream===build stream result, ts count:%d", size);
     for (int32_t i = 0; i < size; i++) {
       TSKEY ts = *(TSKEY*) taosArrayGet(pInfo->pCloseTs, i);
-      code = buildAllResultKey(&pInfo->streamAggSup, ts, pInfo->pUpdated);
+      code = buildAllResultKey(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pState, ts, pInfo->pUpdated);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     qDebug("===stream===build stream result, res count:%ld", taosArrayGetSize(pInfo->pUpdated));

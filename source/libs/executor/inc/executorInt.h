@@ -823,10 +823,11 @@ typedef struct SStreamFillOperatorInfo {
   int32_t               primaryTsCol;
   int32_t               primarySrcSlotId;
   SStreamFillInfo*      pFillInfo;
-  SStreamAggSupporter*  pStreamAggSup;
   SArray*               pCloseTs;
   SArray*               pUpdated;
   SGroupResInfo         groupResInfo;
+  SStreamState*         pState;
+  SStateStore           stateStore;
 } SStreamFillOperatorInfo;
 
 typedef struct SStreamTimeSliceOperatorInfo {

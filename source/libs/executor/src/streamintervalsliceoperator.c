@@ -360,9 +360,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       return code;
     }
 
-    if (pInfo->hasFill == false) {
-      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
-    }
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
     return code;
@@ -452,9 +450,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
   QUERY_CHECK_CODE(code, lino, _end);
 
   if ((*ppRes) == NULL) {
-    if (pInfo->hasFill == false) {
-      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
-    }
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
     setStreamOperatorCompleted(pOperator);
   }
 

@@ -102,8 +102,9 @@ int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* 
 int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                               SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
                                               struct SOperatorInfo** ppOptInfo);
-int32_t buildAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SArray* pUpdated);
+int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
 int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
+TSKEY   compareTs(void* pKey);
 
 #ifdef __cplusplus
 }
