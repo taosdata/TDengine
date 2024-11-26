@@ -3,7 +3,6 @@ on: # 在什么时候触发工作流
   push: # 在从本地main分支被push到GitHub仓库时
     branches:
       - main
-      - mkdocs
   pull_request: # 在main分支合并别人提的pr时
     branches:
       - main
