@@ -90,7 +90,7 @@ int32_t tsdbUpdateCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, i
   return 0;
 }
 
-int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
+void tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
 
   for (int32_t i = 0; i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr); i++) {
@@ -106,7 +106,6 @@ int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
   }
 
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-  return 0;
 }
 
 void tsdbStopAllCompTask(STsdb *tsdb) {

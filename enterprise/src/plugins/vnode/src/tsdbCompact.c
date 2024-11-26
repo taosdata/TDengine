@@ -30,7 +30,7 @@ extern int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, 
 extern bool    tsdbCompMonHasTask(STsdb *tsdb);
 extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
 extern int32_t tsdbUpdateCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
-extern int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
+extern void    tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
 static void    tsdbCompactCancel(void *arg);
 
 // new code ====================================================================================
@@ -565,7 +565,7 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&compactor.fset);
   TARRAY2_DESTROY(compactor.fopArr, NULL);
-  TAOS_UNUSED(tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid));
+  tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
   taosMemoryFree(arg);
 
   if (code) {
@@ -603,6 +603,8 @@ static void tsdbRescheduleCompactTask(void *arg) {
           TAOS_UNUSED(tsdbUpdateCompMonitorTask(tsdb, fset->fid, &compactArg->taskid, compactSize));
           schedSuccess = true;
         }
+
+        break;
       }
     }
   }
@@ -632,9 +634,9 @@ static int32_t tsdbCompact(void *arg) {
   } else {
     (void)tsdbCompactImpl(arg);
 
-    taosThreadMutexLock(&gCompactTaskStage.mutex);
+    (void)taosThreadMutexLock(&gCompactTaskStage.mutex);
     gCompactTaskStage.numOfRunningCompactTasks--;
-    taosThreadMutexUnlock(&gCompactTaskStage.mutex);
+    (void)taosThreadMutexUnlock(&gCompactTaskStage.mutex);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -701,13 +703,13 @@ int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw) {
 }
 
 void tsdbAlterMaxCompactTasks() {
-  taosThreadMutexLock(&gCompactTaskStage.mutex);
+  (void)taosThreadMutexLock(&gCompactTaskStage.mutex);
   if (gCompactTaskStage.maxNumOfCompactTasks != tsNumOfCompactThreads) {
     tsdbInfo("maxNumOfCompactTasks changed from %d to %d", gCompactTaskStage.maxNumOfCompactTasks,
              tsNumOfCompactThreads);
     gCompactTaskStage.maxNumOfCompactTasks = tsNumOfCompactThreads;
   }
-  taosThreadMutexUnlock(&gCompactTaskStage.mutex);
+  (void)taosThreadMutexUnlock(&gCompactTaskStage.mutex);
 }
 
 int32_t tsdbInitCompact() {
@@ -718,6 +720,6 @@ int32_t tsdbInitCompact() {
 }
 
 void tsdbClearnupCompact() {
-  taosThreadMutexDestroy(&gCompactTaskStage.mutex);
+  (void)taosThreadMutexDestroy(&gCompactTaskStage.mutex);
   return;
 }
