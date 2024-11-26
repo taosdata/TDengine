@@ -40,6 +40,8 @@ sql_error alter table $tbj set tag tagCol1=1,tagCol1 = 2 # dumplicate tag name
 sql_error alter table $tbj set tag tagCol1=1,tagCol1 = 2 # not exist tag
 sql_error alter table $tbj set tag tagCol1 = 1, tagCol5="xxxxxxxxxxxxxxxx" 
 sql_error alter table $tbj set tag tagCol1 = 1, tagCol5="xxxxxxxxxxxxxxxx", tagCol7="yyyyyyyyyyyyyyyyyyyyyyyyy" 
+sql_error alter table $tbj set tag tagCol1=1,tagCol5=10, tagCol1=3
+sql_error alter table $tbj set tag tagCol5="xxxx"
 sql alter table $tbj set tag tagCol1 = 100, tagCol2 = 100 
 
 sql select * from $mt where tagCol2 = 100
@@ -52,7 +54,7 @@ if $rows != 2  then
   return -1
 endi
 
-sql alter table $tbj set tag tagCol1=true,tagCol2=-1,tagcol3=-10, tagcol4=-100,tagcol5=-1000,tagCol6="empty",tagCol7="empty"
+sql alter table $tbj set tag tagCol1=true,tagCol2=-1,tagcol3=-10, tagcol4=-100,tagcol5=-1000,tagCol6="empty",tagCol7="empty1"
 sql alter table $tb set tag tagCol1=0
 
 sql select * from $mt where tagCol1 = true 
@@ -75,15 +77,11 @@ if $rows != 0  then
   return -1
 endi
 
-sql select * from $mt where tagCol4 = -1000 
+sql select * from $mt where tagCol5 = -1000 
 if $rows != 0  then
   return -1
 endi
 
-sql select * from $mt where tagCol5 = -10000 
-if $rows != 0  then
-  return -1
-endi
 
 sql select * from $mt where tagCol6 = "empty" 
 if $rows != 0  then
@@ -95,6 +93,42 @@ if $rows != 0  then
   return -1
 endi
 
+sql insert into $tbj values (now, 1)
 
+sql select * from $mt where tagCol1 = true 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol2 = -1 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol3 = -10 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol4 = -100 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol5 = -1000 
+if $rows != 1  then
+  return -1
+endi
+
+
+sql select * from $mt where tagCol6 = "empty" 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol7 = "empty1" 
+if $rows != 1  then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
