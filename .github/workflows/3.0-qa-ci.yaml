@@ -12,6 +12,7 @@ env:
   DIR_PATH_3_0: "3.0"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8787
+  COVERAGE_REPORT_DIR: /data/code_coverage_taosx/$(date +%Y%m%d)
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -22,6 +23,7 @@ jobs:
     steps:
       - name: Remove artifacts
         run: |
+          find $COVERAGE_REPORT_DIR -mindepth 1 -mtime +10 -exec rm -rf {} +
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
@@ -247,18 +249,6 @@ jobs:
 
       - name: opc Report
         run: |
-          # # mqtt report
-          # mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/unit && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/e2e && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/merged
-          # cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/mqtt
-          # # 1.mqtt 单元测试覆盖率文件
-          # mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/mqtt_unit_report.txt .
-          # # 2.mqtt 端到端测试覆盖率文件
-          # go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data -o=mqtt_e2e_report.txt
-          # # 3.mqtt 总的覆盖率报告
-          # /root/go/bin/gocov convert mqtt_unit_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/unit/index.html
-          # /root/go/bin/gocov convert mqtt_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/e2e/index.html
-          # /root/go/bin/gocov convert mqtt_unit_report.txt mqtt_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/merged/index.html
-         
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/mqtt/"
           # opc report
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/unit && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/e2e && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/merged
@@ -295,6 +285,10 @@ jobs:
           java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/influxdb/influxdb_merged.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/influxdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/influxdb/merged/
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/influxdb/"
       
+      - name: save report daily
+        run: |
+          cp -r $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ $COVERAGE_REPORT_DIR/
+          echo "see report at $COVERAGE_REPORT_DIR/"
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [generate_report]
@@ -317,7 +311,7 @@ jobs:
           PR_INFO="Coverage Report\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          Coverage Report URL: $REPORT_BASE_URL/$DIR_PATH_3_0/\n"
+          Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/\n"
 
           post_to_feishu "$PR_INFO"
       
