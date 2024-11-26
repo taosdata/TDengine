@@ -2589,9 +2589,9 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     }
 
   _out:
-    bool stopped = taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, (void*)pNode->rid, syncEnv()->pTimerManager,
-                                &pNode->pPingTimer);
-    if (stopped) sError("failed to reset ping timer");
+    if (taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, (void*)pNode->rid, syncEnv()->pTimerManager,
+                     &pNode->pPingTimer))
+      sError("failed to reset ping timer");
   }
   syncNodeRelease(pNode);
 }
