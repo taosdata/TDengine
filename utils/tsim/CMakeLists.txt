@@ -2,7 +2,7 @@ aux_source_directory(src TSIM_SRC)
 add_executable(tsim ${TSIM_SRC})
 target_link_libraries(
     tsim
-    PUBLIC ${TAOS_LIB}
+    PUBLIC ${TAOS_INTERNAL_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os

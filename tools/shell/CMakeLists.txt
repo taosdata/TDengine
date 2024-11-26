@@ -17,10 +17,15 @@ ELSE()
 ENDIF()
 
 if(TD_WINDOWS)
-    target_link_libraries(shell PUBLIC wrapper)
+    target_link_libraries(shell PUBLIC ${TAOS_LIB})
 else()
-    target_link_libraries(shell PUBLIC wrapper ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif()
+
+target_link_libraries(
+    shell
+    PRIVATE os common transport geometry util
+)
 
 target_include_directories(
     shell
@@ -40,7 +45,8 @@ IF(TD_LINUX)
     # shell_ut library
     add_library(shell_ut STATIC ${SHELL_SRC})
 
-    target_link_libraries(shell_ut PUBLIC wrapper ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
     # util depends
     target_link_directories(

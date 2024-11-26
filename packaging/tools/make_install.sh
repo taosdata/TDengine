@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-#set -x
+set -x
 
 # -----------------------Variables definition
 source_dir=$1
@@ -312,9 +312,11 @@ function install_avro() {
 function install_lib() {
   # Remove links
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
+  ${csudo}rm -f ${lib_link_dir}/libtaosinternal.* || :
   [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so || :
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosinternal.* || :
     [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
   fi
 
@@ -323,11 +325,22 @@ function install_lib() {
       ${install_main_dir}/driver &&
       ${csudo}chmod 777 ${install_main_dir}/driver/libtaos.so.${verNumber}
 
+    ${csudo}cp ${binary_dir}/build/lib/libtaosinternal.so.${verNumber} \
+      ${install_main_dir}/driver &&
+      ${csudo}chmod 777 ${install_main_dir}/driver/libtaosinternal.so.${verNumber}  
+
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1 > /dev/null 2>&1
     ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so > /dev/null 2>&1
     if [ -d "${lib64_link_dir}" ]; then
         ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 > /dev/null 2>&1
         ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so > /dev/null 2>&1
+    fi
+
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosinternal.* ${lib_link_dir}/libtaosinternal.so.1 > /dev/null 2>&1
+     ${csudo}ln -sf ${lib_link_dir}/libtaosinternal.so.1 ${lib_link_dir}/libtaosinternal.so > /dev/null 2>&1
+    if [ -d "${lib64_link_dir}" ]; then
+        ${csudo}ln -sf ${install_main_dir}/driver/libtaosinternal.* ${lib64_link_dir}/libtaosinternal.so.1 > /dev/null 2>&1
+        ${csudo}ln -sf ${lib64_link_dir}/libtaosinternal.so.1 ${lib64_link_dir}/libtaosinternal.so > /dev/null 2>&1
     fi
 
     if [ -f ${binary_dir}/build/lib/libtaosws.so ]; then
@@ -341,10 +354,18 @@ function install_lib() {
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib \
       ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
+    ${csudo}cp -Rf ${binary_dir}/build/lib/libtaosinternal.${verNumber}.dylib \
+      ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
+
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib \
       ${lib_link_dir}/libtaos.1.dylib > /dev/null 2>&1 || :
 
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosinternal.${verNumber}.dylib \
+      ${lib_link_dir}/libtaosinternal.1.dylib > /dev/null 2>&1 || :  
+
     ${csudo}ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib > /dev/null 2>&1 || :
+
+    ${csudo}ln -sf ${lib_link_dir}/libtaosinternal.1.dylib ${lib_link_dir}/libtaosinternal.dylib > /dev/null 2>&1 || :
 
     if [ -f ${binary_dir}/build/lib/libtaosws.dylib ]; then
         ${csudo}cp ${binary_dir}/build/lib/libtaosws.dylib \
