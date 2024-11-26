@@ -2498,10 +2498,6 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 _end:
   if (pThrd) {
     TAOS_UNUSED(taosThreadMutexDestroy(&pThrd->msgMtx));
-
-    TAOS_UNUSED(uv_loop_close(pThrd->loop));
-    taosMemoryFree(pThrd->loop);
-    TAOS_UNUSED((taosThreadMutexDestroy(&pThrd->msgMtx)));
     transAsyncPoolDestroy(pThrd->asyncPool);
     for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
       uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
@@ -2511,6 +2507,9 @@ _end:
     taosArrayDestroy(pThrd->timerList);
 
     TAOS_UNUSED(destroyConnPool(pThrd));
+    TAOS_UNUSED(uv_loop_close(pThrd->loop));
+    taosMemoryFree(pThrd->loop);
+
     transDQDestroy(pThrd->delayQueue, NULL);
     transDQDestroy(pThrd->timeoutQueue, NULL);
     transDQDestroy(pThrd->waitConnQueue, NULL);

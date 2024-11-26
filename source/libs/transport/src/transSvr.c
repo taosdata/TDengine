@@ -1380,6 +1380,9 @@ _end:
   }
   tError("%s failed to create conn since %s", transLabel(pInst), tstrerror(code));
   return NULL;
+_end2:
+   
+  return NULL;
 }
 
 static FORCE_INLINE void destroyConn(SSvrConn* conn, bool clear) {
