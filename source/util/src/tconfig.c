@@ -496,7 +496,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
   TAOS_CHECK_RETURN(checkItemDyn(pItem, isServer));
-  if (!isUpdateAll && (pItem->category & CFG_CATEGORY_GLOBAL) == 0) {
+  if ((!isUpdateAll) && (pItem->category == CFG_CATEGORY_GLOBAL)) {
     uError("failed to config:%s, not support update global config on only one dnode", name);
     cfgUnLock(pCfg);
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
@@ -979,9 +979,10 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
             for (size_t j = 0; j < sz; ++j) {
               SDiskCfg *pCfg = taosArrayGet(pItem->array, j);
               if (dump) {
-                (void)printf("%s %s %s l:%d p:%d d:%"PRIi8"\n", src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
+                (void)printf("%s %s %s l:%d p:%d d:%" PRIi8 "\n", src, name, pCfg->dir, pCfg->level, pCfg->primary,
+                             pCfg->disable);
               } else {
-                uInfo("%s %s %s l:%d p:%d d:%"PRIi8, src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
+                uInfo("%s %s %s l:%d p:%d d:%" PRIi8, src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
               }
             }
             break;
