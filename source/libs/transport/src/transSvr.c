@@ -1320,8 +1320,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, &lino, _end);
   }
 
-  QUEUE_INIT(&exh->q);
-
   SExHandle* pSelf = transAcquireExHandle(uvGetConnRefOfThrd(pThrd), exh->refId);
   if (pSelf != exh) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _end);
@@ -1369,6 +1367,12 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   return pConn;
 _end:
   if (pConn) {
+    if (pConn->refId > 0) {
+      transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
+      transRemoveExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
+      pConn->refId = -1;
+    }
+
     transQueueDestroy(&pConn->resps);
     transDestroyBuffer(&pConn->readBuf);
     taosHashCleanup(pConn->pQTable);
@@ -1379,9 +1383,6 @@ _end:
     pConn = NULL;
   }
   tError("%s failed to create conn since %s", transLabel(pInst), tstrerror(code));
-  return NULL;
-_end2:
-   
   return NULL;
 }
 
