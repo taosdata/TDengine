@@ -18,6 +18,12 @@ concurrency:
   cancel-in-progress: true
   
 jobs:
+  build:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    steps:
+      - name : Set COVERAGE_REPORT_DIR
+        run: |
+          echo "COVERAGE_REPORT_DIR=$COVERAGE_REPORT_DIR" >> $GITHUB_ENV
   remove_artifacts:
     runs-on: [self-hosted, linux, x64, qa, rust]
     steps:
