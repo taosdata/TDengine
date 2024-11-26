@@ -713,7 +713,9 @@ void tsdbAlterMaxCompactTasks() {
 }
 
 int32_t tsdbInitCompact() {
-  taosThreadMutexInit(&gCompactTaskStage.mutex, NULL);
+  if (taosThreadMutexInit(&gCompactTaskStage.mutex, NULL) != TSDB_CODE_SUCCESS) {
+    return terrno;
+  }
   gCompactTaskStage.numOfRunningCompactTasks = 0;
   gCompactTaskStage.maxNumOfCompactTasks = tsNumOfCompactThreads;
   return 0;
