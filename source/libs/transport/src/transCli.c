@@ -2017,7 +2017,9 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
           tWarn("%s conn %p failed to added to heap cache since %s", pInst->label, pConn, tstrerror(code));
         }
       } else {
-        // TAOS_CHECK_GOTO(code, &lino, _exception);
+        if (code == TSDB_CODE_OUT_OF_MEMORY && pConn == NULL) {
+          TAOS_CHECK_GOTO(code, &lino, _exception);
+        }
         return;
       }
     }
