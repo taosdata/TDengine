@@ -5,6 +5,7 @@ sidebar_label: Rust
 title: TDengine Rust Client Library
 description: This document describes the TDengine Rust client library.
 ---
+
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
 `taos` is the official Rust client library for TDengine. Rust developers can develop applications to access the TDengine instance data.
@@ -13,13 +14,13 @@ The source code for the Rust client library is located on [GitHub](https://githu
 
 ## Version support
 
-Please refer to [version support list and history](https://docs.tdengine.com/reference/connectors/rust/#version-history)
+Please refer to [version support list and history](/tdengine-reference/client-libraries/rust/#version-history)
 
 ## Connection types
 
 `taos` provides Native Connection and WebSocket connection
 
-More details about establishing a connection, please check[Developer Guide - Connectd - Rust](../01-connect/04-rust.md)
+More details about establishing a connection, please check[Developer Guide - Connectd - Rust](../../connect/rust/)
 
 ## Installation
 

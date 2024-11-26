@@ -4,7 +4,7 @@ title: TDengine Python Client Library
 description: This document describes the TDengine Python client library.
 ---
 
-`taospy` is the official Python client library for TDengine. `taospy` wraps the  [REST interface](/reference/rest-api) of TDengine. Additionally `taospy`  provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
+`taospy` is the official Python client library for TDengine. `taospy` wraps the REST interface of TDengine. Additionally `taospy`  provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
 The source code for the Python client library is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
@@ -22,14 +22,12 @@ The source code for the Python client library is hosted on [GitHub](https://gith
 2. The connection to the server using the REST or WebSocket interface provided by taosAdapter is referred to hereinafter as a "REST connection" or "WebSocket connection".
 :::
 
-For detailed information on how to establish a connection, please refer to: [Programming - Connect - Python](../01-connect/01-python.md).
-
 
 ## Installation
 
 ### Preparation
 
-1. Install Python. Python >= 3.6 is recommended. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
+1. Install Python. Python >= 3.6 is recommended. If Python is not available on your system, refer to the [Python Beginners Guide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
 2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
 
 ### Install via pip
@@ -86,7 +84,7 @@ The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 
 ### Use of the RestClient class
 
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+The `RestClient` class is a direct wrapper for the [REST API](/tdengine-reference/client-libraries/rest-api/). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
 
 ```python
 {{#include docs/examples/python/reference_rest_client.py}}

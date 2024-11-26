@@ -73,4 +73,4 @@ Click "CONNECT" once configuration is complete, then you can connect to your "TD
 
 Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in TDengine.
 
-And refer to [documentation](https://docs.tdengine.com/third-party/google-data-studio/) for more details.
+And refer to [documentation](/third-party-tools/analytics/looker-studio/) for more details.

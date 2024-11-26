@@ -15,7 +15,7 @@ The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is
 
 ## Installation
 
-To run TDengine CLI to access TDengine cloud, please download and install recent [TDengine client installation package](https://docs.tdengine.com/releases/tdengine/) first.
+To run TDengine CLI to access TDengine cloud, please download and install recent [TDengine client installation package](https://docs.tdengine.com/release-history/tdengine/) first.
 
 ## Config
 
@@ -127,4 +127,4 @@ Successfully connect to cloud.tdengine.com:8085 in restful mode
 taos>
 ```
 
-After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the [official document](https://docs.tdengine.com/reference/taos-shell/#execute-sql-script-file) for more details.
+After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the [official document](/tdengine-reference/tools/tdengine-cli/#executing-sql-scripts) for more details.
