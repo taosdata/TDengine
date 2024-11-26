@@ -22,7 +22,8 @@ jobs:
     steps:
       - name : Set COVERAGE_REPORT_DIR
         run: |
-          echo "COVERAGE_REPORT_DIR=$COVERAGE_REPORT_DIR" >> $GITHUB_ENV
+
+          echo "COVERAGE_REPORT_DIR=/data/code_coverage_taosx/$(date +%Y%m%d)" >> $GITHUB_ENV
   
   remove_artifacts:
     needs: build
