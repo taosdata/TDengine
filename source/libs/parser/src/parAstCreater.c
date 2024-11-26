@@ -2427,12 +2427,6 @@ static SNode* createAlterTableStmtFinalize(SNode* pRealTable, SAlterTableStmt* p
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 }
-static SNode* createAlterTableMultiStmtFinalize(SNode* pRealTable, SAlterTableMultiStmt* pStmt) {
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
-  nodesDestroyNode(pRealTable);
-  return (SNode*)pStmt;
-}
 
 SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
