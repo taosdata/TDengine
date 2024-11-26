@@ -1378,7 +1378,7 @@ _end:
     taosMemoryFree(pConn);
     pConn = NULL;
   }
-  tError("%s failed to create conn since %s" PRId64, transLabel(pInst), tstrerror(code));
+  tError("%s failed to create conn since %s", transLabel(pInst), tstrerror(code));
   return NULL;
 }
 
