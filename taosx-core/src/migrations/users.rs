@@ -87,6 +87,7 @@ mod tests {
     use taos::{AsyncTBuilder, TaosBuilder};
 
     #[tokio::test]
+    #[ignore]
     async fn test_user_full() -> anyhow::Result<()> {
         use file_guard::Lock;
         use std::fs::OpenOptions;

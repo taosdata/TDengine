@@ -47,6 +47,8 @@ pub struct TmqMetrics {
     pub total_write_raw_cost_ms: AtomicU64,
     #[serde(default)]
     pub total_write_cost_ms: AtomicU64,
+    #[serde(default)]
+    pub commits: AtomicU64,
     // Topic Name -> Vgroup ID -> Assignment
     #[serde(skip)]
     pub progress: DashMap<String, DashMap<i32, Assignment>>,
@@ -81,6 +83,7 @@ impl Default for TmqMetrics {
             total_consume_cost_ms: AtomicU64::new(0),
             total_write_raw_cost_ms: AtomicU64::new(0),
             total_write_cost_ms: AtomicU64::new(0),
+            commits: AtomicU64::new(0),
             progress: DashMap::new(),
         }
     }
@@ -174,6 +177,10 @@ impl TmqMetrics {
     pub fn add_write_raw_cost_ms(&self, n: u64) {
         self.total_write_raw_cost_ms.fetch_add(n, SeqCst);
     }
+
+    pub fn add_commits(&self, n: u64) {
+        self.commits.fetch_add(n, SeqCst);
+    }
 }
 
 impl TaskMetrics for TmqMetrics {
@@ -227,7 +234,8 @@ impl Display for TmqMetrics {
             workers: {}\n\
             messages(total): {}\n\
             messages(meta only): {}\n\
-            messages(data only): {}\n",
+            messages(data only): {}\n\
+            commits: {}\n",
             self.topics.load(SeqCst),
             self.consumers.load(SeqCst),
             self.messages.load(std::sync::atomic::Ordering::SeqCst),
@@ -235,6 +243,7 @@ impl Display for TmqMetrics {
                 .load(std::sync::atomic::Ordering::SeqCst),
             self.messages_of_data
                 .load(std::sync::atomic::Ordering::SeqCst),
+            self.commits.load(SeqCst),
         )?;
 
         if self.messages.load(std::sync::atomic::Ordering::SeqCst) > 0 {

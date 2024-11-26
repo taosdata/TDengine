@@ -164,8 +164,8 @@ pub async fn pi_to_taos(
         }
     }
 
-    let mut ipc = build_ipc(
-        &config.ipc_stream,
+    let (mut ipc, _) = build_ipc(
+        Some(&config.ipc_stream),
         None,
         &to,
         Some("pi"),

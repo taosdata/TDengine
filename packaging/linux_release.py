@@ -9,7 +9,6 @@ script_dir = os.path.abspath(os.getcwd())
 top_dir = os.path.abspath(os.path.join(script_dir, ".."))
 release_dir = os.path.abspath(os.path.join(top_dir, "release"))
 opc_dir = os.path.abspath(os.path.join(top_dir, "plugins","opc"))
-mqtt_dir = os.path.abspath(os.path.join(top_dir, "plugins","mqtt"))
 influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
 opentsdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","opentsdb"))
 explore_dir = os.path.abspath(os.path.join(top_dir, "explorer"))
@@ -27,8 +26,6 @@ def release(release_info,build_info):
         logging.info("build_info: {0}".format(info.__dict__))
         if info.Name =='opc':
             build_and_install_opc_on_linux(release_info,info.VersionMode)
-        if info.Name =='mqtt':
-            build_and_install_mqtt_on_linux(release_info,info.VersionMode)
         if info.Name =='influxdb':
             build_and_install_influxdb_on_linux(info.VersionMode)
         if info.Name =='opentsdb':
@@ -90,33 +87,6 @@ def build_and_install_opc_on_linux(release_info,mode='release'):
     logging.info("taosx-opc copied to {release_dir}".format(release_dir=release_dir))
 
     os.chdir(script_dir)
-
-def build_and_install_mqtt_on_linux(release_info,mode='release'):
-    logging.info("building taosx-mqtt")
-    platform = "linux"
-    arch = "amd64"
-    verMode = "release"
-    dst_dir = os.path.join(release_dir,"plugins","mqtt")
-    binary_file = os.path.join(mqtt_dir,"dist","taosx-mqtt")
-    check_directory(dst_dir)
-
-    os.chdir(mqtt_dir)
-    if mode.lower() == 'release':
-        build_command = f"go build -o {binary_file} -ldflags \"" \
-                 f"-X github.com/taosdata/taosx/plugins/mqtt/version.Commit={release_info.Commit} " \
-                 f"-X \'github.com/taosdata/taosx/plugins/mqtt/version.BuildTime={release_info.BuildTime}\'\""
-    else:
-        build_command = f"go build -o {binary_file} -ldflags \"" \
-                 f"-X github.com/taosdata/taosx/plugins/mqtt/version.Commit={release_info.Commit} " \
-                 f"-X \'github.com/taosdata/taosx/plugins/mqtt/version.BuildTime={release_info.BuildTime}\'\""
-
-    logging.info(f"build_command: {build_command}")
-    os.system(build_command)
-    logging.info("taosx-mqtt built successfully")
-
-    shutil.copy2(binary_file, dst_dir)
-    logging.info("taosx-mqtt copied to {release_dir}".format(release_dir=dst_dir))
-
 
 def build_and_install_influxdb_on_linux(mode='release'):
     logging.info("build_and_install taosx-influxdb on linux")
@@ -290,9 +260,6 @@ def test_handle(release_info, process):
     if process == "opc":
         print("Calling OPC function...")
         build_and_install_opc_on_linux(release_info, "Debug")
-    elif process == "mqtt":
-        print("Calling MQTT function...")
-        build_and_install_mqtt_on_linux(release_info, "Debug")
     elif process == "package":
         print("Calling Package function...")
         chmodReleaseDir(release_info)

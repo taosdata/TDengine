@@ -280,7 +280,7 @@ export default {
     async getDataSourceDetail() {
       await getDataSourceDetail(this.editId)
         .then((data) => {
-          this.sourceForm.type = data.from_detail.id;
+          this.sourceForm.type = data.from_expand.id;
           this.sourceForm.name = data.name;
           this.sourceForm.targetDB = data?.to_expand?.subject;
           this.sourceForm.agent = data.via;
@@ -288,6 +288,9 @@ export default {
             [data.from_detail],
             data.parser
           );
+          if (data.parser && data.from_expand.id) {
+            this.$store.commit("app/SET_CSV_RAW_DATA", data.parser.input);
+          }
         })
         .finally(() => {
           this.requestIng = false;

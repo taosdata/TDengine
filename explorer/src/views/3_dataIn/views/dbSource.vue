@@ -89,7 +89,6 @@ export default {
       this.editId = val;
     },
     async toggleComponent(type, id, editid, dbname) {
-      console.log('this.isViewable',this.isViewable);
       if (type && !this.isEditable) {
         //新增
         this.isEditable = false;

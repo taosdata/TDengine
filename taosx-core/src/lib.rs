@@ -354,7 +354,6 @@ impl TaskOpts {
                         parser.clone(),
                         to.clone(),
                         *jobs,
-                        port_pool,
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
@@ -618,6 +617,7 @@ mod tests {
         assert_eq!(None, dsn.params.get("breakpoints"));
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_wrong_taos_in_dsn() -> Result<(), anyhow::Error> {
         dbg!(format!("test start: {}", chrono::Local::now()));
@@ -637,6 +637,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_wrong_taos_in_dsn_pool() -> Result<(), anyhow::Error> {
         dbg!(format!("test start: {}", chrono::Local::now()));

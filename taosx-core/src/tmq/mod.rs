@@ -198,6 +198,27 @@ pub(crate) async fn check_tmq_dsn(
         from.set("experimental.snapshot.enable", "true");
     }
 
+    if !from.get("enable.auto.commit").map_or(false, |s| {
+        matches!(
+            s.as_str(),
+            "true"
+                | ""
+                | "1"
+                | "yes"
+                | "on"
+                | "enable"
+                | "enabled"
+                | "T"
+                | "TRUE"
+                | "YES"
+                | "ON"
+                | "ENABLE"
+                | "ENABLED"
+        )
+    }) {
+        from.set("auto.commit.interval.ms", i32::MAX.to_string());
+    }
+
     let mut replica = false;
     if let Some(val) = from.get("msg.consume.excluded") {
         let val = val.trim();

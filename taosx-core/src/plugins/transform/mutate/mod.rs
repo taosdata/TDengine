@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use super::{filter::Filter, map::Map, parse::ParserImpl, TransformExt};
 
@@ -11,6 +12,7 @@ pub enum Mutate {
 }
 
 impl TransformExt for Mutate {
+    #[instrument(skip_all)]
     fn transform_record_batch(
         &self,
         records: &arrow::record_batch::RecordBatch,

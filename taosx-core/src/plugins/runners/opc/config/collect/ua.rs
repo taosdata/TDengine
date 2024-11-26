@@ -2,11 +2,9 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
-use crate::runners::opc::config::collect::CollectMode;
+use crate::runners::opc::config::collect::{parse_opc_node_ids, CollectMode};
 use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::{
-    get_string_vec_from_param_or_file_for_opc, OPCConfig, PointsMode,
-};
+use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::OpcType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,30 +53,17 @@ impl UaCollectConfig {
                     "csv_config_file is required for PointsMode::ByCsv"
                 ))?;
                 let parser = CsvParser::try_new(OpcType::OPCUA, csv_files)?;
-                let node_ids = parser.parse_all_point_id_and_tbname().await?;
-                node_ids
-                    .into_iter()
-                    .map(|(point_id, tbname)| format!("{}::{}", point_id, tbname))
-                    .collect_vec()
+                let node_ids = parser.parse_point_id_and_tbname().await?;
+
+                node_ids.iter().map(|(tag, _)| tag.clone()).collect_vec()
             }
-            PointsMode::ByCommand => {
-                get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
-                    .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?
-            }
+            PointsMode::ByCommand => parse_opc_node_ids(dsn, "ua.nodes").await?,
         };
 
-        let mut ua_node_config_vec = Vec::new();
-        for node in node_vec {
-            tracing::info!("Node: {}", node);
-            if let Some((id, _)) = node.split_once("::") {
-                ua_node_config_vec.push(UANodeConfig { id: id.to_string() });
-            } else {
-                tracing::warn!("Node: {} is not regular(with \"::\")", node);
-                ua_node_config_vec.push(UANodeConfig {
-                    id: node.to_string(),
-                });
-            }
-        }
+        let ua_node_config_vec = node_vec
+            .into_iter()
+            .map(|id| UANodeConfig { id })
+            .collect_vec();
 
         Ok(ua_node_config_vec)
     }

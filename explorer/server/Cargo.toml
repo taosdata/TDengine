@@ -11,7 +11,7 @@ actix-cors = "0.7.0"
 actix-embed = "0.1.0"
 actix-files = "0.6.6"
 actix-web = { version = "4.7.0", features = ["rustls-0_23"] }
-rustls = { version = "0.23.10", default-features = false, features = ["ring"] }
+rustls = { version = "0.23.18", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.1.2"
 reqwest = { version = "0.11.27", default-features = false, features = [
 	"stream",
@@ -23,6 +23,7 @@ anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "2.2.0"
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "runtime-tokio"] }
+tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7.10"
 tokio-stream = "0.1.14"
 log = { version = "0.4", features = ["serde"] }
@@ -71,3 +72,4 @@ shadow-rs = { version = "0.33", default-features = false }
 
 [dev-dependencies]
 zstd = "0"
+mockito = "1.6.1"

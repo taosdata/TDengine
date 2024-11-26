@@ -101,9 +101,9 @@ pub const METRIC_POINT_FAILS: &str = "ipc.stream.point_fails";
 pub const METRIC_WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
 pub const METRIC_WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
 
-#[instrument(skip_all, fields(ipc.listen = socket, ipc.target = % mask_dsn(to)))]
+#[instrument(skip_all, fields(ipc.target = % mask_dsn(to)))]
 pub async fn build_ipc(
-    socket: &str,
+    socket: Option<&str>,
     parser: Option<Parser>,
     to: &Dsn,
     connector: Option<&'static str>,
@@ -114,21 +114,18 @@ pub async fn build_ipc(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-) -> anyhow::Result<IpcHandler> {
-    let ipc = if with_agent.is_none() {
+) -> anyhow::Result<(IpcHandler, std::net::SocketAddr)> {
+    if with_agent.is_none() {
         let pool = {
             let builder = taos::TaosBuilder::from_dsn(to)?;
             let mut pool_config = builder.default_pool_config();
             pool_config.timeouts.wait = Some(Duration::from_secs(30));
             builder.with_pool_config(pool_config)?
         };
-        if with_agent.is_none() {
-            let _ = pool.get().await.context("Target connection error")?;
-        }
+        let _ = pool.get().await.context("Target connection error")?;
         sink::listen_tcp_socket(
             pool,
             socket,
-            // sender,
             opc_model_config,
             lush_model_config,
             cancel.clone(),
@@ -140,7 +137,7 @@ pub async fn build_ipc(
             notify,
         )
         .in_current_span()
-        .await?
+        .await
     } else {
         sink::listen_tcp_socket_with_agent(
             socket,
@@ -149,9 +146,8 @@ pub async fn build_ipc(
             opc_model_config,
         )
         .in_current_span()
-        .await?
-    };
-    Ok(ipc)
+        .await
+    }
 }
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {

@@ -1,4 +1,3 @@
-use crate::get_data_dir;
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
@@ -10,14 +9,14 @@ use crate::utils::validate_table_column_name;
 use anyhow::bail;
 use base64::engine::general_purpose;
 use base64::Engine;
-use csv_async::{AsyncReader, AsyncWriter, StringRecord};
+use csv_async::{AsyncReader, StringRecord};
+use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
 use taos::Dsn;
 use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
 
 pub mod column;
@@ -29,7 +28,7 @@ pub struct CsvParser {
     opc_type: OpcType,
     /// csv files could be file path or utf8 encoded string
     csv_files: Vec<String>,
-
+    /// csv_origin stores the original content of the csv file
     csv_origin: Option<String>,
 }
 
@@ -53,6 +52,16 @@ impl CsvParser {
             "csv_config_file not found in the dsn: {}",
             dsn.to_string()
         ))?;
+
+        let csv_files = csv_files
+            .iter()
+            .filter(|f| !f.is_empty())
+            .map(|f| f.to_string())
+            .collect_vec();
+
+        if csv_files.is_empty() {
+            bail!("opc csv config files is empty");
+        }
 
         Ok(Self {
             opc_type,
@@ -100,7 +109,7 @@ impl CsvParser {
     }
 
     /// 直接解析 csv 文件内容，生成 opc model config
-    async fn parse_csv(opc_type: OpcType, content: String) -> anyhow::Result<OpcModelConfig> {
+    pub async fn parse_csv(opc_type: OpcType, content: String) -> anyhow::Result<OpcModelConfig> {
         let rdr = Self::load_csv_with_string(content.as_str(), false).await?;
 
         let (point_config_map, table_config_map) =
@@ -237,59 +246,6 @@ impl CsvParser {
         Ok(csv_header)
     }
 
-    /// 在 csv 文件中追加一行
-    pub async fn append_line(&self, line: String) -> anyhow::Result<()> {
-        if self.csv_files.is_empty() {
-            bail!("csv_files is empty");
-        }
-
-        // open the first file
-        let csv_file = self
-            .csv_files
-            .first()
-            .ok_or(anyhow::anyhow!("csv_file not found"))?;
-        tracing::info!("append line to the csv: {}", csv_file);
-        let mut rdr = Self::open_csv(csv_file.clone()).await?;
-
-        // read csv to writer
-        let mut writer = AsyncWriter::from_writer(vec![]);
-        let header = rdr.headers().await?;
-        writer.write_record(header.iter()).await?;
-        let mut records = rdr.records();
-        while let Some(record) = records.next().await {
-            let record = record.map_err(|e| {
-                anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
-            })?;
-            writer.write_record(record.iter()).await?;
-        }
-
-        // append the new line
-        let mut rdr = AsyncReader::from_reader(line.as_bytes());
-        let mut records = rdr.records();
-        let record = if let Some(record) = records.next().await {
-            record
-                .map_err(|e| anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string()))?
-        } else {
-            bail!("empty csv line")
-        };
-        writer.write_record(record.iter()).await?;
-
-        // write the new csv
-        let new_csv = String::from_utf8(writer.into_inner().await?)?;
-
-        let model_config = CsvParser::parse_csv(self.opc_type.clone(), new_csv.clone()).await?;
-        model_config.validate()?;
-
-        if let Some(file_path) = csv_file.strip_prefix("@") {
-            let mut file = File::create(file_path).await?;
-            file.write_all(new_csv.as_bytes()).await?;
-        } else {
-            todo!("write to csv_config_file in dsn")
-        }
-
-        Ok(())
-    }
-
     /// 如果 csv 以 @ 开头， 从文件中读， 否则从字符串中读
     pub async fn open_csv(csv: String) -> anyhow::Result<AsyncReader<File>> {
         let rdr = if let Some(file_path) = csv.strip_prefix("@") {
@@ -316,9 +272,6 @@ impl CsvParser {
     }
 
     async fn load_csv_with_path(file_path: &str) -> anyhow::Result<AsyncReader<File>> {
-        // set current dir to DATA_DIR
-        let _ = std::env::set_current_dir(get_data_dir());
-
         // check the file encoding
         let encoding = get_encode(file_path)?;
         if encoding.name() != "UTF-8" {
@@ -362,8 +315,8 @@ impl CsvParser {
         Ok(readers)
     }
 
-    pub async fn parse_all_point_id_and_tbname(&self) -> anyhow::Result<Vec<(String, String)>> {
-        let mut point_ids = vec![];
+    pub async fn parse_point_id_and_tbname(&self) -> anyhow::Result<LinkedHashMap<String, String>> {
+        let mut point_ids = LinkedHashMap::new();
 
         let files = Self::open_csv_many(self.csv_files.clone()).await?;
         for (_file, mut rdr) in files {
@@ -390,7 +343,7 @@ impl CsvParser {
                 let point_id = Self::parse_point_id(&csv_header, &row)?;
                 let tbname = Self::parse_tbname(&csv_header, &row)?;
 
-                point_ids.push((point_id, tbname));
+                point_ids.insert(point_id, tbname);
             }
         }
 
@@ -416,12 +369,6 @@ impl CsvParser {
                 let row = record.map_err(|e| {
                     anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
                 })?;
-
-                // filter out disabled points
-                let enabled = Self::parse_enabled(&csv_header, &row)?.unwrap_or(1i8);
-                if enabled == 0 {
-                    continue;
-                }
                 let point_id = Self::parse_point_id(&csv_header, &row)?;
                 point_ids.push(point_id);
             }
@@ -574,6 +521,9 @@ impl CsvParser {
         }
     }
 
+    /// 从 csv 文件中读取内容
+    /// 如果 csv 在文件中，则返回：(文件路径， 文件内容)
+    /// 如果 csv 在 dsn 中，则返回：(None, 文件内容)
     pub async fn read_to_string(&self) -> anyhow::Result<(Option<String>, String)> {
         if self.csv_files.is_empty() {
             bail!("csv_files is empty");
@@ -609,11 +559,41 @@ impl CsvParser {
     }
 }
 
+/// 从 csv_config_files 中获取 csv 文件的 headers
+pub async fn get_csv_headers(dsn: &Dsn) -> anyhow::Result<HashMap<String, CsvHeader>> {
+    let opc_type = OpcType::from_dsn(dsn)?;
+    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in dsn: {}",
+        dsn.to_string()
+    ))?;
+    tracing::debug!("get headers from csv files: {:?}", csv_files);
+
+    // parse header from csv files
+    let parser = CsvParser::try_new(opc_type, csv_files)?;
+    let headers = parser.get_all_headers().await?;
+
+    Ok(headers)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use futures::stream::StreamExt;
     use std::str::FromStr;
+
+    #[tokio::test]
+    async fn test_get_csv_headers() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
+
+        let headers = get_csv_headers(&dsn).await.unwrap();
+        assert_eq!(headers.len(), 1);
+
+        let header = headers.values().next().unwrap();
+        let cols = header.get_columns();
+        assert_eq!(cols.len(), 14);
+    }
 
     #[test]
     fn test_decode_csv_content() {
@@ -723,24 +703,20 @@ mod tests {
 
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
-        let ua_config = csv_parser.parse_all_point_id_and_tbname().await.unwrap();
+        let ua_config = csv_parser.parse_point_id_and_tbname().await.unwrap();
         assert_eq!(ua_config.len(), 2);
-        let (point_id, tbname) = ua_config.first().unwrap();
-        assert_eq!(point_id, "ns=3;i=1005");
+        let tbname = ua_config.get("ns=3;i=1005").unwrap();
         assert_eq!(tbname, "t_3_1005");
-        let (point_id, tbname) = ua_config.get(1).unwrap();
-        assert_eq!(point_id, "ns=3;i=1006");
+        let tbname = ua_config.get("ns=3;i=1006").unwrap();
         assert_eq!(tbname, "t_3_1006");
 
         let dsn = Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
-        let da_config = csv_parser.parse_all_point_id_and_tbname().await.unwrap();
+        let da_config = csv_parser.parse_point_id_and_tbname().await.unwrap();
         assert_eq!(da_config.len(), 2);
-        let (point_id, tbname) = da_config.first().unwrap();
-        assert_eq!(point_id, "root.parent.temperature");
+        let tbname = da_config.get("root.parent.temperature").unwrap();
         assert_eq!(tbname, "t_temperature");
-        let (point_id, tbname) = da_config.get(1).unwrap();
-        assert_eq!(point_id, "root.parent.current");
+        let tbname = da_config.get("root.parent.current").unwrap();
         assert_eq!(tbname, "t_custom_current");
     }
 

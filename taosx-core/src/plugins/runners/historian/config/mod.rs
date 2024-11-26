@@ -2,50 +2,10 @@ use crate::plugins::config::AdvancedOptions;
 use crate::utils;
 use anyhow::bail;
 use chrono::{DateTime, Duration, Utc};
-use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use taos::Dsn;
 
-use crate::runners::historian::config::connect::ConnectConfig;
-
-pub mod connect;
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum TaskMode {
-    Synchronize,
-    Migrate,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum HistorianTable {
-    History,
-    Live,
-}
-
-impl Display for HistorianTable {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let to_string = match self {
-            HistorianTable::Live => "Runtime.dbo.Live",
-            HistorianTable::History => "Runtime.dbo.History",
-        };
-        write!(f, "{}", to_string)
-    }
-}
-
-impl FromStr for HistorianTable {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "Runtime.dbo.History" => Ok(Self::History),
-            "Runtime.dbo.Live" => Ok(Self::Live),
-            _ => Err(anyhow::anyhow!(
-                "invalid historian table: {}, must be Runtime.dbo.History or Runtime.dbo.Live",
-                s
-            )),
-        }
-    }
-}
+use crate::runners::historian::{HistorianTable, TaskMode};
 
 #[derive(Debug, Clone)]
 pub struct TaskConfig {
@@ -73,22 +33,49 @@ pub struct TaskConfig {
 
 impl TaskConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let task_id = Self::parse_task_id(dsn);
+        let connect = ConnectConfig::from_dsn(dsn)?;
+        let mode = Self::parse_mode(dsn)?;
+        let table = Self::parse_table(dsn)?;
+        if mode == TaskMode::Migrate && table == HistorianTable::Live {
+            bail!("table must be Runtime.dbo.History when mode is migrate");
+        }
+
+        let tags = Self::parse_tags(dsn);
+        let tag_list_size = Self::parse_tag_list_size(dsn)?;
+
+        let begin_datetime = Self::parse_begin_datetime(dsn)?;
+        if begin_datetime.is_none() && table == HistorianTable::History {
+            bail!("beginDateTime is required when table is Runtime.dbo.History");
+        }
+
+        let end_datetime = Self::parse_end_datetime(dsn)?;
+        if end_datetime.is_none() && mode == TaskMode::Migrate && table == HistorianTable::History {
+            bail!("endDateTime is required when mode is migrate and table is Runtime.dbo.History");
+        }
+
+        let time_window = Self::parse_time_window(dsn)?;
+        let retrieve_interval = Self::parse_retrieve_interval(dsn)?;
+        let tolerance = Self::parse_tolerance(dsn)?;
+        let sample_data_limit = Self::parse_sample_data_limit(dsn)?;
+        let advanced_options = AdvancedOptions::from_dsn(dsn)?;
+
         Ok(TaskConfig {
-            task_id: Self::parse_task_id(dsn),
+            task_id,
             sub_task_id: None,
-            connect: ConnectConfig::from_dsn(dsn)?,
+            connect,
             ipc_port: None,
-            mode: Self::parse_mode(dsn)?,
-            table: Self::parse_table(dsn)?,
-            tags: Self::parse_tags(dsn),
-            tag_list_size: Self::parse_tag_list_size(dsn)?,
-            begin_datetime: Self::parse_begin_datetime(dsn)?,
-            end_datetime: Self::parse_end_datetime(dsn)?,
-            time_window: Self::parse_time_window(dsn)?,
-            retrieve_interval: Self::parse_retrieve_interval(dsn)?,
-            tolerance: Self::parse_tolerance(dsn)?,
-            sample_data_limit: Self::parse_sample_data_limit(dsn)?,
-            advanced_options: AdvancedOptions::from_dsn(dsn)?,
+            mode,
+            table,
+            tags,
+            tag_list_size,
+            begin_datetime,
+            end_datetime,
+            time_window,
+            retrieve_interval,
+            tolerance,
+            sample_data_limit,
+            advanced_options,
         })
     }
 
@@ -106,11 +93,7 @@ impl TaskConfig {
     fn parse_mode(dsn: &Dsn) -> anyhow::Result<TaskMode> {
         dsn.params
             .get("mode")
-            .map(|s| match s.as_str() {
-                "synchronize" => Ok(TaskMode::Synchronize),
-                "migrate" => Ok(TaskMode::Migrate),
-                _ => Err(anyhow::anyhow!("mode must be synchronize or migrate")),
-            })
+            .map(|s| TaskMode::from_str(s))
             .transpose()?
             .ok_or(anyhow::anyhow!("mode is required"))
     }
@@ -123,10 +106,6 @@ impl TaskConfig {
             .transpose()?
             .ok_or(anyhow::anyhow!("table is required"))?;
 
-        let mode = Self::parse_mode(dsn)?;
-        if mode == TaskMode::Migrate && table == HistorianTable::Live {
-            bail!("table must be Runtime.dbo.History when mode is migrate");
-        }
         Ok(table)
     }
 
@@ -176,11 +155,6 @@ impl TaskConfig {
             })
             .transpose()?;
 
-        let table = Self::parse_table(dsn);
-        if table.is_ok() && begin_datetime.is_none() && table.unwrap() == HistorianTable::History {
-            bail!("beginDateTime is required when table is Runtime.dbo.History");
-        }
-
         Ok(begin_datetime)
     }
 
@@ -202,19 +176,6 @@ impl TaskConfig {
                 )
             })
             .transpose()?;
-
-        let mode = Self::parse_mode(dsn);
-        let table = Self::parse_table(dsn);
-        if mode.is_err() || table.is_err() {
-            return Ok(end_date_time);
-        }
-
-        if end_date_time.is_none()
-            && mode.unwrap() == TaskMode::Migrate
-            && table.unwrap() == HistorianTable::History
-        {
-            bail!("endDateTime is required when mode is migrate and table is Runtime.dbo.History");
-        }
 
         Ok(end_date_time)
     }
@@ -326,9 +287,134 @@ impl TaskConfig {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ConnectConfig {
+    pub(crate) host: String,
+    pub(crate) port: u16,
+    pub(crate) username: String,
+    pub(crate) password: String,
+}
+
+impl ConnectConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let host = dsn
+            .addresses
+            .first()
+            .and_then(|addr| addr.host.clone())
+            .ok_or_else(|| anyhow::anyhow!("host is required"))?;
+
+        let port = dsn
+            .addresses
+            .first()
+            .and_then(|addr| addr.port)
+            .unwrap_or(1433);
+
+        let username = dsn
+            .username
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("username is required"))?;
+
+        let password = dsn
+            .password
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("password is required"))?;
+
+        Ok(ConnectConfig {
+            host,
+            port,
+            username,
+            password,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
+
+    #[test]
+    fn test_connect_config_from_dsn() {
+        let dsn = Dsn::from_str("historian://").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!("host is required", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("historian://localhost").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!("username is required", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("historian://aaAdmin@localhost").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!("password is required", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@localhost").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!("localhost", config.host);
+        assert_eq!(1433, config.port);
+        assert_eq!("aaAdmin", config.username);
+        assert_eq!("aaAdmin", config.password);
+
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@localhost:1234").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!("localhost", config.host);
+        assert_eq!(1234, config.port);
+        assert_eq!("aaAdmin", config.username);
+        assert_eq!("aaAdmin", config.password);
+    }
+
+    #[test]
+    fn test_task_config_from_dsn() {
+        let dsn = Dsn::from_str("historian://").unwrap();
+        let config = TaskConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!("host is required", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("historian://localhost").unwrap();
+        let config = TaskConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!("username is required", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("historian://aaAdmin@localhost").unwrap();
+        let config = TaskConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!("password is required", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@localhost").unwrap();
+        let config = TaskConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!("mode is required", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@localhost?mode=migrate").unwrap();
+        let config = TaskConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!("table is required", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str(
+            "historian://aaAdmin:aaAdmin@localhost?mode=migrate&table=Runtime.dbo.Live",
+        )
+        .unwrap();
+        let config = TaskConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!(
+            "table must be Runtime.dbo.History when mode is migrate",
+            config.unwrap_err().to_string()
+        );
+
+        let dsn = Dsn::from_str(
+            "historian://aaAdmin:aaAdmin@host?mode=migrate&table=Runtime.dbo.History&beginDateTime=2024-01-01T00:00:00Z",
+        )
+        .unwrap();
+        let config = TaskConfig::from_dsn(&dsn);
+        assert!(config.is_err());
+        assert_eq!(
+            "endDateTime is required when mode is migrate and table is Runtime.dbo.History",
+            config.unwrap_err().to_string()
+        );
+    }
 
     #[test]
     fn test_historian_table_fmt() {
@@ -355,67 +441,6 @@ mod tests {
         let dsn = Dsn::from_str("historian://?taskId=xxx").unwrap();
         let config = TaskConfig::parse_task_id(&dsn);
         assert!(config.is_none());
-    }
-
-    #[test]
-    fn test_parse_mode() {
-        let dsn = Dsn::from_str("historian://?").unwrap();
-        let config = TaskConfig::parse_mode(&dsn);
-        assert!(config.is_err());
-        assert_eq!("mode is required", config.unwrap_err().to_string());
-
-        let dsn = Dsn::from_str("historian://?mode=synchronize").unwrap();
-        let config = TaskConfig::parse_mode(&dsn).unwrap();
-        assert_eq!(TaskMode::Synchronize, config);
-
-        let dsn = Dsn::from_str("historian://?mode=migrate").unwrap();
-        let config = TaskConfig::parse_mode(&dsn).unwrap();
-        assert_eq!(TaskMode::Migrate, config);
-
-        let dsn = Dsn::from_str("historian://?mode=xxx").unwrap();
-        let config = TaskConfig::parse_mode(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "mode must be synchronize or migrate",
-            config.unwrap_err().to_string()
-        );
-    }
-
-    #[test]
-    fn test_parse_table() {
-        let dsn = Dsn::from_str("historian://?").unwrap();
-        let config = TaskConfig::parse_table(&dsn);
-        assert!(config.is_err());
-        assert_eq!("table is required", config.unwrap_err().to_string());
-
-        let dsn =
-            Dsn::from_str("historian://?mode=synchronize&&table=Runtime.dbo.History").unwrap();
-        let config = TaskConfig::parse_table(&dsn).unwrap();
-        assert_eq!(HistorianTable::History, config);
-
-        let dsn = Dsn::from_str("historian://?mode=synchronize&&table=Runtime.dbo.Live").unwrap();
-        let config = TaskConfig::parse_table(&dsn).unwrap();
-        assert_eq!(HistorianTable::Live, config);
-
-        let dsn = Dsn::from_str("historian://?mode=synchronize&&table=xxx").unwrap();
-        let config = TaskConfig::parse_table(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "invalid historian table: xxx, must be Runtime.dbo.History or Runtime.dbo.Live",
-            config.unwrap_err().to_string()
-        );
-
-        let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.History").unwrap();
-        let config = TaskConfig::parse_table(&dsn).unwrap();
-        assert_eq!(HistorianTable::History, config);
-
-        let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.Live").unwrap();
-        let config = TaskConfig::parse_table(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "table must be Runtime.dbo.History when mode is migrate",
-            config.unwrap_err().to_string()
-        );
     }
 
     #[test]
@@ -477,34 +502,17 @@ mod tests {
         let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
         assert!(config.is_none());
 
-        let dsn = Dsn::from_str("historian://?mode=synchronize").unwrap();
-        let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
-        assert!(config.is_none());
-
-        let dsn = Dsn::from_str("historian://?mode=migrate").unwrap();
-        let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
-        assert!(config.is_none());
-
-        let dsn =
-            Dsn::from_str("historian://?mode=migrate&endDateTime=2021-01-01T00:00:00Z").unwrap();
+        let dsn = Dsn::from_str("historian://?endDateTime=2021-01-01T00:00:00Z").unwrap();
         let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
         assert_eq!("2021-01-01T00:00:00+00:00", config.unwrap().to_rfc3339());
 
-        let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.History").unwrap();
+        let dsn = Dsn::from_str("historian://?endDateTime=xxx").unwrap();
         let config = TaskConfig::parse_end_datetime(&dsn);
         assert!(config.is_err());
-        assert_eq!(
-            "endDateTime is required when mode is migrate and table is Runtime.dbo.History",
-            config.unwrap_err().to_string()
-        );
-
-        let dsn = Dsn::from_str("historian://?mode=migrate&endDateTime=xxx").unwrap();
-        let config = TaskConfig::parse_end_datetime(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "failed to parse endDateTime: xxx, cause: premature end of input",
-            config.unwrap_err().to_string()
-        );
+        assert!(config
+            .unwrap_err()
+            .to_string()
+            .starts_with("failed to parse endDateTime: xxx, cause:"));
     }
 
     #[test]

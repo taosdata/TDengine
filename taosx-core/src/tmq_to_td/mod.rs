@@ -1023,7 +1023,6 @@ async fn sync_interlace(
                 msg_tx.send_async(InterlaceItem::Message(message)).await?;
                 res_rx.recv_async().await??;
                 consumer.commit(offset).await?;
-                println!("{}", metrics);
                 last_commit = std::time::Instant::now();
                 last_message = std::time::Instant::now();
                 continue;
@@ -1199,99 +1198,127 @@ async fn sync_concurrently(
     tracing::info!("Start consuming");
     let mut per_message_instant = std::time::Instant::now();
 
-    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(1);
+    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
     let poll_interval = if options.max_polling_timeout < DEFAULT_POLL_INTERVAL {
         options.max_polling_timeout
     } else {
         DEFAULT_POLL_INTERVAL
     };
+    let timeout = Timeout::from_millis(poll_interval.as_millis() as _);
     let refresh_progress_interval =
         crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
-    loop {
-        if cancel.is_cancelled() {
-            tracing::info!("Sync cancelled");
-            break;
-        }
-        drop(last_offset.take());
-        if let Some((offset, message)) = consumer
-            .recv_timeout(Timeout::from_millis(poll_interval.as_millis() as _))
-            .await?
-        {
-            if refresh_progress_interval.ticked() {
-                update_progress(&consumer, metrics).await;
-            }
-            metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
-            let message_type = match &message {
-                MessageSet::Meta(_) => 1,
-                MessageSet::Data(_) => 2,
-                MessageSet::MetaData(_, _) => 3,
-            };
-            metrics.add_messages(1);
-            let raw = options
-                .parse_message(&message, metrics)
-                .in_current_span()
-                .await?;
-            drop(message);
-            if message_type == 1 {
-                clean_cache!();
-                // meta only, sync immediately.
-                msg_tx.send_async(raw).await?;
-                res_rx.recv_async().await??;
-                consumer.commit(offset).await?;
-                per_message_instant = std::time::Instant::now();
-                continue;
-            }
-
-            if (last_type != 0 && last_type != message_type) || chunk_len >= chunk_size {
-                clean_cache!();
-
-                // meta only, sync immediately.
-                msg_tx.send_async(raw).await?;
-                res_rx.recv_async().await??;
-                consumer.commit(offset).await?;
-            } else {
-                msg_tx.send_async(raw).await?;
-                chunk_len += 1;
-                last_offset.replace(offset);
-            }
-            last_type = message_type;
-            per_message_instant = std::time::Instant::now();
-        } else {
-            // No message received
-            let elapsed = per_message_instant.elapsed();
-            if elapsed.as_millis() as u64 >= options.commit_interval_ms {
-                clean_cache!();
-                if let Some(offset) = last_offset.take() {
-                    consumer.commit(offset).await?;
-                }
-            }
-
-            if elapsed > options.max_polling_timeout {
-                tracing::info!(
-                    "Polling timeout ({:?} > {:?}), commit immediately",
-                    elapsed,
-                    options.max_polling_timeout
-                );
+    let async_loop = async {
+        loop {
+            if cancel.is_cancelled() {
+                tracing::info!("Sync cancelled");
                 break;
             }
+            drop(last_offset.take());
+            if let Some((offset, message)) = tokio::select! {
+                _ = cancel.cancelled() => {
+                    tracing::info!("Sync cancelled");
+                    break;
+                }
+                res = consumer.recv_timeout(timeout) => {
+                    res?
+                }
+            } {
+                if refresh_progress_interval.ticked() {
+                    update_progress(&consumer, metrics).await;
+                }
+                metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
+
+                let message_type = match &message {
+                    MessageSet::Meta(_) => 1,
+                    MessageSet::Data(_) => 2,
+                    MessageSet::MetaData(_, _) => 3,
+                };
+                metrics.add_messages(1);
+                let raw = options
+                    .parse_message(&message, metrics)
+                    .in_current_span()
+                    .await?;
+                drop(message);
+                if message_type == 1 {
+                    clean_cache!();
+                    // meta only, sync immediately.
+                    msg_tx.send_async(raw).await?;
+                    res_rx.recv_async().await??;
+                    consumer.commit(offset).await?;
+                    metrics.add_commits(1);
+                    per_message_instant = std::time::Instant::now();
+                    continue;
+                }
+
+                if (last_type != 0 && last_type != message_type) || chunk_len >= chunk_size {
+                    clean_cache!();
+
+                    // meta only, sync immediately.
+                    msg_tx.send_async(raw).await?;
+                    res_rx.recv_async().await??;
+                    consumer.commit(offset).await?;
+                    metrics.add_commits(1);
+                } else {
+                    msg_tx.send_async(raw).await?;
+                    chunk_len += 1;
+                    last_offset.replace(offset);
+                }
+                last_type = message_type;
+                per_message_instant = std::time::Instant::now();
+            } else {
+                // No message received
+                let elapsed = per_message_instant.elapsed();
+                if elapsed.as_millis() as u64 >= options.commit_interval_ms && chunk_len > 0 {
+                    clean_cache!();
+                    if let Some(offset) = last_offset.take() {
+                        if let Err(err) = consumer.commit(offset).await {
+                            tracing::warn!(?err, "Commit error: {err}");
+                        };
+                        metrics.add_commits(1);
+                    }
+                }
+
+                if elapsed > options.max_polling_timeout {
+                    tracing::info!(
+                        "Polling timeout ({:?} > {:?}), commit immediately",
+                        elapsed,
+                        options.max_polling_timeout
+                    );
+                    break;
+                }
+            }
+        }
+        println!(
+            "# [{id}] Consume done after {:?}, waiting for writers to finish",
+            now.elapsed()
+        );
+        tracing::info!(elapse = ?now.elapsed(), "Consume done, waiting for writers to finish");
+        if chunk_len > 0 {
+            clean_cache!();
+            if let Some(last_offset) = last_offset {
+                if let Err(err) = consumer.commit(last_offset).await {
+                    tracing::warn!(?err, "Final commit error: {err}");
+                };
+                metrics.add_commits(1);
+            }
+        }
+        update_progress(&consumer, metrics).await;
+        Ok(())
+    }
+    .in_current_span();
+
+    match async_loop.await {
+        Ok(_) => {
+            tracing::info!("Task done");
+            Ok(consumer)
+        }
+        Err(err) => {
+            tracing::info!("Task failed, unsubscribe: {err}");
+            consumer.unsubscribe().await;
+            Err(err)
         }
     }
-    println!(
-        "# [{id}] Consume done after {:?}, waiting for writers to finish",
-        now.elapsed()
-    );
-    tracing::info!(elapse = ?now.elapsed(), "Consume done, waiting for writers to finish");
-    if chunk_len > 0 {
-        clean_cache!();
-        if let Some(last_offset) = last_offset {
-            consumer.commit(last_offset).await?;
-        }
-    }
-    update_progress(&consumer, metrics).await;
-    tracing::info!("Task done");
-    // let _ = sender.send(consumer); // tokio send
-    Ok(consumer)
 }
 
 async fn update_progress(consumer: &Consumer, metrics: &TmqMetrics) {
@@ -1345,6 +1372,23 @@ pub async fn tmq_to_td(
         .or(std::env::var("TMQ_COMMIT_INTERVAL_MS").ok())
         .and_then(|s| s.parse().ok())
         .unwrap_or(5000);
+
+    const DEFAULT_ENABLE_CONCURRENT_POLLING: bool = true;
+    let concurrent_polling = from
+        .remove("enable.concurrent.polling")
+        .or(std::env::var("TMQ_CONCURRENT_POLLING").ok())
+        .and_then(|s| match s.as_str() {
+            "" | "true" | "TRUE" | "T" | "1" => Some(true),
+            "false" | "FALSE" | "F" | "0" => Some(false),
+            _ => {
+                tracing::warn!(
+                    "Invalid value for enable.concurrent.polling: {s}, use default value: {}",
+                    DEFAULT_ENABLE_CONCURRENT_POLLING
+                );
+                None
+            }
+        })
+        .unwrap_or(DEFAULT_ENABLE_CONCURRENT_POLLING);
 
     let max_polling_timeout = from
         .remove("max.polling.timeout")
@@ -1625,7 +1669,7 @@ pub async fn tmq_to_td(
                                 &options,
                             )
                             .await
-                        } else if actions.is_empty() {
+                        } else if concurrent_polling && actions.is_empty() {
                             sync_concurrently(
                                 &topic,
                                 consumer_task_id,

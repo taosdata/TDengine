@@ -14,22 +14,22 @@ pub struct DataSourceValidation {
 }
 
 impl DataSourceValidation {
-    pub fn valid(data_source: String, version: Option<String>) -> DataSourceValidation {
+    pub fn valid<S: Into<String>>(data_source: S, version: Option<String>) -> DataSourceValidation {
         Self {
             valid: true,
             support: true,
-            data_source,
+            data_source: data_source.into(),
             version,
             message: None,
             namespaces: None,
         }
     }
 
-    pub fn invalid(data_source: String, message: String) -> DataSourceValidation {
+    pub fn invalid<S: Into<String>>(data_source: S, message: String) -> DataSourceValidation {
         DataSourceValidation {
             valid: false,
             support: false,
-            data_source,
+            data_source: data_source.into(),
             version: None,
             message: Option::from(message),
             namespaces: None,
