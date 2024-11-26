@@ -60,7 +60,13 @@ class TDTestCase:
         t2.start()
         tdLog.info("t2 threading started,wait compact db tran finish")
         event2.wait()
-        tdSql.error('REDISTRIBUTE VGROUP 5 DNODE 1;', expectErrInfo="Transaction not completed due to conflict with compact")
+        rowLen = tdSql.query('show vgroups')
+        if rowLen > 0:
+            vgroupId = tdSql.getData(0, 0)
+            tdLog.info(f"splitVgroupThread vgroupId:{vgroupId} start")
+            tdSql.error(f"split vgroup {vgroupId}", expectErrInfo="Transaction not completed due to conflict with compact")
+        else:
+            tdLog.exit("get vgroupId fail!")
         tdLog.info("wait compact db finish")
         t2.join()
 
