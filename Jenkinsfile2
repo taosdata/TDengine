@@ -478,18 +478,12 @@ pipeline {
                         expression { file_only_tdgpt_change_except != '' }
                     }
                     steps {
-                        script {
-                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                                timeout(time: 126, unit: 'MINUTES'){
-                                    if (file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/) {
-                                        echo "skip windows test because of tdgpt codes changed"
-                                    } else {
-                                        pre_test_win()
-                                        pre_test_build_win()
-                                        run_win_ctest()
-                                        run_win_test()
-                                    }
-                                }
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 126, unit: 'MINUTES'){
+                                    pre_test_win()
+                                    pre_test_build_win()
+                                    run_win_ctest()
+                                    run_win_test()
                             }
                         }
                     }
@@ -501,16 +495,10 @@ pipeline {
                         expression { file_only_tdgpt_change_except != '' }
                     }
                     steps {
-                        script {
-                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                                timeout(time: 60, unit: 'MINUTES'){
-                                    if (file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c/) {
-                                        echo "skip mac test because of tdgpt codes changed"
-                                    } else {
-                                        pre_test()
-                                        pre_test_build_mac()
-                                    }
-                                }
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 60, unit: 'MINUTES'){
+                                pre_test()
+                                pre_test_build_mac()
                             }
                         }
                     }
