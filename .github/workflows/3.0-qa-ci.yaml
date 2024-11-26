@@ -12,7 +12,6 @@ env:
   DIR_PATH_3_0: "3.0"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8787
-  COVERAGE_REPORT_DIR: /data/code_coverage_taosx/$(date +%Y%m%d)
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -24,7 +23,9 @@ jobs:
       - name : Set COVERAGE_REPORT_DIR
         run: |
           echo "COVERAGE_REPORT_DIR=$COVERAGE_REPORT_DIR" >> $GITHUB_ENV
+  
   remove_artifacts:
+    needs: build
     runs-on: [self-hosted, linux, x64, qa, rust]
     steps:
       - name: Remove artifacts
