@@ -1816,7 +1816,7 @@ int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
                   .handleRefId = pMsg->info.refId,
                   .pEpSet = pEpSet};
 
-  if (pMsg->contLen > 0) {
+  if (pMsg->code != TSDB_CODE_OUT_OF_MEMORY && pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
     if (buf.pData == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -2211,7 +2211,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
 static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
   int32_t numOfRows = pResultInfo->numOfRows;
   int32_t numOfCols = pResultInfo->numOfCols;
-  bool needConvert = false;
+  bool    needConvert = false;
   for (int32_t i = 0; i < numOfCols; ++i) {
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       needConvert = true;
@@ -2400,8 +2400,8 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   p += sizeof(int32_t);
 
   if (rows != pResultInfo->numOfRows || cols != pResultInfo->numOfCols) {
-    tscError("setResultDataPtr paras error:rows;%d numOfRows:%" PRId64 " cols:%d numOfCols:%d", rows, pResultInfo->numOfRows, cols,
-             pResultInfo->numOfCols);
+    tscError("setResultDataPtr paras error:rows;%d numOfRows:%" PRId64 " cols:%d numOfCols:%d", rows,
+             pResultInfo->numOfRows, cols, pResultInfo->numOfCols);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
@@ -2577,8 +2577,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
 
-  int32_t code =
-      setResultDataPtr(pResultInfo, convertUcs4);
+  int32_t code = setResultDataPtr(pResultInfo, convertUcs4);
   return code;
 }
 
