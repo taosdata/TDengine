@@ -25,9 +25,9 @@ SDiskSpace      tsLogSpace = {0};
 SDiskSpace      tsTempSpace = {0};
 char            tsOsName[16] = {0};
 char            tsTimezoneStr[TD_TIMEZONE_LEN] = {0};
-enum TdTimezone tsTimezone = TdZeroZone;
 char            tsLocale[TD_LOCALE_LEN] = {0};
 char            tsCharset[TD_CHARSET_LEN] = {0};
+void           *tsCharsetCxt = NULL;
 bool            tsEnableCoreFile = 1;
 int64_t         tsPageSizeKB = 0;
 int64_t         tsOpenMax = 0;
@@ -48,6 +48,7 @@ int32_t osDefaultInit() {
 
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
+  (void)taosGetSystemTimezone(tsTimezoneStr);
 
   taosGetSystemInfo();
 
@@ -116,11 +117,6 @@ bool osDataSpaceSufficient() { return tsDataSpace.size.avail > tsDataSpace.reser
 bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reserved; }
 
 int32_t osSetTimezone(const char *tz) { return taosSetGlobalTimezone(tz); }
-
-void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
-  if (inLocale) (void)memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
-  if (inCharSet) (void)memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
-}
 
 void osSetProcPath(int32_t argc, char **argv) {
   if (argv == NULL || argc < 1) {

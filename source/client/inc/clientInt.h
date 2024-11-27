@@ -155,7 +155,7 @@ typedef struct {
 
 typedef struct {
   timezone_t    timezone;
-  char          charset[TD_CHARSET_LEN];
+  void         *charsetCxt;
   char          app[TSDB_APP_NAME_LEN];
   uint32_t      ip;
 }SOptionInfo;
@@ -219,6 +219,7 @@ typedef struct SReqResultInfo {
   int32_t        precision;
   int32_t        payloadLen;
   char*          convertJson;
+  void*          charsetCxt;
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {

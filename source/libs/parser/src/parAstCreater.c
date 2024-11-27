@@ -421,6 +421,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   }
   val->translate = false;
   val->tz = pCxt->pQueryCxt->timezone;
+  val->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)val;
 _err:
   return NULL;
@@ -964,6 +965,8 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
   op->opType = type;
   op->pLeft = pLeft;
   op->pRight = pRight;
+  op->tz = pCxt->pQueryCxt->timezone;
+  op->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)op;
 _err:
   nodesDestroyNode(pLeft);
@@ -1043,6 +1046,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   COPY_STRING_FORM_ID_TOKEN(func->functionName, pFuncName);
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)func;
 _err:
   nodesDestroyList(pParameterList);
@@ -1064,6 +1068,8 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
   func->tz = pCxt->pQueryCxt->timezone;
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+
   return (SNode*)func;
 _err:
   nodesDestroyNode((SNode*)func);
@@ -1098,6 +1104,7 @@ SNode* createTrimFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, ETrimType t
   func->trimType = type;
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)func;
 _err:
   nodesDestroyNode((SNode*)func);
@@ -1116,6 +1123,7 @@ SNode* createTrimFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode* p
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
   CHECK_PARSER_STATUS(pCxt);
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)func;
 _err:
   nodesDestroyNode((SNode*)func);
@@ -1501,6 +1509,7 @@ SNode* createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhe
   pCaseWhen->pWhenThenList = pWhenThenList;
   pCaseWhen->pElse = pElse;
   pCaseWhen->tz    = pCxt->pQueryCxt->timezone;
+  pCaseWhen->charsetCxt    = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)pCaseWhen;
 _err:
   nodesDestroyNode(pCase);

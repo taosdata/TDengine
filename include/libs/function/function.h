@@ -293,6 +293,7 @@ struct SScalarParam {
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
   timezone_t       tz;
+  void            *charsetCxt;
 };
 
 #define cleanupResultRowEntry(p)  p->initialized = false

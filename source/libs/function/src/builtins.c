@@ -1664,7 +1664,7 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_TIMEZONE:
-      bytes = timeZoneStrLen();
+      bytes = TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_IRATE_PARTIAL:
       bytes = getIrateInfoSize((pFunc->hasPk) ? pFunc->pkBytes : 0) + VARSTR_HEADER_SIZE;

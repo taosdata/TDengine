@@ -477,7 +477,7 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, 
 }
 
 static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
-                             SMsgBuf* pMsgBuf, timezone_t tz) {
+                             SMsgBuf* pMsgBuf, timezone_t tz, void *charsetCxt) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
@@ -685,7 +685,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       if (p == NULL) {
         return terrno;
       }
-      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), realLen, &output)) {
+      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), realLen, &output, charsetCxt)) {
         if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
           taosMemoryFree(p);
           return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -732,7 +732,7 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStm
 }
 
 int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
-                      SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz) {
+                      SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void *charsetCxt) {
   bool isNull = isNullValue(pTagSchema->type, pToken);
   if (!isNull && pTagName) {
     if (NULL == taosArrayPush(pTagName, pTagSchema->name)) {
@@ -748,14 +748,14 @@ int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SS
     if (isNull) {
       return tTagNew(pTagVals, 1, true, pTag);
     } else {
-      return parseJsontoTagData(pToken->z, pTagVals, pTag, pMsgBuf);
+      return parseJsontoTagData(pToken->z, pTagVals, pTag, pMsgBuf, charsetCxt);
     }
   }
 
   if (isNull) return 0;
 
   STagVal val = {0};
-  int32_t code = parseTagToken(pSql, pToken, pTagSchema, precision, &val, pMsgBuf, tz);
+  int32_t code = parseTagToken(pSql, pToken, pTagSchema, precision, &val, pMsgBuf, tz, charsetCxt);
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == taosArrayPush(pTagVals, &val)) {
       code = terrno;
@@ -978,7 +978,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
       code = buildSyntaxErrMsg(&pCxt->msg, "not expected tags values ", token.z);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag, pCxt->pComCxt->timezone);
+      code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
     }
   }
 
@@ -1620,7 +1620,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       if (NULL == pUcs4) {
         return terrno;
       }
-      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)pUcs4, realLen, &len)) {
+      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)pUcs4, realLen, &len, pCxt->pComCxt->charsetCxt)) {
         taosMemoryFree(pUcs4);
         if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
           return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -1788,7 +1788,7 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
 
       if (code == TSDB_CODE_SUCCESS) {
         code = parseTagValue(&pCxt->msg, NULL, precision, pTagSchema, pTagToken, pStbRowsCxt->aTagNames,
-                             pStbRowsCxt->aTagVals, &pStbRowsCxt->pTag, pCxt->pComCxt->timezone);
+                             pStbRowsCxt->aTagVals, &pStbRowsCxt->pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
       }
     }
     if (code == TSDB_CODE_SUCCESS && !pStbRowsCxt->isJsonTag) {
@@ -1858,7 +1858,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
           }
           if (code == TSDB_CODE_SUCCESS) {
             code = parseTagValue(&pCxt->msg, ppSql, precision, (SSchema*)pTagSchema, pToken, pTagNames, pTagVals,
-                                 &pStbRowsCxt->pTag, pCxt->pComCxt->timezone);
+                                 &pStbRowsCxt->pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
           }
         }
       } else if (pCols->pColIndex[i] == tbnameIdx) {

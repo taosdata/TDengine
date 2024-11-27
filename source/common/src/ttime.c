@@ -480,7 +480,7 @@ int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz) {
+int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt) {
   int32_t charLen = varDataLen(inputData);
   char*   newColData;
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
@@ -500,7 +500,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
     if (NULL == newColData) {
       TAOS_RETURN(terrno);
     }
-    int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData);
+    int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData, charsetCxt);
     if (len < 0) {
       taosMemoryFree(newColData);
       TAOS_RETURN(TSDB_CODE_FAILED);
@@ -2011,7 +2011,11 @@ int64_t taosGetTimestampToday(int32_t precision, timezone_t tz) {
                     : (precision == TSDB_TIME_PRECISION_MILLI)   ? 1000
                     : (precision == TSDB_TIME_PRECISION_MICRO)   ? 1000000
                     : 1000000000;
-  time_t    t = taosTime(NULL);
+  time_t    t;
+  int32_t code = taosTime(&t);
+  if (code != 0) {
+    return -1;
+  }
   struct tm tm;
   if (taosLocalTime(&t, &tm, NULL, 0,  tz) == NULL){
     uError("%s failed to get local time, code:%d", __FUNCTION__, errno);

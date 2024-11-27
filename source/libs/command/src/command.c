@@ -585,7 +585,7 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
 
   if (tTagIsJson(pTag)) {
     char* pJson = NULL;
-    parseTagDatatoJson(pTag, &pJson);
+    parseTagDatatoJson(pTag, &pJson, NULL);
     if (NULL == pJson) {
       qError("failed to parse tag to json, pJson is NULL");
       return terrno;

@@ -6725,7 +6725,7 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
     pTsmaOptCtx->queryInterval->sliding = pWindow->sliding;
     pTsmaOptCtx->queryInterval->slidingUnit = pWindow->slidingUnit;
     pTsmaOptCtx->queryInterval->precision = pWindow->node.precision;
-    pTsmaOptCtx->queryInterval->tz = tsTimezone;
+    pTsmaOptCtx->queryInterval->tz = taosGetLocalTimezoneOffset();
     pTsmaOptCtx->pAggFuncs = pWindow->pFuncs;
     pTsmaOptCtx->ppParentTsmaSubplans = &pWindow->pTsmaSubplans;
   } else {

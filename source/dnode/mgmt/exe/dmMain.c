@@ -20,6 +20,7 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "version.h"
+#include "tconv.h"
 #ifdef TD_JEMALLOC_ENABLED
 #include "jemalloc/jemalloc.h"
 #endif
@@ -444,7 +445,7 @@ int mainWindows(int argc, char **argv) {
     return code;
   }
 
-  if ((code = taosConvInit()) != 0) {
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();

@@ -2641,7 +2641,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           char*   pData = colDataGetVarData(pColInfoData, j);
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
           memset(pBuf, 0, sizeof(pBuf));
-          code = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
+          code = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf, NULL);
           if (code < 0) {
             uError("func %s failed to convert to ucs charset since %s", __func__, tstrerror(code));
             lino = __LINE__;

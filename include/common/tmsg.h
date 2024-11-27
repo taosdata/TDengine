@@ -3842,7 +3842,7 @@ typedef struct {
   int8_t  igExists;
   int8_t  intervalUnit;
   int8_t  slidingUnit;
-  int8_t  timezone;
+  int8_t  timezone;    // int8_t is not enough, timezone is unit of second
   int32_t dstVgId;  // for stream
   int64_t interval;
   int64_t offset;

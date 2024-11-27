@@ -103,7 +103,7 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   if (NULL == tmp) {
     SCL_ERR_RET(terrno);
   }
-  int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
+  int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp, NULL);
   if (len < 0) {
     sclError("castConvert taosUcs4ToMbs error 1");
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -404,7 +404,7 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
     SCL_ERR_RET(terrno);
   }
   int32_t ret =
-      taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len);
+      taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len, pOut->charsetCxt);
   if (!ret) {
     sclError("failed to convert to NCHAR");
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -426,7 +426,7 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
   if (NULL == t) {
     SCL_ERR_RET(terrno);
   }
-  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
+  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t), pOut->charsetCxt);
   if (len < 0) {
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
@@ -557,7 +557,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
           SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
         }
 
-        int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
+        int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp, pCtx->pIn->charsetCxt);
         if (len < 0) {
           sclError("castConvert taosUcs4ToMbs error 1");
           SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -592,7 +592,7 @@ int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out) {
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobinary is nchar
+int32_t ncharTobinary(void *buf, void **out, void* charsetCxt) {  // todo need to remove , if tobinary is nchar
   int32_t inputLen = varDataTLen(buf);
 
   *out = taosMemoryCalloc(1, inputLen);
@@ -601,7 +601,7 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
              DEFAULT_UNICODE_ENCODEC, tsCharset, (char *)varDataVal(buf));
     SCL_ERR_RET(terrno);
   }
-  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out));
+  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out), charsetCxt);
   if (len < 0) {
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
              (char *)varDataVal(buf));
@@ -614,7 +614,7 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
 
 int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData,
                       char **pRightData, void *pLeftOut, void *pRightOut, bool *isNull, bool *freeLeft,
-                      bool *freeRight, bool *result) {
+                      bool *freeRight, bool *result, void* charsetCxt) {
   *result = false;
   if (optr == OP_TYPE_JSON_CONTAINS) {
     *result = true;
@@ -700,13 +700,13 @@ int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_
              type == TSDB_DATA_TYPE_GEOMETRY) {
     if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
       char *tmpLeft = NULL;
-      SCL_ERR_RET(ncharTobinary(*pLeftData, (void *)&tmpLeft));
+      SCL_ERR_RET(ncharTobinary(*pLeftData, (void *)&tmpLeft, charsetCxt));
       *pLeftData = tmpLeft;
       *freeLeft = true;
     }
     if (typeRight == TSDB_DATA_TYPE_NCHAR) {
       char *tmpRight = NULL;
-      SCL_ERR_RET(ncharTobinary(*pRightData, (void *)&tmpRight));
+      SCL_ERR_RET(ncharTobinary(*pRightData, (void *)&tmpRight, charsetCxt));
       *pRightData = tmpRight;
       *freeRight = true;
     }
@@ -1958,7 +1958,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       bool    result = false;
 
       SCL_ERR_RET(convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
-                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result));
+                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result, pLeft->charsetCxt));
 
       if (isJsonnull) {
         sclError("doVectorCompareImpl: invalid json null value");
@@ -2043,8 +2043,11 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   SScalarParam *param2 = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   pRight->tz = pLeft->tz;
+  pRight->charsetCxt = pLeft->charsetCxt;
   pLeftOut.tz = pLeft->tz;
+  pLeftOut.charsetCxt = pLeft->charsetCxt;
   pRightOut.tz = pRight->tz;
+  pRightOut.charsetCxt = pRight->charsetCxt;
   if (noConvertBeforeCompare(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
     param1 = pLeft;
     param2 = pRight;
@@ -2130,6 +2133,7 @@ int32_t vectorIsNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
 int32_t vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
   if (pRight != NULL) {
     pRight->tz = pLeft->tz;
+    pRight->charsetCxt = pLeft->charsetCxt;
   }
   for (int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 0 : 1;
@@ -2146,6 +2150,8 @@ int32_t vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
 int32_t vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
   if (pRight != NULL) {
     pRight->tz = pLeft->tz;
+    pRight->charsetCxt = pLeft->charsetCxt;
+
   }
   SCL_ERR_RET(vectorConvertSingleColImpl(pLeft, pOut, NULL, -1, -1));
   for (int32_t i = 0; i < pOut->numOfRows; ++i) {

@@ -36,6 +36,7 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
+#include "tconv.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -556,6 +557,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->metric.start = taosGetTimestampUs();
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
+  (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
 
@@ -969,7 +971,12 @@ void taos_init_imp(void) {
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
-  ENV_ERR_RET(taosConvInit(), "failed to init conv");
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
+    tscInitRes = terrno;
+    tscError("failed to init conv");
+    return;
+  }
+
   ENV_ERR_RET(monitorInit(), "failed to init monitor");
   ENV_ERR_RET(rpcInit(), "failed to init rpc");
 

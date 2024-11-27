@@ -229,80 +229,25 @@ int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4)
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct {
-  iconv_t conv;
-  int8_t  inUse;
-} SConv;
-
-// 0: Mbs --> Ucs4
-// 1: Ucs4--> Mbs
-SConv  *gConv[2] = {NULL, NULL};
-int32_t convUsed[2] = {0, 0};
-int32_t gConvMaxNum[2] = {0, 0};
-
-int32_t taosConvInit(void) {
-  int8_t M2C = 0;
-  gConvMaxNum[M2C] = 512;
-  gConvMaxNum[1 - M2C] = 512;
-
-  gConv[M2C] = taosMemoryCalloc(gConvMaxNum[M2C], sizeof(SConv));
-  if (gConv[M2C] == NULL) {
-    return terrno;
-  }
-
-  gConv[1 - M2C] = taosMemoryCalloc(gConvMaxNum[1 - M2C], sizeof(SConv));
-  if (gConv[1 - M2C] == NULL) {
-    taosMemoryFree(gConv[M2C]);
-    return terrno;
-  }
-
-  for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
-    gConv[M2C][i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
-    if ((iconv_t)-1 == gConv[M2C][i].conv) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return terrno;
-    }
-  }
-  for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
-    gConv[1 - M2C][i].conv = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
-    if ((iconv_t)-1 == gConv[1 - M2C][i].conv) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return terrno;
-    }
-  }
-
-  return 0;
-}
-
-void taosConvDestroy() {
-  int8_t M2C = 0;
-  for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
-    (void)iconv_close(gConv[M2C][i].conv);
-  }
-  for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
-    (void)iconv_close(gConv[1 - M2C][i].conv);
-  }
-  taosMemoryFreeClear(gConv[M2C]);
-  taosMemoryFreeClear(gConv[1 - M2C]);
-  gConvMaxNum[M2C] = -1;
-  gConvMaxNum[1 - M2C] = -1;
-}
-
-iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
+iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
   if(idx == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return (iconv_t)-1;
   }
-  if (gConvMaxNum[type] <= 0) {
+  if (charsetCxt == NULL){
+    charsetCxt = tsCharsetCxt;
+  }
+  SConvInfo *info = (SConvInfo *)charsetCxt;
+  if (info->gConvMaxNum[type] <= 0) {
     *idx = -1;
     if (type == M2C) {
-      iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+      iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, info->charset);
       if ((iconv_t)-1 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
       }
       return c;
     } else {
-      iconv_t c = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
+      iconv_t c = iconv_open(info->charset, DEFAULT_UNICODE_ENCODEC);
       if ((iconv_t)-1 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
       }
@@ -311,9 +256,9 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
   }
 
   while (true) {
-    int32_t used = atomic_add_fetch_32(&convUsed[type], 1);
-    if (used > gConvMaxNum[type]) {
-      used = atomic_sub_fetch_32(&convUsed[type], 1);
+    int32_t used = atomic_add_fetch_32(&info->convUsed[type], 1);
+    if (used > info->gConvMaxNum[type]) {
+      (void)atomic_sub_fetch_32(&info->convUsed[type], 1);
       (void)sched_yield();
       continue;
     }
@@ -321,38 +266,43 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
     break;
   }
 
-  int32_t startId = taosGetSelfPthreadId() % gConvMaxNum[type];
+  int32_t startId = taosGetSelfPthreadId() % info->gConvMaxNum[type];
   while (true) {
-    if (gConv[type][startId].inUse) {
-      startId = (startId + 1) % gConvMaxNum[type];
+    if (info->gConv[type][startId].inUse) {
+      startId = (startId + 1) % info->gConvMaxNum[type];
       continue;
     }
 
-    int8_t old = atomic_val_compare_exchange_8(&gConv[type][startId].inUse, 0, 1);
+    int8_t old = atomic_val_compare_exchange_8(&info->gConv[type][startId].inUse, 0, 1);
     if (0 == old) {
       break;
     }
   }
 
   *idx = startId;
-  if ((iconv_t)0 == gConv[type][startId].conv) {
+  if ((iconv_t)0 == info->gConv[type][startId].conv) {
     return (iconv_t)-1;
   } else {
-    return gConv[type][startId].conv;
+    return info->gConv[type][startId].conv;
   }
 }
 
-void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
+void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void* charsetCxt) {
   if (idx < 0) {
     (void)iconv_close(conv);
     return;
   }
 
-  atomic_store_8(&gConv[type][idx].inUse, 0);
-  (void)atomic_sub_fetch_32(&convUsed[type], 1);
+  if (charsetCxt == NULL){
+    charsetCxt = tsCharsetCxt;
+  }
+  SConvInfo *info = (SConvInfo *)charsetCxt;
+
+  atomic_store_8(&info->gConv[type][idx].inUse, 0);
+  (void)atomic_sub_fetch_32(&info->convUsed[type], 1);
 }
 
-bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
+bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt) {
   if (ucs4_max_len == 0) {
     return true;
   }
@@ -368,20 +318,20 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   (void)memset(ucs4, 0, ucs4_max_len);
 
   int32_t idx = -1;
-  iconv_t conv = taosAcquireConv(&idx, M2C);
+  iconv_t conv = taosAcquireConv(&idx, M2C, charsetCxt);
   if ((iconv_t)-1 == conv) {
     return false;
   }
-  
+
   size_t  ucs4_input_len = mbsLength;
   size_t  outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    taosReleaseConv(idx, conv, M2C);
+    taosReleaseConv(idx, conv, M2C, charsetCxt);
     return false;
   }
 
-  taosReleaseConv(idx, conv, M2C);
+  taosReleaseConv(idx, conv, M2C, charsetCxt);
   if (len != NULL) {
     *len = (int32_t)(ucs4_max_len - outLeft);
     if (*len < 0) {
@@ -397,7 +347,7 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 
 // if success, return the number of bytes written to mbs ( >= 0)
 // otherwise return error code ( < 0)
-int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
+int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* charsetCxt) {
   if (ucs4_max_len == 0) {
     return 0;
   }
@@ -413,22 +363,22 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 
   int32_t idx = -1;
   int32_t code = 0;
-  iconv_t conv = taosAcquireConv(&idx, C2M);
+  iconv_t conv = taosAcquireConv(&idx, C2M, charsetCxt);
   if ((iconv_t)-1 == conv) {
     return terrno;
   }
-  
+
   size_t  ucs4_input_len = ucs4_max_len;
   size_t  outLen = ucs4_max_len;
   if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
     code = TAOS_SYSTEM_ERROR(errno);
-    taosReleaseConv(idx, conv, C2M);
-    terrno = code;    
+    taosReleaseConv(idx, conv, C2M, charsetCxt);
+    terrno = code;
     return code;
   }
-  
-  taosReleaseConv(idx, conv, C2M);
-  
+
+  taosReleaseConv(idx, conv, C2M, charsetCxt);
+
   return (int32_t)(ucs4_max_len - outLen);
 #endif
 }

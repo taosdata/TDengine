@@ -828,6 +828,16 @@ int32_t taosSetGlobalTimezone(const char *tz) {
 
 }
 
+int32_t taosGetLocalTimezoneOffset() {
+  time_t    tx1 = taosGetTimestampSec();
+  struct tm tm1;
+  if (taosLocalTime(&tx1, &tm1, NULL, 0, NULL) == NULL) {
+    uError("%s failed to get local time: code:%d", __FUNCTION__, errno);
+    return TSDB_CODE_TIME_ERROR;
+  }
+  return (int32_t)(tm1.tm_gmtoff);
+}
+
 int32_t taosFormatTimezoneStr(time_t t, const char* tz, timezone_t sp, char *outTimezoneStr){
   struct tm tm1;
   if (taosLocalTime(&t, &tm1, NULL, 0, sp) == NULL) {

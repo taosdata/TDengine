@@ -30,6 +30,7 @@
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
+#include "tconv.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -52,6 +53,49 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   return ret;
 }
 
+static timezone_t setConnnectionTz(const char* val){
+  timezone_t tz = NULL;
+  static int32_t lock_c = 0;
+
+  for (int i = 1; atomic_val_compare_exchange_32(&lock_c, 0, 1) != 0; ++i) {
+    if (i % 1000 == 0) {
+      tscInfo("haven't acquire lock after spin %d times.", i);
+      (void)sched_yield();
+    }
+  }
+
+  if (pTimezoneMap == NULL){
+    pTimezoneMap = taosHashInit(0, MurmurHash3_32, false, HASH_ENTRY_LOCK);
+    if (pTimezoneMap == NULL) {
+      atomic_store_32(&lock_c, 0);
+      goto END;
+    }
+    taosHashSetFreeFp(pTimezoneMap, (_hash_free_fn_t)tzfree);
+  }
+
+  timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
+  if (tmp != NULL && *tmp != NULL){
+    tz = *tmp;
+    goto END;
+  }
+
+  tscDebug("set timezone to %s", val);
+  tz = tzalloc(val);
+  if (tz == NULL) {
+    tscError("%s unknown timezone %s", __func__, val);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto END;
+  }
+  int32_t code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
+  if (code != 0){
+    tzfree(tz);
+    tz = NULL;
+  }
+
+END:
+  atomic_store_32(&lock_c, 0);
+  return tz;
+}
 static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char* val){
   if (taos == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -74,32 +118,24 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
         code = terrno;
         goto END;
       }
-      tstrncpy(pObj->optionInfo.charset, val, TD_CHARSET_LEN);
     }else{
-      pObj->optionInfo.charset[0] = 0;
+      val = tsCharset;
     }
+    void *tmp = taosConvInit(val);
+    if (tmp == NULL) {
+      code = terrno;
+      goto END;
+    }
+    pObj->optionInfo.charsetCxt = tmp;
   } else if (option == TSDB_OPTION_CONNECTION_TIMEZONE) {
     if (val != NULL){
       if (strlen(val) == 0){
         code = TSDB_CODE_INVALID_PARA;
         goto END;
       }
-      timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
-      if (tmp && *tmp){
-        pObj->optionInfo.timezone = *tmp;
-        goto END;
-      }
-
-      tscDebug("set timezone to %s", val);
-      timezone_t tz = tzalloc(val);
-      if (!tz) {
-        tscError("%s unknown timezone %s", __func__, val);
-        code = TAOS_SYSTEM_ERROR(errno);
-        goto END;
-      }
-      code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
-      if (code != 0){
-        tzfree(tz);
+      timezone_t tz = setConnnectionTz(val);
+      if (tz == NULL){
+        code = terrno;
         goto END;
       }
       pObj->optionInfo.timezone = tz;
@@ -126,26 +162,7 @@ END:
 }
 
 int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...){
-  static int32_t lock_c = 0;
-
-  for (int i = 1; atomic_val_compare_exchange_32(&lock_c, 0, 1) != 0; ++i) {
-    if (i % 1000 == 0) {
-      tscInfo("haven't acquire lock after spin %d times.", i);
-      (void)sched_yield();
-    }
-  }
-
-  if (pTimezoneMap == NULL){
-    pTimezoneMap = taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-    if (pTimezoneMap == NULL) {
-      atomic_store_32(&lock_c, 0);
-      return terrno;
-    }
-    taosHashSetFreeFp(pTimezoneMap, (_hash_free_fn_t)tzfree);
-  }
-  int ret = setConnectionOption(taos, option, (const char *)arg);
-  atomic_store_32(&lock_c, 0);
-  return ret;
+  return setConnectionOption(taos, option, (const char *)arg);
 }
 
 // this function may be called by user or system, or by both simultaneously.
@@ -1342,7 +1359,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlFp = clientParseSql,
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
-                           .timezone = pTscObj->optionInfo.timezone};
+                           .timezone = pTscObj->optionInfo.timezone,
+                           .charsetCxt = pTscObj->optionInfo.charsetCxt};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;

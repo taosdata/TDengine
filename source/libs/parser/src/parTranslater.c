@@ -2148,7 +2148,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
 
       int32_t len = 0;
       if (!taosMbsToUcs4(pVal->literal, strlen(pVal->literal), (TdUcs4*)varDataVal(pVal->datum.p),
-                         targetDt.bytes - VARSTR_HEADER_SIZE, &len)) {
+                         targetDt.bytes - VARSTR_HEADER_SIZE, &len, pCxt->pParseCxt->charsetCxt)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       varDataSetLen(pVal->datum.p, len);
@@ -14169,7 +14169,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       if (pSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone);
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -14230,7 +14230,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone);
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -14426,7 +14426,7 @@ static int32_t fillVgroupInfo(SParseContext* pParseCxt, const SName* pName, SVgr
   return code;
 }
 
-static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, timezone_t tz) {
+static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, timezone_t tz, void *charsetCxt) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int      sz = taosArrayGetSize(pParFileCxt->aTagIndexs);
   int32_t  numOfTags = getNumOfTags(pParFileCxt->pStbMeta);
@@ -14458,7 +14458,7 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, 
       if (TSDB_CODE_SUCCESS == code) {
         SArray* aTagNames = pParFileCxt->tagNameFilled ? NULL : pParFileCxt->aTagNames;
         code = parseTagValue(pMsgBuf, &pParFileCxt->pSql, precision, (SSchema*)pTagSchema, &token, aTagNames,
-                             pParFileCxt->aTagVals, &pParFileCxt->pTag, tz);
+                             pParFileCxt->aTagVals, &pParFileCxt->pTag, tz, charsetCxt);
       }
     } else {
       // parse tbname
@@ -14524,7 +14524,7 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
     (void)strtolower(pLine, pLine);
     pParFileCxt->pSql = pLine;
 
-    code = parseOneStbRow(pMsgBuf, pParFileCxt, pParseCxt->timezone);
+    code = parseOneStbRow(pMsgBuf, pParFileCxt, pParseCxt->timezone, pParseCxt->charsetCxt);
 
     if (TSDB_CODE_SUCCESS == code) {
       code = fillVgroupInfo(pParseCxt, &pParFileCxt->ctbName, &pParFileCxt->vg);
@@ -15225,7 +15225,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
 
   if (TSDB_CODE_SUCCESS == code) {
     code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
-                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone);
+                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
       pReq->tagFree = true;
     }

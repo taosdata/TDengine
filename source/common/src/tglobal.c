@@ -654,7 +654,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 static int32_t taosAddSystemCfg(SConfig *pCfg) {
   SysNameInfo info = taosGetSysNameInfo();
 
-  (void)taosGetSystemTimezone(tsTimezoneStr);
   TAOS_CHECK_RETURN(cfgAddTimezone(pCfg, "timezone", tsTimezoneStr, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddLocale(pCfg, "locale", tsLocale, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddCharset(pCfg, "charset", tsCharset, CFG_SCOPE_BOTH, CFG_DYN_NONE));
@@ -1316,25 +1315,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
 static int32_t taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "locale");
-  const char *locale = pItem->str;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "charset");
-  const char *charset = pItem->str;
-
-  int32_t code = taosSetSystemLocale(locale, charset);
-  if (TSDB_CODE_SUCCESS != code) {
-    uError("failed to set locale:%s, since: %s", locale, tstrerror(code));
-    char curLocale[TD_LOCALE_LEN] = {0};
-    char curCharset[TD_CHARSET_LEN] = {0};
-    taosGetSystemLocale(curLocale, curCharset);
-    if (0 != strlen(curLocale) && 0 != strlen(curCharset)) {
-      uInfo("current locale: %s, charset: %s", curLocale, curCharset);
-    }
-  }
-
-  osSetSystemLocale(locale, charset);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCoreFile");
   tsEnableCoreFile = pItem->bval;
@@ -2062,6 +2042,10 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
+  if (strcasecmp("locale", name) == 0 || strcasecmp("charset", name) == 0
+      || strcasecmp("timezone", name) == 0) {
+     goto _out;
+  }
   cfgLock(pCfg);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
@@ -2150,25 +2134,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       }
       break;
     }
-    case 'l': {
-      if (strcasecmp("locale", name) == 0) {
-        SConfigItem *pLocaleItem = cfgGetItem(pCfg, "locale");
-        SConfigItem *pCharsetItem = cfgGetItem(pCfg, "charset");
-        if (pLocaleItem == NULL || pCharsetItem == NULL) {
-          uError("failed to get locale or charset from cfg");
-          code = TSDB_CODE_CFG_NOT_FOUND;
-          goto _out;
-        }
-
-        const char *locale = pLocaleItem->str;
-        const char *charset = pCharsetItem->str;
-        TAOS_CHECK_GOTO(taosSetSystemLocale(locale, charset), &lino, _out);
-        osSetSystemLocale(locale, charset);
-        uInfo("locale set to '%s', charset set to '%s'", locale, charset);
-        matched = true;
-      }
-      break;
-    }
     case 'm': {
       if (strcasecmp("metaCacheMaxSize", name) == 0) {
         atomic_store_32(&tsMetaCacheMaxSize, pItem->i32);
@@ -2239,9 +2204,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       break;
     }
     case 't': {
-      if (strcasecmp("timezone", name) == 0) {
-        matched = true;
-      } else if (strcasecmp("tempDir", name) == 0) {
+      if (strcasecmp("tempDir", name) == 0) {
         uInfo("%s set from %s to %s", name, tsTempDir, pItem->str);
         tstrncpy(tsTempDir, pItem->str, PATH_MAX);
         TAOS_CHECK_GOTO(taosExpandDir(tsTempDir, tsTempDir, PATH_MAX), &lino, _out);
