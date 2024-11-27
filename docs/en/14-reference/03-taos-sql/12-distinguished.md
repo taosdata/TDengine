@@ -1,205 +1,230 @@
 ---
 title: Time-Series Extensions
-sidebar_label: Time-Series Extensions
-description: This document describes the extended functions specific to time-series data processing available in TDengine.
+description: TDengine's unique querying capabilities for time series data
+slug: /tdengine-reference/sql-manual/time-series-extensions
 ---
 
-As a purpose-built database for storing and processing time-series data, TDengine provides time-series-specific extensions to standard SQL.
+import Image from '@theme/IdealImage';
+import imgStep01 from './assets/time-series-extensions-01.png';
+import imgStep02 from './assets/time-series-extensions-02.png';
+import imgStep03 from './assets/time-series-extensions-03.png';
+import imgStep04 from './assets/time-series-extensions-04.png';
+import imgStep05 from './assets/time-series-extensions-05.png';
 
-These extensions include partitioned queries and windowed queries.
+On top of supporting standard SQL, TDengine also offers a series of unique query syntaxes that meet the needs of time series business scenarios, greatly facilitating the development of applications in these contexts.
 
-## Partitioned Queries
+The unique queries provided by TDengine include data partitioning queries and time window partitioning queries.
 
-When you query a supertable, you may need to partition the supertable by some dimensions and perform additional operations on a specific partition. In this case, you can use the following SQL clause:
+## Data Partitioning Queries
+
+When there is a need to partition data by certain dimensions and then perform a series of calculations within the partitioned data space, the data partitioning clause is used. The syntax for data partitioning statements is as follows:
 
 ```sql
 PARTITION BY part_list
 ```
 
-part_list can be any scalar expression, such as a column, constant, scalar function, or a combination of the preceding items. For example, grouping data by label location, taking the average voltage within each group.
+`part_list` can be any scalar expression, including columns, constants, scalar functions, and their combinations. For example, to group data by the tag `location` and calculate the average voltage for each group:
+
 ```sql
 select location, avg(voltage) from meters partition by location
 ```
 
-A PARTITION BY clause is processed as follows:
+TDengine handles data partitioning clauses as follows:
 
-- The PARTITION BY clause must occur after the WHERE clause
-- The PARTITION BY clause partitions the data according to the specified dimensions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
-- The PARTITION BY clause can be used together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
+- The data partitioning clause is located after the WHERE clause.
+- The data partitioning clause partitions table data by the specified dimensions, performing specified calculations on each partitioned fragment. The calculations are defined by subsequent clauses (window clauses, GROUP BY clauses, or SELECT clauses).
+- The data partitioning clause can be used in conjunction with window partitioning clauses (or GROUP BY clauses), in which case the subsequent clauses operate on each partitioned fragment. For example, group data by the tag `location` and downsample each group by 10 minutes, taking the maximum value.
 
 ```sql
 select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
 
-The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data. For example, calculate the average voltage of each meter every 10 minutes:
+The most common usage of the data partitioning clause is in querying supertables, where subtable data is partitioned by tags and then calculated separately. Particularly, the use of `PARTITION BY TBNAME` isolates each subtable's data, forming independent time series, greatly facilitating statistical analysis in various time series scenarios. For instance, to calculate the average voltage for each meter every 10 minutes:
+
 ```sql
 select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
 ```
 
-## Windowed Queries
+## Window Partitioning Queries
 
-Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are five kinds of windows: time window, status window, session window, event window, and count window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
+TDengine supports aggregate result queries using time window partitioning, such as querying the average temperature every 10 minutes when temperature sensors collect data every second. In such scenarios, the window clause can be used to obtain the desired query results. The window clause is used to partition the queried data set into query subsets based on windows and perform aggregation, which includes five types of windows: time windows, state windows, session windows, event windows, and count windows. Among them, time windows can be further divided into sliding time windows and tumbling time windows.
+
+The syntax for the window clause is as follows:
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 }
 ```
 
-Both interval_val and sliding_value are time durations, and interval_offset is the window offset, interval_offset must be less than interval_val, There are 3 forms of representation.
-- INTERVAL(1s, 500a) SLIDING(1s), the unit char should be any one of a (millisecond), b (nanosecond), d (day), h (hour), m (minute), n (month), s (second), u (microsecond), w (week), y (year).
-- INTERVAL(1000, 500) SLIDING(1000), the unit will the same as the queried database, if there are more than one databases, higher precision will be used.
-- INTERVAL('1s', '500a') SLIDING('1s'), unit must be specified, no spaces allowed.
+Here, `interval_val` and `sliding_val` both represent time periods, and `interval_offset` represents the window offset, which must be less than `interval_val`. The syntax supports three forms, illustrated as follows:
 
-The following restrictions apply:
+- `INTERVAL(1s, 500a) SLIDING(1s)`, a form with built-in time units, where the time unit is represented by a single character: a (milliseconds), b (nanoseconds), d (days), h (hours), m (minutes), n (months), s (seconds), u (microseconds), w (weeks), y (years).
+- `INTERVAL(1000, 500) SLIDING(1000)`, a form without time units, which uses the query database's time precision as the default time unit, adopting the higher precision from multiple databases.
+- `INTERVAL('1s', '500a') SLIDING('1s')`, a string form with built-in time units, where the string cannot contain any spaces or other characters.
 
-### Other Rules
+### Rules for the Window Clause
 
-- The window clause must occur after the PARTITION BY clause. It cannot be used with a GROUP BY clause.
-- SELECT clauses on windows can contain only the following expressions:
-  - Constants
-  - Aggregate functions
-  - Expressions that include the preceding expressions.
-- The window clause cannot be used with a GROUP BY clause.
-- `WHERE` clause can be used to specify the starting and ending time and other filter conditions
-
-
-### Window Pseudocolumns
-
-**\_WSTART, \_WEND, and \_WDURATION**
-
-The \_WSTART, \_WEND, and \_WDURATION pseudocolumns indicate the beginning, end, and duration of a window.
-
-These pseudocolumns occur after the aggregation clause.
+- The window clause follows the data partitioning clause and cannot be used with GROUP BY clauses.
+- The window clause partitions the data by windows and calculates expressions in the SELECT list for each window. Expressions in the SELECT list may include:
+  - Constants.
+  - `_wstart`, `_wend`, and `_wduration` pseudo-columns.
+  - Aggregate functions (including selection functions and time series-specific functions that can determine output row numbers by parameters).
+  - Expressions that include the above expressions.
+  - At least one aggregate function must be included.
+- The window clause cannot be used with GROUP BY clauses.
+- The WHERE clause can specify the start and end time of the query and other filter conditions.
 
 ### FILL Clause
 
-`FILL` clause is used to specify how to fill when there is data missing in any window, including:
+The FILL statement specifies the filling mode for cases where data is missing in a certain window range. The filling modes include the following:
 
-1. NONE: No fill (the default fill mode)
-2. VALUE: Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled.  If multiple columns in select list need to be filled, then in the fill clause there must be a fill value for each of these columns, for example, `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note that only exprs in select list that contains normal cols need to specify fill value, exprs like `_wstart`, `_wend`, `_wduration`, `_wstart + 1a`, `now`, `1+1`, partition keys like tbname(when using partition by) don't need to specify fill value. But exprs like `timediff(last(ts), _wstart)` need to specify fill value.
-3. PREV: Fill with the previous non-NULL value, `FILL(PREV)`
-4. NULL: Fill with NULL, `FILL(NULL)`
-5. LINEAR: Fill with the closest non-NULL value, `FILL(LINEAR)`
-6. NEXT: Fill with the next non-NULL value, `FILL(NEXT)`
+1. No filling: NONE (default filling mode).
+2. VALUE filling: Filling with a fixed value, where the filling value must be specified. For example: FILL(VALUE, 1.23). It is important to note that the final filling value is determined by the type of the corresponding column. For instance, if FILL(VALUE, 1.23) is used, and the corresponding column is of INT type, the filling value will be 1. If multiple columns in the query list require FILL, each FILL column must specify VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`.
+3. PREV filling: Filling data using the previous non-NULL value. For example: FILL(PREV).
+4. NULL filling: Filling data with NULL. For example: FILL(NULL).
+5. LINEAR filling: Filling data based on linear interpolation using the nearest non-NULL values on both sides. For example: FILL(LINEAR).
+6. NEXT filling: Filling data with the next non-NULL value. For example: FILL(NEXT).
+   Among the above filling modes, except for NONE mode, which defaults to no filling values, other modes will be ignored if there is no data within the entire query time range, resulting in no filling data and an empty query result. This behavior makes sense for some modes (PREV, NEXT, LINEAR) because having no data means no fill value can be produced. However, for other modes (NULL, VALUE), theoretically, fill values can be produced, and whether to output the fill values depends on application needs. To accommodate applications that require forced filling of data or NULL, while maintaining compatibility with existing filling behavior, two new filling modes have been added since version 3.0.3.0:
+7. NULL_F: Force filling NULL values.
+8. VALUE_F: Force filling VALUE values.
 
-In the above filling modes, except for `NONE` mode, the `fill` clause will be ignored if there is no data in the defined time range, i.e. no data would be filled and the query result would be empty. This behavior is reasonable when the filling mode is `PREV`, `NEXT`, `LINEAR`, because filling can't be performed if there is not any data. For filling modes `NULL` and `VALUE`, however, filling can be performed even though there is not any data, filling or not depends on the choice of user's application.  To accomplish the need of this force filling behavior and not break the behavior of existing filling modes, TDengine added two new filling modes since version 3.0.3.0. 
+The distinctions between NULL, NULL_F, VALUE, and VALUE_F filling modes for different scenarios are as follows:
 
-1. NULL_F: Fill `NULL` by force
-2. VALUE_F: Fill `VALUE` by force
-
-The detailed beaviors of `NULL`, `NULL_F`, `VALUE`, and VALUE_F are described below:
-
-- When used with `INTERVAL`: `NULL_F` and `VALUE_F` are filling by force; `NULL` and `VALUE`  don't fill by force. The behavior of each filling mode is exactly same as what the name suggests.
-- When used with `INTERVAL` in stream processing: `NULL_F` and `NULL` are same, i.e. don't fill by force; `VALUE_F` and `VALUE` and same, i.e. don't fill by force. It's suggested that there is no filling by force in stream processing.
-- When used with `INTERP`: `NULL` and `NULL_F` and same, i.e. filling by force; `VALUE` and `VALUE_F` are same, i.e. filling by force. It's suggested that there is always filling by force when used with `INTERP`.
+- INTERVAL clause: NULL_F and VALUE_F are forced filling modes; NULL and VALUE are non-forced modes, where their semantics match their names.
+- Stream computing INTERVAL clause: NULL_F and NULL behave the same and are both non-forced modes; VALUE_F and VALUE behave the same and are both non-forced modes, meaning stream computing INTERVAL has no forced modes.
+- INTERP clause: NULL and NULL_F behave the same and are both forced modes; VALUE and VALUE_F behave the same and are both forced modes, meaning there are no non-forced modes in INTERP.
 
 :::info
 
-1. A huge volume of interpolation output may be returned using `FILL`, so it's recommended to specify the time range when using `FILL`. The maximum number of interpolation values that can be returned in a single query is 10,000,000.
-2. The result set is in ascending order of timestamp when you aggregate by time window.
-3. If aggregate by window is used on STable, the aggregate function is performed on all the rows matching the filter conditions. If `PARTITION BY` is not used in the query, the result set will be returned in strict ascending order of timestamp; otherwise the result set will be returned in the order of ascending timestamp in each group.
+1. Using the FILL statement may generate a large amount of filling output; always specify the time range for the query. The system can return no more than 10 million rows with interpolated results for each query.
+2. In time dimension aggregation, the returned results have a strictly monotonically increasing time series.
+3. If the query target is a supertable, the aggregate functions will act on all tables under the supertable that meet the value filtering criteria. If the query does not use a PARTITION BY clause, the results will be returned in a strictly monotonically increasing time series; if the query uses a PARTITION BY clause for grouping, the results within each PARTITION will be returned in a strictly monotonically increasing time series.
 
 :::
 
-### Time Window
+### Time Windows
 
-There are two kinds of time windows: sliding window and flip time/tumbling window.
+Time windows can be further divided into sliding time windows and tumbling time windows.
 
-The `INTERVAL` clause is used to generate time windows of the same time interval. The `SLIDING` parameter is used to specify the time step for which the time window moves forward. The query is performed on one time window each time, and the time window moves forward with time. When defining a continuous query, both the size of the time window and the step of forward sliding time need to be specified. As shown in the figure blow, [t0s, t0e], [t1s, t1e], [t2s, t2e] are respectively the time ranges of three time windows on which continuous queries are executed. The time step for which time window moves forward is marked by `sliding time`. Query, filter and aggregate operations are executed on each time window respectively. When the time step specified by `SLIDING` is same as the time interval specified by `INTERVAL`, the sliding time window is actually a flip time/tumbling window.
+The INTERVAL clause is used to produce equal time period windows, while SLIDING specifies the time for the window to slide forward. Each executed query is a time window that moves forward in time. When defining continuous queries, it is necessary to specify the size of the time window and the forward sliding time for each execution. As shown in the figure, [t0s, t0e], [t1s, t1e], and [t2s, t2e] represent the time window ranges for executing three continuous queries, with the sliding time range indicating the forward sliding of the window. Query filtering, aggregation, and other operations are executed independently for each time window. When SLIDING is equal to INTERVAL, the sliding window is equivalent to the tumbling window.
 
-![TDengine Database Time Window](./timewindow-1.webp)
+<figure>
+<Image img={imgStep01} alt=""/>
+</figure>
 
-`INTERVAL` and `SLIDING` should be used with aggregate functions and select functions. The SQL statement below is illegal because no aggregate or selection function is used with `INTERVAL`.
+The INTERVAL and SLIDING clauses need to be used in conjunction with aggregate and selection functions. The following SQL statement is invalid:
 
-```
+```sql
 SELECT * FROM temp_tb_1 INTERVAL(1m);
 ```
 
-The time step specified by `SLIDING` cannot exceed the time interval specified by `INTERVAL`. The SQL statement below is illegal because the time length specified by `SLIDING` exceeds that specified by `INTERVAL`.
+The sliding time of SLIDING cannot exceed the time range of one window. The following statement is invalid:
 
-```
+```sql
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
-When using time windows, note the following:
+When using time windows, the following should be noted:
 
-- The window length for aggregation depends on the value of INTERVAL. The minimum interval is 10 ms. You can configure a window as an offset from UTC 0:00. The offset cannot be smaller than the interval. You can use SLIDING to specify the length of time that the window moves forward. 
-Please note that the `timezone` parameter should be configured to be the same value in the `taos.cfg` configuration file on client side and server side.
-- The result set is in ascending order of timestamp when you aggregate by time window.
+- The width of the aggregation time window is specified by the INTERVAL keyword, with a minimum time interval of 10 milliseconds (10a); it also supports offsets (the offset must be less than the interval), i.e., the window division is compared to "UTC time 0". The SLIDING statement is used to specify the forward increment of the aggregation time period, i.e., how long the window slides forward each time.
+- When using the INTERVAL statement, unless in very special circumstances, it is required that the `timezone` parameters in the taos.cfg configuration files of both the client and server be set to the same value to avoid severe performance impacts caused by frequent time zone conversions in time processing functions.
+- The returned results have a strictly monotonically increasing time series.
 
-### State Window
+### State Windows
 
-In case of using integer, bool, or string to represent the status of a device at any given moment, continuous rows with the same status belong to a status window. Once the status changes, the status window closes. As shown in the following figure, there are two state windows according to status, [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
+State windows are defined using integers (boolean values) or strings to identify the state variable of the device when records are generated. Records with the same state variable value belong to the same state window, and the window closes when the value changes. As shown in the figure below, the state windows determined by the state variable are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
-![TDengine Database Status Window](./timewindow-3.webp)
+<figure>
+<Image img={imgStep02} alt=""/>
+</figure>
 
-`STATE_WINDOW` is used to specify the column on which the status window will be based. For example:
+The `STATE_WINDOW` is used to determine the column that defines the state window. For example:
 
-```
+```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
-Only care about the information of the status window when the status is 2. For example:
+To focus only on the state window information where `status` is 2:
 
-```
+```sql
 SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
-TDengine also supports the use of CASE expressions in state quantities. It can express that the beginning of a state is triggered by meeting a certain condition, and the end of this state is triggered by meeting another condition. For example, if the normal voltage range of the smart meter is 205V to 235V, you can judge whether the circuit is normal by monitoring the voltage.
+TDengine also supports using the CASE expression in the state variable, which can express that the start of a certain state is triggered by meeting a certain condition, and the end of that state is triggered by meeting another condition. For example, the normal voltage range for a smart meter is 205V to 235V, and monitoring the voltage can determine whether the circuit is normal.
 
-```
+```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
 
-### Session Window
+### Session Windows
 
-The primary key, i.e. timestamp, is used to determine which session window a row belongs to. As shown in the figure below, if the limit of time interval for the session window is specified as 12 seconds, then the 6 rows in the figure constitutes 2 time windows, [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30] because the time difference between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, which exceeds the time interval limit of 12 seconds.
+Session windows are determined based on the values of the timestamp primary key of records to determine whether they belong to the same session. As shown in the figure below, if the continuous interval of the timestamps is less than or equal to 12 seconds, the following 6 records form 2 session windows: [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30]. This is because the interval between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, exceeding the continuous interval (12 seconds).
 
-![TDengine Database Session Window](./timewindow-2.webp)
+<figure>
+<Image img={imgStep03} alt=""/>
+</figure>
 
-If the time interval between two continuous rows are within the time interval specified by `tol_value` they belong to the same session window; otherwise a new session window is started automatically. 
+Records within the `tol_value` time interval are considered to belong to the same window; if the timestamps of two consecutive records exceed `tol_val`, a new window is automatically opened.
 
-```
-
+```sql
 SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
 
-### Event Window
+### Event Windows
 
-Event window is determined according to the window start condition and the window close condition. The window is started when `start_trigger_condition` is evaluated to true, the window is closed when `end_trigger_condition` is evaluated to true. `start_trigger_condition` and `end_trigger_condition` can be any conditional expressions supported by TDengine and can include multiple columns.
+Event windows are defined based on start and end conditions. When `start_trigger_condition` is met, the window starts, and it closes when `end_trigger_condition` is met. Both `start_trigger_condition` and `end_trigger_condition` can be any TDengine-supported conditional expressions and can include different columns.
 
-There may be only one row of data in an event window, when a row meets both the `start_trigger_condition` and the `end_trigger_condition`. 
+An event window can contain only one record. That is, when a record satisfies both `start_trigger_condition` and `end_trigger_condition` at the same time and is not currently in a window, that record forms its own window.
 
-The window is treated as invalid or non-existing if the `end_trigger_condition` can't be met. There will be no output in case that a window can't be closed. 
+If an event window cannot close, it does not constitute a window and will not be output. For example, if data satisfies `start_trigger_condition` and the window opens, but subsequent data cannot satisfy `end_trigger_condition`, this window cannot close, and the corresponding data does not constitute a window and will not be output.
 
-If the event window query is performed on a super table, TDengine consolidates all the data of all child tables into a single timeline then perform event window based query.
+If an event window query is performed directly on a supertable, TDengine will aggregate the data of the supertable into a single time line and then perform event window calculations. If an event window query is needed on the result set of a subquery, the result set must meet the requirements of outputting in a time line and can output valid timestamp columns.
 
-If you want to perform event window based query on the result set of a sub-query, the result set of the sub-query should be arranged in the order of timestamp and include the column of timestamp.
-
-For example, the diagram below illustrates the event windows generated by the query below:
+For example, the following SQL statement illustrates the event window partitioning:
 
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![Event Window Illustration](./event_window.webp)
+<figure>
+<Image img={imgStep04} alt=""/>
+</figure>
 
-### Examples
+### Count Windows
 
-A table of intelligent meters can be created by the SQL statement below:
+Count windows partition the data based on a fixed number of rows. By default, the data is sorted by timestamp, and the data is divided into multiple windows according to the value of `count_val`, followed by aggregation calculations. `count_val` represents the maximum number of data rows included in each count window; if the total number of data rows is not divisible by `count_val`, the last window will have fewer rows than `count_val`. `sliding_val` is a constant that represents the number of rows the window slides, similar to the SLIDING clause in INTERVAL.
 
+The following SQL statement illustrates the count window partitioning:
+
+```sql
+select _wstart, _wend, count(*) from t count_window(4);
 ```
+
+<figure>
+<Image img={imgStep05} alt=""/>
+</figure>
+
+### Timestamp Pseudo Columns
+
+In the results of window aggregate queries, if the SQL statement does not specify the timestamp columns to be output in the query results, the final results will not automatically include the time column information of the windows. If you need to output the time window information corresponding to the aggregate results in the results, you need to use timestamp-related pseudo-columns in the SELECT clause: the start time of the time window (\_WSTART), the end time of the time window (\_WEND), the duration of the time window (\_WDURATION), as well as the pseudo-columns related to the overall query window: the start time of the query window (\_QSTART) and the end time of the query window (\_QEND). It is important to note that both the start and end times of the time window are closed intervals, and the duration of the time window is the value under the current time resolution of the data. For example, if the current database's time resolution is milliseconds, then a result of 500 indicates that the current time window's duration is 500 milliseconds (500 ms).
+
+### Example
+
+The table creation statement for smart meters is as follows:
+
+```sql
 CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 ```
 
-The average current, maximum current and median of current in every 10 minutes for the past 24 hours can be calculated using the SQL statement below, with missing values filled with the previous non-NULL values. The query statement is as follows:
+For the data collected from smart meters, calculate the average, maximum, and median of current data over the past 24 hours, using 10 minutes as a phase. If no computed value is available, fill it with the previous non-NULL value. The query statement used is as follows:
 
-```
-SELECT AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
+```sql
+SELECT _WSTART, _WEND, AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
   WHERE ts>=NOW-1d and ts<=now
   INTERVAL(10m)
   FILL(PREV);

@@ -1,0 +1,32 @@
+import PkgListV3 from "/components/PkgListV3";
+
+1. Download the client installation package
+
+   <PkgListV3 type={4} sys="Windows" />
+
+2. Run the installer, choose the default options as prompted, and complete the installation.
+
+3. Installation Path
+
+   The default installation path is: `C:\TDengine`, which includes the following files (directories):
+
+   - _taos.exe_: TDengine CLI command-line program
+   - _taosadapter.exe_: Server executable file providing RESTful services and accepting write requests from various other software
+   - _taosBenchmark.exe_: TDengine testing program
+   - _cfg_: Configuration file directory
+   - _driver_: Application driver dynamic link library
+   - _examples_: Example programs in bash/C/C#/go/JDBC/Python/Node.js
+   - _include_: Header files
+   - _log_: Log files
+   - _unins000.exe_: Uninstaller
+
+4. Configure `taos.cfg`
+
+   Edit the `taos.cfg` file (default path `C:\TDengine\cfg\taos.cfg`) and change `firstEP` to the TDengine server's endpoint, for example: `h1.tdengine.com:6030`.
+
+:::tip
+
+1. If connecting to the server using FQDN, ensure that the local network environment's DNS is configured, or add an FQDN addressing record in the hosts file, such as editing `C:\Windows\system32\drivers\etc\hosts` to add a record like: `192.168.1.99 h1.taos.com`.
+2. Uninstall: Run `unins000.exe` to uninstall the TDengine application driver.
+
+:::

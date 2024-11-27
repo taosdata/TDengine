@@ -1,60 +1,43 @@
 ---
-title: Name and Size Limits
-sidebar_label: Name and Size Limits
-description: This document describes the name and size limits in TDengine.
+sidebar_label: Names & Limits
+title: Naming Conventions and Limitations
+description: Legal character set and naming restrictions
+slug: /tdengine-reference/sql-manual/names
 ---
 
 ## Naming Rules
 
-1. Names can include letters, digits, and underscores (_).
-2. Names can begin with letters or underscores (_) but not with digits.
-3. Names are not case-sensitive.
-4. Rules for names with escape characters are as follows:
-   You can escape a name by enclosing it in backticks (`). In this way, you can reuse keyword names for table names. However, the first three naming rules no longer apply.
-   Table and column names that are enclosed in escape characters are still subject to length limits. When the length of such a name is calculated, the escape characters are not included. Names specified using escape character are case-sensitive.
+1. Legal characters: English letters, numbers, and underscores.
+2. Names may start with English letters or underscores, but cannot start with numbers.
+3. Case insensitive.
+4. Cannot be a [reserved keyword](../reserved-keywords/).
+5. Rules for escaped table (column) names:
+   To support more forms of table (column) names, TDengine introduces a new escape character ``"``. After using the escape character:
+   - Case uniformity is no longer applied to the content within escape characters, allowing the preservation of case sensitivity in user-specified table names. For example, \`aBc\` and \`abc\` are considered different table (column) names, while abc and aBc are treated as the same table (column) name.
+   - Table (column) names can include characters other than letters, numbers, and underscores, such as \`abc@TD\`, but escaped names still cannot contain `.`; otherwise, the error `The table name cannot contain '.'` will be prompted.
+   - Names can start with numbers, such as \`1970\`.
+   - Names can be the same as [reserved keywords](../reserved-keywords/), such as \`select\`.
 
-   For example, \`aBc\` and \`abc\` are different table or column names, but "abc" and "aBc" are same names because internally they are all "abc".
-   Only ASCII visible characters can be used with escape character.
-
-## Password Rules
+## Password Legal Character Set
 
 `[a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/]`
 
-The following characters cannot occur in a password: single quotation marks ('), double quotation marks ("), backticks (`), backslashes (\\), and spaces.
+This excludes ``‘“`\`` (single quotes, double quotes, apostrophes, backslashes, spaces).
 
-## General Limits
+## General Restrictions
 
-- Maximum length of database name is 64 bytes
-- Maximum length of table name is 192 bytes, excluding the database name prefix and the separator.
-- Maximum length of each data row is 48K(64K since version 3.0.5.0) bytes. Note that the upper limit includes the extra 2 bytes consumed by each column of BINARY/NCHAR type.
-- The maximum length of a column name is 64 bytes.
-- Maximum number of columns is 4096. There must be at least 2 columns, and the first column must be timestamp.
-- The maximum length of a tag name is 64 bytes
-- Maximum number of tags is 128. There must be at least 1 tag. The total length of tag values cannot exceed 16 KB.
-- Maximum length of single SQL statement is 1 MB (1048576 bytes). 
-- At most 4096 columns can be returned by `SELECT`. Functions in the query statement constitute columns. An error is returned if the limit is exceeded.
-- Maximum numbers of databases, STables, tables are dependent only on the system resources.
-- The number of replicas can only be 1 or 3.
-- The maximum length of a username is 23 bytes.
-- The maximum length of a password is 31 bytes.
-- The maximum number of rows depends on system resources.
-- The maximum number of vnodes in a database is 1024.
-
-## Restrictions of Table/Column Names
-
-### Name Restrictions of Table/Column
-
-The name of a table or column can only be composed of ASCII characters, digits and underscore and it cannot start with a digit. The maximum length is 192 bytes. Names are case insensitive. The name mentioned in this rule doesn't include the database name prefix and the separator.
-
-### Name Restrictions After Escaping
-
-To support more flexible table or column names, new escape character "\`" is introduced in TDengine to avoid the conflict between table name and keywords and break the above restrictions for table names. The escape character is not counted in the length of table name.
-With escaping, the string inside escape characters are case sensitive, i.e. will not be converted to lower case internally. The table names specified using escape character are case sensitive.
-
-For example:
-\`aBc\` and \`abc\` are different table or column names, but "abc" and "aBc" are same names because internally they are all "abc".
-
-:::note
-The characters inside escape characters must be printable characters.
-
-:::
+- Maximum length of database name: 64 bytes
+- Maximum length of table name: 192 bytes, excluding database prefix and separator
+- Maximum length of each data row: 48KB (64KB starting from version 3.0.5.0) (Note: Each BINARY/NCHAR type column in a data row will also occupy an additional 2 bytes of storage space.)
+- Maximum length of column name: 64 bytes
+- Maximum allowed columns: 4096, with a minimum of 2 columns, the first column must be a timestamp.
+- Maximum length of tag name: 64 bytes
+- Maximum allowed tags: 128, with at least 1 tag, the total length of tag values in a table cannot exceed 16KB.
+- Maximum length of SQL statements: 1,048,576 characters
+- For SELECT statement results, a maximum of 4096 columns are allowed (function calls in the statement may also occupy some column space); if exceeded, fewer return data columns must be explicitly specified to avoid execution errors.
+- The number of databases, supertables, and tables is not restricted by the system, only limited by system resources.
+- The number of database replicas can only be set to 1 or 3.
+- Maximum length of username: 23 bytes
+- Maximum length of user password: 31 bytes
+- Total number of data rows depends on available resources.
+- Maximum number of virtual nodes per single database: 1024

@@ -1,14 +1,14 @@
 ---
 title: Reserved Keywords
-sidebar_label: Reserved Keywords
-description: This document describes the reserved keywords in TDengine that cannot be used in object names.
+description: Detailed list of reserved keywords in TDengine
+slug: /tdengine-reference/sql-manual/reserved-keywords
 ---
 
-## Keyword List
+## Reserved Keywords
 
-There are more than 200 keywords reserved by TDengine, they can't be used as the name of database, table, STable, subtable, column or tag with either upper case, lower case or mixed case. If you need to use these keywords, use the symbol `` ` `` to enclose the keywords, e.g. \`ADD\`.
+Currently, TDengine has over 200 internal reserved keywords. If you need to use these keywords as database names, table names, supertable names, subtable names, data column names, or tag column names, regardless of their case, you must enclose them with the symbol `` ` ``. For example, \`ADD\`.
 
-The following list shows all reserved keywords:
+The list of keywords is as follows:
 
 ### A
 
@@ -131,6 +131,7 @@ The following list shows all reserved keywords:
 ### H
 
 - HAVING
+- HOST
 
 ### I
 
@@ -271,7 +272,7 @@ The following list shows all reserved keywords:
 - SPLIT
 - STABLE
 - STABLES
-- STAR
+- START
 - STATE
 - STATE_WINDOW
 - STATEMENT
