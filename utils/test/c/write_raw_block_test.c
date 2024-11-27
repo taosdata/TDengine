@@ -16,7 +16,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <time.h>
-#include "taos.h"
+#include "taosinternal.h"
 #include "types.h"
 
 TAOS* pConn = NULL;

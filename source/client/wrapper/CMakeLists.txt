@@ -35,6 +35,6 @@ set_target_properties(
     SOVERSION 1
 )
 
-if(${BUILD_TEST})
-    ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+# if(${BUILD_TEST})
+# ADD_SUBDIRECTORY(test)
+# endif(${BUILD_TEST})

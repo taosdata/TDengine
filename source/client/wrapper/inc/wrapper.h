@@ -17,11 +17,7 @@
 #define TDENGINE_WRAPPER_H
 
 #include "os.h"
-#include "taos.h"
-
-#ifdef WEBSOCKET
-#include "taosws.h"
-#endif
+#include "taosinternal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,8 +34,6 @@ void       *tsDriver;
 
 int32_t taosDriverInit(EDriverType driverType);
 void    taosDriverCleanup();
-
-// from taos.h
 
 void (*fp_taos_cleanup)(void);
 int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...);
@@ -222,97 +216,6 @@ void (*fp_tmq_free_json_meta)(char *jsonMeta);
 
 TSDB_SERVER_STATUS (*fp_taos_check_server_status)(const char *fqdn, int port, char *details, int maxlen);
 char *(*fp_getBuildInfo)();
-
-// from taosws.h
-#ifdef WEBSOCKET
-int32_t (*fp_ws_enable_log)(const char *log_level);
-const char *(*fp_ws_data_type)(int32_t type);
-WS_TAOS *(*fp_ws_connect)(const char *dsn);
-const char *(*fp_ws_get_server_info)(WS_TAOS *taos);
-int32_t (*fp_ws_close)(WS_TAOS *taos);
-WS_RES *(*fp_ws_query)(WS_TAOS *taos, const char *sql);
-WS_RES *(*fp_ws_query_with_reqid)(WS_TAOS *taos, const char *sql, uint64_t req_id);
-int32_t (*fp_ws_stop_query)(WS_RES *rs);
-WS_RES *(*fp_ws_query_timeout)(WS_TAOS *taos, const char *sql, uint32_t seconds);
-int64_t (*fp_ws_take_timing)(WS_RES *rs);
-int32_t (*fp_ws_errno)(WS_RES *rs);
-const char *(*fp_ws_errstr)(WS_RES *rs);
-int32_t (*fp_ws_affected_rows)(const WS_RES *rs);
-int64_t (*fp_ws_affected_rows64)(const WS_RES *rs);
-int32_t (*fp_ws_select_db)(WS_TAOS *taos, const char *db);
-const char *(*fp_ws_get_client_info)(void);
-int32_t (*fp_ws_field_count)(const WS_RES *rs);
-bool (*fp_ws_is_update_query)(const WS_RES *rs);
-const struct WS_FIELD *(*fp_ws_fetch_fields)(WS_RES *rs);
-const struct WS_FIELD_V2 *(*fp_ws_fetch_fields_v2)(WS_RES *rs);
-int32_t (*fp_ws_fetch_raw_block)(WS_RES *rs, const void **pData, int32_t *numOfRows);
-bool (*fp_ws_is_null)(const WS_RES *rs, int32_t row, int32_t col);
-WS_ROW (*fp_ws_fetch_row)(WS_RES *rs);
-int32_t (*fp_ws_num_fields)(const WS_RES *rs);
-int32_t (*fp_ws_free_result)(WS_RES *rs);
-int32_t (*fp_ws_result_precision)(const WS_RES *rs);
-const void *(*fp_ws_get_value_in_block)(WS_RES *rs, int32_t row, int32_t col, uint8_t *ty, uint32_t *len);
-void (*fp_ws_timestamp_to_rfc3339)(uint8_t *dest, int64_t raw, int32_t precision, bool use_z);
-int32_t (*fp_ws_print_row)(char *str, int32_t str_len, WS_ROW row, const struct WS_FIELD *fields, int32_t num_fields);
-int32_t (*fp_ws_get_current_db)(WS_TAOS *taos, char *database, int len, int *required);
-WS_RES *(*fp_ws_schemaless_insert_raw)(WS_TAOS *taos, const char *lines, int len, int32_t *totalRows, int protocal,
-                                       int precision);
-WS_RES *(*fp_ws_schemaless_insert_raw_with_reqid)(WS_TAOS *taos, const char *lines, int len, int32_t *totalRows,
-                                                  int protocal, int precision, uint64_t reqid);
-WS_RES *(*fp_ws_schemaless_insert_raw_ttl)(WS_TAOS *taos, const char *lines, int len, int32_t *totalRows, int protocal,
-                                           int precision, int ttl);
-WS_RES *(*fp_ws_schemaless_insert_raw_ttl_with_reqid)(WS_TAOS *taos, const char *lines, int len, int32_t *totalRows,
-                                                      int protocal, int precision, int ttl, uint64_t reqid);
-WS_STMT *(*fp_ws_stmt_init)(const WS_TAOS *taos);
-WS_STMT *(*fp_ws_stmt_init_with_reqid)(const WS_TAOS *taos, uint64_t req_id);
-int (*fp_ws_stmt_prepare)(WS_STMT *stmt, const char *sql, unsigned long len);
-int (*fp_ws_stmt_set_tbname)(WS_STMT *stmt, const char *name);
-int (*fp_ws_stmt_set_sub_tbname)(WS_STMT *stmt, const char *name);
-int (*fp_ws_stmt_set_tbname_tags)(WS_STMT *stmt, const char *name, const WS_MULTI_BIND *bind, uint32_t len);
-int (*fp_ws_stmt_get_tag_fields)(WS_STMT *stmt, int *fieldNum, struct StmtField **fields);
-int (*fp_ws_stmt_get_col_fields)(WS_STMT *stmt, int *fieldNum, struct StmtField **fields);
-int (*fp_ws_stmt_reclaim_fields)(WS_STMT *stmt, struct StmtField **fields, int fieldNum);
-int (*fp_ws_stmt_is_insert)(WS_STMT *stmt, int *insert);
-int (*fp_ws_stmt_set_tags)(WS_STMT *stmt, const WS_MULTI_BIND *bind, uint32_t len);
-int (*fp_ws_stmt_bind_param_batch)(WS_STMT *stmt, const WS_MULTI_BIND *bind, uint32_t len);
-int (*fp_ws_stmt_add_batch)(WS_STMT *stmt);
-int (*fp_ws_stmt_execute)(WS_STMT *stmt, int32_t *affected_rows);
-int (*fp_ws_stmt_affected_rows)(WS_STMT *stmt);
-int (*fp_ws_stmt_affected_rows_once)(WS_STMT *stmt);
-int (*fp_ws_stmt_num_params)(WS_STMT *stmt, int *nums);
-int (*fp_ws_stmt_get_param)(WS_STMT *stmt, int idx, int *type, int *bytes);
-const char *(*fp_ws_stmt_errstr)(WS_STMT *stmt);
-int32_t (*fp_ws_stmt_close)(WS_STMT *stmt);
-ws_tmq_conf_t *(*fp_ws_tmq_conf_new)(void);
-enum ws_tmq_conf_res_t (*fp_ws_tmq_conf_set)(ws_tmq_conf_t *conf, const char *key, const char *value);
-int32_t (*fp_ws_tmq_conf_destroy)(ws_tmq_conf_t *conf);
-ws_tmq_list_t *(*fp_ws_tmq_list_new)(void);
-int32_t (*fp_ws_tmq_list_append)(ws_tmq_list_t *list, const char *topic);
-int32_t (*fp_ws_tmq_list_destroy)(ws_tmq_list_t *list);
-int32_t (*fp_ws_tmq_list_get_size)(ws_tmq_list_t *list);
-char **(*fp_ws_tmq_list_to_c_array)(const ws_tmq_list_t *list, uint32_t *topic_num);
-int32_t (*fp_ws_tmq_list_free_c_array)(char **c_str_arry, uint32_t topic_num);
-ws_tmq_t *(*fp_ws_tmq_consumer_new)(ws_tmq_conf_t *conf, const char *dsn, char *errstr, int errstr_len);
-int32_t (*fp_ws_tmq_consumer_close)(ws_tmq_t *tmq);
-int32_t (*fp_ws_tmq_subscribe)(ws_tmq_t *tmq, const ws_tmq_list_t *topic_list);
-int32_t (*fp_ws_tmq_unsubscribe)(ws_tmq_t *tmq);
-WS_RES *(*fp_ws_tmq_consumer_poll)(ws_tmq_t *tmq, int64_t timeout);
-const char *(*fp_ws_tmq_get_topic_name)(const WS_RES *rs);
-const char *(*fp_ws_tmq_get_db_name)(const WS_RES *rs);
-const char *(*fp_ws_tmq_get_table_name)(const WS_RES *rs);
-int32_t (*fp_ws_tmq_get_vgroup_id)(const WS_RES *rs);
-int64_t (*fp_ws_tmq_get_vgroup_offset)(const WS_RES *rs);
-enum ws_tmq_res_t (*fp_ws_tmq_get_res_type)(const WS_RES *rs);
-int32_t (*fp_ws_tmq_get_topic_assignment)(ws_tmq_t *tmq, const char *pTopicName,
-                                          struct ws_tmq_topic_assignment **assignment, int32_t *numOfAssignment);
-int32_t (*fp_ws_tmq_free_assignment)(struct ws_tmq_topic_assignment *pAssignment, int32_t numOfAssignment);
-int32_t (*fp_ws_tmq_commit_sync)(ws_tmq_t *tmq, const WS_RES *rs);
-int32_t (*fp_ws_tmq_commit_offset_sync)(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
-int64_t (*fp_ws_tmq_committed)(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId);
-int32_t (*fp_ws_tmq_offset_seek)(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
-int64_t (*fp_ws_tmq_position)(ws_tmq_t *tmq, const char *pTopicName, int32_t vgId);
-const char *(*fp_ws_tmq_errstr)(ws_tmq_t *tmq);
-#endif
 
 #ifdef __cplusplus
 }
