@@ -56,6 +56,7 @@ extern "C" {
   }
 
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
+#define SDB_GET_FLOAT(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawFloat, float)
 #define SDB_GET_INT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt32, int32_t)
 #define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
 #define SDB_GET_INT8(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
@@ -82,6 +83,7 @@ extern "C" {
 #define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
 #define SDB_SET_INT8(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
 #define SDB_SET_UINT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawUInt8, uint8_t)
+#define SDB_SET_FLOAT(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawFloat, float)
 #define SDB_SET_BOOL(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawBool, bool)
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)              \
@@ -425,6 +427,7 @@ int32_t  sdbSetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool val);
 int32_t  sdbSetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t val);
 int32_t  sdbSetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t val);
 int32_t  sdbSetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t val);
+int32_t  sdbSetRawFloat(SSdbRaw *pRaw, int32_t dataPos, float val);
 int32_t  sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_t valLen);
 int32_t  sdbSetRawDataLen(SSdbRaw *pRaw, int32_t dataLen);
 int32_t  sdbSetRawStatus(SSdbRaw *pRaw, ESdbStatus status);
@@ -434,6 +437,7 @@ int32_t  sdbGetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool *val);
 int32_t  sdbGetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t *val);
 int32_t  sdbGetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t *val);
 int32_t  sdbGetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t *val);
+int32_t  sdbGetRawFloat(SSdbRaw *pRaw, int32_t dataPos, float *val);
 int32_t  sdbGetRawBinary(SSdbRaw *pRaw, int32_t dataPos, char *pVal, int32_t valLen);
 int32_t  sdbGetRawSoftVer(SSdbRaw *pRaw, int8_t *sver);
 int32_t  sdbGetRawTotalSize(SSdbRaw *pRaw);

@@ -102,9 +102,7 @@ SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
       break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE:
-      (void)sprintf(buf, "%f", obj->fval);
-      SDB_SET_INT32(pRaw, dataPos, strlen(buf), _OVER)
-      SDB_SET_BINARY(pRaw, dataPos, buf, strlen(buf), _OVER)
+      SDB_SET_FLOAT(pRaw, dataPos, obj->fval, _OVER)
       break;
     case CFG_DTYPE_STRING:
     case CFG_DTYPE_DIR:
@@ -172,11 +170,7 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
       break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE:
-      SDB_GET_INT32(pRaw, dataPos, &len, _OVER)
-      char *buf = taosMemoryMalloc(len + 1);
-      SDB_GET_BINARY(pRaw, dataPos, buf, len, _OVER)
-      obj->fval = atof(buf);
-      taosMemoryFree(buf);
+      SDB_GET_FLOAT(pRaw, dataPos, &obj->fval, _OVER)
       break;
     case CFG_DTYPE_STRING:
     case CFG_DTYPE_DIR:

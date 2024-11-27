@@ -140,6 +140,22 @@ int32_t sdbSetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t val) {
   return 0;
 }
 
+int32_t sdbSetRawFloat(SSdbRaw *pRaw, int32_t dataPos, float val) {
+  int32_t code = 0;
+  if (pRaw == NULL) {
+    code = TSDB_CODE_INVALID_PTR;
+    TAOS_RETURN(code);
+  }
+
+  if (dataPos + sizeof(float) > pRaw->dataLen) {
+    code = TSDB_CODE_SDB_INVALID_DATA_LEN;
+    TAOS_RETURN(code);
+  }
+
+  *(int64_t *)(pRaw->pData + dataPos) = val;
+  return 0;
+}
+
 int32_t sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_t valLen) {
   int32_t code = 0;
   if (pRaw == NULL) {
@@ -277,6 +293,22 @@ int32_t sdbGetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t *val) {
   }
 
   if (dataPos + sizeof(int64_t) > pRaw->dataLen) {
+    code = TSDB_CODE_SDB_INVALID_DATA_LEN;
+    TAOS_RETURN(code);
+  }
+
+  *val = *(int64_t *)(pRaw->pData + dataPos);
+  return 0;
+}
+
+int32_t sdbGetRawFloat(SSdbRaw *pRaw, int32_t dataPos, float *val) {
+  int32_t code = 0;
+  if (pRaw == NULL) {
+    code = TSDB_CODE_INVALID_PTR;
+    TAOS_RETURN(code);
+  }
+
+  if (dataPos + sizeof(float) > pRaw->dataLen) {
     code = TSDB_CODE_SDB_INVALID_DATA_LEN;
     TAOS_RETURN(code);
   }
