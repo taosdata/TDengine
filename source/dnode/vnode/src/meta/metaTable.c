@@ -2334,6 +2334,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     metaError("meta/table: failed to get tb db, uid:%" PRId64, uid);
     tdbTbcClose(pUidIdxc);
     tdbTbcClose(pTbDbc);
+    return terrno = TSDB_CODE_INVALID_MSG;
   }
 
   if ((ctbEntry.pBuf = taosMemoryMalloc(nData)) == NULL) {
