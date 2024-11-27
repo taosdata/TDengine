@@ -1803,7 +1803,8 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       pResInfo->complete = true;
       return TSDB_CODE_SUCCESS;
     } else {
-      code = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval, pCtx->hasWindowOrGroup, &pInfo->pMemBucket, pInfo->numOfElems);
+      code = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval, pCtx->hasWindowOrGroup,
+                              &pInfo->pMemBucket, pInfo->numOfElems);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -3067,8 +3068,8 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
     }
   } else {
     int64_t* pts = (int64_t*)pInput->pPTS->pData;
-    int from = -1;
-    int32_t i = -1;
+    int      from = -1;
+    int32_t  i = -1;
     while (funcInputGetNextRowIndex(pInput, from, false, &i, &from)) {
       bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
       char* data = isNull ? NULL : colDataGetData(pInputCol, i);
@@ -3088,7 +3089,6 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
         pResInfo->numOfRes = 1;
       }
     }
-
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
@@ -6552,6 +6552,7 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (NULL == pColInfo) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
+  int32_t len = 0;
   int32_t row = 0;
   char    st[256] = {0};
 
@@ -6560,9 +6561,10 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   double   compressRadio = 0;
   if (rawDataSize != 0) {
     compressRadio = totalDiskSize * 100 / (double)rawDataSize;
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio: %.2f", compressRadio);
+  } else {
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio: NULL");
   }
-
-  int32_t len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio: %.2f", compressRadio);
 
   varDataSetLen(st, len);
   int32_t code = colDataSetVal(pColInfo, row++, st, false);
