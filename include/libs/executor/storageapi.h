@@ -171,6 +171,8 @@ typedef union {
 
 typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param);
 
+struct SFileSetReader;
+
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
@@ -193,9 +195,10 @@ typedef struct TsdReader {
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
 
   // for fileset query
-  void *(*openFilesetReadCursor)(void *pVnode);
-  void *(*nextFilesetReadCursor)(void *cursor);
-  void (*closeFilesetReadCursor)(void *pReader);
+  int32_t (*fileSetReaderOpen)(void *pVnode, struct SFileSetReader **ppReader);
+  int32_t (*fileSetReadNext)(struct SFileSetReader *);
+  int32_t (*fileSetGetEntryField)(struct SFileSetReader *, const char *, void *);
+  void (*fileSetReaderClose)(struct SFileSetReader **);
   
 } TsdReader;
 

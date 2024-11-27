@@ -1239,3 +1239,118 @@ void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
     }
   }
 }
+
+struct SFileSetReader {
+  STsdb     *pTsdb;
+  int32_t    fid;
+  int64_t    startTime;
+  int64_t    endTime;
+  STFileSet *pFileSet;
+};
+
+int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader) {
+  if (pVnode == NULL || ppReader == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STsdb *pTsdb = ((SVnode *)pVnode)->pTsdb;
+
+  (*ppReader) = taosMemoryCalloc(1, sizeof(struct SFileSetReader));
+  if (*ppReader == NULL) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(terrno));
+    return terrno;
+  }
+
+  (*ppReader)->pTsdb = pTsdb;
+  (*ppReader)->fid = INT32_MIN;
+  (*ppReader)->pFileSet = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
+  STsdb *pTsdb = pReader->pTsdb;
+
+  tsdbTFileSetClear(&pReader->pFileSet);
+
+  STFileSet *fset = &(STFileSet){
+      .fid = pReader->fid,
+  };
+
+  STFileSet **fsetPtr = TARRAY2_SEARCH(pReader->pTsdb->pFS->fSetArr, &fset, tsdbTFileSetCmprFn, TD_GT);
+  if (fsetPtr == NULL) {
+    pReader->fid = INT32_MAX;
+    return TSDB_CODE_NOT_FOUND;
+  }
+
+  pReader->fid = (*fsetPtr)->fid;
+  tsdbFidKeyRange(pReader->fid, pTsdb->keepCfg.days, pTsdb->keepCfg.precision, &pReader->startTime, &pReader->endTime);
+  return tsdbTFileSetInitRef(pReader->pTsdb, *fsetPtr, &pReader->pFileSet);
+}
+
+int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)taosThreadMutexLock(&pReader->pTsdb->mutex);
+  code = tsdbFileSetReaderNextNoLock(pReader);
+  (void)taosThreadMutexUnlock(&pReader->pTsdb->mutex);
+  return code;
+}
+
+int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value) {
+  const char *fieldName;
+
+  if (pReader->fid == INT32_MIN || pReader->fid == INT32_MAX) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  fieldName = "fileset_id";
+  if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
+    *(int32_t *)value = pReader->fid;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  fieldName = "start_time";
+  if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
+    *(int64_t *)value = pReader->startTime;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  fieldName = "end_time";
+  if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
+    *(int64_t *)value = pReader->endTime;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  fieldName = "last_compact_time";
+  if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
+    *(int64_t *)value = 0;  // TODO
+    return TSDB_CODE_SUCCESS;
+  }
+
+  fieldName = "should_compact";
+  if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
+    *(char *)value = 0;  // TODO
+    return TSDB_CODE_SUCCESS;
+  }
+
+  fieldName = "details";
+  if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
+    // TODO
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_INVALID_PARA;
+}
+
+void tsdbFileSetReaderClose(struct SFileSetReader **ppReader) {
+  if (ppReader == NULL || *ppReader == NULL) {
+    return;
+  }
+
+  tsdbTFileSetClear(&(*ppReader)->pFileSet);
+  taosMemoryFree(*ppReader);
+
+  *ppReader = NULL;
+  return;
+}

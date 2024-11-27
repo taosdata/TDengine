@@ -73,6 +73,9 @@ typedef struct SSysTableScanInfo {
   SLimitInfo             limitInfo;
   int32_t                tbnameSlotId;
   SStorageAPI*           pAPI;
+
+  // file set iterate
+  struct SFileSetReader* pFileSetReader;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -2008,10 +2011,9 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
   SSDataBlock*       p = NULL;
 
   // open cursor if not opened
-  // TODO: call corresponding api to open the cursor
-  if (pInfo->pCur == NULL) {
-    // pInfo->pCur = pAPI->tsdReader.openFileSetCursor(pInfo->readHandle.vnode);
-    // QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
+  if (pInfo->pFileSetReader == NULL) {
+    code = pAPI->tsdReader.fileSetReaderOpen(pInfo->readHandle.vnode, &pInfo->pFileSetReader);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   blockDataCleanup(pInfo->pRes);
@@ -2042,14 +2044,96 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
 
   // loop to query each entry
   for (;;) {
-    void* entry = pAPI->tsdReader.nextFilesetReadCursor(pInfo->pCur);
-    if (entry == NULL) {
-      break;
+    int32_t ret = pAPI->tsdReader.fileSetReadNext(pInfo->pFileSetReader);
+    if (ret) {
+      if (ret == TSDB_CODE_NOT_FOUND) {
+        // no more scan entry
+        break;
+      } else {
+        code = ret;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
 
-    code = doSetQueryFileSetRow();
-    QUERY_CHECK_CODE(code, lino, _end);
+    // fill the data block
+    {
+      SColumnInfoData* pColInfoData;
 
+      // dnode_id
+      int32_t dnodeId = 0;  // TODO
+      pColInfoData = taosArrayGet(p->pDataBlock, 0);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&dnodeId, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // db_name
+      pColInfoData = taosArrayGet(p->pDataBlock, 1);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, db, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // vgroup_id
+      pColInfoData = taosArrayGet(p->pDataBlock, 2);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // fileset_id
+      int32_t filesetId = 0;
+      code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "fileset_id", &filesetId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pColInfoData = taosArrayGet(p->pDataBlock, 3);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&filesetId, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // start_time
+      int64_t startTime = 0;
+      code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "start_time", &startTime);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pColInfoData = taosArrayGet(p->pDataBlock, 4);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&startTime, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // end_time
+      int64_t endTime = 0;
+      code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "end_time", &endTime);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pColInfoData = taosArrayGet(p->pDataBlock, 5);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&endTime, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // last_compact
+      int64_t lastCompacat = 0;
+      code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "last_compact_time", &lastCompacat);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pColInfoData = taosArrayGet(p->pDataBlock, 6);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&lastCompacat, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // shold_compact
+      bool shouldCompact = false;
+      code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "should_compact", &shouldCompact);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pColInfoData = taosArrayGet(p->pDataBlock, 7);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&shouldCompact, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // // details
+      // const char* details = NULL;
+      // code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "details", &details);
+      // QUERY_CHECK_CODE(code, lino, _end);
+      // pColInfoData = taosArrayGet(p->pDataBlock, 8);
+      // QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      // code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+      // QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    // check capacity
     if (++numOfRows >= pOperator->resultInfo.capacity) {
       p->info.rows = numOfRows;
       pInfo->pRes->info.rows = numOfRows;
@@ -2064,15 +2148,12 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       numOfRows = 0;
 
       if (pInfo->pRes->info.rows > 0) {
-        pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
         break;
       }
     }
   }
 
-#if 0
   if (numOfRows > 0) {
-    pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
     p->info.rows = numOfRows;
     pInfo->pRes->info.rows = numOfRows;
 
@@ -2089,23 +2170,14 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
   blockDataDestroy(p);
   p = NULL;
 
-  // todo temporarily free the cursor here, the true reason why the free is not valid needs to be found
-  if (ret != 0) {
-    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-    pInfo->pCur = NULL;
-    setOperatorCompleted(pOperator);
-  }
-
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
-#endif
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     blockDataDestroy(p);
     pTaskInfo->code = code;
-    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-    pInfo->pCur = NULL;
+    pAPI->tsdReader.fileSetReaderClose(&pInfo->pFileSetReader);
     T_LONG_JMP(pTaskInfo->env, code);
   }
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
