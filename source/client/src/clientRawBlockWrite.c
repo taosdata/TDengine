@@ -823,6 +823,9 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
 end:
   uDebug("alter table return");
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    taosArrayDestroy(vAlterTbReq.pMultiTag);
+  }
   tDecoderClear(&decoder);
   *pJson = json;
 }
