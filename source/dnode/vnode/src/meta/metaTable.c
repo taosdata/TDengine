@@ -2023,7 +2023,6 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
   const void *pData = NULL;
   int         nData = 0;
   SHashObj   *pTagTable = NULL;
-  SArray     *updateTagColumnIds = NULL;
 
   // search name index
   ret = tdbTbGet(pMeta->pNameIdx, pAlterTbReq->tbName, strlen(pAlterTbReq->tbName) + 1, &pVal, &nVal);
@@ -2128,12 +2127,11 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
       goto _err;
     }
   }
-  int32_t nUpdateTagVal = taosHashGetSize(pTagTable);
-  updateTagColumnIds = taosArrayInit(nUpdateTagVal, sizeof(int32_t));
 
   SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
   SSchema        *pColumn = NULL;
   int32_t         iCol = 0;
+  int32_t         count = 0;
 
   for (;;) {
     pColumn = NULL;
@@ -2141,14 +2139,11 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
     if (iCol >= pTagSchema->nCols) break;
     pColumn = &pTagSchema->pSchema[iCol];
     if (taosHashGet(pTagTable, pColumn->name, strlen(pColumn->name)) != NULL) {
-      if (taosArrayPush(updateTagColumnIds, &iCol) == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        goto _err;
-      }
+      count++;
     }
     iCol++;
   }
-  if (taosArrayGetSize(updateTagColumnIds) != nUpdateTagVal) {
+  if (count != taosHashGetSize(pTagTable)) {
     terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
     goto _err;
   }
@@ -2253,7 +2248,6 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
   taosHashCleanup(pTagTable);
-  taosArrayDestroy(updateTagColumnIds);
   return 0;
 
 _err:
@@ -2264,7 +2258,6 @@ _err:
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
   taosHashCleanup(pTagTable);
-  taosArrayDestroy(updateTagColumnIds);
   return -1;
 }
 static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
