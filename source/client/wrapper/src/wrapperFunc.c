@@ -21,17 +21,21 @@ volatile int32_t    tsDriverOnceRet = 0;
 #define ERR_VOID(code) \
   terrno = code;       \
   return;
+
 #define ERR_PTR(code) \
   terrno = code;      \
   return NULL;
+
 #define ERR_INT(code) \
   terrno = code;      \
   return -1;
+
 #define ERR_BOOL(code) \
   terrno = code;       \
   return false;
+
 #define ERR_CONFRET(code)           \
-  terrno = TSDB_CODE_DLL_NOT_FOUND; \
+  terrno = code;                    \
   setConfRet ret = {.retCode = -1}; \
   return ret;
 
@@ -103,7 +107,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
   if (IsNative()) {
     CHECK_INT(fp_taos_options);
-    (*fp_taos_options)(option, arg);
+    return (*fp_taos_options)(option, arg);
   } else {
     ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -112,7 +116,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 setConfRet taos_set_config(const char *config) {
   if (IsNative()) {
     CHECK_CONFRET(fp_taos_set_config);
-    (*fp_taos_set_config)(config);
+    return (*fp_taos_set_config)(config);
   } else {
     ERR_CONFRET(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -131,18 +135,28 @@ int taos_init(void) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_FOUND;
+    return NULL;
+  }
+
   if (IsNative()) {
     CHECK_PTR(fp_taos_connect);
-    (*fp_taos_connect)(ip, user, pass, db, port);
+    return (*fp_taos_connect)(ip, user, pass, db, port);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
 TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_FOUND;
+    return NULL;
+  }
+
   if (IsNative()) {
     CHECK_PTR(fp_taos_connect_auth);
-    (*fp_taos_connect_auth)(ip, user, auth, db, port);
+    return (*fp_taos_connect_auth)(ip, user, auth, db, port);
   } else {
     ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -160,7 +174,7 @@ void taos_close(TAOS *taos) {
 const char *taos_data_type(int type) {
   if (IsNative()) {
     CHECK_PTR(fp_taos_data_type);
-    (*fp_taos_data_type)(type);
+    return (*fp_taos_data_type)(type);
   } else {
     ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -169,7 +183,7 @@ const char *taos_data_type(int type) {
 TAOS_STMT *taos_stmt_init(TAOS *taos) {
   if (IsNative()) {
     CHECK_PTR(fp_taos_stmt_init);
-    (*fp_taos_stmt_init)(taos);
+    return (*fp_taos_stmt_init)(taos);
   } else {
     ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -178,7 +192,7 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
 TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
   if (IsNative()) {
     CHECK_PTR(fp_taos_stmt_init_with_reqid);
-    (*fp_taos_stmt_init_with_reqid)(taos, reqid);
+    return (*fp_taos_stmt_init_with_reqid)(taos, reqid);
   } else {
     ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -187,7 +201,7 @@ TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
 TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
   if (IsNative()) {
     CHECK_PTR(fp_taos_stmt_init_with_options);
-    (*fp_taos_stmt_init_with_options)(taos, options);
+    return (*fp_taos_stmt_init_with_options)(taos, options);
   } else {
     ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -196,7 +210,7 @@ TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   if (IsNative()) {
     CHECK_INT(fp_taos_stmt_prepare);
-    (*fp_taos_stmt_prepare)(stmt, sql, length);
+    return (*fp_taos_stmt_prepare)(stmt, sql, length);
   } else {
     ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -205,7 +219,7 @@ int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
 int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags) {
   if (IsNative()) {
     CHECK_INT(fp_taos_stmt_set_tbname_tags);
-    (*fp_taos_stmt_set_tbname_tags)(stmt, name, tags);
+    return (*fp_taos_stmt_set_tbname_tags)(stmt, name, tags);
   } else {
     ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -214,7 +228,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND
 int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
   if (IsNative()) {
     CHECK_INT(fp_taos_stmt_set_tbname);
-    (*fp_taos_stmt_set_tbname)(stmt, name);
+    return (*fp_taos_stmt_set_tbname)(stmt, name);
   } else {
     ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -223,7 +237,7 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
 int taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
   if (IsNative()) {
     CHECK_INT(fp_taos_stmt_set_tags);
-    (*fp_taos_stmt_set_tags)(stmt, tags);
+    return (*fp_taos_stmt_set_tags)(stmt, tags);
   } else {
     ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -232,7 +246,7 @@ int taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
 int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) {
   if (IsNative()) {
     CHECK_INT(fp_taos_stmt_set_sub_tbname);
-    (*fp_taos_stmt_set_sub_tbname)(stmt, name);
+    return (*fp_taos_stmt_set_sub_tbname)(stmt, name);
   } else {
     ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
   }
@@ -308,7 +322,6 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   } else {
     ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
   }
-  return (*fp_taos_stmt_bind_param_batch)(stmt, bind);
 }
 
 int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx) {
@@ -496,7 +509,7 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
     CHECK_PTR(fp_taos_query);
     return (*fp_taos_query)(taos, sql);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -511,10 +524,10 @@ TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqId) {
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   if (IsNative()) {
-    CHECK_PTR(taos_fetch_row);
-    return (*taos_fetch_row)(res);
+    CHECK_PTR(fp_taos_fetch_row);
+    return (*fp_taos_fetch_row)(res);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -523,7 +536,7 @@ int taos_result_precision(TAOS_RES *res) {
     CHECK_INT(fp_taos_result_precision);
     return (*fp_taos_result_precision)(res);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND) // todo
   }
 }
 
@@ -532,7 +545,7 @@ void taos_free_result(TAOS_RES *res) {
     CHECK_VOID(fp_taos_free_result);
     return (*fp_taos_free_result)(res);
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND) // todo
   }
 }
 
@@ -550,7 +563,7 @@ int taos_field_count(TAOS_RES *res) {
     CHECK_INT(fp_taos_field_count);
     return (*fp_taos_field_count)(res);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -559,7 +572,7 @@ int taos_num_fields(TAOS_RES *res) {
     CHECK_INT(fp_taos_num_fields);
     return (*fp_taos_num_fields)(res);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -577,7 +590,7 @@ int64_t taos_affected_rows64(TAOS_RES *res) {
     CHECK_INT(fp_taos_affected_rows64);
     return (*fp_taos_affected_rows64)(res);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND) // todo
   }
 }
 
@@ -586,7 +599,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
     CHECK_PTR(fp_taos_fetch_fields);
     return (*fp_taos_fetch_fields)(res);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -622,7 +635,7 @@ void taos_stop_query(TAOS_RES *res) {
     CHECK_VOID(fp_taos_stop_query);
     (*fp_taos_stop_query)(res);
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -712,7 +725,7 @@ int *taos_fetch_lengths(TAOS_RES *res) {
     CHECK_PTR(fp_taos_fetch_lengths);
     return (*fp_taos_fetch_lengths)(res);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND) // todo
   }
 }
 
@@ -730,7 +743,7 @@ const char *taos_get_server_info(TAOS *taos) {
     CHECK_PTR(fp_taos_get_server_info);
     return (*fp_taos_get_server_info)(taos);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -739,7 +752,7 @@ const char *taos_get_client_info() {
     CHECK_PTR(fp_taos_get_client_info);
     return (*fp_taos_get_client_info)();
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -761,7 +774,7 @@ const char *taos_errstr(TAOS_RES *res) {
     CHECK_PTR(fp_taos_errstr);
     return (*fp_taos_errstr)(res);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND) // todo
   }
 }
 
@@ -774,7 +787,7 @@ int taos_errno(TAOS_RES *res) {
     CHECK_INT(fp_taos_errno);
     return (*fp_taos_errno)(res);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -801,7 +814,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     CHECK_VOID(fp_taos_fetch_rows_a);
     (*fp_taos_fetch_rows_a)(res, fp, param);
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND) // todo
   }
 }
 
@@ -860,11 +873,15 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 }
 
 void taos_set_hb_quit(int8_t quitByKill) {
+  if (taos_init() != 0) {
+    return;
+  }
+
   if (IsNative()) {
     CHECK_VOID(fp_taos_set_hb_quit);
     return (*fp_taos_set_hb_quit)(quitByKill);
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -1036,10 +1053,10 @@ void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *para
 
 tmq_list_t *tmq_list_new() {
   if (IsNative()) {
-    CHECK_VOID(fp_tmq_list_new);
-    (*fp_tmq_list_new)();
+    CHECK_PTR(fp_tmq_list_new);
+    return (*fp_tmq_list_new)();
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
   }
 }
 

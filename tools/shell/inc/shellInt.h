@@ -27,8 +27,6 @@
 #include "ttypes.h"
 #include "tutil.h"
 
-#include "wrapper.h"
-
 #ifdef WEBSOCKET
 #include "taosws.h"
 

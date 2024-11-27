@@ -14,8 +14,8 @@
  */
 
 #define __USE_XOPEN
-#include "shellInt.h"
 #include "shellAuto.h"
+#include "shellInt.h"
 
 extern SShellObj shell;
 
@@ -66,10 +66,6 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  if (taosDriverInit(TAOS_DRIVER_NATIVE) != 0) {
-    return -1;
-  }
-
   if (shell.args.is_version) {
     shellPrintVersion();
     return 0;
@@ -88,6 +84,7 @@ int main(int argc, char *argv[]) {
   shellCheckConnectMode();
 #endif
   if (taos_init() != 0) {
+    printf("failed to init client since %s\r\n", terrstr());
     return -1;
   }
 
@@ -116,6 +113,5 @@ int main(int argc, char *argv[]) {
   shellAutoInit();
   int32_t ret = shellExecute();
   shellAutoExit();
-  taosDriverCleanup();
   return ret;
 }

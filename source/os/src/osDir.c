@@ -583,7 +583,7 @@ void taosGetCwd(char *buf, int32_t len) {
 #endif
 }
 
-int32_t taosGetAppPath(char *path, int32_t maxLen) {
+int32_t taosAppPath(char *path, int32_t maxLen) {
   int32_t ret = 0;
 
 #if !defined(WINDOWS)

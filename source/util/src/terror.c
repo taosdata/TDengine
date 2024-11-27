@@ -74,7 +74,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_REF_INVALID_ID,               "Invalid Ref ID")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            "Ref is already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                "Ref is not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_DLL_NOT_FOUND,                "dynamic linked library not found ")
-TAOS_DEFINE_ERROR(TSDB_CODE_DLL_FUNC_NOT_FOUND,           "function in dynamic linked library not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_DLL_FUNC_NOT_FOUND,           "function not found in dynamic linked library")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_ERROR,                    "Unexpected generic error")
 TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_IN_PROGRESS,           "Action in progress")

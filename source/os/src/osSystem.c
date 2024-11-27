@@ -95,7 +95,7 @@ void* taosLoadDll(const char* fileName) {
   return NULL;
 #else
   void* handle = dlopen(fileName, RTLD_LAZY);
-  if (handle == NULL) {
+  if (handle == NULL && errno != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
@@ -128,7 +128,7 @@ void* taosLoadDllFunc(void* handle, const char* funcName) {
   fptr = dlsym(handle, funcName);
 #endif
 
-  if (fptr == NULL) {
+  if (fptr == NULL && errno != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
