@@ -65,7 +65,8 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
 
   // recover
   if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pFileState)) {
-    recoverSearchBuff(pFileState, pWinStates, pKey->groupId);
+    code = recoverSearchBuff(pFileState, pWinStates, pKey->groupId);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   code = addSearchItem(pFileState, pWinStates, pKey);
@@ -222,7 +223,8 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
   
   // recover
   if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pFileState)) {
-    recoverSearchBuff(pFileState, pWinStates, pKey->groupId);
+    code = recoverSearchBuff(pFileState, pWinStates, pKey->groupId);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int32_t size = taosArrayGetSize(pWinStates);
