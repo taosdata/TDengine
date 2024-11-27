@@ -11,6 +11,12 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
 )
 
+ADD_EXECUTABLE(timezoneTest timezoneTest.cpp)
+TARGET_LINK_LIBRARIES(
+        timezoneTest
+        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+)
+
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
 TARGET_LINK_LIBRARIES(
         tmqTest
@@ -41,12 +47,18 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
-#IF(${TD_LINUX})
+TARGET_INCLUDE_DIRECTORIES(
+        timezoneTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+IF(${TD_LINUX})
         add_test(
                 NAME clientTest
                 COMMAND clientTest
         )
-#ENDIF ()
+ENDIF ()
 
 TARGET_INCLUDE_DIRECTORIES(
         tmqTest
@@ -79,4 +91,9 @@ add_test(
 add_test(
         NAME userOperTest
         COMMAND userOperTest
+)
+
+add_test(
+        NAME timezoneTest
+        COMMAND timezoneTest
 )

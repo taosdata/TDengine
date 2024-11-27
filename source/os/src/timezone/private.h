@@ -897,7 +897,7 @@ ATTRIBUTE_PURE time_t time2posix_z(timezone_t, time_t);
 		default: TIME_T_MAX_NO_PADDING)			    \
      : (time_t) -1)
 enum { SIGNED_PADDING_CHECK_NEEDED
-         = _Generic((time_t) 0,
+	 = _Generic((time_t) 0,
 		    signed char: false, short: false,
 		    int: false, long: false, long long: false,
 		    default: true) };

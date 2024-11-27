@@ -1770,7 +1770,7 @@ timesub(const time_t *timep, int_fast32_t offset,
 	dayoff = offset / SECSPERDAY - corr / SECSPERDAY + rem / SECSPERDAY - 3;
 	rem %= SECSPERDAY;
 	/* y = (EPOCH_YEAR
-	        + floor((tdays + dayoff) / DAYSPERREPEAT) * YEARSPERREPEAT),
+		+ floor((tdays + dayoff) / DAYSPERREPEAT) * YEARSPERREPEAT),
 	   sans overflow.  But calculate against 1570 (EPOCH_YEAR -
 	   YEARSPERREPEAT) instead of against 1970 so that things work
 	   for localtime values before 1970 when time_t is unsigned.  */
