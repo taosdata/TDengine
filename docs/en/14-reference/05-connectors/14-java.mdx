@@ -42,6 +42,9 @@ REST connection supports all platforms that can run Java.
 
 | taos-jdbcdriver version |                                                                   major changes                                                                    | TDengine version |
 | :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------: |
+|          3.4.0         | 1. Replace the fastjson library with the Jackson library; 2. WebSocket connection protocal uses independent identification; 3. Optimize the use of backend pull threads to avoid user misuse leading to timeouts.|    -       |
+|          3.3.4         | 1. Fixed getInt error when data type is float|    -       |
+|          3.3.3         | 1. Fixed the memory leak caused by WebSocket statement|    -       |
 |          3.3.2         | 1. Optimized websocket prepareStatement performance; 2. Improved mybatis support|    -       |
 |          3.3.0         | 1. Optimized data transmission performance under Websocket connection; 2. SSL validation skipping is supported but disabled by default|     3.3.2.0 or later          |
 |          3.2.11         | Fixed the result set closing bug when using a native connection.|        -         |

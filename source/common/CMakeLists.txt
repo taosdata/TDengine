@@ -1,4 +1,7 @@
 aux_source_directory(src COMMON_SRC)
+aux_source_directory(src/msg COMMON_MSG_SRC)
+
+LIST(APPEND COMMON_SRC ${COMMON_MSG_SRC})
 
 if(TD_ENTERPRISE)
   LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/src/plugins/common/src/tglobal.c)

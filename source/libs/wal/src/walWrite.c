@@ -376,6 +376,10 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
 int32_t walBeginSnapshot(SWal *pWal, int64_t ver, int64_t logRetention) {
   int32_t code = 0;
 
+  if (pWal->cfg.level == TAOS_WAL_SKIP) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
   if (logRetention < 0) {
     TAOS_RETURN(TSDB_CODE_FAILED);
   }
@@ -403,6 +407,10 @@ _exit:
 
 int32_t walEndSnapshot(SWal *pWal) {
   int32_t code = 0, lino = 0;
+
+  if (pWal->cfg.level == TAOS_WAL_SKIP) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
 
   TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   int64_t ver = pWal->vers.verInSnapshotting;

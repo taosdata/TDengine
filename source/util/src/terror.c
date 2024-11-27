@@ -361,13 +361,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO,      "Anode too many algori
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME, "Anode too long algorithm name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algorithm type")
 
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_RSP_IS_NULL,         "Analysis service response is NULL")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_CANT_ACCESS,         "Analysis service can't access")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ALGO_NOT_FOUND,          "Analysis algorithm not found")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_RSP_IS_NULL,         "Analysis service response is NULL")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_CANT_ACCESS,         "Analysis service can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_FOUND,          "Analysis algorithm is missing")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -853,7 +854,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,        "Invalid task status
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_CONFLICT_EVENT,          "Stream conflict event")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INTERNAL_ERROR,          "Stream internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_LEADER,              "Stream task not on leader vnode")
-TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INPUTQ_FULL,              "Task input queue is full")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INPUTQ_FULL,             "Task input queue is full")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVLD_CHKPT,             "Invalid checkpoint trigger msg")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")

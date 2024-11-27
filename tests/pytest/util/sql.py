@@ -843,9 +843,10 @@ class TDSql:
         tdSql.query("select * from information_schema.ins_vnodes")
         #result: dnode_id|vgroup_id|db_name|status|role_time|start_time|restored|
 
+        results = list(tdSql.queryResult)
         for vnode_group_id in db_vgroups_list:
-            print(tdSql.queryResult)
-            for result in tdSql.queryResult:
+            for result in results:
+                print(f'result[2] is {result[2]}, db_name is {db_name}, result[1] is {result[1]}, vnode_group_id is {vnode_group_id}')
                 if result[2] == db_name and result[1] == vnode_group_id:
                     tdLog.debug(f"dbname: {db_name}, vgroup :{vnode_group_id}, dnode is {result[0]}")
                     print(useful_trans_dnodes_list)

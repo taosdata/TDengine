@@ -329,14 +329,23 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pNode = NULL;
     FOREACH(pNode, pSelect->pGroupByList) {
+      bool   hasNotValue = false;
       SNode* pGroupPara = NULL;
       FOREACH(pGroupPara, ((SGroupingSetNode*)pNode)->pParameterList) {
         if (QUERY_NODE_VALUE != nodeType(pGroupPara)) {
-          return code;
+          hasNotValue = true;
+          break;
+        }
+      }
+      if (!hasNotValue) {
+        if (pSelect->hasAggFuncs) {
+          ERASE_NODE(pSelect->pGroupByList);
+        } else {
+          if (!cell->pPrev && !cell->pNext) continue;
+          ERASE_NODE(pSelect->pGroupByList);
         }
       }
     }
-    NODES_DESTORY_LIST(pSelect->pGroupByList);
   }
   return code;
 }

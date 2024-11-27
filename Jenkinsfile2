@@ -5,7 +5,7 @@ node {
 }
 file_zh_changed = ''
 file_en_changed = ''
-file_no_doc_changed = ''
+file_no_doc_changed = '1'
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -355,7 +355,7 @@ def pre_test_build_win() {
     bat '''
         cd %WIN_COMMUNITY_ROOT%/tests/ci
         pip3 install taospy==2.7.16 
-        pip3 install taos-ws-py==0.3.3
+        pip3 install taos-ws-py==0.3.5
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
@@ -451,8 +451,8 @@ pipeline {
 
         stage('run test') {
             when {
-                allOf {
-                    not { expression { file_no_doc_changed == '' }}
+                expression {
+                    file_no_doc_changed != '' && env.CHANGE_TARGET != 'docs-cloud'
                 }
             }
             parallel {

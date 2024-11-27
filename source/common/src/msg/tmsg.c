@@ -2169,7 +2169,7 @@ int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAl
     SAnalyticsUrl   *pUrl = pIter;
     size_t      nameLen = 0;
     const char *name = taosHashGetKey(pIter, &nameLen);
-    if (nameLen > 0 && nameLen <= TSDB_ANAL_ALGO_KEY_LEN && pUrl->urlLen > 0) {
+    if (nameLen > 0 && nameLen <= TSDB_ANALYTIC_ALGO_KEY_LEN && pUrl->urlLen > 0) {
       numOfAlgos++;
     }
     pIter = taosHashIterate(pRsp->hash, pIter);
@@ -2224,7 +2224,7 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
   int32_t      numOfAlgos = 0;
   int32_t      nameLen;
   int32_t      type;
-  char         name[TSDB_ANAL_ALGO_KEY_LEN];
+  char         name[TSDB_ANALYTIC_ALGO_KEY_LEN];
   SAnalyticsUrl url = {0};
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
@@ -2233,7 +2233,7 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
 
   for (int32_t f = 0; f < numOfAlgos; ++f) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nameLen));
-    if (nameLen > 0 && nameLen <= TSDB_ANAL_ALGO_NAME_LEN) {
+    if (nameLen > 0 && nameLen <= TSDB_ANALYTIC_ALGO_NAME_LEN) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, name));
     }
 
@@ -5642,6 +5642,12 @@ int32_t tSerializeSShowVariablesRsp(void *buf, int32_t bufLen, SShowVariablesRsp
     SVariablesInfo *pInfo = taosArrayGet(pRsp->variables, i);
     TAOS_CHECK_EXIT(tEncodeSVariablesInfo(&encoder, pInfo));
   }
+
+  for (int32_t i = 0; i < varNum; ++i) {
+    SVariablesInfo *pInfo = taosArrayGet(pRsp->variables, i);
+    TAOS_CHECK_RETURN(tEncodeCStr(&encoder, pInfo->info));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -5673,6 +5679,13 @@ int32_t tDeserializeSShowVariablesRsp(void *buf, int32_t bufLen, SShowVariablesR
       TAOS_CHECK_EXIT(tDecodeSVariablesInfo(&decoder, &info));
       if (NULL == taosArrayPush(pRsp->variables, &info)) {
         TAOS_CHECK_EXIT(terrno);
+      }
+    }
+
+    if (!tDecodeIsEnd(&decoder)) {
+      for (int32_t i = 0; i < varNum; ++i) {
+        SVariablesInfo *pInfo = taosArrayGet(pRsp->variables, i);
+        TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pInfo->info));
       }
     }
   }
