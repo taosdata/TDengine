@@ -6561,9 +6561,9 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   double   compressRadio = 0;
   if (rawDataSize != 0) {
     compressRadio = totalDiskSize * 100 / (double)rawDataSize;
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio: %.2f", compressRadio);
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[%.2f]", compressRadio);
   } else {
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio: NULL");
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[NULL]");
   }
 
   varDataSetLen(st, len);
@@ -6573,7 +6573,7 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   len =
-      tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Disk_occupied: %" PRId64 "k", pData->dataInDiskSize);
+      tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Disk_occupied=[%" PRId64 "k]", pData->dataInDiskSize);
   varDataSetLen(st, len);
   code = colDataSetVal(pColInfo, row++, st, false);
   if (TSDB_CODE_SUCCESS != code) {
