@@ -1143,7 +1143,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_DELETE: {
       SVDeleteReq req = {0};
       req.header.vgId = addr->nodeId;
-      req.sId = pJob->seriousId;
+      req.sId = pTask->seriousId;
       req.queryId = pJob->queryId;
       req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
@@ -1177,7 +1177,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SSubQueryMsg qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = pJob->seriousId;
+      qMsg.sId = pTask->seriousId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
@@ -1233,7 +1233,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_SCH_MERGE_FETCH: {
       SResFetchReq req = {0};
       req.header.vgId = addr->nodeId;
-      req.sId = pJob->seriousId;
+      req.sId = pTask->seriousId;
       req.queryId = pJob->queryId;
       req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
@@ -1261,7 +1261,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       STaskDropReq qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = pJob->seriousId;
+      qMsg.sId = pTask->seriousId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
@@ -1319,7 +1319,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       STaskNotifyReq qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = pJob->seriousId;
+      qMsg.sId = pTask->seriousId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;

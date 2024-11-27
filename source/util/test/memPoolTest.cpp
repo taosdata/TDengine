@@ -391,6 +391,7 @@ void mptInitLogFile() {
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     MPT_PRINTF("failed to open log file in directory:%s\n", tsLogDir);
   }
+  taosSetNoNewFile();
 }
 
 static bool mptJobMemSizeCompFn(void* l, void* r, void* param) {
@@ -443,6 +444,8 @@ void mptInit() {
   ASSERT_TRUE(NULL != mptCtx.pSrcString);
   memset(mptCtx.pSrcString, 'P', mptCtrl.maxSingleAllocSize - 1);
   mptCtx.pSrcString[mptCtrl.maxSingleAllocSize - 1] = 0;
+
+  void* p = taosMemMalloc(1048576UL * 20000);
 }
 
 void mptDestroySession(uint64_t qId, int64_t tId, int32_t eId, int32_t taskIdx, SMPTestJobCtx* pJobCtx, void* session) {
@@ -793,7 +796,7 @@ void mptInitPool(void) {
   assert(0 == taosMemoryPoolInit(mptRetireJobsCb, mptRetireJobCb));
 }
 
-void mptWriteMem(void* pStart, int32_t size) {
+void mptWriteMem(void* pStart, int64_t size) {
   char* pEnd = (char*)pStart + size - 1;
   char* p = (char*)pStart;
   while (p <= pEnd) {
@@ -1357,7 +1360,7 @@ void* mptRunThreadFunc(void* param) {
 }
 
 void* mptNonPoolThreadFunc(void* param) {
-  int64_t targetSize = MPT_NON_POOL_ALLOC_UNIT;
+  int64_t targetSize = MPT_NON_POOL_ALLOC_UNIT * 3;
   int64_t allocSize = 0;
   int32_t loopTimes = 0;
   
@@ -1379,7 +1382,7 @@ void* mptNonPoolThreadFunc(void* param) {
     
     taosMsleep(100);
 
-    if (loopTimes >= 5000) {
+    if (loopTimes >= 4000) {
       targetSize += MPT_NON_POOL_ALLOC_UNIT;
       loopTimes = 0;
     }

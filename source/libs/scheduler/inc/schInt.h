@@ -226,6 +226,7 @@ typedef struct SSchTimerParam {
 typedef struct SSchTask {
   uint64_t        clientId;        // current client id
   uint64_t        taskId;          // task id
+  uint64_t        seriousId;
   SRWLatch        lock;            // task reentrant lock
   int32_t         maxExecTimes;    // task max exec times
   int32_t         maxRetryTimes;   // task max retry times

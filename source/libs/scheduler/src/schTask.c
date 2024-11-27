@@ -308,7 +308,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .type = QUERY_NODE_DOWNSTREAM_SOURCE,
         .clientId = pTask->clientId,
         .taskId = pTask->taskId,
-        .sId = pJob->seriousId,
+        .sId = pTask->seriousId,
         .execId = pTask->execId,
         .addr = pTask->succeedAddr,
         .fetchMsgType = SCH_FETCH_TYPE(pTask),
@@ -1342,6 +1342,7 @@ int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
 
   for (int32_t i = 0; i < level->taskNum; ++i) {
     SSchTask *pTask = taosArrayGet(level->subTasks, i);
+    pTask->seriousId = pJob->seriousId;
 
     SCH_ERR_RET(schDelayLaunchTask(pJob, pTask));
   }
