@@ -259,7 +259,7 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
   if (type == STREAM_STATE_BUFF_HASH || type == STREAM_STATE_BUFF_HASH_SEARCH) {
     code = recoverSnapshot(pFileState, checkpointId);
   } else if (type == STREAM_STATE_BUFF_SORT) {
-    code = recoverSesssion(pFileState, checkpointId);
+    code = recoverSession(pFileState, checkpointId);
   } else if (type == STREAM_STATE_BUFF_HASH_SORT) {
     code = recoverFillSnapshot(pFileState, checkpointId);
   }
@@ -914,7 +914,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   return code;
 }
 
-int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
+int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t winRes = TSDB_CODE_SUCCESS;
