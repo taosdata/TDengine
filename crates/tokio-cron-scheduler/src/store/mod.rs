@@ -33,6 +33,7 @@ where
     ) -> Pin<Box<dyn Future<Output = Result<(), JobSchedulerError>> + Send>>;
 }
 
+#[allow(dead_code)]
 pub trait CodeGet<CODE>
 where
     CODE: Sized,

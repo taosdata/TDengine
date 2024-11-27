@@ -60,6 +60,7 @@ fn nop_async(_uuid: Uuid, _jobs: JobsSchedulerLocked) -> Pin<Box<dyn Future<Outp
 pub struct JobLocked(pub(crate) Arc<RwLock<Box<dyn Job + Send + Sync>>>);
 
 pub trait Job {
+    #[allow(dead_code)]
     fn is_cron_job(&self) -> bool;
     fn schedule(&self) -> Option<Cron>;
     fn repeated_every(&self) -> Option<u64>;
@@ -69,17 +70,20 @@ pub trait Job {
     fn set_next_tick(&mut self, tick: Option<DateTime<Utc>>);
     fn set_count(&mut self, count: u32);
     fn count(&self) -> u32;
+    #[allow(dead_code)]
     fn increment_count(&mut self);
     fn job_id(&self) -> Uuid;
     fn job_type(&self) -> JobType;
     fn ran(&self) -> bool;
     fn set_ran(&mut self, ran: bool);
+    #[allow(dead_code)]
     fn stop(&self) -> bool;
     fn set_stopped(&mut self);
     fn set_started(&mut self);
     fn job_data_from_job(&mut self) -> Result<Option<JobStoredData>, JobSchedulerError>;
     fn set_job_data(&mut self, job_data: JobStoredData) -> Result<(), JobSchedulerError>;
     fn run(&mut self, jobs: JobScheduler) -> Receiver<bool>;
+    #[allow(dead_code)]
     fn fixed_offset_west(&self) -> i32;
 }
 

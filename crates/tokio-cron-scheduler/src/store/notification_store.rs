@@ -33,4 +33,5 @@ pub trait NotificationStore: DataStore<NotificationData> + InitStore {
     ) -> Pin<Box<dyn Future<Output = Result<(), JobSchedulerError>> + Send>>;
 }
 
+#[allow(dead_code)]
 pub trait NotificationRunnableCodeGet: CodeGet<Box<OnJobNotification>> {}

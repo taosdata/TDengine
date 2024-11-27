@@ -4,7 +4,7 @@ use tokio_cron_scheduler::{JobBuilder, JobScheduler};
 
 #[tokio::main]
 async fn main() {
-    println!("start at: {}", Local::now().to_rfc3339().to_string());
+    println!("start at: {:?}", Local::now().to_rfc3339());
 
     // 创建 scheduler
     let mut sched = JobScheduler::new().await.unwrap();
@@ -26,11 +26,11 @@ async fn main() {
         .start_at(datetime)
         // TODO：设置 job 的任务重叠策略
         // 设置 job 的异步执行函数
-        .with_run_async(Box::new(|uuid, mut l| {
+        .with_run_async(Box::new(|_uuid, mut _l| {
             Box::pin(async move {
-                println!(">>> {}", Local::now().to_rfc3339().to_string());
+                println!(">>> {:?}", Local::now().to_rfc3339());
                 tokio::time::sleep(Duration::from_secs(INTERVAL + 2)).await;
-                println!("<<< {}", Local::now().to_rfc3339().to_string());
+                println!("<<< {:?}", Local::now().to_rfc3339());
             })
         }))
         .build()
@@ -49,5 +49,5 @@ async fn main() {
 
     // 停止 scheduler
     sched.shutdown().await.unwrap();
-    println!("stop at: {}", Local::now().to_rfc3339().to_string());
+    println!("stop at: {:?}", Local::now().to_rfc3339());
 }

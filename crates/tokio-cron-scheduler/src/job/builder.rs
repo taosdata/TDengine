@@ -50,6 +50,12 @@ impl JobBuilder<Utc> {
     }
 }
 
+impl Default for JobBuilder<Utc> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: TimeZone> JobBuilder<T> {
     pub fn with_timezone<U: TimeZone>(self, timezone: U) -> JobBuilder<U> {
         JobBuilder {

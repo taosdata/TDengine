@@ -8,7 +8,7 @@ use crate::simple::{
     SimpleJobCode, SimpleMetadataStore, SimpleNotificationCode, SimpleNotificationStore,
 };
 use crate::store::{MetaDataStorage, NotificationStore};
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -331,15 +331,12 @@ impl JobsSchedulerLocked {
 
         let mut metadata = self.context.metadata_storage.write().await;
         let jm = metadata.get(job_id).await?;
-        match jm {
-            Some(mut job_metadata) => {
-                job_metadata
-                    .last_updated
-                    .replace(Utc::now().timestamp() as u64);
-                job_metadata.ran = ran;
-                metadata.add_or_update(job_metadata).await?;
-            }
-            _ => {}
+        if let Some(mut job_metadata) = jm {
+            job_metadata
+                .last_updated
+                .replace(Utc::now().timestamp() as u64);
+            job_metadata.ran = ran;
+            metadata.add_or_update(job_metadata).await?;
         }
         Ok(())
     }
@@ -410,10 +407,7 @@ impl JobsSchedulerLocked {
                 if vv.next_tick == 0 {
                     return None;
                 }
-                match NaiveDateTime::from_timestamp_opt(vv.next_tick as i64, 0) {
-                    None => None,
-                    Some(ts) => Some(DateTime::from_naive_utc_and_offset(ts, Utc)),
-                }
+                DateTime::from_timestamp(vv.next_tick as i64, 0)
             } else {
                 None
             }

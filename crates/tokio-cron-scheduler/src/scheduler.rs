@@ -75,10 +75,7 @@ impl Scheduler {
                 }
             }
             'next_tick: loop {
-                let shutdown = {
-                    let r = shutdown.load(Ordering::Relaxed);
-                    r
-                };
+                let shutdown = { shutdown.load(Ordering::Relaxed) };
                 if shutdown {
                     break 'next_tick;
                 }

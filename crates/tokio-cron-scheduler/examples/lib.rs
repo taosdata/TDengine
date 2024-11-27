@@ -8,11 +8,11 @@ pub async fn run_example(sched: &mut JobScheduler) -> Result<Vec<Uuid>, JobSched
     #[cfg(feature = "signal")]
     sched.shutdown_on_ctrl_c();
 
-    sched.set_shutdown_handler(Box::new(|| {
-        Box::pin(async move {
+    sched
+        .set_shutdown_handler(async move {
             info!("Shut down done");
         })
-    }));
+        .await;
 
     let mut five_s_job = Job::new("1/5 * * * * *", |uuid, _l| {
         info!(
@@ -27,7 +27,7 @@ pub async fn run_example(sched: &mut JobScheduler) -> Result<Vec<Uuid>, JobSched
     // the job store, but with stopped marking
     five_s_job
         .on_removed_notification_add(
-            &sched,
+            sched,
             Box::new(|job_id, notification_id, type_of_notification| {
                 Box::pin(async move {
                     info!(
@@ -55,7 +55,7 @@ pub async fn run_example(sched: &mut JobScheduler) -> Result<Vec<Uuid>, JobSched
     let four_s_job_async_clone = four_s_job_async.clone();
     let js = sched.clone();
     info!("4s job id {:?}", four_s_job_async.guid());
-    four_s_job_async.on_start_notification_add(&sched, Box::new(move |job_id, notification_id, type_of_notification| {
+    four_s_job_async.on_start_notification_add(sched, Box::new(move |job_id, notification_id, type_of_notification| {
         let four_s_job_async_clone = four_s_job_async_clone.clone();
         let js = js.clone();
         Box::pin(async move {
@@ -67,7 +67,7 @@ pub async fn run_example(sched: &mut JobScheduler) -> Result<Vec<Uuid>, JobSched
 
     four_s_job_async
         .on_done_notification_add(
-            &sched,
+            sched,
             Box::new(|job_id, notification_id, type_of_notification| {
                 Box::pin(async move {
                     info!(

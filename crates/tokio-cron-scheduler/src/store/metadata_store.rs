@@ -25,4 +25,5 @@ pub trait MetaDataStorage: DataStore<JobStoredData> + InitStore {
     ) -> Pin<Box<dyn Future<Output = Result<Option<std::time::Duration>, JobSchedulerError>> + Send>>;
 }
 
+#[allow(dead_code)]
 pub trait JobCodeGet: CodeGet<Box<JobToRunAsync>> {}
