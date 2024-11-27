@@ -772,10 +772,13 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       cJSON* tags = cJSON_CreateArray();
       RAW_NULL_CHECK(tags);
       for (int32_t i = 0; i < nTags; i++) {
+        cJSON* member = cJSON_CreateObject();
+        RAW_NULL_CHECK(member);
+
         SMultiTagUpateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
         cJSON*             tagName = cJSON_CreateString(pTagVal->tagName);
         RAW_NULL_CHECK(tagName);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(tags, "colName", tagName));
+        RAW_FALSE_CHECK(cJSON_AddItemToObject(member, "colName", tagName));
 
         if (pTagVal->tagType == TSDB_DATA_TYPE_JSON) {
           uError("processAlterTable isJson false");
@@ -799,12 +802,13 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
           }
           cJSON* colValue = cJSON_CreateString(buf);
           RAW_NULL_CHECK(colValue);
-          RAW_FALSE_CHECK(cJSON_AddItemToObject(tags, "colValue", colValue));
+          RAW_FALSE_CHECK(cJSON_AddItemToObject(member, "colValue", colValue));
           taosMemoryFree(buf);
         }
         cJSON* isNullCJson = cJSON_CreateBool(isNull);
         RAW_NULL_CHECK(isNullCJson);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(tags, "colValueNull", isNullCJson));
+        RAW_FALSE_CHECK(cJSON_AddItemToObject(member, "colValueNull", isNullCJson));
+        RAW_FALSE_CHECK(cJSON_AddItemToArray(tags, member));
       }
       RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tags", tags));
       break;
