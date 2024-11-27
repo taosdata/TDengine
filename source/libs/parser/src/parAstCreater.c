@@ -1848,10 +1848,10 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->withArbitrator = -1;
   pOptions->encryptAlgorithm = -1;
   pOptions->dnodeListStr[0] = 0;
-  pOptions->compactInterval = TSDB_DEFAULT_COMPACT_INTERVAL;
-  pOptions->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
-  pOptions->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
-  pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
+  pOptions->compactInterval = -1;
+  pOptions->compactStartTime = -1;
+  pOptions->compactEndTime = -1;
+  pOptions->compactTimeOffset = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2033,6 +2033,7 @@ SNode* setAlterDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOp
   switch (pAlterOption->type) {
     case DB_OPTION_KEEP:
     case DB_OPTION_RETENTIONS:
+    case DB_OPTION_COMPACT_TIME_RANGE:
       return setDatabaseOptionImpl(pCxt, pOptions, pAlterOption->type, pAlterOption->pList, true);
     default:
       break;

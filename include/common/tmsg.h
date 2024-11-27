@@ -1343,10 +1343,10 @@ typedef struct {
   int8_t  encryptAlgorithm;
   char    dnodeListStr[TSDB_DNODE_LIST_LEN];
   // 1. add auto-compact parameters
-  int32_t compactInterval;
-  int64_t compactStartTime;
-  int64_t compactEndTime;
-  int8_t compactTimeOffset;
+  int32_t compactInterval;  // minutes
+  int32_t compactStartTime; // minutes
+  int32_t compactEndTime;   // minutes
+  int8_t compactTimeOffset; // hour
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1380,8 +1380,8 @@ typedef struct {
   int8_t  withArbitrator;
   // 1. add auto-compact parameters
   int32_t compactInterval;
-  int64_t compactStartTime;
-  int64_t compactEndTime;
+  int32_t compactStartTime;
+  int32_t compactEndTime;
   int8_t  compactTimeOffset;
 } SAlterDbReq;
 
@@ -1515,6 +1515,10 @@ typedef struct {
   int32_t s3ChunkSize;
   int32_t s3KeepLocal;
   int8_t  s3Compact;
+  int8_t  compactTimeOffset;
+  int32_t compactInterval;
+  int32_t compactStartTime;
+  int32_t compactEndTime;
   int32_t tsdbPageSize;
   int32_t walRetentionPeriod;
   int32_t walRollPeriod;

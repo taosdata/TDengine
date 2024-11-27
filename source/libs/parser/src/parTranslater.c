@@ -7989,26 +7989,28 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, SDatabaseO
                                      pEnd->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
     }
   } else {
-    pStart->datum.i *= 1440;
+    pEnd->datum.i *= 1440;
   }
   pOptions->compactStartTime = getBigintFromValueNode(pStart);
   pOptions->compactEndTime = getBigintFromValueNode(pEnd);
 
   if (pOptions->compactStartTime >= pOptions->compactEndTime) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range, start time should be less than end time");
+    return generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+        "Invalid option compact_time_range: %dm,%dm, start time should be less than end time",
+        pOptions->compactStartTime, pOptions->compactEndTime);
   }
   if (pOptions->compactStartTime < -pOptions->keep[2] || pOptions->compactStartTime > -pOptions->daysPerFile) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range, start_time should be in range: [%" PRIi64
-                                   "m, %" PRId64 "m]",
-                                   -pOptions->keep[2], -pOptions->daysPerFile);
+                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%" PRIi64
+                                   "m, %dm]",
+                                   pOptions->compactStartTime, -pOptions->keep[2], -pOptions->daysPerFile);
   }
   if (pOptions->compactEndTime < -pOptions->keep[2] || pOptions->compactEndTime > -pOptions->daysPerFile) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range, end time should be in range: [%" PRIi64
-                                   "m, %" PRId64 "m]",
-                                   -pOptions->keep[2], -pOptions->daysPerFile);
+                                   "Invalid option compact_time_range: %dm, end time should be in range: [%" PRIi64
+                                   "m, %dm]",
+                                   pOptions->compactEndTime, -pOptions->keep[2], -pOptions->daysPerFile);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -8019,7 +8021,7 @@ static int32_t checkDbCompactTimeOffsetOption(STranslateContext* pCxt, SDatabase
       pOptions->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid option compact_time_offset: %d"
-                                   " valid range: [%d, %d]",
+                                   ", valid range: [%d, %d]",
                                    pOptions->compactTimeOffset, TSDB_MIN_COMPACT_TIME_OFFSET,
                                    TSDB_MAX_COMPACT_TIME_OFFSET);
   }

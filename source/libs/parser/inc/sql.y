@@ -290,8 +290,8 @@ db_options(A) ::= db_options(B) ENCRYPT_ALGORITHM NK_STRING(C).                 
 db_options(A) ::= db_options(B) DNODES NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_DNODES, &C); }
 db_options(A) ::= db_options(B) COMPACT_INTERVAL NK_INTEGER (C).                  { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_INTERVAL, &C); }
 db_options(A) ::= db_options(B) COMPACT_INTERVAL NK_VARIABLE(C).                  { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_INTERVAL, &C); }
-db_options(A) ::= db_options(B) COMPACT_TIME_RANGE integer_list(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, &C); }
-db_options(A) ::= db_options(B) COMPACT_TIME_RANGE variable_list(C).              { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, &C); }
+db_options(A) ::= db_options(B) COMPACT_TIME_RANGE integer_list(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, C); }
+db_options(A) ::= db_options(B) COMPACT_TIME_RANGE variable_list(C).              { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 
@@ -329,8 +329,10 @@ alter_db_option(A) ::= S3_KEEPLOCAL NK_VARIABLE(B).                             
 alter_db_option(A) ::= S3_COMPACT NK_INTEGER(B).                                  { A.type = DB_OPTION_S3_COMPACT, A.val = B; }
 alter_db_option(A) ::= KEEP_TIME_OFFSET NK_INTEGER(B).                            { A.type = DB_OPTION_KEEP_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= ENCRYPT_ALGORITHM NK_STRING(B).                            { A.type = DB_OPTION_ENCRYPT_ALGORITHM; A.val = B; }
+alter_db_option(A) ::= COMPACT_INTERVAL NK_INTEGER(B).                            { A.type = DB_OPTION_COMPACT_INTERVAL; A.val = B; }
 alter_db_option(A) ::= COMPACT_INTERVAL NK_VARIABLE(B).                           { A.type = DB_OPTION_COMPACT_INTERVAL; A.val = B; }
-alter_db_option(A) ::= COMPACT_TIME_RANGE variable_list(B).                       { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
+alter_db_option(A) ::= COMPACT_TIME_RANGE signed_integer_list(B).                 { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
+alter_db_option(A) ::= COMPACT_TIME_RANGE signed_variable_list(B).                { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                         { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
@@ -338,10 +340,20 @@ alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                       
 integer_list(A) ::= NK_INTEGER(B).                                                { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B)); }
 integer_list(A) ::= integer_list(B) NK_COMMA NK_INTEGER(C).                       { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C)); }
 
+%type signed_integer_list                                                         { SNodeList* }
+%destructor signed_integer_list                                                   { nodesDestroyList($$); }
+signed_integer_list(A) ::= signed_integer(B).                                     { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B)); }
+signed_integer_list(A) ::= signed_integer_list(B) NK_COMMA signed_integer(C).     { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C)); }
+
 %type variable_list                                                               { SNodeList* }
 %destructor variable_list                                                         { nodesDestroyList($$); }
 variable_list(A) ::= NK_VARIABLE(B).                                              { A = createNodeList(pCxt, createDurationValueNode(pCxt, &B)); }
 variable_list(A) ::= variable_list(B) NK_COMMA NK_VARIABLE(C).                    { A = addNodeToList(pCxt, B, createDurationValueNode(pCxt, &C)); }
+
+%type signed_variable_list                                                        { SNodeList* }
+%destructor signed_variable_list                                                  { nodesDestroyList($$); }
+signed_variable_list(A) ::= NK_VARIABLE(B).                                              { A = createNodeList(pCxt, createDurationValueNode(pCxt, &B)); }
+signed_variable_list(A) ::= variable_list(B) NK_COMMA NK_VARIABLE(C).                    { A = addNodeToList(pCxt, B, createDurationValueNode(pCxt, &C)); }
 
 %type retention_list                                                              { SNodeList* }
 %destructor retention_list                                                        { nodesDestroyList($$); }
@@ -1044,20 +1056,32 @@ literal(A) ::= NK_QUESTION(B).                                                  
 
 duration_literal(A) ::= NK_VARIABLE(B).                                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 
-signed(A) ::= NK_INTEGER(B).                                                      { A = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B); }
-signed(A) ::= NK_PLUS NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B); }
-signed(A) ::= NK_MINUS(B) NK_INTEGER(C).                                          {
+signed_variable(A) ::= NK_VARIABLE(B).                                            { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
+signed_variable(A) ::= NK_PLUS NK_VARIABLE(B).                                    { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
+signed_variable(A) ::= NK_MINUS(B) NK_VARIABLE(C).                                { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &t)); 
+                                                                                  }
+
+signed_integer(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B); }
+signed_integer(A) ::= NK_PLUS NK_INTEGER(B).                                      { A = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B); }
+signed_integer(A) ::= NK_MINUS(B) NK_INTEGER(C).                                  {
                                                                                     SToken t = B;
                                                                                     t.n = (C.z + C.n) - B.z;
                                                                                     A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &t);
                                                                                   }
-signed(A) ::= NK_FLOAT(B).                                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
-signed(A) ::= NK_PLUS NK_FLOAT(B).                                                { A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
-signed(A) ::= NK_MINUS(B) NK_FLOAT(C).                                            {
+
+signed_float(A) ::= NK_FLOAT(B).                                                  { A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
+signed_float(A) ::= NK_PLUS NK_FLOAT(B).                                          { A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
+signed_float(A) ::= NK_MINUS(B) NK_FLOAT(C).                                      {
                                                                                     SToken t = B;
                                                                                     t.n = (C.z + C.n) - B.z;
                                                                                     A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &t);
                                                                                   }
+
+signed(A) ::= signed_integer(B).                                                  { A = B; }
+signed(A) ::= signed_float(B).                                                    { A = B; }
 
 signed_literal(A) ::= signed(B).                                                  { A = B; }
 signed_literal(A) ::= NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
