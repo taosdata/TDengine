@@ -8,6 +8,7 @@ members = [
   "crates/arrow-cast-guess-precision",
   "crates/futures-ext",
   "crates/taoslog",
+  "crates/tokio-cron-scheduler",
   "explorer/server",
   "tests/tools",
 ]
@@ -19,7 +20,7 @@ chrono = { version = "0.4.37" }
 chrono-tz = { version = "0.10.0" }
 shadow-rs = { version = "0.35.0" }
 itertools = { version = "0.13.0" }
-flume = { version = "0.11"}
+flume = { version = "0.11" }
 
 clap = { version = "4.5.19", features = ["default", "derive"] }
 
@@ -174,7 +175,7 @@ flume = "0.11.0"
 futures-util = "0.3.31"
 r2d2 = "0.8.10"
 serde_with.workspace = true
-tokio-cron-scheduler = { git = "https://github.com/zitsen/tokio-cron-scheduler.git" }
+tokio-cron-scheduler = { path = "crates/tokio-cron-scheduler" }
 
 bitvec = "1"
 mimalloc = { version = "0.1.43", default-features = false, optional = true }
