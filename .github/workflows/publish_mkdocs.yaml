@@ -6,6 +6,8 @@ on: # 在什么时候触发工作流
   pull_request: # 在main分支合并别人提的pr时
     branches:
       - main
+  workflow_dispatch:
+
 jobs: # 工作流的具体内容
   deploy:
     runs-on: ubuntu-latest # 创建一个新的云端虚拟机 使用最新Ubuntu系统
