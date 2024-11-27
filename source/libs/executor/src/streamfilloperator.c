@@ -1852,8 +1852,9 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
                   pTaskInfo);
 
   if (triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-    initFillOperatorStateBuff(pInfo, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.stateStore, pHandle,
+    code = initFillOperatorStateBuff(pInfo, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.stateStore, pHandle,
                               GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
+    QUERY_CHECK_CODE(code, lino, _error);
     pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamForceFillNext, NULL, destroyStreamFillOperatorInfo,
                                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   } else {
