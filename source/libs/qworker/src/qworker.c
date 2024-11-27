@@ -231,6 +231,10 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
 _return:
 
   taosArrayDestroy(pResList);
+
+  if (TSDB_CODE_SUCCESS != code) {
+    qwFreeTaskHandle(ctx); 
+  }
   
   QW_RET(code);
 }
