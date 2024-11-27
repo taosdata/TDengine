@@ -18,7 +18,7 @@ target_include_directories(
 
 target_link_libraries(
     ${TAOS_LIB}
-    PUBLIC os util transport geometry
+    PUBLIC os util
 )
 
 set_target_properties(

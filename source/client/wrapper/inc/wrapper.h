@@ -16,11 +16,8 @@
 #ifndef TDENGINE_WRAPPER_H
 #define TDENGINE_WRAPPER_H
 
+#include "os.h"
 #include "taos.h"
-
-#include <assert.h>
-#include <ctype.h>
-#include <stddef.h>>
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,13 +26,14 @@ extern "C" {
 typedef enum {
   DRIVER_NATIVE = 0,
   DRIVER_WEBSOCKET = 1,
-  DRIVER_RESTFUL = 2,
+  DRIVER_MAX = 2,
 } EDriverType;
 
-EDriverType wpType;
-void       *wpHandle;
-int32_t     wpErrorNo;
-int32_t     wpErrorStr;
+EDriverType tsDriverType;
+void       *tsDriver;
+
+int32_t taosDriverInit(EDriverType driverType);
+void    taosDriverCleanup();
 
 // from taos.h
 

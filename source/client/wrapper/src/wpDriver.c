@@ -15,158 +15,42 @@
 
 #include "wrapper.h"
 
-#ifdef WINDOWS
-#include <windows.h>
-#else
-#include <dirent.h>
-#include <dlfcn.h>
-#include <errno.h>
-#endif
-
 #define DRIVER_NATIVE_NAME    "libtaosinternal.so"
 #define DRIVER_WSBSOCKET_NAME "libtaosws.so"
-#define MAX_PATH_LEN          4096
 
-#if defined(_WIN32)
-#define DIRSEP "\\"
-#else
-#define DIRSEP "/"
-#endif
-
-#define LOAD_FUNC(fptr, fname, driverName)  \
-  funcName = fname;                         \
-  fptr = wpLoadDllFunc(wpHandle, funcName); \
+#define LOAD_FUNC(fptr, fname, driverName)    \
+  funcName = fname;                           \
+  fptr = taosLoadDllFunc(tsDriver, funcName); \
   if (fptr == NULL) goto _OVER;
 
-static int32_t wpDriverInit(EDriverType driverType);
-static void    wpDriverCleanup();
-static void   *wpLoadDll(const char *fileName);
-static void   *wpLoadDllFunc(void *handle, const char *funcName);
-static void    wpCloseDll(void *handle);
-void           wpDirName(char *name);
-static int32_t wpRealPath(char *dirname, char *realPath, int32_t maxlen);
-static int32_t wpAppPath(char *path, int32_t maxLen);
+EDriverType tsDriverType = DRIVER_NATIVE;
+void       *tsDriver = NULL;
 
-EDriverType wpType = DRIVER_NATIVE;
-void       *wpHandle = NULL;
-int32_t     wpErrorNo = 0;
-int32_t     wpErrorStr[64] = {0};
-
-static void *wpLoadDll(const char *fileName) {
-#if defined(WINDOWS)
-  return NULL;
-#elif defined(_TD_DARWIN_64)
-  return NULL;
-#else
-  return dlopen(fileName, RTLD_LAZY);
-#endif
-}
-
-static void wpCloseDll(void *handle) {
-#if defined(WINDOWS)
-  return;
-#elif defined(_TD_DARWIN_64)
-  return;
-#else
-  dlclose(handle);
-#endif
-}
-
-static void *wpLoadDllFunc(void *handle, const char *funcName) {
-#if defined(WINDOWS)
-  return NULL;
-#elif defined(_TD_DARWIN_64)
-  return NULL;
-#else
-  return dlsym(handle, funcName);
-#endif
-}
-
-void wpDirName(char *name) {
-#ifdef WINDOWS
-  char Drive1[MAX_PATH], Dir1[MAX_PATH];
-  _splitpath(name, Drive1, Dir1, NULL, NULL);
-  size_t dirNameLen = strlen(Drive1) + strlen(Dir1);
-  if (dirNameLen > 0) {
-    if (name[dirNameLen - 1] == '/' || name[dirNameLen - 1] == '\\') {
-      name[dirNameLen - 1] = 0;
-    } else {
-      name[dirNameLen] = 0;
-    }
-  } else {
-    name[0] = 0;
-  }
-#else
-  char *end = strrchr(name, '/');
-  if (end != NULL) {
-    *end = '\0';
-  } else {
-    name[0] = 0;
-  }
-#endif
-}
-
-static int32_t wpRealPath(char *dirname, char *realPath, int32_t maxlen) {
-  char tmp[MAX_PATH_LEN] = {0};
-#ifdef WINDOWS
-  if (_fullpath(tmp, dirname, maxlen) != NULL) {
-#else
-  if (realpath(dirname, tmp) != NULL) {
-#endif
-    if (strlen(tmp) < maxlen) {
-      if (realPath == NULL) {
-        tstrncpy(dirname, tmp, maxlen);
-      } else {
-        tstrncpy(realPath, tmp, maxlen);
-      }
-      return 0;
-    }
-  }
-
-  return -1;
-}
-
-static int32_t wpAppPath(char *path, int32_t maxLen) {
-#if !defined(WINDOWS)
-  int32_t ret = readlink("/proc/self/exe", path, maxLen - 1);
-#else
-  int32_t ret = GetModuleFileName(NULL, path, maxLen - 1);
-#endif
-
-  if (ret >= 0) {
-    wpDirName(path);
-    return 0;
-  }
-  { return ret; }
-}
-
-static int32_t wpGetDevelopPath(char *driverPath, const char *driverName) {
-#ifdef WINDOWS
-  int32_t ret = -1;
-#else
-  char    appPath[MAX_PATH_LEN] = {0};
-  int32_t ret = wpAppPath(appPath, MAX_PATH_LEN);
+static int32_t tossGetDevelopPath(char *driverPath, const char *driverName) {
+  char    appPath[PATH_MAX] = {0};
+  int32_t ret = taosAppPath(appPath, PATH_MAX);
   if (ret == 0) {
-    snprintf(driverPath, MAX_PATH_LEN, "%s%s..%slib%s%s", appPath, DIRSEP, DIRSEP, DIRSEP, driverName);
-    ret = wpRealPath(driverPath, NULL, MAX_PATH_LEN);
+    snprintf(driverPath, PATH_MAX, "%s%s..%slib%s%s", appPath, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP, driverName);
+    ret = taosRealPath(driverPath, NULL, PATH_MAX);
   }
-#endif
 
   return ret;
 }
 
-static int32_t wpGetInstallPath(char *driverPath, const char *driverName) {
+static int32_t taosGetInstallPath(char *driverPath, const char *driverName) {
 #ifdef WINDOWS
-  (void)tstrncpy(driverPath, "C:\\Windows\\System32", MAX_PATH_LEN);
+  // tstrncpy(driverPath, "C:\\Windows\\System32", PATH_MAX);
+  tstrncpy(driverPath, driverName, PATH_MAX);
 #else
-  (void)snprintf(driverPath, MAX_PATH_LEN, "/usr/local/taos/driver/%s", driverName);
+  // snprintf(driverPath, PATH_MAX, "/usr/local/taos/driver/%s", driverName);
+  tstrncpy(driverPath, driverName, PATH_MAX);
 #endif
   return 0;
 }
 
-int32_t wpDriverInit(EDriverType driverType) {
+int32_t taosDriverInit(EDriverType driverType) {
   int32_t     code = 0;
-  char        driverPath[MAX_PATH_LEN + 20] = {0};
+  char        driverPath[PATH_MAX + 32] = {0};
   const char *driverName = NULL;
   char       *funcName = NULL;
 
@@ -176,28 +60,23 @@ int32_t wpDriverInit(EDriverType driverType) {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
 
-  if (wpHandle == NULL && wpGetDevelopPath(driverPath, driverName) == 0) {
-    wpHandle = taosLoadDll(driverPath);
+  if (tsDriver == NULL && tossGetDevelopPath(driverPath, driverName) == 0) {
+    tsDriver = taosLoadDll(driverPath);
   }
 
-  if (wpHandle == NULL && wpGetInstallPath(driverPath, driverName) == 0) {
-    wpHandle = taosLoadDll(driverPath);
+  if (tsDriver == NULL && taosGetInstallPath(driverPath, driverName) == 0) {
+    tsDriver = taosLoadDll(driverPath);
   }
 
-  if (wpHandle == NULL) {
-    printf("failed to load driverName at %s since %s\r\n", driverPath, terrstr());
-    if (errno != 0) {
-      wpErrorNo = errno;
-      strncpy(wpErrorStr, strerror(errno), sizeof(wpErrorStr));
-    } else {
-      // TSDB_CODE_DLL_NOT_FOUND
-      wpErrorNo =  0x010B;
-      strncpy(wpErrorStr, "dynamic linked library not found", sizeof(wpErrorStr));
+  if (tsDriver == NULL) {
+    if (terrno == 0) {
+      terrno = TSDB_CODE_DLL_NOT_FOUND;
     }
+    printf("failed to load %s at %s since %s\r\n", driverName, driverPath, terrstr());
     return -1;
   }
 
-  printf("load client driver from %s\r\n", driverPath);
+  printf("load driver from %s\r\n", driverPath);
 
   LOAD_FUNC(fp_taos_cleanup, "fp_taos_cleanup", driverPath);
   LOAD_FUNC(fp_taos_options, "fp_taos_options", driverPath);
@@ -348,24 +227,18 @@ int32_t wpDriverInit(EDriverType driverType) {
 
 _OVER:
   if (code != 0) {
-    printf("failed to load func:%s from %s\r\n", funcName, driverPath);
-    if (errno != 0) {
-      wpErrorNo = errno;
-      strncpy(wpErrorStr, strerror(errno), sizeof(wpErrorStr));
-    } else {
-      // TSDB_CODE_DLL_FUNC_NOT_FOUND
-      strncpy(wpErrorStr, "function in dynamic linked library not found", sizeof(wpErrorStr));
-      wpErrorNo = 0x010C;
+    if (terrno == 0) {
+      terrno = TSDB_CODE_DLL_FUNC_NOT_FOUND;
     }
-    wpDriverCleanup(wpHandle);
-    return -1;
+    printf("failed to load func:%s from %s since %s\r\n", funcName, driverPath, terrstr());
+    taosDriverCleanup(tsDriver);
   }
 
   return code;
 }
 
-void wpDriverCleanup() {
-  if (wpHandle != NULL) {
-    taosCloseDll(wpHandle);
+void taosDriverCleanup() {
+  if (tsDriver != NULL) {
+    taosCloseDll(tsDriver);
   }
 }
