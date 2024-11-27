@@ -319,20 +319,13 @@ typedef struct {
 typedef struct {
   char         name[CFG_NAME_MAX_LEN];
   ECfgDataType dtype;
+  int32_t      strLen;
   union {
     bool    bval;
     float   fval;
     int32_t i32;
     int64_t i64;
     char*   str;
-  };
-  union {
-    int64_t imin;
-    float   fmin;
-  };
-  union {
-    int64_t imax;
-    float   fmax;
   };
 } SConfigObj;
 

@@ -759,6 +759,7 @@ SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
       pObj->str = taosStrdup(pItem->str);
+      pObj->strLen = strlen(pItem->str) + 1;
       break;
   }
   return pObj;
@@ -806,6 +807,7 @@ int32_t mndUpdateObj(SConfigObj *pObj, const char *name, char *value) {
       char *tmp = taosStrdup(value);
       taosMemoryFreeClear(pObj->str);
       pObj->str = tmp;
+      pObj->strLen = strlen(value) + 1;
       break;
     }
 

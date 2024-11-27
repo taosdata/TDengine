@@ -2750,12 +2750,13 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
     }
   }
   if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
-  *serialized = cJSON_Print(json);
+  char *pSerialized = cJSON_Print(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
     uError("failed to serialize global config since %s", tstrerror(terrno));
   }
   cJSON_Delete(json);
+  *serialized = pSerialized;
   return terrno;
 }
 
@@ -2802,12 +2803,13 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
     }
   }
   if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
-  *serialized = cJSON_Print(json);
+  char *pSerialized = cJSON_Print(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
     uError("failed to serialize local config since %s", tstrerror(terrno));
   }
   cJSON_Delete(json);
+  *serialized = pSerialized;
   return terrno;
 }
 

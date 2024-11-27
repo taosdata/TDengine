@@ -31,7 +31,6 @@ enum CfgAlterType {
 };
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
-static int32_t taosGetConfigObjSize(SConfigObj *obj);
 static int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj);
 static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
@@ -61,26 +60,14 @@ int32_t mndInitConfig(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-int32_t taosGetConfigObjSize(SConfigObj *obj) {
-  int32_t size = sizeof(SConfigObj);
-  if (obj->dtype == CFG_DTYPE_STRING || obj->dtype == CFG_DTYPE_DIR || obj->dtype == CFG_DTYPE_LOCALE ||
-      obj->dtype == CFG_DTYPE_CHARSET || obj->dtype == CFG_DTYPE_TIMEZONE) {
-    if (obj->str != NULL) {
-      size += sizeof(int32_t);
-      size += strlen(obj->str) + 1;
-    }
-  }
-  return size;
-}
-
 SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   char buf[30];
 
-  int32_t  size = taosGetConfigObjSize(obj);
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_CFG, CFG_VER_NUMBER, size);
+  int32_t  sz = sizeof(SConfigObj) + obj->strLen + CFG_RESERVE_SIZE;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_CFG, CFG_VER_NUMBER, sz);
   if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -88,6 +75,7 @@ SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
   strncpy(name, obj->name, CFG_NAME_MAX_LEN);
   SDB_SET_BINARY(pRaw, dataPos, name, CFG_NAME_MAX_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, obj->dtype, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, obj->strLen, _OVER)
   switch (obj->dtype) {
     case CFG_DTYPE_NONE:
       break;
@@ -110,14 +98,11 @@ SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
       if (obj->str != NULL) {
-        int32_t len = strlen(obj->str) + 1;
-        SDB_SET_INT32(pRaw, dataPos, len, _OVER)
-        SDB_SET_BINARY(pRaw, dataPos, obj->str, len, _OVER)
-      } else {
-        SDB_SET_INT32(pRaw, dataPos, 0, _OVER)
+        SDB_SET_BINARY(pRaw, dataPos, obj->str, obj->strLen, _OVER)
       }
       break;
   }
+  SDB_SET_RESERVE(pRaw, dataPos, CFG_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
@@ -156,6 +141,7 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_BINARY(pRaw, dataPos, obj->name, CFG_NAME_MAX_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, (int32_t *)&obj->dtype, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &obj->strLen, _OVER)
   switch (obj->dtype) {
     case CFG_DTYPE_NONE:
       break;
@@ -177,7 +163,6 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
-      SDB_GET_INT32(pRaw, dataPos, &len, _OVER)
       if (len > 0) {
         obj->str = taosMemoryMalloc(len);
         SDB_GET_BINARY(pRaw, dataPos, obj->str, len, _OVER)
@@ -280,11 +265,15 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   }
 
   // encode mnd config version
-  SConfigObj *obj = mndInitConfigVersion();
-  if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
+  SConfigObj *versionObj = mndInitConfigVersion();
+  if ((code = mndSetCreateConfigCommitLogs(pTrans, versionObj)) != 0) {
     mError("failed to init mnd config version, since %s", terrstr());
+    taosMemoryFree(versionObj->str);
+    taosMemoryFree(versionObj);
     goto _OVER;
   }
+  taosMemoryFree(versionObj->str);
+  taosMemoryFree(versionObj);
   sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
 
   for (int i = 0; i < sz; ++i) {
@@ -292,6 +281,9 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
     SConfigObj  *obj = mndInitConfigObj(item);
     if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
       mError("failed to init mnd config:%s, since %s", item->name, terrstr());
+    }
+    if (obj->strLen > 0) {
+      taosMemoryFree(obj->str);
     }
     taosMemoryFree(obj);
   }
