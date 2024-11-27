@@ -6191,6 +6191,31 @@ static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
   return code;
 }
 
+static EDealRes hasRowTsOriginFuncWalkNode(SNode* pNode, void* ctx) {
+  bool *hasRowTsOriginFunc = ctx;
+  if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (fmIsRowTsOriginFunc(pFunc->funcId)) {
+      *hasRowTsOriginFunc = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkInterpForStream(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pCxt->createStream) {
+    SFillNode* pFill = (SFillNode*)pSelect->pFill;
+    if (pFill->mode == FILL_MODE_NEAR) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "FILL NEAR is not supported by stream");
+    }
+    if (pSelect->pRangeAround) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "RANGE with around is not supported by stream");
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -6206,15 +6231,28 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
   }
+  bool hasRowTsOriginFunc = false;
+  nodesWalkExprs(pSelect->pProjectionList, hasRowTsOriginFuncWalkNode, &hasRowTsOriginFunc);
+  if (hasRowTsOriginFunc && pCxt->createStream) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                "_irowts_origin is not supported by stream");
+  }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pSelect->pAround) {
-      code = doCheckFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
+    SFillNode* pFill = (SFillNode*)pSelect->pFill;
+    if (pSelect->pRangeAround) {
+      if (pFill->mode != FILL_MODE_PREV && pFill->mode != FILL_MODE_NEXT && pFill->mode != FILL_MODE_NEAR) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+            "Range with interval can only used with fill PREV/NEXT/NEAR");
+      }
+      if (TSDB_CODE_SUCCESS == code)
+        code = doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
     } else {
-      SFillNode* pFill = (SFillNode*)pSelect->pFill;
       if (FILL_MODE_PREV == pFill->mode || FILL_MODE_NEXT == pFill->mode || FILL_MODE_NEAR == pFill->mode) {
         if (pFill->pValues) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Can't specify fill values");
         }
+      } else {
+        if (hasRowTsOriginFunc) return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC, "_irowts_origin can only be used with FILL PREV/NEXT/NEAR");
       }
       code = checkFillValues(pCxt, pFill, pSelect->pProjectionList);
     }
@@ -6225,9 +6263,24 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
 
 static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = 0;
-  if (pSelect->pAround) {
-    SRangeAroundNode* pAround = (SRangeAroundNode*)pSelect->pAround;
+  if (pSelect->pRangeAround) {
+    SRangeAroundNode* pAround = (SRangeAroundNode*)pSelect->pRangeAround;
     code = translateExpr(pCxt, &pAround->pInterval);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE) {
+        SValueNode* pVal = (SValueNode*)pAround->pInterval;
+        if (pVal->datum.i == 0) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Range interval cannot be 0");
+        }
+        int8_t unit = pVal->unit;
+        if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                         "Unsupported time unit in RANGE clause");
+        }
+      } else {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Invalid range interval");
+      }
+    }
   }
   return code;
 }
@@ -6264,7 +6317,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                      "Missing EVERY clause or FILL clause");
     }
   } else {
-    if (!pSelect->pAround) {
+    if (!pSelect->pRangeAround) {
       if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
         if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
           // single point interp every can be omitted
@@ -6282,16 +6335,21 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
                                        "Missing FILL clause");
       }
-      code = translateInterpAround(pCxt, pSelect);
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code) code = translateExpr(pCxt, &pSelect->pRange);
+  code = translateExpr(pCxt, &pSelect->pRange);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateInterpAround(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkInterpForStream(pCxt, pSelect);
   }
   return code;
 }

@@ -1651,7 +1651,7 @@ SNode* addRangeClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pRange) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     if (pRange && nodeType(pRange) == QUERY_NODE_RANGE_AROUND) {
-      pSelect->pAround = pRange;
+      pSelect->pRangeAround = pRange;
       SRangeAroundNode* pAround = (SRangeAroundNode*)pRange;
       TSWAP(pSelect->pRange, pAround->pTimepoint);
     } else {

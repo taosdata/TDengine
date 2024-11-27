@@ -3747,8 +3747,8 @@ enum {
   PHY_INERP_FUNC_CODE_FILL_MODE,
   PHY_INERP_FUNC_CODE_FILL_VALUES,
   PHY_INERP_FUNC_CODE_TIME_SERIES,
-  PHY_INTERP_FUNC_CODE_AROUND_INTERVAL,
-  PHY_INTERP_FUNC_CODE_AROUND_INTERVAL_UNIT,
+  PHY_INTERP_FUNC_CODE_RANGE_INTERVAL,
+  PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT,
 };
 
 static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3780,10 +3780,10 @@ static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
     code = tlvEncodeObj(pEncoder, PHY_INERP_FUNC_CODE_TIME_SERIES, nodeToMsg, pNode->pTimeSeries);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_INTERP_FUNC_CODE_AROUND_INTERVAL, pNode->aroundInterval);
+    code = tlvEncodeI64(pEncoder, PHY_INTERP_FUNC_CODE_RANGE_INTERVAL, pNode->rangeInterval);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_INTERP_FUNC_CODE_AROUND_INTERVAL_UNIT, pNode->aroundIntervalUnit);
+    code = tlvEncodeI8(pEncoder, PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT, pNode->rangeIntervalUnit);
   }
 
   return code;
@@ -3823,11 +3823,11 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_INERP_FUNC_CODE_TIME_SERIES:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeSeries);
         break;
-      case PHY_INTERP_FUNC_CODE_AROUND_INTERVAL:
-        code = tlvDecodeI64(pTlv, &pNode->aroundInterval);
+      case PHY_INTERP_FUNC_CODE_RANGE_INTERVAL:
+        code = tlvDecodeI64(pTlv, &pNode->rangeInterval);
         break;
-      case PHY_INTERP_FUNC_CODE_AROUND_INTERVAL_UNIT:
-        code = tlvDecodeI8(pTlv, &pNode->aroundIntervalUnit);
+      case PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT:
+        code = tlvDecodeI8(pTlv, &pNode->rangeIntervalUnit);
         break;
       default:
         break;

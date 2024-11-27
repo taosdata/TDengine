@@ -1,3 +1,4 @@
+import queue
 from random import randrange
 import time
 import threading
@@ -8,6 +9,9 @@ from util.cases import *
 from util.dnodes import *
 from util.common import *
 # from tmqCommon import *
+
+
+ROUND: int = 999
 
 class TDTestCase:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'debugFlag': 143}
@@ -137,66 +141,311 @@ class TDTestCase:
         self.init_data()
         self.test_interp_extension()
 
-    def test_interp_fill_extension_near(self, dbname: str, tbname: str):
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near)"
+    def binary_search_ts(self, select_results, ts):
+        found: bool = False
+        start = 0
+        end = len(select_results) - 1
+        while start <= end:
+            mid = (start + end) // 2
+            if select_results[mid][0] == ts:
+                found = True
+                return mid
+            elif select_results[mid][0] < ts:
+                start = mid + 1
+            else:
+                end = mid - 1
+
+        if not found:
+            tdLog.exit(f"cannot find ts in select results {ts} {select_results}")
+        return start
+
+    ## TODO pass last position to avoid search from the beginning
+    def is_nearest(self, select_results, irowts_origin, irowts):
+        #tdLog.debug(f"check is_nearest for: {irowts_origin} {irowts}")
+        idx = self.binary_search_ts(select_results, irowts_origin)
+        if idx == 0:
+            #tdLog.debug(f"prev row: null,cur row: {select_results[idx]}, next row: {select_results[idx + 1]}")
+            return abs(irowts - select_results[idx][0]) <= abs(irowts - select_results[idx + 1][0])
+        if idx == len(select_results) - 1:
+            #tdLog.debug(f"prev row: {select_results[idx - 1]},cur row: {select_results[idx]}, next row: null")
+            return abs(irowts - select_results[idx][0]) <= abs(irowts - select_results[idx - 1][0])
+        #tdLog.debug(f"prev row: {select_results[idx - 1]},cur row: {select_results[idx]}, next row: {select_results[idx + 1]}")
+        return abs(irowts - select_results[idx][0]) <= abs(irowts - select_results[idx - 1][0]) and abs(irowts - select_results[idx][0]) <= abs(irowts - select_results[idx + 1][0])
+
+    ## interp_results: _irowts_origin, _irowts, ..., _isfilled
+    ## select_all_results must be sorted by ts in ascending order
+    def check_result_for_near(self, interp_results, select_all_results, sql):
+        #tdLog.debug(f"check_result_for_near for sql: {sql}")
+        for row in interp_results:
+            if not self.is_nearest(select_all_results, row[0], row[1]):
+                tdLog.exit(f"interp result is not the nearest for row: {row}")
+
+    def query_routine(self, sql_queue: queue.Queue, output_queue: queue.Queue):
+        try:
+            tdcom = TDCom()
+            cli = tdcom.newTdSql()
+            while True:
+                sql = sql_queue.get()
+                if sql is None:
+                    output_queue.put(None)
+                    break
+                cli.query(sql, queryTimes=1)
+                output_queue.put((sql, cli.queryResult))
+            cli.close()
+        except Exception as e:
+            tdLog.exit(f"query_routine error: {e}")
+
+    def interp_check_near_routine(self, select_all_results, output_queue: queue.Queue):
+        try:
+            while True:
+                item = output_queue.get()
+                if item is None:
+                    break
+                sql, interp_results = item
+                self.check_result_for_near(interp_results, select_all_results, sql)
+        except Exception as e:
+            tdLog.exit(f"interp_check_near_routine error: {e}")
+
+    def create_qt_threads(self, sql_queue: queue.Queue, output_queue: queue.Queue, num: int):
+        qts = []
+        for i in range(0, num):
+            qt = threading.Thread(target=self.query_routine, args=(sql_queue, output_queue))
+            qt.start()
+            qts.append(qt)
+        return qts
+
+    def wait_qt_threads(self, qts: list):
+        for qt in qts:
+            qt.join()
+
+    ### first(ts)               | last(ts)
+    ### 2018-09-17 09:00:00.047 | 2018-09-17 10:23:19.863
+    def test_interp_fill_extension_near(self):
+        sql = f"select last(ts), c1, c2 from test.t0"
+        tdSql.query(sql, queryTimes=1)
+        lastRow = tdSql.queryResult[0]
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(61)
+        for i in range(0, 61):
+            tdSql.checkData(i, 0, lastRow[0])
+            tdSql.checkData(i, 2, lastRow[1])
+            tdSql.checkData(i, 3, lastRow[2])
+            tdSql.checkData(i, 4, True)
+
+        sql = f"select ts, c1, c2 from test.t0 where ts between '2018-09-17 08:59:59' and '2018-09-17 09:00:06' order by ts asc"
+        tdSql.query(sql, queryTimes=1)
+        select_all_results = tdSql.queryResult
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 range('2018-09-17 09:00:00', '2018-09-17 09:00:05') every(1s) fill(near)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(6)
+        self.check_result_for_near(tdSql.queryResult, select_all_results, sql)
+
+
+        start = 1537146000000
+        end = 1537151000000
+
+        tdSql.query("select ts, c1, c2 from test.t0 order by ts asc", queryTimes=1)
+        select_all_results = tdSql.queryResult
+
+        qt_threads_num = 4
+        sql_queue = queue.Queue()
+        output_queue = queue.Queue()
+        qts = self.create_qt_threads(sql_queue, output_queue, qt_threads_num)
+        ct = threading.Thread(target=self.interp_check_near_routine, args=(select_all_results, output_queue))
+        ct.start()
+        for i in range(0, ROUND):
+            range_start = random.randint(start, end)
+            range_end = random.randint(range_start, end)
+            every = random.randint(1, 15)
+            #tdLog.debug(f"range_start: {range_start}, range_end: {range_end}")
+            sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 range({range_start}, {range_end}) every({every}s) fill(near)"
+            sql_queue.put(sql)
+
+        ### no prev only, no next only, no prev and no next, have prev and have next
+        for i in range(0, ROUND):
+            range_point = random.randint(start, end)
+            ## all data points are can be filled by near
+            sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 range({range_point}, 1h) fill(near, 1, 2)"
+            sql_queue.put(sql)
+
+        for i in range(0, ROUND):
+            range_start = random.randint(start, end)
+            range_end = random.randint(range_start, end)
+            range_where_start = random.randint(start, end)
+            range_where_end = random.randint(range_where_start, end)
+            every = random.randint(1, 15)
+            sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 where ts between {range_where_start} and {range_where_end} range({range_start}, {range_end}) every({every}s) fill(near)"
+            sql_queue.put(sql)
+
+        for i in range(0, ROUND):
+            range_start = random.randint(start, end)
+            range_end = random.randint(range_start, end)
+            range_where_start = random.randint(start, end)
+            range_where_end = random.randint(range_where_start, end)
+            range_point = random.randint(start, end)
+            sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 where ts between {range_where_start} and {range_where_end} range({range_point}, 1h) fill(near, 1, 2)"
+            sql_queue.put(sql)
+        for i in range(0, qt_threads_num):
+            sql_queue.put(None)
+        self.wait_qt_threads(qts)
+        ct.join()
+
+    def test_interp_extension_irowts_origin(self):
+        sql = f"select _irowts, _irowts_origin, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near)"
         tdSql.query(sql, queryTimes=1)
 
-    def test_interp_extension_irowts_origin(self, dbname: str, tbname: str):
-        sql = f"select _irowts, _irowts_origin, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near)"
-        tdSql.query(sql, queryTimes=1)
+        sql = f"select _irowts, _irowts_origin, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(NULL)"
+        tdSql.error(sql, -2147473833)
+        sql = f"select _irowts, _irowts_origin, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(linear)"
+        tdSql.error(sql, -2147473833)
+        sql = f"select _irowts, _irowts_origin, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(NULL_F)"
+        tdSql.error(sql, -2147473833)
 
-    def test_interp_fill_extension_timepoint_around(self, dbname: str, tbname: str):
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', 1h) fill(near, 0, 0)"
+
+    def test_interp_fill_extension(self):
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(near, 0, 0)"
         tdSql.query(sql, queryTimes=1)
 
         ### must specify value
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', 1h) fill(near)"
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(near)"
         tdSql.error(sql, -2147473915)
         ### num of fill value mismatch
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', 1h) fill(near, 1)"
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(near, 1)"
         tdSql.error(sql, -2147473915)
 
         ### range with around interval cannot specify two timepoints, currently not supported
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', '2020-02-01 00:02:00', 1h) fill(near, 1, 1)"
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:02:00', 1h) fill(near, 1, 1)"
         tdSql.error(sql, -2147473920) ## syntax error
 
         ### NULL/linear cannot specify other values
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', 1h) fill(NULL, 1, 1)"
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:02:00') fill(NULL, 1, 1)"
         tdSql.error(sql, -2147473920)
 
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', 1h) fill(linear, 1, 1)"
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:02:00') fill(linear, 1, 1)"
         tdSql.error(sql, -2147473920) ## syntax error
 
         ### cannot have every clause with range around
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', 1h) every(1s) fill(prev, 1, 1)"
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) every(1s) fill(prev, 1, 1)"
         tdSql.error(sql, -2147473827) ## TSDB_CODE_PAR_INVALID_INTERP_CLAUSE
 
         ### cannot specify near/prev/next values when using range
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near, 1, 1)"
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near, 1, 1)"
         tdSql.error(sql, -2147473915) ## cannot specify values
 
-        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from {dbname}.{tbname} range('2020-02-01 00:00:00') every(1s) fill(near, 1, 1)"
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00') every(1s) fill(near, 1, 1)"
         tdSql.error(sql, -2147473915) ## cannot specify values
 
-        ### TODO test range with other units
+        ### when range around interval is set, only prev/next/near is supported
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(NULL, 1, 1)"
+        tdSql.error(sql, -2147473920)
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(NULL)"
+        tdSql.error(sql, -2147473861) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
 
-    def test_interval_fill_extension(self, dbname: str, tbname: str):
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(linear, 1, 1)"
+        tdSql.error(sql, -2147473920)
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(linear)"
+        tdSql.error(sql, -2147473861) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
+
+        ### range interval cannot be 0
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 0h) fill(near, 1, 1)"
+        tdSql.error(sql, -2147473861) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
+
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1y) fill(near, 1, 1)"
+        tdSql.error(sql, -2147473915) ## TSDB_CODE_PAR_WRONG_VALUE_TYPE
+
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1n) fill(near, 1, 1)"
+        tdSql.error(sql, -2147473915) ## TSDB_CODE_PAR_WRONG_VALUE_TYPE
+
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters where ts between '2020-02-01 00:00:00' and '2020-02-01 00:00:00' range('2020-02-01 00:00:00', 1h) fill(near, 1, 1)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(0)
+
+        ### first(ts)               | last(ts)
+        ### 2018-09-17 09:00:00.047 | 2018-09-17 10:23:19.863
+        sql = "select to_char(first(ts), 'YYYY-MM-DD HH24:MI:SS.MS') from meters"
+        tdSql.query(sql, queryTimes=1)
+        first_ts = tdSql.queryResult[0][0]
+        sql = "select to_char(last(ts), 'YYYY-MM-DD HH24:MI:SS.MS') from meters"
+        tdSql.query(sql, queryTimes=1)
+        last_ts = tdSql.queryResult[0][0]
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1d) fill(near, 1, 2)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, '2020-02-01 00:00:00.000')
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 4, True)
+
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2018-09-18 10:25:00', 1d) fill(prev, 3, 4)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, '2018-09-18 10:25:00.000')
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(0, 3, 4)
+        tdSql.checkData(0, 4, True)
+
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2018-09-16 08:25:00', 1d) fill(next, 5, 6)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, '2018-09-16 08:25:00.000')
+        tdSql.checkData(0, 2, 5)
+        tdSql.checkData(0, 3, 6)
+        tdSql.checkData(0, 4, True)
+
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2018-09-16 09:00:01', 1d) fill(next, 1, 2)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, first_ts)
+        tdSql.checkData(0, 1, '2018-09-16 09:00:01')
+        tdSql.checkData(0, 4, True)
+
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2018-09-18 10:23:19', 1d) fill(prev, 1, 2)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, last_ts)
+        tdSql.checkData(0, 1, '2018-09-18 10:23:19')
+        tdSql.checkData(0, 4, True)
+
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('{last_ts}', 1a) fill(next, 1, 2)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, last_ts)
+        tdSql.checkData(0, 1, last_ts)
+        tdSql.checkData(0, 4, False)
+
+
+    def test_interval_fill_extension(self):
         ## not allowed
-        sql = f"select count(*) from {dbname}.{tbname} interval(1s) fill(near)"
+        sql = f"select count(*) from test.meters interval(1s) fill(near)"
         tdSql.error(sql, -2147473920) ## syntax error
 
-        sql = f"select count(*) from {dbname}.{tbname} interval(1s) fill(prev, 1)"
+        sql = f"select count(*) from test.meters interval(1s) fill(prev, 1)"
         tdSql.error(sql, -2147473920) ## syntax error
-        sql = f"select count(*) from {dbname}.{tbname} interval(1s) fill(next, 1)"
+        sql = f"select count(*) from test.meters interval(1s) fill(next, 1)"
         tdSql.error(sql, -2147473920) ## syntax error
+
+    def test_interp_fill_extension_stream(self):
+        ## near is not supported
+        sql = f"create stream s1 trigger force_window_close into s_res_tb as select _irowts, interp(c1), interp(c2)from meters partition by tbname every(1s) fill(near);"
+        tdSql.error(sql, -2147473851) ## TSDB_CODE_PAR_INVALID_STREAM_QUERY
+
+        ## _irowts_origin is not support
+        sql = f"create stream s1 trigger force_window_close into s_res_tb as select _irowts_origin, interp(c1), interp(c2)from meters partition by tbname every(1s) fill(prev);"
+        tdSql.error(sql, -2147473851) ## TSDB_CODE_PAR_INVALID_STREAM_QUERY
+
+        sql = f"create stream s1 trigger force_window_close into s_res_tb as select _irowts, interp(c1), interp(c2)from meters partition by tbname every(1s) fill(next, 1, 1);"
+        tdSql.error(sql, -2147473915) ## cannot specify values
 
     def test_interp_extension(self):
-        dbname = 'test'
-        tbname = 'meters'
-        self.test_interp_fill_extension_near(dbname, tbname)
-        self.test_interp_extension_irowts_origin(dbname, tbname)
-        self.test_interp_fill_extension_timepoint_around(dbname, tbname)
-        self.test_interval_fill_extension(dbname, tbname)
+        self.test_interp_fill_extension_near()
+        self.test_interp_extension_irowts_origin()
+        self.test_interp_fill_extension()
+        self.test_interval_fill_extension()
+        self.test_interp_fill_extension_stream()
 
     def stop(self):
         tdSql.close()

@@ -684,8 +684,8 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
   COPY_OBJECT_FIELD(streamNodeOption, sizeof(SStreamNodeOption));
-  COPY_SCALAR_FIELD(aroundInterval);
-  COPY_SCALAR_FIELD(aroundIntervalUnit);
+  COPY_SCALAR_FIELD(rangeInterval);
+  COPY_SCALAR_FIELD(rangeIntervalUnit);
   return TSDB_CODE_SUCCESS;
 }
 

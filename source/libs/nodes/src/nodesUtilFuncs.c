@@ -1091,7 +1091,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);
       nodesDestroyNode(pStmt->pRange);
-      nodesDestroyNode(pStmt->pAround);
+      nodesDestroyNode(pStmt->pRangeAround);
       nodesDestroyNode(pStmt->pEvery);
       nodesDestroyNode(pStmt->pFill);
       nodesDestroyList(pStmt->pOrderByList);

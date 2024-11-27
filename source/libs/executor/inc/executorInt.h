@@ -1058,6 +1058,7 @@ void    destroyFlusedPos(void* pRes);
 bool    isIrowtsPseudoColumn(SExprInfo* pExprInfo);
 bool    isIsfilledPseudoColumn(SExprInfo* pExprInfo);
 bool    isInterpFunc(SExprInfo* pExprInfo);
+bool    isIrowtsOriginPseudoColumn(SExprInfo* pExprInfo);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);
