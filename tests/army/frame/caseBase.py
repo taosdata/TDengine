@@ -17,9 +17,13 @@ import time
 import datetime
 import random
 import copy
+import json
 
+import frame.eutil
 from frame.log import *
 from frame.sql import *
+from frame     import *
+import frame
 
 # test case base
 class TBase:
@@ -306,3 +310,76 @@ class TBase:
                 strs += sepa
             strs += f"'{ls}'"
         return strs
+
+#
+#  taosBenchmark 
+#
+    
+    # run taosBenchmark and check insert Result
+    def insertBenchJson(self, jsonFile, options="", checkStep=False):
+        # exe insert 
+        cmd = f"{options} -f {jsonFile}"        
+        frame.etool.benchMark(command = cmd)
+
+        #
+        # check insert result
+        #
+        with open(jsonFile, "r") as file:
+            data = json.load(file)
+        
+        db  = data["databases"][0]["dbinfo"]["name"]        
+        stb = data["databases"][0]["super_tables"][0]["name"]
+        child_count = data["databases"][0]["super_tables"][0]["childtable_count"]
+        insert_rows = data["databases"][0]["super_tables"][0]["insert_rows"]
+        timestamp_step = data["databases"][0]["super_tables"][0]["timestamp_step"]
+        
+        # drop
+        try:
+            drop = data["databases"][0]["dbinfo"]["drop"]
+        except:
+            drop = "yes"
+
+        # command is first
+        if options.find("-Q") != -1:
+            drop = "no"
+
+        # cachemodel
+        try:
+            cachemode = data["databases"][0]["dbinfo"]["cachemodel"]
+        except:
+            cachemode = None
+
+        # vgropus
+        try:
+            vgroups   = data["databases"][0]["dbinfo"]["vgroups"]
+        except:
+            vgroups = None
+
+        tdLog.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
+        
+        # all count insert_rows * child_table_count
+        sql = f"select * from {db}.{stb}"
+        tdSql.query(sql)
+        tdSql.checkRows(child_count * insert_rows)
+
+        # timestamp step
+        if checkStep:
+            sql = f"select * from (select diff(ts) as dif from {db}.{stb} partition by tbname) where dif != {timestamp_step};"
+            tdSql.query(sql)
+            tdSql.checkRows(0)
+
+        if drop.lower() == "yes":
+            # check database optins 
+            sql = f"select `vgroups`,`cachemodel` from information_schema.ins_databases where name='{db}';"
+            tdSql.query(sql)
+
+            if cachemode != None:
+                
+                value = frame.eutil.removeQuota(cachemode)                
+                tdLog.info(f" deal both origin={cachemode} after={value}")
+                tdSql.checkData(0, 1, value)
+
+            if vgroups != None:
+                tdSql.checkData(0, 0, vgroups)
+
+        return db, stb,child_count, insert_rows
