@@ -652,7 +652,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   streamMetaWUnLock(pMeta);
 
   if (code < 0) {
-    tqError("failed to add s-task:0x%x into vgId:%d meta, existed:%d, code:%s", vgId, taskId, numOfTasks,
+    tqError("vgId:%d failed to register s-task:0x%x into meta, existed tasks:%d, code:%s", vgId, taskId, numOfTasks,
             tstrerror(code));
     return code;
   }
@@ -939,7 +939,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
 }
 
 int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
-  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)pMsg;
+  SVResetStreamTaskReq* pReq = (SVResetStreamTaskReq*)pMsg;
 
   SStreamTask* pTask = NULL;
   int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
@@ -954,17 +954,13 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
   streamMutexLock(&pTask->lock);
   streamTaskClearCheckInfo(pTask, true);
 
+  streamTaskSetFailedCheckpointId(pTask, pReq->chkptId);
+
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
   SStreamTaskState pState = streamTaskGetStatus(pTask);
   if (pState.state == TASK_STATUS__CK) {
-    int32_t tranId = 0;
-    int64_t activeChkId = 0;
-    streamTaskGetActiveCheckpointInfo(pTask, &tranId, &activeChkId);
-
-    tqDebug("s-task:%s reset task status from checkpoint, current checkpointingId:%" PRId64 ", transId:%d",
-            pTask->id.idStr, activeChkId, tranId);
-
     streamTaskSetStatusReady(pTask);
+    tqDebug("s-task:%s reset checkpoint status to ready", pTask->id.idStr);
   } else if (pState.state == TASK_STATUS__UNINIT) {
     //    tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
     //    tqStreamTaskRestoreCheckpoint(pMeta, pTask->id.streamId, pTask->id.taskId);

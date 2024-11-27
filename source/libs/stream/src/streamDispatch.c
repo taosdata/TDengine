@@ -845,7 +845,15 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     streamMutexUnlock(&pTask->msgInfo.lock);
 
     code = doBuildDispatchMsg(pTask, pBlock);
+
+    int64_t chkptId = 0;
     if (code == 0) {
+      if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+        SSDataBlock* p = taosArrayGet(pBlock->blocks, 0);
+        if (pBlock != NULL) {
+          chkptId = p->info.version;
+        }
+      }
       destroyStreamDataBlock(pBlock);
     } else {  // todo handle build dispatch msg failed
     }
@@ -862,7 +870,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
         continue;
       }
 
-      code = streamTaskInitTriggerDispatchInfo(pTask);
+      code = streamTaskInitTriggerDispatchInfo(pTask, chkptId);
       if (code != TSDB_CODE_SUCCESS) {  // todo handle error
       }
     }

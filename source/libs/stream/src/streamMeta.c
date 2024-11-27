@@ -723,8 +723,9 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
 
   pTask->id.refId = refId = taosAddRef(streamTaskRefPool, pTask);
   code = taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask->id.refId, sizeof(int64_t));
-  if (code) {  // todo remove it from task list
+  if (code) {
     stError("s-task:0x%" PRIx64 " failed to register task into meta-list, code: out of memory", id.taskId);
+    void* pUnused = taosArrayPop(pMeta->pTaskList);
 
     int32_t ret = taosRemoveRef(streamTaskRefPool, refId);
     if (ret != 0) {
@@ -734,6 +735,9 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   if ((code = streamMetaSaveTask(pMeta, pTask)) != 0) {
+    int32_t unused = taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
+    void* pUnused = taosArrayPop(pMeta->pTaskList);
+
     int32_t ret = taosRemoveRef(streamTaskRefPool, refId);
     if (ret) {
       stError("vgId:%d remove task refId failed, refId:%" PRId64, pMeta->vgId, refId);
@@ -742,6 +746,9 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   if ((code = streamMetaCommit(pMeta)) != 0) {
+    int32_t unused = taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
+    void* pUnused = taosArrayPop(pMeta->pTaskList);
+
     int32_t ret = taosRemoveRef(streamTaskRefPool, refId);
     if (ret) {
       stError("vgId:%d remove task refId failed, refId:%" PRId64, pMeta->vgId, refId);
