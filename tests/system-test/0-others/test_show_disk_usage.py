@@ -57,9 +57,28 @@ class TDTestCase:
                 disk_occupied= int(item[0].split("=")[1].split(" ")[0].replace("[", "").replace("k]", ""))
                 tdLog.debug("disk_occupied: %s" % disk_occupied)
             elif "Compress_radio=" in item[0]:
-                compress_radio  = float(item[0].split("=")[1].split(" ")[0].replace("[", "").replace("]", ""))
+                value = item[0].split("=")[1].split(" ")[0].replace("[", "").replace("]", "")
+                if value != 'NULL': 
+                    compress_radio = float(value)
+                
                 tdLog.debug("compress_occupied: %s" % compress_radio)
         return disk_occupied, compress_radio 
+
+    def insertData(self): 
+        tdSql.execute(f'use {self.other_dbname};')
+        # create super table
+        tdSql.execute(f'create table {self.other_dbname}.{self.stname} (ts timestamp, id int, temperature float) tags (name binary(20));')
+        # create child table
+        for i in range(self.ctnum):
+            tdSql.execute(f'create table ct_{str(i+1)} using {self.stname} tags ("name{str(i+1)}");')
+            sql = f"insert into ct_{str(i+1)} values "
+            for j in range(self.row_num):
+                sql += f"(now+{j+1}s, {j+1}, {random.uniform(15, 30)}) "
+            sql += ";"
+            tdSql.execute(sql)
+        
+        tdSql.execute(f"flush database {self.other_dbname};")
+        tdLog.debug("init finished")
 
     def run(self):
 
@@ -95,22 +114,15 @@ class TDTestCase:
         tdSql.error(f"select sum(s3) from information_schema.ins_disk_usage  where db='{self.other_dbname}';")
         tdSql.error(f"select sum(s3) from information_schema.ins_disk_usage  where db1='{self.other_dbname}';")
 
-        
 
-        tdSql.query(f"show {self.dbname}.disk_info;")
+        self.insertData()
+        tdSql.query(f"show {self.other_dbname}.disk_info;")
         tdLog.debug(tdSql.queryResult)
-        #self.checkData()
+        disk_occupied,compress_radio = self.checkRes(tdSql.queryResult)
+          
+        tdSql.query(f"select sum(data1+data2+data3) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
+        tdSql.checkData(0,0,disk_occupied) 
          
-        
-        #assert(99 == mem_rows_num and 0 == stt_rows_num)
-
-        #tdSql.execute(f"flush database {self.dbname};")
-        #time.sleep(1)
-        #tdSql.query(f"show table distributed {self.stname};")
-        #tdLog.debug(tdSql.queryResult)
-        #mem_rows_num, stt_rows_num = self.checkRes(tdSql.queryResult)
-        #tdLog.debug("mem_rows_num: %s, stt_rows_num: %s" % (mem_rows_num, stt_rows_num))
-        #assert(0 == mem_rows_num and 99 == stt_rows_num)
 
     def stop(self):
         # remove the user
