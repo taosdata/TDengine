@@ -1432,7 +1432,11 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
         memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
         pInfo->srcRowIndex = -1;
       } break;
-      case STREAM_CHECKPOINT:
+      case STREAM_CHECKPOINT: {
+        pInfo->stateStore.streamStateCommit(pInfo->pState);
+        (*ppRes) = pBlock;
+        goto _end;
+      } break;
       case STREAM_CREATE_CHILD_TABLE: {
         (*ppRes) = pBlock;
         goto _end;

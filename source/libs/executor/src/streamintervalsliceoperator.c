@@ -360,6 +360,13 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       return code;
     }
 
+    if (pInfo->recvCkBlock) {
+      pInfo->recvCkBlock = false;
+      printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->pCheckpointRes;
+      return code;
+    } 
+
     pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
@@ -391,8 +398,6 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       case STREAM_CHECKPOINT: {
         pInfo->recvCkBlock = true;
         pAggSup->stateStore.streamStateCommit(pAggSup->pState);
-        // doStreamIntervalSliceSaveCheckpoint(pOperator);
-        pInfo->recvCkBlock = true;
         code = copyDataBlock(pInfo->pCheckpointRes, pBlock);
         QUERY_CHECK_CODE(code, lino, _end);
         continue;
@@ -450,6 +455,12 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
   QUERY_CHECK_CODE(code, lino, _end);
 
   if ((*ppRes) == NULL) {
+    if (pInfo->recvCkBlock) {
+      pInfo->recvCkBlock = false;
+      printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->pCheckpointRes;
+      return code;
+    } 
     pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
     setStreamOperatorCompleted(pOperator);
   }
