@@ -83,6 +83,11 @@ int main(int argc, char *argv[]) {
 #ifdef WEBSOCKET
   shellCheckConnectMode();
 #endif
+
+  if (shell.args.is_internal) {
+    taos_options(TSDB_OPTION_DRIVER, "internal");
+  }
+
   if (taos_init() != 0) {
     printf("failed to init client since %s\r\n", terrstr());
     return -1;

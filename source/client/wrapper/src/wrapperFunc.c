@@ -79,10 +79,10 @@ volatile int32_t    tsDriverOnceRet = 0;
     ERR_CONFRET(TSDB_CODE_DLL_NOT_FOUND) \
   }
 
-#define IsNative() (tsDriverType == DRIVER_NATIVE)
+#define IsInternal() (tsDriverType == DRIVER_INTERNAL)
 
 void taos_cleanup(void) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_cleanup);
     (*fp_taos_cleanup)();
   } else {
@@ -93,8 +93,8 @@ void taos_cleanup(void) {
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
   if (option == TSDB_OPTION_DRIVER) {
     if (tsDriver == NULL) {
-      if (strcmp((const char *)arg, "native") == 0) {
-        tsDriverType = DRIVER_NATIVE;
+      if (strcmp((const char *)arg, "internal") == 0) {
+        tsDriverType = DRIVER_INTERNAL;
       } else {
         tsDriverType = DRIVER_WEBSOCKET;
       }
@@ -105,7 +105,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
     }
   }
 
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_options);
     return (*fp_taos_options)(option, arg);
   } else {
@@ -114,7 +114,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 }
 
 setConfRet taos_set_config(const char *config) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_CONFRET(fp_taos_set_config);
     return (*fp_taos_set_config)(config);
   } else {
@@ -140,7 +140,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     return NULL;
   }
 
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_connect);
     return (*fp_taos_connect)(ip, user, pass, db, port);
   } else {
@@ -154,7 +154,7 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
     return NULL;
   }
 
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_connect_auth);
     return (*fp_taos_connect_auth)(ip, user, auth, db, port);
   } else {
@@ -163,7 +163,7 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
 }
 
 void taos_close(TAOS *taos) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_close);
     (*fp_taos_close)(taos);
   } else {
@@ -172,7 +172,7 @@ void taos_close(TAOS *taos) {
 }
 
 const char *taos_data_type(int type) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_data_type);
     return (*fp_taos_data_type)(type);
   } else {
@@ -181,7 +181,7 @@ const char *taos_data_type(int type) {
 }
 
 TAOS_STMT *taos_stmt_init(TAOS *taos) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_stmt_init);
     return (*fp_taos_stmt_init)(taos);
   } else {
@@ -190,7 +190,7 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
 }
 
 TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_stmt_init_with_reqid);
     return (*fp_taos_stmt_init_with_reqid)(taos, reqid);
   } else {
@@ -199,7 +199,7 @@ TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
 }
 
 TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_stmt_init_with_options);
     return (*fp_taos_stmt_init_with_options)(taos, options);
   } else {
@@ -208,7 +208,7 @@ TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
 }
 
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_prepare);
     return (*fp_taos_stmt_prepare)(stmt, sql, length);
   } else {
@@ -217,7 +217,7 @@ int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
 }
 
 int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_set_tbname_tags);
     return (*fp_taos_stmt_set_tbname_tags)(stmt, name, tags);
   } else {
@@ -226,7 +226,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND
 }
 
 int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_set_tbname);
     return (*fp_taos_stmt_set_tbname)(stmt, name);
   } else {
@@ -235,7 +235,7 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
 }
 
 int taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_set_tags);
     return (*fp_taos_stmt_set_tags)(stmt, tags);
   } else {
@@ -244,7 +244,7 @@ int taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
 }
 
 int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_set_sub_tbname);
     return (*fp_taos_stmt_set_sub_tbname)(stmt, name);
   } else {
@@ -253,7 +253,7 @@ int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) {
 }
 
 int taos_stmt_get_tag_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_get_tag_fields);
     return (*fp_taos_stmt_get_tag_fields)(stmt, fieldNum, fields);
   } else {
@@ -262,7 +262,7 @@ int taos_stmt_get_tag_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fiel
 }
 
 int taos_stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_get_col_fields);
     return (*fp_taos_stmt_get_col_fields)(stmt, fieldNum, fields);
   } else {
@@ -271,7 +271,7 @@ int taos_stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fiel
 }
 
 void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_stmt_reclaim_fields);
     (*fp_taos_stmt_reclaim_fields)(stmt, fields);
   } else {
@@ -280,7 +280,7 @@ void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields) {
 }
 
 int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_is_insert);
     return (*fp_taos_stmt_is_insert)(stmt, insert);
   } else {
@@ -289,7 +289,7 @@ int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
 }
 
 int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_num_params);
     return (*fp_taos_stmt_num_params)(stmt, nums);
   } else {
@@ -298,7 +298,7 @@ int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
 }
 
 int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_get_param);
     return (*fp_taos_stmt_get_param)(stmt, idx, type, bytes);
   } else {
@@ -307,7 +307,7 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
 }
 
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_bind_param);
     return (*fp_taos_stmt_bind_param)(stmt, bind);
   } else {
@@ -316,7 +316,7 @@ int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
 }
 
 int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_bind_param_batch);
     return (*fp_taos_stmt_bind_param_batch)(stmt, bind);
   } else {
@@ -325,7 +325,7 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
 }
 
 int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_bind_single_param_batch);
     return (*fp_taos_stmt_bind_single_param_batch)(stmt, bind, colIdx);
   } else {
@@ -334,7 +334,7 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, in
 }
 
 int taos_stmt_add_batch(TAOS_STMT *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_add_batch);
     return (*fp_taos_stmt_add_batch)(stmt);
   } else {
@@ -343,7 +343,7 @@ int taos_stmt_add_batch(TAOS_STMT *stmt) {
 }
 
 int taos_stmt_execute(TAOS_STMT *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_execute);
     return (*fp_taos_stmt_execute)(stmt);
   } else {
@@ -352,7 +352,7 @@ int taos_stmt_execute(TAOS_STMT *stmt) {
 }
 
 TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_stmt_use_result);
     return (*fp_taos_stmt_use_result)(stmt);
   } else {
@@ -361,7 +361,7 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
 }
 
 int taos_stmt_close(TAOS_STMT *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_close);
     return (*fp_taos_stmt_close)(stmt);
   } else {
@@ -370,7 +370,7 @@ int taos_stmt_close(TAOS_STMT *stmt) {
 }
 
 char *taos_stmt_errstr(TAOS_STMT *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_stmt_errstr);
     return (*fp_taos_stmt_errstr)(stmt);
   } else {
@@ -379,7 +379,7 @@ char *taos_stmt_errstr(TAOS_STMT *stmt) {
 }
 
 int taos_stmt_affected_rows(TAOS_STMT *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_affected_rows);
     return (*fp_taos_stmt_affected_rows)(stmt);
   } else {
@@ -388,7 +388,7 @@ int taos_stmt_affected_rows(TAOS_STMT *stmt) {
 }
 
 int taos_stmt_affected_rows_once(TAOS_STMT *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt_affected_rows_once);
     return (*fp_taos_stmt_affected_rows_once)(stmt);
   } else {
@@ -397,7 +397,7 @@ int taos_stmt_affected_rows_once(TAOS_STMT *stmt) {
 }
 
 TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_stmt2_init);
     return (*fp_taos_stmt2_init)(taos, option);
   } else {
@@ -406,7 +406,7 @@ TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
 }
 
 int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt2_prepare);
     return (*fp_taos_stmt2_prepare)(stmt, sql, length);
   } else {
@@ -415,7 +415,7 @@ int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) 
 }
 
 int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt2_bind_param);
     return (*fp_taos_stmt2_bind_param)(stmt, bindv, col_idx);
   } else {
@@ -424,7 +424,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt2_exec);
     return (*fp_taos_stmt2_exec)(stmt, affected_rows);
   } else {
@@ -433,7 +433,7 @@ int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
 }
 
 int taos_stmt2_close(TAOS_STMT2 *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt2_close);
     return (*fp_taos_stmt2_close)(stmt);
   } else {
@@ -442,7 +442,7 @@ int taos_stmt2_close(TAOS_STMT2 *stmt) {
 }
 
 int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt2_is_insert);
     return (*fp_taos_stmt2_is_insert)(stmt, insert);
   } else {
@@ -451,7 +451,7 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
 }
 
 int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt2_get_fields);
     return (*fp_taos_stmt2_get_fields)(stmt, field_type, count, fields);
   } else {
@@ -460,7 +460,7 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count,
 }
 
 int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_stmt2_get_stb_fields);
     return (*fp_taos_stmt2_get_stb_fields)(stmt, count, fields);
   } else {
@@ -469,7 +469,7 @@ int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fie
 }
 
 void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_stmt2_free_fields);
     (*fp_taos_stmt2_free_fields)(stmt, fields);
   } else {
@@ -478,7 +478,7 @@ void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
 }
 
 void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_stmt2_free_stb_fields);
     (*fp_taos_stmt2_free_stb_fields)(stmt, fields);
   } else {
@@ -487,7 +487,7 @@ void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) {
 }
 
 TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_stmt2_result);
     return (*fp_taos_stmt2_result)(stmt);
   } else {
@@ -496,7 +496,7 @@ TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
 }
 
 char *taos_stmt2_error(TAOS_STMT2 *stmt) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_stmt2_error);
     return (*fp_taos_stmt2_error)(stmt);
   } else {
@@ -505,7 +505,7 @@ char *taos_stmt2_error(TAOS_STMT2 *stmt) {
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_query);
     return (*fp_taos_query)(taos, sql);
   } else {
@@ -514,7 +514,7 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
 }
 
 TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqId) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_query_with_reqid);
     return (*fp_taos_query_with_reqid)(taos, sql, reqId);
   } else {
@@ -523,7 +523,7 @@ TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqId) {
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_fetch_row);
     return (*fp_taos_fetch_row)(res);
   } else {
@@ -532,7 +532,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 }
 
 int taos_result_precision(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_result_precision);
     return (*fp_taos_result_precision)(res);
   } else {
@@ -541,7 +541,7 @@ int taos_result_precision(TAOS_RES *res) {
 }
 
 void taos_free_result(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_free_result);
     return (*fp_taos_free_result)(res);
   } else {
@@ -550,7 +550,7 @@ void taos_free_result(TAOS_RES *res) {
 }
 
 void taos_kill_query(TAOS *taos) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_kill_query);
     return (*fp_taos_kill_query)(taos);
   } else {
@@ -559,7 +559,7 @@ void taos_kill_query(TAOS *taos) {
 }
 
 int taos_field_count(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_field_count);
     return (*fp_taos_field_count)(res);
   } else {
@@ -568,7 +568,7 @@ int taos_field_count(TAOS_RES *res) {
 }
 
 int taos_num_fields(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_num_fields);
     return (*fp_taos_num_fields)(res);
   } else {
@@ -577,7 +577,7 @@ int taos_num_fields(TAOS_RES *res) {
 }
 
 int taos_affected_rows(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_affected_rows);
     return (*fp_taos_affected_rows)(res);
   } else {
@@ -586,7 +586,7 @@ int taos_affected_rows(TAOS_RES *res) {
 }
 
 int64_t taos_affected_rows64(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_affected_rows64);
     return (*fp_taos_affected_rows64)(res);
   } else {
@@ -595,7 +595,7 @@ int64_t taos_affected_rows64(TAOS_RES *res) {
 }
 
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_fetch_fields);
     return (*fp_taos_fetch_fields)(res);
   } else {
@@ -604,7 +604,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_select_db);
     return (*fp_taos_select_db)(taos, db);
   } else {
@@ -613,7 +613,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_print_row);
     return (*fp_taos_print_row)(str, row, fields, num_fields);
   } else {
@@ -622,7 +622,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 }
 
 int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_print_row_with_size);
     return (*fp_taos_print_row_with_size)(str, size, row, fields, num_fields);
   } else {
@@ -631,7 +631,7 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
 }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_stop_query);
     (*fp_taos_stop_query)(res);
   } else {
@@ -640,7 +640,7 @@ void taos_stop_query(TAOS_RES *res) {
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_BOOL(fp_taos_is_null);
     return (*fp_taos_is_null)(res, row, col);
   } else {
@@ -649,7 +649,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
 }
 
 int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_is_null_by_column);
     return (*fp_taos_is_null_by_column)(res, columnIndex, result, rows);
   } else {
@@ -658,7 +658,7 @@ int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *r
 }
 
 bool taos_is_update_query(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_BOOL(fp_taos_is_update_query);
     return (*fp_taos_is_update_query)(res);
   } else {
@@ -667,7 +667,7 @@ bool taos_is_update_query(TAOS_RES *res) {
 }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_fetch_block);
     return (*fp_taos_fetch_block)(res, rows);
   } else {
@@ -676,7 +676,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 }
 
 int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_fetch_block_s);
     return (*fp_taos_fetch_block_s)(res, numOfRows, rows);
   } else {
@@ -685,7 +685,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
 }
 
 int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_fetch_raw_block);
     return (*fp_taos_fetch_raw_block)(res, numOfRows, pData);
   } else {
@@ -694,7 +694,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
 }
 
 int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_get_column_data_offset);
     return (*fp_taos_get_column_data_offset)(res, columnIndex);
   } else {
@@ -703,7 +703,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
 }
 
 int taos_validate_sql(TAOS *taos, const char *sql) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_validate_sql);
     return (*fp_taos_validate_sql)(taos, sql);
   } else {
@@ -712,7 +712,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 }
 
 void taos_reset_current_db(TAOS *taos) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_reset_current_db);
     (*fp_taos_reset_current_db)(taos);
   } else {
@@ -721,7 +721,7 @@ void taos_reset_current_db(TAOS *taos) {
 }
 
 int *taos_fetch_lengths(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_fetch_lengths);
     return (*fp_taos_fetch_lengths)(res);
   } else {
@@ -730,7 +730,7 @@ int *taos_fetch_lengths(TAOS_RES *res) {
 }
 
 TAOS_ROW *taos_result_block(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_result_block);
     return (*fp_taos_result_block)(res);
   } else {
@@ -739,7 +739,7 @@ TAOS_ROW *taos_result_block(TAOS_RES *res) {
 }
 
 const char *taos_get_server_info(TAOS *taos) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_get_server_info);
     return (*fp_taos_get_server_info)(taos);
   } else {
@@ -748,7 +748,7 @@ const char *taos_get_server_info(TAOS *taos) {
 }
 
 const char *taos_get_client_info() {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_get_client_info);
     return (*fp_taos_get_client_info)();
   } else {
@@ -757,7 +757,7 @@ const char *taos_get_client_info() {
 }
 
 int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_get_current_db);
     return (*fp_taos_get_current_db)(taos, database, len, required);
   } else {
@@ -770,7 +770,7 @@ const char *taos_errstr(TAOS_RES *res) {
     return (const char *)tstrerror(terrno);
   }
 
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_errstr);
     return (*fp_taos_errstr)(res);
   } else {
@@ -783,7 +783,7 @@ int taos_errno(TAOS_RES *res) {
     return terrno;
   }
 
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_errno);
     return (*fp_taos_errno)(res);
   } else {
@@ -792,7 +792,7 @@ int taos_errno(TAOS_RES *res) {
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_query_a);
     (*fp_taos_query_a)(taos, sql, fp, param);
   } else {
@@ -801,7 +801,7 @@ void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param
 }
 
 void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_query_a_with_reqid);
     (*fp_taos_query_a_with_reqid)(taos, sql, fp, param, reqid);
   } else {
@@ -810,7 +810,7 @@ void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, 
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_fetch_rows_a);
     (*fp_taos_fetch_rows_a)(res, fp, param);
   } else {
@@ -819,7 +819,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_fetch_raw_block_a);
     (*fp_taos_fetch_raw_block_a)(res, fp, param);
   } else {
@@ -828,7 +828,7 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 const void *taos_get_raw_block(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_get_raw_block);
     return (*fp_taos_get_raw_block)(res);
   } else {
@@ -837,7 +837,7 @@ const void *taos_get_raw_block(TAOS_RES *res) {
 }
 
 int taos_get_db_route_info(TAOS *taos, const char *db, TAOS_DB_ROUTE_INFO *dbInfo) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_get_db_route_info);
     return (*fp_taos_get_db_route_info)(taos, db, dbInfo);
   } else {
@@ -846,7 +846,7 @@ int taos_get_db_route_info(TAOS *taos, const char *db, TAOS_DB_ROUTE_INFO *dbInf
 }
 
 int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_get_table_vgId);
     return (*fp_taos_get_table_vgId)(taos, db, table, vgId);
   } else {
@@ -855,7 +855,7 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
 }
 
 int taos_get_tables_vgId(TAOS *taos, const char *db, const char *table[], int tableNum, int *vgId) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_get_tables_vgId);
     return (*fp_taos_get_tables_vgId)(taos, db, table, tableNum, vgId);
   } else {
@@ -864,7 +864,7 @@ int taos_get_tables_vgId(TAOS *taos, const char *db, const char *table[], int ta
 }
 
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_load_table_info);
     return (*fp_taos_load_table_info)(taos, tableNameList);
   } else {
@@ -877,7 +877,7 @@ void taos_set_hb_quit(int8_t quitByKill) {
     return;
   }
 
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_set_hb_quit);
     return (*fp_taos_set_hb_quit)(quitByKill);
   } else {
@@ -886,7 +886,7 @@ void taos_set_hb_quit(int8_t quitByKill) {
 }
 
 int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_set_notify_cb);
     return (*fp_taos_set_notify_cb)(taos, fp, param, type);
   } else {
@@ -895,7 +895,7 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
 }
 
 void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_taos_fetch_whitelist_a);
     (*fp_taos_fetch_whitelist_a)(taos, fp, param);
   } else {
@@ -904,7 +904,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
 }
 
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_set_conn_mode);
     return (*fp_taos_set_conn_mode)(taos, mode, value);
   } else {
@@ -913,7 +913,7 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
 }
 
 TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert);
     return (*fp_taos_schemaless_insert)(taos, lines, numLines, protocol, precision);
   } else {
@@ -923,7 +923,7 @@ TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int pr
 
 TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                             int64_t reqid) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_with_reqid);
     return (*fp_taos_schemaless_insert_with_reqid)(taos, lines, numLines, protocol, precision, reqid);
   } else {
@@ -933,7 +933,7 @@ TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLi
 
 TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                      int precision) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_raw);
     return (*fp_taos_schemaless_insert_raw)(taos, lines, len, totalRows, protocol, precision);
   } else {
@@ -943,7 +943,7 @@ TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *
 
 TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                                 int precision, int64_t reqid) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_raw_with_reqid);
     return (*fp_taos_schemaless_insert_raw_with_reqid)(taos, lines, len, totalRows, protocol, precision, reqid);
   } else {
@@ -953,7 +953,7 @@ TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len
 
 TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                      int32_t ttl) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_ttl);
     return (*fp_taos_schemaless_insert_ttl)(taos, lines, numLines, protocol, precision, ttl);
   } else {
@@ -963,7 +963,7 @@ TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, in
 
 TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                                 int32_t ttl, int64_t reqid) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_ttl_with_reqid);
     return (*fp_taos_schemaless_insert_ttl_with_reqid)(taos, lines, numLines, protocol, precision, ttl, reqid);
   } else {
@@ -973,7 +973,7 @@ TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int n
 
 TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                          int precision, int32_t ttl) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_raw_ttl);
     return (*fp_taos_schemaless_insert_raw_ttl)(taos, lines, len, totalRows, protocol, precision, ttl);
   } else {
@@ -983,7 +983,7 @@ TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32
 
 TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                                     int precision, int32_t ttl, int64_t reqid) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_raw_ttl_with_reqid);
     return (*fp_taos_schemaless_insert_raw_ttl_with_reqid)(taos, lines, len, totalRows, protocol, precision, ttl,
                                                            reqid);
@@ -995,7 +995,7 @@ TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int
 TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
                                                                int protocol, int precision, int32_t ttl, int64_t reqid,
                                                                char *tbnameKey) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_raw_ttl_with_reqid_tbname_key);
     return (*fp_taos_schemaless_insert_raw_ttl_with_reqid_tbname_key)(taos, lines, len, totalRows, protocol, precision,
                                                                       ttl, reqid, tbnameKey);
@@ -1006,7 +1006,7 @@ TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char 
 
 TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lines[], int numLines, int protocol,
                                                            int precision, int32_t ttl, int64_t reqid, char *tbnameKey) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_taos_schemaless_insert_ttl_with_reqid_tbname_key);
     return (*fp_taos_schemaless_insert_ttl_with_reqid_tbname_key)(taos, lines, numLines, protocol, precision, ttl,
                                                                   reqid, tbnameKey);
@@ -1016,7 +1016,7 @@ TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lin
 }
 
 tmq_conf_t *tmq_conf_new() {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_conf_new);
     return (*fp_tmq_conf_new)();
   } else {
@@ -1025,7 +1025,7 @@ tmq_conf_t *tmq_conf_new() {
 }
 
 tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_conf_set);
     return (*fp_tmq_conf_set)(conf, key, value);
   } else {
@@ -1034,7 +1034,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value
 }
 
 void tmq_conf_destroy(tmq_conf_t *conf) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_tmq_conf_destroy);
     (*fp_tmq_conf_destroy)(conf);
   } else {
@@ -1043,7 +1043,7 @@ void tmq_conf_destroy(tmq_conf_t *conf) {
 }
 
 void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_tmq_conf_set_auto_commit_cb);
     (*fp_tmq_conf_set_auto_commit_cb)(conf, cb, param);
   } else {
@@ -1052,7 +1052,7 @@ void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *para
 }
 
 tmq_list_t *tmq_list_new() {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_list_new);
     return (*fp_tmq_list_new)();
   } else {
@@ -1061,7 +1061,7 @@ tmq_list_t *tmq_list_new() {
 }
 
 int32_t tmq_list_append(tmq_list_t *tlist, const char *val) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_list_append);
     return (*fp_tmq_list_append)(tlist, val);
   } else {
@@ -1070,7 +1070,7 @@ int32_t tmq_list_append(tmq_list_t *tlist, const char *val) {
 }
 
 void tmq_list_destroy(tmq_list_t *tlist) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_tmq_list_destroy);
     (*fp_tmq_list_destroy)(tlist);
   } else {
@@ -1079,7 +1079,7 @@ void tmq_list_destroy(tmq_list_t *tlist) {
 }
 
 int32_t tmq_list_get_size(const tmq_list_t *tlist) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_list_get_size);
     return (*fp_tmq_list_get_size)(tlist);
   } else {
@@ -1088,7 +1088,7 @@ int32_t tmq_list_get_size(const tmq_list_t *tlist) {
 }
 
 char **tmq_list_to_c_array(const tmq_list_t *tlist) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_list_to_c_array);
     return (*fp_tmq_list_to_c_array)(tlist);
   } else {
@@ -1097,7 +1097,7 @@ char **tmq_list_to_c_array(const tmq_list_t *tlist) {
 }
 
 tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_consumer_new);
     return (*fp_tmq_consumer_new)(conf, errstr, errstrLen);
   } else {
@@ -1106,7 +1106,7 @@ tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen) {
 }
 
 int32_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_subscribe);
     return (*fp_tmq_subscribe)(tmq, topic_list);
   } else {
@@ -1115,7 +1115,7 @@ int32_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list) {
 }
 
 int32_t tmq_unsubscribe(tmq_t *tmq) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_unsubscribe);
     return (*fp_tmq_unsubscribe)(tmq);
   } else {
@@ -1124,7 +1124,7 @@ int32_t tmq_unsubscribe(tmq_t *tmq) {
 }
 
 int32_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_subscription);
     return (*fp_tmq_subscription)(tmq, topics);
   } else {
@@ -1133,7 +1133,7 @@ int32_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics) {
 }
 
 TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_consumer_poll);
     return (*fp_tmq_consumer_poll)(tmq, timeout);
   } else {
@@ -1142,7 +1142,7 @@ TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout) {
 }
 
 int32_t tmq_consumer_close(tmq_t *tmq) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_consumer_close);
     return (*fp_tmq_consumer_close)(tmq);
   } else {
@@ -1151,7 +1151,7 @@ int32_t tmq_consumer_close(tmq_t *tmq) {
 }
 
 int32_t tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_commit_sync);
     return (*fp_tmq_commit_sync)(tmq, msg);
   } else {
@@ -1160,7 +1160,7 @@ int32_t tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg) {
 }
 
 void tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_tmq_commit_async);
     (*fp_tmq_commit_async)(tmq, msg, cb, param);
   } else {
@@ -1169,7 +1169,7 @@ void tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *
 }
 
 int32_t tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_commit_offset_sync);
     return (*fp_tmq_commit_offset_sync)(tmq, pTopicName, vgId, offset);
   } else {
@@ -1179,7 +1179,7 @@ int32_t tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId,
 
 void tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb,
                              void *param) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_tmq_commit_offset_async);
     (*fp_tmq_commit_offset_async)(tmq, pTopicName, vgId, offset, cb, param);
   } else {
@@ -1189,7 +1189,7 @@ void tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, i
 
 int32_t tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,
                                  int32_t *numOfAssignment) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_get_topic_assignment);
     return (*fp_tmq_get_topic_assignment)(tmq, pTopicName, assignment, numOfAssignment);
   } else {
@@ -1198,7 +1198,7 @@ int32_t tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_a
 }
 
 void tmq_free_assignment(tmq_topic_assignment *pAssignment) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_tmq_free_assignment);
     (*fp_tmq_free_assignment)(pAssignment);
   } else {
@@ -1207,7 +1207,7 @@ void tmq_free_assignment(tmq_topic_assignment *pAssignment) {
 }
 
 int32_t tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_offset_seek);
     return (*fp_tmq_offset_seek)(tmq, pTopicName, vgId, offset);
   } else {
@@ -1216,7 +1216,7 @@ int32_t tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_
 }
 
 int64_t tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_position);
     return (*fp_tmq_position)(tmq, pTopicName, vgId);
   } else {
@@ -1225,7 +1225,7 @@ int64_t tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId) {
 }
 
 int64_t tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_committed);
     return (*fp_tmq_committed)(tmq, pTopicName, vgId);
   } else {
@@ -1234,7 +1234,7 @@ int64_t tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId) {
 }
 
 TAOS *tmq_get_connect(tmq_t *tmq) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_get_connect);
     return (*fp_tmq_get_connect)(tmq);
   } else {
@@ -1243,7 +1243,7 @@ TAOS *tmq_get_connect(tmq_t *tmq) {
 }
 
 const char *tmq_get_table_name(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_get_table_name);
     return (*fp_tmq_get_table_name)(res);
   } else {
@@ -1252,7 +1252,7 @@ const char *tmq_get_table_name(TAOS_RES *res) {
 }
 
 tmq_res_t tmq_get_res_type(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_get_res_type);
     return (*fp_tmq_get_res_type)(res);
   } else {
@@ -1261,7 +1261,7 @@ tmq_res_t tmq_get_res_type(TAOS_RES *res) {
 }
 
 const char *tmq_get_topic_name(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_get_topic_name);
     return (*fp_tmq_get_topic_name)(res);
   } else {
@@ -1270,7 +1270,7 @@ const char *tmq_get_topic_name(TAOS_RES *res) {
 }
 
 const char *tmq_get_db_name(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_get_db_name);
     return (*fp_tmq_get_db_name)(res);
   } else {
@@ -1279,7 +1279,7 @@ const char *tmq_get_db_name(TAOS_RES *res) {
 }
 
 int32_t tmq_get_vgroup_id(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_get_vgroup_id);
     return (*fp_tmq_get_vgroup_id)(res);
   } else {
@@ -1288,7 +1288,7 @@ int32_t tmq_get_vgroup_id(TAOS_RES *res) {
 }
 
 int64_t tmq_get_vgroup_offset(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_get_vgroup_offset);
     return (*fp_tmq_get_vgroup_offset)(res);
   } else {
@@ -1297,7 +1297,7 @@ int64_t tmq_get_vgroup_offset(TAOS_RES *res) {
 }
 
 const char *tmq_err2str(int32_t code) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_err2str);
     return (*fp_tmq_err2str)(code);
   } else {
@@ -1306,7 +1306,7 @@ const char *tmq_err2str(int32_t code) {
 }
 
 int32_t tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_get_raw);
     return (*fp_tmq_get_raw)(res, raw);
   } else {
@@ -1315,7 +1315,7 @@ int32_t tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw) {
 }
 
 int32_t tmq_write_raw(TAOS *taos, tmq_raw_data raw) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_tmq_write_raw);
     return (*fp_tmq_write_raw)(taos, raw);
   } else {
@@ -1324,7 +1324,7 @@ int32_t tmq_write_raw(TAOS *taos, tmq_raw_data raw) {
 }
 
 int taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_write_raw_block);
     return (*fp_taos_write_raw_block)(taos, numOfRows, pData, tbname);
   } else {
@@ -1333,7 +1333,7 @@ int taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbn
 }
 
 int taos_write_raw_block_with_reqid(TAOS *taos, int numOfRows, char *pData, const char *tbname, int64_t reqid) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_write_raw_block_with_reqid);
     return (*fp_taos_write_raw_block_with_reqid)(taos, numOfRows, pData, tbname, reqid);
   } else {
@@ -1343,7 +1343,7 @@ int taos_write_raw_block_with_reqid(TAOS *taos, int numOfRows, char *pData, cons
 
 int taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const char *tbname, TAOS_FIELD *fields,
                                      int numFields) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_write_raw_block_with_fields);
     return (*fp_taos_write_raw_block_with_fields)(taos, rows, pData, tbname, fields, numFields);
   } else {
@@ -1353,7 +1353,7 @@ int taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const ch
 
 int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
                                                 TAOS_FIELD *fields, int numFields, int64_t reqid) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_write_raw_block_with_fields_with_reqid);
     return (*fp_taos_write_raw_block_with_fields_with_reqid)(taos, rows, pData, tbname, fields, numFields, reqid);
   } else {
@@ -1362,7 +1362,7 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pDat
 }
 
 void tmq_free_raw(tmq_raw_data raw) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_tmq_free_raw);
     (*fp_tmq_free_raw)(raw);
   } else {
@@ -1371,7 +1371,7 @@ void tmq_free_raw(tmq_raw_data raw) {
 }
 
 char *tmq_get_json_meta(TAOS_RES *res) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_tmq_get_json_meta);
     return (*fp_tmq_get_json_meta)(res);
   } else {
@@ -1380,7 +1380,7 @@ char *tmq_get_json_meta(TAOS_RES *res) {
 }
 
 void tmq_free_json_meta(char *jsonMeta) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_VOID(fp_tmq_free_json_meta);
     return (*fp_tmq_free_json_meta)(jsonMeta);
   } else {
@@ -1389,7 +1389,7 @@ void tmq_free_json_meta(char *jsonMeta) {
 }
 
 TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen) {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_INT(fp_taos_check_server_status);
     return (*fp_taos_check_server_status)(fqdn, port, details, maxlen);
   } else {
@@ -1398,7 +1398,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *de
 }
 
 char *getBuildInfo() {
-  if (IsNative()) {
+  if (IsInternal()) {
     CHECK_PTR(fp_getBuildInfo);
     return (*fp_getBuildInfo)();
   } else {

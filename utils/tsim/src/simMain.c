@@ -43,6 +43,8 @@ int32_t main(int32_t argc, char *argv[]) {
     }
   }
 
+  taos_options(TSDB_OPTION_DRIVER, "internal");
+
   if (!simSystemInit()) {
     simError("failed to initialize the system");
     simSystemCleanUp();

@@ -49,6 +49,7 @@
 #define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_BI_MODE  "Set BI mode"
+#define SHELL_INTERNAL "Use the internal driver instead of WebSocket to connect to TDengine."
 #define SHELL_VERSION  "Print program version."
 
 #ifdef WEBSOCKET
@@ -86,6 +87,7 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
 #endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
+  printf("%s%s%s%s\r\n", indent, "-v,", indent, SHELL_INTERNAL);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
 #ifdef CUS_EMAIL
   printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
@@ -134,6 +136,7 @@ static struct argp_option shellOptions[] = {
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
+    {"internal", 'v', 0, 0, SHELL_INTERNAL},
     {0},
 };
 
@@ -234,6 +237,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->timeout = atoi(arg);
       break;
 #endif
+    case 'v':
+      pArgs->is_internal = true;
+      break;
     case 'V':
       pArgs->is_version = true;
       break;
