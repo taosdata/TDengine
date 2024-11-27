@@ -44,8 +44,12 @@ class TDTestCase(TBase):
         # insert
         json = "cmdline/json/taosCli.json"
         db, stb, childCount, insertRows = self.insertBenchJson(json)
+        # describe
         sql = f"describe {db}.{stb};"
-        # check result
+        tdSql.query(sql)
+        tdSql.checkRows(2 + 1000)
+        # desc
+        sql = f"desc {db}.{stb};"
         tdSql.query(sql)
         tdSql.checkRows(2 + 1000)
 
