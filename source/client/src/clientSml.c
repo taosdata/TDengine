@@ -233,7 +233,7 @@ int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSml
     goto END;
   }
   SML_CHECK_CODE(smlBuildSTableMeta(info->dataFormat, sMeta));
-  for (int i = 1; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
+  for (int i = 0; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
     SSchema *col = pTableMeta->schema + i;
     SSmlKv   kv = {.key = col->name, .keyLen = strlen(col->name), .type = col->type};
     if (col->type == TSDB_DATA_TYPE_NCHAR) {
