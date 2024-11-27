@@ -86,7 +86,7 @@ void taos_cleanup(void) {
     CHECK_VOID(fp_taos_cleanup);
     (*fp_taos_cleanup)();
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -124,8 +124,18 @@ setConfRet taos_set_config(const char *config) {
 
 static void taos_init_wrapper(void) {
   tsDriverOnceRet = taosDriverInit(tsDriverType);
-  if (tsDriverOnceRet == 0 && fp_taos_init != NULL) {
-    tsDriverOnceRet = (*fp_taos_init)();
+  if (tsDriverOnceRet != 0) return;
+
+  if (IsInternal()) {
+    if (fp_taos_init == NULL) {
+      terrno = TSDB_CODE_DLL_FUNC_NOT_FOUND;
+      tsDriverOnceRet = -1;
+    } else {
+      tsDriverOnceRet = (*fp_taos_init)();
+    }
+  } else {
+    terrno = TSDB_CODE_DLL_NOT_FOUND;
+    tsDriverOnceRet = -1;  // todo
   }
 }
 
@@ -158,7 +168,7 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
     CHECK_PTR(fp_taos_connect_auth);
     return (*fp_taos_connect_auth)(ip, user, auth, db, port);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -167,7 +177,7 @@ void taos_close(TAOS *taos) {
     CHECK_VOID(fp_taos_close);
     (*fp_taos_close)(taos);
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -536,7 +546,7 @@ int taos_result_precision(TAOS_RES *res) {
     CHECK_INT(fp_taos_result_precision);
     return (*fp_taos_result_precision)(res);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND) // todo
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -545,7 +555,7 @@ void taos_free_result(TAOS_RES *res) {
     CHECK_VOID(fp_taos_free_result);
     return (*fp_taos_free_result)(res);
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND) // todo
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -554,7 +564,7 @@ void taos_kill_query(TAOS *taos) {
     CHECK_VOID(fp_taos_kill_query);
     return (*fp_taos_kill_query)(taos);
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -590,7 +600,7 @@ int64_t taos_affected_rows64(TAOS_RES *res) {
     CHECK_INT(fp_taos_affected_rows64);
     return (*fp_taos_affected_rows64)(res);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND) // todo
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -608,7 +618,7 @@ int taos_select_db(TAOS *taos, const char *db) {
     CHECK_INT(fp_taos_select_db);
     return (*fp_taos_select_db)(taos, db);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -617,7 +627,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
     CHECK_INT(fp_taos_print_row);
     return (*fp_taos_print_row)(str, row, fields, num_fields);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -725,7 +735,7 @@ int *taos_fetch_lengths(TAOS_RES *res) {
     CHECK_PTR(fp_taos_fetch_lengths);
     return (*fp_taos_fetch_lengths)(res);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND) // todo
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -761,7 +771,7 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
     CHECK_INT(fp_taos_get_current_db);
     return (*fp_taos_get_current_db)(taos, database, len, required);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -774,7 +784,7 @@ const char *taos_errstr(TAOS_RES *res) {
     CHECK_PTR(fp_taos_errstr);
     return (*fp_taos_errstr)(res);
   } else {
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND) // todo
+    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -814,7 +824,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     CHECK_VOID(fp_taos_fetch_rows_a);
     (*fp_taos_fetch_rows_a)(res, fp, param);
   } else {
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND) // todo
+    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -908,7 +918,7 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
     CHECK_INT(fp_taos_set_conn_mode);
     return (*fp_taos_set_conn_mode)(taos, mode, value);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
@@ -1393,7 +1403,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *de
     CHECK_INT(fp_taos_check_server_status);
     return (*fp_taos_check_server_status)(fqdn, port, details, maxlen);
   } else {
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)
+    ERR_INT(TSDB_CODE_DLL_NOT_FOUND)  // todo
   }
 }
 
