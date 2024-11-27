@@ -237,7 +237,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         }
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, currElement->measure, currElement->measureLen, &sMeta, POINTER_BYTES);
-        for (int i = 1; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
+        for (int i = 0; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
           SSchema *col = pTableMeta->schema + i;
           SSmlKv   kv = {.key = col->name, .keyLen = strlen(col->name), .type = col->type};
           if (col->type == TSDB_DATA_TYPE_NCHAR) {
