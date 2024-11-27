@@ -161,7 +161,7 @@ ALTER TABLE [db_name.]tb_name alter_table_clause
 
 alter_table_clause: {
     alter_table_options
-  | SET TAG tag_name = new_tag_value
+  | SET TAG tag_name = new_tag_value,tag_name2=new_tag2_value...
 }
 
 alter_table_options:
