@@ -191,6 +191,12 @@ typedef struct TsdReader {
 
   void         (*tsdSetFilesetDelimited)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
+
+  // for fileset query
+  void *(*openFilesetReadCursor)(void *pVnode);
+  void *(*nextFilesetReadCursor)(void *cursor);
+  void (*closeFilesetReadCursor)(void *pReader);
+  
 } TsdReader;
 
 typedef struct SStoreCacheReader {
@@ -400,7 +406,8 @@ typedef struct SStateStore {
 
   int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
                                               void** ppVal, int32_t* pVLen, int32_t* pWinCode);
-  int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen);
+  int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal,
+                                    int32_t* pVLen);
 
   int32_t (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp, int8_t pkType,
                             int32_t pkLen, SUpdateInfo** ppInfo);
@@ -429,7 +436,7 @@ typedef struct SStateStore {
   int32_t (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                  GetTsFun fp, void* pFile, TSKEY delMark, const char* id, int64_t ckId, int8_t type,
                                  struct SStreamFileState** ppFileState);
-  
+
   int32_t (*streamStateGroupPut)(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
   SStreamStateCur* (*streamStateGroupGetCur)(SStreamState* pState);
   void (*streamStateGroupCurNext)(SStreamStateCur* pCur);
