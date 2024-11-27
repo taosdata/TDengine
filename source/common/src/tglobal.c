@@ -2848,6 +2848,7 @@ _exit:
     uError("failed to persist global config at line:%d, since %s", lino, tstrerror(code));
   }
   (void)taosCloseFile(&pConfigFile);
+  taosMemoryFree(serialized);
   return code;
 }
 
@@ -2887,6 +2888,7 @@ _exit:
     uError("failed to persist local config at line:%d, since %s", lino, tstrerror(code));
   }
   (void)taosCloseFile(&pConfigFile);
+  taosMemoryFree(serialized);
   return code;
 }
 
