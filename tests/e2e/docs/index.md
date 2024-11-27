@@ -1,17 +1,8 @@
-# Welcome to MkDocs
+# Welcome to TaosX Cases Docs
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+For more information about how to run TaosX cases, see [README](https://github.com/taosdata/taosx/blob/main/tests/e2e/README.md).
 
-## Commands
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
+Case list can be found in the left navigation bar e2e_test_cases.
 
-## Project layout
-
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+For more information about how to write new case docstring format, see [Test Case Specification](https://taosdata.feishu.cn/wiki/Zsavwx94fiEPHZkQHBUcx48cnGe)
