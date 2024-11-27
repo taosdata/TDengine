@@ -39,14 +39,16 @@ class TDTestCase:
         """
         tdLog.info(f"Test forecast")
         tdSql.query(f"SELECT _frowts, FORECAST(c1, \"algo=arima,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5,d=1\") from db_gpt.ct1 ;")
+        tdSql.checkRows(10)
 
-
-    def test_anomaly_window(self, uname):
+    def test_anomaly_window(self):
         """
         Test anomaly window
         """
         tdLog.info(f"Test anomaly window")
         tdSql.query(f"SELECT _wstart, _wend, SUM(c1)  FROM db_gpt.ct1  ANOMALY_WINDOW(c1, \"algo=iqr\");")
+        tdSql.checkData(0,2,40)
+
     
     def run(self):
         self.prepare_anode_data()
