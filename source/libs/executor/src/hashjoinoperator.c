@@ -906,7 +906,6 @@ static int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* queryDone) 
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SSDataBlock*        pBlock = NULL;
   int32_t             code = TSDB_CODE_SUCCESS;
-  CHECK_CONDITION_FAILED(pJoin != NULL);
 
   while (true) {
     pBlock = getNextBlockFromDownstream(pOperator, pJoin->pBuild->downStreamIdx);
@@ -991,15 +990,12 @@ void hJoinSetDone(struct SOperatorInfo* pOperator) {
 }
 
 static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  CHECK_CONDITION_FAILED(pOperator->info != NULL);
-  CHECK_CONDITION_FAILED(pOperator->pTaskInfo != NULL);
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SSDataBlock*        pRes = pJoin->finBlk;
   int64_t             st = 0;
-  CHECK_CONDITION_FAILED(pRes != NULL);
 
   QRY_PARAM_CHECK(pResBlock);
   if (pOperator->cost.openCost == 0) {

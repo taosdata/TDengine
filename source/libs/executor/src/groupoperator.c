@@ -444,8 +444,6 @@ _end:
 }
 
 static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  CHECK_CONDITION_FAILED(pOperator->info != NULL);
-  CHECK_CONDITION_FAILED(pOperator->pTaskInfo != NULL);
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
@@ -1005,14 +1003,11 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     return TSDB_CODE_SUCCESS;
   }
 
-  CHECK_CONDITION_FAILED(pOperator->info != NULL);
-  CHECK_CONDITION_FAILED(pOperator->pTaskInfo != NULL);
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   SPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*            pRes = pInfo->binfo.pRes;
-  CHECK_CONDITION_FAILED(pRes != NULL);
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     (*ppRes) =  buildPartitionResult(pOperator);
@@ -1464,8 +1459,6 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
   int32_t                       lino = 0;
   SExecTaskInfo*                pTaskInfo = pOperator->pTaskInfo;
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
-  CHECK_CONDITION_FAILED(pInfo != NULL);
-  CHECK_CONDITION_FAILED(pTaskInfo != NULL);
 
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
