@@ -14,6 +14,7 @@
  */
 
 #include "streamInt.h"
+#include "ttime.h"
 
 static int32_t streamMergedSubmitNew(SStreamMergedSubmit** pSubmit) {
   *pSubmit = NULL;
@@ -330,7 +331,7 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigge
                         .intervalUnit = pInterval->intervalUnit,
                         .slidingUnit = pInterval->slidingUnit};
 
-  ts = taosGetTimestampMs();
+  ts = taosGetTimestamp(pInterval->precision);
 
   if (pLatestWindow->skey == INT64_MIN) {
     STimeWindow window = getAlignQueryTimeWindow(&interval, ts - trigger);
