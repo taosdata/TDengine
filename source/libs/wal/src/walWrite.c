@@ -160,9 +160,10 @@ static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
 int32_t walRollback(SWal *pWal, int64_t ver) {
   TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   wInfo("vgId:%d, wal rollback for version %" PRId64, pWal->cfg.vgId, ver);
-  int32_t code = 0;
-  int64_t ret;
-  char    fnameStr[WAL_FILE_LEN];
+  int32_t   code = 0;
+  int64_t   ret;
+  char      fnameStr[WAL_FILE_LEN];
+  TdFilePtr pIdxFile = NULL, pLogFile = NULL;
   if (ver > pWal->vers.lastVer || ver <= pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
     code = TSDB_CODE_WAL_INVALID_VER;
     goto _exit;
@@ -196,8 +197,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TAOS_UNUSED(taosCloseFile(&pWal->pIdxFile));
-  TdFilePtr pIdxFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  pIdxFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (pIdxFile == NULL) {
     code = terrno;
     goto _exit;
@@ -216,8 +216,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TAOS_UNUSED(taosCloseFile(&pWal->pLogFile));
-  TdFilePtr pLogFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  pLogFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   wDebug("vgId:%d, wal truncate file %s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
     // TODO
@@ -702,7 +701,7 @@ static int32_t walInitWriteFile(SWal *pWal) {
   walBuildLogName(pWal, fileFirstVer, fnameStr);
   pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
-    taosCloseFile(&pIdxTFile);
+    TAOS_UNUSED(taosCloseFile(&pIdxTFile));
     TAOS_RETURN(terrno);
   }
   // switch file
