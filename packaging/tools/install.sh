@@ -363,12 +363,13 @@ function install_jemalloc() {
 }
 
 function install_header() {
-  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
+  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/internal.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
 
   [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h || :
 
   ${csudo}cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
   ${csudo}ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+  ${csudo}ln -sf ${install_main_dir}/include/taosinternal.h ${inc_link_dir}/taosinternal.h
   ${csudo}ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
   ${csudo}ln -sf ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
   ${csudo}ln -sf ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h

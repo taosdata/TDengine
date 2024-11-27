@@ -17,7 +17,7 @@
 #define _TD_SHELL_INT_H_
 
 #include "os.h"
-#include "taos.h"
+#include "taosinternal.h"
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tcommon.h"

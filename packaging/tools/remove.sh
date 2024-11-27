@@ -187,6 +187,7 @@ function clean_lib() {
 function clean_header() {
   # Remove link
   ${csudo}rm -f ${inc_link_dir}/taos.h || :
+  ${csudo}rm -f ${inc_link_dir}/taosinternal.h || :
   ${csudo}rm -f ${inc_link_dir}/taosdef.h || :
   ${csudo}rm -f ${inc_link_dir}/taoserror.h || :
   ${csudo}rm -f ${inc_link_dir}/tdef.h || :

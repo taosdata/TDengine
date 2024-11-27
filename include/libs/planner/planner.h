@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "plannodes.h"
-#include "taos.h"
+#include "taosinternal.h"
 
 typedef struct SPlanContext {
   uint64_t    queryId;

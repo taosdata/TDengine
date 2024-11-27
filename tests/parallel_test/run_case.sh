@@ -51,6 +51,7 @@ if [ $ent -eq 0 ]; then
     ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
     ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
     ln -s /home/TDengine/include/client/taos.h /usr/include/taos.h 2>/dev/null
+    ln -s /home/TDengine/include/client/taosinternal.h /usr/include/taosinternal.h 2>/dev/null
     ln -s /home/TDengine/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
     ln -s /home/TDengine/include/util/taoserror.h /usr/include/taoserror.h 2>/dev/null
     ln -s /home/TDengine/include/libs/function/taosudf.h /usr/include/taosudf.h 2>/dev/null
@@ -61,6 +62,7 @@ else
     ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
     ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
     ln -s /home/TDinternal/community/include/client/taos.h /usr/include/taos.h 2>/dev/null
+    ln -s /home/TDinternal/community/include/client/taosinternal.h /usr/include/taosinternal.h 2>/dev/null
     ln -s /home/TDinternal/community/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
     ln -s /home/TDinternal/community/include/util/taoserror.h /usr/include/taoserror.h 2>/dev/null
     ln -s /home/TDinternal/community/include/libs/function/taosudf.h /usr/include/taosudf.h 2>/dev/null

@@ -24,7 +24,7 @@ extern "C" {
 #include "parser.h"
 #include "planner.h"
 #include "query.h"
-#include "taos.h"
+#include "taosinternal.h"
 #include "tcommon.h"
 #include "tdef.h"
 #include "thash.h"

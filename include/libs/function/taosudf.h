@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <taos.h>
+#include <taosinternal.h>
 #include <taoserror.h>
 
 #ifdef __cplusplus

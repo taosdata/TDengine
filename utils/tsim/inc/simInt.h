@@ -19,7 +19,7 @@
 #include "os.h"
 
 #include "cJSON.h"
-#include "taos.h"
+#include "taosinternal.h"
 #include "taoserror.h"
 #include "tconfig.h"
 #include "tglobal.h"

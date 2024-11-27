@@ -17,7 +17,7 @@
 #define _TD_INDEX_FST_REGEX_H_
 
 //#include "indexFstDfa.h"
-#include "taos.h"
+#include "taosinternal.h"
 #include "tarray.h"
 #include "tchecksum.h"
 #include "thash.h"
