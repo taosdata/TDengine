@@ -395,6 +395,7 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
 
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   if (pFile == NULL) {
+    code = terrno;
     goto _exit;
   }
 
@@ -409,7 +410,7 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
 
 _exit:
   (void)taosCloseFile(&pFile);
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+  TAOS_RETURN(code);
 }
 
 static void printFileSet(int32_t vgId, SArray* fileSet, const char* str) {
