@@ -61,12 +61,14 @@ if exist %binary_dir%\\test\\cfg\\taoskeeper.toml (
     )
 )
 copy %source_dir%\\include\\client\\taos.h %target_dir%\\include > nul
+copy %source_dir%\\include\\client\\taosinternal.h %target_dir%\\include > nul
 copy %source_dir%\\include\\util\\taoserror.h %target_dir%\\include > nul
 copy %source_dir%\\include\\libs\\function\\taosudf.h %target_dir%\\include > nul
 copy %binary_dir%\\build\\lib\\taos.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos_static.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos.dll %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taosinternal.lib %target_dir%\\driver > nul
+copy %binary_dir%\\build\\lib\\taosinternal_static.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taosinternal.dll %target_dir%\\driver > nul
 copy %binary_dir%\\build\\bin\\taos.exe %target_dir% > nul
 if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
