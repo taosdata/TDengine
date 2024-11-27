@@ -620,7 +620,10 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   cJSON* type = cJSON_CreateString("alter");
   RAW_NULL_CHECK(type);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
-  cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ? "child" : "normal");
+  cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+                                                vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL
+                                            ? "child"
+                                            : "normal");
   RAW_NULL_CHECK(tableType);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableType", tableType));
   cJSON* tableName = cJSON_CreateString(vAlterTbReq.tbName);
