@@ -1,10 +1,12 @@
-use std::sync::Arc;
-use std::time::Duration;
-
+use anyhow::bail;
 use chrono::{Local, NaiveDateTime};
 use futures_util::TryStreamExt;
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
 use taos::Dsn;
 use tiberius::{ColumnType, Row};
 use tokio_util::sync::CancellationToken;
@@ -12,41 +14,119 @@ use tokio_util::sync::CancellationToken;
 use crate::dsv::DataSourceValidation;
 use crate::plugins::raw_data::RawDataLogger;
 use crate::plugins::transform::sample::DsSampleIn;
-use crate::runners::historian::appender::column_meta::ColumnMeta;
-use crate::runners::historian::config::connect::ConnectConfig;
-use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
+use crate::runners::historian::config::ConnectConfig;
+use crate::runners::historian::config::TaskConfig;
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::worker::{migrate_history, sync_history, sync_live};
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
+use worker::column_meta::ColumnMeta;
 
-mod appender;
 mod config;
 mod query;
 mod worker;
 
+const AVEVA_HISTORIAN_DRIVER: &str = "historian";
 pub const AVEVA_HISTORIAN_ID: &str = "avevaHistorian";
 pub const AVEVA_HISTORIAN_NAME: &str = "AVEVA Historian";
 
-/// check historian dsn is valid
-pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    let config = ConnectConfig::from_dsn(dsn);
-    match config {
-        Err(err) => DataSourceValidation::invalid(
-            AVEVA_HISTORIAN_ID.to_string(),
-            format!("invalid dsn: {}, cause: {}", dsn, err),
-        ),
-        Ok(c) => {
-            let client = HistorianQuery::try_new(c).await;
-            match client {
-                Err(err) => DataSourceValidation::invalid(
-                    AVEVA_HISTORIAN_ID.to_string(),
-                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
-                ),
-                Ok(_cli) => DataSourceValidation::valid(AVEVA_HISTORIAN_ID.to_string(), None),
-            }
+fn assert_driver(dsn: &Dsn) -> anyhow::Result<()> {
+    if dsn.driver != AVEVA_HISTORIAN_DRIVER && dsn.driver != AVEVA_HISTORIAN_ID {
+        bail!(
+            "invalid driver of dsn: {}, expect: {}",
+            dsn,
+            AVEVA_HISTORIAN_DRIVER
+        );
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub(crate) enum TaskMode {
+    Synchronize,
+    Migrate,
+}
+
+impl Display for TaskMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let to_string = match self {
+            TaskMode::Synchronize => "synchronize",
+            TaskMode::Migrate => "migrate",
+        };
+        write!(f, "{}", to_string)
+    }
+}
+
+impl FromStr for TaskMode {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "synchronize" => Ok(Self::Synchronize),
+            "migrate" => Ok(Self::Migrate),
+            _ => Err(anyhow::anyhow!(
+                "invalid task mode: {}, must be synchronize or migrate",
+                s
+            )),
         }
     }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub(crate) enum HistorianTable {
+    History,
+    Live,
+}
+
+impl Display for HistorianTable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let to_string = match self {
+            HistorianTable::Live => "Runtime.dbo.Live",
+            HistorianTable::History => "Runtime.dbo.History",
+        };
+        write!(f, "{}", to_string)
+    }
+}
+
+impl FromStr for HistorianTable {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Runtime.dbo.History" => Ok(Self::History),
+            "Runtime.dbo.Live" => Ok(Self::Live),
+            _ => Err(anyhow::anyhow!(
+                "invalid historian table: {}, must be Runtime.dbo.History or Runtime.dbo.Live",
+                s
+            )),
+        }
+    }
+}
+
+/// check historian dsn is valid
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    match is_valid_impl(dsn).await {
+        Ok(_) => DataSourceValidation::valid(AVEVA_HISTORIAN_ID.to_string(), None),
+        Err(err) => DataSourceValidation::invalid(AVEVA_HISTORIAN_ID.to_string(), err.to_string()),
+    }
+}
+
+pub async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
+    assert_driver(dsn)?;
+
+    let connect = ConnectConfig::from_dsn(dsn)
+        .map_err(|err| anyhow::anyhow!("invalid dsn: {}, cause: {}", dsn, err))?;
+
+    let _client = HistorianQuery::try_connect(connect).await.map_err(|err| {
+        anyhow::anyhow!(
+            "failed to connect to dsn: {}, cause: {}",
+            dsn,
+            err.to_string()
+        )
+    })?;
+
+    Ok(())
 }
 
 /// get sample data from historian
@@ -60,15 +140,16 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     }}
 ///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
+    assert_driver(dsn)?;
     let config = TaskConfig::from_dsn(dsn)?;
-    let mut client = HistorianQuery::try_new(config.connect).await?;
+    let mut client = HistorianQuery::try_connect(config.connect).await?;
 
     // input: get top N record from table
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
 
     let tags_condition = config.tags.clone();
     let mut rows = client
-        .top_n(
+        .select_top_n(
             config.sample_data_limit,
             config.table,
             tags_condition,
@@ -77,6 +158,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         )
         .await?
         .into_row_stream();
+
     while let Some(row) = rows.try_next().await? {
         let mut sample_map: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
         for (idx, col) in row.columns().iter().enumerate() {
@@ -148,7 +230,6 @@ fn to_json_value(row: &Row, idx: usize, col_type: ColumnType) -> anyhow::Result<
 }
 
 /// migrate or synchronize data from historian to taos
-
 pub async fn historian_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -162,6 +243,7 @@ pub async fn historian_to_taos(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
+    assert_driver(&from)?;
     let mut config = TaskConfig::from_dsn(&from)?;
     // set task_id
     config.task_id = task_id;
@@ -180,8 +262,8 @@ pub async fn historian_to_taos(
     config.ipc_port = Some(port.get());
 
     // create ipc handler
-    let mut ipc = build_ipc(
-        &socket,
+    let (mut ipc, _) = build_ipc(
+        Some(&socket),
         parser,
         &to,
         Some(AVEVA_HISTORIAN_ID),
@@ -251,11 +333,11 @@ pub async fn historian_to_taos(
 }
 
 async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
-    let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
+    let mut client = HistorianQuery::try_connect(config.connect.clone()).await?;
 
     let conditions = config.tags.clone();
     let mut rows = client
-        .get_tags_with_condition(None, conditions)
+        .select_tags_with_condition(None, conditions)
         .await?
         .into_row_stream();
 
@@ -269,7 +351,7 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
     drop(rows);
 
     if tag_name_list.is_empty() {
-        anyhow::bail!("valid TagName is None, tags: {:?}", config.tags.clone());
+        bail!("valid TagName is None, tags: {:?}", config.tags.clone());
     }
 
     // keep_raw_data log
@@ -315,92 +397,142 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-    use std::io::Write;
-    use std::str::FromStr;
-
-    use chrono::{DateTime, Utc};
-    use rand::Rng;
-
     use super::*;
+    use taos::IntoDsn;
+
+    #[test]
+    fn test_assert_driver() {
+        let dsn = Dsn::from_str("historian://localhost").unwrap();
+        let res = assert_driver(&dsn);
+        assert!(res.is_ok());
+
+        let dsn = Dsn::from_str("avevaHistorian://localhost").unwrap();
+        let res = assert_driver(&dsn);
+        assert!(res.is_ok());
+
+        let dsn = Dsn::from_str("mssql://localhost").unwrap();
+        let res = assert_driver(&dsn);
+        assert!(res.is_err());
+        assert_eq!(
+            "invalid driver of dsn: mssql://localhost, expect: historian",
+            res.unwrap_err().to_string()
+        );
+    }
+    #[test]
+    fn test_from_str_of_task_mode() {
+        let config = TaskMode::from_str("synchronize").unwrap();
+        assert_eq!(TaskMode::Synchronize, config);
+
+        let config = TaskMode::from_str("migrate").unwrap();
+        assert_eq!(TaskMode::Migrate, config);
+
+        let config = TaskMode::from_str("xxx");
+        assert!(config.is_err());
+        assert_eq!(
+            "invalid task mode: xxx, must be synchronize or migrate",
+            config.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_from_str_of_historian_table() {
+        let t = HistorianTable::from_str("Runtime.dbo.History").unwrap();
+        assert_eq!(HistorianTable::History, t);
+
+        let t = HistorianTable::from_str("Runtime.dbo.Live").unwrap();
+        assert_eq!(HistorianTable::Live, t);
+
+        let t = HistorianTable::from_str("xxx");
+        assert!(t.is_err());
+        assert_eq!(
+            "invalid historian table: xxx, must be Runtime.dbo.History or Runtime.dbo.Live",
+            t.unwrap_err().to_string()
+        );
+
+        let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.History").unwrap();
+        let config = TaskConfig::parse_table(&dsn).unwrap();
+        assert_eq!(HistorianTable::History, config);
+    }
 
     #[tokio::test]
-    #[ignore]
     async fn test_is_valid() {
+        // given
         let dsn = Dsn::from_str("historian://localhost").unwrap();
+        // when
         let res = is_valid(&dsn).await;
+        // then
         assert!(!res.valid);
         assert!(!res.support);
-        assert_eq!("historian", res.data_source);
+        assert_eq!(AVEVA_HISTORIAN_ID, res.data_source);
         assert_eq!(
             "invalid dsn: historian://localhost, cause: username is required",
             res.message.unwrap()
         );
 
-        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@127.0.0.1").unwrap();
+        // given
+        let dsn = Dsn::from_str("historian://aaAdmin@localhost").unwrap();
+        // when
         let res = is_valid(&dsn).await;
+        // then
         assert!(!res.valid);
         assert!(!res.support);
-        assert_eq!("historian", res.data_source);
-        assert_eq!("failed to connect to dsn: historian://aaAdmin:aaAdmin@127.0.0.1, cause: Connection refused (os error 61)", res.message.unwrap());
-    }
+        assert_eq!(AVEVA_HISTORIAN_ID, res.data_source);
+        assert_eq!(
+            "invalid dsn: historian://aaAdmin@localhost, cause: password is required",
+            res.message.unwrap()
+        );
 
-    #[ignore]
-    #[tokio::test]
-    async fn test_valid() {
-        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
+        // given
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@127.0.0.1").unwrap();
+        // when
         let res = is_valid(&dsn).await;
-        assert!(res.valid);
-        assert!(res.support);
-        assert_eq!("historian", res.data_source);
-        assert_eq!(None, res.version);
+        // then
+        assert!(!res.valid);
+        assert!(!res.support);
+        assert_eq!(AVEVA_HISTORIAN_ID, res.data_source);
+        let err_msg = res.message.unwrap();
+        assert!(err_msg.starts_with(
+            "failed to connect to dsn: historian://aaAdmin:aaAdmin@127.0.0.1, cause:"
+        ));
     }
 
-    #[ignore]
     #[tokio::test]
     async fn test_get_sample() {
-        let dsn = Dsn::from_str(
-            "historian://aaAdmin:aaAdmin@192.168.3.40:1433?mode=synchronize&table=Runtime.dbo.History",
+        // given
+        let dsn = format!(
+            "historian://aaAdmin:aaAdmin@localhost:1433?mode={}&table={}&beginDateTime={}",
+            TaskMode::Synchronize,
+            HistorianTable::History,
+            "2021-01-01T00:00:00Z"
         )
-            .unwrap();
-        let actual: DsSampleIn = get_sample(&dsn).await.unwrap();
-        println!("{}", serde_json::to_string_pretty(&actual).unwrap());
-
-        let dsn = Dsn::from_str(
-            "historian://aaAdmin:aaAdmin@192.168.3.40:1433?mode=synchronize&table=Runtime.dbo.Live",
-        )
+        .into_dsn()
         .unwrap();
-        let actual: DsSampleIn = get_sample(&dsn).await.unwrap();
-        println!("{}", serde_json::to_string_pretty(&actual).unwrap());
+        // when
+        let actual = get_sample(&dsn).await;
+        // then
+        assert!(actual.is_err());
     }
 
-    /// generate test data, Only for local test
-    #[ignore]
     #[tokio::test]
-    async fn generate_historian_tag_csv() -> anyhow::Result<()> {
-        let tag_index = 8;
-        let total_records = 10359;
-        let gap_sec = 2;
+    async fn test_historian_to_taos() {
+        let (tx, _rx) = flume::bounded(1);
 
-        let mut file = File::create(format!(
-            "tag{}_{}_{}sec.csv",
-            tag_index, total_records, gap_sec
-        ))?;
-        file.write_all(b"ASCII\n")?;
-        file.write_all(b"|\n")?;
-        file.write_all(b"Win10-2021XIVKQ|1|Server Local|1|1\n")?;
-
-        let ts = (Utc::now() - chrono::Duration::days(5)).timestamp();
-        let mut rng = rand::thread_rng();
-
-        for i in 0..total_records {
-            let dt: DateTime<Utc> = DateTime::from_timestamp(ts + (i * gap_sec), 0).unwrap();
-            let date_time = dt.format("%Y/%m/%d|%H:%M:%S").to_string();
-            let date_value = rng.gen_range(0.0..100.0);
-            file.write_all(
-                format!("tag{}|0|{}|1|{}|192\n", tag_index, date_time, date_value).as_bytes(),
-            )?;
-        }
-        Ok(())
+        // when
+        let res = historian_to_taos(
+            "historian://".into_dsn().unwrap(),
+            None,
+            vec![],
+            "taos+ws://192.168.0.201/".into_dsn().unwrap(),
+            1,
+            &PortPool::default(),
+            CancellationToken::default(),
+            None,
+            None,
+            None,
+            tx,
+        )
+        .await;
+        // then
+        assert!(res.is_err())
     }
 }

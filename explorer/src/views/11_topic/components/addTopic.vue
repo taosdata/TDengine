@@ -73,6 +73,9 @@
               <el-radio-button label="SUBQUERY">{{ $t("stream.subqueryUpper") }}</el-radio-button>
             </el-radio-group>
           </el-form-item>
+          <el-form-item v-if="info.topic_type != 'SUBQUERY'" :label="$t('topic.withMeta')" prop="with_meta">
+            <el-switch v-model="info.with_meta"></el-switch>
+          </el-form-item>
           <el-form-item v-if="info.topic_type == 'SUBQUERY'" :label="$t('stream.tableType')" prop="table_type" required>
             <el-radio-group size="small" v-model="info.table_type">
               <el-radio-button label="STABLE">{{ $t("stream.stableUpper") }}</el-radio-button>
@@ -182,6 +185,7 @@ export default {
         tbName: "",
         resultSet: [],
         topic_type: "STABLE",
+        with_meta: false,
         topic_name: "",
         table_type: "STABLE",
       },
@@ -326,14 +330,16 @@ export default {
               this.previewSql =
                 this.sqlPrefix +
                "`"+this.info.topic_name +"`"+
-                "  WITH META AS DATABASE `" +
+               (this.info.with_meta ? " WITH META" : "") +
+                " AS DATABASE `" +
                 dbname +
                 "`";
             } else if (this.info.topic_type == "STABLE") {
               this.previewSql =
                 this.sqlPrefix +
-                "`"+this.info.topic_name +"`"+
-                ` with meta AS STABLE \`${dbname}\`.\`${this.info.stbName}\``;
+                "`"+ this.info.topic_name +"`"+
+                (this.info.with_meta ? " WITH META" : "") +
+                ` AS STABLE \`${dbname}\`.\`${this.info.stbName}\``;
             } else {
               const subquery = this.$refs.subquery.getResultSet() || "";
               this.previewSql =

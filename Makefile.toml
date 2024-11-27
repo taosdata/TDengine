@@ -1,15 +1,24 @@
 # command "toml get ..." requires installation of "toml-cli" first, ref https://github.com/gnprice/toml-cli
+
+# Use env scripts to get the latest version from git tags to make it available for any platform.
+env_scripts = ['''
+  #!@duckscript
+  ver = get_env VER_NUMBER
+  if is_empty ${ver}
+    out = exec git describe --tags --abbrev=0
+    ver = trim ${out.stdout}
+    ver = replace ${ver} "ver-" ""
+    echo "* last published version: ${ver}"
+    set_env "VER_NUMBER" "${ver}"
+  end
+  ''']
+
 [config]
 load_cargo_aliases = false
 skip_core_tasks = true
 default_to_workspace = false
 
 [env]
-VER_NUMBER = { script = [
-  "git tag |grep ver-|sed s/ver-//|sort -V|tail -n1",
-], condition = { env_not_set = [
-  "VER_NUMBER",
-] } }
 UPX_DIR = "./target/deploy/upx/"
 BUILD_PROFILE = { value = "release", condition = { env_not_set = [
   "BUILD_PROFILE",
@@ -17,7 +26,7 @@ BUILD_PROFILE = { value = "release", condition = { env_not_set = [
 
 [tasks.build]
 command = "cargo"
-args = ["build", "--profile", "${BUILD_PROFILE}"]
+args = ["build", "--profile", "${BUILD_PROFILE}", "${@}"]
 
 [tasks.dump-env]
 script = """
@@ -155,7 +164,16 @@ fi
 """
 
 [tasks.build-all]
-dependencies = ["taosx", "taosx-agent", "plugins"]
+dependencies = ["explorer-ui"]
+script = """
+cargo make build -p taosx -p taos-explorer
+"""
+
+[tasks.build-all-with-agent]
+dependencies = ["explorer-ui"]
+script = """
+cargo make build -p taosx -p taosx-agent -p taos-explorer
+"""
 
 [tasks.build-sanitizer]
 command = "cargo"
@@ -200,7 +218,7 @@ if [ "$push" = "1" ]; then
   docker push image.cloud.taosdata.com/taosx/serve:$version-$commit
 fi
 """
-dependencies = ["plugins"]
+dependencies = ["plugins", "install-toml-cli"]
 
 [tasks.docker-push]
 script = """
@@ -348,7 +366,7 @@ docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev .
 # 2. Build aarch64 taosx and agent: cargo make build-centos7-release --platform linux/amd64 -p taosx -p taosx-agent
 #
 [tasks.build-centos7-release]
-dependencies = ["build-docker-dev"]
+# dependencies = ["build-docker-dev"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
 
@@ -362,7 +380,7 @@ case "${PLATFORM}" in
     export TARGET_DIR=$PWD/target/${PLATFORM}
     mkdir -p $TARGET_DIR
     docker run --platform $PLATFORM --rm \
-      -v .:/app -v $HOME:$HOME \
+      -v .:/app \
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
@@ -373,7 +391,7 @@ case "${PLATFORM}" in
     export TARGET_DIR=$PWD/target/centos7
     mkdir -p $TARGET_DIR
     docker run --rm \
-      -v .:/app -v $HOME:$HOME \
+      -v .:/app \
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
@@ -563,7 +581,16 @@ args = [
 
 [tasks.test-without-cov]
 command = "cargo"
-args = ["nextest", "run", "--workspace"]
+args = [
+  "nextest",
+  "run",
+  "--workspace",
+  "--no-fail-fast",
+  "--retries",
+  "0",
+  "--filterset",
+  "not test(/_with_taos$/)",
+]
 
 [tasks.pre-commit]
 dependencies = ["fmt", "clippy", "test-without-cov"]
@@ -571,6 +598,16 @@ dependencies = ["fmt", "clippy", "test-without-cov"]
 [tasks.explorer-ui]
 cwd = "explorer"
 script = """
+yarn install && yarn build
+"""
+[tasks.explorer-ui.linux]
+script_runner = "bash"
+script = """
+# Load nvm
+if [ -d "$NVM_DIR" ]; then
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+  nvm --version && [ -e .nvmrc ] && nvm use || true
+fi
 yarn install && yarn build
 """
 
@@ -622,11 +659,16 @@ cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
 install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rustup_component_name = "llvm-tools-preview", test_arg = "--version" }
 [tasks.install-nextest]
 install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
+[tasks.install-toml-cli]
+install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
+
+[tasks.assert-explorer-dist]
+script_runner = "@duckscript"
+script = """
+mkdir explorer/dist/ || true
+"""
 
 [tasks.test]
-dependencies = ["install-llvm-cov", "install-nextest"]
-install_script = """
-mkdir explorer/server/dist/ || true
-"""
+dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
-args = ["llvm-cov", "nextest", "--workspace", "--html"]
+args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]

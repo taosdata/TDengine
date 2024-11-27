@@ -30,7 +30,7 @@ use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::mqtt::config::MqttConfig;
 use crate::utils::defer::defer;
-use crate::{build_ipc, utils::port_pool::PortPool, Parser, Transferred};
+use crate::{build_ipc, Parser, Transferred};
 
 use super::{get_data_dir, set_tcp_keepalive};
 
@@ -58,7 +58,6 @@ pub async fn mqtt_to_taos(
     parser: Option<Parser>,
     to: Dsn,
     _jobs: usize,
-    port_pool: &PortPool,
     upstream_cancel_token: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
@@ -92,13 +91,8 @@ pub async fn mqtt_to_taos(
     });
     reset_metrics!();
 
-    let ipc_port = port_pool
-        .get()
-        .await
-        .context("No available port for MQTT connection")?;
-    let socket = format!("127.0.0.1:{}", ipc_port);
-    let mut ipc_server_handle = build_ipc(
-        &socket,
+    let (mut ipc_server_handle, socket) = build_ipc(
+        None,
         parser,
         &to,
         Some(MQTT_ID),
@@ -113,9 +107,9 @@ pub async fn mqtt_to_taos(
     .await?;
 
     let mut tasks = match execute(
+        socket,
         task_id,
         &from,
-        ipc_port.get(),
         metrics.clone(),
         cancel_token.clone(),
     )
@@ -192,9 +186,9 @@ pub async fn mqtt_to_taos(
 
 #[instrument(skip_all)]
 async fn execute(
+    socket: std::net::SocketAddr,
     task_id: Option<i64>,
     from: &Dsn,
-    connect_port: u16,
     metrics: Arc<CoreMetrics>,
     cancel_token: CancellationToken,
 ) -> anyhow::Result<JoinSet<Result<(), anyhow::Error>>> {
@@ -228,8 +222,8 @@ async fn execute(
     // add permits
     while permit_tx.try_send(()).is_ok() {}
 
-    let ack_read_stream = std::net::TcpStream::connect(format!("127.0.0.1:{connect_port}"))
-        .context("Connect to MQTT IPC server error")?;
+    let ack_read_stream =
+        std::net::TcpStream::connect(socket).context("Connect to MQTT IPC server error")?;
 
     let ipc_stream = ack_read_stream
         .try_clone()

@@ -808,6 +808,7 @@ impl TaskJob {
             let mut state = self.task.state.write().await;
             if state.is_idle() {
                 // Set Task state to stopped directly.
+                self.global.send_task_activity(TaskActivity::stopped(id));
                 state.stopped();
             } else {
                 // Set task state to stopping so that it will be stopped when it's ticked properly.

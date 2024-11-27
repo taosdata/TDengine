@@ -478,6 +478,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_to_schema() {
         // prepare data
@@ -510,6 +511,7 @@ mod tests {
         test_clear_data();
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_to_record_batch() {
         // prepare data

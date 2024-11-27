@@ -662,7 +662,7 @@ async fn send_verification_code(
         _ => "en_US",
     };
     let result = verification::send_verification_code_with_cloud_open_api(
-        args.cloud_open_api.clone(),
+        args.cloud_open_api.as_deref(),
         str_phone_email,
         lang_code,
     )
@@ -711,7 +711,7 @@ async fn check_verification_code(
         };
 
         let report_result = verification::report_verification_status_to_cloud(
-            args.cloud_open_api.clone(),
+            args.cloud_open_api.as_deref(),
             str_phone_email,
             str_verification_code,
             lang_code,
@@ -725,7 +725,7 @@ async fn check_verification_code(
                 let taosd_info = query_taosd_info_guess(&args).await;
                 if let Some((cluster_id, taosd_version)) = taosd_info {
                     let r = verification::report_taosd_info_to_cloud(
-                        args.cloud_open_api.clone(),
+                        args.cloud_open_api.as_deref(),
                         str_phone_email,
                         lang_code,
                         &cluster_id,
@@ -790,7 +790,7 @@ async fn report_taosd_info(
     };
 
     let report_result = verification::report_taosd_info_to_cloud(
-        args.cloud_open_api.clone(),
+        args.cloud_open_api.as_deref(),
         body.phone_email.as_ref().unwrap(),
         lang_code,
         body.cluster_id.as_ref().unwrap(),
@@ -1855,15 +1855,14 @@ mod tests {
         assert.success();
     }
 
-    #[ignore]
     #[test]
     fn test_startup_normal() -> anyhow::Result<(), anyhow::Error> {
         // config file
         let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
         config_file.write_str(
             r#"
-port = 6060
-addr = "0.0.0.0"
+port = 6061
+addr = "127.0.0.1"
 log_level = "info"
 cluster = "http://localhost:6041"
 x_api = "http://localhost:6050"
@@ -1872,12 +1871,11 @@ cors = true
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .current_dir("../../")
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(std::time::Duration::from_secs(3))
             .assert();
         assert.interrupted();
         Ok(())
@@ -1899,9 +1897,8 @@ cors = true
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .current_dir("../../")
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(15))
@@ -1911,13 +1908,12 @@ cors = true
     }
 
     #[test]
-    #[ignore]
     fn test_startup_ssl() -> anyhow::Result<(), anyhow::Error> {
         // config file
         let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
         config_file.write_str(
             r#"
-port = 6060
+port = 6062
 addr = "0.0.0.0"
 log_level = "info"
 cluster = "http://localhost:6041"
@@ -1925,17 +1921,16 @@ x_api = "http://localhost:6050"
 grpc = "http://localhost:6055"
 cors = true
 [ssl]
-certificate = "/ssl-cert/cert.pem"
-certificate_key = "/ssl-cert/cert_key.pem"
+certificate = "tests/assets/cert.pem"
+certificate_key = "tests/assets/cert-key.pem"
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .current_dir("../../")
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(std::time::Duration::from_secs(3))
             .assert();
         assert.interrupted();
         Ok(())
