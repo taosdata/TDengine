@@ -3,4 +3,4 @@
 #NA,NA,y or n,script,./test.sh -f tsim/analytics/basic0.sim
 
 #tdgpt-test
-,,y,script,./test.sh -f tsim/analytics/basic0.sim
+,,n,script,./test.sh -f tsim/analytics/basic0.sim
