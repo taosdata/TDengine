@@ -49,27 +49,34 @@ class TDTestCase:
         tdSql.execute(f"flush database {self.dbname};")
         tdLog.debug("init finished")
     
-    def checkRes(self, queryRes, data):
-        mem_rows_num = 0
-        stt_rows_num = 0
+    def checkRes(self, queryRes):
+        disk_occupied = 0
+        compress_radio = 0
         for item in queryRes:
-            if "Inmem_Rows=" in item[0]:
-                mem_rows_num = int(item[0].split("=")[1].split(" ")[0].replace("[", "").replace("]", ""))
-                tdLog.debug("mem_rows_num: %s" % mem_rows_num)
-                if "Stt_Rows=" in item[0]:
-                    stt_rows_num = int(item[0].split("=")[2].replace("[", "").replace("]", ""))
-                    tdLog.debug("stt_rows_num: %s" % stt_rows_num)
-        return mem_rows_num, stt_rows_num
+            if "Disk_occupied=" in item[0]:
+                disk_occupied= int(item[0].split("=")[1].split(" ")[0].replace("[", "").replace("k]", ""))
+                tdLog.debug("disk_occupied: %s" % disk_occupied)
+            elif "Compress_radio=" in item[0]:
+                compress_radio  = float(item[0].split("=")[1].split(" ")[0].replace("[", "").replace("]", ""))
+                tdLog.debug("compress_occupied: %s" % compress_radio)
+        return disk_occupied, compress_radio 
 
     def run(self):
+
+        tdSql.execute(f"flush database {self.dbname};")
         tdSql.query(f"show disk_info")
         tdLog.debug(tdSql.queryResult)
+        disk_occupied,compress_radio = self.checkRes(tdSql.queryResult) 
+        tdLog.debug("disk_occupied: %s, compress_radio: %s" % (disk_occupied, compress_radio))
         
 
         #mem_rows_num, stt_rows_num = self.checkRes(tdSql.queryResult)
         #tdLog.debug("mem_rows_num: %s, stt_rows_num: %s" % (mem_rows_num, stt_rows_num))
 
+        tdSql.query(f"select sum(data1+data2+data3) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
+        tdSql.checkData(0,0,disk_occupied) 
         tdSql.query(f"select sum(data1+data2+data3)/sum(raw_data) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
+        #tdSql.checkData(0,0,compress_radio/100) 
         tdSql.query(f"select sum(wal) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
         tdSql.query(f"select sum(table_meta) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
         tdSql.query(f"select sum(cache_rdb) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
