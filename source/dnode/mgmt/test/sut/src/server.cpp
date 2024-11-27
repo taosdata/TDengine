@@ -17,6 +17,10 @@
 
 void* serverLoop(void* param) {
   TestServer* server = (TestServer*)param;
+  
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0){
+    return NULL;
+  }
 
   if (dmInit() != 0) {
     return NULL;
