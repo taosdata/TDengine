@@ -181,4 +181,25 @@ endi
 
 sql alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=NULL,tagCol6=NULL,tagCol7=NULL
 
+sql alter table $mt drop tag tagCol7
+sql alter table $mt drop tag tagCol3
+
+sql alter table $mt add tag tagCol8 int
+
+sql_error alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=NULL,tagCol6=NULL,tagCol7=NULL
+sql_error alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=NULL,tagCol6=NULL,tagCol7=NULL
+
+sql alter table $tbj set tag tagCol8 = 8
+
+sql select * from $mt where tagCol4 = -1000 
+if $rows != 1  then
+  return -1
+endi
+
+sql select * from $mt where tagCol8 = 8 
+if $rows != 1  then
+  return -1
+endi
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
