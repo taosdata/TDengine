@@ -1,60 +1,124 @@
 ---
-title: Data Subscription SQL Reference
-sidebar_label: Data Subscription
-description: This document describes the SQL statements related to the data subscription component of TDengine.
+title: Manage Topics and Consumer Groups
+description: The data subscription functionality provided by TDengine's message queue
+slug: /tdengine-reference/sql-manual/manage-topics-and-consumer-groups
 ---
 
-The information in this document is related to the TDengine data subscription feature.
+You create topics in TDengine to which your consumers can subscribe. You can also view a list of topics or delete topics as needed.
 
 ## Create a Topic
 
-```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name AS subquery;
-```
+You can create a topic on a query, a supertable, or a database.
 
+:::note
 
-You can use filtering, scalar functions, and user-defined scalar functions with a topic. JOIN, GROUP BY, windows, aggregate functions, and user-defined aggregate functions are not supported. The following rules apply to subscribing to a column:
+Exercise caution when creating supertable and database topics. Query topics are suitable for most use cases.
 
-1. The returned field is determined when the topic is created.
-2. Columns to which a consumer is subscribed or that are involved in calculations cannot be deleted or modified.
-3. If you add a column, the new column will not appear in the results for the subscription.
-4. If you run `SELECT \*`, all columns in the subscription at the time of its creation are displayed. This includes columns in supertables, standard tables, and subtables. Supertables are shown as data columns plus tag columns.
+:::
 
+### Query Topic
 
-## Delete a Topic
+A query topic is a continuous query that returns only the latest value. The syntax is described as follows:
 
 ```sql
-DROP TOPIC [IF EXISTS] topic_name;
+CREATE TOPIC [IF NOT EXISTS] <topic_name> AS <subquery>;
 ```
 
-If a consumer is subscribed to the topic that you delete, the consumer will receive an error.
+The subquery is a `SELECT` statement in which you can filter by tag, table name, column, or expression and perform scalar operations. Note that data aggregation and time windows are not supported.
+
+The following conditions apply to query topics:
+
+- You cannot modify or delete columns, including tag columns, that have an active subscription.
+- If the table structure changes, newly added columns will not appear in the results of the topic. The structure of the results is determined when the topic is created, and it cannot be modified.
+- You can specify `SELECT *` as a query topic to include all data and tag columns that exist on the target supertable or table when the topic is created.
+
+The following example subscribes to all smart meters whose voltage is greater than 200 and returns the timestamp, current, and phase.
+
+```sql
+CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE voltage > 200;
+```
+
+### Supertable Topic
+
+A supertable topic allows consumers to subscribe to all data in a supertable. The syntax is described as follows:
+
+```sql
+CREATE TOPIC [IF NOT EXISTS] <topic_name> [WITH META] AS STABLE <stb_name> [WHERE <condition>];
+```
+
+The following conditions apply to supertable topics:
+
+- The results of supertable topics do not include tag columns.
+- You can modify the supertable after the topic has been created. The structure of the results reflects the latest structure of the supertable when the results are generated.
+- You can include an optional `WITH META` clause to return the SQL statements used to create the supertable and subtables in the topic.
+- You can include an optional `WHERE` clause to specify filtering conditions. Note the following with regard to filtering conditions:
+  - You cannot filter by data columns. You can filter only by tag columns or by the `tbname` pseudocolumn.
+  - You can use functions to filter tags, but aggregation and selection functions are not supported.
+  - You can specify a constant expression, such as `2 > 1` (subscribing to all subtables) or `false` (subscribing to no subtables).
+
+
+### Database Topic
+
+A database topic allows consumers to subscribe to all data in a database. The syntax is described as follows:
+
+```sql
+CREATE TOPIC [IF NOT EXISTS] <topic_name> [WITH META] AS DATABASE <db_name>;
+```
+
+The optional `WITH META` clause returns the SQL statements used to create the supertables and subtables in the database.
 
 ## View Topics
 
-## SHOW TOPICS
+You can display information about all topics in the current database. The syntax is described as follows:
 
 ```sql
 SHOW TOPICS;
 ```
 
-The preceding command displays all topics in the current database.
+## Delete a Topic
 
-## Create Consumer Group
+You can delete topics that are no longer needed.
 
-You can create consumer groups only through the TDengine Client driver or the API provided by a client library.
+:::note
 
-## Delete Consumer Group
+You must cancel subscriptions to a topic before deleting it. Any consumers subscribed to a topic will receive an error if the topic is deleted.
+
+:::
+
+The syntax for deleting a topic is described as follows:
 
 ```sql
-DROP CONSUMER GROUP [IF EXISTS] cgroup_name ON topic_name;
+DROP TOPIC [IF EXISTS] <topic_name>;
 ```
 
-This deletes the cgroup_name in the topic_name.
+## Parameters
 
-## View Consumer Groups
+The `tmqMaxTopicNum` parameter defines the maximum number of topics that can be created in a TDengine deployment. The default value is 20.
+
+## Manage Consumer Groups
+
+You create consumer groups in your application through the TDengine client driver or APIs provided by client libraries. For more information, see [Manage Consumers](../../../developer-guide/manage-consumers/).
+
+### View a Consumer Group
+
+You can display information about all active consumers in the current database. The syntax is described as follows:
 
 ```sql
 SHOW CONSUMERS;
 ```
 
-The preceding command displays all consumer groups in the current database.
+### Delete a Consumer Group
+
+You can delete consumer groups that are no longer needed. The syntax is described as follows:
+
+```sql
+DROP CONSUMER GROUP [IF EXISTS] <cgroup_name> ON <topic_name>;
+```
+
+## View Subscriptions
+
+You can display information about all subscriptions in the current database. The syntax is described as follows:
+
+```sql
+SHOW SUBSCRIPTIONS;
+```

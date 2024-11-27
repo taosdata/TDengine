@@ -1,0 +1,82 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create anode
+sql create anode '127.0.0.1:6090'
+
+sql show anodes
+if $rows != 1 then
+  return -1
+endi
+
+print =============== show info
+sql show anodes full
+if $rows != 8 then
+  print expect 8 , actual $rows
+  return -1
+endi
+
+print =============== create database
+sql create database d0 vgroups 1
+sql select * from information_schema.ins_databases
+if $rows != 3 then
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+sql use d0
+
+print =============== create super table, include column type for count/sum/min/max/first
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+sql create table ct1 using stb tags(1000)
+
+print ==================== insert data
+#     input_list = [5, 14, 15, 15, 14,    19, 17, 16, 20, 22,   8, 21, 28, 11, 9, 29, 40]
+sql insert into ct1(ts, c1) values(now-1a, 5)(now+1a, 14)(now+2a, 15)(now+3a, 15)(now+4a, 14)
+sql insert into ct1(ts, c1) values(now+5a, 19)(now+6a, 17)(now+7a, 16)(now+8a, 20)(now+9a, 22)
+sql insert into ct1(ts, c1) values(now+10a, 8)(now+11a, 21)(now+12a, 28)(now+13a, 11)(now+14a, 9)
+sql insert into ct1(ts, c1) values(now+15a, 29)(now+16a, 40)
+
+sql select count(*) from ct1
+if $data00 != 17 then
+  print expect 17 , actual $data00
+  return -1
+endi
+
+sql select count(*) from ct1 anomaly_window(c1, 'algo=iqr')
+if $data00 != 1 then
+   return -1
+endi
+
+
+sql drop anode 1
+sql show anodes
+
+if $rows != 0 then
+  return -1
+endi
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi
+
+if $system_content == $null then
+  return -1
+endi

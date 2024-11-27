@@ -1,0 +1,91 @@
+---
+sidebar_label: R
+title: R Client Library
+slug: /tdengine-reference/client-libraries/r-lang
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import Rdemo from "../../07-develop/_connect_r.mdx"
+
+By using the RJDBC library in R, R programs can access data from TDengine. Below are the installation process, configuration steps, and R code examples.
+
+## Installation Process
+
+Before you start, ensure that you have the R language environment installed. Then follow these steps to install and configure the RJDBC library:
+
+1. Install the Java Development Kit (JDK): The RJDBC library requires a Java environment. Please download the appropriate JDK for your operating system from the Oracle official website and follow the installation guide.
+
+2. Install the RJDBC library: Execute the following command in the R console to install the RJDBC library.
+
+   ```r
+   install.packages("RJDBC", repos='http://cran.us.r-project.org')
+   ```
+
+   :::note
+
+   1. The R language software version 4.2 that comes with Ubuntu may produce a non-responsive bug when calling the RJDBC library. Please install the R language package from the [official R website](https://www.r-project.org/).
+   2. Installing the RJDBC package on Linux may require installing additional components. For example, on Ubuntu, execute the command `apt install -y libbz2-dev libpcre2-dev libicu-dev` to install.
+   3. On Windows systems, you need to set the JAVA_HOME environment variable.
+
+   :::
+
+3. Download the TDengine JDBC driver: Visit maven.org to download the TDengine JDBC driver (taos-jdbcdriver-X.X.X-dist.jar).
+
+4. Place the TDengine JDBC driver in an appropriate location: Choose a suitable location on your computer to save the TDengine JDBC driver file (taos-jdbcdriver-X.X.X-dist.jar).
+
+## Configuration Process
+
+After completing the installation steps, you need to configure some settings so that the RJDBC library can correctly connect to and access the TDengine time-series database.
+
+1. Load the RJDBC and other necessary libraries in your R script:
+
+   ```r
+   library(DBI)
+   library(rJava)
+   library(RJDBC)
+   ```
+
+2. Set the JDBC driver and JDBC URL:
+
+   ```r
+   # Set the path to the JDBC driver (modify based on your actual storage location)
+   driverPath <- "/path/to/taos-jdbcdriver-X.X.X-dist.jar"
+
+   # Set the JDBC URL (modify based on your specific environment)
+   url <- "jdbc:TAOS://localhost:6030/?user=root&password=taosdata"
+   ```
+
+3. Load the JDBC driver:
+
+   ```r
+   # Load the JDBC driver
+   drv <- JDBC("com.taosdata.jdbc.TSDBDriver", driverPath)
+   ```
+
+4. Create a TDengine database connection:
+
+   ```r
+   # Create the database connection
+   conn <- dbConnect(drv, url)
+   ```
+
+5. Once connected successfully, you can perform various database operations with the `conn` object, such as querying data, inserting data, etc.
+
+6. Finally, don't forget to close the database connection when you're done using it:
+
+   ```r
+   # Close the database connection
+   dbDisconnect(conn)
+   ```
+
+## R Language Example Code Using RJDBC
+
+Here is an example code snippet that connects to the TDengine time-series database using the RJDBC library and executes a query:
+
+<Rdemo/>
+
+Please modify the JDBC driver, JDBC URL, username, password, and SQL query statement according to your actual TDengine time-series database environment and requirements.
+
+By following the above steps and example code, you can access the TDengine time-series database using the RJDBC library in the R language environment for data querying and analysis operations.
