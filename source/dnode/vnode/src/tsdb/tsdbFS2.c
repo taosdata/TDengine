@@ -1242,10 +1242,12 @@ void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
 
 struct SFileSetReader {
   STsdb     *pTsdb;
+  STFileSet *pFileSet;
   int32_t    fid;
   int64_t    startTime;
   int64_t    endTime;
-  STFileSet *pFileSet;
+  int64_t    lastCompactTime;
+  int64_t    totalSize;
 };
 
 int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader) {
@@ -1270,7 +1272,8 @@ int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader) {
 }
 
 static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
-  STsdb *pTsdb = pReader->pTsdb;
+  STsdb  *pTsdb = pReader->pTsdb;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   tsdbTFileSetClear(&pReader->pFileSet);
 
@@ -1284,9 +1287,28 @@ static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
     return TSDB_CODE_NOT_FOUND;
   }
 
-  pReader->fid = (*fsetPtr)->fid;
+  // ref file set
+  code = tsdbTFileSetInitRef(pReader->pTsdb, *fsetPtr, &pReader->pFileSet);
+  if (code) return code;
+
+  // get file set details
+  pReader->fid = pReader->pFileSet->fid;
   tsdbFidKeyRange(pReader->fid, pTsdb->keepCfg.days, pTsdb->keepCfg.precision, &pReader->startTime, &pReader->endTime);
-  return tsdbTFileSetInitRef(pReader->pTsdb, *fsetPtr, &pReader->pFileSet);
+  pReader->lastCompactTime = 0;  // TODO
+  pReader->totalSize = 0;
+  for (int32_t i = 0; i < TSDB_FTYPE_MAX; i++) {
+    STFileObj *fobj = pReader->pFileSet->farr[i];
+    if (fobj) {
+      pReader->totalSize += fobj->f->size;
+    }
+  }
+  SSttLvl *lvl;
+  TARRAY2_FOREACH(pReader->pFileSet->lvlArr, lvl) {
+    STFileObj *fobj;
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) { pReader->totalSize += fobj->f->size; }
+  }
+
+  return code;
 }
 
 int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader) {
@@ -1322,9 +1344,15 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
     return TSDB_CODE_SUCCESS;
   }
 
+  fieldName = "total_size";
+  if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
+    *(int64_t *)value = pReader->totalSize;
+    return TSDB_CODE_SUCCESS;
+  }
+
   fieldName = "last_compact_time";
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
-    *(int64_t *)value = 0;  // TODO
+    *(int64_t *)value = pReader->lastCompactTime;
     return TSDB_CODE_SUCCESS;
   }
 
