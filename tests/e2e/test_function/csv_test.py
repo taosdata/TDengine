@@ -40,12 +40,15 @@ def env_data():
 def test_sanity_csv(env_data):
     """
     用例概述：测试 taosX  的文件导入功能
+
     用例步骤：
+
     1. 在 DB 中创建超级表 csv_meters
     2. 创建任务，导入 CSV 文件，写入超级表 csv_meters
     4. 验证数据写入成功
 
     验证点：
+
     1. 导入 DB 中数据的条数与 metrics 一致
     2. 使用 expr: int(parse_float(current)) 能将 current 字段转换为 int 类型
     3. 能够正确导入包含双引号的数据
@@ -96,12 +99,14 @@ def test_sanity_csv(env_data):
 def test_subtables_conflict(env_data):
     """
     用例概述：导入 CSV 文件时，由于子表 d1 在其它超级表已存在，导致部分数据写入失败，活动日志中报错
+
     用例步骤：
     1. 在 DB 中创建超级表 csv_s1 子表 d1
     2. 创建任务，导入 CSV 文件，写入超级表 csv_meters 下的子表 d1, d2
     3. d1 由于子表名在不同的超级表中冲突，导致部分数据写入失败
 
     验证点：
+
     1. 在任务的活动日志中，应能够查看到错误消息：Table already exists in other stables
     """
     env_data = env_data
@@ -183,12 +188,14 @@ def test_case_performance_scenario1(env_data):
 def test_sanity_csv_td32573_01(env_data):
     """
     用例概述：验证上传单个文件且“保留已完成的文件”可以正确工作
+
     用例步骤：
     1. 在 DB 中创建超级表 csv_meters
     2. 创建任务，导入单个 CSV 文件，配置 keep_processed_files=true
     3. 等待任务完成
 
     验证点：
+
     1. 任务可以成功创建
     2. 数据库中可以成功入库 CSV 文件的内容
     3. 文件仍然保留在 taosX data_dir 中
@@ -251,12 +258,15 @@ def test_sanity_csv_td32573_01(env_data):
 def test_sanity_csv_td32573_02(env_data):
     """
     用例概述：验证上传多个文件且“不保留已完成的文件”可以正确工作
+
     用例步骤：
+
     1. 在 DB 中创建超级表 csv_meters
     2. 创建任务，导入多个 CSV 文件，配置 keep_processed_files=false
     3. 等待任务完成
 
     验证点：
+
     1. 任务可以成功创建
     2. 数据库中可以成功入库 CSV 文件的内容
     3. 文件已从 taosX data_dir 中删除
