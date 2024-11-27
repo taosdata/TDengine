@@ -787,8 +787,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
     if (sTmp == NULL) {
       SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
     }
-    if ((IS_VAR_DATA_TYPE(kv->type) && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
-        (!IS_VAR_DATA_TYPE(kv->type) && kv->length != sTmp->bytes)){
+    if (IS_VAR_DATA_TYPE(kv->type) && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes){
       uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
              tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
       SML_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR);
