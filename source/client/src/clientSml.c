@@ -233,7 +233,7 @@ int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSml
     goto END;
   }
   SML_CHECK_CODE(smlBuildSTableMeta(info->dataFormat, sMeta));
-  for (int i = 1; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
+  for (int i = 0; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
     SSchema *col = pTableMeta->schema + i;
     SSmlKv   kv = {.key = col->name, .keyLen = strlen(col->name), .type = col->type};
     if (col->type == TSDB_DATA_TYPE_NCHAR) {
@@ -772,21 +772,26 @@ END:
   RETURN
 }
 
-static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool isTag) {
+static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
   SHashObj *hashTmp = taosHashInit(length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   SML_CHECK_NULL(hashTmp);
-  int32_t i = 0;
-  for (; i < length; i++) {
-    SML_CHECK_CODE(taosHashPut(hashTmp, schema[i].name, strlen(schema[i].name), &i, SHORT_BYTES));
+  for (int32_t i = 0; i < length; i++) {
+    SML_CHECK_CODE(taosHashPut(hashTmp, schema[i].name, strlen(schema[i].name), &schema[i], sizeof(SSchema)));
   }
-  i = isTag ? 0 : 1;
-  for (; i < taosArrayGetSize(cols); i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
     SML_CHECK_NULL(kv);
-    if (taosHashGet(hashTmp, kv->key, kv->keyLen) == NULL) {
+    SSchema *sTmp = taosHashGet(hashTmp, kv->key, kv->keyLen);
+    if (sTmp == NULL) {
       SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+    }
+    if ((IS_VAR_DATA_TYPE(kv->type) && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
+        (!IS_VAR_DATA_TYPE(kv->type) && kv->length != sTmp->bytes)){
+      uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
+             tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
+      SML_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR);
     }
   }
 
@@ -1132,8 +1137,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
     }
 
     if (needCheckMeta) {
-      SML_CHECK_CODE(smlCheckMeta(&(pTableMeta->schema[pTableMeta->tableInfo.numOfColumns]), pTableMeta->tableInfo.numOfTags, sTableData->tags, true));
-      SML_CHECK_CODE(smlCheckMeta(&(pTableMeta->schema[0]), pTableMeta->tableInfo.numOfColumns, sTableData->cols, false));
+      SML_CHECK_CODE(smlCheckMeta(&(pTableMeta->schema[pTableMeta->tableInfo.numOfColumns]), pTableMeta->tableInfo.numOfTags, sTableData->tags));
+      SML_CHECK_CODE(smlCheckMeta(&(pTableMeta->schema[0]), pTableMeta->tableInfo.numOfColumns, sTableData->cols));
     }
 
     taosMemoryFreeClear(sTableData->tableMeta);
