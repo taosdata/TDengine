@@ -107,12 +107,33 @@ node_url 是提供服务的 Anode 的 IP 和 PORT组成的字符串, 例如：`c
 列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`等属性。
 ```sql
 SHOW ANODES;
+
+taos> show anodes;
+     id      |              url               |    status    |       create_time       |       update_time       |
+==================================================================================================================
+           1 | 192.168.0.1:6090             | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
+Query OK, 1 row(s) in set (0.037205s)
+
 ```
 
 #### 查看提供的时序数据分析服务
 
 ```SQL
 SHOW ANODES FULL;
+
+taos> show anodes full;
+     id      |            type            |              algo              |
+============================================================================
+           1 | anomaly-detection          | shesd                          |
+           1 | anomaly-detection          | iqr                            |
+           1 | anomaly-detection          | ksigma                         |
+           1 | anomaly-detection          | lof                            |
+           1 | anomaly-detection          | grubbs                         |
+           1 | anomaly-detection          | encoder                        |
+           1 | forecast                   | holtwinters                    |
+           1 | forecast                   | arima                          |
+Query OK, 8 row(s) in set (0.008796s)
+
 ```
 
 #### 刷新集群中的分析算法缓存
