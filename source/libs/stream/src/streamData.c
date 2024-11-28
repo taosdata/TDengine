@@ -308,13 +308,17 @@ void streamFreeQitem(SStreamQueueItem* data) {
   }
 }
 
-int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval, STimeWindow* pLatestWindow, const char* id) {
+int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t interval, SInterval* pInterval,
+                                       STimeWindow* pLatestWindow, const char* id) {
   QRY_PARAM_CHECK(pTrigger);
-  int64_t         ts = INT64_MIN;
+
   SStreamTrigger* p = NULL;
+  int64_t         ts = taosGetTimestamp(pInterval->precision);
+  int64_t         skey = pLatestWindow->skey + interval;
 
   int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
   if (code) {
+    stError("s-task:%s failed to create force_window trigger, code:%s", id, tstrerror(code));
     return code;
   }
 
@@ -325,26 +329,10 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigge
     return terrno;
   }
 
-  // let's calculate the previous time window
-  SInterval interval = {.interval = trigger,
-                        .sliding = trigger,
-                        .intervalUnit = pInterval->intervalUnit,
-                        .slidingUnit = pInterval->slidingUnit};
-
-  ts = taosGetTimestamp(pInterval->precision);
-
-  if (pLatestWindow->skey == INT64_MIN) {
-    STimeWindow window = getAlignQueryTimeWindow(&interval, ts - trigger);
-
-    p->pBlock->info.window.skey = window.skey;
-    p->pBlock->info.window.ekey = TMAX(ts, window.ekey);
-  } else {
-    int64_t skey = pLatestWindow->skey + trigger;
-    p->pBlock->info.window.skey = skey;
-    p->pBlock->info.window.ekey = TMAX(ts, skey + trigger);
-  }
-
+  p->pBlock->info.window.skey = skey;
+  p->pBlock->info.window.ekey = TMAX(ts, skey + interval);
   p->pBlock->info.type = STREAM_GET_RESULT;
+
   stDebug("s-task:%s force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, id,
           p->pBlock->info.window.skey, p->pBlock->info.window.ekey);
 
