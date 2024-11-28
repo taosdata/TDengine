@@ -950,8 +950,7 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   SCL_ERR_JRET(sclGetNodeRes(node->pCase, ctx, &pCase));
   SCL_ERR_JRET(sclGetNodeRes(node->pElse, ctx, &pElse));
-  pCase->tz = node->tz;
-  pCase->charsetCxt = node->charsetCxt;
+
   SDataType compType = {0};
   compType.type = TSDB_DATA_TYPE_BOOL;
   compType.bytes = tDataTypes[compType.type].bytes;
@@ -969,6 +968,8 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
   }
 
   if (pCase) {
+    pCase->tz = node->tz;
+    pCase->charsetCxt = node->charsetCxt;
     SCL_ERR_JRET(vectorCompare(pCase, pWhen, &comp, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
 
     for (int32_t i = 0; i < rowNum; ++i) {
