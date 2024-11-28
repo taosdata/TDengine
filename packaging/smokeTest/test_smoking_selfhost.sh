@@ -28,6 +28,14 @@ fi
 commands=(
     "python3 ./test.py -f 2-query/join.py"
     "python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3"
+    "python3 ./test.py -f 1-insert/insert_column_value.py"
+    "python3 ./test.py -f 2-query/primary_ts_base_5.py"
+    "python3 ./test.py -f 2-query/case_when.py"
+    "python3 ./test.py -f 2-query/partition_limit_interval.py"
+    "python3 ./test.py -f 2-query/fill.py"
+    "python3 ./test.py -f query/query_basic.py -N 3"
+    "python3 ./test.py -f 7-tmq/basic5.py"
+    "python3 ./test.py -f 8-stream/stream_basic.py"
 )
 
 # Counters
