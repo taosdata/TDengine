@@ -2422,9 +2422,10 @@ static int32_t rewriteCountTbname(STranslateContext* pCxt, SFunctionNode* pCount
   return code;
 }
 
-static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
+static bool hasInvalidFuncNesting(SFunctionNode* pFunc) {
+  if(pFunc->funcType == FUNCTION_TYPE_TUPLE) return false;
   bool hasInvalidFunc = false;
-  nodesWalkExprs(pParameterList, haveVectorFunction, &hasInvalidFunc);
+  nodesWalkExprs(pFunc->pParameterList, haveVectorFunction, &hasInvalidFunc);
   return hasInvalidFunc;
 }
 
@@ -2446,7 +2447,7 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (beforeHaving(pCxt->currClause)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
   }
-  if (hasInvalidFuncNesting(pFunc->pParameterList)) {
+  if (hasInvalidFuncNesting(pFunc)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
   // The auto-generated COUNT function in the DELETE statement is legal
@@ -2490,7 +2491,7 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function is not supported in window query or group query", pFunc->functionName);
   }
-  if (hasInvalidFuncNesting(pFunc->pParameterList)) {
+  if (hasInvalidFuncNesting(pFunc)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
   return TSDB_CODE_SUCCESS;
@@ -2505,7 +2506,7 @@ static int32_t translateMultiRowsFunc(STranslateContext* pCxt, SFunctionNode* pF
       ((SSelectStmt*)pCxt->pCurrStmt)->hasMultiRowsFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
-  if (hasInvalidFuncNesting(pFunc->pParameterList)) {
+  if (hasInvalidFuncNesting(pFunc)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
   return TSDB_CODE_SUCCESS;
@@ -2536,7 +2537,7 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function is not supported in window query or group query", pFunc->functionName);
   }
-  if (hasInvalidFuncNesting(pFunc->pParameterList)) {
+  if (hasInvalidFuncNesting(pFunc)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
   return TSDB_CODE_SUCCESS;
@@ -2602,7 +2603,7 @@ static int32_t translateForecastFunc(STranslateContext* pCxt, SFunctionNode* pFu
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function is not supported in window query or group query", pFunc->functionName);
   }
-  if (hasInvalidFuncNesting(pFunc->pParameterList)) {
+  if (hasInvalidFuncNesting(pFunc)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
   return TSDB_CODE_SUCCESS;

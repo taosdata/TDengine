@@ -1241,6 +1241,17 @@ static int32_t translateForecastConf(SFunctionNode* pFunc, char* pErrBuf, int32_
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateCol(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_FLOAT].bytes, .type = TSDB_DATA_TYPE_FLOAT};
+  return TSDB_CODE_SUCCESS;
+}
+
+bool getColFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+
+  return true;
+}
+
 static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -5593,6 +5604,18 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateForecastConf,
     .getEnvFunc   = getForecastConfEnv,
     .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "col",
+    .type = FUNCTION_TYPE_TUPLE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC |
+     FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateCol,
+    .dynDataRequiredFunc = NULL,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
