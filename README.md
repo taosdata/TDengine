@@ -187,8 +187,7 @@ cd /root/TDinternal/enterprise/packaging
 
 After the packaging is complete, you can see the following files
 ```bash
-ll /root/TDinternal/enterprise/packaging
-
+ll /root/TDinternal/community/release
 ```
 
 # Testing
@@ -202,7 +201,7 @@ ll /root/TDinternal/enterprise/packaging
 ## Run the Python test script
 ```bash
 cd /root/TDinternal/community/tests/system-test
-./pytest.sh python3 ./test.py -f 2-query/floor.py
+python3 ./test.py -f 2-query/floor.py
 ```
 
 ## Run unittest
@@ -212,12 +211,16 @@ ctest
 ```
 
 ## Continuous Integration
-
-The platform department is requested to provide detailed information
+```bash
+cd /root/TDinternal/community/tests/
+./run_all_ci_cases.sh
+```bash
 
 ## Smoke Testing
-
-The platform department is requested to provide detailed information
+```bash
+cd /home/chr/TDinternal/community/packaging/smokeTest
+bash test_smoking_selfhost.sh
+```
 
 # Contributing
 
