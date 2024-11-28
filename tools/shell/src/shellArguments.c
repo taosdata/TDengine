@@ -105,7 +105,7 @@ const char *argp_program_version = td_version;
 #ifdef CUS_EMAIL
 const char *argp_program_bug_address = CUS_EMAIL;
 #else
-const char *argp_program_bug_address = "support@taosdata.com;
+const char *argp_program_bug_address = "support@taosdata.com;"
 #endif
 
 static struct argp_option shellOptions[] = {
