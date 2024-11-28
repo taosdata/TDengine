@@ -480,6 +480,9 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       return code;
     }
   }
+  if (pItem == NULL) {
+    return TSDB_CODE_CFG_NOT_FOUND;
+  }
   if (!isConifgItemLazyMode(pItem)) {
     TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
   }
