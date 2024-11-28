@@ -2390,6 +2390,9 @@ int32_t convertFillType(int32_t mode) {
     case FILL_MODE_LINEAR:
       type = TSDB_FILL_LINEAR;
       break;
+    case FILL_MODE_NEAR:
+      type = TSDB_FILL_NEAR;
+      break;
     default:
       type = TSDB_FILL_NONE;
   }

@@ -62,7 +62,8 @@ window_clause: {
   | COUNT_WINDOW(count_val[, sliding_val])
 
 interp_clause:
-    RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
+      RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
+    | RANGE(ts_val, interval_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
@@ -254,6 +255,13 @@ The \_irowts pseudo column can only be used with the interp function to return t
 
 ```sql
 SELECT _irowts, interp(current) FROM meters RANGE('2020-01-01 10:00:00', '2020-01-01 10:30:00') EVERY(1s) FILL(linear);
+```
+
+** \_IROWTS\_ORIGIN**
+Pseudo column `_irowts_origin` is used to get the original timestamp of the row used for filling. It can only be used with the INTERP query. `_irowts_origin` is not supported in stream. Only FILL PREV/NEXT/NEAR is supported. If there is not data in range, return NULL.
+
+```sql
+SELECT _irowts_origin, interp(current) FROM meters RANGE('2020-01-01 10:00:00', '2020-01-01 10:30:00') EVERY(1s) FILL(PREV);
 ```
 
 ## Query Objects
