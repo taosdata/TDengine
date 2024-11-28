@@ -1,10 +1,10 @@
 # Table of Contents
 
-1. [Introduction](#1.Introduction)
-2. [Documentation](#2.Documentation)
-3. [Building](#3.Building)
-4. [Packaging](#4.Packaging)
-5. [Contributing](#5.Contributing)
+1. [Introduction](#Introduction)
+2. [Documentation](#Documentation)
+3. [Building](#Building)
+4. [Packaging](#Packaging)
+5. [Contributing](#Contributing)
 
 # Introduction
 
