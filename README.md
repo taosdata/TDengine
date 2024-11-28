@@ -78,7 +78,7 @@ go version
 
 ### Install Cargo
 
-Better start it from rustup(the installer for Rust).
+Better start it from [rustup](https://rustup.rs/)(the installer for Rust).
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
@@ -127,6 +127,11 @@ registry = "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"
 registry = "git://crates.rustcc.cn/crates.io-index"
 ```
 
+Install the cargo-make component.
+```bash
+cargo install cargo-make
+```
+
 ### Install Python-connector
 
 Install Python3.
@@ -137,7 +142,7 @@ apt install python3-pip
 
 Install the dependent Python components.
 ```bash
-pip3 install  pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
+pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
 ```
 
 Install the Python connector for TDengine.
@@ -178,11 +183,11 @@ make install
 
 # Packaging
 
-Using the following script to package the enterprise edition. During the packaging process, it is necessary to copy the document compression package from the internal machine (192.168.0.30). If passwordless login has not been configured, you will need to enter the password manully (tbase125!)
+Using the following script to package the enterprise edition. During the packaging process, it is necessary to copy the document compression package from the internal machine (192.168.0.30). If passwordless login has not been configured, you will need to enter the password(tbase125!) manully.
 
 ```bash
 cd /root/TDinternal/enterprise/packaging
-./new_ver_release.sh -b 3.0 -c x64 -n 3.3.5.0.1126 -l full -v cluster -V stable -d no
+./new_ver_release.sh -b 3.0 -c x64 -n 3.3.4.9 -l full -v cluster -V stable -d no
 ```
 
 After the packaging is complete, you can see the following files
@@ -195,7 +200,7 @@ ll /root/TDinternal/enterprise/packaging
 
 ## Run the TSIM test script
 ```bash
-/root/TDinternal/community/tests/script
+cd /root/TDinternal/community/tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
 
