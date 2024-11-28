@@ -214,7 +214,6 @@ ctest
 ```bash
 cd /root/TDinternal/community/tests/
 ./run_all_ci_cases.sh
-```bash
 
 ## Smoke Testing
 ```bash
