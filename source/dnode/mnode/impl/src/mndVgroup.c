@@ -3193,6 +3193,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   mInfo("trans:%d, used to split vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
 
   mndTransSetDbName(pTrans, pDb->name, NULL);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
 
   SVgObj newVg1 = {0};
   memcpy(&newVg1, pVgroup, sizeof(SVgObj));
@@ -3441,6 +3442,8 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
   }
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to balance vgroup", pTrans->id);
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
 
   while (1) {
     taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
