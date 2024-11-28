@@ -460,7 +460,7 @@ TEST(timezoneCase, get_tz_Test) {
 //    ASSERT_STREQ(tz, "Asia/Shanghai");
 //
 //    getTimezoneStr(tz);
-//    ASSERT_STREQ(tz, "n/a");
+//    ASSERT_STREQ(tz, TZ_UNKNOWN);
   }
 }
 

@@ -21,6 +21,9 @@ extern "C" {
 #endif
 
 #define TdEastZone8 8*60*60
+#define TZ_UNKNOWN "n/a"
+
+extern void* pTimezoneNameMap;
 
 typedef struct state *timezone_t;
 struct tm *localtime_rz(timezone_t , time_t const *, struct tm *);

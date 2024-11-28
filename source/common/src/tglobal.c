@@ -326,6 +326,7 @@ bool tsExperimental = true;
 int32_t tsMaxTsmaNum = 3;
 int32_t tsMaxTsmaCalcDelay = 600;
 int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24;  // in ms, default to 1d
+void*   pTimezoneNameMap = NULL;
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \

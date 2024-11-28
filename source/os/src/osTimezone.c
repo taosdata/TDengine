@@ -905,7 +905,7 @@ void getTimezoneStr(char *tz) {
 
 END:
   if (tz[0] == '\0') {
-    memcpy(tz, "n/a", sizeof("n/a"));
+    memcpy(tz, TZ_UNKNOWN, sizeof(TZ_UNKNOWN));
   }
   uDebug("[tz] system timezone:%s", tz);
 }

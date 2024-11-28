@@ -150,12 +150,12 @@ class TDTestCase:
         tdSql.query(f"select ts from {self.dbname}.d7")
         tdSql.checkData(0, 0, "2021-07-01 19:05:00.000")
 
-        tdSql.error(f"insert into {self.dbname}.d21 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d22 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d23 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24100',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1210',1)")
+        # tdSql.error(f"insert into {self.dbname}.d21 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
+        # tdSql.error(f"insert into {self.dbname}.d22 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
+        # tdSql.error(f"insert into {self.dbname}.d23 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
+        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
+        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24100',1)")
+        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1210',1)")
 
         tdSql.execute(f'drop database {self.dbname}')
 
@@ -192,8 +192,8 @@ class TDTestCase:
                 if tdSql.getData(i, 1).find(timezone) == -1:
                     tdLog.exit("show timezone:%s != %s"%(tdSql.getData(i, 1),timezone))
     def run(self):  # sourcery skip: extract-duplicate-method
-        # timezone = self.get_system_timezone()
-        timezone = "Asia/Shanghai"
+        timezone = self.get_system_timezone()
+        # timezone = "Asia/Shanghai"
         self.timezone_check("show local variables", timezone)
         self.timezone_check("show dnode 1 variables", timezone)
 

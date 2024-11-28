@@ -73,6 +73,14 @@ static timezone_t setConnnectionTz(const char* val){
     taosHashSetFreeFp(pTimezoneMap, (_hash_free_fn_t)tzfree);
   }
 
+  if (pTimezoneNameMap == NULL){
+    pTimezoneNameMap = taosHashInit(0, taosIntHash_64, false, HASH_ENTRY_LOCK);
+    if (pTimezoneNameMap == NULL) {
+      atomic_store_32(&lock_c, 0);
+      goto END;
+    }
+  }
+
   timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
   if (tmp != NULL && *tmp != NULL){
     tz = *tmp;
@@ -90,6 +98,14 @@ static timezone_t setConnnectionTz(const char* val){
   if (code != 0){
     tzfree(tz);
     tz = NULL;
+  }
+
+  time_t    tx1 = taosGetTimestampSec();
+  char output[TD_TIMEZONE_LEN] = {0};
+  taosFormatTimezoneStr(tx1, val, tz, output);
+  code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
+  if (code != 0){
+    tscError("failed to put timezone %s to map", val);
   }
 
 END:

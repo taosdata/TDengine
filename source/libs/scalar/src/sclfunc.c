@@ -2664,13 +2664,15 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char output[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
-  // pInput->tz  todo tz
   char* tmp = NULL;
   if (pInput->tz == NULL) {
     (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
   } else{
-    time_t    tx1 = taosGetTimestampSec();
-    SCL_ERR_RET(taosFormatTimezoneStr(tx1, "UTC-test", pInput->tz, varDataVal(output)));
+    char *tzName  = (char*)taosHashGet(pTimezoneNameMap, &pInput->tz, sizeof(timezone_t));
+    if (tzName == NULL){
+      tzName = TZ_UNKNOWN;
+    }
+    tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
   }
 
   varDataSetLen(output, strlen(varDataVal(output)));
