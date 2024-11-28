@@ -55,7 +55,11 @@ sql_error alter table $tbj set tag tagCol1 = 1, tagCol5="xxxxxxxxxxxxxxxx"
 # invalid tag value
 sql_error alter table $tbj set tag tagCol1 = 1, tagCol5="xxxxxxxxxxxxxxxx", tagCol7="yyyyyyyyyyyyyyyyyyyyyyyyy" 
 # invalid data type
-sql_error alter table $tbj set tag tagCol5="xxxx"
+
+# escape
+sql_error alter table $tbj set tag `tagCol1`=true
+sql_error alter table $tbj set tag `tagCol1`=true,`tagCol2`=1,`tagNotExist`=10
+sql_error alter table $tbj set tag `tagCol1`=true,`tagCol2`=1,tagcol1=true
 
 sql alter table $tbj set tag tagCol1 = 100, tagCol2 = 100  
 
@@ -195,6 +199,7 @@ if $rows != 1  then
 endi
 
 sql alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=NULL,tagCol6=NULL,tagCol7=NULL
+sql alter table $tbj set tag `tagcol1`=true,`tagcol2`=-10,`tagcol3`=-100, `tagcol4`=-1000,`tagcol5`=NULL,`tagcol6`=NULL,`tagcol7`=NULL
 
 sql alter table $mt drop tag tagCol7
 sql alter table $mt drop tag tagCol3
