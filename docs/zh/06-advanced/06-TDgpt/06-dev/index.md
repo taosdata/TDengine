@@ -21,7 +21,7 @@ Anode的主要目录结构如下图所示
 .
 ├── cfg
 ├── model
-│   └── ac_detection
+│   └── ad_detection
 ├── release
 ├── script
 └── taosanalytics
