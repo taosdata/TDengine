@@ -428,9 +428,7 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
 
   schDropTaskOnExecNode(pJob, pTask);
   if (pTask->delayTimer) {
-    if (!taosTmrStopA(&pTask->delayTimer)) {
-      SCH_TASK_WLOG("stop task delayTimer failed, may stopped, status:%d", pTask->status);
-    }
+    schStopTaskDelayTimer(pJob, pTask, false);
   }
   taosHashClear(pTask->execNodes);
   (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
@@ -1361,9 +1359,7 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
 
     SCH_LOCK_TASK(pTask);
     if (pTask->delayTimer) {
-      if (!taosTmrStopA(&pTask->delayTimer)) {
-        SCH_TASK_WLOG("stop delayTimer failed, status:%d", pTask->status);
-      }
+      schStopTaskDelayTimer(pJob, pTask, true);
     }
     schDropTaskOnExecNode(pJob, pTask);
     SCH_UNLOCK_TASK(pTask);

@@ -657,6 +657,7 @@ int32_t  schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType 
 int32_t  schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
 void     schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
 int32_t  schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int32_t idx, int32_t taskNum);
+void     schStopTaskDelayTimer(SSchJob *pJob, SSchTask* pTask, bool syncOp);
 int32_t  schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel);
 int32_t  schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void     schDirectPostJobRes(SSchedulerReq *pReq, int32_t errCode);

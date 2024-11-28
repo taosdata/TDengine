@@ -6115,7 +6115,7 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
         TSDB_CHECK_CODE(code, lino, _end);
       }
 
-      goto _end;
+      return code;
     }
   }
 
@@ -6142,7 +6142,7 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
       acquired = false;
       TSDB_CHECK_CODE(code, lino, _end);
     }
-    goto _end;
+    return code;
   }
 
   if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
@@ -6168,7 +6168,7 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
         TSDB_CHECK_CODE(code, lino, _end);
       }
 
-      goto _end;
+      return code;
     }
   }
 

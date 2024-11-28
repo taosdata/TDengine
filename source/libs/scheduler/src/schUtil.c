@@ -418,4 +418,16 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int
   return TSDB_CODE_SUCCESS;
 }
 
+void schStopTaskDelayTimer(SSchJob *pJob, SSchTask* pTask, bool syncOp) {
+  if (!taosTmrStopA(&pTask->delayTimer)) {
+    if (syncOp) {
+      while (!taosTmrIsStopped(&pTask->delayTimer)) {
+        taosMsleep(1);
+      }
+    } else {
+      SCH_TASK_WLOG("stop task delayTimer failed, may stopped, status:%d", pTask->status);
+    }
+  }
+}
+
 
