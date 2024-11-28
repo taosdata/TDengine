@@ -16,6 +16,7 @@ In some scenarios, data stored in TDengine may become fragmented or take up an e
 
 ```SQL
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']； 
+COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY']；
 SHOW COMPACTS [compact_id]；
 KILL COMPACT compact_id；
 ```
@@ -23,6 +24,7 @@ KILL COMPACT compact_id；
 ### Results
 
 - All data files on the vnodes in the vgroups associated with the specified database are scanned and compressed.
+- All data files on the vnodes in the specified vgroups in the specified database are scanned and compressed. If `db_name` is not specified, the current database is used by default.
 - Deleted data and data from deleted tables is completely removed.
 - STT files are combined.
 - You can use the `START WITH` keyword to specify a start time for the `COMPACT` command.
