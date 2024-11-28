@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== create anode
-sql create anode '127.0.0.1:6090'
+sql create anode '192.168.1.116:6050'
 
 sql show anodes
 if $rows != 1 then
