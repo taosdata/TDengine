@@ -47,7 +47,9 @@ apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl 
 
 Update the installation package to version 1.18.6.
 ```bash
-cd /usr/local/ && wget https://studygolang.com/dl/golang/go1.18.6.linux-amd64.tar.gz && tar -zxvf  go1.18.6.linux-amd64.tar.gz
+cd /usr/local/ 
+wget https://studygolang.com/dl/golang/go1.18.6.linux-amd64.tar.gz 
+tar -zxvf  go1.18.6.linux-amd64.tar.gz
 ```
 
 Set up environment variables, first add the following content to the end of the `~/.bashrc` file.
@@ -147,7 +149,8 @@ pip3 install taospy taos-ws-py
 
 Clone TDinternal repository to a local directory (for example, /root).
 ```bash
-cd /root && git clone https://github.com/taosdata/TDinternal.git 
+cd /root
+git clone https://github.com/taosdata/TDinternal.git 
 ```
 
 Execute the cmake command to download the community and other repositories (this may take about twenty minutes).
@@ -184,7 +187,7 @@ cd /root/TDinternal/enterprise/packaging
 
 After the packaging is complete, you can see the following files
 ```bash
-cd /root/TDinternal/enterprise/packaging && ll
+ll /root/TDinternal/enterprise/packaging
 
 ```
 
