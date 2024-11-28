@@ -130,8 +130,15 @@ int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFractio
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+#define PARSE(str,len,result) \
+  if (len > 2 || len < 1) {\
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);\
+  }\
+  result = strnatoi(str, len);
+
 int32_t parseTimezone(char* str, int64_t* tzOffset) {
   int64_t hour = 0;
+  int64_t minute = 0;
 
   int32_t i = 0;
   if (str[i] != '+' && str[i] != '-') {
@@ -152,27 +159,21 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
 
   char* sep = strchr(&str[i], ':');
   if (sep != NULL) {
-    int32_t len = (int32_t)(sep - &str[i]);
+    int32_t hourSize = (int32_t)(sep - &str[i]);
+    PARSE(&str[i], hourSize, hour);
 
-    hour = strnatoi(&str[i], len);
-    i += len + 1;
+    i += hourSize + 1;
+    size_t minSize = strlen(&str[i]);
+    PARSE(&str[i], minSize, minute);
+    if (minute > 59 || minute < 0) {
+      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+    }
   } else {
-    hour = strnatoi(&str[i], 2);
-    i += 2;
+    size_t hourSize = strlen(&str[i]);
+    PARSE(&str[i], hourSize, hour)
   }
 
   if (hour > 13 || hour < 0) {
-    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
-  }
-
-  // return error if there're illegal charaters after min(2 Digits)
-  char* minStr = &str[i];
-  if (minStr[1] != '\0' && minStr[2] != '\0') {
-    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
-  }
-
-  int64_t minute = strnatoi(&str[i], 2);
-  if (minute > 59 || minute < 0) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 

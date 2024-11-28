@@ -238,16 +238,16 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
     charsetCxt = tsCharsetCxt;
   }
   SConvInfo *info = (SConvInfo *)charsetCxt;
-  if (info->gConvMaxNum[type] <= 0) {
+  if (info == NULL) {
     *idx = -1;
     if (type == M2C) {
-      iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, info->charset);
+      iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, "UTF-8");
       if ((iconv_t)-1 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
       }
       return c;
     } else {
-      iconv_t c = iconv_open(info->charset, DEFAULT_UNICODE_ENCODEC);
+      iconv_t c = iconv_open("UTF-8", DEFAULT_UNICODE_ENCODEC);
       if ((iconv_t)-1 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
       }

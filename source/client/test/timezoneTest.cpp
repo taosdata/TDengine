@@ -177,7 +177,39 @@ TEST(timezoneCase, alter_timezone_Test) {
   execQuery(pConn, "alter local 'timezone Asia/Kolkata'");
   check_timezone(pConn, "show local variables", "Asia/Kolkata");
 
+  execQuery(pConn, "alter local 'timezone Asia/Shanghai'");
+  check_timezone(pConn, "show local variables", "Asia/Shanghai");
+
   execQueryFail(pConn, "alter dnode 1 'timezone Asia/Kolkata'");
+}
+
+char *tz_test[] = {
+    "2023-09-16 17:00:00+",
+    "2023-09-16 17:00:00+8:",
+    "2023-09-16 17:00:00+:30",
+    "2023-09-16 17:00:00+:-30",
+    "2023-09-16 17:00:00++:-30",
+    "2023-09-16 17:00:00+:",
+    "2023-09-16 17:00:00+8f:",
+    "2023-09-16 17:00:00+080:",
+    "2023-09-16 17:00:00+080",
+    "2023-09-16 17:00:00+a",
+    "2023-09-16 17:00:00+09:",
+    "2023-09-16 17:00:00+09:a",
+    "2023-09-16 17:00:00+09:abc",
+    "2023-09-16 17:00:00+09:001",
+};
+
+void do_insert_failed(){
+  TAOS* pConn = getConnWithGlobalOption("UTC-8");
+
+  for (unsigned int i = 0; i < sizeof (tz_test) / sizeof (tz_test[0]); ++i){
+    char sql[1024] = {0};
+    (void)snprintf(sql, sizeof(sql), "insert into db1.ctb1 values('%s', '%s', 1)", tz_test[i], tz_test[i]);
+
+    execQueryFail(pConn, sql);
+  }
+  taos_close(pConn);
 }
 
 struct insert_params
@@ -227,7 +259,7 @@ TEST(timezoneCase, insert_with_timezone_Test) {
   execQuery(pConn1, "create table db1.ctb1 using db1.stb tags(\"2023-09-16 17:00:00+05:00\", \"2023-09-16 17:00:00\", 1)");
   execQuery(pConn1, "create table db1.ctb2 using db1.stb tags(1732178775000, 1732178775000, 1)");
   execQuery(pConn1, "insert into db1.ntb values(1732178775133, 1732178775133, 1)");
-  execQuery(pConn1, "insert into db1.ctb1 values(1732178775133, 1732178775133, 1)");
+  execQuery(pConn1, "insert into db1.ctb1 values(1732178775133, 1732178775133, 1)"); //2024-11-21 10:46:15.133+02:00
   execQuery(pConn1, "insert into db1.ctb2 values(1732178775133, 1732178775133, 1)");
 
   /*
@@ -251,6 +283,7 @@ TEST(timezoneCase, insert_with_timezone_Test) {
     do_select(params2[i]);
   }
 
+  do_insert_failed();
   /*
    * 4. test NULL timezone, use default timezone UTC-8
    */
@@ -284,7 +317,7 @@ TEST(timezoneCase, func_timezone_Test) {
   execQuery(pConn, "insert into db1.ntb values(1704142800000, '2024-01-01 23:00:00', 1)");   // 2024-01-01 23:00:00+0200
 
   // test timezone
-  check_sql_result(pConn, "select timezone()", "UTC-test (UTC, +0200)");
+  check_sql_result(pConn, "select timezone()", "UTC-2 (UTC, +0200)");
 
   // test timetruncate
   check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 23:00:00', 1d, 0))", "2024-01-01T02:00:00.000+0200");
