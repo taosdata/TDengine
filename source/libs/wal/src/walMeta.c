@@ -372,6 +372,7 @@ static int32_t walLogEntriesComplete(const SWal* pWal) {
 
 static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   int32_t       code = TSDB_CODE_SUCCESS;
+  TdFilePtr     pFile = NULL;
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
   if (!pFileInfo) {
     TAOS_RETURN(TSDB_CODE_FAILED);
@@ -393,7 +394,7 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
-  TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
+  pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   if (pFile == NULL) {
     code = terrno;
     goto _exit;
