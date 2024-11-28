@@ -80,11 +80,8 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
-
-  in.tz = pValueNode->tz;
-  in.charsetCxt = pValueNode->charsetCxt;
-  out->tz = pValueNode->tz;
-  out->charsetCxt = pValueNode->charsetCxt;
+  setTzCharset(&in, pValueNode->tz, pValueNode->charsetCxt);
+  setTzCharset(out, pValueNode->tz, pValueNode->charsetCxt);
   code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);
 
 _exit:
@@ -590,11 +587,11 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   SCL_ERR_JRET(sclSetOperatorValueType(node, ctx));
 
   SCL_ERR_JRET(sclInitParam(node->pLeft, &paramList[0], ctx, rowNum));
-  paramList[0].tz = node->tz;
-  paramList[0].charsetCxt = node->charsetCxt;
+  setTzCharset(&paramList[0], node->tz, node->charsetCxt);
   if (paramNum > 1) {
     TSWAP(ctx->type.selfType, ctx->type.peerType);
     SCL_ERR_JRET(sclInitParam(node->pRight, &paramList[1], ctx, rowNum));
+    setTzCharset(&paramList[1], node->tz, node->charsetCxt);
   }
 
   *pParams = paramList;
@@ -762,8 +759,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       paramNum = 0;
   int32_t       code = 0;
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
-  params->tz = node->tz;
-  params->charsetCxt = node->charsetCxt;
+  setTzCharset(params, node->tz, node->charsetCxt);
 
   if (fmIsUserDefinedFunc(node->funcId)) {
     code = callUdfScalarFunc(node->functionName, params, paramNum, output);
@@ -966,10 +962,12 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
     sclError("invalid when/then in whenThen list");
     SCL_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
-
+  setTzCharset(pCase, node->tz, node->charsetCxt);
+  setTzCharset(pWhen, node->tz, node->charsetCxt);
+  setTzCharset(pThen, node->tz, node->charsetCxt);
+  setTzCharset(pElse, node->tz, node->charsetCxt);
+  setTzCharset(output, node->tz, node->charsetCxt);
   if (pCase) {
-    pCase->tz = node->tz;
-    pCase->charsetCxt = node->charsetCxt;
     SCL_ERR_JRET(vectorCompare(pCase, pWhen, &comp, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
 
     for (int32_t i = 0; i < rowNum; ++i) {

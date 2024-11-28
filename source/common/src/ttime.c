@@ -623,7 +623,7 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
 
 static bool taosIsLeapYear(int32_t year) { return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)); }
 
-int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
+int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, timezone_t tz) {
   if (duration == 0) {
     return t;
   }
@@ -638,7 +638,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
 
   struct tm  tm;
   time_t     tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
-  if(taosGmTimeR(&tt, &tm) == NULL) {
+  if(taosLocalTime(&tt, &tm, NULL, 0, tz) == NULL) {
     uError("failed to convert time to gm time, code:%d", errno);
     return t;
   }
@@ -652,7 +652,8 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   if (tm.tm_mday > daysOfMonth[tm.tm_mon]) {
     tm.tm_mday = daysOfMonth[tm.tm_mon];
   }
-  tt = taosTimeGm(&tm);
+
+  tt = taosMktime(&tm, tz);
   if (tt == -1){
     uError("failed to convert gm time to time, code:%d", errno);
     return t;
@@ -778,12 +779,12 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
       if (news <= ts) {
         int64_t prev = news;
-        int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+        int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
 
         if (newe < ts) {  // move towards the greater endpoint
           while (newe < ts && news < ts) {
             news += pInterval->sliding;
-            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
           }
 
           prev = news;
@@ -791,7 +792,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
           while (newe >= ts) {
             prev = news;
             news -= pInterval->sliding;
-            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
           }
         }
 
@@ -824,7 +825,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
       // not enough time range
       if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-        end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+        end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
         while (end < ts) {  // move forward to the correct time window
           start += pInterval->sliding;
 
@@ -843,15 +844,15 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
   if (pInterval->offset > 0) {
     // try to move current window to the left-hande-side, due to the offset effect.
-    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
     int64_t slidingStart = start;
     while (newe >= ts) {
       start = slidingStart;
-      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision);
-      int64_t slidingEnd = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-      newe = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, precision);
+      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, NULL);
+      int64_t slidingEnd = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
+      newe = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, precision, NULL);
     }
-    start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
+    start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, NULL);
   }
 
   return start;
@@ -861,12 +862,12 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
   if (pInterval->offset > 0) {
     int64_t slideStart =
-        taosTimeAdd(intervalStart, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-    int64_t slideEnd = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-    int64_t result = taosTimeAdd(slideEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+        taosTimeAdd(intervalStart, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+    int64_t slideEnd = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+    int64_t result = taosTimeAdd(slideEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
     return result;
   } else {
-    int64_t result = taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    int64_t result = taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
     return result;
   }
 }

@@ -296,6 +296,12 @@ struct SScalarParam {
   void            *charsetCxt;
 };
 
+static inline void setTzCharset(SScalarParam* param, timezone_t tz, void* charsetCxt){
+  if (param == NULL) return;
+  param->tz = tz;
+  param->charsetCxt = charsetCxt;
+}
+
 #define cleanupResultRowEntry(p)  p->initialized = false
 #define isRowEntryCompleted(p)   (p->complete)
 #define isRowEntryInitialized(p) (p->initialized)

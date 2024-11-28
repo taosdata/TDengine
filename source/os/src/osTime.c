@@ -610,7 +610,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     (void)snprintf(buf, bufSize, "NaN");
   }
 #endif
-  return result;
+  return res;
 }
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }

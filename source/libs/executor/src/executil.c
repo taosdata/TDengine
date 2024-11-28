@@ -2406,7 +2406,7 @@ void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, b
 
     int64_t key = w->skey;
     while (key < ts) {  // moving towards end
-      key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+      key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
       if (key > ts) {
         break;
       }
@@ -2431,8 +2431,8 @@ STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInter
   STimeWindow save = win;
   while (win.skey <= ts && win.ekey >= ts) {
     save = win;
-    win.skey = taosTimeAdd(win.skey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-    win.ekey = taosTimeAdd(win.ekey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+    win.skey = taosTimeAdd(win.skey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
+    win.ekey = taosTimeAdd(win.ekey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
   }
 
   return save;
@@ -2471,16 +2471,16 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
   int64_t slidingStart = 0;
   if (pInterval->offset > 0) {
-    slidingStart = taosTimeAdd(tw->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    slidingStart = taosTimeAdd(tw->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
   } else {
     slidingStart = tw->skey;
   }
   int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-  slidingStart = taosTimeAdd(slidingStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-  tw->skey = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+  slidingStart = taosTimeAdd(slidingStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
+  tw->skey = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
   int64_t slidingEnd =
-      taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  tw->ekey = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+      taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+  tw->ekey = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {

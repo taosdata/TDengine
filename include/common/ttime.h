@@ -60,7 +60,7 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
  */
 int64_t taosGetTimestampToday(int32_t precision, timezone_t tz);
 
-int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
+int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, timezone_t tz);
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval);
 int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
