@@ -104,7 +104,7 @@ void shellPrintHelp() {
 
 const char *argp_program_version = td_version;
 #ifdef CUS_EMAIL
-const char *argp_program_bug_address = CUS_EMAIL"ERROR_CODE_DETAIL;
+const char *argp_program_bug_address = CUS_EMAIL ERROR_CODE_DETAIL;
 #else
 const char *argp_program_bug_address = "support@taosdata.com "ERROR_CODE_DETAIL;
 #endif
