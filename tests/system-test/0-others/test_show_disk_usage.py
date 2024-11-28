@@ -55,13 +55,12 @@ class TDTestCase:
         for item in queryRes:
             if "Disk_occupied=" in item[0]:
                 disk_occupied= int(item[0].split("=")[1].split(" ")[0].replace("[", "").replace("k]", ""))
-                tdLog.debug("disk_occupied: %s" % disk_occupied)
+                #tdLog.debug("disk_occupied: %s" % disk_occupied)
             elif "Compress_radio=" in item[0]:
                 value = item[0].split("=")[1].split(" ")[0].replace("[", "").replace("]", "")
                 if value != 'NULL': 
                     compress_radio = float(value)
-                
-                tdLog.debug("compress_occupied: %s" % compress_radio)
+                #tdLog.debug("compress_occupied: %s" % compress_radio)
         return disk_occupied, compress_radio 
 
     def insertData(self): 
@@ -72,7 +71,7 @@ class TDTestCase:
         for i in range(self.ctnum):
             tdSql.execute(f'create table ct_{str(i+1)} using {self.stname} tags ("name{str(i+1)}");')
             sql = f"insert into ct_{str(i+1)} values "
-            for j in range(self.row_num):
+            for j in range(self.row_num * 2):
                 sql += f"(now+{j+1}s, {j+1}, {random.uniform(15, 30)}) "
             sql += ";"
             tdSql.execute(sql)
@@ -116,9 +115,10 @@ class TDTestCase:
 
 
         self.insertData()
+        tdSql.execute(f"flush database {self.other_dbname};")
         tdSql.query(f"show {self.other_dbname}.disk_info;")
-        tdLog.debug(tdSql.queryResult)
         disk_occupied,compress_radio = self.checkRes(tdSql.queryResult)
+        tdLog.debug("database: %s, disk_occupied: %s, compress_radio: %s" % (self.other_dbname,disk_occupied, compress_radio))
           
         tdSql.query(f"select sum(data1+data2+data3) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
         tdSql.checkData(0,0,disk_occupied) 
