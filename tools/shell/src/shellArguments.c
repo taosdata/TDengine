@@ -92,7 +92,6 @@ void shellPrintHelp() {
 #else
   printf("\r\n\r\nReport bugs to %s.\r\n", "support@taosdata.com");
 #endif
-  printf("%s", ERROR_CODE_DETAIL);
 }
 #ifdef LINUX
 #include <argp.h>
@@ -104,9 +103,9 @@ void shellPrintHelp() {
 
 const char *argp_program_version = td_version;
 #ifdef CUS_EMAIL
-const char *argp_program_bug_address = CUS_EMAIL ERROR_CODE_DETAIL;
+const char *argp_program_bug_address = CUS_EMAIL;
 #else
-const char *argp_program_bug_address = "support@taosdata.com "ERROR_CODE_DETAIL;
+const char *argp_program_bug_address = "support@taosdata.com;
 #endif
 
 static struct argp_option shellOptions[] = {

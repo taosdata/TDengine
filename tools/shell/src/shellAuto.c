@@ -662,7 +662,6 @@ void showHelp() {
     now - current time \n\
   Example : \n\
     select * from t1 where ts > now - 2w + 3d and ts <= now - 1w -2h ;\n");
-  printf(ERROR_CODE_DETAIL);
   printf("\n");
 }
 
