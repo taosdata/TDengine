@@ -15,7 +15,8 @@ import sys
 import os
 import time
 import datetime
-from distutils.log import warn as printf
+
+from setuptools import logging as printf
 
 
 class TDLog:
