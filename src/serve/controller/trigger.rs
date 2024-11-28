@@ -1,13 +1,13 @@
+use chrono::{DateTime, Utc};
+use itertools::Itertools;
+use metrics::atomics::AtomicU64;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
-
-use itertools::Itertools;
-use metrics::atomics::AtomicU64;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use taosx_core::utils;
 use thiserror::Error;
 use utoipa::*;
@@ -168,42 +168,51 @@ pub struct Strategy {
     pub(crate) schedule: Option<String>,
     pub(crate) resume: ResumeStrategy,
     pub(crate) healthy: Healthy,
+    /// 任务的下次执行的日期时间
+    pub(crate) upcoming: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde_as(as = "OptionHumanDuration")]
-    pub(crate) interval: Option<Duration>,
+    pub(crate) interval: Option<(String, Duration)>,
 }
 
 serde_with::serde_conv!(
     OptionHumanDuration,
-    Option<Duration>,
-    |duration: &Option<Duration>| duration.map(|duration| format!("{:?}", duration)),
+    Option<(String, Duration)>,
+    |duration: &Option<(String, Duration)>| {
+        match duration {
+            None => None,
+            Some((s, _d)) => Some(s.to_string()),
+        }
+    },
     |value: Option<String>| -> Result<_, fundu::ParseError> {
-        value.map(|value| utils::parse_duration(&value)).transpose()
+        match value {
+            None => Ok(None),
+            Some(s) => {
+                let d = utils::parse_duration(&s)?;
+                Ok(Some((s, d)))
+            }
+        }
+        // let d = value.map(|value| utils::parse_duration(&value)).transpose();
     }
 );
-#[test]
-fn test_serde_strategy() {
-    let s = r#"{}"#;
-    let s: Strategy = serde_json::from_str(s).unwrap();
-    dbg!(s);
-    let s = r#"{"interval": null}"#;
-    let s: Strategy = serde_json::from_str(s).unwrap();
-    dbg!(s);
-    let s = r#"{"interval": "1s"}"#;
-    let s: Strategy = serde_json::from_str(s).unwrap();
-    dbg!(s);
-}
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum Schedule {
+    /// 任务按照 cron 表达式周期执行
     Cron(String),
+    /// 任务只执行一次
     Oneshot,
+    /// 任务出错后，以 duration 为间隔重试
     Repeated(Duration),
+    /// 从 start_at 开始执行，每隔 interval 执行一次
+    RepeatedWithStartAt(Duration, DateTime<Utc>),
+    /// 任务出错后，以 duration 为间隔重试，最多重试次数为 limit
     RepeatedLimit(Duration, u16),
 }
+
 impl Schedule {
-    pub(crate) fn is_cron_job(&self) -> bool {
-        matches!(self, Schedule::Cron(_))
+    pub(crate) fn is_repeatable_job(&self) -> bool {
+        matches!(self, Schedule::Cron(_)) || matches!(self, Schedule::RepeatedWithStartAt(_, _))
     }
 }
 
@@ -327,6 +336,7 @@ impl Strategy {
             schedule: None,
             resume: ResumeStrategy::Always,
             healthy: Healthy::const_new(),
+            upcoming: None,
             interval: None,
         }
     }
@@ -343,19 +353,37 @@ impl Strategy {
 
     pub fn schedule(&self) -> Schedule {
         if let Some(schedule) = self.schedule.as_deref() {
-            Schedule::Cron(schedule.to_string())
-        } else {
-            match self.resume {
-                ResumeStrategy::Always => {
-                    Schedule::Repeated(self.interval.unwrap_or_else(repeat_interval))
-                }
-                ResumeStrategy::Never => Schedule::Oneshot,
-                ResumeStrategy::Once => {
-                    Schedule::RepeatedLimit(self.interval.unwrap_or_else(repeat_interval), 1)
-                }
-                ResumeStrategy::Retries(num) => {
-                    Schedule::RepeatedLimit(self.interval.unwrap_or_else(repeat_interval), num)
-                }
+            return Schedule::Cron(schedule.to_string());
+        }
+
+        if let (Some((_raw, interval)), Some(upcoming)) =
+            (self.interval.as_ref(), self.upcoming.as_ref())
+        {
+            return Schedule::RepeatedWithStartAt(interval.clone(), upcoming.clone());
+        }
+
+        match self.resume {
+            ResumeStrategy::Always => {
+                let d = match &self.interval {
+                    None => repeat_interval(),
+                    Some((_raw, interval)) => interval.clone(),
+                };
+                Schedule::Repeated(d)
+            }
+            ResumeStrategy::Never => Schedule::Oneshot,
+            ResumeStrategy::Once => {
+                let d = match &self.interval {
+                    None => repeat_interval(),
+                    Some((_raw, interval)) => interval.clone(),
+                };
+                Schedule::RepeatedLimit(d, 1)
+            }
+            ResumeStrategy::Retries(num) => {
+                let d = match &self.interval {
+                    None => repeat_interval(),
+                    Some((_raw, interval)) => interval.clone(),
+                };
+                Schedule::RepeatedLimit(d, num)
             }
         }
     }
@@ -365,6 +393,11 @@ impl Strategy {
         if self.schedule.as_deref().is_some() {
             return StopCondition::Never;
         }
+        // Never stop for repeated job with start_at.
+        if let (Some(_), Some(_)) = (self.interval.as_ref(), self.upcoming.as_ref()) {
+            return StopCondition::Never;
+        }
+
         match self.resume {
             ResumeStrategy::Always => StopCondition::Done,
             ResumeStrategy::Never => StopCondition::Fatal,
@@ -422,5 +455,41 @@ where
 {
     fn type_info() -> DB::TypeInfo {
         <&'t str as sqlx::Type<DB>>::type_info()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_serde_strategy() {
+        let s = r#"{}"#;
+        let s: Strategy = serde_json::from_str(s).unwrap();
+        assert_eq!(s.schedule, None);
+        assert_eq!(s.resume, ResumeStrategy::Always);
+        assert_eq!(s.healthy.check, HealthyCheck::Forward);
+        assert_eq!(s.healthy.fadeout, Duration::from_secs(60));
+        assert_eq!(s.upcoming, None);
+        assert_eq!(s.interval, None);
+
+        let s = r#"{"interval": null}"#;
+        let s: Strategy = serde_json::from_str(s).unwrap();
+        assert_eq!(s.schedule, None);
+        assert_eq!(s.resume, ResumeStrategy::Always);
+        assert_eq!(s.healthy.check, HealthyCheck::Forward);
+        assert_eq!(s.healthy.fadeout, Duration::from_secs(60));
+        assert_eq!(s.upcoming, None);
+        assert_eq!(s.interval, None);
+
+        let s = r#"{"interval": "1s"}"#;
+        let s: Strategy = serde_json::from_str(s).unwrap();
+        assert_eq!(s.schedule, None);
+        assert_eq!(s.resume, ResumeStrategy::Always);
+        assert_eq!(s.healthy.check, HealthyCheck::Forward);
+        assert_eq!(s.healthy.fadeout, Duration::from_secs(60));
+        assert_eq!(s.upcoming, None);
+        assert_eq!(s.interval, Some(("1s".to_string(), Duration::from_secs(1))));
     }
 }

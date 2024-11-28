@@ -167,15 +167,12 @@ pub(super) async fn get_tasks_count(
 )]
 #[post("/tasks")]
 pub(super) async fn create_task(
-    task: actix_web::web::Json<NewTask>,
+    task: Json<NewTask>,
     task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
-    // set current dir to DATA_DIR
-    let _ = std::env::set_current_dir(get_data_dir());
-
     let task = task.into_inner();
-    tracing::info!(task.name, "create task with name");
+    tracing::info!("create task: {:?}", task);
 
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
@@ -190,6 +187,8 @@ pub(super) async fn create_task(
             ));
         }
     }
+
+    // create task
     let controller = task_store.into_inner();
     match controller.create(task).await {
         Ok(task) => Ok(HttpResponse::Created().json(task.decorate(&decorator))),

@@ -382,13 +382,14 @@ pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
             "Backup directory does not exist".to_string(),
         );
     }
-    let config_path = path.join("local.toml");
-    if !config_path.exists() {
-        return DataSourceValidation::invalid(
-            "local".to_string(),
-            "Backup directory may not be correct".to_string(),
-        );
-    }
+
+    // let config_path = path.join("local.toml");
+    // if !config_path.exists() {
+    //     return DataSourceValidation::invalid(
+    //         "local".to_string(),
+    //         "Backup directory may not be correct".to_string(),
+    //     );
+    // }
 
     DataSourceValidation {
         valid: true,

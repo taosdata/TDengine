@@ -111,11 +111,7 @@ impl<'a> LicenseValidator<'a> {
 
 #[framed]
 #[instrument(skip_all, fields(source = %mask_dsn(from), sink = %mask_dsn(to)))]
-pub async fn validate_task(
-    from: &Dsn,
-    to: &Dsn,
-    pool: Option<&sqlx::SqlitePool>,
-) -> anyhow::Result<()> {
+pub async fn validate_task(from: &Dsn, to: &Dsn, pool: Option<&sqlx::SqlitePool>) -> Result<()> {
     if let Some(pool) = pool {
         LicenseValidator::new_with_sqlite(from, to, pool)
     } else {

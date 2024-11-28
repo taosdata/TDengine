@@ -870,8 +870,6 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
-        tracing::info!(task.name, task.via, "create new task");
-
         let not_start = task.not_start;
         let mut from: Dsn = task
             .from
@@ -879,7 +877,7 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
-                anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
+                bail!("Max length of topic name is 64, please rewrite the topic name");
             }
             from.set("use.topic.name", topic);
             tracing::info!("Set oneshot topic name: {}", topic);
@@ -890,7 +888,7 @@ impl TaskController {
                 .await?
                 .ok_or_else(|| anyhow::format_err!("Agent ID not found: {}", id))?;
             if !self.agent_alive(id).await {
-                anyhow::bail!("Agent {id} is not alive");
+                bail!("Agent {id} is not alive");
             }
             Some(agent)
         } else {
@@ -969,7 +967,7 @@ impl TaskController {
                 .context(context)?;
             if from
                 .get(build_switch_name)
-                .is_some_and(|s| s.to_ascii_lowercase() == "true")
+                .is_some_and(|s| s.eq_ignore_ascii_case("true"))
             {
                 from.set(
                     field_to_build,

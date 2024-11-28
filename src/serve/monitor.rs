@@ -384,7 +384,7 @@ struct TaosKeeperExporter<'a> {
     url: &'a str,
 }
 
-impl<'a> TaosKeeperExporter<'a> {
+impl TaosKeeperExporter<'_> {
     pub async fn push_taoskeeper(&self, body: String) {
         let client = reqwest::Client::new();
         let result = client

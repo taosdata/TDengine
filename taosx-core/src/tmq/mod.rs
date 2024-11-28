@@ -749,11 +749,17 @@ pub(crate) async fn check_tmq_dsn(
     }
 }
 
-pub(crate) fn group_id_hash(from: &Dsn, to: &Dsn) -> String {
+pub(crate) fn group_id_hash_by(from: &Dsn, to: &Dsn) -> String {
+    let data = vec![from.to_string(), to.to_string()];
+    generate_hash(data)
+}
+
+pub(crate) fn generate_hash(data: Vec<String>) -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
-    hasher.update(from.to_string());
-    hasher.update(to.to_string());
+    for s in data {
+        hasher.update(s);
+    }
     let id = hasher.finalize();
     let mut group_id = format!("x{:x}", id);
     group_id.truncate(12);
@@ -762,18 +768,13 @@ pub(crate) fn group_id_hash(from: &Dsn, to: &Dsn) -> String {
 
 pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     let mut dsn = dsn.clone();
-    if dsn.subject.is_none() {
-        return DataSourceValidation::invalid(
-            dsn.driver.clone(),
-            format!(
-                "invalid dsn: {}, cause: subject is required in tmq dsn",
-                dsn
-            ),
-        );
-    }
+
+    // 如果没有设置 group.id, 则自动生成一个
     if !dsn.params.contains_key("group.id") {
-        dsn.params
-            .insert("group.id".to_string(), "test_tmq_is_valid".to_string());
+        dsn.params.insert(
+            "group.id".to_string(),
+            generate_hash(vec![dsn.to_string(), Local::now().to_rfc3339().to_string()]),
+        );
     }
 
     let validation = check_tmq_dsn(dsn.clone()).await;
@@ -805,6 +806,14 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_group_id_hash() {
+        let data = vec!["hello".to_string(), "world".to_string()];
+        let group_id = generate_hash(data);
+        assert_eq!(group_id.len(), 12);
+        assert_eq!(group_id, "x936a185caaa");
+    }
 
     #[test]
     fn test_stop_at() {
