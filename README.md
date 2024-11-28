@@ -187,7 +187,7 @@ Using the following script to package the enterprise edition. During the packagi
 
 ```bash
 cd /root/TDinternal/enterprise/packaging
-./new_ver_release.sh -b 3.0 -c x64 -n 3.3.4.9 -l full -v cluster -V stable -d no
+./new_ver_release.sh -b 3.0 -c x64 -n 3.3.5.0.1128 -l full -v cluster -V stable -d no
 ```
 
 After the packaging is complete, you can see the following files
@@ -223,7 +223,7 @@ cd /root/TDinternal/community/tests
 
 ## Smoke Testing
 ```bash
-cd /home/chr/TDinternal/community/packaging/smokeTest
+cd /root/TDinternal/community/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
