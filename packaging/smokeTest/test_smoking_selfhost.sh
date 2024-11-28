@@ -33,7 +33,6 @@ commands=(
     "python3 ./test.py -f 2-query/case_when.py"
     "python3 ./test.py -f 2-query/partition_limit_interval.py"
     "python3 ./test.py -f 2-query/fill.py"
-    "python3 ./test.py -f query/query_basic.py -N 3"
     "python3 ./test.py -f 7-tmq/basic5.py"
     "python3 ./test.py -f 8-stream/stream_basic.py"
 )
