@@ -212,14 +212,14 @@ ctest
 
 ## Continuous Integration
 ```bash
-cd /root/TDinternal/community/tests/
+cd /root/TDinternal/community/tests
 ./run_all_ci_cases.sh
 ```
 
 ## Smoke Testing
 ```bash
 cd /home/chr/TDinternal/community/packaging/smokeTest
-bash test_smoking_selfhost.sh
+./test_smoking_selfhost.sh
 ```
 
 # Contributing
