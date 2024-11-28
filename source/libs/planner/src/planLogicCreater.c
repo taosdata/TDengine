@@ -973,6 +973,16 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     pInterpFunc->precision = pSelect->precision;
   }
 
+  if (TSDB_CODE_SUCCESS == code && pSelect->pRangeAround) {
+    SNode* pRangeInterval = ((SRangeAroundNode*)pSelect->pRangeAround)->pInterval;
+    if (!pRangeInterval || nodeType(pRangeInterval) != QUERY_NODE_VALUE) {
+      code = TSDB_CODE_PAR_INTERNAL_ERROR;
+    } else {
+      pInterpFunc->rangeInterval = ((SValueNode*)pRangeInterval)->datum.i;
+      pInterpFunc->rangeIntervalUnit = ((SValueNode*)pRangeInterval)->unit;
+    }
+  }
+
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets);
