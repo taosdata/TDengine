@@ -93,6 +93,7 @@ void shellPrintHelp() {
   printf("\r\n\r\nReport bugs to %s.\r\n", "support@taosdata.com");
 #endif
 }
+
 #ifdef LINUX
 #include <argp.h>
 #ifdef _ALPINE
