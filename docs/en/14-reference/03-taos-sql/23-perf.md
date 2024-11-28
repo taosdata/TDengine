@@ -1,98 +1,98 @@
 ---
-title: Performance_Schema Database
-sidebar_label: Statistics
-description: This document describes how to use the PERFORMANCE_SCHEMA database in TDengine.
+title: Performance Data
+description: The Performance_Schema database stores various statistical information in the system
+slug: /tdengine-reference/sql-manual/performance-data
 ---
 
-TDengine includes a built-in database named `PERFORMANCE_SCHEMA` to provide access to database performance statistics. This document introduces the tables of PERFORMANCE_SCHEMA and their structure.
+Starting from TDengine version 3.0, a built-in database called `performance_schema` has been provided, which stores performance-related statistical data. This section details the tables and structures within it.
 
 ## PERF_APP
 
-Provides information about clients (such as applications) that connect to the cluster. Similar to SHOW APPS.
+Provides information about applications (clients) that connect to the cluster. You can also use SHOW APPS to query this information.
 
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :----------: | ------------ | ------------------------------- |
-| 1   |    app_id    | UBIGINT      | Client ID                       |
-| 2   |      ip      | BINARY(16)   | Client IP address                      |
-| 3   |     pid      | INT          | Client process                   |
-| 4   |     name     | BINARY(24)   | Client name                      |
-| 5   |  start_time  | TIMESTAMP    | Time when client was started                  |
-| 6   |  insert_req  | UBIGINT      | Insert requests                |
-| 7   |  insert_row  | UBIGINT      | Rows inserted                 |
-| 8   | insert_time  | UBIGINT      | Time spent processing insert requests in microseconds |
-| 9   | insert_bytes | UBIGINT      | Size of data inserted in byted           |
-| 10  | fetch_bytes  | UBIGINT      | Size of query results in bytes                  |
-| 11  |  query_time  | UBIGINT      | Time spend processing query requests                |
-| 12  |  slow_query  | UBIGINT      | Number of slow queries (greater than or equal to 3 seconds)  |
-| 13  |  total_req   | UBIGINT      | Total requests                        |
-| 14  | current_req  | UBIGINT      | Requests currently being processed          |
-| 15  | last_access  | TIMESTAMP    | Last update time                    |
+| #   |   **Column Name**   | **Data Type** | **Description**                        |
+| --- | :-----------------: | ------------ | ------------------------------------- |
+| 1   |    app_id           | UBIGINT      | Client ID                             |
+| 2   |      ip             | BINARY(16)   | Client address                        |
+| 3   |     pid             | INT          | Client process ID                     |
+| 4   |     name            | BINARY(24)   | Client name                           |
+| 5   |  start_time         | TIMESTAMP    | Client startup time                   |
+| 6   |  insert_req         | UBIGINT      | Number of insert requests             |
+| 7   |  insert_row         | UBIGINT      | Number of rows inserted               |
+| 8   | insert_time         | UBIGINT      | Processing time of insert requests, in microseconds |
+| 9   | insert_bytes        | UBIGINT      | Number of bytes in insert request message |
+| 10  | fetch_bytes         | UBIGINT      | Number of bytes in query results      |
+| 11  |  query_time         | UBIGINT      | Processing time for query requests    |
+| 12  |  slow_query         | UBIGINT      | Number of slow queries (processing time >= 3 seconds) |
+| 13  |  total_req          | UBIGINT      | Total number of requests              |
+| 14  | current_req         | UBIGINT      | Number of currently processed requests |
+| 15  | last_access         | TIMESTAMP    | Last update time                     |
 
 ## PERF_CONNECTIONS
 
-Provides information about connections to the database. Similar to SHOW CONNECTIONS.
+Provides information about database connections. You can also use SHOW CONNECTIONS to query this information.
 
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :---------: | ------------ | -------------------------------------------------- |
-| 1   |   conn_id   | INT          | Connection ID                                            |
-| 2   |    user     | BINARY(24)   | User name                                             |
-| 3   |     app     | BINARY(24)   | Client name                                         |
-| 4   |     pid     | UINT         | Client process ID on client device that initiated the connection |
-| 5   |  end_point  | BINARY(128)  | Client endpoint                                         |
-| 6   | login_time  | TIMESTAMP    | Login time                                           |
-| 7   | last_access | TIMESTAMP    | Last update time                                       |
+| #   |  **Column Name**  | **Data Type** | **Description**                                           |
+| --- | :---------------: | ------------ | --------------------------------------------------------- |
+| 1   |   conn_id        | INT          | Connection ID                                            |
+| 2   |    user          | BINARY(24)   | Username                                                |
+| 3   |     app          | BINARY(24)   | Client name                                             |
+| 4   |     pid          | UINT         | Process ID of the client that initiated this connection  |
+| 5   |  end_point       | BINARY(128)  | Client address                                         |
+| 6   | login_time       | TIMESTAMP    | Login time                                            |
+| 7   | last_access      | TIMESTAMP    | Last update time                                       |
 
 ## PERF_QUERIES
 
-Provides information about SQL queries currently running. Similar to SHOW QUERIES.
+Provides information about currently executing SQL statements. You can also use SHOW QUERIES to query this information.
 
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :----------: | ------------ | ---------------------------- |
-| 1   |   kill_id    | UBIGINT      | ID used to stop the query            |
-| 2   |   query_id   | INT          | Query ID                      |
-| 3   |   conn_id    | UINT         | Connection ID                      |
-| 4   |     app      | BINARY(24)   | Client name                     |
-| 5   |     pid      | INT          | Client process ID on client device |
-| 6   |     user     | BINARY(24)   | User name                       |
-| 7   |  end_point   | BINARY(16)   | Client endpoint                   |
-| 8   | create_time  | TIMESTAMP    | Creation time                     |
-| 9   |  exec_usec   | BIGINT       | Elapsed time                   |
-| 10  | stable_query | BOOL         | Whether the query is on a supertable             |
-| 11  |   sub_num    | INT          | Number of subqueries                   |
-| 12  |  sub_status  | BINARY(1000) | Subquery status                   |
-| 13  |     sql      | BINARY(1024) | SQL statement                     |
+| #   |   **Column Name**   | **Data Type** | **Description**                     |
+| --- | :-----------------: | ------------ | ----------------------------------- |
+| 1   |   kill_id          | UBIGINT      | ID used to stop the query           |
+| 2   |   query_id         | INT          | Query ID                            |
+| 3   |   conn_id          | UINT         | Connection ID                       |
+| 4   |     app            | BINARY(24)   | App name                           |
+| 5   |     pid            | INT          | App process ID on the host         |
+| 6   |     user           | BINARY(24)   | Username                           |
+| 7   |  end_point         | BINARY(16)   | Client address                     |
+| 8   | create_time        | TIMESTAMP    | Creation time                       |
+| 9   |  exec_usec         | BIGINT       | Execution time                      |
+| 10  | stable_query       | BOOL         | Indicates if it is a supertable query |
+| 11  |   sub_num          | INT          | Number of subqueries                |
+| 12  |  sub_status        | BINARY(1000) | Subquery status                     |
+| 13  |     sql            | BINARY(1024) | SQL statement                       |
 
 ## PERF_CONSUMERS
 
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :------------: | ------------ | ----------------------------------------------------------- |
-| 1   |  consumer_id   | BIGINT       | Consumer ID                                             |
-| 2   | consumer_group | BINARY(192)  | Consumer group                                                    |
-| 3   |   client_id    | BINARY(192)  | Client ID (user-defined) |
-| 4   |     status     | BINARY(20)   | Consumer status. All possible status include: ready(consumer is in normal state), lost(the connection between consumer and mnode is broken), rebalance(the redistribution of vgroups that belongs to current consumer is now in progress), unknown(consumer is in invalid state)
-| 5   |     topics     | BINARY(204)  | Subscribed topic. Returns one row for each topic.              |
-| 6   |    up_time     | TIMESTAMP    | Time of first connection to TDengine Server                                     |
-| 7   | subscribe_time | TIMESTAMP    | Time of first subscription                                        |
-| 8   | rebalance_time | TIMESTAMP    | Time of first rebalance triggering                                 |
+| #   |    **Column Name**    | **Data Type** | **Description**                                                    |
+| --- | :-------------------: | ------------ | ----------------------------------------------------------- |
+| 1   |  consumer_id          | BIGINT       | Unique ID of the consumer                                       |
+| 2   | consumer_group         | BINARY(192)  | Consumer group                                                  |
+| 3   |   client_id           | BINARY(192)  | User-defined string, displayed by specifying client_id when creating the consumer |
+| 4   |     status            | BINARY(20)   | Current status of the consumer. Status includes: ready (available), lost (connection lost), rebalancing (vgroup allocation in progress), unknown (unknown state) |
+| 5   |     topics            | BINARY(204)  | Subscribed topics. If multiple topics are subscribed, they are displayed in multiple rows |
+| 6   |    up_time            | TIMESTAMP    | Time of first connection to taosd                              |
+| 7   | subscribe_time        | TIMESTAMP    | Time of last subscription initiation                            |
+| 8   | rebalance_time        | TIMESTAMP    | Time of last rebalance trigger                                  |
 
 ## PERF_TRANS
 
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :--------------: | ------------ | -------------------------------------------------------------- |
-| 1   |        id        | INT          | ID of the transaction currently running                                           |
-| 2   |   create_time    | TIMESTAMP    | Creation time                                                 |
-| 3   |      stage       | BINARY(12)   | Transaction stage (redoAction, undoAction, or commit) |
-| 4   |       db1        | BINARY(64)   | First database having a conflict with the transaction                               |
-| 5   |       db2        | BINARY(64)   | Second database having a conflict with the transaction                               |
-| 6   |   failed_times   | INT          | Times the transaction has failed                                           |
-| 7   |  last_exec_time  | TIMESTAMP    | Previous time the transaction was run                                             |
-| 8   | last_action_info | BINARY(511)  | Reason for failure on previous run                                     |
+| #   |     **Column Name**     | **Data Type** | **Description**                                                       |
+| --- | :--------------------: | ------------ | -------------------------------------------------------------- |
+| 1   |        id              | INT          | ID of the ongoing transaction                                          |
+| 2   |   create_time          | TIMESTAMP    | Creation time of the transaction                                      |
+| 3   |      stage             | BINARY(12)   | Current stage of the transaction, usually redoAction, undoAction, commit |
+| 4   |       db1              | BINARY(64)   | Name of database 1 that conflicts with this transaction              |
+| 5   |       db2              | BINARY(64)   | Name of database 2 that conflicts with this transaction              |
+| 6   |   failed_times         | INT          | Total number of times the transaction execution failed               |
+| 7   |  last_exec_time        | TIMESTAMP    | Last execution time of the transaction                               |
+| 8   | last_action_info       | BINARY(511)  | Details of the last execution failure of the transaction             |
 
 ## PERF_SMAS
 
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :---------: | ------------ | ------------------------------------------- |
-| 1   |  sma_name   | BINARY(192)  | Time-range-wise SMA name |
-| 2   | create_time | TIMESTAMP    | Creation time                                |
-| 3   | stable_name | BINARY(192)  | Supertable name                        |
-| 4   |  vgroup_id  | INT          | Dedicated vgroup name                      |
+| #   |  **Column Name**   | **Data Type** | **Description**                                    |
+| --- | :---------------: | ------------ | ------------------------------------------- |
+| 1   |  sma_name         | BINARY(192)  | Name of the time-range-wise SMA                 |
+| 2   | create_time       | TIMESTAMP    | Creation time of the SMA                         |
+| 3   | stable_name       | BINARY(192)  | Name of the supertable to which the SMA belongs |
+| 4   |  vgroup_id        | INT          | Name of the exclusive vgroup for the SMA         |
