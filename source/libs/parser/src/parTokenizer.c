@@ -52,6 +52,7 @@ static SKeyword keywordTable[] = {
     {"BETWEEN",              TK_BETWEEN},
     {"BIGINT",               TK_BIGINT},
     {"BINARY",               TK_BINARY},
+    {"BLOB",                 TK_BLOB},
     {"BNODE",                TK_BNODE},
     {"BNODES",               TK_BNODES},
     {"BOOL",                 TK_BOOL},
