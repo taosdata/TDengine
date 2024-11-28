@@ -373,7 +373,7 @@ int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **pItem, const char *name, c
   }
 
   *pItem = cfgGetItem(pCfg, name);
-  if (pItem == NULL) {
+  if (*pItem == NULL) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
