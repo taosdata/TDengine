@@ -283,6 +283,18 @@ class TBase:
             time.sleep(interval)
         
         return False    
+    def waitCompactsZero(self, seconds = 300, interval = 1):
+        # wait end
+        for i in range(seconds):
+            sql ="show compacts;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+                tdLog.info("compacts count became zero.")
+                return True
+            #tdLog.info(f"i={i} wait ...")
+            time.sleep(interval)
+        
+        return False
 
     # check file exist
     def checkFileExist(self, pathFile):
