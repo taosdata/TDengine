@@ -671,6 +671,7 @@ static int32_t tsdbLoadFromImem(SMemTable *imem, TABLEID tid) {
       }
     }
   }
+  tsdbRowClose(&iter);
 
   // continue to get next row to fill null last col values
   pMemRow = tsdbImemGetNextRow(&tbIter, pSkyline, &iSkyline);
@@ -710,9 +711,10 @@ static int32_t tsdbLoadFromImem(SMemTable *imem, TABLEID tid) {
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
+
+    tsdbRowClose(&iter);
   }
 
-  tsdbRowClose(&iter);
   taosArrayClear(ctxArray);
   // destroy any allocated resource
   tSimpleHashCleanup(iColHash);
