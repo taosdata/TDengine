@@ -129,7 +129,7 @@ taos> show anodes full;
            1 | anomaly-detection          | ksigma                         |
            1 | anomaly-detection          | lof                            |
            1 | anomaly-detection          | grubbs                         |
-           1 | anomaly-detection          | encoder                        |
+           1 | anomaly-detection          | ad_encoder                     |
            1 | forecast                   | holtwinters                    |
            1 | forecast                   | arima                          |
 Query OK, 8 row(s) in set (0.008796s)
