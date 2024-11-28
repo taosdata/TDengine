@@ -63,7 +63,7 @@ Anode采用算法自动加载模式，因此只识别符合命名约定的 Pytho
 
 ```SQL
 --- algo 后面的参数 name 即为类属性 `name`
-SELECT COUNT(*) FROM foo ANOMALY_DETECTION(col_name, 'algo=name')
+SELECT COUNT(*) FROM foo ANOMALY_WINDOW(col_name, 'algo=name')
 ```
 
 ## 添加具有模型的分析算法
@@ -78,5 +78,5 @@ SELECT COUNT(*) FROM foo ANOMALY_DETECTION(col_name, 'algo=name')
 
 ```SQL
 --- 在 options 中增加 model 的名称，ad_autoencoder_foo， 针对 foo 数据集（表）训练的采用自编码器的异常检测模型进行异常检测
-SELECT COUNT(*), _WSTART FROM foo ANOMALY_DETECTION(col1, 'algo=encoder, model=ad_autoencoder_foo');
+SELECT COUNT(*), _WSTART FROM foo ANOMALY_WINDOW(col1, 'algo=encoder, model=ad_autoencoder_foo');
 ```
