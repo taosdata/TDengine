@@ -1303,7 +1303,8 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
     if (shell_conn_ws_server(1)) {
-      printf("failed to connect to server, code:0x08X %s\n", ws_errno(NULL), ws_errstr(NULL));
+      printf("failed to connect to server, code:0x%08X %s\n%s", ws_errno(NULL), ws_errstr(NULL), ERROR_CODE_DETAIL);
+      printf(ERROR_CODE_DETAIL);
       fflush(stdout);
       return -1;
     }
@@ -1316,7 +1317,7 @@ int32_t shellExecute() {
     }
 
     if (shell.conn == NULL) {
-      printf("failed to connect to server, code:0x%08X %s\n", taos_errno(NULL), taos_errstr(NULL));
+      printf("failed to connect to server, code:0x%08X %s\n%s", taos_errno(NULL), taos_errstr(NULL), ERROR_CODE_DETAIL);
       fflush(stdout);
       return -1;
     }
