@@ -163,17 +163,22 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     PARSE(&str[i], hourSize, hour);
 
     i += hourSize + 1;
-    size_t minSize = strlen(&str[i]);
-    PARSE(&str[i], minSize, minute);
-    if (minute > 59 || minute < 0) {
-      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
-    }
   } else {
     size_t hourSize = strlen(&str[i]);
+    if (hourSize > 2){
+      hourSize = 2;
+    }
     PARSE(&str[i], hourSize, hour)
+    i += hourSize;
   }
 
   if (hour > 13 || hour < 0) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  size_t minSize = strlen(&str[i]);
+  PARSE(&str[i], minSize, minute);
+  if (minute > 59 || minute < 0) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 

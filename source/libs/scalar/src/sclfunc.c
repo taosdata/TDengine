@@ -2259,10 +2259,10 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       len += tzLen;
     }
 
-_end:
     memmove(buf + VARSTR_HEADER_SIZE, buf, len);
     varDataSetLen(buf, len);
 
+  _end:
     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, buf, false));
   }
 
