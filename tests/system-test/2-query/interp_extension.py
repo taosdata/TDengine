@@ -8,6 +8,8 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.common import *
+from datetime import timezone
+from tzlocal import get_localzone
 # from tmqCommon import *
 
 
@@ -15,6 +17,7 @@ ROUND: int = 999
 
 class TDTestCase:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'debugFlag': 143}
+    check_failed: bool = False
 
     def __init__(self):
         self.vgroups = 4
@@ -142,22 +145,27 @@ class TDTestCase:
         self.test_interp_extension()
 
     def binary_search_ts(self, select_results, ts):
-        found: bool = False
-        start = 0
-        end = len(select_results) - 1
-        while start <= end:
-            mid = (start + end) // 2
-            if select_results[mid][0] == ts:
-                found = True
-                return mid
-            elif select_results[mid][0] < ts:
-                start = mid + 1
-            else:
-                end = mid - 1
+        mid = 0
+        try:
+            found: bool = False
+            start = 0
+            end = len(select_results) - 1
+            while start <= end:
+                mid = (start + end) // 2
+                if select_results[mid][0] == ts:
+                    found = True
+                    return mid
+                elif select_results[mid][0] < ts:
+                    start = mid + 1
+                else:
+                    end = mid - 1
 
-        if not found:
-            tdLog.exit(f"cannot find ts in select results {ts} {select_results}")
-        return start
+            if not found:
+                tdLog.exit(f"cannot find ts in select results {ts} {select_results}")
+            return start
+        except Exception as e:
+            tdLog.debug(f"{select_results[mid][0]}, {ts}, {len(select_results)}, {select_results[mid]}")
+            tdLog.exit(f"binary_search_ts error: {e}")
 
     ## TODO pass last position to avoid search from the beginning
     def is_nearest(self, select_results, irowts_origin, irowts):
@@ -177,7 +185,13 @@ class TDTestCase:
     def check_result_for_near(self, interp_results, select_all_results, sql):
         #tdLog.debug(f"check_result_for_near for sql: {sql}")
         for row in interp_results:
-            if not self.is_nearest(select_all_results, row[0], row[1]):
+            if row[0].tzinfo is None or row[0].tzinfo.utcoffset(row[0]) is None:
+                irowts_origin = row[0].replace(tzinfo=get_localzone())
+                irowts = row[1].replace(tzinfo=get_localzone())
+            else:
+                irowts_origin = row[0]
+                irowts = row[1]
+            if not self.is_nearest(select_all_results, irowts_origin, irowts):
                 tdLog.exit(f"interp result is not the nearest for row: {row}")
 
     def query_routine(self, sql_queue: queue.Queue, output_queue: queue.Queue):
@@ -186,7 +200,7 @@ class TDTestCase:
             cli = tdcom.newTdSql()
             while True:
                 sql = sql_queue.get()
-                if sql is None:
+                if sql is None or self.check_failed:
                     output_queue.put(None)
                     break
                 cli.query(sql, queryTimes=1)
@@ -201,14 +215,15 @@ class TDTestCase:
                 item = output_queue.get()
                 if item is None:
                     break
-                sql, interp_results = item
+                (sql, interp_results) = item
                 self.check_result_for_near(interp_results, select_all_results, sql)
         except Exception as e:
+            self.check_failed = True
             tdLog.exit(f"interp_check_near_routine error: {e}")
 
     def create_qt_threads(self, sql_queue: queue.Queue, output_queue: queue.Queue, num: int):
         qts = []
-        for i in range(0, num):
+        for _ in range(0, num):
             qt = threading.Thread(target=self.query_routine, args=(sql_queue, output_queue))
             qt.start()
             qts.append(qt)
@@ -291,6 +306,9 @@ class TDTestCase:
         self.wait_qt_threads(qts)
         ct.join()
 
+        if self.check_failed:
+            tdLog.exit("interp check near failed")
+
     def test_interp_extension_irowts_origin(self):
         sql = f"select _irowts, _irowts_origin, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near)"
         tdSql.query(sql, queryTimes=1)
@@ -363,10 +381,10 @@ class TDTestCase:
 
         ### first(ts)               | last(ts)
         ### 2018-09-17 09:00:00.047 | 2018-09-17 10:23:19.863
-        sql = "select to_char(first(ts), 'YYYY-MM-DD HH24:MI:SS.MS') from meters"
+        sql = "select to_char(first(ts), 'YYYY-MM-DD HH24:MI:SS.MS') from test.meters"
         tdSql.query(sql, queryTimes=1)
         first_ts = tdSql.queryResult[0][0]
-        sql = "select to_char(last(ts), 'YYYY-MM-DD HH24:MI:SS.MS') from meters"
+        sql = "select to_char(last(ts), 'YYYY-MM-DD HH24:MI:SS.MS') from test.meters"
         tdSql.query(sql, queryTimes=1)
         last_ts = tdSql.queryResult[0][0]
         sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1d) fill(near, 1, 2)"
@@ -430,14 +448,14 @@ class TDTestCase:
 
     def test_interp_fill_extension_stream(self):
         ## near is not supported
-        sql = f"create stream s1 trigger force_window_close into s_res_tb as select _irowts, interp(c1), interp(c2)from meters partition by tbname every(1s) fill(near);"
+        sql = f"create stream s1 trigger force_window_close into test.s_res_tb as select _irowts, interp(c1), interp(c2)from test.meters partition by tbname every(1s) fill(near);"
         tdSql.error(sql, -2147473851) ## TSDB_CODE_PAR_INVALID_STREAM_QUERY
 
         ## _irowts_origin is not support
-        sql = f"create stream s1 trigger force_window_close into s_res_tb as select _irowts_origin, interp(c1), interp(c2)from meters partition by tbname every(1s) fill(prev);"
+        sql = f"create stream s1 trigger force_window_close into test.s_res_tb as select _irowts_origin, interp(c1), interp(c2)from test.meters partition by tbname every(1s) fill(prev);"
         tdSql.error(sql, -2147473851) ## TSDB_CODE_PAR_INVALID_STREAM_QUERY
 
-        sql = f"create stream s1 trigger force_window_close into s_res_tb as select _irowts, interp(c1), interp(c2)from meters partition by tbname every(1s) fill(next, 1, 1);"
+        sql = f"create stream s1 trigger force_window_close into test.s_res_tb as select _irowts, interp(c1), interp(c2)from test.meters partition by tbname every(1s) fill(next, 1, 1);"
         tdSql.error(sql, -2147473915) ## cannot specify values
 
     def test_interp_extension(self):

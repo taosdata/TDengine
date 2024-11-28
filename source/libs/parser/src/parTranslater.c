@@ -6207,10 +6207,10 @@ static int32_t checkInterpForStream(STranslateContext* pCxt, SSelectStmt* pSelec
   if (pCxt->createStream) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     if (pFill->mode == FILL_MODE_NEAR) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "FILL NEAR is not supported by stream");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "FILL NEAR is not supported by stream");
     }
     if (pSelect->pRangeAround) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "RANGE with around is not supported by stream");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "RANGE with around is not supported by stream");
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -6234,7 +6234,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   bool hasRowTsOriginFunc = false;
   nodesWalkExprs(pSelect->pProjectionList, hasRowTsOriginFuncWalkNode, &hasRowTsOriginFunc);
   if (hasRowTsOriginFunc && pCxt->createStream) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                 "_irowts_origin is not supported by stream");
   }
   if (TSDB_CODE_SUCCESS == code) {
