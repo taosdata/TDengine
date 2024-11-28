@@ -1,0 +1,195 @@
+use arrow::array::{StringArray, StringBuilder};
+
+#[derive(Debug, snafu::Snafu)]
+pub enum Error {
+    Empty,
+    NotMatch,
+    Invalid,
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
+const IGNORE_WILDCARD: &str = "_";
+
+#[derive(Debug, PartialEq)]
+pub struct TopicPattern(String);
+
+impl TopicPattern {
+    pub fn keys(&self) -> Vec<String> {
+        self.0
+            .split('/')
+            .filter(|s| !s.is_empty() && *s != IGNORE_WILDCARD)
+            .map(|s| s.to_owned())
+            .collect()
+    }
+
+    pub fn parse_topic(&self, topic: &str) -> Result<Vec<(String, String)>> {
+        let mut pattern_split = self.0.split('/');
+        let mut topic_split = topic.split('/');
+        let mut res = Vec::new();
+        loop {
+            match (pattern_split.next(), topic_split.next()) {
+                (None, None) => return Ok(res),
+                (None, Some(_)) | (Some(_), None) => return NotMatchSnafu.fail(),
+                (Some(l), Some(r)) if l.is_empty() || r.is_empty() || l == IGNORE_WILDCARD => {
+                    continue
+                }
+                (Some(l), Some(r)) => res.push((l.to_owned(), r.to_owned())),
+            }
+        }
+    }
+}
+
+impl std::str::FromStr for TopicPattern {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        snafu::ensure!(!s.is_empty(), EmptySnafu);
+        snafu::ensure!(!s.contains("//"), InvalidSnafu);
+        snafu::ensure!(
+            s.chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '/'),
+            InvalidSnafu
+        );
+        snafu::ensure!(s != "topic", InvalidSnafu);
+        snafu::ensure!(s != "qos", InvalidSnafu);
+        snafu::ensure!(s != "ts", InvalidSnafu);
+        snafu::ensure!(s != "payload", InvalidSnafu);
+        Ok(Self(s.to_owned()))
+    }
+}
+
+impl std::fmt::Display for TopicPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+pub struct TopicParser {
+    pattern: TopicPattern,
+    builders: Vec<(String, StringBuilder)>,
+}
+
+impl TopicParser {
+    pub fn new(pattern: TopicPattern) -> Self {
+        let builders = pattern
+            .keys()
+            .into_iter()
+            .map(|k| (k, StringBuilder::new()))
+            .collect();
+        Self { pattern, builders }
+    }
+
+    pub fn append_value(&mut self, topic: &str) -> anyhow::Result<()> {
+        let parts = self.pattern.parse_topic(topic)?;
+        let mut parts = parts.into_iter();
+
+        let mut builders = self.builders.iter_mut();
+        loop {
+            match (builders.next(), parts.next()) {
+                (None, None) => return Ok(()),
+                (None, _) | (_, None) => {
+                    anyhow::bail!("parse topic error: pattern={}, topic={topic}", self.pattern)
+                }
+                (Some((builder_key, _)), Some((topic_key, _))) if *builder_key != topic_key => {
+                    anyhow::bail!(
+                        "topic pattern key not match: expected {builder_key}, found {topic_key}"
+                    )
+                }
+                (Some((_, builder)), Some((_, part))) => builder.append_value(&part),
+            }
+        }
+    }
+
+    pub fn finish(&mut self) -> Vec<StringArray> {
+        self.builders
+            .iter_mut()
+            .map(|(_, builder)| builder.finish())
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn parse_pattern_test() -> anyhow::Result<()> {
+        assert!("".parse::<TopicPattern>().is_err());
+        assert!("a//b".parse::<TopicPattern>().is_err());
+        assert_eq!(
+            "a/b/c".parse::<TopicPattern>()?,
+            TopicPattern("a/b/c".to_string())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parse_topic_test() -> anyhow::Result<()> {
+        let pattern: TopicPattern = "a/_/c/d".parse()?;
+        assert_eq!(
+            pattern.parse_topic("a1/b1/c1/d1")?,
+            vec![
+                ("a".to_string(), "a1".to_string()),
+                ("c".to_string(), "c1".to_string()),
+                ("d".to_string(), "d1".to_string())
+            ]
+        );
+        assert!(pattern.parse_topic("a1/b1").is_err());
+        assert!(pattern.parse_topic("a1/b1/c1/d1/e1").is_err());
+
+        let pattern: TopicPattern = "a".parse()?;
+        assert_eq!(
+            pattern.parse_topic("a1")?,
+            vec![("a".to_string(), "a1".to_string())]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn pattern_keys_test() -> anyhow::Result<()> {
+        let pattern: TopicPattern = "a".parse()?;
+        assert_eq!(pattern.keys(), vec!["a".to_string()]);
+
+        let pattern: TopicPattern = "a/b".parse()?;
+        assert_eq!(pattern.keys(), vec!["a".to_string(), "b".to_string()]);
+
+        let pattern: TopicPattern = "_/a/_/b".parse()?;
+        assert_eq!(pattern.keys(), vec!["a".to_string(), "b".to_string()]);
+        Ok(())
+    }
+
+    #[test]
+    fn parser_test() -> anyhow::Result<()> {
+        let mut parser = TopicParser::new("_/a/_/b".parse()?);
+        parser.append_value("w/x/y/z")?;
+        assert!(parser.append_value("/1/2/3/4").is_err());
+        assert!(parser.append_value("1").is_err());
+        parser.append_value("1/2/3/4")?;
+        assert_eq!(
+            parser.finish(),
+            vec![
+                StringArray::from(vec!["x", "2"]),
+                StringArray::from(vec!["z", "4"])
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn topic_parser_test() -> anyhow::Result<()> {
+        let mut topic_parser = TopicParser::new("a/_/c".parse()?);
+        topic_parser.append_value("this/is/test")?;
+        topic_parser.append_value("test/parse/topic")?;
+        assert_eq!(
+            topic_parser.finish(),
+            vec![
+                StringArray::from(vec!["this", "test"]),
+                StringArray::from(vec!["test", "topic"])
+            ]
+        );
+        Ok(())
+    }
+}

@@ -10,13 +10,14 @@ use crate::{
     utils::codec::{Decompressor, StringDecoder},
 };
 
-use super::client::Version;
+use super::{client::Version, topic::TopicPattern};
 
 #[derive(Debug)]
 pub struct MqttConfig {
     pub task: TaskConfig,
     pub mqtt: MqttConnectConfig,
     pub topics: HashMap<String, u8>,
+    pub topic_pattern: Option<TopicPattern>,
     pub dump: Option<DumpConfig>,
     pub codec_processor: (Option<Decompressor>, Option<StringDecoder>),
 }
@@ -77,6 +78,7 @@ impl TryFrom<&Dsn> for MqttConfig {
             topics: parse_topics(dsn)?,
             dump: DumpConfig::from_dsn(dsn)?,
             codec_processor: parse_codec_processor(dsn)?,
+            topic_pattern: parse_simple_params(dsn, "topic_pattern")?,
         })
     }
 }
