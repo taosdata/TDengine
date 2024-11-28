@@ -558,15 +558,15 @@ def unzip_docs(doc_zip_path, doc_public_path):
         sys.exit(1)
 
 def update_docs_zip_file(explorer_path):
-    doc_zip_path = "/root/enterprise_build_zip_work/enterprise-docs"
     try:
+        remote_doc_zip_path = "/root/enterprise_build_zip_work/enterprise-docs"
         print("update docs zip file")
         doc_zip_path = os.path.join(explorer_path, "..")
         if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
-            subprocess.run(f"scp root@192.168.0.30:{doc_zip_path}/docs-{release_info.CustomPrompt}.zip {doc_zip_path}", shell=True)
+            subprocess.run(f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-{release_info.CustomPrompt}.zip {doc_zip_path}", shell=True)
         else:
-            cmd1 = f"scp root@192.168.0.30:{doc_zip_path}/docs-en.zip {doc_zip_path}"
-            cmd2 = f"scp root@192.168.0.30:{doc_zip_path}/docs-zh.zip {doc_zip_path}"
+            cmd1 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-en.zip {doc_zip_path}"
+            cmd2 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-zh.zip {doc_zip_path}"
             subprocess.run(cmd1, shell=True)
             subprocess.run(cmd2, shell=True)
     except Exception as e:
