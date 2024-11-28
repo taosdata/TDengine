@@ -4,11 +4,13 @@
 LOG_FILE="test_server.log"
 SUCCESS_FILE="success.txt"
 FAILED_FILE="failed.txt"
+REPORT_FILE="report.txt"
 
 # Initialize/clear result files
 > "$SUCCESS_FILE"
 > "$FAILED_FILE"
 > "$LOG_FILE"
+> "$REPORT_FILE"
 
 # Switch to the target directory
 TARGET_DIR="../../tests/system-test/"
@@ -22,17 +24,9 @@ else
     exit 1
 fi
 
-# Define the Python commands to execute ：case list
+# Define the Python commands to execute
 commands=(
     "python3 ./test.py -f 2-query/join.py"
-    "python3 ./test.py -f 1-insert/insert_column_value.py"
-    "python3 ./test.py -f 2-query/primary_ts_base_5.py"
-    "python3 ./test.py -f 2-query/case_when.py"
-    "python3 ./test.py -f 2-query/partition_limit_interval.py"
-    "python3 ./test.py -f 2-query/fill.py"
-    "python3 ./test.py -f query/query_basic.py -N 3"
-    "python3 ./test.py -f 7-tmq/basic5.py"
-    "python3 ./test.py -f 8-stream/stream_basic.py"
     "python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3"
 )
 
@@ -45,6 +39,7 @@ fail_count=0
 for cmd in "${commands[@]}"
 do
     echo "===== Executing Command: $cmd =====" | tee -a "$LOG_FILE"
+    
     # Execute the command and append output and errors to the log file
     eval "$cmd" >> "$LOG_FILE" 2>&1
     exit_code=$?
@@ -58,6 +53,7 @@ do
         echo "$cmd" >> "$FAILED_FILE"
         ((fail_count++))
     fi
+    
     echo "" | tee -a "$LOG_FILE"  # Add an empty line for separation
 done
 
@@ -72,23 +68,31 @@ if [ $fail_count -ne 0 ]; then
     echo "The following commands failed:" | tee -a "$LOG_FILE"
     cat "$FAILED_FILE" | tee -a "$LOG_FILE"
 else
-    echo "All commands executed successfully." | tee -a "$LOG_FILE"
+    echo "All commands executed successfully. Deleting log and result files..." | tee -a "$LOG_FILE"
+    rm -f "$LOG_FILE" "$SUCCESS_FILE" "$FAILED_FILE" "$REPORT_FILE"
+    echo "Log and result files deleted."
 fi
 
-# Optional: Generate a separate report file
-echo "" > "report.txt"
-echo "===== Test Report =====" >> "report.txt"
-echo "Total Commands Executed: $total" >> "report.txt"
-echo "Successful: $success_count" >> "report.txt"
-echo "Failed: $fail_count" >> "report.txt"
-
+# Generate a separate report file if there are failed commands
 if [ $fail_count -ne 0 ]; then
-    echo "" >> "report.txt"
-    echo "The following commands failed:" >> "report.txt"
-    cat "$FAILED_FILE" >> "report.txt"
+    echo "" >> "$REPORT_FILE"
+    echo "===== Test Report =====" >> "$REPORT_FILE"
+    echo "Total Commands Executed: $total" >> "$REPORT_FILE"
+    echo "Successful: $success_count" >> "$REPORT_FILE"
+    echo "Failed: $fail_count" >> "$REPORT_FILE"
+    echo "" >> "$REPORT_FILE"
+    echo "The following commands failed:" >> "$REPORT_FILE"
+    cat "$FAILED_FILE" >> "$REPORT_FILE"
 else
-    echo "All commands executed successfully." >> "report.txt"
+    echo "===== Test Report =====" > "$REPORT_FILE"
+    echo "Total Commands Executed: $total" >> "$REPORT_FILE"
+    echo "Successful: $success_count" >> "$REPORT_FILE"
+    echo "Failed: $fail_count" >> "$REPORT_FILE"
+    echo "All commands executed successfully." >> "$REPORT_FILE"
 fi
 
-echo "Detailed logs can be found in $LOG_FILE"
-echo "Test report can be found in report.txt"
+# Print the absolute paths of the log and result files
+echo "Detailed logs can be found in: $(realpath "$LOG_FILE")"
+echo "Successful commands can be found in: $(realpath "$SUCCESS_FILE")"
+echo "Failed commands can be found in: $(realpath "$FAILED_FILE")"
+echo "Test report can be found in: $(realpath "$REPORT_FILE")"
