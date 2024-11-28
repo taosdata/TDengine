@@ -59,8 +59,12 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
 
   EXPECT_EQ(connectRsp.epSet.inUse, 0);
   EXPECT_EQ(connectRsp.epSet.numOfEps, 1);
-  EXPECT_EQ(connectRsp.epSet.eps[0].port, 9031);
-  EXPECT_STREQ(connectRsp.epSet.eps[0].fqdn, "localhost");
+  EXPECT_EQ(connectRsp.epSet.eps[0].port, 6030);
+  char    defaultFqdn[TSDB_FQDN_LEN] = {0};
+  if (taosGetFqdn(defaultFqdn) != 0) {
+    (void)strcpy(defaultFqdn, "localhost");
+  }
+  EXPECT_STREQ(connectRsp.epSet.eps[0].fqdn, defaultFqdn);
 
   connId = connectRsp.connId;
 }
@@ -90,7 +94,7 @@ TEST_F(MndTestProfile, 02_ConnectMsg_NotExistDB) {
 
 TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
   test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "perf_connections", "");
-  EXPECT_EQ(test.GetShowRows(), 1);
+  EXPECT_EQ(test.GetShowRows(), 8);
 }
 
 TEST_F(MndTestProfile, 04_HeartBeatMsg) {

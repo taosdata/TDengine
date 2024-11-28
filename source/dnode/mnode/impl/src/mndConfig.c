@@ -501,8 +501,16 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, isUpdateAll), &lino,
                     _err_out);
   }
+  SConfigItem *pItem = cfgGetItem(taosGetCfg(), dcfgReq.config);
   // Update config in sdb.
-  TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, cfgReq.config, cfgReq.value), &lino, _err_out);
+  if (pItem == NULL) {
+    mError("failed to find config:%s while process config dnode req", cfgReq.config);
+    code = TSDB_CODE_CFG_NOT_FOUND;
+    goto _err_out;
+  }
+  if (pItem->category == CFG_CATEGORY_GLOBAL) {
+    TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, dcfgReq.config, dcfgReq.value), &lino, _err_out);
+  }
   {  // audit
     char obj[50] = {0};
     (void)sprintf(obj, "%d", cfgReq.dnodeId);

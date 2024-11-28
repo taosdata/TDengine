@@ -480,9 +480,8 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       return code;
     }
   }
-  if (isConifgItemLazyMode(pItem)) {
+  if (!isConifgItemLazyMode(pItem)) {
     TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
-    return TSDB_CODE_INVALID_MSG;
   }
 
   if (pItem->category == CFG_CATEGORY_GLOBAL) {

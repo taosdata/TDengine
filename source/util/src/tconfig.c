@@ -1306,71 +1306,6 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   }
 }
 
-// int32_t cfgLoadFromCfgText(SConfig *pConfig, const char *configText) {
-//   char   *line = NULL, *name, *value, *value2, *value3;
-//   int32_t olen, vlen, vlen2, vlen3;
-//   ssize_t _bytes = 0;
-//   int32_t code = 0;
-
-//   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
-//   if (pFile == NULL) {
-//     // success when the file does not exist
-//     if (errno == ENOENT) {
-//       terrno = TAOS_SYSTEM_ERROR(errno);
-//       uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, terrstr());
-//       return 0;
-//     } else {
-//       uError("failed to load from cfg file %s since %s", filepath, terrstr());
-//       return -1;
-//     }
-//   }
-
-//   while (!taosEOFFile(pFile)) {
-//     name = value = value2 = value3 = NULL;
-//     olen = vlen = vlen2 = vlen3 = 0;
-
-//     _bytes = taosGetLineFile(pFile, &line);
-//     if (_bytes <= 0) {
-//       break;
-//     }
-
-//     if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-
-//     (void)paGetToken(line, &name, &olen);
-//     if (olen == 0) continue;
-//     name[olen] = 0;
-
-//     (void)paGetToken(name + olen + 1, &value, &vlen);
-//     if (vlen == 0) continue;
-//     value[vlen] = 0;
-
-//     (void)paGetToken(value + vlen + 1, &value2, &vlen2);
-//     if (vlen2 != 0) {
-//       value2[vlen2] = 0;
-//       (void)paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
-//       if (vlen3 != 0) value3[vlen3] = 0;
-//     }
-
-//     code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
-//     if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-//     if (strcasecmp(name, "dataDir") == 0) {
-//       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
-//       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-//     }
-//   }
-
-//   (void)taosCloseFile(&pFile);
-//   if (line != NULL) taosMemoryFreeClear(line);
-
-//   if (code == 0 || (code != 0 && terrno == TSDB_CODE_CFG_NOT_FOUND)) {
-//     uInfo("load from cfg file %s success", filepath);
-//     return 0;
-//   } else {
-//     uError("failed to load from cfg file %s since %s", filepath, terrstr());
-//     return -1;
-//   }
-// }
-
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   char   *cfgLineBuf = NULL, *name, *value, *value2, *value3, *value4;
   SJson  *pJson = NULL;
@@ -1619,9 +1554,9 @@ int32_t cfgCreateIter(SConfig *pConf, SConfigIter **ppIter) {
 
 SConfigItem *cfgNextIter(SConfigIter *pIter) {
   if (pIter->index < cfgGetGlobalSize(pIter->pConf)) {
-    return taosArrayGet(pIter->pConf->localArray, pIter->index++);
+    return taosArrayGet(pIter->pConf->globalArray, pIter->index++);
   } else if (pIter->index < cfgGetGlobalSize(pIter->pConf) + cfgGetLocalSize(pIter->pConf)) {
-    return taosArrayGet(pIter->pConf->globalArray, pIter->index++ - cfgGetGlobalSize(pIter->pConf));
+    return taosArrayGet(pIter->pConf->localArray, pIter->index++ - cfgGetGlobalSize(pIter->pConf));
   }
   return NULL;
 }
