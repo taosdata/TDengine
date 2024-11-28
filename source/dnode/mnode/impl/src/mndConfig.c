@@ -468,6 +468,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   SDCfgDnodeReq dcfgReq = {0};
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
     (void)strcpy(dcfgReq.config, "resetlog");
+    goto _send_req;
 #ifdef TD_ENTERPRISE
   } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
     int32_t optLen = strlen("s3blocksize");
@@ -511,12 +512,14 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   if (pItem->category == CFG_CATEGORY_GLOBAL) {
     TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, dcfgReq.config, dcfgReq.value), &lino, _err_out);
   }
-  {  // audit
-    char obj[50] = {0};
-    (void)sprintf(obj, "%d", cfgReq.dnodeId);
+_send_req :
 
-    auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
-  }
+{  // audit
+  char obj[50] = {0};
+  (void)sprintf(obj, "%d", cfgReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
+}
 
   tFreeSMCfgDnodeReq(&cfgReq);
 
