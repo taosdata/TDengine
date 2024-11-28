@@ -156,6 +156,7 @@ class TDTestCase:
         alterSql = "alter all dnodes 'tmqMaxTopicNum' '22'"
         tdLog.info("alter all dnodes 'tmqMaxTopicNum' '22'")
         tdSql.execute(alterSql)
+        newTmqMaxTopicNum = 22
 
         sqlString = "create topic %s%s as %s" %(topicNamePrefix, 'x', queryString)
         tdLog.info("create topic sql: %s"%sqlString)
