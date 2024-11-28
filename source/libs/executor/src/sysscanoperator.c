@@ -2058,22 +2058,16 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
     // fill the data block
     {
       SColumnInfoData* pColInfoData;
-
-      // dnode_id
-      int32_t dnodeId = 0;  // TODO
-      pColInfoData = taosArrayGet(p->pDataBlock, 0);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&dnodeId, false);
-      QUERY_CHECK_CODE(code, lino, _end);
+      int32_t          index = 0;
 
       // db_name
-      pColInfoData = taosArrayGet(p->pDataBlock, 1);
+      pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, db, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // vgroup_id
-      pColInfoData = taosArrayGet(p->pDataBlock, 2);
+      pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2082,7 +2076,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       int32_t filesetId = 0;
       code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "fileset_id", &filesetId);
       QUERY_CHECK_CODE(code, lino, _end);
-      pColInfoData = taosArrayGet(p->pDataBlock, 3);
+      pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&filesetId, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2091,7 +2085,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       int64_t startTime = 0;
       code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "start_time", &startTime);
       QUERY_CHECK_CODE(code, lino, _end);
-      pColInfoData = taosArrayGet(p->pDataBlock, 4);
+      pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&startTime, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2100,7 +2094,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       int64_t endTime = 0;
       code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "end_time", &endTime);
       QUERY_CHECK_CODE(code, lino, _end);
-      pColInfoData = taosArrayGet(p->pDataBlock, 5);
+      pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&endTime, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2109,7 +2103,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       int64_t totalSize = 0;
       code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "total_size", &totalSize);
       QUERY_CHECK_CODE(code, lino, _end);
-      pColInfoData = taosArrayGet(p->pDataBlock, 6);
+      pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&totalSize, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2118,7 +2112,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       int64_t lastCompacat = 0;
       code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "last_compact_time", &lastCompacat);
       QUERY_CHECK_CODE(code, lino, _end);
-      pColInfoData = taosArrayGet(p->pDataBlock, 7);
+      pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&lastCompacat, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2127,7 +2121,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       bool shouldCompact = false;
       code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "should_compact", &shouldCompact);
       QUERY_CHECK_CODE(code, lino, _end);
-      pColInfoData = taosArrayGet(p->pDataBlock, 8);
+      pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&shouldCompact, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2136,7 +2130,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       // const char* details = NULL;
       // code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "details", &details);
       // QUERY_CHECK_CODE(code, lino, _end);
-      // pColInfoData = taosArrayGet(p->pDataBlock, 9);
+      // pColInfoData = taosArrayGet(p->pDataBlock, index++);
       // QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       // code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
       // QUERY_CHECK_CODE(code, lino, _end);

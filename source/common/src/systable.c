@@ -417,7 +417,6 @@ static const SSysDbTableSchema anodesFullSchema[] = {
 };
 
 static const SSysDbTableSchema filesetsFullSchema[] = {
-    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "fileset_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},

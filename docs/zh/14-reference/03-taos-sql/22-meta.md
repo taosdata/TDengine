@@ -319,10 +319,18 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 注：SYSINFO 属性为 0 的用户不能查看此表。
 
-| #   |   **列名**    | **数据类型** | **说明**                                                                                                             |
-| --- | :----------: | ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| 1   | user_name    | VARCHAR(24)       | 用户名
-| 2   | privilege    | VARCHAR(10)       | 权限描述
-| 3   | db_name      | VARCHAR(65)       | 数据库名称
-| 4   | table_name   | VARCHAR(193)      | 表名称
-| 5   | condition    | VARCHAR(49152)    | 子表权限过滤条件
+## INS_FILESETS
+
+提供当前数据存储的文件组的相关信息。
+
+
+| #   |   **列名**    | **数据类型** | **说明**                                |
+| --- | :-----------: | ------------ | --------------------------------------- |
+| 1   |    db_name    | VARCHAR(65)  | 数据库名                                |
+| 2   |   vgroup_id   | INT          | vgroup id                               |
+| 3   |  fileset_id   | INT          | 文件组 id                               |
+| 4   |  start_time   | TIMESTAMP    | 文件组的覆盖数据的开始时间              |
+| 5   |   end_time    | TIMESTAMP    | 文件组的覆盖数据的结束时间              |
+| 6   |  total_size   | BIGINT       | 文件组的总大小                          |
+| 7   | last_compact  | TIMESTAMP    | 最后一次压缩的时间                      |
+| 8   | shold_compact | bool         | 是否需要压缩，true：需要，false：不需要 |
