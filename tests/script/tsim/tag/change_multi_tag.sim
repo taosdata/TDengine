@@ -34,15 +34,30 @@ sql create table $ntable (ts timestamp, f int)
 
 sql insert into $tb values(now, 1)
 sql insert into $tb values(now, 1)
-sql_error alter table $mt set tag tgcol1 = 1,tagcol2 = 2, tag3 = 4 # set tag value on supertable
-sql_error alter table $ntable set tag f = 10  # set normal table value
-sql_error alter table $tbj set tag tagCol1=1,tagCol1 = 2 # dumplicate tag name
-sql_error alter table $tbj set tag tagCol1=1,tagCol1 = 2 # not exist tag
+
+# invalid sql
+sql_error  alter table $mt set tag tgcol1 = 1,
+sql_error  alter table $mt set tag ,
+sql_error  alter table $mt set tag tgcol1=10,tagcol2=
+#set tag value on supertable
+sql_error alter table $mt set tag tgcol1 = 1,tagcol2 = 2, tag3 = 4 
+#set normal table value
+sql_error alter table $ntable set tag f = 10
+# duplicate tag name
+sql_error alter table $tbj set tag tagCol1=1,tagCol1 = 2
+sql_error alter table $tbj set tag tagCol1=1,tagCol5=10, tagCol5=3
+# not exist tag
+sql_error alter table $tbj set tag tagNotExist = 1,tagCol1 = 2 
+sql_error alter table $tbj set tag tagCol1 = 2, tagNotExist = 1
+sql_error alter table $tbj set tagNotExist = 1
+sql_error alter table $tbj set tagNotExist = NULL,
 sql_error alter table $tbj set tag tagCol1 = 1, tagCol5="xxxxxxxxxxxxxxxx" 
+# invalid tag value
 sql_error alter table $tbj set tag tagCol1 = 1, tagCol5="xxxxxxxxxxxxxxxx", tagCol7="yyyyyyyyyyyyyyyyyyyyyyyyy" 
-sql_error alter table $tbj set tag tagCol1=1,tagCol5=10, tagCol1=3
+# invalid data type
 sql_error alter table $tbj set tag tagCol5="xxxx"
-sql alter table $tbj set tag tagCol1 = 100, tagCol2 = 100 
+
+sql alter table $tbj set tag tagCol1 = 100, tagCol2 = 100  
 
 sql select * from $mt where tagCol2 = 100
 if $rows != 0  then
@@ -186,8 +201,9 @@ sql alter table $mt drop tag tagCol3
 
 sql alter table $mt add tag tagCol8 int
 
+#set not exist tag and value 
 sql_error alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=NULL,tagCol6=NULL,tagCol7=NULL
-sql_error alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=NULL,tagCol6=NULL,tagCol7=NULL
+sql_error alter table $tbj set tag tagCol1=true,tagCol2=-10,tagcol3=-100, tagcol4=-1000,tagcol5=NULL,tagCol6=NULL,tagCol7=NULL 
 
 sql alter table $tbj set tag tagCol8 = 8
 

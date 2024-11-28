@@ -755,9 +755,9 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         }
 
         cJSON* colValue = cJSON_CreateString(buf);
+        taosMemoryFree(buf);
         RAW_NULL_CHECK(colValue);
         RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colValue", colValue));
-        taosMemoryFree(buf);
       }
 
       cJSON* isNullCJson = cJSON_CreateBool(isNull);
@@ -804,9 +804,9 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             goto end;
           }
           cJSON* colValue = cJSON_CreateString(buf);
+          taosMemoryFree(buf);
           RAW_NULL_CHECK(colValue);
           RAW_FALSE_CHECK(cJSON_AddItemToObject(member, "colValue", colValue));
-          taosMemoryFree(buf);
         }
         cJSON* isNullCJson = cJSON_CreateBool(isNull);
         RAW_NULL_CHECK(isNullCJson);
