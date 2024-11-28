@@ -2215,11 +2215,6 @@ static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbRe
     metaError("meta/table: failed to update tag idx:%s uid:%" PRId64, ctbEntry.name, ctbEntry.uid);
   }
 
-  if (NULL == ctbEntry.ctbEntry.pTags) {
-    metaError("meta/table: null tags, update tag val failed.");
-    goto _err;
-  }
-
   SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
   if (tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags,
                   ((STag *)(ctbEntry.ctbEntry.pTags))->len, pMeta->txn) < 0) {
@@ -2452,11 +2447,6 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   if (metaUpdateTagIdx(pMeta, &ctbEntry) < 0) {
     metaError("meta/table: failed to update tag idx:%s uid:%" PRId64, ctbEntry.name, ctbEntry.uid);
-  }
-
-  if (NULL == ctbEntry.ctbEntry.pTags) {
-    metaError("meta/table: null tags, update tag val failed.");
-    goto _err;
   }
 
   SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
