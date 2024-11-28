@@ -1091,7 +1091,7 @@ void shellCleanupHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\r\nDB error: %s (%.6fs)\r\n", taos_errstr(tres), (et - st) / 1E6);
+  fprintf(stderr, "\r\nDB error: %s[%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -1303,6 +1303,8 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
     if (shell_conn_ws_server(1)) {
+      printf("failed to connect to server, error code:0x08x reason: %s\n", ws_errno(NULL), ws_errstr(NULL));
+      fflush(stdout);
       return -1;
     }
   } else {
@@ -1314,7 +1316,7 @@ int32_t shellExecute() {
     }
 
     if (shell.conn == NULL) {
-      printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
+      printf("failed to connect to server, reason: %s[%0x08x]\n",taos_errstr(NULL), taos_errno(NULL));
       fflush(stdout);
       return -1;
     }
