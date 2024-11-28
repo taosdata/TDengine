@@ -675,23 +675,25 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SH
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool isTag) {
+static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
   SHashObj *hashTmp = taosHashInit(length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  int32_t   i = 0;
-  for (; i < length; i++) {
-    taosHashPut(hashTmp, schema[i].name, strlen(schema[i].name), &i, SHORT_BYTES);
+  for (int32_t   i = 0; i < length; i++) {
+    taosHashPut(hashTmp, schema[i].name, strlen(schema[i].name), &schema[i], sizeof(SSchema));
   }
 
-  if (isTag) {
-    i = 0;
-  } else {
-    i = 1;
-  }
-  for (; i < taosArrayGetSize(cols); i++) {
+  for (int32_t   i = 0; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
-    if (taosHashGet(hashTmp, kv->key, kv->keyLen) == NULL) {
+
+    SSchema *sTmp = taosHashGet(hashTmp, kv->key, kv->keyLen);
+    if (sTmp == NULL) {
       taosHashCleanup(hashTmp);
       return TSDB_CODE_SML_INVALID_DATA;
+    }
+    if ((IS_VAR_DATA_TYPE(kv->type) && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes)){
+      uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
+             tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
+      taosHashCleanup(hashTmp);
+      return TSDB_CODE_SML_INTERNAL_ERROR;
     }
   }
   taosHashCleanup(hashTmp);
@@ -1069,12 +1071,12 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
     if (needCheckMeta) {
       code = smlCheckMeta(&(pTableMeta->schema[pTableMeta->tableInfo.numOfColumns]), pTableMeta->tableInfo.numOfTags,
-                          sTableData->tags, true);
+                          sTableData->tags);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " check tag failed. super table name %s", info->id, pName.tname);
         goto end;
       }
-      code = smlCheckMeta(&(pTableMeta->schema[0]), pTableMeta->tableInfo.numOfColumns, sTableData->cols, false);
+      code = smlCheckMeta(&(pTableMeta->schema[0]), pTableMeta->tableInfo.numOfColumns, sTableData->cols);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " check cols failed. super table name %s", info->id, pName.tname);
         goto end;
