@@ -144,7 +144,7 @@ if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
 
-    if [ $skip == 0 ]; then
+    if [ $skip == 1 ]; then
       # copy client package to server if password free is set
       ssh root@taosdata.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
       if [ $? = 0 ]; then
