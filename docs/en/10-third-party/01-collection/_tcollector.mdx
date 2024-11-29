@@ -1,0 +1,81 @@
+### Configure taosAdapter
+
+To configure taosAdapter to receive TCollector data:
+
+- Enable the configuration item in the taosAdapter configuration file (default location is /etc/taos/taosadapter.toml)
+
+```
+...
+[opentsdb_telnet]
+enable = true
+maxTCPConnections = 250
+tcpKeepAlive = false
+dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+ports = [6046, 6047, 6048, 6049]
+user = "root"
+password = "taosdata"
+...
+```
+
+Here, the default database name written by taosAdapter is `tcollector`, which can also be modified in the taosAdapter configuration file under the dbs field to specify a different name. The user and password should be filled with the actual TDengine configuration values. After modifying the configuration file, taosAdapter needs to be restarted.
+
+- You can also enable the taosAdapter to receive TCollector data by using command line parameters or setting environment variables. For specific details, please refer to the taosAdapter reference manual.
+
+### Configure TCollector
+
+To use TCollector, you need to download its [source code](https://github.com/OpenTSDB/tcollector). The configuration items are in the source code. Note that there are significant differences between TCollector versions; here we only take the latest code from the current master branch (git commit: 37ae920) as an example.
+
+Modify the corresponding contents in the `collectors/etc/config.py` and `tcollector.py` files. Change the address that originally pointed to the OpenTSDB host to the domain name or IP address of the server where taosAdapter is deployed, and modify the port to the one that taosAdapter supports for TCollector (default is 6049).
+
+An example of the git diff output for the modified source code:
+
+```
+index e7e7a1c..ec3e23c 100644
+--- a/collectors/etc/config.py
++++ b/collectors/etc/config.py
+@@ -59,13 +59,13 @@ def get_defaults():
+         'http_password': False,
+         'reconnectinterval': 0,
+         'http_username': False,
+-        'port': 4242,
++        'port': 6049,
+         'pidfile': '/var/run/tcollector.pid',
+         'http': False,
+         'http_api_path': "api/put",
+         'tags': [],
+         'remove_inactive_collectors': False,
+-        'host': '',
++        'host': '127.0.0.1',
+         'logfile': '/var/log/tcollector.log',
+         'cdir': default_cdir,
+         'ssl': False,
+diff --git a/tcollector.py b/tcollector.py
+index 21f9b23..4c71ba2 100755
+--- a/tcollector.py
++++ b/tcollector.py
+@@ -64,7 +64,7 @@ ALIVE = True
+ # exceptions, something is not right and tcollector will shutdown.
+ # Hopefully some kind of supervising daemon will then restart it.
+ MAX_UNCAUGHT_EXCEPTIONS = 100
+-DEFAULT_PORT = 4242
++DEFAULT_PORT = 6049
+ MAX_REASONABLE_TIMESTAMP = 2209212000  # Good until Tue  3 Jan 14:00:00 GMT 2040
+ # How long to wait for datapoints before assuming
+ # a collector is dead and restarting it
+@@ -943,13 +943,13 @@ def parse_cmdline(argv):
+             'http_password': False,
+             'reconnectinterval': 0,
+             'http_username': False,
+-            'port': 4242,
++            'port': 6049,
+             'pidfile': '/var/run/tcollector.pid',
+             'http': False,
+             'http_api_path': "api/put",
+             'tags': [],
+             'remove_inactive_collectors': False,
+-            'host': '',
++            'host': '127.0.0.1',
+             'logfile': '/var/log/tcollector.log',
+             'cdir': default_cdir,
+             'ssl': False,
+```

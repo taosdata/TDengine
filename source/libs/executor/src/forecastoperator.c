@@ -169,6 +169,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteOptInt(pBuf, "start", start);
   if (code != 0) return code;
 
+
   bool hasEvery = taosAnalGetOptInt(pSupp->algoOpt, "every", &every);
   if (!hasEvery) {
     qDebug("forecast every not found from %s, use %" PRId64, pSupp->algoOpt, every);

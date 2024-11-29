@@ -272,7 +272,17 @@ typedef struct SAlterTableStmt {
   SDataType       dataType;
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
+  SNodeList*      pNodeListTagValue;
 } SAlterTableStmt;
+
+typedef struct SAlterTableMultiStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  int8_t    alterType;
+
+  SNodeList* pNodeListTagValue;
+} SAlterTableMultiStmt;
 
 typedef struct SCreateUserStmt {
   ENodeType   type;
@@ -349,7 +359,7 @@ typedef struct SShowStmt {
   SNode*        pTbName;  // SValueNode
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
-  bool          withFull; // for show users full;
+  bool          withFull;  // for show users full;
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -659,7 +669,7 @@ typedef struct SCreateTSMAStmt {
   bool            ignoreExists;
   char            tsmaName[TSDB_TABLE_NAME_LEN];
   char            dbName[TSDB_DB_NAME_LEN];
-  char            tableName[TSDB_TABLE_NAME_LEN]; // base tb name or base tsma name
+  char            tableName[TSDB_TABLE_NAME_LEN];  // base tb name or base tsma name
   char            originalTbName[TSDB_TABLE_NAME_LEN];
   STSMAOptions*   pOptions;
   SNode*          pPrevQuery;
@@ -668,10 +678,10 @@ typedef struct SCreateTSMAStmt {
 } SCreateTSMAStmt;
 
 typedef struct SDropTSMAStmt {
-  ENodeType     type;
-  bool          ignoreNotExists;
-  char          dbName[TSDB_DB_NAME_LEN];
-  char          tsmaName[TSDB_TABLE_NAME_LEN];
+  ENodeType type;
+  bool      ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
 
 #ifdef __cplusplus

@@ -371,6 +371,7 @@ cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).               
 cmd ::= ALTER TABLE alter_table_clause(A).                                        { pCxt->pRootNode = A; }
 cmd ::= ALTER STABLE alter_table_clause(A).                                       { pCxt->pRootNode = setAlterSuperTableType(A); }
 
+
 alter_table_clause(A) ::= full_table_name(B) alter_table_options(C).              { A = createAlterTableModifyOptions(pCxt, B, C); }
 alter_table_clause(A) ::=
   full_table_name(B) ADD COLUMN column_name(C) type_name(D) column_options(E).                      { A = createAlterTableAddModifyColOptions2(pCxt, B, TSDB_ALTER_TABLE_ADD_COLUMN, &C, D, E); }
@@ -388,8 +389,16 @@ alter_table_clause(A) ::=
   full_table_name(B) MODIFY TAG column_name(C) type_name(D).                      { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, &C, D); }
 alter_table_clause(A) ::=
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
+
+
+%type column_tag_value_list                                                              { SNodeList* }
+%destructor column_tag_value_list                                                        { nodesDestroyList($$); }
+column_tag_value(A) ::= column_name(C) NK_EQ tags_literal(D).                      { A = createAlterSingleTagColumnNode(pCxt, &C, D); }            
+column_tag_value_list(A) ::= column_tag_value(B).                                    { A = createNodeList(pCxt, B); }
+column_tag_value_list(A) ::= column_tag_value_list(B) NK_COMMA column_tag_value(C).      { A = addNodeToList(pCxt, B, C);}
+
 alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_name(C) NK_EQ tags_literal(D).                { A = createAlterTableSetTag(pCxt, B, &C, D); }
+  full_table_name(B) SET TAG column_tag_value_list(C).                             { A = createAlterTableSetMultiTagValue(pCxt, B, C); }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
