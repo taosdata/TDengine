@@ -84,6 +84,9 @@ taos -h h1.taos.com -s "use db; show tables;"
 
 You can also control the behavior of the TDengine CLI through parameters set in the configuration file. For available configuration parameters, refer to [Client Configuration](../../components/taosc).
 
+## Error Codes Reference
+After version 3.3.4.8 of TDengine, the TDengine CLI returned error codes in the error message. Users can search for the specific cause and solution on the error code page of the TDengine official website, see [Error Codes Table](https://docs.taosdata.com/reference/error-code)
+
 ## TDengine CLI Tips
 
 - Use the up and down arrow keys to view previously entered commands.
