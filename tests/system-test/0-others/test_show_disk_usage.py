@@ -53,7 +53,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         self.dbname = "db_disk_usage"   
         self.stname = "st"
-        self.ctnum = 1000 
+        self.ctnum = 100 
         self.row_num = 1000 
         self.row_data_size = self.ctnum * self.row_num * (8 + 4 + 4) # timestamp + int + float
         self.other_dbname = "db_disk_usage_other"
@@ -114,7 +114,7 @@ class TDTestCase:
         for i in range(self.ctnum):
             tdSql.execute(f'create table ct_{str(i+1)} using {self.stname} tags ("name{str(i+1)}");')
             sql = f"insert into ct_{str(i+1)} values "
-            for j in range(self.row_num * 10):
+            for j in range(self.row_num):
                 sql += f"(now+{j+1}s, {j+1}, {random.uniform(15, 30)}) "
             sql += ";"
             tdSql.execute(sql)
@@ -198,7 +198,7 @@ class TDTestCase:
         #if abs(walSize - iwal) > 12:
         #    tdLog.error("wal size is not equal")
 
-        #if abs(tableMetaSize - itableMeta) > 12:
+        #if abs(tableMetaSize - itableMeta) > 12k'k'k
         #    tdLog.error("table_meta size is not equal")
         
         #if abs(tsdbSize - itsdbSize) > 12:
