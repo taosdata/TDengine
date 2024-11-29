@@ -570,7 +570,6 @@ int8_t cliMayNotifyUserOnRecvReleaseExcept(SCliConn* conn, STransMsgHead* pHead,
   STransMsg resp = {.code = pHead->code};
   int64_t   qId = taosHton64(pHead->qid);
   STraceId* trace = &pHead->traceId;
-  int64_t   seqNum = taosHton64(pHead->seqNum);
   code = cliBuildExceptResp(pThrd, pReq, &resp);
   if (code != 0) {
     tGWarn("%s conn %p failed to build except resp for req:%" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, qId,
