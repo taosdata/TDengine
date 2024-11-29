@@ -154,7 +154,6 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from mysql to taos
-
 pub async fn mysql_to_taos(
     from: Dsn,
     parser: Option<Parser>,

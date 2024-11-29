@@ -7336,7 +7336,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha1",
- "shadow-rs 0.33.0",
+ "shadow-rs 0.35.2",
  "sqlx",
  "taos 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git)",
  "taoslog",

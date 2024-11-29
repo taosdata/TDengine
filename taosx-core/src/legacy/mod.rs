@@ -3695,8 +3695,8 @@ fn process_option_pair(option: &str, option_value: &str) -> String {
         "KEEP" => {
             let mut new_option = String::from(" KEEP ");
             let value_array: Vec<&str> = option_value.split(",").collect();
-            if value_array.first().is_some() {
-                new_option.push_str(&process_unit_value(value_array.first().unwrap()));
+            if let Some(value) = value_array.first() {
+                new_option.push_str(&process_unit_value(value));
             }
             new_option
         }

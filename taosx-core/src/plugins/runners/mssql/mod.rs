@@ -136,7 +136,6 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from mssql to taos
-
 pub async fn mssql_to_taos(
     from: Dsn,
     parser: Option<Parser>,

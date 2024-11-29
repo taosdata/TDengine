@@ -384,10 +384,10 @@ impl FromStr for Strategy {
             Ok(trigger)
         } else {
             debug_assert!(s.starts_with("schedule:"));
-            return Ok(Strategy {
+            Ok(Strategy {
                 schedule: Some(s.trim_start_matches("schedule:").to_string()),
                 ..Default::default()
-            });
+            })
         }
     }
 }

@@ -46,7 +46,7 @@ deadpool = "0.10"
 
 const-str = "0.5.7"
 const_format = "0.2.32"
-shadow-rs = { version = "0.33", default-features = false }
+shadow-rs = { workspace = true }
 geos = { version = "9.0.0", features = ["static"] }
 hex = "0.4.3"
 chrono = "0.4"
@@ -68,8 +68,11 @@ default-features = false
 features = ["ws-rustls", "optin", "deadpool"]
 
 [build-dependencies]
-shadow-rs = { version = "0.33", default-features = false }
+shadow-rs = { workspace = true }
 
 [dev-dependencies]
 zstd = "0"
 mockito = "1.6.1"
+
+[lints]
+workspace = true
