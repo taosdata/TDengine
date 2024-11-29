@@ -106,7 +106,7 @@ class Client {
   }
   void SendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) {
     if (req->info.handle != NULL) {
-      rpcReleaseHandle(req->info.handle, TAOS_CONN_CLIENT);
+      rpcReleaseHandle(req->info.handle, TAOS_CONN_CLIENT, 0);
       req->info.handle = NULL;
     }
     SendAndRecv(req, resp);
@@ -201,7 +201,7 @@ static void processReleaseHandleCb(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) 
   rpcMsg.code = 0;
   rpcSendResponse(&rpcMsg);
 
-  rpcReleaseHandle(&pMsg->info, TAOS_CONN_SERVER);
+  rpcReleaseHandle(&pMsg->info, TAOS_CONN_SERVER, 0);
 }
 static void processRegisterFailure(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   // {
