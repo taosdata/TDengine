@@ -511,3 +511,26 @@ TEST_F(WalSkipLevel, restart) {
 
   SetUp();
 }
+
+TEST_F(WalSkipLevel, roll) {
+  int code;
+  int i;
+  for (i = 0; i < 100; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+  }
+  walBeginSnapshot(pWal, i - 1, 0);
+  walEndSnapshot(pWal);
+  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen);
+  ASSERT_NE(code, 0);
+  for (; i < 200; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+  }
+  code = walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(code, 0);
+  code = walEndSnapshot(pWal);
+  ASSERT_EQ(code, 0);
+}

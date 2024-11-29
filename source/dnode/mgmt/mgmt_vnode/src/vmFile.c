@@ -67,6 +67,54 @@ int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnod
   return 0;
 }
 
+int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+
+  int32_t num = 0;
+  int32_t size = taosHashGetSize(pMgmt->hash);
+  int32_t creatingSize = taosHashGetSize(pMgmt->creatingHash);
+  size += creatingSize;
+  SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
+  if (pVnodes == NULL) {
+    (void)taosThreadRwlockUnlock(&pMgmt->lock);
+    return terrno;
+  }
+
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    SVnodeObj  *pVnode = *ppVnode;
+    if (pVnode && num < size) {
+      int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
+      dTrace("vgId:%d,acquire vnode, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
+      pVnodes[num++] = (*ppVnode);
+      pIter = taosHashIterate(pMgmt->hash, pIter);
+    } else {
+      taosHashCancelIterate(pMgmt->hash, pIter);
+    }
+  }
+
+  pIter = taosHashIterate(pMgmt->creatingHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    SVnodeObj  *pVnode = *ppVnode;
+    if (pVnode && num < size) {
+      int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
+      dTrace("vgId:%d, acquire vnode, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
+      pVnodes[num++] = (*ppVnode);
+      pIter = taosHashIterate(pMgmt->creatingHash, pIter);
+    } else {
+      taosHashCancelIterate(pMgmt->creatingHash, pIter);
+    }
+  }
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+
+  *numOfVnodes = num;
+  *ppVnodes = pVnodes;
+
+  return 0;
+}
+
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
   (void)taosThreadRwlockRdlock(&pMgmt->lock);
 
