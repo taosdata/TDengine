@@ -86,7 +86,7 @@ You can also control the behavior of the TDengine CLI through parameters set in 
 
 ## Error Code Reference Table
 
-After version 3.3.5.0 of TDengine, the TDengine CLI includes specific error codes in the returned error messages. Users can search for the specific cause and solution on the detailed error code description page of the TDengine official website, see [Error Code Reference Table](https://docs.taosdata.com/reference/error-code/)
+After version 3.3.4.8 of TDengine, the TDengine CLI includes specific error codes in the returned error messages. Users can search for the specific cause and solution on the detailed error code description page of the TDengine official website, see [Error Code Reference Table](https://docs.taosdata.com/reference/error-code/)
 
 ## TDengine CLI Tips
 
