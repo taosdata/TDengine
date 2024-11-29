@@ -273,7 +273,7 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 #endif
 }
 
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *atime) {
+int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime) {
   OS_PARAM_CHECK(path);
 #ifdef WINDOWS
   struct _stati64 fileStat;
@@ -292,11 +292,11 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *a
   }
 
   if (mtime != NULL) {
-    *mtime = fileStat.st_mtime;
+    *mtime = fileStat.st_mtim.tv_sec;
   }
 
   if (atime != NULL) {
-    *atime = fileStat.st_atime;
+    *atime = fileStat.st_atim.tv_sec;
   }
 
   return 0;
@@ -544,7 +544,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   return liOffset.QuadPart;
 }
 
-int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime) {
   if (pFile == NULL || pFile->hFile == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -571,7 +571,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
     ULARGE_INTEGER ull;
     ull.LowPart = lastWriteTime.dwLowDateTime;
     ull.HighPart = lastWriteTime.dwHighDateTime;
-    *mtime = (int32_t)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
+    *mtime = (int64_t)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
   }
   return 0;
 }
@@ -937,7 +937,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   return ret;
 }
 
-int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime) {
   if (pFile == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -960,7 +960,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   }
 
   if (mtime != NULL) {
-    *mtime = fileStat.st_mtime;
+    *mtime = fileStat.st_mtim.tv_sec;
   }
 
   return 0;

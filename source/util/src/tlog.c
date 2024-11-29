@@ -94,6 +94,7 @@ static int8_t   tsLogInited = 0;
 static SLogObj  tsLogObj = {.fileNum = 1, .slowHandle = NULL};
 static int64_t  tsAsyncLogLostLines = 0;
 static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
+static SRWLatch tsLogRotateLatch = 0;
 
 bool tsLogEmbedded = 0;
 bool tsAsyncLog = true;
@@ -408,10 +409,6 @@ static void taosKeepOldLog(char *oldName) {
       }
     }
   }
-
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
-  }
 }
 typedef struct {
   TdFilePtr pOldFile;
@@ -460,11 +457,16 @@ static OldFileKeeper *taosOpenNewFile() {
 
 static void *taosThreadToCloseOldFile(void *param) {
   if (!param) return NULL;
+  taosWLockLatch(&tsLogRotateLatch);
   OldFileKeeper *oldFileKeeper = (OldFileKeeper *)param;
   taosSsleep(20);
   taosCloseLogByFd(oldFileKeeper->pOldFile);
   taosKeepOldLog(oldFileKeeper->keepName);
   taosMemoryFree(oldFileKeeper);
+  if (tsLogKeepDays > 0) {
+    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  }
+  taosWUnLockLatch(&tsLogRotateLatch);
   return NULL;
 }
 
@@ -600,8 +602,8 @@ static void decideLogFileName(const char *fn, int32_t maxFileNum) {
 
 static void decideLogFileNameFlag() {
   char    name[PATH_MAX + 50] = "\0";
-  int32_t logstat0_mtime = 0;
-  int32_t logstat1_mtime = 0;
+  int64_t logstat0_mtime = 0;
+  int64_t logstat1_mtime = 0;
   bool    log0Exist = false;
   bool    log1Exist = false;
 
@@ -1076,6 +1078,87 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
   pLogBuf->writeInterval = 0;
 }
 
+#define LOG_ROTATE_INTERVAL 30
+#ifndef LOG_ROTATE_BOOT
+#define LOG_ROTATE_BOOT 3
+#endif
+static void *taosLogRotateFunc(void *param) {
+  setThreadName("logRotate");
+  int32_t code = 0;
+  taosWLockLatch(&tsLogRotateLatch);
+  // compress or remove the old log files
+  TdDirPtr pDir = taosOpenDir(tsLogDir);
+  if (!pDir) goto _exit;
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir))) {
+    if (taosDirEntryIsDir(de)) {
+      continue;
+    }
+    char *fname = taosGetDirEntryName(de);
+    if (!fname) {
+      continue;
+    }
+
+    char *pSec = strrchr(fname, '.');
+    if (!pSec) {
+      continue;
+    }
+    char *pIter = pSec;
+    bool  isSec = true;
+    while (*(++pIter)) {
+      if (!isdigit(*pIter)) {
+        isSec = false;
+        break;
+      }
+    }
+    if (!isSec) {
+      continue;
+    }
+
+    int64_t fileSec = 0;
+    if ((code = taosStr2int64(pSec + 1, NULL)) != 0) {
+      uWarn("%s:%d failed to convert %s to int64 since %s", __func__, __LINE__, pSec + 1, tstrerror(code));
+      continue;
+    }
+    if (fileSec <= 100) {
+      continue;
+    }
+
+    int64_t mtime = 0;
+    if ((code = taosStatFile(fname, NULL, &mtime, NULL)) != 0) {
+      uWarn("%s:%d failed to stat file %s since %s", __func__, __LINE__, fname, tstrerror(code));
+      continue;
+    }
+
+    int64_t elapseSec = taosGetTimestampMs() / 1000 - mtime;
+
+    if (elapseSec < 86400) {
+      continue;
+    }
+
+    char fullName[PATH_MAX] = {0};
+    snprintf(fullName, sizeof(fullName), "%s%s%s", pDir, TD_DIRSEP, fname);
+
+    int32_t days = elapseSec / 86400 + 1;
+    if (tsLogKeepDays > 0 && days > tsLogKeepDays) {
+      TAOS_UNUSED(taosRemoveFile(fullName));
+      uInfo("file:%s is removed, days:%d keepDays:%d, sed:%" PRId64, fullName, days, tsLogKeepDays, fileSec);
+    } else {
+      taosKeepOldLog(fullName);  // compress
+    }
+  }
+  if ((code = taosCloseDir(&pDir)) != 0) {
+    uWarn("%s:%d failed to close dir:%s since %s\n", __func__, __LINE__, tsLogDir, tstrerror(code));
+  }
+
+  if (tsLogKeepDays > 0) {
+    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  }
+_exit:
+  taosWUnLockLatch(&tsLogRotateLatch);
+  return NULL;
+}
+
 static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pLogBuf = (SLogBuff *)tsLogObj.logHandle;
   SLogBuff *pSlowBuf = (SLogBuff *)tsLogObj.slowHandle;
@@ -1084,6 +1167,7 @@ static void *taosAsyncOutputLog(void *param) {
   int32_t count = 0;
   int32_t updateCron = 0;
   int32_t writeInterval = 0;
+  int32_t lastCheckMin = taosGetTimestampMs() / 60000 - (LOG_ROTATE_INTERVAL - LOG_ROTATE_BOOT);
 
   while (1) {
     if (pSlowBuf) {
@@ -1108,6 +1192,25 @@ static void *taosAsyncOutputLog(void *param) {
       taosWriteLog(pLogBuf);
       if (pSlowBuf) taosWriteSlowLog(pSlowBuf);
       break;
+    }
+
+    // process the log rotation every LOG_ROTATE_INTERVAL minutes
+    int32_t curMin = taosGetTimestampMs() / 60000;
+    if (curMin >= lastCheckMin) {
+      if ((curMin - lastCheckMin) >= LOG_ROTATE_INTERVAL) {
+        TdThread     thread;
+        TdThreadAttr attr;
+        (void)taosThreadAttrInit(&attr);
+        (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
+        if (taosThreadCreate(&thread, &attr, taosLogRotateFunc, tsLogObj.logHandle) == 0) {
+          lastCheckMin = curMin;
+        } else {
+          uWarn("failed to create thread to process log buffer");
+        }
+        (void)taosThreadAttrDestroy(&attr);
+      }
+    } else if (curMin < lastCheckMin) {
+      lastCheckMin = curMin;
     }
   }
 

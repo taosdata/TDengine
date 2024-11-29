@@ -660,7 +660,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
   int32_t lcn = fobj->f->lcn;
 
   if (/*lcn < 1 && */ taosCheckExistFile(fobj->fname)) {
-    int32_t mtime = 0;
+    int64_t mtime = 0;
     int64_t size = 0;
     int32_t r = taosStatFile(fobj->fname, &size, &mtime, NULL);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
@@ -687,7 +687,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
     tsdbTFileLastChunkName(rtner->tsdb, fobj->f, fname1);
 
     if (taosCheckExistFile(fname1)) {
-      int32_t mtime = 0;
+      int64_t mtime = 0;
       int64_t size = 0;
       if (taosStatFile(fname1, &size, &mtime, NULL) != 0) {
         tsdbError("vgId:%d, %s failed at %s:%d ", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, __LINE__);
