@@ -264,7 +264,17 @@ typedef struct SAlterTableStmt {
   SDataType       dataType;
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
+  SNodeList*      pNodeListTagValue;
 } SAlterTableStmt;
+
+typedef struct SAlterTableMultiStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  int8_t    alterType;
+
+  SNodeList* pNodeListTagValue;
+} SAlterTableMultiStmt;
 
 typedef struct SCreateUserStmt {
   ENodeType   type;
@@ -322,7 +332,7 @@ typedef struct SAlterDnodeStmt {
 
 typedef struct {
   ENodeType type;
-  char      url[TSDB_ANAL_ANODE_URL_LEN + 3];
+  char      url[TSDB_ANALYTIC_ANODE_URL_LEN + 3];
 } SCreateAnodeStmt;
 
 typedef struct {

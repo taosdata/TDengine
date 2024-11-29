@@ -273,3 +273,11 @@ TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集�
 
 ### 29 遇到报错 “some vnode/qnode/mnode(s) out of service” 怎么办？
 客户端未配置所有服务端的 FQDN 解析。比如服务端有 3 个节点，客户端只配置了 1 个节点的 FQDN 解析。FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
+
+### 30 为什么开源版 TDengine 的主进程会建立一个与公网的连接？
+这个连接只会上报不涉及任何用户数据的最基本信息，用于官方了解产品在世界范围内的分布情况，进而优化产品，提升用户体验，具体采集项目为：集群名、操作系统版本、cpu信息等。
+该特性为可选配置项，在开源版中默认开启，具体参数为 telemetryReporting , 在官方文档中有做说明，链接如下：
+https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B8%E5%85%B3
+您可以随时关闭该参数，只需要在taos.cfg 中修改telemetryReporting为 0，然后重启数据库服务即可。
+代码位于:https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c
+此外，对于安全性要求极高的企业版 TDengine Enterprise 来说，此参数不会工作。

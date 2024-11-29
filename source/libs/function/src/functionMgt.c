@@ -415,6 +415,13 @@ int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNo
   return code;
 }
 
+static void resetOutputChangedFunc(SFunctionNode *pFunc, const SFunctionNode* pSrcFunc) {
+  if (funcMgtBuiltins[pFunc->funcId].type == FUNCTION_TYPE_LAST_MERGE) {
+    pFunc->node.resType = pSrcFunc->node.resType;
+    return;
+  }
+}
+
 int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** ppFunc) {
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)ppFunc);
   if (NULL == *ppFunc) {
@@ -433,6 +440,7 @@ int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFu
     *ppFunc = NULL;
     return code;
   }
+  resetOutputChangedFunc(*ppFunc, pSrcFunc);
   return code;
 }
 

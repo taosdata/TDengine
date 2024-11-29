@@ -3407,6 +3407,8 @@ int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff, int32_t* 
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  qDebug("%s last scan range %d. %" PRId64 ",%" PRId64, __func__, __LINE__, pInfo->lastScanRange.skey, pInfo->lastScanRange.ekey);
+
   *pLen = len;
 
 _end:
@@ -3472,21 +3474,20 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     goto _end;
   }
 
-  if (pInfo->pUpdateInfo != NULL) {
-    void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
-    if (!pUpInfo) {
-      lino = __LINE__;
-      goto _end;
-    }
-    code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
-    if (code == TSDB_CODE_SUCCESS) {
-      pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
-      pInfo->pUpdateInfo = pUpInfo;
-    } else {
-      taosMemoryFree(pUpInfo);
-      lino = __LINE__;
-      goto _end;
-    }
+  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
+  if (!pUpInfo) {
+    lino = __LINE__;
+    goto _end;
+  }
+  code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
+  if (code == TSDB_CODE_SUCCESS) {
+    pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
+    pInfo->pUpdateInfo = pUpInfo;
+    qDebug("%s line:%d. stream scan updateinfo deserialize success", __func__, __LINE__);
+  } else {
+    taosMemoryFree(pUpInfo);
+    code = TSDB_CODE_SUCCESS;
+    qDebug("%s line:%d. stream scan did not have updateinfo", __func__, __LINE__);
   }
 
   if (tDecodeIsEnd(pDeCoder)) {
@@ -3506,6 +3507,7 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     lino = __LINE__;
     goto _end;
   }
+  qDebug("%s last scan range %d. %" PRId64 ",%" PRId64, __func__, __LINE__, pInfo->lastScanRange.skey, pInfo->lastScanRange.ekey);
 
 _end:
   if (pDeCoder != NULL) {
@@ -3880,6 +3882,11 @@ FETCH_NEXT_BLOCK:
       } break;
       case STREAM_SCAN_FROM_DATAREADER_RANGE:
       case STREAM_SCAN_FROM_DATAREADER_RETRIEVE: {
+        if (pInfo->pRangeScanRes != NULL) {
+          (*ppRes) = pInfo->pRangeScanRes;
+          pInfo->pRangeScanRes = NULL;
+          return code;
+        } 
         SSDataBlock* pSDB = NULL;
         code = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex, &pSDB);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -3893,6 +3900,15 @@ FETCH_NEXT_BLOCK:
           printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
           code = calBlockTbName(pInfo, pSDB, 0);
           QUERY_CHECK_CODE(code, lino, _end);
+
+          if (pInfo->pCreateTbRes->info.rows > 0) {
+            printSpecDataBlock(pInfo->pCreateTbRes, getStreamOpName(pOperator->operatorType), "update",
+                               GET_TASKID(pTaskInfo));
+            (*ppRes) = pInfo->pCreateTbRes;
+            pInfo->pRangeScanRes = pSDB;
+            return code;
+          }
+
           (*ppRes) = pSDB;
           return code;
         }
@@ -4676,6 +4692,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
   pInfo->pFillSup = NULL;
   pInfo->useGetResultRange = false;
+  pInfo->pRangeScanRes = NULL;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);
