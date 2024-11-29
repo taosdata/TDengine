@@ -1868,7 +1868,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   TAOS_CHECK_GOTO(taosAddSystemCfg(tsCfg), &lino, _exit);
 
-#if 1  // duplicate operation since already loaded in taosCreateLog
+#if 0  // duplicate operation since already loaded in taosCreateLog
   if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
     (void)printf("failed to load cfg since %s\n", tstrerror(code));
     cfgCleanup(tsCfg);

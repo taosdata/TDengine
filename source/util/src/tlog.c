@@ -54,7 +54,7 @@
 typedef enum {
   LOG_OUTPUT_FILE = 0,    // default
   LOG_OUTPUT_STDOUT = 1,  // stdout set by -o option on the command line
-  LOG_OUTPUT_STDERR = 2,  // stderr set by -e option on the command line
+  LOG_OUTPUT_STDERR = 2,  // stderr set by -o option on the command line
   LOG_OUTPUT_NULL = 4,    // /dev/null set by -o option on the command line
 } ELogOutputType;
 
