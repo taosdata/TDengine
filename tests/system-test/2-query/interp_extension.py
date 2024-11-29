@@ -488,6 +488,10 @@ class TDTestCase:
         sql = f"select count(*) from test.meters interval(1s) fill(next, 1)"
         tdSql.error(sql, -2147473920) ## syntax error
 
+        sql = f"select _irowts_origin, count(*) from test.meters where ts between '2018-09-17 08:59:59' and '2018-09-17 09:00:06' interval(1s) fill(next)"
+        tdSql.error(sql, -2147473918) ## invalid column name _irowts_origin
+
+
     def test_interp_fill_extension_stream(self):
         ## near is not supported
         sql = f"create stream s1 trigger force_window_close into test.s_res_tb as select _irowts, interp(c1), interp(c2)from test.meters partition by tbname every(1s) fill(near);"

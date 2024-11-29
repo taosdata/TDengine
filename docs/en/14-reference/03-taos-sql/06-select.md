@@ -63,7 +63,7 @@ window_clause: {
 
 interp_clause:
       RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
-    | RANGE(ts_val, interval_val) FILL(fill_mod_and_val)
+    | RANGE(ts_val, surrounding_time_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
