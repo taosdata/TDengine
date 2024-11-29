@@ -13,7 +13,7 @@ from threading import Thread
 
 current_os = platform.system()
 test_process = ''
-scrip_dir = os.getcwd()
+script_dir = os.getcwd()
 directory = "D:\\workspace"
 branch = "main"
 internal_dir = os.path.join(directory, branch, "TDinternal")
@@ -28,9 +28,6 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG) 
 
 logging.info(f"log file:{logname}")
-
-# logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
-#                     level=logging.INFO,filename=logname) 
 
 
 class Customer:
@@ -88,7 +85,8 @@ def print_param():
     logging.info(f"release_dir: {install_info.release_dir}")
     logging.info(f"packagServerName: {install_info.packagServerName}")
     logging.info(f"packagClientName: {install_info.packagClientName}")
-    
+    logging.info(f"Only Client : {only_client}")
+
 def set_package_name():
     logging.info("set_package_name...")
     global install_info
@@ -130,19 +128,29 @@ def set_release_path():
 
 def industry_options():
     TD_INDUSTRY_NAME = "TDengine " + industry_name + " Edition"
-    if industry_name == "Power" and td_version.verType == "industry":
-        options = (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
-            "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
-            "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
-            "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
-            "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
-            "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
-            "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
-            "-DTD_DATAIN_MYSQL=false -DTD_DATAIN_POSTGRES=false -DTD_DATAIN_ORACLE=false -DTD_DATAIN_MONGODB=false")
+    if td_version.verType == "industry":
+        if industry_name == "Power":
+            options = (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
+                "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
+                "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
+                "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
+                "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
+                "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
+                "-DTD_DATAIN_MYSQL=false -DTD_DATAIN_POSTGRES=false -DTD_DATAIN_ORACLE=false -DTD_DATAIN_MONGODB=false")
+        elif industry_name == "Powerfull":
+            option =  (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
+                "-DTD_FUNC_SUBSCRIPTION=true -DTD_FUNC_AUDIT=true -DTD_FUNC_CSV=true -DTD_FUNC_VIEW=true "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=true -DTD_FUNC_DATA_BAK_RESTORE=true -DTD_FUNC_OBJECT_STORAGE=true "
+                "-DTD_FUNC_ACTIVE_ACTIVE=true -DTD_FUNC_DUAL_REPLICA_HA=true -DTD_FUNC_DB_ENCRYPTION=true "
+                "-DTD_DATAIN_OPC_DA=true -DTD_DATAIN_OPC_UA=true -DTD_DATAIN_PI=true -DTD_DATAIN_KAFKA=true "
+                "-DTD_DATAIN_INFLUXDB=true -DTD_DATAIN_MQTT=true -DTD_DATAIN_AVEVAHISTORIAN=true "
+                "-DTD_DATAIN_OPENTSDB=true -DTD_DATAIN_TDENGINE_2_6=true -DTD_DATAIN_TDENGINE_3_0=true "
+                "-DTD_DATAIN_MYSQL=true -DTD_DATAIN_POSTGRES=true -DTD_DATAIN_ORACLE=true -DTD_DATAIN_MONGODB=true")
+                
     return options
-    
 def parse_arguments():
-    global tdCustomer, td_version, install_info, test_process, scrip_dir, upload, check_commit, industry_name
+    global tdCustomer, td_version, install_info, test_process, script_dir, upload, check_commit, industry_name, only_client
     
     parser = argparse.ArgumentParser(description='Release TDengine on Windows')
     parser.add_argument('-D', '--directory', type=str, help='set packaging script directory (default: D:\\workspace)', default="D:\\workspace")
@@ -157,8 +165,9 @@ def parse_arguments():
     parser.add_argument('-I', '--industry-name', type=str, help='Set industry name', default="Power")
     parser.add_argument('-u', '--upload', action="store_false", help='upload package to nas server', default=False)
     parser.add_argument('-c', '--check_commit', action="store_false", help='check commit id', default=False)
-        
-    version_pattern=re.compile(r'^[0-9]+\.([0-9]+\.){1,3}[0-9]+$')
+    parser.add_argument('-oc', '--only_client', action="store_true", help='only genreate windows client', default=False)
+
+    version_pattern=re.compile('^[0-9]+\\.([0-9]+\\.){1,3}[0-9]+$')
     args = parser.parse_args()
     if args.number == "":
         logging.error("Failed! Version number is empty, please specify version number")
@@ -180,14 +189,15 @@ def parse_arguments():
 
     install_info.directory = args.directory
     install_info.branch = args.branch
-    install_info.install_dir = f"C:\\{args.customer_name}"
+    install_info.install_dir = f"C:\\TDengine"
     install_info.internal_dir = os.path.join(args.directory, args.branch, "TDinternal")
     install_info.community_dir = os.path.join(install_info.internal_dir, "community")
-    scrip_dir = os.path.join(install_info.internal_dir, "enterprise", "packaging")
+    script_dir = os.path.join(install_info.internal_dir, "enterprise", "packaging")
     test_process = args.test_process
     upload = args.upload
     check_commit = args.check_commit
     industry_name = args.industry_name
+    only_client = args.only_client
 
 def git_pull(repo_dir, source_branch, target):
     logging.info(f"pull code for {repo_dir}...")    
@@ -267,7 +277,7 @@ def get_latest_code():
 
     # pull taosws
     taosws_dir = os.path.join(install_info.community_dir, "tools", "taosws-rs")
-    git_pull(taosws_dir, "install_info.branch", f"ver-{td_version.version}")
+    git_pull(taosws_dir, "main", f"ver-{td_version.version}")
 
 def init_release_dir():
     logging.info(f"init release directory {install_info.release_dir} ...")
@@ -302,7 +312,7 @@ def process_cmake():
     except:
         logging.error("cmake failed")
         sys.exit(1)
-    os.chdir(scrip_dir)
+    os.chdir(script_dir)
 
 def process_build():
     os.chdir(install_info.release_dir)
@@ -314,7 +324,7 @@ def process_build():
         logging.error("build failed")
         sys.exit(1)
     logging.info("build done")
-    os.chdir(scrip_dir)
+    os.chdir(script_dir)
     
 def process_install(): 
     os.chdir(install_info.release_dir)
@@ -340,7 +350,7 @@ def process_install():
     verify_commit_id(bin_dir, "taosBenchmark.exe", taos_tools_dir)
     verify_commit_id(bin_dir, "taosdump.exe", taos_tools_dir)    
     
-    os.chdir(scrip_dir)
+    os.chdir(script_dir)
 
 def process_build_TD():
     get_latest_code()
@@ -442,29 +452,28 @@ def process_build_taosws_32bit():
     logging.info("32bit taosws build done")
 
 def process_build_odbc():
-    # only directory/main has  taos-connector-odbc
-    odbc_dir = os.path.join(directory, "main", "taos-connector-odbc")
+    # only directory/main/3.0  has  taos-connector-odbc
+    odbc_dir = os.path.join(directory, branch, "taos-connector-odbc")
     os.chdir(odbc_dir)
     os.system("git checkout main")
     os.system("git pull")
     logging.info("current path: {0}".format(os.getcwd()))
     
-    if install_info.branch != "3.1":
-        #build 32 bit ODBC
-        os.system("vcvarsall.bat amd64_x86")
-        logging.info("vcvarsall.bat amd64_x86")
-        os.system("rm -rf .externals && rm -rf build32")
-        os.system('''cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030  -B build32 -G "Visual Studio 17 2022" -A Win32''')
-        os.system(f"cmake --build build32 --config {odbc_build_type} -j 8")
-        
-        x86_dll_dir = os.path.join(odbc_dir, "build32", "src", f"{odbc_build_type}")           
-        x86_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "lib")
-        x86_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "bin")    
-        os.system("xcopy /YS {}\\taos_odbc.dll {}".format(x86_dll_dir, x86_target_bin_dir)) 
-        os.system("xcopy /YS {}\\taos_odbc.lib {}".format(x86_dll_dir, x86_target_lib_dir))    
-        
-        x86_template_dir = os.path.join(odbc_dir, "build32", "templates")
-        os.system("xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
+    #build 32 bit ODBC
+    os.system("vcvarsall.bat amd64_x86")
+    logging.info("vcvarsall.bat amd64_x86")
+    os.system("rm -rf .externals && rm -rf build32")
+    os.system('''cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030  -B build32 -G "Visual Studio 17 2022" -A Win32''')
+    os.system(f"cmake --build build32 --config {odbc_build_type} -j 8")
+    
+    x86_dll_dir = os.path.join(odbc_dir, "build32", "src", f"{odbc_build_type}")           
+    x86_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "lib")
+    x86_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "bin")    
+    os.system("xcopy /YS {}\\taos_odbc.dll {}".format(x86_dll_dir, x86_target_bin_dir)) 
+    os.system("xcopy /YS {}\\taos_odbc.lib {}".format(x86_dll_dir, x86_target_lib_dir))    
+    
+    x86_template_dir = os.path.join(odbc_dir, "build32", "templates")
+    os.system("xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
     
     # build 64 bit ODBC    
     
@@ -583,7 +592,7 @@ def write_server_install_file():
                 f"users can modify configuration file C:\\{tdCustomer.Name}\\cfg\\{tdCustomer.Name}.cfg, "
                 f"set the log file path or other parameters.\n")
         f.write(f"- To start/stop {tdCustomer.Name} with administrator privileges:  sc.exe start/stop {tdCustomer.Prompt}d\n")
-        f.write("- To start/stop taosAdapter with administrator privileges: sc.exe start/stop taosadapter\n")
+        f.write(f"- To start/stop{tdCustomer.Name}Adapter with administrator privileges: sc.exe start/stop {tdCustomer.Name}adapter\n")
         f.write(f"- To access {tdCustomer.Name} from your local machine, run {tdCustomer.Prompt}\n")
         f.write(f"- Please manually remove C:\\{tdCustomer.Name} from your system PATH environment "
                 f"after you remove {tdCustomer.Name} software.")
@@ -663,7 +672,7 @@ def process_package_client():
     iss_path = os.path.join(install_info.community_dir, "packaging", "tools", "tdengine.iss")
     ico_path = os.path.join(install_info.community_dir, "packaging", "tools", 'favicon.ico')
     
-    logging.info(f"packaging {install_info.packagClientName} server...")
+    logging.info(f"packaging {install_info.packagClientName} ...")
     write_client_install_file()
     logging.info(ico_path)
     
@@ -684,10 +693,25 @@ def process_package_client():
         subprocess.check_call(f"ssh root@192.168.1.213 \"mkdir -p /nas/TDengine/v{td_version.version}/{td_version.verType}\" ", shell=True)
         subprocess.check_call(f"scp {file} root@192.168.1.213:/nas/TDengine/v{td_version.version}/{td_version.verType}", shell=True)
 
+def process_OEM_client_rename_process():
+    # change file
+    os.chdir(install_info.install_dir)
+    cfg_dir = os.path.join(install_info.install_dir, "cfg")
+    
+    os.chdir(cfg_dir)
+    for filename in os.listdir(cfg_dir):
+        replace_in_file(filename)
+    iss_path = os.path.join(script_dir,"oem_release_cfg","oem.iss")
+    replace_iss_in_file(iss_path)
+
+    # add new client.bat replacing  for oem 
+    start_dir = os.path.join(script_dir, "oem_release_cfg")
+    os.chdir(start_dir)
+    replace_in_file("client.bat")
 
 def process_package_OEM_client():
-    iss_path = os.path.join(scrip_dir,"oem_release_cfg","oem.iss")
-    ico_path = os.path.join(scrip_dir,"oem_release_cfg",'prodb.ico')
+    iss_path = os.path.join(script_dir,"oem_release_cfg","oem.iss")
+    ico_path = os.path.join(script_dir,"oem_release_cfg",'prodb.ico')
 
     logging.info(f"packaging OEM({install_info.packagClientName}) client...")
     write_client_install_file()
@@ -698,11 +722,9 @@ def process_package_OEM_client():
                 /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe,taosadapter.exe,create_table.exe,runUdf.exe,udfd.exe,*dump.exe,dumper.exe,*Benchmark.exe\" \
                 /DCusName=\"{tdCustomer.Name}\" \
                 /DCusPrompt=\"{tdCustomer.Prompt}\" \
-                {iss_path} /O..\\release")
-    logging.info(f"packaging {install_info.packagClientName} server done")
-    # if os.system("echo %errorlevel%") != 0:
-    #     logging.info(f"package {install_info.packagClientName} failed")
-    #     exit(1)
+                {iss_path} /O{install_info.directory}\\{install_info.branch}\\release")
+    logging.info(f"packaging {install_info.packagClientName}  done")
+
 
 def rename_files_in_directory(directory):
     # Loop through all files in the given directory
@@ -739,6 +761,19 @@ def replace_in_file(file_path):
     # Write the file out again
     with open(file_path, 'w') as file:
         file.write(filedata)
+
+def replace_iss_in_file(file_path):
+    # Read in the file
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+        filedata = file.read()
+
+    # Replace the target string
+    # define oem icon
+    filedata = filedata.replace('oemdefine',tdCustomer.Prompt)
+    # Write the file out again
+    with open(file_path, 'w') as file:
+        file.write(filedata)
+
 
 def process_OEM_rename_process():
     # change file and directory names
@@ -777,13 +812,15 @@ def process_OEM_rename_process():
     replace_in_file("stop-all.bat")
     replace_in_file("taos.bat")
     
-    odbc_x86_dir = os.path.join(install_info.install_dir, f"{tdCustomer.Prompt}_odbc", "x86")
-    os.chdir(odbc_x86_dir)
-    replace_in_file("win_odbc_install.ini")
-    
-    odbc_x64_dir = os.path.join(install_info.install_dir, f"{tdCustomer.Prompt}_odbc", "x64")
-    os.chdir(odbc_x64_dir)
-    replace_in_file("win_odbc_install.ini")
+    # not sure oem need this 
+    if tdCustomer.Name == "TDengine":
+        odbc_x86_dir = os.path.join(install_info.install_dir, f"{tdCustomer.Prompt}_odbc", "x86")
+        os.chdir(odbc_x86_dir)
+        replace_in_file("win_odbc_install.ini")
+        
+        odbc_x64_dir = os.path.join(install_info.install_dir, f"{tdCustomer.Prompt}_odbc", "x64")
+        os.chdir(odbc_x64_dir)
+        replace_in_file("win_odbc_install.ini")
 
 def process_package():        
     process_package_server()
@@ -914,17 +951,17 @@ if __name__ == "__main__":
 
     init_release_dir()
 
-    # p1 = Thread(target=process_build_TD)
-    # p2 = Thread(target=process_build_taosx)
-    # p3 = Thread(target=process_build_keeper)
+    # # p1 = Thread(target=process_build_TD)
+    # # p2 = Thread(target=process_build_taosx)
+    # # p3 = Thread(target=process_build_keeper)
 
-    # p1.start()
-    # p2.start()
-    # p3.start()
+    # # p1.start()
+    # # p2.start()
+    # # p3.start()
     
-    # p1.join()
-    # p2.join()
-    # p3.join()
+    # # p1.join()
+    # # p2.join()
+    # # p3.join()
 
     logging.info("start to build taosd and taosx")
     try:
@@ -939,23 +976,27 @@ if __name__ == "__main__":
     # process_build_keeper()
     
     process_install()    
-
     if install_info.branch != "3.1":
-        process_build_taosws_32bit()
-        process_build_odbc()
+        if tdCustomer.Name == "TDengine":
+            process_build_taosws_32bit()
+            process_build_odbc()
+            process_add_enterprice_extent()   
+            process_package_client()
+        else:
+            process_OEM_client_rename_process()
+            process_package_OEM_client()
     else:
         process_download_odbc()
-
-    process_add_enterprice_extent()    
-    process_package_client()
+        process_add_enterprice_extent()    
+        process_package_client()
     
-    
-    if td_version.verType != "community":
-        copy_taosx_files()
-        # copy_keeper_files()
-        if tdCustomer.Name != "TDengine":
-            process_OEM_rename_process()
-        process_package_server()     
+    if only_client is False:
+        if td_version.verType != "community":
+            copy_taosx_files()
+            if tdCustomer.Name != "TDengine":
+                process_OEM_rename_process()
+        process_package_server()    
+        
     
     end_time = time.time()
     excute_time = (end_time - start_time) / 60
