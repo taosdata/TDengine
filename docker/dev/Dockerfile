@@ -27,7 +27,7 @@ RUN yum makecache fast && yum install -y wget perl-IPC-Cmd libatomic openssl-dev
 # Rust
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUST_VERSION=1.81.0
+ENV RUST_VERSION=1.83.0
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain $RUST_VERSION
 ENV PATH=/root/.cargo/bin:$PATH
 

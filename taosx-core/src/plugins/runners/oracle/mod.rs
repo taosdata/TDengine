@@ -143,7 +143,6 @@ fn get_sample_sync(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from oracle to taos
-
 pub async fn oracle_to_taos(
     from: Dsn,
     parser: Option<Parser>,

@@ -226,7 +226,7 @@ impl<'de> Deserialize<'de> for IpcDataType {
         D: serde::Deserializer<'de>,
     {
         struct IpcDataTypeVisitor;
-        impl<'de> Visitor<'de> for IpcDataTypeVisitor {
+        impl Visitor<'_> for IpcDataTypeVisitor {
             type Value = IpcDataType;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -516,7 +516,7 @@ pub struct ChildTablesBuilder<'a> {
     columns_builder: ListOfStructBuilder,
 }
 
-impl<'a> ChildTablesBuilder<'a> {
+impl ChildTablesBuilder<'_> {
     pub fn create_table_with_tags(&mut self, _name: &str, _tags: &[Value]) -> &mut Self {
         self
     }
@@ -619,7 +619,7 @@ impl LushMessageInit {
         self.tags.iter().find(|f| f.name == name).map(|f| &f.r#type)
     }
 }
-impl<'a> LushInsertBuilder<'a> {
+impl LushInsertBuilder<'_> {
     /// Specify which table to insert into, it could be None to use the table name set in `init`
     /// as normal table or last `name` field for child table.
     pub fn table(&mut self, table: impl Into<String>) -> &mut Self {
