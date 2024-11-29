@@ -1043,7 +1043,7 @@ _end:
   return code;
 }
 
-int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows) {
+int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows, int32_t precision) {
   SColumnInfoData *pColInfo = NULL;
   int32_t          cols = 0;
   int32_t          code = 0;
@@ -1103,14 +1103,11 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
   // level
   char level[20 + VARSTR_HEADER_SIZE] = {0};
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    memcpy(varDataVal(level), "source", 6);
-    varDataSetLen(level, 6);
+    STR_WITH_SIZE_TO_VARSTR(level, "source", 6);
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
-    memcpy(varDataVal(level), "agg", 3);
-    varDataSetLen(level, 3);
+    STR_WITH_SIZE_TO_VARSTR(level, "agg", 3);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    memcpy(varDataVal(level), "sink", 4);
-    varDataSetLen(level, 4);
+    STR_WITH_SIZE_TO_VARSTR(level, "sink", 4);
   }
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1234,10 +1231,13 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     const char *sinkStr = "%.2f MiB";
     snprintf(buf, tListLen(buf), sinkStr, pe->sinkDataSize);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    // offset info
-    const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
-    snprintf(buf, tListLen(buf), offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
+  } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) { // offset info
+    if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      taosFormatUtcTime(buf, tListLen(buf), pe->processedVer, precision);
+    } else {
+      const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
+      snprintf(buf, tListLen(buf), offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
+    }
   } else {
     memset(buf, 0, tListLen(buf));
   }

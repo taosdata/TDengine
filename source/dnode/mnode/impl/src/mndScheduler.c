@@ -404,8 +404,7 @@ static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStre
     return code;
   }
 
-  mDebug("doAddSourceTask taskId:%s, %p vgId:%d, isFillHistory:%d", pTask->id.idStr, pTask, pVgroup->vgId,
-         isHistoryTask);
+  mDebug("doAddSourceTask taskId:%s, %p vgId:%d, historyTask:%d", pTask->id.idStr, pTask, pVgroup->vgId, isHistoryTask);
 
   if (pStream->conf.fillHistory) {
     haltInitialTaskStatus(pTask, plan, isHistoryTask);
@@ -461,7 +460,7 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
   addNewTaskList(pStream);
 
   while (1) {
-    SVgObj* pVgroup;
+    SVgObj* pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) {
       break;
