@@ -980,8 +980,12 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
     sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:%" PRId64 " at %d", pSyncNode->vgId, pData->rid,
            pData->destId.addr, pSyncTimer->timerMS);
 
-    TAOS_CHECK_RETURN(taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid),
-                                   syncEnv()->pTimerManager, &pSyncTimer->pTimer));
+    bool stopped = taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid), syncEnv()->pTimerManager,
+                                &pSyncTimer->pTimer);
+    if (stopped) {
+      sError("vgId:%d, failed to reset hb timer success", pSyncNode->vgId);
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
   } else {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("vgId:%d, start ctrl hb timer error, sync env is stop", pSyncNode->vgId);
@@ -1624,8 +1628,12 @@ ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->raftCfg
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   if (syncIsInit()) {
-    TAOS_CHECK_RETURN(taosTmrReset(pSyncNode->FpPingTimerCB, pSyncNode->pingTimerMS, (void*)pSyncNode->rid,
-                                   syncEnv()->pTimerManager, &pSyncNode->pPingTimer));
+    bool stopped = taosTmrReset(pSyncNode->FpPingTimerCB, pSyncNode->pingTimerMS, (void*)pSyncNode->rid,
+                                syncEnv()->pTimerManager, &pSyncNode->pPingTimer);
+    if (stopped) {
+      sError("vgId:%d, failed to reset ping timer, ms:%d", pSyncNode->vgId, pSyncNode->pingTimerMS);
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
     atomic_store_64(&pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
   } else {
     sError("vgId:%d, start ping timer error, sync env is stop", pSyncNode->vgId);
@@ -1653,8 +1661,9 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
     pSyncNode->electTimerParam.pSyncNode = pSyncNode;
     pSyncNode->electTimerParam.pData = NULL;
 
-    TAOS_CHECK_RETURN(taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, (void*)(pSyncNode->rid),
-                                   syncEnv()->pTimerManager, &pSyncNode->pElectTimer));
+    bool stopped = taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, (void*)(pSyncNode->rid),
+                                syncEnv()->pTimerManager, &pSyncNode->pElectTimer);
+    if (stopped) sError("vgId:%d, failed to reset elect timer, ms:%d", pSyncNode->vgId, ms);
   } else {
     sError("vgId:%d, start elect timer error, sync env is stop", pSyncNode->vgId);
   }
@@ -1690,7 +1699,7 @@ void syncNodeResetElectTimer(SSyncNode* pSyncNode) {
 
   // TODO check return value
   if ((code = syncNodeRestartElectTimer(pSyncNode, electMS)) != 0) {
-    sError("vgId:%d, failed to restart elect timer since %s", pSyncNode->vgId, terrstr());
+    sError("vgId:%d, failed to restart elect timer since %s", pSyncNode->vgId, tstrerror(code));
     return;
   };
 
@@ -2586,10 +2595,9 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     }
 
   _out:
-    if ((code = taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, (void*)pNode->rid, syncEnv()->pTimerManager,
-                             &pNode->pPingTimer)) != 0) {
-      sError("failed to reset ping timer since %s", tstrerror(code));
-    };
+    if (taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, (void*)pNode->rid, syncEnv()->pTimerManager,
+                     &pNode->pPingTimer))
+      sError("failed to reset ping timer");
   }
   syncNodeRelease(pNode);
 }
@@ -2759,13 +2767,10 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
       if (syncIsInit()) {
         sTrace("vgId:%d, reset peer hb timer at %d", pSyncNode->vgId, pSyncTimer->timerMS);
-        if ((code = taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid,
-                                 syncEnv()->pTimerManager, &pSyncTimer->pTimer)) != 0) {
-          sError("vgId:%d, reset peer hb timer error, %s", pSyncNode->vgId, tstrerror(code));
-          syncNodeRelease(pSyncNode);
-          syncHbTimerDataRelease(pData);
-          return;
-        }
+        bool stopped = taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid,
+                                    syncEnv()->pTimerManager, &pSyncTimer->pTimer);
+        if (stopped) sError("vgId:%d, reset peer hb timer error, %s", pSyncNode->vgId, tstrerror(code));
+
       } else {
         sError("sync env is stop, reset peer hb timer error");
       }

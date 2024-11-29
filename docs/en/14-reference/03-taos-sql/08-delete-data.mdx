@@ -1,12 +1,12 @@
 ---
+description: "Delete data records from specified tables or supertables."
 title: Delete Data
-sidebar_label: Delete Data
-description: This document describes how to delete data from TDengine.
+slug: /tdengine-reference/sql-manual/delete-data
 ---
 
-TDengine provides the functionality of deleting data from a table or STable according to specified time range, it can be used to cleanup abnormal data generated due to device failure.
+Deleting data is a feature provided by TDengine that allows users to remove data records from specified tables or supertables based on a specified time range, making it convenient to clean up abnormal data generated due to equipment failures and other reasons.
 
-**Note**：Deletting some data doesn't release the disk space occupied by the table, instead all the rows in the table are marked as deleted, so these data will not occur when querying. The disk space will be released when the system automatically performs `compact` operation or the user performs `compact` manually. 
+**Note:** Deleting data does not immediately free up the disk space occupied by the table; instead, the data in the table is marked as deleted and will not appear in queries. However, the release of disk space will be delayed until the system automatically or the user manually reorganizes the data.
 
 **Syntax:**
 
@@ -14,30 +14,30 @@ TDengine provides the functionality of deleting data from a table or STable acco
 DELETE FROM [ db_name. ] tb_name [WHERE condition];
 ```
 
-**Description:** Delete data from a table or STable
+**Function:** Delete data records from specified tables or supertables.
 
 **Parameters:**
 
-- `db_name`:   Optional parameter, specifies the database in which the table exists; if not specified, the current database will be used.
-- `tb_name`:  Mandatory parameter, specifies the table name from which data will be deleted, it can be normal table, subtable or STable.
-- `condition`: Optional parameter, specifies the data filter condition. If no condition is specified all data will be deleted, so please be cautions to delete data without any condition. The condition used here is only applicable to the first column, i.e. the timestamp column.
+- `db_name`: An optional parameter specifying the name of the database where the table to be deleted resides. If not specified, it will operate in the current database.
+- `tb_name`: A mandatory parameter specifying the name of the table from which data will be deleted. This can be a basic table, subtable, or supertable.
+- `condition`: An optional parameter specifying the filter condition for deleting data. If no filter condition is specified, all data in the table will be deleted; use with caution. Notably, the where condition here only supports filtering on the first column (the timestamp column).
 
-**More Explanations:**
+**Special Note:**
 
-The data can't be recovered once deleted, so please be cautious to use the functionality of deleting data. It's better to firstly make sure the data to be deleted using `select` then execute `delete`.
+Once data is deleted, it cannot be recovered; please use this command with caution. To ensure that the data to be deleted is indeed the correct data, it is recommended to first use the `SELECT` statement along with the `WHERE` clause to view the data that will be deleted. Confirm that the selection is accurate before executing the `DELETE` command.
 
 **Example:**
 
-`meters` is a STable, in which `groupid` is a tag column of int type. Now we want to delete the data older than 2021-10-01 10:40:00.100. You can perform this action by running the following SQL statement:
+`meters` is a supertable, and `groupid` is an `int` type tag column. Now, to delete all data in the `meters` table with a timestamp less than `2021-10-01 10:40:00.100`, the SQL is as follows:
 
 ```sql
-delete from meters where ts < '2021-10-01 10:40:00.100' ;
+DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100';
 ```
 
-The output is:
+After execution, the result will display:
 
-```
+```text
 Deleted 102000 row(s) from 1020 table(s) (0.421950s)
 ```
 
-It means totally 102,000 rows of data have been deleted from 1,020 sub tables.
+This indicates that a total of 102,000 rows of data were deleted from 1,020 subtables.

@@ -10606,6 +10606,21 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
         TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->pTagVal, pReq->nTagVal));
       }
       break;
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
+      int32_t nTags = taosArrayGetSize(pReq->pMultiTag);
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTags));
+      for (int32_t i = 0; i < nTags; i++) {
+        SMultiTagUpateVal *pTag = taosArrayGet(pReq->pMultiTag, i);
+        TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTag->colId));
+        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTag->tagName));
+        TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->isNull));
+        TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->tagType));
+        if (!pTag->isNull) {
+          TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pTag->pTagVal, pTag->nTagVal));
+        }
+      }
+      break;
+    }
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->updateTTL));
       if (pReq->updateTTL) {
@@ -10672,6 +10687,28 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
         TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pReq->pTagVal, &pReq->nTagVal));
       }
       break;
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
+      int32_t nTags;
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
+      pReq->pMultiTag = taosArrayInit(nTags, sizeof(SMultiTagUpateVal));
+      if (pReq->pMultiTag == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < nTags; i++) {
+        SMultiTagUpateVal tag;
+        TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
+        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
+        if (!tag.isNull) {
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &tag.pTagVal, &tag.nTagVal));
+        }
+        if (taosArrayPush(pReq->pMultiTag, &tag) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+      break;
+    }
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->updateTTL));
       if (pReq->updateTTL) {
@@ -10737,6 +10774,18 @@ _exit:
   return code;
 }
 
+void tfreeMultiTagUpateVal(void *val) {
+  SMultiTagUpateVal *pTag = val;
+  taosMemoryFree(pTag->tagName);
+  for (int i = 0; i < taosArrayGetSize(pTag->pTagArray); ++i) {
+    STagVal *p = (STagVal *)taosArrayGet(pTag->pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+
+  taosArrayDestroy(pTag->pTagArray);
+}
 int32_t tEncodeSVAlterTbRsp(SEncoder *pEncoder, const SVAlterTbRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;

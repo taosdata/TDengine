@@ -81,6 +81,7 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
 
   if (pResultRow == NULL || pTaskInfo->code != 0) {
     *pResult = NULL;
+    qError("failed to set result output buffer, error:%s", tstrerror(pTaskInfo->code));
     return pTaskInfo->code;
   }
 
@@ -1042,7 +1043,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
                                            numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-        T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+        T_LONG_JMP(pTaskInfo->env, ret);
       }
 
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
@@ -1070,7 +1071,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+    T_LONG_JMP(pTaskInfo->env, ret);
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
@@ -1532,7 +1533,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
             setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
                                    numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
         if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-          T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+          T_LONG_JMP(pTaskInfo->env, ret);
         }
 
         // pInfo->numOfRows data belong to the current session window
@@ -1555,7 +1556,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+    T_LONG_JMP(pTaskInfo->env, ret);
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);

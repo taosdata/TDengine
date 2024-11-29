@@ -1976,7 +1976,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     case DB_OPTION_S3_COMPACT:
       pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_KEEP_TIME_OFFSET: 
+    case DB_OPTION_KEEP_TIME_OFFSET:
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
@@ -2541,6 +2541,21 @@ _err:
   return NULL;
 }
 
+SNode* createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* pTagName, SNode* pVal) {
+  CHECK_PARSER_STATUS(pCtx);
+  SAlterTableStmt* pStmt = NULL;
+  pCtx->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
+  CHECK_NAME(checkColumnName(pCtx, pTagName));
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
+  pStmt->pVal = (SValueNode*)pVal;
+  pStmt->pNodeListTagValue = NULL;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pTagName));
@@ -2554,6 +2569,19 @@ SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken
 _err:
   nodesDestroyNode(pVal);
   nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createAlterTableSetMultiTagValue(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pList) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL;
+  pStmt->pNodeListTagValue = pList;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+_err:
   return NULL;
 }
 

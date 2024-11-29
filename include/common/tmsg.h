@@ -178,6 +178,7 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_TABLE_DROP_TAG_INDEX                  12
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS          13
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION 14
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -3283,6 +3284,16 @@ int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
 int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
+typedef struct SMultiTagUpateVal {
+  char*    tagName;
+  int32_t  colId;
+  int8_t   tagType;
+  int8_t   tagFree;
+  uint32_t nTagVal;
+  uint8_t* pTagVal;
+  int8_t   isNull;
+  SArray*  pTagArray;
+} SMultiTagUpateVal;
 typedef struct {
   char*   tbName;
   int8_t  action;
@@ -3309,14 +3320,16 @@ typedef struct {
   int32_t  newTTL;
   int32_t  newCommentLen;
   char*    newComment;
-  int64_t  ctimeMs;   // fill by vnode
-  int8_t   source;    // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
-  uint32_t compress;  // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
+  int64_t  ctimeMs;    // fill by vnode
+  int8_t   source;     // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  uint32_t compress;   // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
+  SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
+void    tfreeMultiTagUpateVal(void* pMultiTag);
 
 typedef struct {
   int32_t        code;

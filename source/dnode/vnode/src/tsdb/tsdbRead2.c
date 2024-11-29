@@ -210,7 +210,7 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
   pSupInfo->smaValid = true;
   pSupInfo->numOfCols = numOfCols;
 
-  pSupInfo->colId = taosMemoryMalloc(numOfCols * (sizeof(int16_t) * 2 + POINTER_BYTES));
+  pSupInfo->colId = taosMemoryCalloc(numOfCols, sizeof(int16_t) * 2 + POINTER_BYTES);
   TSDB_CHECK_NULL(pSupInfo->colId, code, lino, _end, terrno);
 
   pSupInfo->slotId = (int16_t*)((char*)pSupInfo->colId + (sizeof(int16_t) * numOfCols));

@@ -2016,7 +2016,9 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
           tWarn("%s conn %p failed to added to heap cache since %s", pInst->label, pConn, tstrerror(code));
         }
       } else {
-        // TAOS_CHECK_GOTO(code, &lino, _exception);
+        if (code == TSDB_CODE_OUT_OF_MEMORY && pConn == NULL) {
+          TAOS_CHECK_GOTO(code, &lino, _exception);
+        }
         return;
       }
     }
@@ -2495,10 +2497,6 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 _end:
   if (pThrd) {
     TAOS_UNUSED(taosThreadMutexDestroy(&pThrd->msgMtx));
-
-    TAOS_UNUSED(uv_loop_close(pThrd->loop));
-    taosMemoryFree(pThrd->loop);
-    TAOS_UNUSED((taosThreadMutexDestroy(&pThrd->msgMtx)));
     transAsyncPoolDestroy(pThrd->asyncPool);
     for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
       uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
@@ -2508,6 +2506,9 @@ _end:
     taosArrayDestroy(pThrd->timerList);
 
     TAOS_UNUSED(destroyConnPool(pThrd));
+    TAOS_UNUSED(uv_loop_close(pThrd->loop));
+    taosMemoryFree(pThrd->loop);
+
     transDQDestroy(pThrd->delayQueue, NULL);
     transDQDestroy(pThrd->timeoutQueue, NULL);
     transDQDestroy(pThrd->waitConnQueue, NULL);
@@ -2926,6 +2927,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     transFreeMsg(pResp->pCont);
   }
   pResp->pCont = NULL;
+  pResp->info.hasEpSet = 0;
   if (code != TSDB_CODE_RPC_BROKEN_LINK && code != TSDB_CODE_RPC_NETWORK_UNAVAIL && code != TSDB_CODE_SUCCESS) {
     // save one internal code
     pCtx->retryCode = code;
