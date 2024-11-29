@@ -325,21 +325,23 @@ void tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj *pTableMap, int64_t *
   taosRUnLockLatch(&pMemTable->latch);
 }
 
-int32_t tsdbMemTableUids(SMemTable *pMemTable, SArray *aUid) {
-  int32_t code = 0;
+typedef int32_t (*__tsdb_cache_update)(SMemTable *imem, int64_t suid, int64_t uid);
 
-  taosRLockLatch(&pMemTable->latch);
+int32_t tsdbMemTableSaveToCache(SMemTable *pMemTable, void *func) {
+  int32_t             code = 0;
+  __tsdb_cache_update cb = (__tsdb_cache_update)func;
+
   for (int32_t i = 0; i < pMemTable->nBucket; ++i) {
     STbData *pTbData = pMemTable->aBucket[i];
     while (pTbData) {
-      if (!taosArrayPush(aUid, &(TABLEID){.suid = pTbData->suid, .uid = pTbData->uid})) {
-        TAOS_RETURN(terrno);
+      code = (*cb)(pMemTable, pTbData->suid, pTbData->uid);
+      if (!code) {
+        TAOS_RETURN(code);
       }
 
       pTbData = pTbData->next;
     }
   }
-  taosRUnLockLatch(&pMemTable->latch);
 
   return code;
 }

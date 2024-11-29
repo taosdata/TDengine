@@ -250,7 +250,7 @@ void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
 void    tsdbTbDataIterOpen(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter *pIter);
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
 void    tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj *pTableMap, int64_t *rowsNum);
-int32_t tsdbMemTableUids(SMemTable *pMemTable, SArray *aUid);
+int32_t tsdbMemTableSaveToCache(SMemTable *pMemTable, void *func);
 
 // STbData
 int32_t tsdbGetNRowsInTbData(STbData *pTbData);
