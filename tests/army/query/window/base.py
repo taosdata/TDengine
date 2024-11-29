@@ -26,9 +26,36 @@ class TDTestCase:
         tdLog.info(f"insert data.")
         jfile = etool.curFile(__file__, "window.json")
         etool.benchMark(json=jfile)
+        
+    def testWithoutAggFunc(self):
+        sql1 = "select _wstart,_wend, tbname from db.stb partition by tbname event_window start with voltage >2 end with voltage > 15 slimit 5 limit 5"
+        sql2 = "select _wstart,_wend, tbname, count(voltage) from db.stb partition by tbname event_window start with voltage >2 end with voltage > 15 slimit 5 limit 5"
+        tdSql.check_query_col_data(sql1, sql2, 0)
+        tdSql.check_query_col_data(sql1, sql2, 1)
+        tdSql.check_query_col_data(sql1, sql2, 2)
+        sql1 = "select _wstart,_wend, tbname from db.stb partition by tbname count_window(600) slimit 5 limit 5"
+        sql2 = "select _wstart,_wend, tbname, count(voltage) from db.stb partition by tbname count_window(600) slimit 5 limit 5"
+        tdSql.check_query_col_data(sql1, sql2, 0)
+        tdSql.check_query_col_data(sql1, sql2, 1)
+        tdSql.check_query_col_data(sql1, sql2, 2)
+        sql1 = "select _wstart, _wend from db.stb event_window start with voltage >2 end with voltage > 15 limit 10;"
+        sql2 = "select _wstart, _wend, count(voltage)  from db.stb event_window start with voltage >2 end with voltage > 15 limit 10;"
+        tdSql.check_query_col_data(sql1, sql2, 0)
+        tdSql.check_query_col_data(sql1, sql2, 1)
+        sql1 = "select _wstart,_wend from db.stb count_window(60000)"
+        sql2 = "select _wstart,_wend, count(voltage) from db.stb count_window(60000)"
+        tdSql.check_query_col_data(sql1, sql2, 0)
+        tdSql.check_query_col_data(sql1, sql2, 1)
+        sql1 = "select _wstart,_wend, tbname from db.stb partition by tbname  count_window(60000) order by tbname, _wstart"
+        sql2 = "select _wstart,_wend, tbname, count(voltage) from db.stb partition by tbname  count_window(60000) order by tbname, _wstart"
+        tdSql.check_query_col_data(sql1, sql2, 0)
+        tdSql.check_query_col_data(sql1, sql2, 1)
+        tdSql.check_query_col_data(sql1, sql2, 2)
 
     # run
     def run(self):
+        self.testWithoutAggFunc()
+        
         # TD-31660
         sql = "select _wstart,_wend,count(voltage),tbname from db.stb partition by tbname event_window start with voltage >2 end with voltage > 15 slimit 5 limit 5"
         tdSql.query(sql)

@@ -117,9 +117,50 @@ class TDTestCase:
         if not tdSql.getData(2, 0).startswith('new-t3_stb_'):
             tdLog.exit("error6")
 
+
+    def caseWithoutAgg(self):
+
+        tdSql.execute(f'create database if not exists d2 vgroups 1')
+        tdSql.execute(f'use d2')
+        tdSql.execute(f'create table st2(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st2 tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t2 using st2 tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t3 using st2 tags(3) values(now, 1) (now+1s, 2)')
+
+        tdSql.execute("create stream stream2_1 fill_history 1 into sta_2 subtable(concat('nee.w-', tname)) AS SELECT "
+                      "_wstart, _wend FROM st2 PARTITION BY tbname tname INTERVAL(1m)", show=True)
+
+        tdSql.execute("create stream stream2_2 fill_history 1 into stb_2 subtable(concat('new-', tname)) AS SELECT "
+                      "_wstart, _wend FROM st2 PARTITION BY tbname tname INTERVAL(1m)", show=True)
+
+        sql= "select * from sta_2"
+        tdSql.check_rows_loop(3, sql, loopCount=10, waitTime=0.5)
+        tdSql.query("select tbname from sta_2 order by tbname")
+        if not tdSql.getData(0, 0).startswith('nee_w-t1_sta_'):
+            tdLog.exit("error1")
+
+        if not tdSql.getData(1, 0).startswith('nee_w-t2_sta_'):
+            tdLog.exit("error2")
+
+        if not tdSql.getData(2, 0).startswith('nee_w-t3_sta_'):
+            tdLog.exit("error3")
+
+        sql= "select * from stb_2"
+        tdSql.check_rows_loop(3, sql, loopCount=10, waitTime=0.5)
+        tdSql.query("select tbname from stb_2 order by tbname")
+        if not tdSql.getData(0, 0).startswith('new-t1_stb_'):
+            tdLog.exit("error4")
+
+        if not tdSql.getData(1, 0).startswith('new-t2_stb_'):
+            tdLog.exit("error5")
+
+        if not tdSql.getData(2, 0).startswith('new-t3_stb_'):
+            tdLog.exit("error6")
+
     # run
     def run(self):
         self.case1()
+        self.caseWithoutAgg()
         # gen data
         random.seed(int(time.time()))
         self.taosBenchmark(" -d db -t 2 -v 2 -n 1000000 -y")
