@@ -538,6 +538,7 @@ typedef struct SStreamScanInfo {
   int32_t        pkColLen;
   bool           useGetResultRange;
   STimeWindow    lastScanRange;
+  SSDataBlock*   pRangeScanRes;   // update SSDataBlock
 } SStreamScanInfo;
 
 typedef struct {

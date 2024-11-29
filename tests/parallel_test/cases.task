@@ -52,6 +52,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/sys/tb_perf_queries_exist_test.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
 ,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
+,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py
 
 #
 # system test
@@ -603,6 +604,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py
@@ -753,6 +756,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/compactDBConflict.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 2
@@ -783,6 +787,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
@@ -882,6 +887,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
@@ -980,6 +986,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
@@ -1420,6 +1427,7 @@
 ,,y,script,./test.sh -f tsim/stream/streamTwaFwcFill.sim
 ,,y,script,./test.sh -f tsim/stream/streamTwaFwcFillPrimaryKey.sim
 ,,y,script,./test.sh -f tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
+,,y,script,./test.sh -f tsim/stream/streamTwaInterpFwc.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim

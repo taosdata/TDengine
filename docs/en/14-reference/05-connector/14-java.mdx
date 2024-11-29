@@ -1,0 +1,1618 @@
+---
+sidebar_label: Java
+title: Java Client Library
+description: The TDengine Java Connector is implemented based on the standard JDBC API and provides both native and REST connection options.
+slug: /tdengine-reference/client-libraries/java
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import RequestId from "./_request_id.mdx";
+
+`taos-jdbcdriver` is the official Java connector for TDengine, allowing Java developers to create applications that access the TDengine database. The `taos-jdbcdriver` implements the standard JDBC driver interfaces.
+
+:::info
+
+The TDengine JDBC driver aims to be consistent with relational database drivers; however, since TDengine's use cases and technical characteristics differ from traditional relational databases, `taos-jdbcdriver` also has certain differences compared to conventional JDBC drivers. When using it, please note the following points:
+
+- TDengine currently does not support deletion operations for single data records.
+- Transaction operations are not currently supported.
+
+:::
+
+## JDBC and JRE Compatibility
+
+- JDBC: Supports JDBC version 4.2. Some features, such as schemaless writing and data subscription, are provided separately.
+- JRE: Supports JRE 8 and above.
+
+## Supported Platforms
+
+The platforms supported by the native connection are consistent with those supported by the TDengine client driver.
+
+REST connections are supported on all platforms that can run Java.
+
+## Version History
+
+| taos-jdbcdriver Version |                                                                       Major Changes                                                                        |   TDengine Version    |
+| :----------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------------: |
+|        3.4.0            | 1. Replace the fastjson library with the Jackson library; 2. WebSocket connection protocal uses independent identification; 3. Optimize the use of backend pull threads to avoid user misuse leading to timeouts.|    -       |
+|        3.3.4            | 1. Fixed getInt error when data type is float|    -       |
+|        3.3.3            | 1. Fixed memory leak caused by closing WebSocket statement      |        -           |
+|        3.3.2            | 1. Optimized parameter binding performance under WebSocket connections; 2. Improved support for MyBatis      |        -           |
+|        3.3.0            | 1. Optimized data transmission performance under WebSocket connections; 2. Supported skipping SSL verification, turned off by default      |        3.3.2.0 and above         |
+|        3.2.11           | Fixed bug related to closing ResultSet in Native connection      |        -           |
+|        3.2.10           | 1. REST/WebSocket connections support data compression during transmission; 2. WebSocket automatic reconnection mechanism, turned off by default; 3. The Connection class provides methods for schemaless writing; 4. Optimized data retrieval performance for native connections; 5. Fixed several known issues; 6. Metadata retrieval functions can return the list of supported functions.      |        -           |
+|        3.2.9            | Fixed bug related to closing WebSocket prepareStatement                                    |        -           |
+|        3.2.8            | Optimized auto-commit, fixed WebSocket manual commit bug, optimized WebSocket prepareStatement to use one connection, metadata supports views                                       |        -           |
+|        3.2.7            | Supported VARBINARY and GEOMETRY types, added support for timezone settings in native connections. Added automatic reconnection feature for WebSocket.                                                                      | 3.2.0.0 and above |
+|        3.2.5            |                                                      Data subscription added committed() and assignment() methods                                                       | 3.1.0.3 and above |
+|        3.2.4            |                                   Data subscription under WebSocket connections added enable.auto.commit parameter and unsubscribe() method.                                   |         -           |
+|        3.2.3            |                                                         Fixed failure in data parsing for ResultSet in some cases                                                          |         -           |
+|        3.2.2            |                                                           New feature: Data subscription supports seek functionality.                                                           | 3.0.5.0 and above |
+|        3.2.1            | New feature: WebSocket connections support schemaless and prepareStatement writing. Change: Consumer poll returns a result set of ConsumerRecord, which can be accessed via value(). | 3.0.3.0 and above |
+|        3.2.0            |                                                                There are connection issues; not recommended for use                                                                |         -           |
+|        3.1.0            |                                                               WebSocket connections support subscription functionality                                                               |         -           |
+|    3.0.1 - 3.0.4        |                             Fixed errors in data parsing for result set under certain conditions. 3.0.1 compiled in JDK 11 environment, it is recommended to use other versions under JDK 8                             |         -           |
+|        3.0.0            |                                                                   Supports TDengine 3.0                                                                    | 3.0.0.0 and above |
+|        2.0.42           |                                                        Fixed wasNull interface return value in WebSocket connection                                                        |         -           |
+|        2.0.41           |                                                          Fixed encoding method for username and password in REST connection                                                          |         -           |
+|   2.0.39 - 2.0.40       |                                                              Added timeout settings for REST connection/request                                                              |         -           |
+|        2.0.38           |                                                             Added batch fetching functionality for JDBC REST connections                                                             |         -           |
+|        2.0.37           |                                                                  Added support for JSON tags                                                                  |         -           |
+|        2.0.36           |                                                               Added support for schemaless writing                                                               |         -           |
+
+## Exceptions and Error Codes
+
+After an error occurs, you can obtain error information and error codes through SQLException:
+
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:jdbc_exception}}
+```
+
+The JDBC connector may report four types of error codes:
+
+- Errors from the JDBC driver itself (error codes between 0x2301 and 0x2350)
+- Errors from native connection methods (error codes between 0x2351 and 0x2360)
+- Errors from data subscriptions (error codes between 0x2371 and 0x2380)
+- Errors from other TDengine functional modules; refer to [Error Codes](../../error-codes/)
+
+For specific error codes, please refer to:
+
+| Error Code | Description                                                     | Suggested Actions                                                                         |
+| ---------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 0x2301     | connection already closed                                       | The connection has been closed; check the connection status or recreate the connection to execute related commands.                                |
+| 0x2302     | this operation is NOT supported currently!                      | The current interface does not support this operation; you can switch to another connection method.                                                |
+| 0x2303     | invalid variables                                               | The parameters are invalid; please check the respective interface specifications and adjust the parameter types and sizes.                                      |
+| 0x2304     | statement is closed                                             | The statement has been closed; please check if the statement was closed before being reused or if the connection is functioning normally.               |
+| 0x2305     | resultSet is closed                                             | The ResultSet has been released; please check if the ResultSet was released before being reused.                           |
+| 0x2306     | Batch is empty!                                                 | Add parameters to the prepareStatement before executing executeBatch.                                          |
+| 0x2307     | Can not issue data manipulation statements with executeQuery()  | Update operations should use executeUpdate() instead of executeQuery().                                 |
+| 0x2308     | Can not issue SELECT via executeUpdate()                        | Query operations should use executeQuery() instead of executeUpdate().                                 |
+| 0x230d     | parameter index out of range                                    | Parameter index out of range; please check the reasonable range of the parameters.                                                          |
+| 0x230e     | connection already closed                                       | The connection has been closed; please check if the Connection is closed before being reused or if the connection is functioning normally.                    |
+| 0x230f     | unknown sql type in tdengine                                    | Please check the Data Type types supported by TDengine.                                                   |
+| 0x2310     | can't register JDBC-JNI driver                                  | Cannot register the JNI driver; please check if the URL is entered correctly.                                              |
+| 0x2312     | url is not set                                                  | Please check if the REST connection URL is entered correctly.                                                       |
+| 0x2314     | numeric value out of range                                      | Please check if the correct interface is used for obtaining numeric types in the result set.                                          |
+| 0x2315     | unknown taos type in tdengine                                   | When converting TDengine data types to JDBC data types, please ensure the correct TDengine data types are specified.          |
+| 0x2317     |                                                                 | Incorrect request type used in the REST connection.                                                         |
+| 0x2318     |                                                                 | Data transmission exception occurred in the REST connection; please check network conditions and retry.                                     |
+| 0x2319     | user is required                                                | Missing username information when creating the connection.                                                                  |
+| 0x231a     | password is required                                            | Missing password information when creating the connection.                                                                    |
+| 0x231c     | httpEntity is null, sql:                                        | Exception occurred during execution in the REST connection.                                                                   |
+| 0x231d     | can't create connection with server within                      | Increase the connection timeout by adding the httpConnectTimeout parameter, or check the connection with taosAdapter.   |
+| 0x231e     | failed to complete the task within the specified time           | Increase the execution timeout by adding the messageWaitTimeout parameter, or check the connection with taosAdapter.   |
+| 0x2350     | unknown error                                                   | Unknown exception; please report it to the developers on GitHub.                                                    |
+| 0x2352     | Unsupported encoding                                            | Specified unsupported character encoding under local connection.                                                        |
+| 0x2353     | internal error of database, please see taoslog for more details | Error occurred during prepareStatement execution under local connection; please check the taos log for troubleshooting.                  |
+| 0x2354     | JNI connection is NULL                                          | Connection has been closed during command execution. Please check the connection status with TDengine.                   |
+| 0x2355     | JNI result set is NULL                                          | Result set is abnormal during local connection; please check the connection status and retry.                                  |
+| 0x2356     | invalid num of fields                                           | Meta information for the result set does not match during local connection.                                                    |
+| 0x2357     | empty sql string                                                | Please provide a valid SQL statement for execution.                                                                 |
+| 0x2359     | JNI alloc memory failed, please see taoslog for more details    | Memory allocation error during local connection; please check the taos log for troubleshooting.                                      |
+| 0x2371     | consumer properties must not be null!                           | Parameters are empty when creating a subscription; please provide the correct parameters.                                                    |
+| 0x2372     | configs contain empty key, failed to set consumer property      | Parameter key contains an empty value; please provide the correct parameters.                                                   |
+| 0x2373     | failed to set consumer property,                                | Parameter value contains an empty value; please provide the correct parameters.                                                 |
+| 0x2375     | topic reference has been destroyed                              | The topic reference was released during the data subscription creation process. Please check the connection status with TDengine.                      |
+| 0x2376     | failed to set consumer topic, topic name is empty               | The topic name is empty during the data subscription creation process; please check if the specified topic name is correct.            |
+| 0x2377     | consumer reference has been destroyed                           | The data subscription channel has been closed; please check the connection status with TDengine.                                  |
+| 0x2378     | consumer create error                                           | Failed to create the data subscription; please check the taos log for troubleshooting based on the error information.                              |
+| 0x2379     | seek offset must not be a negative number                       | Seek interface parameter cannot be negative; please use the correct parameters.                                                 |
+| 0x237a     | vGroup not found in result set                                  | The VGroup is not assigned to the current consumer; this is due to the Rebalance mechanism that results in a non-binding relationship between the Consumer and VGroup. |
+
+- [TDengine Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+<!-- - [TDengine_ERROR_CODE](../error-code) -->
+
+## Data Type Mapping
+
+TDengine currently supports timestamp, numeric, character, and boolean types, which are converted to corresponding Java types as follows:
+
+| TDengine DataType | JDBCType           |
+| ----------------- | ------------------ |
+| TIMESTAMP         | java.sql.Timestamp |
+| INT               | java.lang.Integer  |
+| BIGINT            | java.lang.Long     |
+| FLOAT             | java.lang.Float    |
+| DOUBLE            | java.lang.Double   |
+| SMALLINT          | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
+| JSON              | java.lang.String   |
+| VARBINARY         | byte[]             |
+| GEOMETRY          | byte[]             |
+
+:::note
+
+The JSON type is only supported in tags.  
+
+Due to historical reasons, BINARY in TDengine is not true binary data, and its use is discouraged. Please use the VARBINARY type instead.  
+
+The GEOMETRY type is little-endian byte-order binary data, compliant with the WKB specification. For more details, please refer to [Data Types](../../sql-manual/data-types/).  
+
+For the WKB specification, refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/).  
+
+For the Java connector, you can use the JTS library to conveniently create GEOMETRY type objects, serialize them, and write them to TDengine. Here is a sample [Geometry Example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java).  
+
+:::
+
+## Example Program Summary
+
+The source code for the example programs is located in `TDengine/docs/examples/JDBC`:
+
+- JDBCDemo: JDBC example source program.
+- connectionPools: Using `taos-jdbcdriver` with connection pools like HikariCP, Druid, dbcp, c3p0, etc.
+- SpringJdbcTemplate: Using `taos-jdbcdriver` with Spring JdbcTemplate.
+- mybatisplus-demo: Using `taos-jdbcdriver` with Spring Boot + MyBatis.
+- springbootdemo: Using `taos-jdbcdriver` with Spring Boot.
+- consumer-demo: Example of consuming TDengine data with a Consumer; the consumption speed can be controlled via parameters.
+
+Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC).
+
+## Frequently Asked Questions
+
+1. Why do using Statement's `addBatch()` and `executeBatch()` to perform "batch insert/update" not bring performance improvements?
+
+**Reason**: In the TDengine JDBC implementation, SQL statements submitted through the `addBatch` method are executed sequentially in the order they were added, which does not reduce the number of interactions with the server and does not lead to performance improvements.
+
+**Solutions**: 1. Concatenate multiple values in a single insert statement; 2. Use multi-threading to insert concurrently; 3. Use parameter binding for writing.
+
+2. java.lang.UnsatisfiedLinkError: no taos in java.library.path
+
+**Reason**: The program cannot find the dependent local function library taos.
+
+**Solutions**: On Windows, copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory; on Linux, create the following soft link: `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so`; on macOS, create the soft link: `ln -s /usr/local/lib/libtaos.dylib`.
+
+3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
+
+**Reason**: Currently, TDengine only supports 64-bit JDK.
+
+**Solutions**: Reinstall a 64-bit JDK.
+
+4. java.lang.NoSuchMethodError: setByteArray
+
+**Reason**: The `taos-jdbcdriver` version 3.\* only supports TDengine version 3.0 and above.
+
+**Solutions**: Use the `taos-jdbcdriver` version 2.\* to connect to TDengine version 2.*.
+
+5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
+
+**Reason**: The `taos-jdbcdriver` version 3.0.1 needs to be used in a JDK 11+ environment.
+
+**Solutions**: Switch to `taos-jdbcdriver` version 3.0.2 or above.
+
+For other issues, please refer to [Frequently Asked Questions](../../../frequently-asked-questions/).
+
+## API Reference
+
+### JDBC Driver
+
+The `taos-jdbcdriver` implements the JDBC standard Driver interface and provides two implementation classes: `RestfulDriver` and `TSDBDriver`.
+WebSocket and REST connections use the driver class `com.taosdata.jdbc.rs.RestfulDriver`, while native connections use the driver class `com.taosdata.jdbc.TSDBDriver`.
+
+#### URL Specification
+
+The JDBC URL format for TDengine is:
+`jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
+
+For establishing a connection, there are slight differences between native and REST connections. WebSocket and REST connections use the driver class `com.taosdata.jdbc.rs.RestfulDriver`, while native connections use the driver class `com.taosdata.jdbc.TSDBDriver`.
+
+**Note**: Adding the `batchfetch` parameter and setting it to true in a REST connection will enable WebSocket connections.
+
+**Native Connection**  
+`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata` uses the JDBC native connection `TSDBDriver` to establish a connection to a hostname of `taosdemo.com`, on port `6030` (the default port for TDengine), with a database name of `power`. This URL specifies the username (`user`) as `root` and the password (`password`) as `taosdata`.
+
+**Note**: When using JDBC native connections, the `taos-jdbcdriver` requires the client driver (libtaos.so on Linux; taos.dll on Windows; libtaos.dylib on macOS).
+
+The supported configuration parameters for native connection URLs are as follows:
+
+- user: TDengine username, default value is 'root'.
+- password: User password, default value is 'taosdata'.
+- cfgdir: Path to the client configuration file directory, default value on Linux OS is `/etc/taos`, and on Windows OS is `C:/TDengine/cfg`.
+- charset: Character set used by the client, default value is the system character set.
+- locale: Client locale, default value is the current system locale.
+- timezone: Time zone used by the client, default value is the current system time zone.
+- batchfetch: true: Retrieve result sets in batches during query execution; false: Retrieve result sets one row at a time. The default value is: true. Enabling batch retrieval can effectively improve query performance when querying large amounts of data.
+- batchErrorIgnore: true: When executing `executeBatch` on a Statement, if one SQL execution fails, it will continue to execute the subsequent SQL. false: No further SQL statements will be executed after the failed SQL. The default value is: false.
+
+**Establishing Connections Using the TDengine Client Driver Configuration File**  
+
+When connecting to a TDengine cluster using JDBC native connections, you can use the TDengine client driver configuration file to specify parameters like `firstEp`, `secondEp`, etc. In this case, do not specify `hostname` and `port` in the JDBC URL.
+The configuration would look like `jdbc:TAOS://:/power?user=root&password=taosdata`.  
+By specifying `firstEp` and `secondEp` in the TDengine client driver configuration file, JDBC will use the client configuration file to establish the connection. When the `firstEp` node in the cluster fails, JDBC will attempt to connect to the cluster using `secondEp`.  
+In TDengine, as long as one node in `firstEp` and `secondEp` is valid, a connection to the cluster can be established.
+
+**Note**: The configuration file mentioned here refers to the configuration file on the machine where the application calling the JDBC Connector resides, with the default value on Linux OS being `/etc/taos/taos.cfg` and on Windows OS being `C://TDengine/cfg/taos.cfg`.
+
+**WebSocket and REST Connections**  
+When using JDBC WebSocket or REST connections, there is no dependency on the client driver. Compared to JDBC native connections, you only need to:
+
+1. Specify the `driverClass` as “com.taosdata.jdbc.rs.RestfulDriver”;
+2. Start the `jdbcUrl` with “jdbc:TAOS-RS://”;
+3. Use port `6041` for the connection.
+
+For WebSocket and REST connections, the configuration parameters in the URL are as follows:
+
+- user: TDengine username, default value is 'root'.
+- password: User password, default value is 'taosdata'.
+- batchfetch: true: Retrieve result sets in batches during query execution; false: Retrieve result sets one row at a time. The default value is: false. Retrieving result sets one row at a time uses HTTP for data transmission. JDBC REST connections support batch data retrieval. The `taos-jdbcdriver` uses WebSocket for data transmission between itself and TDengine. Compared to HTTP, WebSocket enables JDBC REST connections to support large data queries and improve query performance.
+- charset: When enabling batch data retrieval, specify the character set for parsing string data.
+- batchErrorIgnore: true: When executing `executeBatch` on a Statement, if one SQL execution fails, it will continue to execute the subsequent SQL. false: No further SQL statements will be executed after the failed SQL. The default value is: false.
+- httpConnectTimeout: Connection timeout, in ms, default value is 60000.
+- httpSocketTimeout: Socket timeout, in ms, default value is 60000. This only takes effect when `batchfetch` is set to false.
+- messageWaitTimeout: Message timeout, in ms, default value is 60000. This only takes effect when `batchfetch` is set to true.
+- useSSL: Whether to use SSL in the connection.
+- httpPoolSize: REST concurrent request size, default is 20.
+
+**Note**: Some configuration items (e.g., locale, timezone) are ineffective in REST connections.
+
+:::note
+
+- Unlike the native connection method, the REST interface is stateless. When using JDBC REST connections, you need to specify the database name of the table or supertable in the SQL.
+- If you specify a `dbname` in the URL, the JDBC REST connection will default to using `/rest/sql/dbname` as the restful request URL, and there is no need to specify `dbname` in the SQL. For example, if the URL is `jdbc:TAOS-RS://127.0.0.1:6041/power`, then you can execute the SQL: `INSERT INTO d1001 USING meters TAGS(2,'California.SanFrancisco') VALUES (NOW, 10.30000, 219, 0.31000);`
+
+:::
+
+#### Properties
+
+In addition to obtaining a connection via the specified URL, you can also use `Properties` to specify parameters for establishing the connection.
+
+**Note**: The client parameters set in the application are process-level, meaning if you want to update the client parameters, you need to restart the application. This is because client parameters are global and only take effect upon the first setting in the application.
+
+The configuration parameters in properties are as follows:
+
+- `TSDBDriver.PROPERTY_KEY_USER`: The username for logging into TDengine, default value is 'root'.
+- `TSDBDriver.PROPERTY_KEY_PASSWORD`: The user password, default value is 'taosdata'.
+- `TSDBDriver.PROPERTY_KEY_BATCH_LOAD`: true: Batch retrieval of result sets during query execution; false: Retrieve result sets one row at a time. Default value is: false.
+- `TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE`: true: When executing `executeBatch` on a Statement, if one SQL execution fails, it will continue executing the subsequent SQL. false: No further SQL statements will be executed after the failed SQL. Default value is: false.
+- `TSDBDriver.PROPERTY_KEY_CONFIG_DIR`: Only effective when using JDBC native connections. The path to the client configuration file directory, default value on Linux OS is `/etc/taos`, and on Windows OS is `C:/TDengine/cfg`.
+- `TSDBDriver.PROPERTY_KEY_CHARSET`: The character set used by the client, default value is the system character set.
+- `TSDBDriver.PROPERTY_KEY_LOCALE`: Only effective when using JDBC native connections. The client locale, default value is the current system locale.
+- `TSDBDriver.PROPERTY_KEY_TIME_ZONE`: Only effective when using JDBC native connections. The time zone used by the client, default value is the current system time zone. Due to historical reasons, only a portion of POSIX standard specifications are supported, such as UTC-8 (representing Shanghai, China), GMT-8, and Asia/Shanghai.
+- `TSDBDriver.HTTP_CONNECT_TIMEOUT`: Connection timeout, in ms, default value is 60000. Only effective in REST connections.
+- `TSDBDriver.HTTP_SOCKET_TIMEOUT`: Socket timeout, in ms, default value is 60000. Only effective in REST connections and when `batchfetch` is set to false.
+- `TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT`: Message timeout, in ms, default value is 60000. Only effective in REST connections and when `batchfetch` is set to true.
+- `TSDBDriver.PROPERTY_KEY_USE_SSL`: Whether to use SSL in the connection. Only effective in REST connections.
+- `TSDBDriver.HTTP_POOL_SIZE`: REST concurrent request size, default is 20.
+- `TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION`: Whether to enable compression during transmission. Only effective when using REST/WebSocket connections. true: Enable; false: Disable. Default is false.
+- `TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT`: Whether to enable automatic reconnection. Only effective when using WebSocket connections. true: Enable; false: Disable. Default is false.
+  :::note
+  Enabling automatic reconnection is only effective for simple SQL statements, as well as schemaless writes and data subscriptions. It is ineffective for parameter binding. Automatic reconnection is only valid for database specifications provided during connection establishment via parameters, and does not apply to subsequent `use db` statements to switch databases.
+  :::
+- `TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS`: The retry interval for automatic reconnection, in milliseconds, default value is 2000. Only effective when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
+- `TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT`: The number of retries for automatic reconnection, default value is 3, only effective when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
+- `TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION`: Disable SSL certificate validation. Only effective when using WebSocket connections. true: Enable; false: Disable. Default is false.
+
+In addition to specifying other parameters like log level, SQL length, etc., through the URL and Properties for JDBC native connections.
+
+**Configuration Parameter Priority**
+
+When obtaining connections through the three aforementioned methods, if configuration parameters are duplicated in the URL, Properties, or client configuration file, the parameter's priority is ranked from high to low as follows:
+
+1. JDBC URL parameters, as described above, can be specified in the JDBC URL parameters.
+2. Properties `connProps`
+3. The TDengine client driver configuration file `taos.cfg` when using native connections
+
+For example: If the password is specified as `taosdata` in the URL, and as `taosdemo` in Properties, then JDBC will use the password specified in the URL to establish the connection.
+
+#### Interface Description  
+
+- `Connection connect(String url, java.util.Properties info) throws SQLException`
+  - **Description**: Connect to the TDengine database.
+  - **Parameters**:
+    - `url`: The connection URL, see the above URL specification.
+    - `info`: Connection properties, see the above Properties section.
+  - **Returns**: A connection object.
+  - **Exceptions**: Throws `SQLException` if the connection fails.
+
+- `boolean acceptsURL(String url) throws SQLException`
+  - **Description**: Check if the driver supports the given URL.
+  - **Parameters**:
+    - `url`: The connection URL.
+  - **Returns**: `true`: Supported, `false`: Not supported.
+  - **Exceptions**: Throws `SQLException` if the URL is invalid.
+
+- `DriverPropertyInfo[] getPropertyInfo(String url, java.util.Properties info) throws SQLException`
+  - **Description**: Get detailed information about all properties that may be required when attempting to connect to the database. This property information is returned encapsulated in an array of `DriverPropertyInfo` objects. Each `DriverPropertyInfo` object contains detailed information about a database connection property, such as property name, value, description, etc.
+  - **Parameters**:
+    - `url`: A String type parameter representing the database URL.
+    - `info`: A java.util.Properties type parameter containing the property list that users may provide when attempting to connect.
+  - **Returns**: Returns an array of `DriverPropertyInfo[]`, which are `DriverPropertyInfo` objects. Each `DriverPropertyInfo` object contains detailed information about a specific database connection property.
+  - **Exceptions**: Throws `SQLException` if a database access error or other error occurs while getting property information.
+
+- `int getMajorVersion()`
+  - **Description**: Get the major version number of the JDBC driver.
+
+- `int getMinorVersion()`
+  - **Description**: Get the minor version number of the JDBC driver.
+
+### Database Metadata
+
+`DatabaseMetaData` is part of the JDBC API, providing detailed information about the database's metadata, which means data about the database's data. Through the `DatabaseMetaData` interface, you can query detailed information about the database server, such as the database product name, version, installed features, tables, views, stored procedures, and more. This is very useful for understanding and adapting to the characteristics of different databases.
+
+- `String getURL() throws SQLException`
+  - **Description**: Retrieves the URL used to connect to the database.
+  - **Returns**: The URL for connecting to the database.
+  - **Exceptions**: Throws `SQLException` if retrieval fails.
+
+- `String getUserName() throws SQLException`
+  - **Description**: Retrieves the username used to connect to the database.
+  - **Returns**: The username for connecting to the database.
+  - **Exceptions**: Throws `SQLException` if retrieval fails.
+
+- `String getDriverName() throws SQLException`
+  - **Description**: Retrieves the name of the JDBC driver.
+  - **Returns**: The driver name as a string.
+  - **Exceptions**: Throws `SQLException` if retrieval fails.
+
+- `String getDriverVersion() throws SQLException`
+  - **Description**: Retrieves the JDBC driver version.
+  - **Returns**: The driver version as a string.
+  - **Exceptions**: Throws `SQLException` if retrieval fails.
+
+- `int getDriverMajorVersion()`
+  - **Description**: Retrieves the major version number of the JDBC driver.
+
+- `int getDriverMinorVersion()`
+  - **Description**: Retrieves the minor version number of the JDBC driver.
+
+- `String getDatabaseProductName() throws SQLException`
+  - **Description**: Retrieves the name of the database product.
+
+- `String getDatabaseProductVersion() throws SQLException`
+  - **Description**: Retrieves the version number of the database product.
+
+- `String getIdentifierQuoteString() throws SQLException`
+  - **Description**: Retrieves the string used for quoting SQL identifiers.
+
+- `String getSQLKeywords() throws SQLException`
+  - **Description**: Retrieves a list of database-specific SQL keywords.
+
+- `String getNumericFunctions() throws SQLException`
+  - **Description**: Retrieves a list of numeric function names supported by the database.
+
+- `String getStringFunctions() throws SQLException`
+  - **Description**: Retrieves a list of string function names supported by the database.
+
+- `String getSystemFunctions() throws SQLException`
+  - **Description**: Retrieves a list of system function names supported by the database.
+
+- `String getTimeDateFunctions() throws SQLException`
+  - **Description**: Retrieves a list of time and date function names supported by the database.
+
+- `String getCatalogTerm() throws SQLException`
+  - **Description**: Retrieves the term for catalogs in the database.
+
+- `String getCatalogSeparator() throws SQLException`
+  - **Description**: Retrieves the separator used to separate catalogs and table names.
+
+- `int getDefaultTransactionIsolation() throws SQLException`
+  - **Description**: Retrieves the default transaction isolation level of the database.
+
+- `boolean supportsTransactionIsolationLevel(int level) throws SQLException`
+  - **Description**: Determines if the database supports the given transaction isolation level.
+  - **Parameters**:
+    - `level`: The transaction isolation level.
+  - **Returns**: `true` if supported, `false` if not.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException`
+  - **Description**: Retrieves information about tables in the database that match the specified patterns.
+  - **Parameters**:
+    - `catalog`: Catalog name; `null` means not specified.
+    - `schemaPattern`: Schema name pattern; `null` means not specified.
+    - `tableNamePattern`: Table name pattern.
+    - `types`: List of table types to return.
+  - **Returns**: A `ResultSet` containing table information.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `ResultSet getCatalogs() throws SQLException`
+  - **Description**: Retrieves information about all catalogs in the database.
+  - **Returns**: A `ResultSet` containing catalog information.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `ResultSet getTableTypes() throws SQLException`
+  - **Description**: Retrieves the table types supported by the database.
+  - **Returns**: A `ResultSet` containing table types.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException`
+  - **Description**: Retrieves information about columns in the specified table that match the specified patterns.
+  - **Parameters**:
+    - `catalog`: Catalog name; `null` means not specified.
+    - `schemaPattern`: Schema name pattern; `null` means not specified.
+    - `tableNamePattern`: Table name pattern.
+    - `columnNamePattern`: Column name pattern.
+  - **Returns**: A `ResultSet` containing column information.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException`
+  - **Description**: Retrieves primary key information for the specified table.
+  - **Parameters**:
+    - `catalog`: Catalog name; `null` means not specified.
+    - `schema`: Schema name; `null` means not specified.
+    - `table`: Table name.
+  - **Returns**: A `ResultSet` containing primary key information.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `Connection getConnection() throws SQLException`
+  - **Description**: Retrieves the database connection.
+  - **Returns**: The `Connection` object for the database connection.
+  - **Exceptions**: Throws `SQLException` if connection retrieval fails.
+
+- `ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException`
+  - **Description**: Retrieves information about supertables for the specified table.
+  - **Parameters**:
+    - `catalog`: Catalog name; `null` means not specified.
+    - `schemaPattern`: Schema name pattern; `null` means not specified.
+    - `tableNamePattern`: Table name pattern.
+  - **Returns**: A `ResultSet` containing supertable information.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `boolean supportsResultSetHoldability(int holdability) throws SQLException`
+  - **Description**: Determines if the database supports the given `ResultSet` holdability.
+  - **Parameters**:
+    - `holdability`: The holdability of the `ResultSet`.
+  - **Returns**: `true` if supported, `false` if not.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `int getSQLStateType() throws SQLException`
+  - **Description**: Retrieves the SQLSTATE type used by the database.
+  - **Returns**: The SQLSTATE type code.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+The following interfaces return `true` for supported class interfaces; others that return `false` are not detailed further.
+
+| Interface Method                                     | Description                                        |
+|-----------------------------------------------------|----------------------------------------------------|
+| `boolean nullsAreSortedAtStart()`                   | Determines if `NULL` values are sorted at the start.         |
+| `boolean storesLowerCaseIdentifiers()`              | Determines if the database stores identifiers in lowercase.  |
+| `boolean supportsAlterTableWithAddColumn()`         | Determines if the database supports adding columns with `ALTER TABLE`. |
+| `boolean supportsAlterTableWithDropColumn()`        | Determines if the database supports dropping columns with `ALTER TABLE`. |
+| `boolean supportsColumnAliasing()`                  | Determines if the database supports column aliases.         |
+| `boolean supportsGroupBy()`                          | Determines if the database supports `GROUP BY` statements. |
+| `boolean isCatalogAtStart()`                         | Determines if the catalog name appears at the start of fully qualified names in the database. |
+| `boolean supportsCatalogsInDataManipulation()`      | Determines if the database supports catalog names in data manipulation statements. |
+
+### Connection Functionality
+
+The JDBC driver supports creating connections and returns objects that support the JDBC standard `Connection` interface. It also provides the `AbstractConnection` interface, which extends some schemaless writing interfaces.
+
+#### Standard Interfaces
+
+- `Statement createStatement() throws SQLException`
+  - **Description**: Creates a `Statement` object for executing SQL statements. For details on the `Statement` interface, see the section on executing SQL below.
+  - **Returns**: The created `Statement` object.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `PreparedStatement prepareStatement(String sql) throws SQLException`
+  - **Description**: Creates a `PreparedStatement` object for executing the given SQL statement. For details on the `PreparedStatement` interface, see the section on executing SQL below.
+  - **Parameters**:
+    - `sql`: The precompiled SQL statement.
+  - **Returns**: The created `PreparedStatement` object.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `String nativeSQL(String sql) throws SQLException`
+  - **Description**: Converts an SQL statement to the database-specific SQL syntax.
+  - **Parameters**:
+    - `sql`: The SQL statement to convert.
+  - **Returns**: The converted SQL statement.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `void close() throws SQLException`
+  - **Description**: Closes the database connection.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `boolean isClosed() throws SQLException`
+  - **Description**: Determines if the database connection is closed.
+  - **Returns**: `true` if closed, `false` if not.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `DatabaseMetaData getMetaData() throws SQLException`
+  - **Description**: Retrieves the metadata of the database.
+  - **Returns**: The database metadata.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `void setCatalog(String catalog) throws SQLException`
+  - **Description**: Sets the default database for the current connection.
+  - **Parameters**:
+    - `catalog`: The name of the database to set.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `String getCatalog() throws SQLException`
+  - **Description**: Retrieves the default database for the current connection.
+  - **Returns**: The name of the current catalog.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException`
+  - **Description**: Creates a `Statement` object, specifying the `ResultSet` type and concurrency mode.
+  - **Parameters**:
+    - `resultSetType`: The `ResultSet` type.
+    - `resultSetConcurrency`: The concurrency mode.
+  - **Returns**: The created `Statement` object.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException`
+  - **Description**: Creates a `Statement` object, specifying the `ResultSet` type, concurrency mode, and holdability.
+  - **Parameters**:
+    - `resultSetType`: The `ResultSet` type.
+    - `resultSetConcurrency`: The concurrency mode.
+    - `resultSetHoldability`: The holdability.
+  - **Returns**: The created `Statement` object.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException`
+  - **Description**: Creates a `PreparedStatement` object, specifying the SQL, `ResultSet` type, and concurrency mode.
+  - **Parameters**:
+    - `sql`: The precompiled SQL statement.
+    - `resultSetType`: The `ResultSet` type.
+    - `resultSetConcurrency`: The concurrency mode.
+  - **Returns**: The created `PreparedStatement` object.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException`
+  - **Description**: Creates a `PreparedStatement` object, specifying the SQL, `ResultSet` type, concurrency mode, and holdability.
+  - **Parameters**:
+    - `sql`: The precompiled SQL statement.
+    - `resultSetType`: The `ResultSet` type.
+    - `resultSetConcurrency`: The concurrency mode.
+    - `resultSetHoldability`: The holdability.
+  - **Returns**: The created `PreparedStatement` object.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException`
+  - **Description**: Creates a `PreparedStatement` object, specifying the SQL statement and the flag for auto-generated keys.
+  - **Parameters**:
+    - `sql`: The precompiled SQL statement.
+    - `autoGeneratedKeys`: The flag indicating whether auto keys should be generated.
+  - **Returns**: The created `PreparedStatement` object.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `void setHoldability(int holdability) throws SQLException`
+  - **Description**: Sets the default holdability for the `ResultSet` object.
+  - **Parameters**:
+    - `holdability`: The holdability of the `ResultSet`.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `int getHoldability() throws SQLException`
+  - **Description**: Retrieves the default holdability of the `ResultSet` object.
+  - **Returns**: The holdability of the `ResultSet`.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `boolean isValid(int timeout) throws SQLException`
+  - **Description**: Checks if the database connection is valid.
+  - **Parameters**:
+    - `timeout`: The timeout in seconds for waiting for the validity check.
+  - **Returns**: `true` if the connection is valid, `false` if not.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `void setClientInfo(String name, String value) throws SQLClientInfoException`
+  - **Description**: Sets a client information property.
+  - **Parameters**:
+    - `name`: The property name.
+    - `value`: The property value.
+  - **Exceptions**: Throws `SQLClientInfoException` if the setting fails.
+
+- `void setClientInfo(Properties properties) throws SQLClientInfoException`
+  - **Description**: Sets a set of client information properties.
+  - **Parameters**:
+    - `properties`: The properties set.
+  - **Exceptions**: Throws `SQLClientInfoException` if the setting fails.
+
+- `String getClientInfo(String name) throws SQLException`
+  - **Description**: Retrieves the value of the specified client information property.
+  - **Parameters**:
+    - `name`: The property name.
+  - **Returns**: The property value.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `Properties getClientInfo() throws SQLException`
+  - **Description**: Retrieves all client information properties.
+  - **Returns**: A `Properties` object containing all client information properties.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+#### Schemaless Writing
+
+Note: The abstract type interfaces below will be implemented by specific implementation classes, so once the connection is established, the connection object can be called directly.
+
+- `abstract void write(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType, Integer ttl, Long reqId) throws SQLException`
+  - **Description**: Writes multiple lines of data using the specified protocol type, timestamp type, TTL (time-to-live), and request ID.
+  - **Parameters**:
+    - `lines`: The array of data lines to be written.
+    - `protocolType`: The protocol type, supporting InfluxDB `LINE`, OpenTSDB `TELNET`, and OpenTSDB `JSON`.
+    - `timestampType`: The timestamp type, supporting HOURS, MINUTES, SECONDS, MILLI_SECONDS, MICRO_SECONDS, and NANO_SECONDS.
+    - `ttl`: The time-to-live for the data, in days.
+    - `reqId`: The request ID.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `void write(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
+  - **Description**: Writes multiple lines of data using the specified protocol type and timestamp type.
+  - **Parameters**:
+    - `lines`: The array of data lines to be written.
+    - `protocolType`: The protocol type, supporting InfluxDB `LINE`, OpenTSDB `TELNET`, and OpenTSDB `JSON`.
+    - `timestampType`: The timestamp type, supporting HOURS, MINUTES, SECONDS, MILLI_SECONDS, MICRO_SECONDS, and NANO_SECONDS.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `void write(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
+  - **Description**: Writes a single line of data using the specified protocol type and timestamp type.
+  - **Parameters**:
+    - `line`: The data line to be written.
+    - `protocolType`: The protocol type, supporting InfluxDB `LINE`, OpenTSDB `TELNET`, and OpenTSDB `JSON`.
+    - `timestampType`: The timestamp type, supporting HOURS, MINUTES, SECONDS, MILLI_SECONDS, MICRO_SECONDS, and NANO_SECONDS.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `void write(List<String> lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
+  - **Description**: Writes multiple lines of data using the specified protocol type and timestamp type (using a list).
+  - **Parameters**:
+    - `lines`: The list of data lines to be written.
+    - `protocolType`: The protocol type, supporting InfluxDB `LINE`, OpenTSDB `TELNET`, and OpenTSDB `JSON`.
+    - `timestampType`: The timestamp type, supporting HOURS, MINUTES, SECONDS, MILLI_SECONDS, MICRO_SECONDS, and NANO_SECONDS.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `int writeRaw(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
+  - **Description**: Writes multiple lines of raw data separated by carriage return using the specified protocol type and timestamp type, and returns the operation result.
+  - **Parameters**:
+    - `line`: The raw data to be written.
+    - `protocolType`: The protocol type, supporting InfluxDB `LINE`, OpenTSDB `TELNET`, and OpenTSDB `JSON`.
+    - `timestampType`: The timestamp type, supporting HOURS, MINUTES, SECONDS, MILLI_SECONDS, MICRO_SECONDS, and NANO_SECONDS.
+  - **Returns**: The operation result.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+- `abstract int writeRaw(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType, Integer ttl, Long reqId) throws SQLException`
+  - **Description**: Writes multiple lines of raw data separated by carriage return using the specified protocol type, timestamp type, TTL (time-to-live), and request ID, and returns the operation result.
+  - **Parameters**:
+    - `line`: The raw data to be written.
+    - `protocolType`: The protocol type, supporting InfluxDB `LINE`, OpenTSDB `TELNET`, and OpenTSDB `JSON`.
+    - `timestampType`: The timestamp type, supporting HOURS, MINUTES, SECONDS, MILLI_SECONDS, MICRO_SECONDS, and NANO_SECONDS.
+    - `ttl`: The time-to-live for the data, in days.
+    - `reqId`: The request ID.
+  - **Returns**: The operation result.
+  - **Exceptions**: Throws `SQLException` if the operation fails.
+
+### Executing SQL
+
+The JDBC driver provides a `Statement` interface that conforms to JDBC standards, supporting the following functionalities:
+
+1. **Executing SQL Statements**: The `Statement` interface is primarily used to execute static SQL statements and returns the generated result objects.
+2. **Query Execution**: It can execute queries that return a data set (e.g., `SELECT` statements).
+3. **Update Execution**: It can execute SQL statements that affect rows, such as `INSERT`, `UPDATE`, and `DELETE`.
+4. **Batch Execution**: Supports executing multiple SQL statements in batch to improve application performance.
+5. **Result Retrieval**: It can retrieve the result set returned after executing a query (the `ResultSet` object) and iterate through the returned data.
+6. **Getting Update Count**: For non-query SQL statements, it can retrieve the number of affected rows after execution.
+7. **Resource Closure**: It provides a method to close the `Statement` object to release database resources.
+
+Additionally, the JDBC driver also provides extended interfaces for request link tracing.
+
+#### Standard Interface
+
+- `ResultSet executeQuery(String sql) throws SQLException`
+  - **Description**: Executes the given SQL statement, which returns a single `ResultSet` object.
+  - **Parameters**:
+    - `sql`: The SQL query statement to execute.
+  - **Returns**: The resulting `ResultSet`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during execution.
+
+- `int executeUpdate(String sql) throws SQLException`
+  - **Description**: Executes the given SQL statement, which can be an `INSERT` or `DELETE` statement or an SQL statement that does not return any content.
+  - **Parameters**:
+    - `sql`: The SQL update statement to execute.
+  - **Returns**: The number of affected rows.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during execution.
+
+- `void close() throws SQLException`
+  - **Description**: Immediately releases this `Statement` object's database and JDBC resources.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during closing.
+
+- `int getMaxFieldSize() throws SQLException`
+  - **Description**: Retrieves the maximum number of bytes that can be read for character and binary column values in a `ResultSet` object.
+  - **Returns**: The maximum column size.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `int getQueryTimeout() throws SQLException`
+  - **Description**: Retrieves the current query timeout for this `Statement` object.
+  - **Returns**: The query timeout in seconds.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `void setQueryTimeout(int seconds) throws SQLException`
+  - **Description**: Sets the current query timeout for this `Statement` object.
+  - **Parameters**:
+    - `seconds`: The query timeout in seconds.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during setting.
+
+- `boolean execute(String sql) throws SQLException`
+  - **Description**: Executes the given SQL statement, which may return multiple results.
+  - **Parameters**:
+    - `sql`: The SQL statement to execute.
+  - **Returns**: `true` if the next result is a `ResultSet` object; `false` if it is an update count or no results.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during execution.
+
+- `ResultSet getResultSet() throws SQLException`
+  - **Description**: Retrieves the `ResultSet` object generated by this `Statement` object.
+  - **Returns**: The result set generated by this `Statement` object.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `int getUpdateCount() throws SQLException`
+  - **Description**: Retrieves the update count for the current `Statement` object.
+  - **Returns**: The number of affected rows; returns -1 if the current result is a `ResultSet` object or if there are no results.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `boolean getMoreResults() throws SQLException`
+  - **Description**: Moves to the next result for this `Statement` object and checks whether it is a `ResultSet` object.
+  - **Returns**: `true` if the next result is a `ResultSet` object; `false` if the next result is an update count or if there are no more results.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during moving.
+
+- `int getFetchDirection() throws SQLException`
+  - **Description**: Retrieves the direction in which rows are fetched from the database by this `Statement` object.
+  - **Returns**: The direction of fetching rows; TDengine only supports `FETCH_FORWARD`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `void setFetchSize(int rows) throws SQLException`
+  - **Description**: Hints the JDBC driver on the number of rows to fetch from the database when more rows are needed.
+  - **Parameters**:
+    - `rows`: The number of rows to fetch.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during setting.
+
+- `int getFetchSize() throws SQLException`
+  - **Description**: Retrieves the default fetch size for this `Statement` object.
+  - **Returns**: The default fetch size.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `int getResultSetConcurrency() throws SQLException`
+  - **Description**: Retrieves the concurrency mode of the `ResultSet` object.
+  - **Returns**: The concurrency mode of the `ResultSet` object.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `int getResultSetType() throws SQLException`
+  - **Description**: Retrieves the type of the `ResultSet` object.
+  - **Returns**: The type of the `ResultSet` object.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `void addBatch(String sql) throws SQLException`
+  - **Description**: Adds the given SQL statement to the current `Statement` object's batch.
+  - **Parameters**:
+    - `sql`: The SQL statement to add to the batch.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during adding.
+
+- `void clearBatch() throws SQLException`
+  - **Description**: Clears the current `Statement` object's batch.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during clearing.
+
+- `int[] executeBatch() throws SQLException`
+  - **Description**: Executes all the SQL statements in the batch.
+  - **Returns**: An array containing the number of affected rows for each SQL statement in the batch.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during execution.
+
+- `Connection getConnection() throws SQLException`
+  - **Description**: Retrieves the `Connection` object that produced this `Statement` object.
+  - **Returns**: The database connection that produced this `Statement` object.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `int getResultSetHoldability() throws SQLException`
+  - **Description**: Retrieves the holdability of the `ResultSet` object.
+  - **Returns**: The holdability of the `ResultSet` object.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during retrieval.
+
+- `boolean isClosed() throws SQLException`
+  - **Description**: Checks whether this `Statement` object is closed.
+  - **Returns**: `true` if this `Statement` object is closed; `false` if it is not closed.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs during checking.
+
+#### Extended Interfaces
+
+The extended interfaces are primarily used for request link tracing.
+
+- `ResultSet executeQuery(String sql, Long reqId) throws SQLException`
+  - **Description**: Executes the given SQL query statement.
+  - **Parameters**:
+    - `sql`: The SQL query statement to execute.
+    - `reqId`: The request ID.
+  - **Returns**: A `ResultSet` object containing the query results.
+  - **Exceptions**: Throws `SQLException` if the query execution fails.
+
+- `int executeUpdate(String sql, Long reqId) throws SQLException`
+  - **Description**: Executes the given SQL update statement.
+  - **Parameters**:
+    - `sql`: The SQL update statement to execute.
+    - `reqId`: The request ID.
+  - **Returns**: The number of affected rows.
+  - **Exceptions**: Throws `SQLException` if the update execution fails.
+
+- `boolean execute(String sql, Long reqId) throws SQLException`
+  - **Description**: Executes the given SQL statement, which may be an `INSERT`, `UPDATE`, `DELETE`, or DDL statement.
+  - **Parameters**:
+    - `sql`: The SQL statement to execute.
+    - `reqId`: The request ID.
+  - **Returns**: `true` if the first result is a `ResultSet` object; `false` if it is an update count or if there are no results.
+  - **Exceptions**: Throws `SQLException` if the statement execution fails.
+
+### Result Retrieval
+
+The JDBC driver supports the standard `ResultSet` interface, as well as the corresponding result set metadata interface, `ResultSetMetaData`, which provides methods for reading metadata and data from the result set.
+
+### Result Set
+
+The JDBC driver supports the standard `ResultSet` interface, providing methods for reading metadata and data from the result set.
+
+- `ResultSetMetaData getMetaData() throws SQLException`
+  - **Description**: Retrieves the number, types, and properties of the columns in this `ResultSet` object.
+  - **Returns**: A `ResultSetMetaData` object containing the data of this `ResultSet` object.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `boolean next() throws SQLException`
+  - **Description**: Moves the cursor forward one row. This is used to iterate through the query results.
+  - **Returns**: `true` if the new current row is valid; `false` if there are no more rows in the result set.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `void close() throws SQLException`
+  - **Description**: Immediately releases the database and JDBC resources for this `ResultSet` object, instead of waiting for the object to be automatically closed.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `boolean wasNull() throws SQLException`
+  - **Description**: Reports whether the last column value read was SQL `NULL`.
+  - **Returns**: `true` if the last column value read was `NULL`; `false` otherwise.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `String getString(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `String`.
+  - **Parameters**:
+    - `columnIndex`: The column number (1-based).
+  - **Returns**: The value of the specified column; `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `boolean getBoolean(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `boolean`.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: `true` if the specified column's value is `true`; `false` if the value is `false` or `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `byte getByte(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `byte`.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column; returns 0 if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `short getShort(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `short`.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column; returns 0 if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `int getInt(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `int`.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column; returns 0 if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `long getLong(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `long`.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column; returns 0L if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `float getFloat(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `float`.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column; returns 0.0f if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `double getDouble(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `double`.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column; returns 0.0d if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `byte[] getBytes(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a byte array.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column as a byte array; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `Date getDate(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a `java.sql.Date` object.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The date value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `Time getTime(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a `java.sql.Time` object.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The time value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `Timestamp getTimestamp(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a `java.sql.Timestamp` object.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The timestamp value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `String getNString(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `String`. This method is used to read `NCHAR`, `NVARCHAR`, and `LONGNVARCHAR` types to support international character sets.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `Object getObject(int columnIndex) throws SQLException`
+  - **Description**: Retrieves the value of the specified column as a Java `Object`.
+  - **Parameters**:
+    - `columnIndex`: The column number.
+  - **Returns**: The value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `String getString(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `String`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `boolean getBoolean(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `boolean`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: `true` if the specified column's value is `true`; `false` if the value is `false` or `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `byte getByte(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `byte`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns 0 if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `short getShort(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `short`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns 0 if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `int getInt(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `int`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns 0 if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `long getLong(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `long`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns 0L if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `float getFloat(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `float`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns 0.0f if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `double getDouble(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `double`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns 0.0d if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `byte[] getBytes(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a byte array.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column as a byte array; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `Date getDate(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a `java.sql.Date` object.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The date value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `Time getTime(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a `java.sql.Time` object.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The time value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `Timestamp getTimestamp(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a `java.sql.Timestamp` object.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The timestamp value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `String getNString(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `String`. This method is used to read `NCHAR`, `NVARCHAR`, and `LONGNVARCHAR` types to support international character sets.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `Object getObject(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label as a Java `Object`.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The value of the specified column; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `int findColumn(String columnLabel) throws SQLException`
+  - **Description**: Retrieves the column number for the given column label.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+  - **Returns**: The column number for the given column label.
+  - **Exceptions**: Throws `SQLException` if the column label does not exist or if a database access error occurs.
+
+- `boolean isBeforeFirst() throws SQLException`
+  - **Description**: Checks if the cursor is before the first row.
+  - **Returns**: `true` if the cursor is before the first row; `false` otherwise.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `boolean isAfterLast() throws SQLException`
+  - **Description**: Checks if the cursor is after the last row.
+  - **Returns**: `true` if the cursor is after the last row; `false` otherwise.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `boolean isFirst() throws SQLException`
+  - **Description**: Checks if the cursor is on the first row.
+  - **Returns**: `true` if the cursor is on the first row; `false` otherwise.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `boolean isLast() throws SQLException`
+  - **Description**: Checks if the cursor is on the last row.
+  - **Returns**: `true` if the cursor is on the last row; `false` otherwise.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `int getRow() throws SQLException`
+  - **Description**: Retrieves the current row number of the cursor.
+  - **Returns**: The current row number of the cursor; returns 0 if the cursor is beyond the result set.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `void setFetchSize(int rows) throws SQLException`
+  - **Description**: Sets the size of the rows returned by the database. This method is used to guide the database driver on how many rows to fetch at a time from the database server to reduce communication costs or limit memory usage.
+  - **Parameters**:
+    - `rows`: The specified fetch size. Setting to 0 uses the driver’s default value.
+  - **Exceptions**: Throws `SQLException` if the result set is closed or if the `rows` parameter is less than 0.
+
+- `int getFetchSize() throws SQLException`
+  - **Description**: Retrieves the current result set’s fetch size.
+  - **Returns**: The current result set’s fetch size.
+  - **Exceptions**: Throws `SQLException` if the result set is closed.
+
+- `int getType() throws SQLException`
+  - **Description**: Retrieves the type of the `ResultSet`.
+  - **Returns**: The type of the `ResultSet`. Always returns `ResultSet.TYPE_FORWARD_ONLY`, indicating that the cursor can only move forward.
+  - **Exceptions**: Throws `SQLException` if the result set is closed.
+
+- `int getConcurrency() throws SQLException`
+  - **Description**: Retrieves the concurrency mode of the `ResultSet`.
+  - **Returns**: The concurrency mode of the `ResultSet`. Always returns `ResultSet.CONCUR_READ_ONLY`, indicating that the result set cannot be updated.
+  - **Exceptions**: Throws `SQLException` if the result set is closed.
+
+- `<T> T getObject(String columnLabel, Class<T> type) throws SQLException`
+  - **Description**: Retrieves the value of the specified column label based on the provided class type. This allows users to flexibly convert column values directly to the desired type.
+  - **Parameters**:
+    - `columnLabel`: The column label.
+    - `type`: The Class object of the expected return type.
+  - **Returns**: The value of the specified column, returned as the specified type; returns `null` if the value is `NULL`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs or if the specified type conversion is unsupported.
+
+#### ResultSet Metadata
+
+`ResultSetMetaData` provides an interface for obtaining metadata about the result set. `ResultSetMetaData` objects can be obtained via the `getMetaData` method of the `ResultSet` object.
+
+- `int getColumnCount() throws SQLException`
+  - **Description**: Retrieves the total number of columns in the result set.
+  - **Returns**: The number of columns in the result set.
+
+- `boolean isSearchable(int column) throws SQLException`
+  - **Description**: Determines whether the specified column can be used in a `WHERE` clause.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: `true` if the specified column can be searched; `false` otherwise.
+
+- `int isNullable(int column) throws SQLException`
+  - **Description**: Determines whether the value in the specified column can be `NULL`.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: Indicates whether the column value can be `NULL`, returning `ResultSetMetaData.columnNoNulls`, `ResultSetMetaData.columnNullable`, or `ResultSetMetaData.columnNullableUnknown`.
+
+- `boolean isSigned(int column) throws SQLException`
+  - **Description**: Determines whether the value in the specified column is a signed number.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: `true` if the column value is signed; `false` otherwise.
+
+- `int getColumnDisplaySize(int column) throws SQLException`
+  - **Description**: Retrieves the maximum display size for the specified column in characters.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The maximum width of the column.
+  - **Exceptions**: Throws `SQLException` if the column index is out of range.
+
+- `String getColumnLabel(int column) throws SQLException`
+  - **Description**: Retrieves the suggested title for the specified column for printing and display purposes.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The suggested title of the column.
+  - **Exceptions**: Throws `SQLException` if the column index is out of range.
+
+- `String getColumnName(int column) throws SQLException`
+  - **Description**: Retrieves the name of the specified column.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The name of the column.
+  - **Exceptions**: Throws `SQLException` if the column index is out of range.
+
+- `int getPrecision(int column) throws SQLException`
+  - **Description**: Retrieves the maximum precision of the specified column.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The maximum precision of the column.
+  - **Exceptions**: Throws `SQLException` if the column index is out of range.
+
+- `int getScale(int column) throws SQLException`
+  - **Description**: Retrieves the number of digits to the right of the decimal point for the specified column.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The number of decimal digits of the column.
+  - **Exceptions**: Throws `SQLException` if the column index is out of range.
+
+- `String getTableName(int column) throws SQLException`
+  - **Description**: Retrieves the name of the table that contains the specified column.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The name of the table that contains the column.
+
+- `String getCatalogName(int column) throws SQLException`
+  - **Description**: Retrieves the name of the database that contains the specified column.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The name of the database that contains the column.
+
+- `int getColumnType(int column) throws SQLException`
+  - **Description**: Retrieves the SQL type of the specified column.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The SQL type, as defined in `java.sql.Types`.
+
+- `String getColumnTypeName(int column) throws SQLException`
+  - **Description**: Retrieves the database-specific type name for the specified column.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The database-specific type name.
+
+- `boolean isReadOnly(int column) throws SQLException`
+  - **Description**: Determines whether the specified column is read-only.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: `true` if the column is read-only; `false` otherwise.
+
+- `String getColumnClassName(int column) throws SQLException`
+  - **Description**: Retrieves the Java class name for the specified column.
+  - **Parameters**:
+    - `column`: The column number (1-based).
+  - **Returns**: The class name corresponding to the column value in Java.
+
+### Parameter Binding
+
+The `PreparedStatement` allows for the use of precompiled SQL statements, which can improve performance and provide the capability for parameterized queries, enhancing security. The JDBC driver provides two classes that implement the `PreparedStatement` interface:
+
+1. `TSDBPreparedStatement` for native connections.
+2. `TSWSPreparedStatement` for WebSocket connections.
+
+Due to the lack of high-performance data binding interfaces in the JDBC standard, both `TSDBPreparedStatement` and `TSWSPreparedStatement` add methods to extend parameter binding capabilities.
+
+**Note**: Since `PreparedStatement` inherits the `Statement` interface, the repeated interfaces in this section will not be elaborated on; please refer to the corresponding descriptions in the `Statement` interface.
+
+#### Standard Interface
+
+- `void setNull(int parameterIndex, int sqlType) throws SQLException`
+  - **Description**: Sets the SQL type of the specified parameter to NULL.
+  - **Parameters**:
+    - `parameterIndex`: An `int` parameter indicating the parameter index in the prepared statement.
+    - `sqlType`: An `int` parameter indicating the SQL type to be set to NULL.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `void setBoolean(int parameterIndex, boolean x) throws SQLException`
+  - **Description**: Sets the specified parameter's value to a Java boolean.
+  - **Parameters**:
+    - `parameterIndex`: An `int` parameter indicating the parameter index in the prepared statement.
+    - `x`: A `boolean` parameter indicating the value to be set.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- The following methods function similarly to `setBoolean`, except for the type of value being set:
+  - `void setByte(int parameterIndex, byte x) throws SQLException`
+  - `void setShort(int parameterIndex, short x) throws SQLException`
+  - `void setInt(int parameterIndex, int x) throws SQLException`
+  - `void setLong(int parameterIndex, long x) throws SQLException`
+  - `void setFloat(int parameterIndex, float x) throws SQLException`
+  - `void setDouble(int parameterIndex, double x) throws SQLException`
+  - `void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException`
+  - `void setString(int parameterIndex, String x) throws SQLException`
+  - `void setBytes(int parameterIndex, byte[] x) throws SQLException`
+  - `void setDate(int parameterIndex, Date x) throws SQLException`
+  - `void setTime(int parameterIndex, Time x) throws SQLException`
+  - `void setTimestamp(int parameterIndex, Timestamp x) throws SQLException`
+
+- `void clearParameters() throws SQLException`
+  - **Description**: Clears all parameters set for the current prepared statement.
+  - **Exceptions**: Throws `SQLException` if the prepared statement is closed.
+
+- `void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException`
+  - **Description**: Sets the value of the specified parameter using the given object, with the object's type specified by `targetSqlType`.
+  - **Parameters**:
+    - `parameterIndex`: An `int` parameter indicating the parameter index in the prepared statement.
+    - `x`: An `Object` parameter indicating the value to be set.
+    - `targetSqlType`: An `int` parameter indicating the SQL type of `x`.
+  - **Exceptions**: Throws `SQLException` if the prepared statement is closed.
+
+- `void setObject(int parameterIndex, Object x) throws SQLException`
+  - **Description**: Sets the value of the specified parameter using the given object, with the object's type determined by the object itself.
+  - **Parameters**:
+    - `parameterIndex`: An `int` parameter indicating the parameter index in the prepared statement.
+    - `x`: An `Object` parameter indicating the value to be set.
+  - **Exceptions**: Throws `SQLException` if the prepared statement is closed or if the parameter index is out of range.
+
+- `ResultSetMetaData getMetaData() throws SQLException`
+  - **Description**: Retrieves metadata about the `ResultSet` object generated by this `PreparedStatement`.
+  - **Returns**: Returns the metadata of this `ResultSet` object if the `PreparedStatement` has executed any operations that generate a `ResultSet`; otherwise, returns `null`.
+  - **Exceptions**: Throws `SQLException` if a database access error occurs.
+
+- `ParameterMetaData getParameterMetaData() throws SQLException`
+  - **Description**: Retrieves the types and properties information for each parameter in this `PreparedStatement`. Refer to the "Parameter Metadata" section for more details.
+  - **Returns**: Returns the parameter metadata for this `PreparedStatement`.
+  - **Exceptions**: Throws `SQLException` if the prepared statement is closed.
+
+#### Parameter Metadata
+
+`ParameterMetaData` provides an interface for parameter metadata:
+
+- `int getParameterCount() throws SQLException`
+  - **Description**: Retrieves the number of parameters in the prepared statement.
+  - **Returns**: The number of parameters, of type `int`.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the parameter count.
+
+- `boolean isSigned(int param) throws SQLException`
+  - **Description**: Determines whether the specified parameter is a signed number.
+  - **Parameters**:
+    - `param`: The index of the parameter, of type `int`.
+  - **Returns**: `true` if the parameter is signed; `false` otherwise.
+  - **Exceptions**: Throws `SQLException` if an error occurs while determining the parameter's signed status.
+
+- `int getPrecision(int param) throws SQLException`
+  - **Description**: Retrieves the precision of the specified parameter.
+  - **Parameters**:
+    - `param`: The index of the parameter, of type `int`.
+  - **Returns**: The precision of the parameter, of type `int`.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the precision.
+
+- `int getScale(int param) throws SQLException`
+  - **Description**: Retrieves the number of decimal places for the specified parameter.
+  - **Parameters**:
+    - `param`: The index of the parameter, of type `int`.
+  - **Returns**: The number of decimal places for the parameter, of type `int`.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the scale.
+
+- `int getParameterType(int param) throws SQLException`
+  - **Description**: Retrieves the SQL type of the specified parameter.
+  - **Parameters**:
+    - `param`: The index of the parameter, of type `int`.
+  - **Returns**: The SQL type of the parameter, of type `int`.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the SQL type.
+
+- `String getParameterTypeName(int param) throws SQLException`
+  - **Description**: Retrieves the SQL type name of the specified parameter.
+  - **Parameters**:
+    - `param`: The index of the parameter, of type `int`.
+  - **Returns**: The SQL type name of the parameter, of type `String`.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the SQL type name.
+
+- `String getParameterClassName(int param) throws SQLException`
+  - **Description**: Retrieves the Java class name for the specified parameter.
+  - **Parameters**:
+    - `param`: The index of the parameter, of type `int`.
+  - **Returns**: The Java class name corresponding to the parameter, of type `String`.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the Java class name.
+
+- `int getParameterMode(int param) throws SQLException`
+  - **Description**: Retrieves the mode of the specified parameter (e.g., IN, OUT, INOUT).
+  - **Parameters**:
+    - `param`: The index of the parameter, of type `int`.
+  - **Returns**: The mode of the parameter, of type `int`.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the parameter mode.
+
+#### Extension Interface  
+
+- `void setTableName(String name) throws SQLException`
+  - **Description**: Sets the name of the table for the current operation.
+  - **Parameters**:
+    - `name`: A `String` parameter representing the name of the table to be bound.
+
+- `void setTagNull(int index, int type)`
+  - **Description**: Sets the specified index of the tag to a null value.
+  - **Parameters**:
+    - `index`: The index position of the tag.
+    - `type`: The data type of the tag.
+
+- `void setTagBoolean(int index, boolean value)`
+  - **Description**: Sets a boolean value for the specified index of the tag.
+  - **Parameters**:
+    - `index`: The index position of the tag.
+    - `value`: The boolean value to be set.
+
+- The following methods function similarly to `setTagBoolean`, except for the type of value being set:
+  - `void setTagInt(int index, int value)`
+  - `void setTagByte(int index, byte value)`
+  - `void setTagShort(int index, short value)`
+  - `void setTagLong(int index, long value)`
+  - `void setTagTimestamp(int index, long value)`
+  - `void setTagFloat(int index, float value)`
+  - `void setTagDouble(int index, double value)`
+  - `void setTagString(int index, String value)`
+  - `void setTagNString(int index, String value)`
+  - `void setTagJson(int index, String value)`
+  - `void setTagVarbinary(int index, byte[] value)`
+  - `void setTagGeometry(int index, byte[] value)`
+
+- `void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException`
+  - **Description**: Sets a batch of integer values for the specified column index.
+  - **Parameters**:
+    - `columnIndex`: The index position of the column.
+    - `list`: A list containing integer values.
+  - **Exceptions**: Throws `SQLException` if an error occurs during the operation.
+
+- The following methods function similarly to `setInt`, except for the type of value being set:
+  - `void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException`
+  - `void setTimestamp(int columnIndex, ArrayList<Long> list) throws SQLException`
+  - `void setLong(int columnIndex, ArrayList<Long> list) throws SQLException`
+  - `void setDouble(int columnIndex, ArrayList<Double> list) throws SQLException`
+  - `void setBoolean(int columnIndex, ArrayList<Boolean> list) throws SQLException`
+  - `void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException`
+  - `void setShort(int columnIndex, ArrayList<Short> list) throws SQLException`
+
+- `void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException`
+  - **Description**: Sets a list of string values for the specified column index.
+  - **Parameters**:
+    - `columnIndex`: The index position of the column.
+    - `list`: A list containing string values.
+    - `size`: The maximum length of all strings, typically the limit specified in the create table statement.
+  - **Exceptions**: Throws `SQLException` if an error occurs during the operation.
+
+- The following methods function similarly to `setString`, except for the type of value being set:
+  - `void setVarbinary(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
+  - `void setGeometry(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
+  - `void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException`
+
+- `void columnDataAddBatch() throws SQLException`
+  - **Description**: Adds the data set by methods like `setInt(int columnIndex, ArrayList<Integer> list)` to the current `PreparedStatement` object's batch.
+  - **Exceptions**: Throws `SQLException` if an error occurs during the operation.
+
+- `void columnDataExecuteBatch() throws SQLException`
+  - **Description**: Executes the batch operation for the current `PreparedStatement` object.
+  - **Exceptions**: Throws `SQLException` if an error occurs during the operation.
+
+### Data Subscription
+
+The JDBC standard does not support data subscription, so all interfaces in this section are extension interfaces. The `TaosConsumer` class provides consumer-related interfaces, `ConsumerRecord` provides interfaces for consumption records, while `TopicPartition` and `OffsetAndMetadata` provide interfaces for partition information and offset metadata, respectively. Finally, `ReferenceDeserializer` and `MapDeserializer` provide support for deserialization.
+
+#### Consumer
+
+- `TaosConsumer(Properties properties) throws SQLException`
+  - **Description**: Consumer constructor.
+  - **Parameters**:
+    - `properties`: A set of properties; details of supported properties are provided below.
+  - **Returns**: A consumer object.
+  - **Exceptions**: Throws `SQLException` if creation fails.
+
+Supported properties for creating a consumer:
+
+- `td.connect.type`: Connection method. `jni`: Indicates using dynamic library connections, `ws/WebSocket`: Indicates using WebSocket for data communication. The default is `jni`.
+- `bootstrap.servers`: The `ip:port` of the TDengine server; if using WebSocket, this refers to the `ip:port` of the taosAdapter.
+- `enable.auto.commit`: Whether to allow automatic commits.
+- `group.id`: The group to which the consumer belongs.
+- `value.deserializer`: Result set deserialization method. You can extend `com.taosdata.jdbc.tmq.ReferenceDeserializer` and specify the result set bean for deserialization, or extend `com.taosdata.jdbc.tmq.Deserializer` to customize deserialization based on the SQL result set.
+- `httpConnectTimeout`: Connection creation timeout parameter, in milliseconds, with a default of 5000 ms. Valid only under WebSocket connections.
+- `messageWaitTimeout`: Data transfer timeout parameter, in milliseconds, with a default of 10000 ms. Valid only under WebSocket connections.
+- `httpPoolSize`: Maximum number of parallel requests under the same connection. Valid only under WebSocket connections.  
+- `TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION`: Whether to enable compression during transmission. Valid only for WebSocket connections. `true`: Enabled, `false`: Disabled. Default is `false`.
+- `TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT`: Whether to enable automatic reconnection. Valid only for WebSocket connections. `true`: Enabled, `false`: Disabled. Default is `false`.
+- `TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS`: Automatic reconnection retry interval, in milliseconds, with a default of 2000. Valid only when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is `true`.
+- `TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT`: Automatic reconnection retry count, defaulting to 3; valid only when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is `true`.
+
+Other parameters can be referenced in the [Consumer Parameter List](../../../developer-guide/manage-consumers/#creating-a-consumer). Note that starting from TDengine server version 3.2.0.0, the default value of `auto.offset.reset` in message subscription has changed.
+
+- `void subscribe(Collection<String> topics) throws SQLException`
+  - **Description**: Subscribes to a set of topics.
+  - **Parameters**:
+    - `topics`: A `Collection<String>` representing the list of topics to subscribe to.
+  - **Exceptions**: Throws `SQLException` if an error occurs during subscription.
+
+- `void unsubscribe() throws SQLException`
+  - **Description**: Unsubscribes from all topics.
+  - **Exceptions**: Throws `SQLException` if an error occurs during unsubscription.
+
+- `Set<String> subscription() throws SQLException`
+  - **Description**: Retrieves all currently subscribed topics.
+  - **Returns**: A `Set<String>` containing all currently subscribed topics.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving subscription information.
+
+- `ConsumerRecords<V> poll(Duration timeout) throws SQLException`
+  - **Description**: Polls for messages.
+  - **Parameters**:
+    - `timeout`: A `Duration` parameter representing the polling timeout.
+  - **Returns**: A `ConsumerRecords<V>` object representing the polled message records.
+  - **Exceptions**: Throws `SQLException` if an error occurs during polling.
+
+- `void commitAsync() throws SQLException`
+  - **Description**: Asynchronously commits the offsets of the currently processed messages.
+  - **Exceptions**: Throws `SQLException` if an error occurs during the commit process.
+
+- `void commitSync() throws SQLException`
+  - **Description**: Synchronously commits the offsets of the currently processed messages.
+  - **Exceptions**: Throws `SQLException` if an error occurs during the commit process.
+
+- `void close() throws SQLException`
+  - **Description**: Closes the consumer and releases resources.
+  - **Exceptions**: Throws `SQLException` if an error occurs during closure.
+
+- `void seek(TopicPartition partition, long offset) throws SQLException`
+  - **Description**: Sets the offset for the given partition to the specified position.
+  - **Parameters**:
+    - `partition`: A `TopicPartition` parameter representing the partition to operate on.
+    - `offset`: A `long` parameter representing the offset to set.
+  - **Exceptions**: Throws `SQLException` if an error occurs while setting the offset.
+
+- `long position(TopicPartition tp) throws SQLException`
+  - **Description**: Retrieves the current offset for the given partition.
+  - **Parameters**:
+    - `tp`: A `TopicPartition` parameter representing the partition to query.
+  - **Returns**: A `long` representing the current offset for the given partition.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the offset.
+
+- `Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException`
+  - **Description**: Retrieves the earliest offset for each partition of the specified topic.
+  - **Parameters**:
+    - `topic`: A `String` parameter representing the topic to query.
+  - **Returns**: A `Map<TopicPartition, Long>` representing the earliest offset for each partition of the specified topic.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the earliest offsets.
+
+- `Map<TopicPartition, Long> endOffsets(String topic) throws SQLException`
+  - **Description**: Retrieves the latest offset for each partition of the specified topic.
+  - **Parameters**:
+    - `topic`: A `String` parameter representing the topic to query.
+  - **Returns**: A `Map<TopicPartition, Long>` representing the latest offset for each partition of the specified topic.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the latest offsets.
+
+- `void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException`
+  - **Description**: Sets the offset for a set of partitions to the earliest offset.
+  - **Parameters**:
+    - `partitions`: A `Collection<TopicPartition>` representing the set of partitions to operate on.
+  - **Exceptions**: Throws `SQLException` if an error occurs while setting the offsets.
+
+- `void seekToEnd(Collection<TopicPartition> partitions) throws SQLException`
+  - **Description**: Sets the offset for a set of partitions to the latest offset.
+  - **Parameters**:
+    - `partitions`: A `Collection<TopicPartition>` representing the set of partitions to operate on.
+  - **Exceptions**: Throws `SQLException` if an error occurs while setting the offsets.
+
+- `Set<TopicPartition> assignment() throws SQLException`
+  - **Description**: Retrieves all partitions currently assigned to the consumer.
+  - **Returns**: A `Set<TopicPartition>` representing all partitions currently assigned to the consumer.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving assigned partitions.
+
+- `OffsetAndMetadata committed(TopicPartition partition) throws SQLException`
+  - **Description**: Retrieves the last committed offset for the specified partition.
+  - **Parameters**:
+    - `partition`: A `TopicPartition` parameter representing the partition to query.
+  - **Returns**: An `OffsetAndMetadata` representing the last committed offset for the specified partition.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the committed offset.
+
+- `Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException`
+  - **Description**: Retrieves the last committed offsets for a set of partitions.
+  - **Parameters**:
+    - `partitions`: A `Set<TopicPartition>` representing the partitions to query.
+  - **Returns**: A `Map<TopicPartition, OffsetAndMetadata>` representing the last committed offsets for a set of partitions.
+  - **Exceptions**: Throws `SQLException` if an error occurs while retrieving the committed offsets.
+
+#### Consumption Records
+
+The `ConsumerRecords` class provides information about consumed records and allows iteration over `ConsumerRecord` objects.
+
+Interfaces provided by `ConsumerRecord`:
+
+- `String getTopic()`
+  - **Description**: Retrieves the topic of the message.
+  - **Returns**: A `String` representing the topic of the message.
+
+- `String getDbName()`
+  - **Description**: Retrieves the database name.
+  - **Returns**: A `String` representing the database name.
+
+- `int getVGroupId()`
+  - **Description**: Retrieves the virtual group ID.
+  - **Returns**: An `int` representing the virtual group ID.
+
+- `V value()`
+  - **Description**: Retrieves the value of the message.
+  - **Returns**: A `V` representing the value of the message.
+
+- `long getOffset()`
+  - **Description**: Retrieves the offset of the message.
+  - **Returns**: A `long` representing the offset of the message.
+
+#### Partition Information
+
+The `TopicPartition` class provides partition information, including the message topic and virtual group ID.
+
+- `TopicPartition(String topic, int vGroupId)`
+  - **Description**: Constructs a new `TopicPartition` instance representing a specific topic and virtual group ID.
+  - **Parameters**:
+    - `topic`: A `String` representing the message topic.
+    - `vGroupId`: An `int` representing the virtual group ID.
+
+- `String getTopic()`
+  - **Description**: Retrieves the topic of this `TopicPartition` instance.
+  - **Returns**: A `String` representing the topic of this `TopicPartition` instance.
+
+- `int getVGroupId()`
+  - **Description**: Retrieves the virtual group ID of this `TopicPartition` instance.
+  - **Returns**: An `int` representing the virtual group ID of this `TopicPartition` instance.
+
+#### Offset Metadata
+
+The `OffsetAndMetadata` class provides metadata information about offsets.
+
+- `long offset()`
+  - **Description**: Retrieves the offset in this `OffsetAndMetadata` instance.
+  - **Returns**: A `long` representing the offset in this `OffsetAndMetadata` instance.
+
+- `String metadata()`
+  - **Description**: Retrieves the metadata in this `OffsetAndMetadata` instance.
+  - **Returns**: A `String` representing the metadata in this `OffsetAndMetadata` instance.
+
+#### Deserialization
+
+The JDBC driver provides two deserialization classes: `ReferenceDeserializer` and `MapDeserializer`, both implementing the `Deserializer` interface.
+
+- `ReferenceDeserializer` is used to deserialize a consumed record into an object, ensuring that the property names of the object class match the column names of the consumed data and that types are compatible.
+- `MapDeserializer` deserializes a consumed row into a `Map<String, Object>` object, where the keys are column names and the values are Java objects.
+
+The interfaces of `ReferenceDeserializer` and `MapDeserializer` are not directly called by users; please refer to usage examples.
+
+## Appendix
+
+- `JDBC Javadoc`: [JDBC Reference doc](https://docs.oracle.com/javase/8/docs/api/java/sql/package-summary.html)
