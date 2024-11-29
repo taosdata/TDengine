@@ -33,6 +33,8 @@ List the software and tools required to work on the project.
 
 - go 1.20+ (for taosadapter and taosx)
 - cargo 1.82.0+ (for taosx)
+- jdk 11~17, maven 3.8.0+ (for taosx plugin influxDB & openTSDB)
+- node 16.20.2 (for taos-explorer)
 - python 3.10.12+ (for test)
 
 Step-by-step instructions to set up the prerequisites software.
@@ -130,6 +132,57 @@ registry = "git://crates.rustcc.cn/crates.io-index"
 Install the cargo-make component.
 ```bash
 cargo install cargo-make
+```
+
+### Install Jdk & maven
+
+Install JDK & maven
+
+```bash
+apt install openjdk-17-jdk
+wget https://dlcdn.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz
+tar -C /usr/local -xzf apache-maven-3.8.8-bin.tar.gz
+```
+
+Set up environment variables, first add the following content to the end of the `~/.bashrc` file.
+
+```bash
+export PATH=$PATH:/usr/local/apache-maven-3.8.8/bin
+```
+
+Then make the environment variables take effect.
+
+```bash
+source ~/.bashrc
+```
+
+### Install node
+
+Recommend install node using nvm.
+
+``` bash
+curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh | bash
+```
+
+Set up environment variables, add the following content to the end of the `~/.bashrc` file.
+
+```bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+```
+
+Then make the environment variables take effect.
+
+```bash
+source ~/.bashrc
+```
+
+Finally, Install node and yarn.
+
+```bash
+nvm install 16.20.2
+npm config set registry=https://registry.npmmirror.com
+npm install -g yarn
 ```
 
 ### Install Python-connector
