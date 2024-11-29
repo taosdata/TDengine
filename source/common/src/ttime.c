@@ -131,7 +131,7 @@ int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFractio
 }
 
 #define PARSE(str,len,result) \
-  if (len > 2 || len < 1) {\
+  if (len != 2) {\
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);\
   }\
   result = strnatoi(str, len);
