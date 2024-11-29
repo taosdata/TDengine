@@ -29,14 +29,23 @@ After modifying configuration file parameters, it is necessary to restart the *t
 
 ### Connection Related
 
-| Parameter Name         | Parameter Description                                        |
-| :--------------------- | :----------------------------------------------------------- |
-| firstEp                | The endpoint of the first dnode in the cluster to connect to when taosd starts; default value: localhost:6030 |
-| secondEp               | If firstEp cannot connect, attempt to connect to the second dnode's endpoint in the cluster; default value: none |
-| fqdn                   | The service address that taosd listens on after startup; default value: the first hostname configured on the server |
-| serverPort             | The port that taosd listens on after startup; default value: 6030 |
-| numOfRpcSessions       | The maximum number of connections a client can create; range: 100-100000; default value: 30000 |
-| timeToGetAvailableConn | The maximum wait time to obtain an available connection; range: 10-50000000; unit: milliseconds; default value: 500000 |
+| Parameter Name         | support version | Parameter Description                                        |
+| :--------------------- |:---------------| :----------------------------------------------------------- |
+| firstEp                |                 | The endpoint of the first dnode in the cluster to connect to when taosd starts; default value: localhost:6030 |
+| secondEp               |                 | If firstEp cannot connect, attempt to connect to the second dnode's endpoint in the cluster; default value: none |
+| fqdn                   |                 | The service address that taosd listens on after startup; default value: the first hostname configured on the server |
+| compressMsgSize        |                 | Whether to compress RPC messages; -1: no messages are compressed; 0: all messages are compressed; N (N>0): only messages larger than N bytes are compressed; default value: -1 |
+| shellActivityTimer     |                 | The duration in seconds for the client to send heartbeats to the mnode; range: 1-120; default value: 3 |
+| numOfRpcSessions       |                 | The maximum number of RPC connections supported; range: 100-100000; default value: 30000 |
+| numOfRpcThreads        |                 | The number of threads for RPC data transmission; range: 1-50, default value: half of the CPU cores |
+| numOfTaskQueueThreads  |                 | The number of threads for the client to process RPC messages, range: 4-16, default value: half of the CPU cores  |
+| rpcQueueMemoryAllowed  |                 | The maximum amount of memory allowed for RPC messages received on a dnode; unit: bytes; range: 104857600-INT64_MAX; default value: 1/10 of server memory |
+| resolveFQDNRetryTime   | Removed in 3.x   | The number of retries when FQDN resolution fails |
+| timeToGetAvailableConn | Removed in 3.3.4.x | The maximum waiting time to obtain an available connection; range: 10-50000000; unit: milliseconds; default value: 500000 |
+| maxShellConns          | Removed in 3.x   | The maximum number of connections allowed to be created |
+| maxRetryWaitTime       |                 | The maximum timeout for reconnection; default value: 10s |
+| shareConnLimit         | Added in 3.3.4.0 | The number of requests that a connection can share; range: 1-512; default value: 10 |
+| readTimeout            | Added in 3.3.4.0 | The minimum timeout for a single request; range: 64-604800; unit: seconds; default value: 900 |
 
 ### Monitoring Related
 

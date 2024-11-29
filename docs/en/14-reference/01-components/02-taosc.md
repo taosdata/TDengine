@@ -39,6 +39,10 @@ The TDengine client driver provides all the APIs needed for application programm
 |           enableScience           | Whether to enable scientific notation for floating-point numbers; 0: disable, 1: enable; default value: 1 |
 |          compressMsgSize          | Whether to compress RPC messages; -1: do not compress any messages; 0: compress all messages; N (N>0): compress only messages larger than N bytes; default value: -1 |
 |     queryTableNotExistAsEmpty     | Whether to return an empty result set when the queried table does not exist; false: return an error; true: return an empty result set; default value: false |
+| numOfRpcThreads        | The number of threads for RPC data transmission; range: 1-50, default value: half of the CPU cores |
+| numOfTaskQueueThreads  | The number of threads for the client to process RPC messages, range: 4-16, default value: half of the CPU cores  |
+| shareConnLimit         | The number of requests that a connection can share; range: 1-512; default value: 10 |
+| readTimeout            | The minimum timeout for a single request; range: 64-604800; unit: seconds; default value: 900 |
 
 ## API
 
