@@ -14,10 +14,10 @@ actix-web = { version = "4.7.0", features = ["rustls-0_23"] }
 rustls = { version = "0.23.18", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.1.2"
 reqwest = { version = "0.11.27", default-features = false, features = [
-	"stream",
-	"json",
-	"deflate",
-	"rustls-tls",
+  "stream",
+  "json",
+  "deflate",
+  "rustls-tls",
 ] }
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
@@ -27,7 +27,6 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7.10"
 tokio-stream = "0.1.14"
 log = { version = "0.4", features = ["serde"] }
-futures-util = "0.3.30"
 http-auth-basic = "0.3"
 rust-embed = "6.8.1"
 serde = { version = "1.0.203", features = ["derive"] }
@@ -37,14 +36,12 @@ toml = "0.8.8"
 tracing = "0.1"
 tracing-actix-web = "0.7.11"
 tracing-subscriber = "0.3"
-utoipa = "4.2.3"
 sha1 = "0.10.6"
 rand = "0.8.4"
 lazy_static = "1.4.0"
 captcha = "0.0.9"
 deadpool = "0.10"
 
-const-str = "0.5.7"
 const_format = "0.2.32"
 shadow-rs = { version = "0.33", default-features = false }
 geos = { version = "9.0.0", features = ["static"] }
@@ -71,5 +68,4 @@ features = ["ws-rustls", "optin", "deadpool"]
 shadow-rs = { version = "0.33", default-features = false }
 
 [dev-dependencies]
-zstd = "0"
 mockito = "1.6.1"
