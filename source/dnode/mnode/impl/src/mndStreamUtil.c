@@ -1233,7 +1233,11 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
     snprintf(buf, tListLen(buf), sinkStr, pe->sinkDataSize);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) { // offset info
     if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      taosFormatUtcTime(buf, tListLen(buf), pe->processedVer, precision);
+      int32_t ret = taosFormatUtcTime(buf, tListLen(buf), pe->processedVer, precision);
+      if (ret != 0) {
+        mError("failed to format processed timewindow, skey:%" PRId64, pe->processedVer);
+        memset(buf, 0, tListLen(buf));
+      }
     } else {
       const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
       snprintf(buf, tListLen(buf), offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
