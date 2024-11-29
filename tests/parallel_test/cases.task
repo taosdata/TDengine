@@ -156,6 +156,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
