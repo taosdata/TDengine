@@ -820,6 +820,7 @@ async fn sync(
     metrics_arc: Arc<CoreMetrics>,
     with_meta_delete: bool,
     with_meta_drop: bool,
+    group_id: &String,
 ) -> Result<Consumer> {
     tracing::info!("Task start");
     let mut stream = consumer.stream();
@@ -862,7 +863,7 @@ async fn sync(
                         .in_current_span()
                         .await?;
                     if refresh_progress_interval.ticked() {
-                        update_progress(&consumer, metrics).await;
+                        update_progress(source_pool, metrics, &topic.name, group_id).await;
                     }
 
                 } else {
@@ -871,7 +872,7 @@ async fn sync(
             }
         }
     }
-    update_progress(&consumer, metrics).await;
+    update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -896,6 +897,7 @@ async fn sync_interlace(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     options: &WriteOptions,
+    group_id: &String,
 ) -> Result<Consumer> {
     tracing::info!("Task start");
     // let mut stream = consumer.stream_with_timeout(Timeout::from_secs(5).into());
@@ -1093,7 +1095,7 @@ async fn sync_interlace(
         clean_cache!();
         consumer.commit(last_offset.unwrap()).await?;
     }
-    update_progress(&consumer, metrics).await;
+    update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -1114,6 +1116,7 @@ async fn sync_concurrently(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     options: &WriteOptions,
+    group_id: &String,
 ) -> Result<Consumer> {
     tracing::info!("Task start");
     let taos = target_pool.get().await?;
@@ -1222,7 +1225,7 @@ async fn sync_concurrently(
                 }
             } {
                 if refresh_progress_interval.ticked() {
-                    update_progress(&consumer, metrics).await;
+                    update_progress(source_pool, metrics, &topic.name, group_id).await;
                 }
                 metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
@@ -1300,7 +1303,7 @@ async fn sync_concurrently(
                 metrics.add_commits(1);
             }
         }
-        update_progress(&consumer, metrics).await;
+        update_progress(source_pool, metrics, &topic.name, group_id).await;
         Ok(())
     }
     .in_current_span();
@@ -1318,17 +1321,71 @@ async fn sync_concurrently(
     }
 }
 
-async fn update_progress(consumer: &Consumer, metrics: &TmqMetrics) {
-    let assignments = consumer.assignments().await;
-    match assignments {
-        Some(assignments) => {
-            if !assignments.is_empty() {
-                metrics.update_progress(assignments);
-            }
+async fn update_progress(
+    source_pool: &TaosPool,
+    metrics: &TmqMetrics,
+    topic: &String,
+    group_id: &String,
+) {
+    let Ok(taos) = source_pool.get().await.inspect_err(|err| {
+        tracing::error!("Failed to get taos connection by source pool, {:?}", err);
+    }) else {
+        return;
+    };
+    if let Ok(mut res) = taos.query("show subscriptions").await {
+        let records = res.to_records().await.unwrap_or_else(|err| {
+            tracing::error!("query 'show subscriptions' error: {err}");
+            vec![]
+        });
+        let mut assignments: HashMap<String, Vec<Assignment>> = HashMap::new();
+        records
+            .iter()
+            .filter_map(|r| {
+                if r.len() == 8 {
+                    let topic_name = match r[0] {
+                        Value::VarChar(ref topic_name) => topic_name.clone(),
+                        _ => "".to_string(),
+                    };
+                    let consumer_group = match r[1] {
+                        Value::VarChar(ref consumer_group) => consumer_group.clone(),
+                        _ => "".to_string(),
+                    };
+                    let vgroup_id = match r[2] {
+                        Value::Int(vgroup_id) => vgroup_id,
+                        _ => 0,
+                    };
+                    let offset = match r[6] {
+                        Value::VarChar(ref offset) => offset.clone(),
+                        _ => "".to_string(),
+                    };
+                    if &topic_name == topic
+                        && &consumer_group == group_id
+                        && offset.starts_with("wal:")
+                    {
+                        let parts: Vec<&str> =
+                            offset.trim_start_matches("wal:").split('/').collect();
+                        if parts.len() == 2 {
+                            let part1 = parts[0];
+                            let part2 = parts[1];
+                            let offset = part1.parse::<i64>().unwrap_or(0);
+                            let end = part2.parse::<i64>().unwrap_or(0);
+                            return Some((topic_name, Assignment::new(vgroup_id, offset, 0, end)));
+                        }
+                    }
+                }
+                None
+            })
+            .for_each(|(topic, assignment)| {
+                assignments
+                    .entry(topic.clone())
+                    .or_default()
+                    .push(assignment);
+            });
+        if !assignments.is_empty() {
+            metrics.update_progress(assignments);
         }
-        None => {
-            tracing::warn!("Failed to get assignments");
-        }
+    } else {
+        tracing::warn!("execute sql 'show subscriptions' error");
     }
 }
 
@@ -1625,6 +1682,9 @@ pub async fn tmq_to_td(
         let duration = consumer_timer.elapsed();
         tracing::info!("Setup {} consumers in {:?}", jobs, duration);
 
+        let from_params = from.params;
+        let group_id = from_params.get("group.id").cloned().unwrap();
+
         let tmq = Arc::new(tmq);
         let topic = Arc::new(topic);
         for mut consumer in consumers {
@@ -1646,6 +1706,7 @@ pub async fn tmq_to_td(
             let notify = notify.clone();
             let target = target.clone();
             let options = options.clone();
+            let group_id = group_id.clone();
             join_set.spawn(
                 async move {
                     let mut retries = 0;
@@ -1664,6 +1725,7 @@ pub async fn tmq_to_td(
                                 cancellation.clone(),
                                 metrics_arc.clone(),
                                 &options,
+                                &group_id,
                             )
                             .await
                         } else if concurrent_polling && actions.is_empty() {
@@ -1677,6 +1739,7 @@ pub async fn tmq_to_td(
                                 cancellation.clone(),
                                 metrics_arc.clone(),
                                 &options,
+                                &group_id,
                             )
                             .await
                         } else {
@@ -1692,6 +1755,7 @@ pub async fn tmq_to_td(
                                 metrics_arc.clone(),
                                 with_meta_delete,
                                 with_meta_drop,
+                                &group_id,
                             )
                             .await
                         } {
@@ -1919,5 +1983,31 @@ mod tests {
             parse_timeout_duration("10m").unwrap(),
             Duration::from_secs(10 * 60)
         );
+    }
+
+    #[tokio::test]
+    async fn test_show_subscriptions() -> anyhow::Result<()> {
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let res = taos.query("show subscriptions").await;
+        match res {
+            Ok(mut res) => {
+                let records = res.to_records().await;
+                match records {
+                    Ok(records) => {
+                        for record in records {
+                            dbg!(record);
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!("Query error: {err}");
+                    }
+                }
+            }
+            Err(err) => {
+                tracing::error!("Query error: {err}");
+            }
+        }
+
+        Ok(())
     }
 }
