@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "executorInt.h"
 typedef struct SOperatorCostInfo {
   double openCost;
   double totalCost;

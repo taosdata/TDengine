@@ -178,6 +178,7 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_TABLE_DROP_TAG_INDEX                  12
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS          13
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION 14
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -421,7 +422,7 @@ typedef enum ENodeType {
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
-  QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,    // INACTIVE
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,  // INACTIVE
   QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
@@ -435,7 +436,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_SORT,
   QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT,
   QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL,
-  QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL,         // INACTIVE
+  QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL,  // INACTIVE
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
@@ -984,7 +985,6 @@ typedef struct SEpSet {
   int8_t numOfEps;
   SEp    eps[TSDB_MAX_REPLICA];
 } SEpSet;
-
 
 int32_t tEncodeSEpSet(SEncoder* pEncoder, const SEpSet* pEp);
 int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
@@ -3259,6 +3259,16 @@ int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
 int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
+typedef struct SMultiTagUpateVal {
+  char*    tagName;
+  int32_t  colId;
+  int8_t   tagType;
+  int8_t   tagFree;
+  uint32_t nTagVal;
+  uint8_t* pTagVal;
+  int8_t   isNull;
+  SArray*  pTagArray;
+} SMultiTagUpateVal;
 typedef struct {
   char*   tbName;
   int8_t  action;
@@ -3285,14 +3295,16 @@ typedef struct {
   int32_t  newTTL;
   int32_t  newCommentLen;
   char*    newComment;
-  int64_t  ctimeMs;   // fill by vnode
-  int8_t   source;    // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
-  uint32_t compress;  // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
+  int64_t  ctimeMs;    // fill by vnode
+  int8_t   source;     // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  uint32_t compress;   // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
+  SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
+void    tfreeMultiTagUpateVal(void* pMultiTag);
 
 typedef struct {
   int32_t        code;
@@ -4143,20 +4155,20 @@ typedef struct {
   SArray*      blockTbName;
   SArray*      blockSchema;
 
-  union{
-    struct{
-      int64_t          sleepTime;
+  union {
+    struct {
+      int64_t sleepTime;
     };
-    struct{
-      int32_t          createTableNum;
-      SArray*          createTableLen;
-      SArray*          createTableReq;
+    struct {
+      int32_t createTableNum;
+      SArray* createTableLen;
+      SArray* createTableReq;
     };
   };
 
 } SMqDataRsp;
 
-int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pObj);
+int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);
 int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
 void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
 

@@ -53,6 +53,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_PORT_EADDRINUSE,          "Port already in use")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_BROKEN_LINK,              "Conn is broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED,   "some vnode/qnode/mnode(s) out of service")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_BROKEN_LINK,     "some vnode/qnode/mnode(s) conn is broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MAX_SESSIONS,             "rpc open too many session")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_ERROR,            "rpc network error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_BUSY,             "rpc network busy")
@@ -511,6 +512,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE,  "Not supported range t
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_WRONG_OPTR_TYPE,   "Wrong operator type")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_RANGE_ERROR,       "Wrong filter range")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_INVALID_TYPE,      "Invalid filter type")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status from success to partial success")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
