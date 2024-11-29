@@ -23,28 +23,54 @@ class TDTestCase:
     # Test cases ======================
     def compactVgroupsSqlTest(self):
         # create database db1
-        sql = "create database db1 vgroups 10"
+        sql = "create database db1 vgroups 5" 
+        tdLog.info(sql)
+        tdSql.execute(sql)
+
+        # create database db2
+        sql = "create database db2 vgroups 5" 
         tdLog.info(sql)
         tdSql.execute(sql)
 
         # invalid sql
-        sql = "compact vgroups"
+        sql = "compact vgroups;"
         tdLog.info(f"expect error SQL: {sql}")
-        tdSql.execute(sql, False)
+        tdSql.error(sql)
 
+        # invalid sql
         sql = "compact vgroups in"
         tdLog.info(f"expect error SQL: {sql}")
-        tdSql.execute(sql, False)
+        tdSql.error(sql)
 
+        # invalid sql
         sql = "compact vgroups in ()"
         tdLog.info(f"expect error SQL: {sql}")
-        tdSql.execute(sql, False)
+        tdSql.error(sql)
 
         # error without using database
         sql = "compact vgroups in (2)"
         tdLog.info(f"expect error SQL: {sql}")
-        tdSql.execute(sql, False)
+        tdSql.error(sql)
 
+        # error with duplicate vgroup
+        sql = "compact db1.vgroups in (2, 2)"
+        tdLog.info(f"expect error SQL: {sql}")
+        tdSql.error(sql)
+
+        # error with invalid vgroup id
+        sql = "compact db1.vgroups in (0, -1)"
+        tdLog.info(f"expect error SQL: {sql}")
+        tdSql.error(sql)
+
+        # error to compact vgroups not in the same dat
+        sql = "compact db1.vgroups in (7, 8)"
+        tdLog.info(f"expect error SQL: {sql}")
+        tdSql.error(sql)
+
+        # error to compact vgroups not in the same database
+        sql = "compact db1.vgroups in (2, 5, 8)"
+        tdLog.info(f"expect error SQL: {sql}")
+        tdSql.error(sql)
 
     # Test Framework Apis
     def init(self, conn, logSql, replicaVar=1):
