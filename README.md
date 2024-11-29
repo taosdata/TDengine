@@ -31,7 +31,7 @@ You can choose to install through source code or [installation package](http://1
 
 List the software and tools required to work on the project.
 
-- go 1.16.9+ (for taosadapter)
+- go 1.20+ (for taosadapter and taosx)
 - cargo 1.82.0+ (for taosx)
 - python 3.10.12+ (for test)
 
@@ -45,18 +45,18 @@ apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl 
 
 ### Install Go
 
-Update the installation package to version 1.18.6.
+Update the installation package to version 1.23.3.
 ```bash
 cd /usr/local/ 
-wget https://studygolang.com/dl/golang/go1.18.6.linux-amd64.tar.gz 
-tar -zxvf  go1.18.6.linux-amd64.tar.gz
+wget https://golang.google.cn/dl/go1.23.3.linux-amd64.tar.gz 
+rm -rf /usr/local/go && tar -C /usr/local -xzf go1.23.3.linux-amd64.tar.gz
 ```
 
 Set up environment variables, first add the following content to the end of the `~/.bashrc` file.
 ```bash
 export GO_HOME=/usr/local/go
 export PATH=$GO_HOME/bin:$PATH
-export GO111MODULE=on
+export CGO_ENABLED=1
 ```
 
 Then make the environment variables take effect.
