@@ -339,7 +339,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
   OS_PARAM_CHECK(outname);
   wordexp_t full_path;
-  int32_t code = wordexp(dirname, &full_path, 0);
+  int32_t   code = wordexp(dirname, &full_path, 0);
   switch (code) {
     case 0:
       break;
@@ -347,7 +347,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
       wordfree(&full_path);
       // FALL THROUGH
     default:
-      return code;
+      return terrno = TSDB_CODE_INVALID_PARA;
   }
 
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {

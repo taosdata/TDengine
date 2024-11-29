@@ -72,6 +72,7 @@ extern int32_t simDebugFlag;
 
 extern int32_t tqClientDebugFlag;
 
+int32_t taosInitLogOutput(const char **ppLogName);
 int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
 void    taosCloseLog();
 void    taosResetLog();

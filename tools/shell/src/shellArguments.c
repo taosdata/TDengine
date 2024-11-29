@@ -49,7 +49,12 @@
 #define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_BI_MODE  "Set BI mode"
-#define SHELL_VERSION  "Print program version."
+#define SHELL_LOG_OUTPUT                                                                                              \
+  "Specify log output. Options:\n\r\t\t\t     stdout, stderr, /dev/null, <directory>, <directory>/<filename>, "       \
+  "<filename>\n\r\t\t\t     * If OUTPUT contains an absolute directory, logs will be stored in that directory "       \
+  "instead of logDir.\n\r\t\t\t     * If OUTPUT contains a relative directory, logs will be stored in the directory " \
+  "combined with logDir and the relative directory."
+#define SHELL_VERSION "Print program version."
 
 #ifdef WEBSOCKET
 #define SHELL_DSN     "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
@@ -74,6 +79,7 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKT_LEN);
   printf("%s%s%s%s\r\n", indent, "-n,", indent, SHELL_NET_ROLE);
   printf("%s%s%s%s\r\n", indent, "-N,", indent, SHELL_PKT_NUM);
+  printf("%s%s%s%s\r\n", indent, "-o,", indent, SHELL_LOG_OUTPUT);
   printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
   printf("%s%s%s%s\r\n", indent, "-P,", indent, SHELL_PORT);
   printf("%s%s%s%s\r\n", indent, "-r,", indent, SHELL_RAW_TIME);
@@ -134,6 +140,7 @@ static struct argp_option shellOptions[] = {
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
+    {"log-output", 'o', "OUTPUT", 0, SHELL_LOG_OUTPUT},
     {0},
 };
 
@@ -151,6 +158,8 @@ static void shellParseArgsUseArgp(int argc, char *argv[]) {
 #ifndef ARGP_ERR_UNKNOWN
 #define ARGP_ERR_UNKNOWN E2BIG
 #endif
+
+extern char* tsLogOutput;
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   SShellArgs *pArgs = &shell.args;
@@ -221,6 +230,21 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
     case 'N':
       pArgs->pktNum = atoi(arg);
+      break;
+    case 'o':
+      if (strlen(arg) >= PATH_MAX) {
+        printf("failed to set log output since length overflow, max length is %d\n", PATH_MAX);
+        return TSDB_CODE_INVALID_CFG;
+      }
+      tsLogOutput = taosMemoryMalloc(PATH_MAX);
+      if (!tsLogOutput) {
+        printf("failed to set log output: '%s' since %s\n", arg, tstrerror(terrno));
+        return terrno;
+      }
+      if (taosExpandDir(arg, tsLogOutput, PATH_MAX) != 0) {
+        printf("failed to expand log output: '%s' since %s\n", arg, tstrerror(terrno));
+        return terrno;
+      }
       break;
 #ifdef WEBSOCKET
     case 'R':

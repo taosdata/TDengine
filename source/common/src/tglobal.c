@@ -17,6 +17,7 @@
 #include "tglobal.h"
 #include "defines.h"
 #include "os.h"
+#include "osString.h"
 #include "tconfig.h"
 #include "tgrant.h"
 #include "tlog.h"
@@ -1010,12 +1011,34 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+extern char *tsLogOutput;
+
 static int32_t taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "logDir");
   tstrncpy(tsLogDir, pItem->str, PATH_MAX);
   TAOS_CHECK_RETURN(taosExpandDir(tsLogDir, tsLogDir, PATH_MAX));
+
+  if (tsLogOutput) {
+    char *pLog = tsLogOutput;
+    if (strcasecmp(pLog, "stdout") && strcasecmp(pLog, "stderr") && strcasecmp(pLog, "/dev/null")) {
+      char *pEnd = NULL;
+      if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
+        int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
+        if (*pLog == '/' || *pLog == '\\') {
+          tstrncpy(tsLogDir, pLog, TMIN(pathLen, PATH_MAX));
+        } else {
+          int32_t len = strlen(tsLogDir);
+          if (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\') {
+            tsLogDir[len++] = TD_DIRSEP_CHAR;
+          }
+          tstrncpy(tsLogDir + len, pLog, TMIN(PATH_MAX - len - 1, pathLen));
+        }
+        cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true);
+      }
+    }
+  }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalLogDirGB");
   tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
@@ -1845,6 +1868,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   TAOS_CHECK_GOTO(taosAddSystemCfg(tsCfg), &lino, _exit);
 
+#if 1  // duplicate operation since already loaded in taosCreateLog
   if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
     (void)printf("failed to load cfg since %s\n", tstrerror(code));
     cfgCleanup(tsCfg);
@@ -1858,6 +1882,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
+#endif
 
   if (tsc) {
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);

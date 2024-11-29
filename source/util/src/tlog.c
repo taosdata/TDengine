@@ -51,6 +51,13 @@
 #define LOG_EDITION_FLG ("C")
 #endif
 
+typedef enum {
+  LOG_OUTPUT_FILE = 0,    // default
+  LOG_OUTPUT_STDOUT = 1,  // stdout set by -o option on the command line
+  LOG_OUTPUT_STDERR = 2,  // stderr set by -e option on the command line
+  LOG_OUTPUT_NULL = 4,    // /dev/null set by -o option on the command line
+} ELogOutputType;
+
 typedef struct {
   char         *buffer;
   int32_t       buffStart;
@@ -73,6 +80,7 @@ typedef struct {
   int32_t       openInProgress;
   int64_t       lastKeepFileSec;
   int64_t       timestampToday;
+  int8_t        outputType;  // ELogOutputType
   pid_t         pid;
   char          logName[PATH_MAX];
   char          slowLogName[PATH_MAX];
@@ -96,6 +104,8 @@ bool tsAssert = true;
 #endif
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
+
+char   *tsLogOutput = NULL;
 LogFp   tsLogFp = NULL;
 int64_t tsNumOfErrorLogs = 0;
 int64_t tsNumOfInfoLogs = 0;
@@ -234,11 +244,68 @@ int32_t taosInitSlowLog() {
   return 0;
 }
 
+int32_t taosInitLogOutput(const char **ppLogName) {
+  const char *pLog = tsLogOutput;
+  const char *pLogName = NULL;
+  if (pLog) {
+    if (!tIsValidFilePath(pLog, NULL)) {
+      fprintf(stderr, "invalid log output destination:%s, contains illegal char\n", pLog);
+      return TSDB_CODE_INVALID_CFG;
+    }
+    if (0 == strcasecmp(pLog, "stdout")) {
+      tsLogObj.outputType = LOG_OUTPUT_STDOUT;
+      if (ppLogName) *ppLogName = pLog;
+      return 0;
+    }
+    if (0 == strcasecmp(pLog, "stderr")) {
+      tsLogObj.outputType = LOG_OUTPUT_STDERR;
+      if (ppLogName) *ppLogName = pLog;
+      return 0;
+    }
+    if (0 == strcasecmp(pLog, "/dev/null")) {
+      tsLogObj.outputType = LOG_OUTPUT_NULL;
+      if (ppLogName) *ppLogName = pLog;
+      return 0;
+    }
+    int32_t len = strlen(pLog);
+    if (len < 1) {
+      fprintf(stderr, "invalid log output destination:%s, should not be empty\n", pLog);
+      return TSDB_CODE_INVALID_CFG;
+    }
+    const char *p = pLog + (len - 1);
+    if (*p == '/' || *p == '\\') {
+      return 0;
+    }
+
+    if ((p = strrchr(pLog, '/')) || (p = strrchr(pLog, '\\'))) {
+      pLogName = p + 1;
+    } else {
+      pLogName = pLog;
+    }
+    if (strcmp(pLogName, ".") == 0 || strcmp(pLogName, "..") == 0) {
+      fprintf(stderr, "invalid log output destination:%s\n", pLog);
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (!tIsValidFileName(pLogName, NULL)) {
+      fprintf(stderr, "invalid log output destination:%s, contains illegal char\n", pLog);
+      return TSDB_CODE_INVALID_CFG;
+    }
+    if (ppLogName) *ppLogName = pLogName;
+  }
+  return 0;
+}
+
 int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   int32_t code = osUpdate();
   if (code != 0) {
     uError("failed to update os info, reason:%s", tstrerror(code));
+  }
+
+  if (tsLogObj.outputType == LOG_OUTPUT_STDOUT || tsLogObj.outputType == LOG_OUTPUT_STDERR ||
+      tsLogObj.outputType == LOG_OUTPUT_NULL) {
+    return 0;
   }
 
   TAOS_CHECK_RETURN(taosInitNormalLog(logName, maxFiles));
@@ -283,6 +350,7 @@ void taosCloseLog() {
     taosMemoryFreeClear(tsLogObj.logHandle);
     tsLogObj.logHandle = NULL;
   }
+  taosMemoryFreeClear(tsLogOutput);
 }
 
 static bool taosLockLogFile(TdFilePtr pFile) {
@@ -374,7 +442,7 @@ static OldFileKeeper *taosOpenNewFile() {
   }
 
   TdFilePtr pOldFile = tsLogObj.logHandle->pFile;
-  atomic_store_ptr(&tsLogObj.logHandle->pFile, pFile);
+  tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
   OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
@@ -666,7 +734,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     if (tsAsyncLog) {
       TAOS_UNUSED(taosPushLogBuffer(tsLogObj.logHandle, buffer, len));
     } else {
-      TAOS_UNUSED(taosWriteFile(atomic_load_ptr(tsLogObj.logHandle->pFile), buffer, len));
+      TAOS_UNUSED(taosWriteFile(tsLogObj.logHandle->pFile, buffer, len));
     }
 
     if (tsNumOfLogLines > 0) {
@@ -680,10 +748,19 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     }
   }
 
-  if (dflag & DEBUG_SCREEN) {
+  int fd = 0;
+  if (tsLogObj.outputType == LOG_OUTPUT_FILE) {
+    if (dflag & DEBUG_SCREEN) fd = 1;
+  } else if (tsLogObj.outputType == LOG_OUTPUT_STDOUT) {
+    fd = 1;
+  } else if (tsLogObj.outputType == LOG_OUTPUT_STDERR) {
+    fd = 2;
+  }
+
+  if (fd) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
-    if (write(1, buffer, (uint32_t)len) < 0) {
+    if (write(fd, buffer, (uint32_t)len) < 0) {
       TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(errno)));
     }
 #pragma GCC diagnostic pop
