@@ -39,6 +39,9 @@ static int32_t sentinel = TSC_VAR_NOT_RELEASE;
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
 
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
+  if (arg == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   static int32_t lock = 0;
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
@@ -117,8 +120,14 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (option != TSDB_MAX_CONNECTION_OPTIONS && (option < TSDB_OPTION_CONNECTION_CHARSET && option > TSDB_OPTION_CONNECTION_USER_APP)){
+  if (option < TSDB_OPTION_CONNECTION_CLEAR || option >= TSDB_MAX_OPTIONS_CONNECTION){
     return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = taos_init();
+  // initialize global config
+  if (code != 0) {
+    return code;
   }
 
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
@@ -127,25 +136,31 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     return terrno;
   }
 
-  int32_t code = 0;
-  if (option == TSDB_OPTION_CONNECTION_CHARSET) {
+  if (option == TSDB_OPTION_CONNECTION_CLEAR){
+    val = NULL;
+  }
+
+  if (option == TSDB_OPTION_CONNECTION_CHARSET || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
       if (!taosValidateEncodec(val)) {
         code = terrno;
         goto END;
       }
+      void *tmp = taosConvInit(val);
+      if (tmp == NULL) {
+        code = terrno;
+        goto END;
+      }
+      pObj->optionInfo.charsetCxt = tmp;
     }else{
-      val = tsCharset;
+      pObj->optionInfo.charsetCxt = NULL;
     }
-    void *tmp = taosConvInit(val);
-    if (tmp == NULL) {
-      code = terrno;
-      goto END;
-    }
-    pObj->optionInfo.charsetCxt = tmp;
-  } else if (option == TSDB_OPTION_CONNECTION_TIMEZONE) {
+  }
+
+  if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL){
       if (strlen(val) == 0){
+        tscError("%s empty timezone %s", __func__, val);
         code = TSDB_CODE_INVALID_PARA;
         goto END;
       }
@@ -158,17 +173,25 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     } else {
       pObj->optionInfo.timezone = NULL;
     }
-  } else if (option == TSDB_OPTION_CONNECTION_USER_APP) {
+  }
+
+  if (option == TSDB_OPTION_CONNECTION_USER_APP || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
-      tstrncpy(pObj->optionInfo.app, val, TSDB_APP_NAME_LEN);
+      tstrncpy(pObj->optionInfo.userApp, val, sizeof(pObj->optionInfo.userApp));
     } else {
-      pObj->optionInfo.app[0] = 0;
+      pObj->optionInfo.userApp[0] = 0;
     }
-  } else if (option == TSDB_OPTION_CONNECTION_USER_IP) {
+  }
+
+  if (option == TSDB_OPTION_CONNECTION_USER_IP || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
-      pObj->optionInfo.ip = inet_addr(val);
+      pObj->optionInfo.userIp = inet_addr(val);
+      if (pObj->optionInfo.userIp == INADDR_NONE){
+        code = TSDB_CODE_INVALID_PARA;
+        goto END;
+      }
     } else {
-      pObj->optionInfo.ip = 0;
+      pObj->optionInfo.userIp = INADDR_NONE;
     }
   }
 

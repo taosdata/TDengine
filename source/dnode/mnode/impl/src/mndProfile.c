@@ -45,6 +45,8 @@ typedef struct {
   int32_t  numOfQueries;
   SRWLatch queryLock;
   SArray  *pQueries;  // SArray<SQueryDesc>
+  char     userApp[TSDB_APP_NAME_LEN];
+  uint32_t userIp;
 } SConnObj;
 
 typedef struct {
@@ -135,6 +137,13 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
+static void setUserInfo2Conn(SConnObj* connObj, char* userApp, uint32_t userIp){
+  if (connObj == NULL){
+    return;
+  }
+  tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
+  connObj->userIp  = userIp;
+}
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
                                int32_t pid, const char *app, int64_t startTime) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -513,6 +522,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       }
     }
 
+    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp);
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn, true);
@@ -921,6 +931,27 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       return code;
     }
 
+    char userApp[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(userApp, pConn->userApp);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)userApp, false);
+    if (code != 0) {
+      mError("failed to set user app since %s", tstrerror(code));
+      return code;
+    }
+
+    char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE){
+      tinet_ntoa(varDataVal(userIp), pConn->userIp);
+      varDataLen(userIp) = strlen(varDataVal(userIp));
+    }
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)userIp, false);
+    if (code != 0) {
+      mError("failed to set user ip since %s", tstrerror(code));
+      return code;
+    }
+
     numOfRows++;
   }
 
@@ -1089,6 +1120,29 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)sql, false);
     if (code != 0) {
       mError("failed to set sql since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    char userApp[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(userApp, pConn->userApp);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)userApp, false);
+    if (code != 0) {
+      mError("failed to set user app since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE){
+      tinet_ntoa(varDataVal(userIp), pConn->userIp);
+      varDataLen(userIp) = strlen(varDataVal(userIp));
+    }
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)userIp, false);
+    if (code != 0) {
+      mError("failed to set user ip since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);
       return code;
     }

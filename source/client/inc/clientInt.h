@@ -156,8 +156,8 @@ typedef struct {
 typedef struct {
   timezone_t    timezone;
   void         *charsetCxt;
-  char          app[TSDB_APP_NAME_LEN];
-  uint32_t      ip;
+  char          userApp[TSDB_APP_NAME_LEN];
+  uint32_t      userIp;
 }SOptionInfo;
 
 typedef struct STscObj {

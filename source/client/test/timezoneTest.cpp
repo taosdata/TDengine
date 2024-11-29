@@ -27,7 +27,7 @@
 
 #include "executor.h"
 #include "taos.h"
-
+#include "clientInt.h"
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
@@ -163,6 +163,154 @@ void check_set_timezone(TAOS* optionFunc(const char *tz)){
 
     taos_close(pConn);
   }
+}
+
+#define CHECK_TAOS_OPTION_POINTER(taos, option, isnull) \
+  {                                                     \
+    STscObj* pObj = acquireTscObj(*(int64_t*)taos);     \
+    ASSERT(pObj != nullptr);                            \
+    if (isnull) {                                       \
+      ASSERT(pObj->optionInfo.option == nullptr);       \
+    } else {                                            \
+      ASSERT(pObj->optionInfo.option != nullptr);       \
+    }                                                   \
+  }
+
+#define CHECK_TAOS_OPTION_APP(taos, option, val)       \
+  {                                                    \
+    STscObj* pObj = acquireTscObj(*(int64_t*)taos);    \
+    ASSERT(pObj != nullptr);                           \
+    ASSERT(strcmp(pObj->optionInfo.option, val) == 0); \
+  }
+
+#define CHECK_TAOS_OPTION_IP_ERROR(taos, option, val) \
+  {                                                   \
+    STscObj* pObj = acquireTscObj(*(int64_t*)taos);   \
+    ASSERT(pObj != nullptr);                          \
+    ASSERT(pObj->optionInfo.option == val);           \
+  }
+
+#define CHECK_TAOS_OPTION_IP(taos, option, val)     \
+  {                                                 \
+    STscObj* pObj = acquireTscObj(*(int64_t*)taos); \
+    ASSERT(pObj != nullptr);                        \
+    char ip[TD_IP_LEN] = {0};                       \
+    tinet_ntoa(ip, pObj->optionInfo.option);        \
+    ASSERT(strcmp(ip, val) == 0);                   \
+  }
+
+TEST(timezoneCase, setConnectionOption_Test) {
+  int32_t code = taos_options_connection(NULL, TSDB_OPTION_CONNECTION_CHARSET, NULL);
+  ASSERT(code != 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != nullptr);
+
+  code = taos_options_connection(pConn, TSDB_MAX_OPTIONS_CONNECTION, NULL);
+  ASSERT(code != 0);
+
+  // test charset
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CHARSET, "");
+  ASSERT(code != 0);
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CHARSET, NULL);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, true);
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CHARSET, "Asia/Shanghai");
+  ASSERT(code != 0);
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CHARSET, "gbk");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, false);
+
+  // test timezone
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "");
+  ASSERT(code != 0);
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, NULL);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
+  check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
+  check_sql_result(pConn, "select timezone()", "UTC (UTC, +0000)");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Kolkata");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
+  check_sql_result(pConn, "select timezone()", "Asia/Kolkata (IST, +0530)");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "adbc");
+  ASSERT(code != 0);
+
+  // test user APP
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, userApp, "");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, NULL);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, userApp, "");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "aaaaaaaaaaaaaaaaaaaaaabbbbbbb");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, userApp, "aaaaaaaaaaaaaaaaaaaaaab");
+
+
+  // test user IP
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "");
+  ASSERT(code != 0);
+  CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, NULL);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "aaaaaaaaaaaaaaaaaaaaaabbbbbbb");
+  ASSERT(code != 0);
+  CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "1292.168.0.2");
+  ASSERT(code != 0);
+  CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "192.168.0.2");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_IP(pConn, userIp, "192.168.0.2");
+
+  taosMsleep(2 * HEARTBEAT_INTERVAL);
+
+  //test user APP and user IP
+  check_sql_result(pConn, "select user_app from performance_schema.perf_connections", "aaaaaaaaaaaaaaaaaaaaaab");
+  check_sql_result(pConn, "select user_ip from performance_schema.perf_connections", "192.168.0.2");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "192.168.1.2");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_IP(pConn, userIp, "192.168.1.2");
+
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "user");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, userApp, "user");
+
+  taosMsleep(2 * HEARTBEAT_INTERVAL);
+
+  check_sql_result(pConn, "select user_app from performance_schema.perf_connections", "user");
+  check_sql_result(pConn, "select user_ip from performance_schema.perf_connections", "192.168.1.2");
+
+
+  // test clear
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CLEAR, "192.168.0.2");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, true);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
+  check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
+  CHECK_TAOS_OPTION_APP(pConn, userApp, "");
+  CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+
+  taos_close(pConn);
 }
 
 TEST(timezoneCase, set_timezone_Test) {

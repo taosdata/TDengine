@@ -964,7 +964,7 @@ void taos_init_imp(void) {
 #endif
   if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
-    tscInitRes = -1;
+    tscInitRes = terrno;
     return;
   }
 
@@ -981,7 +981,7 @@ void taos_init_imp(void) {
   ENV_ERR_RET(rpcInit(), "failed to init rpc");
 
   if (InitRegexCache() != 0) {
-    tscInitRes = -1;
+    tscInitRes = terrno;
     (void)printf("failed to init regex cache\n");
     return;
   }
