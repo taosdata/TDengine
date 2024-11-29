@@ -171,7 +171,10 @@ function git_pull() {
     if [ -d $1 ]; then
         cd $1
         echo "change directory to $1 done"
-        
+
+        git remote prune origin
+        echo "$1: git remote prune origin done"  
+
         git reset --hard HEAD
         echo "$1: reset to HEAD done"
 
@@ -276,7 +279,7 @@ function build_TDengine() {
         git_pull "${communityDir}/tools/taos-tools" "main" "ver-${version}"
 
         # pull taosws-rs
-        git_pull "${communityDir}/tools/taosws-rs" "main" "main"
+        git_pull "${communityDir}/tools/taosws-rs" "main" "ver-${version}"
 
     else
         echo "can not find TDengine source code"
