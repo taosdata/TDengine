@@ -89,6 +89,9 @@ taos -h h1.taos.com -s "use db; show tables;"
 
 也可以通过配置文件中的参数设置来控制 TDengine CLI 的行为。可用配置参数请参考[客户端配置](../../components/taosc)
 
+## 错误代码表
+在 TDengine 3.3.5.0 版本后 TDengine CLI 在返回的错误信息中包含了具体的错误代码，用户可到 TDengine 官网的错误代码详细说明页面查找具体原因及解决措施，见：[错误码参考表](../error_code/)
+
 ## TDengine CLI TAB 键补全
 
 - TAB 键前为空命令状态下按 TAB 键，会列出 TDengine CLI 支持的所有命令

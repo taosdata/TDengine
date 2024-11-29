@@ -18,6 +18,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "executorInt.h"
 
 #define GROUP_CACHE_DEFAULT_MAX_FILE_SIZE 104857600
 #define GROUP_CACHE_MAX_FILE_FDS 10
