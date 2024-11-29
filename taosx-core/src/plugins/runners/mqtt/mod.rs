@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,12 +7,10 @@ use arrow::array::{
     BinaryBuilder, RecordBatch, StringBuilder, TimestampNanosecondBuilder, UInt8Builder,
 };
 use arrow::ipc::writer::StreamWriter;
-use arrow_schema::{ArrowError, DataType, Field, Schema};
-use chrono::Utc;
+use arrow_schema::{DataType, Field, Schema};
 use client::{GenericMessagePoller, Message, MessagePoller};
 use config::MqttConnectConfig;
-use faststr::FastStr;
-use flume::{RecvTimeoutError, TrySendError};
+use flume::TrySendError;
 use futures::pin_mut;
 use linked_hash_map::LinkedHashMap;
 use metrics::MqttMetrics;
@@ -25,10 +22,11 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::core_metrics::{get_metrics_arc_from_i64, CoreMetrics};
+use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::mqtt::config::MqttConfig;
+use crate::utils::codec::{Decompressor, Processor, StringDecoder};
 use crate::utils::defer::defer;
 use crate::{build_ipc, Parser, Transferred};
 
@@ -40,16 +38,6 @@ mod dump;
 mod metrics;
 
 pub const MQTT_ID: &str = "mqtt";
-
-// metrics keys
-const FETCHED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_fetched_messages");
-const DUMPED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_dumped_messages");
-const FETCHED_ACKS: FastStr = FastStr::from_static_str("mqtt_fetched_acks");
-const ACK_FAILS: FastStr = FastStr::from_static_str("mqtt_ack_fails");
-const UNPROCESSED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_unprocessed_messages");
-const PROCESSING_BATCHES: FastStr = FastStr::from_static_str("mqtt_processing_batches");
-const DISCARDED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_discarded_messages");
-const DISCARDED_DUMP_MESSAGES: FastStr = FastStr::from_static_str("mqtt_discarded_dump_messages");
 
 /// Run the mqtt DataIn task
 #[instrument(skip_all)]
@@ -74,22 +62,10 @@ pub async fn mqtt_to_taos(
         let _ = crate::core_metrics::init_task_metrics(&from, &to, task_id, None).await;
     }
     let metrics = get_metrics_arc_from_i64(task_id).await;
+    let metrics = Arc::new(MqttMetrics::new(metrics));
 
-    macro_rules! reset_metrics {
-        () => {
-            metrics.ipc().set_extra_metric(&FETCHED_MESSAGES, 0);
-            metrics.ipc().set_extra_metric(&DUMPED_MESSAGES, 0);
-            metrics.ipc().set_extra_metric(&FETCHED_ACKS, 0);
-            metrics.ipc().set_extra_metric(&ACK_FAILS, 0);
-            metrics.ipc().set_extra_metric(&UNPROCESSED_MESSAGES, 0);
-            metrics.ipc().set_extra_metric(&PROCESSING_BATCHES, 0);
-        };
-    }
-
-    let _metrics_guard = defer(|| {
-        reset_metrics!();
-    });
-    reset_metrics!();
+    let _metrics_guard = defer(|| metrics.reset_metrics());
+    metrics.reset_metrics();
 
     let (mut ipc_server_handle, socket) = build_ipc(
         None,
@@ -104,7 +80,8 @@ pub async fn mqtt_to_taos(
         task_id,
         notify.clone(),
     )
-    .await?;
+    .await
+    .context("build ipc error")?;
 
     let mut tasks = match execute(
         socket,
@@ -189,14 +166,12 @@ async fn execute(
     socket: std::net::SocketAddr,
     task_id: Option<i64>,
     from: &Dsn,
-    metrics: Arc<CoreMetrics>,
+    mqtt_metrics: Arc<MqttMetrics>,
     cancel_token: CancellationToken,
 ) -> anyhow::Result<JoinSet<Result<(), anyhow::Error>>> {
     let config: MqttConfig = from.try_into()?;
     let mut tasks = JoinSet::new();
     let schema = build_schema();
-
-    let mqtt_metrics = Arc::new(MqttMetrics::default());
 
     tasks.spawn(
         {
@@ -206,7 +181,7 @@ async fn execute(
                 loop {
                     tokio::select! {
                         _ = tokio::time::sleep(Duration::from_millis(500)) => {
-                            mqtt_metrics.update_metrics(metrics.clone());
+                            mqtt_metrics.update_metrics();
                         }
                         _ = token.cancelled() => break,
                     }
@@ -277,15 +252,8 @@ async fn execute(
         move || {
             let _entered_span = span.enter();
             loop {
-                match permit_rx.recv_timeout(Duration::from_millis(10)) {
-                    Err(RecvTimeoutError::Timeout) => {
-                        if !batch_rx.is_empty() {
-                            tracing::warn!("mqtt has batch but backpresure triggered");
-                        }
-                        continue;
-                    }
-                    Err(RecvTimeoutError::Disconnected) => break,
-                    Ok(_) => {}
+                if permit_rx.recv().is_err() {
+                    break;
                 }
                 match batch_rx.recv() {
                     Ok(batch) => {
@@ -368,7 +336,6 @@ async fn execute(
                 let mut writer = {
                     let path = config
                         .path
-                        .map(PathBuf::from)
                         .or_else(|| {
                             task_id.map(|id| {
                                 get_data_dir()
@@ -378,7 +345,11 @@ async fn execute(
                             })
                         })
                         .context("Dump path is required")?;
-                    let writer = dump::RollingFileAppender::new(path, config.keep as i64)?;
+                    let writer = dump::RollingFileAppender::new(
+                        path,
+                        config.keep as i64,
+                        chrono::Local::now,
+                    )?;
                     csv_lib::WriterBuilder::new().from_writer(writer)
                 };
                 while let Ok(message) = dump_rx.recv() {
@@ -407,7 +378,7 @@ async fn execute(
     // build batch
     tasks.spawn(
         async move {
-            let mut builder = RecordBatchBuilder::new(schema);
+            let mut builder = RecordBatchBuilder::new(schema, config.codec_processor);
             let chunk_stream = message_rx.into_stream().chunks_timeout(
                 config.task.batch_size,
                 Duration::from_millis(config.task.batch_timeout as u64),
@@ -462,16 +433,22 @@ fn build_schema() -> Schema {
 
 struct RecordBatchBuilder {
     schema: Schema,
+
     ts: TimestampNanosecondBuilder,
     topic: StringBuilder,
     qos: UInt8Builder,
     payload: BinaryBuilder,
+
+    codec_err_count: usize,
+    codec_processor: (Option<Decompressor>, Option<StringDecoder>),
 }
 
 impl RecordBatchBuilder {
-    fn new(schema: Schema) -> Self {
+    fn new(schema: Schema, codec_processor: (Option<Decompressor>, Option<StringDecoder>)) -> Self {
         Self {
             schema,
+            codec_err_count: 0,
+            codec_processor,
             ts: TimestampNanosecondBuilder::new(),
             topic: StringBuilder::new(),
             qos: UInt8Builder::new(),
@@ -479,15 +456,29 @@ impl RecordBatchBuilder {
         }
     }
 
-    fn build<I>(&mut self, messages: I) -> Result<RecordBatch, ArrowError>
+    fn build<I>(&mut self, messages: I) -> anyhow::Result<RecordBatch>
     where
         I: IntoIterator<Item = Message>,
     {
         for message in messages {
+            let payload = match self.codec_processor.process(message.payload.to_vec()) {
+                Ok(payload) => {
+                    self.codec_err_count = 0;
+                    payload
+                }
+                Err(e) => {
+                    tracing::error!("codec process message error: {e:#}");
+                    self.codec_err_count += 1;
+                    if self.codec_err_count < 3 {
+                        continue;
+                    }
+                    return Err(e);
+                }
+            };
             self.ts.append_value(message.ts);
             self.qos.append_value(message.qos);
             self.topic.append_value(message.topic);
-            self.payload.append_value(message.payload);
+            self.payload.append_value(payload);
         }
 
         RecordBatch::try_new(
@@ -499,6 +490,7 @@ impl RecordBatchBuilder {
                 Arc::new(self.payload.finish()),
             ],
         )
+        .context("build record batch error")
     }
 }
 
@@ -560,23 +552,27 @@ async fn get_sample_message(
         .push_str(&format!("_sample_{}", uuid::Uuid::new_v4().simple()));
     let mut poller = GenericMessagePoller::from_config(&config.mqtt, config.topics).await?;
 
-    let start = Utc::now().timestamp();
+    let start = std::time::Instant::now();
     let mut count = 0;
     let mut payload_list: Vec<String> = Vec::with_capacity(limit);
     loop {
-        let now = Utc::now().timestamp();
-        if now - start > timeout.as_secs() as i64 || count >= limit {
+        let elapsed = start.elapsed();
+        if elapsed >= timeout || count >= limit {
             break;
         }
 
-        let message = match tokio::time::timeout(Duration::from_secs(1), poller.poll()).await {
+        let message = match tokio::time::timeout(timeout - elapsed, poller.poll()).await {
             Ok(res) => res.context("No MQTT message found")?,
             Err(_elapsed) => continue,
         };
 
         payload_list.push(
-            String::from_utf8(message.payload.to_vec())
-                .context("parse mqtt string message from bytes error")?,
+            config
+                .codec_processor
+                .process(message.payload.to_vec())
+                .and_then(|s| {
+                    String::from_utf8(s).context("parse mqtt string message from bytes error")
+                })?,
         );
         count += 1;
     }

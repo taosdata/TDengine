@@ -1877,6 +1877,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22ec99545bb0ed0ea7bb9b8e1e9122ea386ff8a48c0922e43f36d45ab09e0e80"
 
 [[package]]
+name = "crossterm"
+version = "0.28.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "829d955a0bb380ef178a640b91779e3987da38c9aea133b20614cfed8cdea9c6"
+dependencies = [
+ "bitflags 2.6.0",
+ "futures-core",
+ "mio 1.0.2",
+ "parking_lot 0.12.3",
+ "rustix",
+ "signal-hook",
+ "signal-hook-mio",
+]
+
+[[package]]
 name = "crunchy"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4206,6 +4221,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31e24f1ad8321ca0e8a1e0ac13f23cb668e6f5466c2c57319f6a5cf1cc8e3b1c"
 dependencies = [
  "linked-hash-map",
+]
+
+[[package]]
+name = "lz4"
+version = "1.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d1febb2b4a79ddd1980eede06a8f7902197960aa0383ffcfdd62fe723036725"
+dependencies = [
+ "lz4-sys",
+]
+
+[[package]]
+name = "lz4-sys"
+version = "1.11.1+lz4-1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bd8c0d6c6ed0cd30b3652886bb8711dc4bb01d637a68105a3d5158039b418e6"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]
@@ -7021,6 +7055,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "signal-hook"
+version = "0.3.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8621587d4798caf8eb44879d42e56b9a93ea5dcd315a6487c357130095b62801"
+dependencies = [
+ "libc",
+ "signal-hook-registry",
+]
+
+[[package]]
+name = "signal-hook-mio"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34db1a06d485c9142248b7a054f034b349b212551f3dfd19c94d45a754a217cd"
+dependencies = [
+ "libc",
+ "mio 1.0.2",
+ "signal-hook",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8145,6 +8200,7 @@ dependencies = [
  "libc",
  "linked-hash-map",
  "log",
+ "lz4",
  "md5 0.7.0",
  "metrics 0.23.0",
  "mongodb",
@@ -8179,6 +8235,7 @@ dependencies = [
  "shadow-rs 0.35.2",
  "sled",
  "snafu",
+ "snap",
  "socket2",
  "sqlx",
  "sqlx-postgres",
@@ -8256,18 +8313,27 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "crossterm",
+ "encoding_rs",
+ "flate2",
  "flume",
  "fundu",
+ "futures",
+ "lz4",
  "rand 0.8.5",
  "rayon",
+ "rdkafka",
  "rumqttc",
  "serde",
  "serde_json",
  "serde_with",
  "snafu",
+ "snap",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "toml 0.8.19",
+ "zstd 0.13.2",
 ]
 
 [[package]]
@@ -8676,6 +8742,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
