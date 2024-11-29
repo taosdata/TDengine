@@ -97,6 +97,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .showType = QUERY_NODE_SHOW_DNODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_DNODES,
+
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -1853,7 +1854,7 @@ static bool clauseSupportAlias(ESqlClause clause) {
   return SQL_CLAUSE_GROUP_BY == clause || SQL_CLAUSE_PARTITION_BY == clause || SQL_CLAUSE_ORDER_BY == clause;
 }
 
-static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnNode** pCol, bool *translateAsAlias) {
+static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnNode** pCol, bool* translateAsAlias) {
   *translateAsAlias = false;
   // count(*)/first(*)/last(*) and so on
   if (0 == strcmp((*pCol)->colName, "*")) {
@@ -1862,7 +1863,7 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
 
   if (pCxt->pParseCxt->biMode) {
     SNode** ppNode = (SNode**)pCol;
-    bool ret;
+    bool    ret;
     pCxt->errCode = biRewriteToTbnameFunc(pCxt, ppNode, &ret);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
     if (ret) {
@@ -1876,9 +1877,8 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
   } else {
     bool found = false;
     res = translateColumnWithoutPrefix(pCxt, pCol);
-    if (!(*pCol)->node.asParam &&
-        res != DEAL_RES_CONTINUE &&
-        res != DEAL_RES_END && pCxt->errCode != TSDB_CODE_PAR_AMBIGUOUS_COLUMN) {
+    if (!(*pCol)->node.asParam && res != DEAL_RES_CONTINUE && res != DEAL_RES_END &&
+        pCxt->errCode != TSDB_CODE_PAR_AMBIGUOUS_COLUMN) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
       *translateAsAlias = true;
     }
@@ -3321,9 +3321,11 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
     return TSDB_CODE_SUCCESS;
   }
 
-  if ((resultType == TSDB_DATA_TYPE_VARCHAR) && (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
+  if ((resultType == TSDB_DATA_TYPE_VARCHAR) &&
+      (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN);
-  } else if ((resultType == TSDB_DATA_TYPE_NCHAR) && (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
+  } else if ((resultType == TSDB_DATA_TYPE_NCHAR) &&
+             (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN * TSDB_NCHAR_SIZE);
   } else {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
@@ -3761,7 +3763,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
   FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
-      return pSelect->hasAggFuncs ? rewriteExprToGroupKeyFunc(pCxt, pNode) : DEAL_RES_IGNORE_CHILD;
+      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode) : DEAL_RES_IGNORE_CHILD;
     }
     if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
@@ -5480,7 +5482,7 @@ static EDealRes translateGroupPartitionByImpl(SNode** pNode, void* pContext) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   STranslateContext*       pTransCxt = pCxt->pTranslateCxt;
   if (QUERY_NODE_VALUE == nodeType(*pNode)) {
-    SValueNode* pVal = (SValueNode*) *pNode;
+    SValueNode* pVal = (SValueNode*)*pNode;
     if (DEAL_RES_ERROR == translateValue(pTransCxt, pVal)) {
       return DEAL_RES_CONTINUE;
     }
@@ -5528,8 +5530,7 @@ static int32_t translateGroupByList(STranslateContext* pCxt, SSelectStmt* pSelec
   if (NULL == pSelect->pGroupByList) {
     return TSDB_CODE_SUCCESS;
   }
-  SReplaceGroupByAliasCxt cxt = {
-      .pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
+  SReplaceGroupByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
   nodesRewriteExprsPostOrder(pSelect->pGroupByList, translateGroupPartitionByImpl, &cxt);
 
   return pCxt->errCode;
@@ -5540,8 +5541,7 @@ static int32_t translatePartitionByList(STranslateContext* pCxt, SSelectStmt* pS
     return TSDB_CODE_SUCCESS;
   }
 
-  SReplaceGroupByAliasCxt cxt = {
-      .pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
+  SReplaceGroupByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
   nodesRewriteExprsPostOrder(pSelect->pPartitionByList, translateGroupPartitionByImpl, &cxt);
 
   return pCxt->errCode;
@@ -9495,7 +9495,8 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 }
 
 static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
-  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType) {
+  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType ||
+      TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                    "Set tag value only available for child table");
   }
@@ -10521,7 +10522,8 @@ static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
   (void)tNameGetFullDbName(&name, pDbFName);
 }
 
-static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len, char* defaultName[]) {
+static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len,
+                                                char* defaultName[]) {
   for (int32_t i = 0; defaultName[i] != NULL; i++) {
     if (NULL == taosHashGet(pUserAliasSet, defaultName[i], strlen(defaultName[i]))) {
       snprintf(aliasName, len, "%s", defaultName[i]);
@@ -10547,8 +10549,8 @@ static int32_t setColumnDefNodePrimaryKey(SColumnDefNode* pNode, bool isPk) {
   return code;
 }
 
-static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
-                                                  SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
+static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect, SHashObj* pUserAliasSet,
+                                                SNodeList* pCols, SCMCreateStreamReq* pReq) {
   SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
   if (!pSelect->hasInterpFunc ||
       (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_irowts", ((SFunctionNode*)pProj)->functionName))) {
@@ -10595,7 +10597,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
     return TSDB_CODE_SUCCESS;
   }
   SFunctionNode* pFunc = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (NULL == pFunc) {
     return code;
   }
@@ -10627,7 +10629,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
 }
 
 static int32_t addTsKeyToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt, SNodeList* pCols,
-                                              SCMCreateStreamReq* pReq) {
+                                           SCMCreateStreamReq* pReq) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   SHashObj*    pUserAliasSet = NULL;
   int32_t      code = checkProjectAlias(pCxt, pSelect->pProjectionList, &pUserAliasSet);
@@ -10990,21 +10992,18 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
 
   if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
     if (pStmt->pOptions->fillHistory) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream unsupported Fill history");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream unsupported Fill history");
     }
 
     if (pStmt->pOptions->ignoreExpired != 1) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream must not set  ignore expired 0");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream must not set  ignore expired 0");
     }
 
     if (pStmt->pOptions->ignoreUpdate != 1) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream must not set  ignore update 0");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream must not set  ignore update 0");
     }
 
     if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
@@ -13127,7 +13126,7 @@ static int32_t extractShowCreateViewResultSchema(int32_t* numOfCols, SSchema** p
 }
 
 static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS; // SHOW_VARIABLES_RESULT_COLS
+  *numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS;  // SHOW_VARIABLES_RESULT_COLS
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
@@ -15183,24 +15182,88 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
   TAOS_RETURN(0);
 }
 
-static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                    SVAlterTbReq* pReq) {
-  SName   tbName = {0};
-  SArray* pTsmas = NULL;
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pCxt->pMetaCache) {
-    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
-    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
-    if (code != TSDB_CODE_SUCCESS) return code;
-    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
+static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                         char* colName, SMultiTagUpateVal* pReq) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  SSchema* pSchema = getTagSchema(pTableMeta, colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
   }
 
-  SSchema* pSchema = getTagSchema(pTableMeta, pStmt->colName);
-  if (NULL == pSchema) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s",
-                                   pStmt->colName);
+  pReq->tagName = taosStrdup(colName);
+  if (NULL == pReq->tagName) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
   }
-  pReq->tagName = taosStrdup(pStmt->colName);
+
+  pReq->pTagArray = taosArrayInit(1, sizeof(STagVal));
+  if (NULL == pReq->pTagArray) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
+  }
+  pReq->colId = pSchema->colId;
+  pReq->tagType = pSchema->type;
+
+  STag*       pTag = NULL;
+  SToken      token;
+  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  const char* tagStr = pStmt->pVal->literal;
+  NEXT_TOKEN_WITH_PREV(tagStr, token);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
+    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
+                         pReq->pTagArray, &pTag);
+    if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
+      pReq->tagFree = true;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && tagStr) {
+    NEXT_VALID_TOKEN(tagStr, token);
+    if (token.n != 0) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pSchema->type == TSDB_DATA_TYPE_JSON) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values ", token.z);
+    } else {
+      STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
+      if (pTagVal) {
+        pReq->isNull = false;
+        if (IS_VAR_DATA_TYPE(pSchema->type)) {
+          pReq->nTagVal = pTagVal->nData;
+          pReq->pTagVal = pTagVal->pData;
+        } else {
+          pReq->nTagVal = pSchema->bytes;
+          pReq->pTagVal = (uint8_t*)&pTagVal->i64;
+        }
+      } else {
+        pReq->isNull = true;
+      }
+    }
+  }
+_err:
+  if (code != 0) {
+    taosArrayDestroy(pReq->pTagArray);
+    taosMemoryFree(pReq->tagName);
+  }
+  return code;
+}
+static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                        char* colName, SVAlterTbReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SSchema* pSchema = getTagSchema(pTableMeta, colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
+  }
+
+  pReq->tagName = taosStrdup(colName);
   if (NULL == pReq->tagName) {
     return terrno;
   }
@@ -15259,6 +15322,82 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     }
   }
 
+  return code;
+}
+static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                    SVAlterTbReq* pReq) {
+  SName   tbName = {0};
+  SArray* pTsmas = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pCxt->pMetaCache) {
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
+    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
+  }
+  return buildUpdateTagValReqImpl(pCxt, pStmt, pTableMeta, pStmt->colName, pReq);
+}
+
+static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                         SVAlterTbReq* pReq) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SName     tbName = {0};
+  SArray*   pTsmas = NULL;
+  SHashObj* pUnique = NULL;
+  if (pCxt->pMetaCache) {
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
+    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
+  }
+  SNodeList* pNodeList = pStmt->pNodeListTagValue;
+  if (pNodeList == NULL) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  int32_t nTagValues = pNodeList->length;
+  if (nTagValues == 1) {
+    SAlterTableStmt* head = (SAlterTableStmt*)pNodeList->pHead->pNode;
+    pReq->action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
+    return buildUpdateTagValReqImpl(pCxt, head, pTableMeta, head->colName, pReq);
+  } else {
+    pReq->pMultiTag = taosArrayInit(nTagValues, sizeof(SMultiTagUpateVal));
+    if (pReq->pMultiTag == NULL) {
+      return terrno;
+    }
+
+    pUnique = taosHashInit(nTagValues, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (pUnique == NULL) {
+      TAOS_CHECK_GOTO(terrno, NULL, _err);
+    }
+
+    SAlterTableStmt* pTagStmt = NULL;
+    SNode*           pNode = NULL;
+    int8_t           dummpy = 0;
+    FOREACH(pNode, pNodeList) {
+      SMultiTagUpateVal val = {0};
+      pTagStmt = (SAlterTableStmt*)pNode;
+
+      SMultiTagUpateVal* p = taosHashGet(pUnique, pTagStmt->colName, strlen(pTagStmt->colName));
+      if (p) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+        TAOS_CHECK_GOTO(code, NULL, _err);
+      }
+
+      code = taosHashPut(pUnique, pTagStmt->colName, strlen(pTagStmt->colName), &dummpy, sizeof(dummpy));
+      TAOS_CHECK_GOTO(code, NULL, _err);
+
+      code = buildUpdateTagValReqImpl2(pCxt, pTagStmt, pTableMeta, pTagStmt->colName, &val);
+      TAOS_CHECK_GOTO(code, NULL, _err);
+
+      if (taosArrayPush(pReq->pMultiTag, &val) == NULL) {
+        tfreeMultiTagUpateVal((void*)&val);
+        TAOS_CHECK_GOTO(terrno, NULL, _err);
+      }
+    }
+  }
+_err:
+  taosHashCleanup(pUnique);
   return code;
 }
 
@@ -15449,6 +15588,8 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+      return buildUpdateMultiTagValReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return buildUpdateTagValReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_ADD_COLUMN:
@@ -15550,6 +15691,10 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
       taosMemoryFreeClear(p->pData);
     }
   }
+  if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpateVal);
+  }
+
   taosArrayDestroy(pReq->pTagArray);
   if (pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }

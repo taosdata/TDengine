@@ -110,6 +110,8 @@ if $data30 != 12 then
 endi
 
 print =============== show vnodes on dnode 1
+print =============== Wait for the synchronization status of vnode and Mnode, heartbeat for one second
+sleep 1000
 sql show vnodes on dnode 1
 if $rows != 9 then
   return -1

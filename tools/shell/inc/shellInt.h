@@ -48,6 +48,7 @@
 #define SHELL_FLOAT_WIDTH                      20
 #define SHELL_DOUBLE_WIDTH                     25
 
+#define ERROR_CODE_DETAIL "\r\n\r\nTo view possible causes and suggested actions for error codes, see \r\n\"Error Code Reference\" in the TDengine online documentation.\r\n"
 typedef struct {
   char*   hist[SHELL_MAX_HISTORY_SIZE];
   char    file[TSDB_FILENAME_LEN];
