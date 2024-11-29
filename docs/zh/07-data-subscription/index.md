@@ -76,7 +76,7 @@ func (c *Consumer) Unsubscribe() error
 
 </TabItem>
 
-<TabItem label="Rust" value="Rust">
+<TabItem value="Rust" label="Rust">
 
 ```rust
 impl TBuilder for TmqBuilder
@@ -303,7 +303,7 @@ $env:TDENGINE_JDBC_URL='<TDENGINE_JDBC_URL>'
 
 |           参数名称            |  类型   | 参数说明                                                                                 | 备注                                        |
 | :---------------------------: | :-----: | ---------------------------------------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`        | string  | TDengine Cloud 实例的连接值，如“gw.cloud.taosdata.com”。                                 |                                             |
+|        `td.connect.ip`        | string  | TDengine Cloud 实例服务端的地址，如“gw.cloud.taosdata.com”。                                 |                                             |
 |      `td.connect.token`       | string  | TDengine Cloud 实例的令牌值。                                                            |                                             |
 |          `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                                                        | **必填项**。最大长度：192。                 |
 |          `client.id`          | string  | 客户端 ID                                                                                | 最大长度：192。                             |
@@ -342,14 +342,14 @@ if err != nil {
 
 </TabItem>
 
-<TabItem label="Rust" value="Rust">
+<TabItem value="Rust" label="Rust">
 
 ```rust
 let tmq_str = std::env::var("TDENGINE_CLOUD_TMQ")?;
 let tmq_uri = format!( "{}&group.id=test_group_rs&client.id=test_consumer_ws", tmq_str);
 println!("request tmq URI is {tmq_uri}\n");
 let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
-let mut consumer = tmq.build()?;
+let mut consumer = tmq.build().await?;
 ```
 
 </TabItem>
@@ -723,7 +723,7 @@ await consumer.close();
 
 </TabItem>
 
-<TabItem label="Rust" value="Rust">
+<TabItem value="Rust" label="Rust">
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/sub.rs}}
