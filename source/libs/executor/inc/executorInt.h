@@ -475,6 +475,7 @@ typedef struct SStreamFillSupporter {
   STimeWindow    winRange;
   int32_t        pkColBytes;
   __compar_fn_t  comparePkColFn;
+  int32_t*       pOffsetInfo;
 } SStreamFillSupporter;
 
 typedef struct SStreamScanInfo {
@@ -822,10 +823,11 @@ typedef struct SStreamFillOperatorInfo {
   int32_t               primaryTsCol;
   int32_t               primarySrcSlotId;
   SStreamFillInfo*      pFillInfo;
-  SStreamAggSupporter*  pStreamAggSup;
   SArray*               pCloseTs;
   SArray*               pUpdated;
   SGroupResInfo         groupResInfo;
+  SStreamState*         pState;
+  SStateStore           stateStore;
 } SStreamFillOperatorInfo;
 
 typedef struct SStreamTimeSliceOperatorInfo {
@@ -884,6 +886,7 @@ typedef struct SStreamIntervalSliceOperatorInfo {
   struct SOperatorInfo* pOperator;
   bool                  hasFill;
   bool                  hasInterpoFunc;
+  int32_t*              pOffsetInfo;
 } SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
@@ -1059,6 +1062,7 @@ void    destroyFlusedPos(void* pRes);
 bool    isIrowtsPseudoColumn(SExprInfo* pExprInfo);
 bool    isIsfilledPseudoColumn(SExprInfo* pExprInfo);
 bool    isInterpFunc(SExprInfo* pExprInfo);
+bool    isIrowtsOriginPseudoColumn(SExprInfo* pExprInfo);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);
