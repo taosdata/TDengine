@@ -188,6 +188,7 @@ typedef enum _mgmt_table {
 #define TSDB_FILL_LINEAR      5
 #define TSDB_FILL_PREV        6
 #define TSDB_FILL_NEXT        7
+#define TSDB_FILL_NEAR        8
 
 #define TSDB_ALTER_USER_PASSWD          0x1
 #define TSDB_ALTER_USER_SUPERUSER       0x2
@@ -264,6 +265,7 @@ typedef enum ENodeType {
   QUERY_NODE_COLUMN_OPTIONS,
   QUERY_NODE_TSMA_OPTIONS,
   QUERY_NODE_ANOMALY_WINDOW,
+  QUERY_NODE_RANGE_AROUND,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
