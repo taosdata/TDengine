@@ -1078,9 +1078,9 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
   pLogBuf->writeInterval = 0;
 }
 
-#define LOG_ROTATE_INTERVAL 30
+#define LOG_ROTATE_INTERVAL 1800  // seconds
 #ifndef LOG_ROTATE_BOOT
-#define LOG_ROTATE_BOOT 3
+#define LOG_ROTATE_BOOT 180  // seconds
 #endif
 static void *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
@@ -1132,7 +1132,7 @@ static void *taosLogRotateFunc(void *param) {
 
     int64_t elapseSec = taosGetTimestampMs() / 1000 - mtime;
 
-    if (elapseSec < 86400) {
+    if (elapseSec < 7200) {
       continue;
     }
 
@@ -1167,7 +1167,7 @@ static void *taosAsyncOutputLog(void *param) {
   int32_t count = 0;
   int32_t updateCron = 0;
   int32_t writeInterval = 0;
-  int32_t lastCheckMin = taosGetTimestampMs() / 60000 - (LOG_ROTATE_INTERVAL - LOG_ROTATE_BOOT);
+  int64_t lastCheckSec = taosGetTimestampMs() / 1000 - (LOG_ROTATE_INTERVAL - LOG_ROTATE_BOOT);
 
   while (1) {
     if (pSlowBuf) {
@@ -1195,22 +1195,22 @@ static void *taosAsyncOutputLog(void *param) {
     }
 
     // process the log rotation every LOG_ROTATE_INTERVAL minutes
-    int32_t curMin = taosGetTimestampMs() / 60000;
-    if (curMin >= lastCheckMin) {
-      if ((curMin - lastCheckMin) >= LOG_ROTATE_INTERVAL) {
+    int64_t curSec = taosGetTimestampMs() / 1000;
+    if (curSec >= lastCheckSec) {
+      if ((curSec - lastCheckSec) >= LOG_ROTATE_INTERVAL) {
         TdThread     thread;
         TdThreadAttr attr;
         (void)taosThreadAttrInit(&attr);
         (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
         if (taosThreadCreate(&thread, &attr, taosLogRotateFunc, tsLogObj.logHandle) == 0) {
-          lastCheckMin = curMin;
+          lastCheckSec = curSec;
         } else {
-          uWarn("failed to create thread to process log buffer");
+          uWarn("failed to create thread to process log rotation");
         }
         (void)taosThreadAttrDestroy(&attr);
       }
-    } else if (curMin < lastCheckMin) {
-      lastCheckMin = curMin;
+    } else if (curSec < lastCheckSec) {
+      lastCheckSec = curSec;
     }
   }
 
