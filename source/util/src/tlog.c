@@ -1137,7 +1137,7 @@ static void *taosLogRotateFunc(void *param) {
     }
 
     char fullName[PATH_MAX] = {0};
-    snprintf(fullName, sizeof(fullName), "%s%s%s", pDir, TD_DIRSEP, fname);
+    snprintf(fullName, sizeof(fullName), "%s%s%s", tsLogDir, TD_DIRSEP, fname);
 
     int32_t days = elapseSec / 86400 + 1;
     if (tsLogKeepDays > 0 && days > tsLogKeepDays) {
