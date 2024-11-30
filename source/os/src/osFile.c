@@ -292,11 +292,11 @@ int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *a
   }
 
   if (mtime != NULL) {
-    *mtime = fileStat.st_mtim.tv_sec;
+    *mtime = fileStat.st_mtime;
   }
 
   if (atime != NULL) {
-    *atime = fileStat.st_atim.tv_sec;
+    *atime = fileStat.st_atime;
   }
 
   return 0;
@@ -960,7 +960,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime) {
   }
 
   if (mtime != NULL) {
-    *mtime = fileStat.st_mtim.tv_sec;
+    *mtime = fileStat.st_mtime;
   }
 
   return 0;

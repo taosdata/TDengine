@@ -1027,15 +1027,18 @@ static int32_t taosSetClientLogCfg(SConfig *pCfg) {
       if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
         int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
         if (*pLog == '/' || *pLog == '\\') {
-          tstrncpy(tsLogDir, pLog, TMIN(pathLen, PATH_MAX));
+          if (pathLen >= PATH_MAX) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          tstrncpy(tsLogDir, pLog, pathLen);
         } else {
           int32_t len = strlen(tsLogDir);
           if (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\') {
             tsLogDir[len++] = TD_DIRSEP_CHAR;
           }
-          tstrncpy(tsLogDir + len, pLog, TMIN(PATH_MAX - len - 1, pathLen));
+          int32_t remain = PATH_MAX - len - 1;
+          if (remain < pathLen) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          tstrncpy(tsLogDir + len, pLog, pathLen);
         }
-        cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true);
+        TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
       }
     }
   }
