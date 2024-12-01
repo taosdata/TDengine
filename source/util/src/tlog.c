@@ -297,6 +297,30 @@ int32_t taosInitLogOutput(const char **ppLogName) {
   return 0;
 }
 
+int32_t taosSetLogOutput(SConfig *pCfg) {
+  if (tsLogOutput && (tsLogObj.outputType == LOG_OUTPUT_FILE)) {
+    char *pLog = tsLogOutput;
+    char *pEnd = NULL;
+    if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
+      int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
+      if (*pLog == '/' || *pLog == '\\') {
+        if (pathLen >= PATH_MAX) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+        tstrncpy(tsLogDir, pLog, pathLen);
+      } else {
+        int32_t len = strlen(tsLogDir);
+        if (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\') {
+          tsLogDir[len++] = TD_DIRSEP_CHAR;
+        }
+        int32_t remain = PATH_MAX - len - 1;
+        if (remain < pathLen) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+        tstrncpy(tsLogDir + len, pLog, pathLen);
+      }
+      TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
+    }
+  }
+  return 0;
+}
+
 int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   int32_t code = osUpdate();
