@@ -30,7 +30,7 @@ from frame import *
 
 class TDTestCase(TBase):
     # parse line
-    def parseLine(self, line):
+    def parseLine(self, line, show):
         line = line.strip()
         # PRE_DEFINE
         PRE_DEFINE = "#define TSDB_CODE_"
@@ -41,19 +41,22 @@ class TDTestCase(TBase):
         MID_DEFINE = "TAOS_DEF_ERROR_CODE(0, 0x"
         pos = line.find(MID_DEFINE, n)
         if pos == -1:
-            tdLog.info(f"not found \"{MID_DEFINE}\" line={line}")
+            if show:
+                tdLog.info(f"not found \"{MID_DEFINE}\" line={line}")
             return None        
         start = pos + len(MID_DEFINE)
         code = line[start:].strip()
         # )
         pos = code.find(")")
         if pos == -1:
-            tdLog.info(f"not found \")\", code={code}")
+            if show:
+                tdLog.info(f"not found \")\", code={code}")
             return None
         # check len
         code = code[:pos]
         if len(code) != 4:
-            tdLog.info(f"code is len not 4  len:{len(code)} subcode={code}\")\", line={line}")
+            if show:
+                tdLog.info(f"code is len not 4  len:{len(code)} subcode={code}\")\", line={line}")
             return None
 
         # return 
@@ -74,7 +77,7 @@ class TDTestCase(TBase):
         # read
         with open(hFile) as file:
             for line in file:
-                code = self.parseLine(line)
+                code = self.parseLine(line, start)
                 # invalid
                 if code == None:
                     continue
