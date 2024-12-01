@@ -42,7 +42,7 @@ Step-by-step instructions to set up the prerequisites software.
 ### Install the required package
 
 ```bash
-apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree  libgeos-dev libgflags2.2 libgflags-dev  libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim  libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping 
+apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping 
 ```
 
 ### Install Go
@@ -189,7 +189,7 @@ npm install -g yarn
 
 Install Python3.
 ```bash
-apt intall python3
+apt install python3
 apt install python3-pip
 ```
 
@@ -208,12 +208,14 @@ pip3 install taospy taos-ws-py
 Clone TDinternal repository to a local directory (for example, /root).
 ```bash
 cd /root
-git clone https://github.com/taosdata/TDinternal.git 
+git clone git@github.com:taosdata/TDinternal.git 
 ```
 
 Execute the cmake command to download the community and other repositories (this may take about twenty minutes).
 ```bash
 cd /root/TDinternal && git checkout main
+mkdir /root/TDinternal/debug
+cd /root/TDinternal/debug
 cmake .. -DBUILD_TEST=true
 ```
 
@@ -224,7 +226,7 @@ cd /root/TDinternal/community && git checkout main
 
 Compile
 ```bash
-mkdir /root/TDinternal/debug && cd /root/TDinternal/debug
+cd /root/TDinternal/debug
 cmake .. -DBUILD_TEST=true
 make -j4
 ```
@@ -236,8 +238,7 @@ make install
 
 # Packaging
 
-Using the following script to package the enterprise edition. During the packaging process, it is necessary to copy the document compression package from the internal machine (192.168.0.30). If passwordless login has not been configured, you will need to enter the password(tbase125!) manully.
-
+Using the following script to package the enterprise edition.
 ```bash
 cd /root/TDinternal/enterprise/packaging
 ./new_ver_release.sh -n <version_number>
@@ -251,30 +252,37 @@ ll /root/TDinternal/community/release
 # Testing
 
 ## Run the TSIM test script
+
 ```bash
 cd /root/TDinternal/community/tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
 
 ## Run the Python test script
+
 ```bash
 cd /root/TDinternal/community/tests/system-test
 python3 ./test.py -f 2-query/floor.py
 ```
 
 ## Run unittest
+
 ```bash
 cd /root/TDinternal/debug
 ctest
 ```
 
 ## Continuous Integration
+
+Temporarily unable to work, adjustments are being made.
+
 ```bash
 cd /root/TDinternal/community/tests
 ./run_all_ci_cases.sh
 ```
 
 ## Smoke Testing
+
 ```bash
 cd /root/TDinternal/community/packaging/smokeTest
 ./test_smoking_selfhost.sh
