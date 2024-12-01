@@ -186,7 +186,6 @@ static void dmSetSignalHandle() {
 }
 
 extern bool generateNewMeta;
-extern char *tsLogOutput;
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();

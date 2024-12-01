@@ -105,7 +105,6 @@ bool tsAssert = true;
 #endif
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
-
 char   *tsLogOutput = NULL;
 LogFp   tsLogFp = NULL;
 int64_t tsNumOfErrorLogs = 0;
@@ -293,30 +292,6 @@ int32_t taosInitLogOutput(const char **ppLogName) {
       return TSDB_CODE_INVALID_CFG;
     }
     if (ppLogName) *ppLogName = pLogName;
-  }
-  return 0;
-}
-
-int32_t taosSetLogOutput(SConfig *pCfg) {
-  if (tsLogOutput && (tsLogObj.outputType == LOG_OUTPUT_FILE)) {
-    char *pLog = tsLogOutput;
-    char *pEnd = NULL;
-    if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
-      int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
-      if (*pLog == '/' || *pLog == '\\') {
-        if (pathLen >= PATH_MAX) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
-        tstrncpy(tsLogDir, pLog, pathLen);
-      } else {
-        int32_t len = strlen(tsLogDir);
-        if (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\') {
-          tsLogDir[len++] = TD_DIRSEP_CHAR;
-        }
-        int32_t remain = PATH_MAX - len - 1;
-        if (remain < pathLen) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
-        tstrncpy(tsLogDir + len, pLog, pathLen);
-      }
-      TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
-    }
   }
   return 0;
 }
@@ -1102,10 +1077,13 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
   pLogBuf->writeInterval = 0;
 }
 
-#define LOG_ROTATE_INTERVAL 1800  // seconds
-#ifndef LOG_ROTATE_BOOT
-#define LOG_ROTATE_BOOT 180  // seconds
+#define LOG_ROTATE_INTERVAL 1800
+#ifdef BUILD_TEST
+#define LOG_ROTATE_BOOT 5
+#else
+#define LOG_ROTATE_BOOT 180
 #endif
+
 static void *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
   int32_t code = 0;

@@ -159,8 +159,6 @@ static void shellParseArgsUseArgp(int argc, char *argv[]) {
 #define ARGP_ERR_UNKNOWN E2BIG
 #endif
 
-extern char* tsLogOutput;
-
 static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   SShellArgs *pArgs = &shell.args;
 

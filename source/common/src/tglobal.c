@@ -1011,7 +1011,31 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-extern char *tsLogOutput;
+static int32_t taosSetLogOutput(SConfig *pCfg) {
+  if (tsLogOutput) {
+    char *pLog = tsLogOutput;
+    char *pEnd = NULL;
+    if (strcasecmp(pLog, "stdout") && strcasecmp(pLog, "stderr") && strcasecmp(pLog, "/dev/null")) {
+      if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
+        int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
+        if (*pLog == '/' || *pLog == '\\') {
+          if (pathLen >= PATH_MAX) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          tstrncpy(tsLogDir, pLog, pathLen);
+        } else {
+          int32_t len = strlen(tsLogDir);
+          if (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\') {
+            tsLogDir[len++] = TD_DIRSEP_CHAR;
+          }
+          int32_t remain = PATH_MAX - len - 1;
+          if (remain < pathLen) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          tstrncpy(tsLogDir + len, pLog, pathLen);
+        }
+        TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
+      }
+    }
+  }
+  return 0;
+}
 
 static int32_t taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
