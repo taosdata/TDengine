@@ -243,7 +243,7 @@ fi
 
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   BUILD_HTTP=internal
-  BUILD_KEEPER=ineternal
+  BUILD_KEEPER=internal
 else
   BUILD_KEEPER=true
 fi
@@ -372,7 +372,7 @@ if [ "$osType" != "Darwin" ]; then
     echo "==== generate taosx package ===="
     cd ${top_dir}/enterprise/src/plugins/taosx/packaging
     if [[ "$cusName" == "TDengine" && "${cusPrompt}" == "taos" && "${cusEmail}" == "support@taosdata.com" ]];then
-      python3 release.py -ob -vn ${verNumber}
+      python3 release.py -ob -vn ${verNumber} -bw
     else
       python3 release.py -ob -vn ${verNumber} -cn ${cusName} -cp ${cusPrompt} -ce ${cusEmail}
     fi
