@@ -53,6 +53,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
 ,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
 ,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py
+,,n,army,python3 ./test.py -f whole/checkErrorCode.py
 
 #
 # system test
