@@ -61,7 +61,7 @@ class TDTestCase(TBase):
 
     # ignore error
     def ignoreCode(self, code):
-        ignoreCodes = {"0x00008, 0x000009"}
+        ignoreCodes = {"0x0000000"}
         if code in ignoreCodes:
             return True
         else:
@@ -81,7 +81,7 @@ class TDTestCase(TBase):
                 # ignore
                 if self.ignoreCode(code):
                     tdLog.info(f"ignore error {code}\n")
-                print(code)    
+                #print(code)
                 # valid    
                 if code == "0x8000000B":
                     start = True
