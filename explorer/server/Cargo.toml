@@ -61,11 +61,7 @@ assert_cmd = "2.0.16"
 assert_fs = "1.1.2"
 
 [dependencies.taos]
-# path = "../taos-connector-rust/taos"
-version = "0.12"
-git = "https://github.com/taosdata/taos-connector-rust.git"
-default-features = false
-features = ["ws-rustls", "optin", "deadpool"]
+workspace = true
 
 [build-dependencies]
 shadow-rs = { version = "0.33", default-features = false }
