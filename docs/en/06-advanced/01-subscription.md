@@ -9,6 +9,8 @@ TDengine's message queue provides an ACK (Acknowledgment) mechanism to ensure at
 
 To achieve the above functionality, TDengine automatically creates indexes for the Write-Ahead Logging (WAL) files to support fast random access and provides a flexible and configurable file switching and retention mechanism. Users can specify the retention time and size of the WAL files according to their needs. Through these methods, the WAL is transformed into a persistent storage engine that preserves the order of event arrival. For queries created in the form of topics, TDengine will read data from the WAL. During consumption, TDengine reads data directly from the WAL based on the current consumption progress and uses a unified query engine to perform filtering, transformation, and other operations before pushing the data to consumers.
 
+Starting from version 3.2.0.0, data subscription supports vnode migration and splitting. Due to the dependence of data subscription on wal files, wal does not synchronize during vnode migration and splitting. Therefore, after migration or splitting, wal data that has not been consumed before cannot be consumed. So please ensure that all data has been consumed before proceeding with vnode migration or splitting, otherwise data loss may occur during consumption.
+
 ## Topics
 
 A topic can be a query, a supertable, or a database. You can filter by tag, table name, column, or expression and perform scalar operations. Note that data aggregation and time windows are not supported. The data granularity is determined by the SQL statement that defines the topic, and data filtering and preprocessing are automatically handled by TDengine.
