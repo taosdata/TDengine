@@ -1870,7 +1870,8 @@ _exit:
 
 static int32_t taosCheckGlobalCfg() {
   uint32_t ipv4 = 0;
-  int32_t  code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
+  uInfo("start to check global tsLocalFqdn:%s, tsServerPort:%u", tsLocalFqdn, tsServerPort);
+  int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
   if (code) {
     uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
@@ -1933,6 +1934,9 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
     if (pItem == NULL) {
       continue;
     }
+    if (strstr(item->name, "supportVnodes")) {
+      uDebug("supportVnodes:%d", pItem->valueint);
+    }
     switch (item->dtype) {
       {
         case CFG_DTYPE_NONE:
@@ -1955,7 +1959,7 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
         case CFG_DTYPE_LOCALE:
         case CFG_DTYPE_CHARSET:
         case CFG_DTYPE_TIMEZONE:
-          tstrncpy(item->str, pItem->valuestring, strlen(pItem->valuestring));
+          item->str = taosStrdup(pItem->valuestring);
           break;
       }
     }
@@ -1969,10 +1973,10 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
   SArray *array = NULL;
   if (isGlobal) {
     array = taosGetGlobalCfg(tsCfg);
-    snprintf(filename, sizeof(filename), "%s%sconfig%sglobal.json", path, TD_DIRSEP, TD_DIRSEP);
+    snprintf(filename, sizeof(filename), "%s%sdnode%sconfig%sglobal.json", path, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
   } else {
     array = taosGetLocalCfg(tsCfg);
-    snprintf(filename, sizeof(filename), "%s%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP);
+    snprintf(filename, sizeof(filename), "%s%sdnode%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
   }
   uInfo("start to read config file:%s", filename);
 
@@ -1983,6 +1987,7 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
       code = terrno;
       uTrace("failed to stat file:%s , since %s", filename, tstrerror(code));
     }
+    uInfo("config file:%s does not exist", filename);
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
@@ -2067,13 +2072,17 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
-  TAOS_CHECK_GOTO(tryLoadCfgFromDataDir(tsCfg), &lino, _exit);
+
+  if (!tsc) {
+    TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(tryLoadCfgFromDataDir(tsCfg), &lino, _exit);
+  }
 
   if (tsc) {
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
   } else {
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
-    TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetReleaseCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
@@ -2716,6 +2725,8 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
   cJSON *cField = cJSON_CreateObject();
   if (cField == NULL) goto _exit;
 
+  if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
+
   // cjson only support int32_t or double
   // string are used to prohibit the loss of precision
   for (int i = 0; i < sz; i++) {
@@ -2749,7 +2760,6 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
       }
     }
   }
-  if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
   char *pSerialized = cJSON_Print(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
@@ -2769,6 +2779,9 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
 
   cJSON *cField = cJSON_CreateObject();
   if (cField == NULL) goto _exit;
+
+  if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
+
   // cjson only support int32_t or double
   // string are used to prohibit the loss of precision
   for (int i = 0; i < sz; i++) {
@@ -2802,7 +2815,6 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
       }
     }
   }
-  if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
   char *pSerialized = cJSON_Print(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
