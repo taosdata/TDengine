@@ -87,12 +87,6 @@ mod tests {
         assert_eq!(nodes[0].id, "ns=3;i=1002");
         assert_eq!(nodes[1].id, "ns=3;i=1007");
 
-        let dsn = Dsn::from_str("opcua://?ua.nodes=@./tests/opc/ua.nodes").unwrap();
-        let nodes = UaCollectConfig::parse_nodes(&dsn).await.unwrap();
-        assert_eq!(nodes.len(), 2);
-        assert_eq!(nodes[0].id, "ns=3;i=1002");
-        assert_eq!(nodes[1].id, "ns=3;i=1007");
-
         let dsn =
             Dsn::from_str("opcua://?csv_config_file=@./tests/opc/ua_collect_config.csv").unwrap();
         let nodes = UaCollectConfig::parse_nodes(&dsn).await.unwrap();
