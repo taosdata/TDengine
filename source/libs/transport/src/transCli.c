@@ -377,7 +377,7 @@ static FORCE_INLINE void logConnMissHit(SCliConn* pConn);
 
 static void* cliWorkThread(void* arg);
 
-static bool isReqExccedLimit(STransMsg* pMsg) {
+static bool isReqExceedLimit(STransMsg* pMsg) {
   if (pMsg != NULL && pMsg->contLen >= TRANS_MSG_LIMIT) {
     return true;
   }
@@ -3215,7 +3215,7 @@ _exception:
 }
 
 int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
-  if (isReqExccedLimit(pReq)) {
+  if (isReqExceedLimit(pReq)) {
     return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
   }
 
@@ -3262,7 +3262,7 @@ int32_t transSendRequestWithId(void* pInstRef, const SEpSet* pEpSet, STransMsg* 
   if (transpointId == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (isReqExccedLimit(pReq)) {
+  if (isReqExceedLimit(pReq)) {
     return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
   }
   int32_t code = 0;
@@ -3316,7 +3316,7 @@ _exception:
 }
 
 int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
-  if (isReqExccedLimit(pReq)) {
+  if (isReqExceedLimit(pReq)) {
     return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
   }
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)pInstRef);
