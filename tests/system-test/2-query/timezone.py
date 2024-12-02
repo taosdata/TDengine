@@ -142,9 +142,7 @@ class TDTestCase:
         tdSql.query(f"select ts from {self.dbname}.d5")
         tdSql.checkData(0, 0, "2021-07-01 20:00:00.000")
 
-        tdSql.execute(f"insert into {self.dbname}.d6 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-115',1)")
-        tdSql.query(f"select ts from {self.dbname}.d6")
-        tdSql.checkData(0, 0, "2021-07-01 19:05:00.000")
+        tdSql.error(f"insert into {self.dbname}.d6 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-115',1)")
 
         tdSql.execute(f"insert into {self.dbname}.d7 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1105',1)")
         tdSql.query(f"select ts from {self.dbname}.d7")

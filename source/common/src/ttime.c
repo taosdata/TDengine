@@ -1408,11 +1408,17 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         (void)sprintf(s, "%09" PRId64, tm->fsec);
         s += 9;
         break;
-      case TSFKW_TZH:
-        (void)sprintf(s, "%c%02d", (tm->tm.tm_gmtoff >= 0) ? '+' : '-',
-                      abs((int) tm->tm.tm_gmtoff) / 3600);
+      case TSFKW_TZH:{
+#ifdef WINDOWS
+        int32_t gmtoff = -_timezone;
+#else
+        int32_t gmtoff = tm->tm.tm_gmtoff;
+#endif
+        (void)sprintf(s, "%c%02d", (gmtoff >= 0) ? '+' : '-',
+                      abs(gmtoff) / 3600);
         s += strlen(s);
         break;
+      }
       case TSFKW_YYYY:
         (void)sprintf(s, "%04d", tm->tm.tm_year + 1900);
         s += strlen(s);
@@ -1832,7 +1838,12 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   tm.fsec = ms * 1000000 + us * 1000 + ns;
   int32_t ret = taosTm2Ts(&tm, ts, precision, tz);
   if (tzHour != 0) {
-    *ts += (tm.tm.tm_gmtoff - tzHour * 3600) * TICK_PER_SECOND[precision];
+#ifdef WINDOWS
+    int32_t gmtoff = -_timezone;
+#else
+    int32_t gmtoff = tm.tm.tm_gmtoff;
+#endif
+    *ts += (gmtoff - tzHour * 3600) * TICK_PER_SECOND[precision];
   }
   return ret;
 }

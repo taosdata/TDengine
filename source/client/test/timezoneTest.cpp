@@ -225,7 +225,9 @@ TEST(timezoneCase, setConnectionOption_Test) {
 
   // test timezone
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "");
-  ASSERT(code != 0);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
+  check_sql_result(pConn, "select timezone()", "UTC (UTC, +0000)");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, NULL);
   ASSERT(code == 0);
@@ -243,7 +245,9 @@ TEST(timezoneCase, setConnectionOption_Test) {
   check_sql_result(pConn, "select timezone()", "Asia/Kolkata (IST, +0530)");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "adbc");
-  ASSERT(code != 0);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
+  check_sql_result(pConn, "select timezone()", "adbc (UTC, +0000)");
 
   // test user APP
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "");
@@ -592,6 +596,19 @@ TEST(timezoneCase, func_timezone_Test) {
   execQuery(pConn, "insert into db1.ntb values(1703987400000, '2023-12-31 00:50:00', 1)");   // 2023-12-31 00:50:00-0100
   execQuery(pConn, "insert into db1.ntb1 values(1704070200000, '2023-12-31 23:50:00', 11)");   // 2023-12-31 23:50:00-0100
   checkRows(pConn, "select a.ts,b.ts from db1.ntb a join db1.ntb1 b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d)", 1);
+
+  // operator +1n +1y
+  check_sql_result(pConn, "select TO_ISO8601(CAST('2023-01-31T00:00:00.000-01' as timestamp) + 1n)", "2023-02-28T00:00:00.000-0100");
+  check_sql_result(pConn, "select TO_ISO8601(CAST('2024-01-31T00:00:00.000-01' as timestamp) + 1n)", "2024-02-29T00:00:00.000-0100");
+  check_sql_result(pConn, "select TO_ISO8601(CAST('2024-02-29T00:00:00.000-01' as timestamp) + 1y)", "2025-02-28T00:00:00.000-0100");
+  check_sql_result(pConn, "select TO_ISO8601(CAST('2024-01-31T00:00:00.000-01' as timestamp) + 1y)", "2025-01-31T00:00:00.000-0100");
+
+  check_sql_result(pConn, "select TO_ISO8601(CAST('2024-01-01T00:00:00.000+01' as timestamp) + 1n)", "2024-01-31T22:00:00.000-0100");
+  check_sql_result(pConn, "select TO_ISO8601(CAST('2024-01-01T00:00:00.000+01' as timestamp) + 1y)", "2024-12-31T22:00:00.000-0100");
+
+  // case when
+  check_sql_result_integer(pConn, "select case CAST('2024-01-01T00:00:00.000+01' as timestamp) when 1704063600000 then 1 end", 1);
+  check_sql_result_integer(pConn, "select case CAST('2024-01-01T00:00:00.000' as timestamp) when 1704070800000 then 1 end", 1);
 
   taos_close(pConn);
 

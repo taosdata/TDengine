@@ -790,7 +790,11 @@ int32_t taosGetLocalTimezoneOffset() {
     uError("%s failed to get local time: code:%d", __FUNCTION__, errno);
     return TSDB_CODE_TIME_ERROR;
   }
+#ifdef WINDOWS
+  return -_timezone;
+#else
   return (int32_t)(tm1.tm_gmtoff);
+#endif
 }
 
 int32_t taosFormatTimezoneStr(time_t t, const char* tz, timezone_t sp, char *outTimezoneStr){

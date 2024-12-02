@@ -871,7 +871,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD,   "Failed to send out 
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_GENERATE_JSON,       "Failed to generate json")
 
 //TIMEZONE
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TIMEZONE,                    "Invalid timezone")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,"Operation not supported in windows")
 #ifdef TAOS_ERROR_C
 };
 #endif

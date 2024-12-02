@@ -56,6 +56,12 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   return ret;
 }
 
+#ifndef WINDOWS
+static void freeTz(void *p){
+  timezone_t tz = *(timezone_t *)p;
+  tzfree(tz);
+}
+
 static timezone_t setConnnectionTz(const char* val){
   timezone_t tz = NULL;
   static int32_t lock_c = 0;
@@ -73,7 +79,7 @@ static timezone_t setConnnectionTz(const char* val){
       atomic_store_32(&lock_c, 0);
       goto END;
     }
-    taosHashSetFreeFp(pTimezoneMap, (_hash_free_fn_t)tzfree);
+    taosHashSetFreeFp(pTimezoneMap, freeTz);
   }
 
   if (pTimezoneNameMap == NULL){
@@ -94,10 +100,9 @@ static timezone_t setConnnectionTz(const char* val){
   tz = tzalloc(val);
   if (tz == NULL) {
     tscWarn("%s unknown timezone %s change to UTC", __func__, val);
-    val = "UTC";
-    tz = tzalloc(val);
+    tz = tzalloc("UTC");
     if (tz == NULL) {
-      tscError("%s set timezone %s error", __func__, val);
+      tscError("%s set timezone UTC error", __func__);
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
@@ -120,10 +125,18 @@ END:
   atomic_store_32(&lock_c, 0);
   return tz;
 }
+#endif
+
 static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char* val){
   if (taos == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+
+#ifdef WINDOWS
+  if (option == TSDB_OPTION_CONNECTION_TIMEZONE){
+    return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
+  }
+#endif
 
   if (option < TSDB_OPTION_CONNECTION_CLEAR || option >= TSDB_MAX_OPTIONS_CONNECTION){
     return TSDB_CODE_INVALID_PARA;
@@ -163,7 +176,11 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
   }
 
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
+#ifndef WINDOWS
     if (val != NULL){
+      if (val[0] == 0){
+        val = "UTC";
+      }
       timezone_t tz = setConnnectionTz(val);
       if (tz == NULL){
         code = terrno;
@@ -173,6 +190,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     } else {
       pObj->optionInfo.timezone = NULL;
     }
+#endif
   }
 
   if (option == TSDB_OPTION_CONNECTION_USER_APP || option == TSDB_OPTION_CONNECTION_CLEAR) {

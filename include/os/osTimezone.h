@@ -26,7 +26,7 @@ extern "C" {
 extern void* pTimezoneNameMap;
 
 #ifdef WINDOWS
-typedef struct void *timezone_t;
+typedef void *timezone_t;
 #else
 typedef struct state *timezone_t;
 struct tm *localtime_rz(timezone_t , time_t const *, struct tm *);
