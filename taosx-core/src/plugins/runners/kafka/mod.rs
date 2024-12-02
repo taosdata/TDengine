@@ -1199,7 +1199,7 @@ async fn poll_message<'a>(
                         }
                         if e == KafkaError::MessageConsumption(RDKafkaErrorCode::OperationTimedOut) {
                             tracing::warn!("Kafka polling timeout, continue");
-                            tokio::time::sleep(Duration::from_millis(500)).await;
+                            tokio::time::sleep(Duration::from_millis(5000)).await;
                             continue;
                         }
                         if e == KafkaError::MessageConsumption(RDKafkaErrorCode::PollExceeded) {
@@ -1373,13 +1373,25 @@ impl ConsumerContext for CustomContext {
         if is_tplist_empty(tpl) {
             return;
         }
-        if let Err(err) = result {
-            error!(commits = self.commits.load(std::sync::atomic::Ordering::SeqCst), error = %err, "Commit error");
+
+        if let Err(KafkaError::ConsumerCommit(
+            RDKafkaErrorCode::RequestTimedOut | RDKafkaErrorCode::OperationTimedOut,
+        )) = result
+        {
+            let commits = self
+                .commits
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            tracing::warn!(commits, "{:?} Commit timeout, commit seq", tpl);
+        } else if let Err(err) = result {
+            error!(
+                commits = self.commits.load(std::sync::atomic::Ordering::SeqCst),
+                "{:?} Commit error: {:#}", tpl, err
+            );
         } else {
             let commits = self
                 .commits
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            tracing::info!(commits, "Committing offsets: {:?}", result);
+            tracing::info!(commits, "{:?}, Committing offsets: {:?}", tpl, result);
         }
     }
 

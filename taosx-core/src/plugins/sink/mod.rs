@@ -3054,7 +3054,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                     ),
                 })
                 .context("write ack error");
-            tracing::info!(acks = acks.load(Ordering::SeqCst), "ack done");
+            tracing::debug!(acks = acks.load(Ordering::SeqCst), "ack done");
         }
         acks.fetch_add(1, Ordering::SeqCst);
         metrics.add_processed_batches(1);
