@@ -76,6 +76,7 @@ void stratWindowsService(MainWindows mainWindows) {
 }
 
 #elif defined(_TD_DARWIN_64)
+#include <dlfcn.h>
 #else
 #include <dlfcn.h>
 #include <termios.h>
@@ -90,8 +91,6 @@ typedef struct FILE TdCmd;
 
 void* taosLoadDll(const char* fileName) {
 #if defined(WINDOWS)
-  return NULL;
-#elif defined(_TD_DARWIN_64)
   return NULL;
 #else
   void* handle = dlopen(fileName, RTLD_LAZY);
@@ -108,8 +107,6 @@ void taosCloseDll(void* handle) {
 
 #if defined(WINDOWS)
   return;
-#elif defined(_TD_DARWIN_64)
-  return;
 #else
   dlclose(handle);
 #endif
@@ -122,15 +119,13 @@ void* taosLoadDllFunc(void* handle, const char* funcName) {
 
 #if defined(WINDOWS)
   return NULL;
-#elif defined(_TD_DARWIN_64)
-  return NULL;
 #else
   fptr = dlsym(handle, funcName);
 #endif
 
-  if (fptr == NULL && errno != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-  }
+  // if (fptr == NULL && errno != 0) {
+  //   terrno = TAOS_SYSTEM_ERROR(errno);
+  // }
 
   return fptr;
 }

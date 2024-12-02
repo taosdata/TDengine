@@ -15,8 +15,16 @@
 
 #include "wrapper.h"
 
+#ifdef WINDOWS
+#define DRIVER_INTERNAL_NAME  "taosinternal.dll"
+#define DRIVER_WSBSOCKET_NAME "taosws.dll"
+#elif defined(DARWIN)
+#define DRIVER_INTERNAL_NAME  "libtaosinternal.dylib"
+#define DRIVER_WSBSOCKET_NAME "libtaosws.dylib"
+#else
 #define DRIVER_INTERNAL_NAME  "libtaosinternal.so"
 #define DRIVER_WSBSOCKET_NAME "libtaosws.so"
+#endif
 
 #define LOAD_FUNC(fptr, fname)                \
   funcName = fname;                           \
@@ -43,13 +51,7 @@ static int32_t tossGetDevelopPath(char *driverPath, const char *driverName) {
 }
 
 static int32_t taosGetInstallPath(char *driverPath, const char *driverName) {
-#ifdef WINDOWS
-  // tstrncpy(driverPath, "C:\\Windows\\System32", PATH_MAX);
   tstrncpy(driverPath, driverName, PATH_MAX);
-#else
-  // snprintf(driverPath, PATH_MAX, "/usr/local/taos/driver/%s", driverName);
-  tstrncpy(driverPath, driverName, PATH_MAX);
-#endif
   return 0;
 }
 
@@ -74,10 +76,8 @@ int32_t taosDriverInit(EDriverType driverType) {
   }
 
   if (tsDriver == NULL) {
-    if (terrno == 0) {
-      terrno = TSDB_CODE_DLL_NOT_FOUND;
-    }
-    printf("failed to load %s at %s since %s\r\n", driverName, driverPath, terrstr());
+    printf("failed to load %s since %s [0x%x]\r\n", driverName, terrstr(), terrno);
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
     return code;
   }
 
@@ -89,6 +89,8 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_init, "taos_init");
   LOAD_FUNC(fp_taos_connect, "taos_connect");
   LOAD_FUNC(fp_taos_connect_auth, "taos_connect_auth");
+  LOAD_FUNC(fp_taos_connect_dsn, "taos_connect_dsn");
+  LOAD_FUNC(fp_taos_connect_dsn_auth, "taos_connect_dsn_auth");
   LOAD_FUNC(fp_taos_close, "taos_close");
   LOAD_FUNC(fp_taos_data_type, "taos_data_type");
   LOAD_FUNC(fp_taos_stmt_init, "taos_stmt_init");
@@ -230,10 +232,10 @@ int32_t taosDriverInit(EDriverType driverType) {
 
 _OVER:
   if (code != 0) {
+    printf("failed to load function %s from %s\r\n", funcName, driverPath);
     if (terrno == 0) {
-      terrno = TSDB_CODE_DLL_FUNC_NOT_FOUND;
+      terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
     }
-    printf("failed to load func:%s from %s since %s\r\n", funcName, driverPath, terrstr());
     taosDriverCleanup(tsDriver);
   }
 

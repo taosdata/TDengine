@@ -27,14 +27,9 @@
 #include "ttypes.h"
 #include "tutil.h"
 
-#ifdef WEBSOCKET
-#include "taosws.h"
-
-#define SHELL_WS_TIMEOUT                        30
-#define SHELL_WS_DSN_BUFF                       256
-#define SHELL_WS_DSN_MASK                       10
-#endif
-
+#define SHELL_WS_TIMEOUT                       30
+#define SHELL_WS_DSN_BUFF                      256
+#define SHELL_WS_DSN_MASK                      10
 #define SHELL_MAX_HISTORY_SIZE                 1000
 #define SHELL_MAX_COMMAND_SIZE                 1048586
 #define SHELL_HISTORY_FILE                     ".taos_history"
@@ -80,13 +75,8 @@ typedef struct {
   int32_t     pktNum;
   int32_t     displayWidth;
   int32_t     abort;
-#ifdef WEBSOCKET
-  bool        restful;
-  bool        cloud;
-  bool        local;
   char*       dsn;
   int32_t     timeout;
-#endif
 } SShellArgs;
 
 typedef struct {
@@ -107,10 +97,6 @@ typedef struct {
   TdThread        pid;
   tsem_t          cancelSem;
   bool            exit;
-#ifdef WEBSOCKET
-  WS_TAOS*        ws_conn;
-  bool            stop_query;
-#endif
 } SShellObj;
 
 typedef struct {
@@ -135,6 +121,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
 void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
 void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
 void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision); 
+
 // shellUtil.c
 int32_t shellCheckIntSize();
 void    shellPrintVersion();
@@ -143,18 +130,11 @@ void    shellGenerateAuth();
 void    shellDumpConfig();
 void    shellCheckServerStatus();
 bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
+int32_t shellCheckDsn();
 void    shellExit();
 
 // shellNettest.c
 void shellTestNetWork();
-
-#ifdef WEBSOCKET
-void shellCheckConnectMode();
-// shellWebsocket.c
-int shell_conn_ws_server(bool first);
-int32_t shell_run_websocket();
-void shellRunSingleCommandWebsocketImp(char *command); 
-#endif
 
 // shellMain.c
 extern SShellObj shell;

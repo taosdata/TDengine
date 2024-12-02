@@ -362,7 +362,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
 
-  char tmp[PATH_MAX] = {0};
+  char tmp[PATH_MAX + 1] = {0};
 #ifdef WINDOWS
   if (_fullpath(tmp, dirname, maxlen) != NULL) {
 #else
@@ -379,7 +379,6 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   }
 
   terrno = TAOS_SYSTEM_ERROR(errno);
-
   return terrno;
 }
 
@@ -586,10 +585,12 @@ void taosGetCwd(char *buf, int32_t len) {
 int32_t taosAppPath(char *path, int32_t maxLen) {
   int32_t ret = 0;
 
-#if !defined(WINDOWS)
-  ret = readlink("/proc/self/exe", path, maxLen - 1);
-#else
+#ifdef WINDOWS
   ret = GetModuleFileName(NULL, path, maxLen - 1);
+#elif defined(DARWIN)
+  ret = _NSGetExecutablePath(path, &maxLen) ;
+#else
+  ret = readlink("/proc/self/exe", path, maxLen - 1);
 #endif
 
   if (ret >= 0) {

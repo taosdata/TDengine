@@ -124,15 +124,7 @@ int32_t shellRunSingleCommand(char *command) {
     shellSourceFile(c_ptr);
     return 0;
   }
-#ifdef WEBSOCKET
-  if (shell.args.restful || shell.args.cloud) {
-    shellRunSingleCommandWebsocketImp(command);
-  } else {
-#endif
-    shellRunSingleCommandImp(command);
-#ifdef WEBSOCKET
-  }
-#endif
+  shellRunSingleCommandImp(command);
   return 0;
 }
 
@@ -1243,18 +1235,11 @@ void *shellCancelHandler(void *arg) {
       continue;
     }
 
-#ifdef WEBSOCKET
-    if (shell.args.restful || shell.args.cloud) {
-      shell.stop_query = true;
-    } else {
-#endif
-      if (shell.conn) {
-        shellCmdkilled = true;
-        taos_kill_query(shell.conn);
-      }
-#ifdef WEBSOCKET
+    if (shell.conn) {
+      shellCmdkilled = true;
+      taos_kill_query(shell.conn);
     }
-#endif
+
 #ifdef WINDOWS
     printf("\n%s", shell.info.promptHeader);
 #endif
@@ -1296,31 +1281,31 @@ void *shellThreadLoop(void *arg) {
 }
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
+  printf(shell.info.clientVersion, shell.info.cusName, shell.args.is_internal ? "Internal" : "WebSocket",
+         taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
-#ifdef WEBSOCKET
-  if (shell.args.restful || shell.args.cloud) {
-    if (shell_conn_ws_server(1)) {
-      return -1;
+
+  if (shell.args.dsn != NULL) {
+    if (shell.args.auth == NULL) {
+      shell.conn = taos_connect_dsn(pArgs->dsn, pArgs->user, pArgs->password, pArgs->database);
+    } else {
+      shell.conn = taos_connect_dsn_auth(pArgs->dsn, pArgs->user, pArgs->auth, pArgs->database);
     }
   } else {
-#endif
     if (shell.args.auth == NULL) {
       shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
     } else {
       shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
     }
-
-    if (shell.conn == NULL) {
-      printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
-      fflush(stdout);
-      return -1;
-    }
-#ifdef WEBSOCKET
   }
-#endif
+
+  if (shell.conn == NULL) {
+    printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
+    fflush(stdout);
+    return -1;
+  }
 
   bool runOnce = pArgs->commands != NULL || pArgs->file[0] != 0;
   shellSetConn(shell.conn, runOnce);
@@ -1329,9 +1314,7 @@ int32_t shellExecute() {
   if (shell.args.is_bi_mode) {
     // need set bi mode
     printf("Set BI mode is true.\n");
-#ifndef WEBSOCKET
     taos_set_conn_mode(shell.conn, TAOS_CONN_MODE_BI, 1);
-#endif
   }
 
   if (runOnce) {
@@ -1345,15 +1328,8 @@ int32_t shellExecute() {
     if (pArgs->file[0] != 0) {
       shellSourceFile(pArgs->file);
     }
-#ifdef WEBSOCKET
-    if (shell.args.restful || shell.args.cloud) {
-      ws_close(shell.ws_conn);
-    } else {
-#endif
-      taos_close(shell.conn);
-#ifdef WEBSOCKET
-    }
-#endif
+
+    taos_close(shell.conn);
 
     shellWriteHistory();
     shellCleanupHistory();
@@ -1372,29 +1348,22 @@ int32_t shellExecute() {
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
-#ifdef WEBSOCKET
-  if (!shell.args.restful && !shell.args.cloud) {
-#endif
-    char *buf = taosMemoryMalloc(512);
-    bool  community = shellGetGrantInfo(buf);
+  char *buf = taosMemoryMalloc(512);
+  bool  community = shellGetGrantInfo(buf);
 #ifndef WINDOWS
-    printfIntroduction(community);
+  printfIntroduction(community);
 #else
-#ifndef WEBSOCKET
   if (community) {
     showAD(false);
   }
 #endif
-#endif
-    // printf version
-    if (!community) {
-      printf("%s\n", buf);
-    }
-    taosMemoryFree(buf);
 
-#ifdef WEBSOCKET
+  // printf version
+  if (!community) {
+    printf("%s\n", buf);
   }
-#endif
+  taosMemoryFree(buf);
+
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, NULL);
     taosThreadJoin(shell.pid, NULL);
@@ -1404,12 +1373,10 @@ int32_t shellExecute() {
       break;
     }
   }
-#ifndef WEBSOCKET
-  // commnuity
+
   if (community) {
     showAD(true);
   }
-#endif
 
   taosThreadJoin(spid, NULL);
 

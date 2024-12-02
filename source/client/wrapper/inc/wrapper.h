@@ -41,6 +41,8 @@ setConfRet (*fp_taos_set_config)(const char *config);
 int (*fp_taos_init)(void);
 TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+TAOS *(*fp_taos_connect_dsn)(const char *dsn, const char *user, const char *pass, const char *db);
+TAOS *(*fp_taos_connect_dsn_auth)(const char *dsn, const char *user, const char *auth, const char *db);
 void (*fp_taos_close)(TAOS *taos);
 
 const char *(*fp_taos_data_type)(int type);

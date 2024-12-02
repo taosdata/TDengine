@@ -43,10 +43,11 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 
 int main(int argc, char *argv[]) {
   shell.exit = false;
-#ifdef WEBSOCKET
   shell.args.timeout = SHELL_WS_TIMEOUT;
-  shell.args.cloud = true;
-  shell.args.local = false;
+#ifdef WEBSOCKET
+  shell.args.is_internal = false;
+#else
+  shell.args.is_internal = true;
 #endif
 
 #if 0
@@ -80,16 +81,19 @@ int main(int argc, char *argv[]) {
     shellPrintHelp();
     return 0;
   }
-#ifdef WEBSOCKET
-  shellCheckConnectMode();
-#endif
 
-  if (shell.args.is_internal) {
-    taos_options(TSDB_OPTION_DRIVER, "internal");
+  if (shellCheckDsn() != 0) {
+    return -1;
+  }
+
+  const char *driverType = shell.args.is_internal ? "internal" : "websocket";
+  if (taos_options(TSDB_OPTION_DRIVER, driverType) != 0) {
+    printf("failed to load driver since %s [0x%x]\r\n", terrstr(), terrno);
+    return -1;
   }
 
   if (taos_init() != 0) {
-    printf("failed to init client since %s\r\n", terrstr());
+    printf("failed to init shell since %s [0x%x]\r\n", terrstr(), terrno);
     return -1;
   }
 

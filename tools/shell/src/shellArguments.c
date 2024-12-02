@@ -49,14 +49,17 @@
 #define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_BI_MODE  "Set BI mode"
-#define SHELL_INTERNAL "Use the internal driver instead of WebSocket to connect to TDengine."
-#define SHELL_VERSION  "Print program version."
+#define SHELL_VERSION "Print program version."
+#define SHELL_DSN     "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
+#define SHELL_TIMEOUT "Set the timeout for WebSocket query in seconds, default is 30."
 
 #ifdef WEBSOCKET
-#define SHELL_DSN     "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
-#define SHELL_REST    "Use RESTful mode when connecting."
-#define SHELL_TIMEOUT "Set the timeout for websocket query in seconds, default is 30."
+#define SHELL_DRIVER_DEFAULT "'0'.'"
+#else
+#define SHELL_DRIVER_DEFAULT "'1'."
 #endif
+#define SHELL_DRIVER \
+  "How to access the database, 0|websocket for WebSocket, 1|internal for Internal, default is " SHELL_DRIVER_DEFAULT
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
@@ -81,13 +84,10 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
   printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
   printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
-#ifdef WEBSOCKET
   printf("%s%s%s%s\r\n", indent, "-E,", indent, SHELL_DSN);
-  printf("%s%s%s%s\r\n", indent, "-R,", indent, SHELL_REST);
   printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
-#endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
-  printf("%s%s%s%s\r\n", indent, "-v,", indent, SHELL_INTERNAL);
+  printf("%s%s%s%s\r\n", indent, "-v,", indent, SHELL_DRIVER);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
 #ifdef CUS_EMAIL
   printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
@@ -129,14 +129,11 @@ static struct argp_option shellOptions[] = {
     {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
     {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKT_LEN},
-#ifdef WEBSOCKET
     {"dsn", 'E', "DSN", 0, SHELL_DSN},
-    {"restful", 'R', 0, 0, SHELL_REST},
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
-#endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
-    {"internal", 'v', 0, 0, SHELL_INTERNAL},
+    {"driver", 'v', 0, 0, SHELL_DRIVER},
     {0},
 };
 
@@ -161,15 +158,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   switch (key) {
     case 'h':
       pArgs->host = arg;
-#ifdef WEBSOCKET
-      pArgs->cloud = false;
-#endif
       break;
     case 'P':
       pArgs->port = atoi(arg);
-#ifdef WEBSOCKET
-      pArgs->cloud = false;
-#endif
       if (pArgs->port == 0) pArgs->port = -1;
       break;
     case 'u':
@@ -187,9 +178,6 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->is_bi_mode = true;
       break;
     case 'c':
-#ifdef WEBSOCKET
-      pArgs->cloud = false;
-#endif
       pArgs->cfgdir = arg;
       break;
     case 'C':
@@ -225,20 +213,21 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
     case 'N':
       pArgs->pktNum = atoi(arg);
       break;
-#ifdef WEBSOCKET
-    case 'R':
-      pArgs->restful = true;
-      break;
     case 'E':
       pArgs->dsn = arg;
-      pArgs->cloud = true;
       break;
     case 'T':
       pArgs->timeout = atoi(arg);
       break;
-#endif
     case 'v':
-      pArgs->is_internal = true;
+      if (strcasecmp(arg, "internal") == 0 || strcasecmp(arg, "native") == 0 || strcasecmp(arg, "1") == 0) {
+        pArgs->is_internal = true;
+      } else if (strcasecmp(arg, "websocket") == 0 || strcasecmp(arg, "0") == 0) {
+        pArgs->is_internal = false;
+      } else {
+        fprintf(stderr, "invalid input %s for option %c\r\n", arg, key);
+        return -1;
+      }
       break;
     case 'V':
       pArgs->is_version = true;
@@ -254,15 +243,16 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   }
   return 0;
 }
+
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_64)
 int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
+  int32_t     ret = 0;
 
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0
             || strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "/?") == 0) {
-      shellParseSingleOpt('?', NULL);
-      return 0;
+      return shellParseSingleOpt('?', NULL);
     }
 
     char   *key = argv[i];
@@ -276,14 +266,9 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       return -1;
     }
 
-    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u'
-            || key[1] == 'a' || key[1] == 'c' || key[1] == 's'
-            || key[1] == 'f' || key[1] == 'd' || key[1] == 'w'
-            || key[1] == 'n' || key[1] == 'l' || key[1] == 'N'
-#ifdef WEBSOCKET
-        || key[1] == 'E' || key[1] == 'T'
-#endif
-    ) {
+    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
+        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N' ||
+        key[1] == 'E' || key[1] == 'T' || key[1] == 'v') {
       if (i + 1 >= argc) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
@@ -293,20 +278,18 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
       }
-      shellParseSingleOpt(key[1], val);
+      ret = shellParseSingleOpt(key[1], val);
       i++;
-    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C'
-                || key[1] == 'r' || key[1] == 'k'
-                || key[1] == 't' || key[1] == 'V'
-                || key[1] == '?' || key[1] == 1
-#ifdef WEBSOCKET
-            ||key[1] == 'R'
-#endif
-    ) {
-      shellParseSingleOpt(key[1], NULL);
+    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
+               key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R') {
+      ret = shellParseSingleOpt(key[1], NULL);
     } else {
       fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
+    }
+
+    if (ret != 0) {
+      return ret;
     }
   }
 
@@ -426,8 +409,8 @@ static int32_t shellCheckArgs() {
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
-      "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
-      "Copyright (c) 2023 by %s, all rights reserved.\r\n\r\n";
+      "Welcome to the %s Command Line Interface, %s Client Version:%s \r\n"
+      "Copyright (c) 2024 by %s, all rights reserved.\r\n\r\n";
 #ifdef CUS_NAME
   strcpy(shell.info.cusName, CUS_NAME);
 #else
@@ -472,4 +455,33 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #endif
 
   return shellCheckArgs();
+}
+
+int32_t shellCheckDsn() {
+  if (shell.args.is_internal) {
+    if (shell.args.dsn != NULL) {
+      fprintf(stderr, "DSN option not support in internal connection mode.\r\n");
+      return -1;
+    }
+  } else {
+    if (shell.args.dsn != NULL) {
+      return 0;
+    } else {
+      shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
+      if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
+        fprintf(stderr, "Use the environment variable TDENGINE_CLOUD_DSN:%s as the input for the DSN option.\r\n\r\n",
+                shell.args.dsn);
+        return 0;
+      }
+      shell.args.dsn = getenv("TDENGINE_DSN");
+      if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
+        fprintf(stderr, "Use the environment variable TDENGINE_DSN:%s as the input for the DSN option.\r\n\r\n",
+                shell.args.dsn);
+        return 0;
+      }
+      shell.args.dsn = NULL;
+    }
+  }
+
+  return 0;
 }

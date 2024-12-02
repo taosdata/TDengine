@@ -39,44 +39,44 @@ volatile int32_t    tsDriverOnceRet = 0;
   setConfRet ret = {.retCode = -1}; \
   return ret;
 
-#define CHECK_VOID(fp)                \
-  if (tsDriver == NULL) {             \
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND) \
-  }                                   \
-  if (fp == NULL) {                   \
-    ERR_VOID(TSDB_CODE_DLL_NOT_FOUND) \
-  }
-
-#define CHECK_PTR(fp)                \
+#define CHECK_VOID(fp)               \
   if (tsDriver == NULL) {            \
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND) \
+    ERR_VOID(TSDB_CODE_DLL_NOT_LOAD) \
   }                                  \
   if (fp == NULL) {                  \
-    ERR_PTR(TSDB_CODE_DLL_NOT_FOUND) \
+    ERR_VOID(TSDB_CODE_DLL_NOT_LOAD) \
   }
 
-#define CHECK_INT(fp)                \
+#define CHECK_PTR(fp)               \
+  if (tsDriver == NULL) {           \
+    ERR_PTR(TSDB_CODE_DLL_NOT_LOAD) \
+  }                                 \
+  if (fp == NULL) {                 \
+    ERR_PTR(TSDB_CODE_DLL_NOT_LOAD) \
+  }
+
+#define CHECK_INT(fp)               \
+  if (tsDriver == NULL) {           \
+    ERR_INT(TSDB_CODE_DLL_NOT_LOAD) \
+  }                                 \
+  if (fp == NULL) {                 \
+    ERR_INT(TSDB_CODE_DLL_NOT_LOAD) \
+  }
+
+#define CHECK_BOOL(fp)               \
   if (tsDriver == NULL) {            \
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND) \
+    ERR_BOOL(TSDB_CODE_DLL_NOT_LOAD) \
   }                                  \
   if (fp == NULL) {                  \
-    ERR_INT(TSDB_CODE_DLL_NOT_FOUND) \
+    ERR_BOOL(TSDB_CODE_DLL_NOT_LOAD) \
   }
 
-#define CHECK_BOOL(fp)                \
-  if (tsDriver == NULL) {             \
-    ERR_BOOL(TSDB_CODE_DLL_NOT_FOUND) \
-  }                                   \
-  if (fp == NULL) {                   \
-    ERR_BOOL(TSDB_CODE_DLL_NOT_FOUND) \
-  }
-
-#define CHECK_CONFRET(fp)                \
-  if (tsDriver == NULL) {                \
-    ERR_CONFRET(TSDB_CODE_DLL_NOT_FOUND) \
-  }                                      \
-  if (fp == NULL) {                      \
-    ERR_CONFRET(TSDB_CODE_DLL_NOT_FOUND) \
+#define CHECK_CONFRET(fp)               \
+  if (tsDriver == NULL) {               \
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
+  }                                     \
+  if (fp == NULL) {                     \
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
   }
 
 void taos_cleanup(void) {
@@ -89,14 +89,15 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
     if (tsDriver == NULL) {
       if (strcasecmp((const char *)arg, "internal") == 0 || strcasecmp((const char *)arg, "native") == 0) {
         tsDriverType = DRIVER_INTERNAL;
-      } else {
-        tsDriverType = DRIVER_WEBSOCKET;
+        return 0;
       }
-      return 0;
-    } else {
-      terrno = TSDB_CODE_REPEAT_INIT;
-      return -1;
+      if (strcasecmp((const char *)arg, "websocket") == 0) {
+        tsDriverType = DRIVER_WEBSOCKET;
+        return 0;
+      }
     }
+    terrno = TSDB_CODE_REPEAT_INIT;
+    return -1;
   }
 
   CHECK_INT(fp_taos_options);
@@ -113,7 +114,7 @@ static void taos_init_wrapper(void) {
   if (tsDriverOnceRet != 0) return;
 
   if (fp_taos_init == NULL) {
-    terrno = TSDB_CODE_DLL_FUNC_NOT_FOUND;
+    terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
     tsDriverOnceRet = -1;
   } else {
     tsDriverOnceRet = (*fp_taos_init)();
@@ -127,7 +128,7 @@ int taos_init(void) {
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (taos_init() != 0) {
-    terrno = TSDB_CODE_DLL_NOT_FOUND;
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
     return NULL;
   }
 
@@ -137,12 +138,32 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
 TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) {
   if (taos_init() != 0) {
-    terrno = TSDB_CODE_DLL_NOT_FOUND;
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
     return NULL;
   }
 
   CHECK_PTR(fp_taos_connect_auth);
   return (*fp_taos_connect_auth)(ip, user, auth, db, port);
+}
+
+TAOS *taos_connect_dsn(const char *dsn, const char *user, const char *pass, const char *db) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_dsn);
+  return (*fp_taos_connect_dsn)(dsn, user, pass, db);
+}
+
+TAOS *taos_connect_dsn_auth(const char *dsn, const char *user, const char *auth, const char *db) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_dsn_auth);
+  return (*fp_taos_connect_dsn_auth)(dsn, user, auth, db);
 }
 
 void taos_close(TAOS *taos) {
