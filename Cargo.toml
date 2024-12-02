@@ -229,6 +229,9 @@ dotenv = "0.15.0"
 
 shadow-rs = { workspace = true }
 
+[dev-dependencies]
+assert_cmd = "2"
+
 [features]
 default = ["native-tls", "mimalloc"]
 optin = []

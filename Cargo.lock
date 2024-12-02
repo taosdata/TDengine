@@ -7450,6 +7450,7 @@ dependencies = [
  "anyhow",
  "arrow",
  "arrow-flight",
+ "assert_cmd",
  "async-backtrace",
  "async-compression",
  "async-trait",
