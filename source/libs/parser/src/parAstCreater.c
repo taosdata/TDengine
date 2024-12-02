@@ -1460,6 +1460,9 @@ _err:
 
 SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
+  if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
+    return createInterpTimeAround(pCxt, pStart, pEnd);
+  }
   return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
 _err:
   nodesDestroyNode(pStart);
@@ -1472,6 +1475,19 @@ SNode* createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint) {
   return createOperatorNode(pCxt, OP_TYPE_EQUAL, createPrimaryKeyCol(pCxt, NULL), pPoint);
 _err:
   nodesDestroyNode(pPoint);
+  return NULL;
+}
+
+SNode* createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SNode* pInterval) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRangeAroundNode* pAround = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RANGE_AROUND, (SNode**)&pAround);
+  CHECK_PARSER_STATUS(pCxt);
+  pAround->pTimepoint = createInterpTimePoint(pCxt, pTimepoint);
+  pAround->pInterval = pInterval;
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)pAround;
+_err:
   return NULL;
 }
 
@@ -1632,8 +1648,15 @@ _err:
 
 SNode* addRangeClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pRange) {
   CHECK_PARSER_STATUS(pCxt);
+  SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    ((SSelectStmt*)pStmt)->pRange = pRange;
+    if (pRange && nodeType(pRange) == QUERY_NODE_RANGE_AROUND) {
+      pSelect->pRangeAround = pRange;
+      SRangeAroundNode* pAround = (SRangeAroundNode*)pRange;
+      TSWAP(pSelect->pRange, pAround->pTimepoint);
+    } else {
+      pSelect->pRange = pRange;
+    }
   }
   return pStmt;
 _err:

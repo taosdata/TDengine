@@ -64,12 +64,12 @@ typedef struct SStmtBindInfo {
   int32_t  sBindLastIdx;
   int8_t   tbType;
   bool     tagsCached;
+  bool     preCtbname;
   void    *boundTags;
   char     tbName[TSDB_TABLE_FNAME_LEN];
   char     tbFName[TSDB_TABLE_FNAME_LEN];
   char     stbFName[TSDB_TABLE_FNAME_LEN];
   SName    sname;
-
   char     statbName[TSDB_TABLE_FNAME_LEN];
 } SStmtBindInfo;
 
@@ -132,7 +132,6 @@ typedef struct SStmtQueue {
   SStmtQNode* tail;
   uint64_t    qRemainNum;
 } SStmtQueue;
-
 
 typedef struct STscStmt {
   STscObj          *taos;
@@ -203,7 +202,6 @@ extern char *gStmtStatusStr[];
       goto _return;                  \
     }                                \
   } while (0)
-
 
 #define STMT_FLOG(param, ...) qFatal("stmt:%p " param, pStmt, __VA_ARGS__)
 #define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
