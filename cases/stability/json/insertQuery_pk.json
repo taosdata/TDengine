@@ -1,0 +1,109 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "u1-64",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "num_of_records_per_req": 200,
+    "thread_count": 20,
+    "create_table_thread_count": 10,
+    "result_file": "./insert_res_mix.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "chinese": "no",
+    "check_sql": "yes",
+    "failed_continue": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "dbnew2",
+                "drop": "no",
+                "vgroups": 50,
+                "replica": 2,
+                "precision": "ms",
+                "keep": 3650,
+                "minRows": 100,
+                "maxRows": 4096
+            },
+            "super_tables": [
+                {
+                    "name": "stb0",
+                    "child_table_exists": "yes",
+                    "childtable_count": 1000,
+                    "insert_rows": 9000000000,
+                    "childtable_prefix": "stb0_",
+                    "escape_character": "yes",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "insert_mode": "taosc",
+                    "insert_interval": 1888,
+                    "partial_col_num": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 2000,
+                    "start_timestamp":"now",
+                    "disorder_ratio": 1,
+                    "update_ratio": 1,
+                    "delete_ratio": 1,
+                    "disorder_fill_interval": 10,
+                    "update_fill_interval": 2,
+                    "generate_row_rule": 2,
+                    "binary_prefix": "varchar.",
+                    "nchar_prefix": "nchar.",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "primary_key":1,
+                    "repeat_ts_min":1,
+                    "repeat_ts_max":10,
+                    "tags_file": "",
+                    "columns": [
+                        { "type": "int",         "name": "pk",  "gen": "order", "fillNull": "false"}, 
+                        { "type": "int",         "name": "c0",  "max": 1000000, "min": 0 },
+                        { "type": "tinyint",     "name": "c1",  "max": 200, "min": 0 },
+                        { "type": "double",      "name": "c2",  "max": 100000, "min": 0 },
+                        { "type": "binary",      "name": "c3", "len": 5,
+                        "values": [ "binary", "binary2", "binary3", "binary4", "Null",  "null", 
+                                    " ","NULL", "", " ","NULL", "" ]},
+                        { "type": "nchar",       "name": "c4", "len": 10,
+                        "values": [ "varchar1", "varchar2", "varchar3", "varchar4", "Null",  "null", 
+                                    " ","NULL", "", " ","NULL", "" ]},
+                        { "type": "binary",      "name": "c5", "len": 20,
+                        "values": [ "varcharbinary1", "varcharbinary2", "varcharbinary3", "varcharbinary4", "Null",  "null", 
+                                    " ","NULL", "", " ","NULL", "" ]}
+                    ],
+                    "tags": [
+                        {
+                            "type": "tinyint",
+                            "name": "t0",
+                            "max": 5,
+                            "min": 1
+                        },
+                        {
+                            "name": "t2",
+                            "type": "nchar",
+                            "len": 16,
+                            "values": [ "varchar1", "varchar2", "varchar3", "varchar4", "Null",  "null", 
+                                        " ","NULL", "", " ","NULL", "" ]
+                        },
+                        {
+                            "name": "t3",
+                            "type": "nchar",
+                            "len": 16,
+                            "values": [ "vr1", "var2", "vr3", "vr4", "Null",  "null", 
+                                        "","NULL", "", "","NULL", "" ]
+                        },
+                        {
+                            "name": "t1",
+                            "type": "binary",
+                            "len": 16,
+                            "values": [ "varchar1", "varchar2", "varchar3", "varchar4", "varchar5",  "varchar6", 
+                                        "varchar7", "varchar8", "varchar9", "varchar10","varchar11", "varchar12" ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
