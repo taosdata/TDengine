@@ -1335,6 +1335,12 @@ typedef struct {
   SLastKey key;
 } SIdxKey;
 
+typedef struct {
+  int      idx;
+  SLastKey key;
+  bool     ignoreRocks;
+} SIdxKeyV2;
+
 static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus cacheStatus) {
   // update rowkey
   pLastCol->rowKey.ts = TSKEY_MIN;
@@ -1929,7 +1935,7 @@ _exit:
 }
 
 static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SArray *remainCols,
-                                      SArray *ignoreFromRocks, SCacheRowsReader *pr, int8_t ltype) {
+                                      SCacheRowsReader *pr, int8_t ltype) {
   int32_t code = 0, lino = 0;
   int     num_keys = TARRAY_SIZE(remainCols);
   char  **keys_list = taosMemoryMalloc(num_keys * sizeof(char *));
@@ -1943,7 +1949,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   char  **values_list = NULL;
   size_t *values_list_sizes = NULL;
   for (int i = 0; i < num_keys; ++i) {
-    memcpy(key_list + i * ROCKS_KEY_LEN, &((SIdxKey *)taosArrayGet(remainCols, i))->key, ROCKS_KEY_LEN);
+    memcpy(key_list + i * ROCKS_KEY_LEN, &((SIdxKeyV2 *)taosArrayGet(remainCols, i))->key, ROCKS_KEY_LEN);
     keys_list[i] = key_list + i * ROCKS_KEY_LEN;
     keys_list_sizes[i] = ROCKS_KEY_LEN;
   }
@@ -1962,8 +1968,8 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   SLRUCache *pCache = pTsdb->lruCache;
   for (int i = 0, j = 0; i < num_keys && j < TARRAY_SIZE(remainCols); ++i) {
     SLastCol *pLastCol = NULL;
-    bool      ignore = ((bool *)TARRAY_DATA(ignoreFromRocks))[i];
-    if (ignore) {
+    SIdxKeyV2  *idxKey = &((SIdxKeyV2 *)TARRAY_DATA(remainCols))[j];
+    if (idxKey->ignoreRocks) {
       ++j;
       continue;
     }
@@ -1977,7 +1983,6 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
       }
     }
     SLastCol *pToFree = pLastCol;
-    SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
     if (pLastCol && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
       code = tsdbCachePutToLRU(pTsdb, &idxKey->key, pLastCol, 0);
       if (code) {
@@ -1993,9 +1998,9 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
         TAOS_CHECK_EXIT(code);
       }
 
+      // add merge
       taosArraySet(pLastArray, idxKey->idx, &lastCol);
       taosArrayRemove(remainCols, j);
-      taosArrayRemove(ignoreFromRocks, j);
     } else {
       ++j;
     }
@@ -2003,10 +2008,10 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
     taosMemoryFreeClear(pToFree);
   }
 
-  if (TARRAY_SIZE(remainCols) > 0) {
-    // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from raw", TD_VID(pTsdb->pVnode), uid);
-    code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
-  }
+  // if (TARRAY_SIZE(remainCols) > 0) {
+  //   // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from raw", TD_VID(pTsdb->pVnode), uid);
+  //   code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
+  // }
 
 _exit:
   taosMemoryFree(key_list);
@@ -2054,6 +2059,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
         TAOS_CHECK_GOTO(code, NULL, _exit);
       }
 
+      // addmerge
       if (taosArrayPush(pLastArray, &lastCol) == NULL) {
         code = terrno;
         tsdbLRUCacheRelease(pCache, h, false);
@@ -2064,6 +2070,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
       SLastCol noneCol = {.rowKey.ts = TSKEY_MIN,
                           .colVal = COL_VAL_NONE(cid, pr->pSchema->columns[pr->pSlotIds[i]].type)};
 
+      // addmerge
       if (taosArrayPush(pLastArray, &noneCol) == NULL) {
         code = terrno;
         tsdbLRUCacheRelease(pCache, h, false);
@@ -2118,6 +2125,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
           TAOS_RETURN(code);
         }
 
+        // addmerge
         taosArraySet(pLastArray, idxKey->idx, &lastCol);
 
         taosArrayRemove(remainCols, i);
@@ -2133,7 +2141,14 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
     // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from rocks", TD_VID(pTsdb->pVnode), uid);
     code = tsdbCacheLoadFromRocks(pTsdb, uid, pLastArray, remainCols, ignoreFromRocks, pr, ltype);
-
+    if (code) {
+      (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+      TAOS_RETURN(code);
+    }
+    if (TARRAY_SIZE(remainCols) > 0) {
+      // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from raw", TD_VID(pTsdb->pVnode), uid);
+      code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
+    }
     (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
   }
 
@@ -2146,6 +2161,139 @@ _exit:
   }
 
   TAOS_RETURN(code);
+}
+
+typedef struct {
+  SIdxKey   idxKey;
+  SLastCol  lastCol;
+} SIdxKeyVal;
+
+int32_t tsdbCacheLoadFromLru1(SLRUCache *pCache, SLastKey *pKey, int idx, SArray *cacheCols, SArray *remainCols) {
+  int32_t code = 0;
+
+  LRUHandle *h = taosLRUCacheLookup(pCache, pKey, ROCKS_KEY_LEN);
+  SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
+
+  if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
+    SIdxKeyVal idxKeyVal = {.idxKey = {idx, *pKey}, .lastCol = *pLastCol};
+    if (TSDB_CODE_SUCCESS != (code = tsdbCacheReallocSLastCol(&idxKeyVal.lastCol, NULL))) {
+      tsdbLRUCacheRelease(pCache, h, false);
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+
+    if (taosArrayPush(cacheCols, &idxKeyVal) == NULL) {
+      code = terrno;
+      tsdbLRUCacheRelease(pCache, h, false);
+      goto _exit;
+    }
+  } else {
+    bool ignoreRocks = pLastCol ? (pLastCol->cacheStatus == TSDB_LAST_CACHE_NO_CACHE) : false;
+    if (taosArrayPush(remainCols, &(SIdxKeyV2){idx, *pKey, ignoreRocks}) == NULL) {
+      code = terrno;
+      tsdbLRUCacheRelease(pCache, h, false);
+      goto _exit;
+    }
+  }
+
+  if (h) {
+    tsdbLRUCacheRelease(pCache, h, false);
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tsdbCacheLoadFromLru2(SLRUCache *pCache, SLastKey *pKey, int pos, SArray *cacheCols, SArray *remainCols) {
+  int32_t code = 0;
+
+  LRUHandle *h = taosLRUCacheLookup(pCache, pKey, ROCKS_KEY_LEN);
+  SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
+
+  SIdxKeyV2* pIdxKey = taosArrayGet(remainCols, pos);
+
+  if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
+    SIdxKeyVal idxKeyVal = {.idxKey = {pIdxKey->idx, *pKey}, .lastCol = *pLastCol};
+    if (TSDB_CODE_SUCCESS != (code = tsdbCacheReallocSLastCol(&idxKeyVal.lastCol, NULL))) {
+      tsdbLRUCacheRelease(pCache, h, false);
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+
+    if (taosArrayPush(cacheCols, &idxKeyVal) == NULL) {
+      code = terrno;
+      tsdbLRUCacheRelease(pCache, h, false);
+      goto _exit;
+    }
+
+    taosArrayRemove(remainCols, pos);
+  } else {
+    bool ignoreRocks = pLastCol ? (pLastCol->cacheStatus == TSDB_LAST_CACHE_NO_CACHE) : false;
+    pIdxKey->ignoreRocks = ignoreRocks;
+  }
+
+  if (h) {
+    tsdbLRUCacheRelease(pCache, h, false);
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tsdbCacheGetBatchV2(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype) {
+  int32_t    code = 0;
+
+  SArray *cacheCols = NULL;
+  SArray *remainCols = NULL;
+  SArray    *ignoreFromRocks = NULL;
+  SLRUCache *pCache = pTsdb->lruCache;
+  SArray *pCidList = pr->pCidList;
+  int     numKeys = TARRAY_SIZE(pCidList);
+
+  SArray *foundCols = NULL;
+
+  cacheCols = taosArrayInit(numKeys, sizeof(SIdxKeyVal));
+  remainCols = taosArrayInit(numKeys, sizeof(SIdxKeyV2));
+
+  // 1. load from lru without lock
+  for (int i = 0; i < numKeys; ++i) {
+    int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
+    SLastKey key = {.lflag = ltype, .uid = uid, .cid = cid};
+
+    code = tsdbCacheLoadFromLru1(pCache, &key, i, cacheCols, remainCols);
+  }
+
+  if (TARRAY_SIZE(remainCols) > 0) {
+    (void)taosThreadMutexLock(&pTsdb->lruMutex);
+
+    // 2. load from lru with lock
+    for (int i = 0; i < TARRAY_SIZE(remainCols);) {
+      SIdxKeyV2 *idxKey = &((SIdxKeyV2 *)TARRAY_DATA(remainCols))[i];
+      code = tsdbCacheLoadFromLru2(pCache, &idxKey->key, i, cacheCols, remainCols);
+    }
+
+    // 3. load from rocks
+    if (TARRAY_SIZE(remainCols) > 0) {
+      code = tsdbCacheLoadFromRocks(pTsdb, uid, cacheCols, remainCols, pr, ltype);
+    }
+
+    // 4. load from raw
+    if (TARRAY_SIZE(remainCols) > 0) {
+      code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
+    }
+
+    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+  }
+
+  // 5. merge mem, imem, cache
+  for (int i = 0; i < TARRAY_SIZE(cacheCols); ++i) {
+    SIdxKeyVal *idxKeyVal = taosArrayGet(cacheCols, i);
+    if (taosArrayPush(pLastArray, &idxKeyVal->lastCol) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+_exit:
+  return 0;
 }
 
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey) {
