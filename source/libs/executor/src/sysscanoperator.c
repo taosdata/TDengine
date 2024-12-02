@@ -2000,7 +2000,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     buf = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
     QUERY_CHECK_NULL(buf, code, lino, _end, terrno);
 
-    int32_t tempRes = tSerializeBlockDbUsage(varDataVal(p), len, &usageInfo);
+    int32_t tempRes = tSerializeBlockDbUsage(varDataVal(buf), len, &usageInfo);
     if (tempRes != len) {
       QUERY_CHECK_CODE(TSDB_CODE_INVALID_MSG, lino, _end);
     }
