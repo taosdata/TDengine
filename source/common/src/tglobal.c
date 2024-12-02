@@ -1032,6 +1032,9 @@ static int32_t taosSetLogOutput(SConfig *pCfg) {
         }
         TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
       }
+    } else {
+      tstrncpy(tsLogDir, pLog, PATH_MAX);
+      TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
     }
   }
   return 0;

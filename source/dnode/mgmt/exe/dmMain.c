@@ -240,23 +240,28 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
-    } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--log-output") == 0) {
-      if (i < argc - 1) {
-        if (strlen(argv[++i]) >= PATH_MAX) {
-          printf("failed to set log output since length overflow, max length is %d\n", PATH_MAX);
+    } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--log-output") == 0 ||
+               strncmp(argv[i], "--log-output=", 13) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--log-output=", 13) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 13 ? strlen(argv[++i]) : klen - 13;
+        const char *val = argv[i];
+        if (klen >= 13) val += 13;
+        if (vlen <= 0 || vlen >= PATH_MAX) {
+          printf("failed to set log output since invalid vlen:%d, valid range: [1, %d)\n", vlen, PATH_MAX);
           return TSDB_CODE_INVALID_CFG;
         }
         tsLogOutput = taosMemoryMalloc(PATH_MAX);
         if (!tsLogOutput) {
-          printf("failed to set log output: '%s' since %s\n", argv[i], tstrerror(terrno));
+          printf("failed to set log output: '%s' since %s\n", val, tstrerror(terrno));
           return terrno;
         }
-        if (taosExpandDir(argv[i], tsLogOutput, PATH_MAX) != 0) {
-          printf("failed to expand log output: '%s' since %s\n", argv[i], tstrerror(terrno));
+        if (taosExpandDir(val, tsLogOutput, PATH_MAX) != 0) {
+          printf("failed to expand log output: '%s' since %s\n", val, tstrerror(terrno));
           return terrno;
         }
       } else {
-        printf("'-o' requires a parameter\n");
+        printf("'%s' requires a parameter\n", argv[i]);
         return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-y") == 0) {
@@ -402,6 +407,7 @@ int mainWindows(int argc, char **argv) {
   int32_t code = 0;
 #endif
 
+  char *p = taosMemoryCalloc(10, 10);
   if (global.generateGrant) {
     dmGenerateGrant();
     taosCleanupArgs();

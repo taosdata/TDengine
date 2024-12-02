@@ -1078,10 +1078,12 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 }
 
 #define LOG_ROTATE_INTERVAL 1800
-#ifdef BUILD_TEST
-#define LOG_ROTATE_BOOT 5
+#ifdef ASSERT_NOT_CORE
+#define LOG_INACTIVE_TIME 3600
+#define LOG_ROTATE_BOOT   5
 #else
-#define LOG_ROTATE_BOOT 180
+#define LOG_INACTIVE_TIME 5
+#define LOG_ROTATE_BOOT   (LOG_INACTIVE_TIME + 1)
 #endif
 
 static void *taosLogRotateFunc(void *param) {
@@ -1118,7 +1120,7 @@ static void *taosLogRotateFunc(void *param) {
     }
 
     int64_t fileSec = 0;
-    if ((code = taosStr2int64(pSec + 1, NULL)) != 0) {
+    if ((code = taosStr2int64(pSec + 1, &fileSec)) != 0) {
       uWarn("%s:%d failed to convert %s to int64 since %s", __func__, __LINE__, pSec + 1, tstrerror(code));
       continue;
     }
@@ -1132,19 +1134,19 @@ static void *taosLogRotateFunc(void *param) {
       continue;
     }
 
-    int64_t elapseSec = taosGetTimestampMs() / 1000 - mtime;
+    int64_t inactiveSec = taosGetTimestampMs() / 1000 - mtime;
 
-    if (elapseSec < 7200) {
+    if (inactiveSec < LOG_INACTIVE_TIME) {
       continue;
     }
 
     char fullName[PATH_MAX] = {0};
     snprintf(fullName, sizeof(fullName), "%s%s%s", tsLogDir, TD_DIRSEP, fname);
 
-    int32_t days = elapseSec / 86400 + 1;
+    int32_t days = inactiveSec / 86400 + 1;
     if (tsLogKeepDays > 0 && days > tsLogKeepDays) {
       TAOS_UNUSED(taosRemoveFile(fullName));
-      uInfo("file:%s is removed, days:%d keepDays:%d, sed:%" PRId64, fullName, days, tsLogKeepDays, fileSec);
+      uInfo("file:%s is removed, days:%d, keepDays:%d, sed:%" PRId64, fullName, days, tsLogKeepDays, fileSec);
     } else {
       taosKeepOldLog(fullName);  // compress
     }
