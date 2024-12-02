@@ -33,7 +33,8 @@
 #include <DbgHelp.h>
 #pragma warning(pop)
 
-char *win_tz[139][2] = {{"China Standard Time", "Asia/Shanghai"},
+#define W_TZ_NUM 139
+char *win_tz[W_TZ_NUM][2] = {{"China Standard Time", "Asia/Shanghai"},
                         {"AUS Central Standard Time", "Australia/Darwin"},
                         {"AUS Eastern Standard Time", "Australia/Sydney"},
                         {"Afghanistan Standard Time", "Asia/Kabul"},
@@ -172,7 +173,8 @@ char *win_tz[139][2] = {{"China Standard Time", "Asia/Shanghai"},
                         {"West Pacific Standard Time", "Pacific/Port_Moresby"},
                         {"Yakutsk Standard Time", "Asia/Yakutsk"},
                         {"Yukon Standard Time", "America/Whitehorse"}};
-char *tz_win[554][2] = {{"Asia/Shanghai", "China Standard Time"},
+#define W_TZ_CITY_NUM 554
+char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
                         {"Africa/Abidjan", "Greenwich Standard Time"},
                         {"Africa/Accra", "Greenwich Standard Time"},
                         {"Africa/Addis_Ababa", "E. Africa Standard Time"},
@@ -740,38 +742,19 @@ char *tz_win[554][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <unistd.h>
 #endif
 
-void parseTimeStr(char *p, char to[5]) {
-  for (int i = 0; i < 5; ++i) {
-    if (strlen(p) > i) {
-      to[i] = p[i];
-    } else {
-      to[i] = '0';
-    }
-  }
-  if (strlen(p) == 2) {
-    to[1] = '0';
-    to[2] = p[1];
-  }
-}
-
-int32_t taosIsValidateTimezone(const char *tz) {
-  return true;
-}
-
 int32_t taosSetGlobalTimezone(const char *tz) {
-  if (tz == NULL || tz[0] == 0) {
+  if (tz == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
   int32_t code = TSDB_CODE_SUCCESS;
   uDebug("[tz]set timezone to %s", tz)
 #ifdef WINDOWS
-  char winStr[TD_LOCALE_LEN * 2];
-  memset(winStr, 0, sizeof(winStr));
-  for (size_t i = 0; i < 554; i++) {
-    if (strcmp(tz_win[i][0], buf) == 0) {
-      char  keyPath[256];
-      char  keyValue[100];
+  char winStr[TD_TIMEZONE_LEN * 2] = {0};
+  for (size_t i = 0; i < W_TZ_CITY_NUM; i++) {
+    if (strcmp(tz_win[i][0], tz) == 0) {
+      char  keyPath[256] = {0};
+      char  keyValue[100] = {0};
       DWORD keyValueSize = sizeof(keyValue);
       snprintf(keyPath, sizeof(keyPath), "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Time Zones\\%s", tz_win[i][1]);
       RegGetValue(HKEY_LOCAL_MACHINE, keyPath, "Display", RRF_RT_ANY, NULL, (PVOID)&keyValue, &keyValueSize);
@@ -779,40 +762,13 @@ int32_t taosSetGlobalTimezone(const char *tz) {
         keyValue[4] = (keyValue[4] == '+' ? '-' : '+');
         keyValue[10] = 0;
         snprintf(winStr, sizeof(winStr), "TZ=%s:00", &(keyValue[1]));
-        *tsTimezone = -taosStr2Int32(&keyValue[4], NULL, 10);
       }
       break;
     }
   }
-  if (winStr[0] == 0) {
-    char *p = strchr(inTimezoneStr, '+');
-    if (p == NULL) p = strchr(inTimezoneStr, '-');
-    if (p != NULL) {
-      char *pp = strchr(inTimezoneStr, '(');
-      char *ppp = strchr(inTimezoneStr, ',');
-      int   indexStr;
-      if (pp == NULL || ppp == NULL) {
-        indexStr = tsnprintf(winStr, sizeof(winStr), "TZ=UTC");
-      } else {
-        memcpy(winStr, "TZ=", 3);
-        pp++;
-        memcpy(&winStr[3], pp, ppp - pp);
-        indexStr = ppp - pp + 3;
-      }
-      char to[5];
-      parseTimeStr(p, to);
-      snprintf(&winStr[indexStr], sizeof(winStr) - indexStr, "%c%c%c:%c%c:00", (to[0] == '+' ? '+' : '-'), to[1], to[2], to[3], to[4]);
-      *tsTimezone = -taosStr2Int32(p, NULL, 10);
-    } else {
-      *tsTimezone = 0;
-    }
-  }
+
   _putenv(winStr);
   _tzset();
-  if (outTimezoneStr != inTimezoneStr) {
-    tstrncpy(outTimezoneStr, inTimezoneStr, TD_TIMEZONE_LEN);
-  }
-//  *outDaylight = 0;
 #else
   code = setenv("TZ", tz, 1);
   if (-1 == code) {
@@ -821,11 +777,10 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   }
 
   tzset();
+#endif
 
   time_t    tx1 = taosGetTimestampSec();
   return taosFormatTimezoneStr(tx1, tz, NULL, tsTimezoneStr);
-#endif
-
 }
 
 int32_t taosGetLocalTimezoneOffset() {
@@ -869,6 +824,7 @@ int32_t taosFormatTimezoneStr(time_t t, const char* tz, timezone_t sp, char *out
   return 0;
 }
 
+#ifndef WINDOWS
 void getTimezoneStr(char *tz) {
   do {
     int n = readlink("/etc/localtime", tz, TD_TIMEZONE_LEN - 1);
@@ -909,21 +865,20 @@ END:
   }
   uDebug("[tz] system timezone:%s", tz);
 }
+#endif
 
 int32_t taosGetSystemTimezone(char *outTimezoneStr) {
 #ifdef WINDOWS
-  char  value[100];
-  char  keyPath[100];
+  char  value[100] = {0};
+  char  keyPath[100] = {0};
   DWORD bufferSize = sizeof(value);
   LONG result = RegGetValue(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation", "TimeZoneKeyName",
               RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
   if (result != ERROR_SUCCESS) {
     return TAOS_SYSTEM_WINAPI_ERROR(result);
   }
-  tstrncpy(outTimezoneStr, "not configured", TD_TIMEZONE_LEN);
-  *tsTimezone = 0;
   if (bufferSize > 0) {
-    for (size_t i = 0; i < 139; i++) {
+    for (size_t i = 0; i < W_TZ_NUM; i++) {
       if (strcmp(win_tz[i][0], value) == 0) {
         tstrncpy(outTimezoneStr, win_tz[i][1], TD_TIMEZONE_LEN);
         bufferSize = sizeof(value);
@@ -932,11 +887,9 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
         if (result != ERROR_SUCCESS) {
           return TAOS_SYSTEM_WINAPI_ERROR(result);
         }
-        if (bufferSize > 0) {
-          // value[4] = (value[4] == '+' ? '-' : '+');
-          snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%c%c%c%c)", outTimezoneStr, value[4], value[5], value[6], value[8],
-                  value[9]);
-          *tsTimezone = taosStr2Int32(&value[4], NULL, 10);
+        if (bufferSize > 0) {     // value like (UTC+05:30) Chennai, Kolkata, Mumbai, New Delhi
+          snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%c%c%c%c)", outTimezoneStr,
+                   value[4], value[5], value[6], value[8], value[9]);
         }
         break;
       }

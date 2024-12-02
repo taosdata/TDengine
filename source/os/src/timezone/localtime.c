@@ -145,10 +145,31 @@ static char const *utc = etc_utc + sizeof "Etc/" - 1;
 # define TZDEFRULESTRING ",M3.2.0,M11.1.0"
 #endif
 
+/* Limit to time zone abbreviation length in proleptic TZ strings.
+   This is distinct from TZ_MAX_CHARS, which limits TZif file contents.
+   It defaults to 254, not 255, so that desigidx_type can be an unsigned char.
+   unsigned char suffices for TZif files, so the only reason to increase
+   TZNAME_MAXIMUM is to support TZ strings specifying abbreviations
+   longer than 254 bytes.  There is little reason to do that, though,
+   as strings that long are hardly "abbreviations".  */
+#ifndef TZNAME_MAXIMUM
+# define TZNAME_MAXIMUM 254
+#endif
+
+#if TZNAME_MAXIMUM < UCHAR_MAX
+typedef unsigned char desigidx_type;
+#elif TZNAME_MAXIMUM < INT_MAX
+typedef int desigidx_type;
+#elif TZNAME_MAXIMUM < PTRDIFF_MAX
+typedef ptrdiff_t desigidx_type;
+#else
+# error "TZNAME_MAXIMUM too large"
+#endif
+
 struct ttinfo {				/* time type information */
-	int_fast32_t	tt_utoff;	/* UT offset in seconds */
+	int_least32_t	tt_utoff;	/* UT offset in seconds */
+	desigidx_type	tt_desigidx;	/* abbreviation list index */
 	bool		tt_isdst;	/* used to set tm_isdst */
-	int		tt_desigidx;	/* abbreviation list index */
 	bool		tt_ttisstd;	/* transition is std time */
 	bool		tt_ttisut;	/* transition is UT */
 };
@@ -166,12 +187,6 @@ static char const UNSPEC[] = "-00";
    data isn't properly terminated, and it also needs to be big enough
    for ttunspecified to work without crashing.  */
 enum { CHARS_EXTRA = max(sizeof UNSPEC, 2) - 1 };
-
-/* Limit to time zone abbreviation length in proleptic TZ strings.
-   This is distinct from TZ_MAX_CHARS, which limits TZif file contents.  */
-#ifndef TZNAME_MAXIMUM
-# define TZNAME_MAXIMUM 255
-#endif
 
 /* A representation of the contents of a TZif file.  Ideally this
    would have no size limits; the following sizes should suffice for
@@ -273,7 +288,8 @@ long			altzone;
 
 /* Initialize *S to a value based on UTOFF, ISDST, and DESIGIDX.  */
 static void
-init_ttinfo(struct ttinfo *s, int_fast32_t utoff, bool isdst, int desigidx)
+init_ttinfo(struct ttinfo *s, int_fast32_t utoff, bool isdst,
+	    desigidx_type desigidx)
 {
   s->tt_utoff = utoff;
   s->tt_isdst = isdst;

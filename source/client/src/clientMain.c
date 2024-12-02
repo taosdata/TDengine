@@ -93,9 +93,14 @@ static timezone_t setConnnectionTz(const char* val){
   tscDebug("set timezone to %s", val);
   tz = tzalloc(val);
   if (tz == NULL) {
-    tscError("%s unknown timezone %s", __func__, val);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto END;
+    tscWarn("%s unknown timezone %s change to UTC", __func__, val);
+    val = "UTC";
+    tz = tzalloc(val);
+    if (tz == NULL) {
+      tscError("%s set timezone %s error", __func__, val);
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
   }
   int32_t code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
   if (code != 0){
@@ -159,11 +164,6 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
 
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL){
-      if (strlen(val) == 0){
-        tscError("%s empty timezone %s", __func__, val);
-        code = TSDB_CODE_INVALID_PARA;
-        goto END;
-      }
       timezone_t tz = setConnnectionTz(val);
       if (tz == NULL){
         code = terrno;

@@ -106,7 +106,9 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+if(NOT ${TD_WINDOWS})
+    cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(NOT ${TD_WINDOWS})
 
 # xz
 # cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -653,16 +655,18 @@ if(${TD_LINUX} AND ${BUILD_WITH_S3})
     add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
 endif()
 
-execute_process(
-        COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean zic posix_only
-        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
-)
+if(NOT ${TD_WINDOWS})
+    execute_process(
+            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean zic posix_only
+            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+    )
 
-set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
-file(MAKE_DIRECTORY ${TZ_SRC_DIR})
-file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
-        ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
-        DESTINATION ${TZ_SRC_DIR})
+    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+            DESTINATION ${TZ_SRC_DIR})
+endif(NOT ${TD_WINDOWS})
 # ================================================================================================
 # Build test
 # ================================================================================================

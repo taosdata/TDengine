@@ -79,9 +79,9 @@
 	      !defined __NetBSD_Version__ || __NetBSD_Version__ < 600000000) \
 	  && (/* OpenBSD 5.5 (2014-05-01) and later has 64-bit time_t.  */ \
 	      !defined OpenBSD || OpenBSD < 201405)))
-#  define MKTIME_MIGHT_OVERFLOW true
+#  define MKTIME_MIGHT_OVERFLOW 1
 # else
-#  define MKTIME_MIGHT_OVERFLOW false
+#  define MKTIME_MIGHT_OVERFLOW 0
 # endif
 #endif
 /* Check that MKTIME_MIGHT_OVERFLOW is consistent with time_t's range.  */
@@ -95,7 +95,7 @@ static_assert(MKTIME_MIGHT_OVERFLOW
 #endif
 
 #ifndef DEPRECATE_TWO_DIGIT_YEARS
-# define DEPRECATE_TWO_DIGIT_YEARS false
+# define DEPRECATE_TWO_DIGIT_YEARS 0
 #endif
 
 struct lc_time_T {

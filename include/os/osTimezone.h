@@ -25,18 +25,23 @@ extern "C" {
 
 extern void* pTimezoneNameMap;
 
+#ifdef WINDOWS
+typedef struct void *timezone_t;
+#else
 typedef struct state *timezone_t;
 struct tm *localtime_rz(timezone_t , time_t const *, struct tm *);
 time_t mktime_z(timezone_t, struct tm *);
 timezone_t tzalloc(char const *);
 void tzfree(timezone_t);
-
 void    getTimezoneStr(char *tz);
+
+#endif
+
+
 int32_t taosGetLocalTimezoneOffset();
 int32_t taosGetSystemTimezone(char *outTimezone);
 int32_t taosSetGlobalTimezone(const char *tz);
 int32_t taosFormatTimezoneStr(time_t t, const char* tzStr, timezone_t sp, char *outTimezoneStr);
-int32_t taosIsValidateTimezone(const char *tz);
 #ifdef __cplusplus
 }
 #endif

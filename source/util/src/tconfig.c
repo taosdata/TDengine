@@ -251,13 +251,9 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
-  if(!taosIsValidateTimezone(value)){
-    uError("invalid timezone:%s", value);
-    TAOS_RETURN(TSDB_CODE_INVALID_TIMEZONE);
-  }
-  if (value == NULL || strlen(value) == 0) {
-    uError("cfg:%s, type:%s src:%s, value:%s, skip to set timezone", pItem->name, cfgDtypeStr(pItem->dtype),
-           cfgStypeStr(stype), value);
+  if (value == NULL) {
+    uError("cfg:%s, type:%s src:%s, value is null, skip to set timezone", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype));
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
   TAOS_CHECK_RETURN(osSetTimezone(value));
