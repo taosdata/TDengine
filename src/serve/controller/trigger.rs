@@ -254,7 +254,7 @@ impl StopCondition {
         }
     }
 
-    /// Similar to `should_stop` but also check the result.
+    // Similar to `should_stop` but also check the result.
     // pub fn should_stop_with(&self, result: &Result<(), anyhow::Error>) -> bool {
     //     match self {
     //         StopCondition::Never => false,
