@@ -2,6 +2,8 @@ aux_source_directory(src OS_SRC)
 if(NOT ${TD_WINDOWS})
     aux_source_directory(src/timezone OS_TZ)
     add_library(os STATIC ${OS_SRC} ${OS_TZ})
+else()
+    add_library(os STATIC ${OS_SRC})
 endif(NOT ${TD_WINDOWS})
 target_include_directories(
     os
