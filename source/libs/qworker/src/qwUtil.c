@@ -289,7 +289,7 @@ void qwFreeTaskHandle(SQWTaskCtx *ctx) {
 
 void qwFreeSinkHandle(SQWTaskCtx *ctx) {
   // Note: free/kill may in RC
-  void* osinkHandle = atomic_load_ptr(&ctx->sinkHandle);
+  void *osinkHandle = atomic_load_ptr(&ctx->sinkHandle);
   if (osinkHandle && osinkHandle == atomic_val_compare_exchange_ptr(&ctx->sinkHandle, osinkHandle, NULL)) {
     QW_SINK_ENABLE_MEMPOOL(ctx);
     dsDestroyDataSinker(osinkHandle);
@@ -317,7 +317,7 @@ int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
 
 void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
-    tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER, 0);
   }
 
   ctx->ctrlConnInfo.handle = NULL;
@@ -341,20 +341,19 @@ static void freeExplainExecItem(void *param) {
   taosMemoryFree(pInfo->verboseInfo);
 }
 
-
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t     code = TSDB_CODE_SUCCESS;
   qTaskInfo_t taskHandle = ctx->taskHandle;
 
   ctx->explainRsped = true;
-  
+
   SArray *execInfoList = taosArrayInit(4, sizeof(SExplainExecInfo));
   if (NULL == execInfoList) {
     QW_ERR_JRET(terrno);
   }
-  
+
   QW_ERR_JRET(qGetExplainExecInfo(taskHandle, execInfoList));
-  
+
   if (ctx->localExec) {
     SExplainLocalRsp localRsp = {0};
     localRsp.rsp.numOfPlans = taosArrayGetSize(execInfoList);
@@ -372,7 +371,7 @@ int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     if (NULL == taosArrayPush(ctx->explainRes, &localRsp)) {
       QW_ERR_JRET(terrno);
     }
-    
+
     taosArrayDestroy(execInfoList);
     execInfoList = NULL;
   } else {
@@ -391,8 +390,6 @@ _return:
 
   return code;
 }
-
-
 
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
@@ -482,7 +479,6 @@ _return:
   QW_RET(code);
 }
 
-
 int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
   QW_SET_QTID(id, qId, cId, tId, eId);
@@ -543,16 +539,17 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
 }
 
 int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
-  char dbFName[TSDB_DB_FNAME_LEN];
-  char tbName[TSDB_TABLE_NAME_LEN];
+  char       dbFName[TSDB_DB_FNAME_LEN];
+  char       tbName[TSDB_TABLE_NAME_LEN];
   STbVerInfo tbInfo;
-  int32_t i = 0;
-  int32_t code = TSDB_CODE_SUCCESS;
-  bool tbGet = false;
+  int32_t    i = 0;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  bool       tbGet = false;
 
   while (true) {
     tbGet = false;
-    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, TSDB_DB_FNAME_LEN, tbName, TSDB_TABLE_NAME_LEN, &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
+    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, TSDB_DB_FNAME_LEN, tbName, TSDB_TABLE_NAME_LEN,
+                                       &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
     if (TSDB_CODE_SUCCESS != code || !tbGet) {
       break;
     }
@@ -569,11 +566,11 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
         QW_ERR_RET(terrno);
       }
     }
-    
+
     if (NULL == taosArrayPush(ctx->tbInfo, &tbInfo)) {
       QW_ERR_RET(terrno);
     }
-    
+
     i++;
   }
 
@@ -585,7 +582,7 @@ void qwCloseRef(void) {
   if (atomic_load_32(&gQwMgmt.qwNum) <= 0 && gQwMgmt.qwRef >= 0) {
     taosCloseRef(gQwMgmt.qwRef);  // ignore error
     gQwMgmt.qwRef = -1;
-    
+
     taosHashCleanup(gQueryMgmt.pJobInfo);
     gQueryMgmt.pJobInfo = NULL;
   }
@@ -606,7 +603,7 @@ void qwDestroyImpl(void *pMgmt) {
   if (taosTmrStop(mgmt->hbTimer)) {
     qTrace("stop qworker hb timer may failed");
   }
-  
+
   mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 
@@ -620,7 +617,7 @@ void qwDestroyImpl(void *pMgmt) {
     void       *key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, cId, tId, eId);
     sId = ctx->sId;
-    
+
     qwFreeTaskCtx(QW_FPARAMS(), ctx);
     QW_TASK_DLOG_E("task ctx freed");
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
@@ -732,12 +729,12 @@ void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
   }
 }
 
-void qwDestroyJobInfo(void* job) {
+void qwDestroyJobInfo(void *job) {
   if (NULL == job) {
     return;
   }
 
-  SQWJobInfo* pJob = (SQWJobInfo*)job;
+  SQWJobInfo *pJob = (SQWJobInfo *)job;
 
   taosMemoryFreeClear(pJob->memInfo);
   taosHashCleanup(pJob->pSessions);
@@ -758,7 +755,7 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
   
     return resFreed;
   }
-  
+
   if (QW_QUERY_RUNNING(ctx)) {
     code = qwKillTaskHandle(ctx, errCode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -793,7 +790,7 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
     QW_TASK_DLOG_E("task resources freed");
 */    
   }
-  
+
   QW_UNLOCK(QW_WRITE, &ctx->lock);
 
   return resFreed;
@@ -814,15 +811,15 @@ bool qwRetireTask(QW_FPARAMS_DEF, int32_t errCode) {
   return retired;
 }
 
-bool qwRetireJob(SQWJobInfo* pJob) {
+bool qwRetireJob(SQWJobInfo *pJob) {
   if (NULL == pJob) {
     return false;
   }
 
-  bool retired = true;
-  void* pIter = taosHashIterate(pJob->pSessions, NULL);
+  bool  retired = true;
+  void *pIter = taosHashIterate(pJob->pSessions, NULL);
   while (pIter) {
-    SQWSessionInfo* pSession = (SQWSessionInfo*)pIter;
+    SQWSessionInfo *pSession = (SQWSessionInfo *)pIter;
 
     if (!qwRetireTask((SQWorker *)pSession->mgmt, pSession->sId, pSession->qId, pSession->cId, pSession->tId, pSession->rId, pSession->eId, pJob->errCode)) {
       retired = false;
@@ -833,4 +830,3 @@ bool qwRetireJob(SQWJobInfo* pJob) {
 
   return retired;
 }
-
