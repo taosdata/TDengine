@@ -1,7 +1,7 @@
 use assert_cmd::{prelude::*, Command};
 
 #[test]
-fn test_td_33080() -> anyhow::Result<(), anyhow::Error> {
+fn test_td_33080_with_taos() -> anyhow::Result<(), anyhow::Error> {
     const SOURCE: &str = "td33080";
     const SINK: &str = "td33080s";
     {
