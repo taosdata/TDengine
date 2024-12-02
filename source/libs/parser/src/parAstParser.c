@@ -1092,7 +1092,6 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowTransactions(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_USAGE_STMT:
       return collectMetaKeyFromShowUsage(pCxt, (SShowStmt*)pStmt);
-      return 0;
     case QUERY_NODE_DELETE_STMT:
       return collectMetaKeyFromDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_INSERT_STMT:

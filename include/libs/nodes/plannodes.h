@@ -78,7 +78,6 @@ typedef enum EScanType {
   SCAN_TYPE_BLOCK_INFO,
   SCAN_TYPE_LAST_ROW,
   SCAN_TYPE_TABLE_COUNT,
-  SCAN_TYPE_DB_DISK_USAGE,
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -205,15 +204,15 @@ typedef struct SStreamNodeOption {
 } SStreamNodeOption;
 
 typedef struct SInterpFuncLogicNode {
-  SLogicNode    node;
-  SNodeList*    pFuncs;
-  STimeWindow   timeRange;
-  int64_t       interval;
-  int8_t        intervalUnit;
-  int8_t        precision;
-  EFillMode     fillMode;
-  SNode*        pFillValues;  // SNodeListNode
-  SNode*        pTimeSeries;  // SColumnNode
+  SLogicNode        node;
+  SNodeList*        pFuncs;
+  STimeWindow       timeRange;
+  int64_t           interval;
+  int8_t            intervalUnit;
+  int8_t            precision;
+  EFillMode         fillMode;
+  SNode*            pFillValues;  // SNodeListNode
+  SNode*            pTimeSeries;  // SColumnNode
   SStreamNodeOption streamNodeOption;
 } SInterpFuncLogicNode;
 
@@ -518,16 +517,16 @@ typedef struct SIndefRowsFuncPhysiNode {
 } SIndefRowsFuncPhysiNode;
 
 typedef struct SInterpFuncPhysiNode {
-  SPhysiNode    node;
-  SNodeList*    pExprs;
-  SNodeList*    pFuncs;
-  STimeWindow   timeRange;
-  int64_t       interval;
-  int8_t        intervalUnit;
-  int8_t        precision;
-  EFillMode     fillMode;
-  SNode*        pFillValues;  // SNodeListNode
-  SNode*        pTimeSeries;  // SColumnNode
+  SPhysiNode        node;
+  SNodeList*        pExprs;
+  SNodeList*        pFuncs;
+  STimeWindow       timeRange;
+  int64_t           interval;
+  int8_t            intervalUnit;
+  int8_t            precision;
+  EFillMode         fillMode;
+  SNode*            pFillValues;  // SNodeListNode
+  SNode*            pTimeSeries;  // SColumnNode
   SStreamNodeOption streamNodeOption;
 } SInterpFuncPhysiNode;
 

@@ -97,6 +97,11 @@ typedef struct SBlockDistInfo {
   uint64_t        uid;  // table uid
 } SBlockDistInfo;
 
+typedef struct {
+  int8_t   type;
+  tb_uid_t uid;
+} STableId;
+
 static int32_t sysChkFilter__Comm(SNode* pNode);
 static int32_t sysChkFilter__DBName(SNode* pNode);
 static int32_t sysChkFilter__VgroupId(SNode* pNode);
@@ -766,7 +771,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrChildTable = {0};
     pAPI->metaReaderFn.initReader(&smrChildTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-    int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
+    code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
       pAPI->metaReaderFn.clearReader(&smrChildTable);
@@ -1958,11 +1963,12 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   SSysTableScanInfo* pInfo = pOperator->info;
   SDbSizeStatisInfo  staticsInfo = {0};
 
+  char*        buf = NULL;
   SSDataBlock* p = NULL;
-  int32_t      numOfRows = 0;
 
   const char* db = NULL;
   int32_t     numOfCols = 0;
+  int32_t     numOfRows = 0;
 
   // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
   if (pInfo->readHandle.mnd != NULL) {
@@ -1971,7 +1977,12 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   }
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    if (pInfo->pCur == NULL) {
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
+
   SSDataBlock* pBlock = pInfo->pRes;
 
   code = buildVgDiskUsage(pOperator, &staticsInfo);
@@ -1986,26 +1997,25 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     usageInfo.walInDiskSize = staticsInfo.walSize;
     usageInfo.rawDataSize = staticsInfo.rawDataSize;
 
-    char* p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
-    QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+    buf = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+    QUERY_CHECK_NULL(buf, code, lino, _end, terrno);
+
     int32_t tempRes = tSerializeBlockDbUsage(varDataVal(p), len, &usageInfo);
     if (tempRes != len) {
-      taosMemoryFree(p);
-      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(TSDB_CODE_INVALID_MSG, lino, _end);
     }
-    varDataSetLen(p, len);
+
+    varDataSetLen(buf, len);
 
     int32_t          slotId = 1;
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 1);
     QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfo, 0, p, false);
+    code = colDataSetVal(pColInfo, 0, buf, false);
     QUERY_CHECK_CODE(code, lino, _end);
-    taosMemoryFree(p);
+    taosMemoryFreeClear(buf);
     if (slotId != 0) {
       SColumnInfoData* p1 = taosArrayGet(pBlock->pDataBlock, 0);
       QUERY_CHECK_NULL(p1, code, lino, _end, terrno);
-      int64_t v = 0;
-      // colDataSetInt64(p1, 0, &v);
     }
 
     pBlock->info.rows = 1;
@@ -2069,8 +2079,6 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.rawDataSize, false);  // estimate_size
     QUERY_CHECK_CODE(code, lino, _end);
     numOfRows += 1;
-    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-    pInfo->pCur = NULL;
 
     if (numOfRows > 0) {
       p->info.rows = numOfRows;
@@ -2081,7 +2089,6 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
 
       code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
-      numOfRows = 0;
     }
 
     blockDataDestroy(p);
@@ -2091,6 +2098,11 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     setOperatorCompleted(pOperator);
   }
 _end:
+  taosMemoryFree(buf);
+  if (pInfo->pCur) {
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
+  }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     blockDataDestroy(p);
@@ -2160,11 +2172,6 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  return NULL;
-}
-static SSDataBlock* sysTableScanUsageRewrite(SOperatorInfo* pOperator) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   return NULL;
 }
 static SSDataBlock* sysTableScanUsage(SOperatorInfo* pOperator) {
@@ -3169,16 +3176,6 @@ _error:
   }
   return code;
 }
-
-static int32_t vnodeGetEstimateRawSize(void* arg, int64_t* size) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  return code;
-}
-typedef struct {
-  int8_t   type;
-  tb_uid_t uid;
-} STableId;
 
 static int32_t buildTableListInfo(SOperatorInfo* pOperator, STableId* id, STableListInfo** ppTableListInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;

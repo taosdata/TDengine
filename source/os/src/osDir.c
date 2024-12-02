@@ -603,6 +603,7 @@ int taosGetDirSize(const char *path, int64_t *size) {
     }
     nBytes = snprintf(fullPath, sizeof(fullPath), "%s%s%s", path, TD_DIRSEP, name);
     if (nBytes <= 0 || nBytes >= sizeof(fullPath)) {
+      TAOS_UNUSED(taosCloseDir(&pDir));
       return TSDB_CODE_OUT_OF_RANGE;
     }
 

@@ -632,7 +632,6 @@ static ENodeType getScanOperatorType(EScanType scanType) {
       return QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
     case SCAN_TYPE_TABLE_COUNT:
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN;
-    case SCAN_TYPE_DB_DISK_USAGE:
     default:
       break;
   }
