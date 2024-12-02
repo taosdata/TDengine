@@ -433,7 +433,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t pr
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
   (void)taosHashBinary(name, len);
-  strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  tstrncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN);
   pWStart->node.resType.precision = precision;
 
   code = fmGetFuncInfo(pWStart, NULL, 0);
@@ -465,7 +465,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWEnd->functionName, pointer);
   (void)taosHashBinary(name, len);
-  strncpy(pWEnd->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  tstrncpy(pWEnd->node.aliasName, name, TSDB_COL_NAME_LEN);
 
   code = fmGetFuncInfo(pWEnd, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
@@ -836,9 +836,6 @@ static int32_t stbSplSplitSessionForStream(SSplitContext* pCxt, SStableSplitInfo
       nodesDestroyNode(pMergeWin->pTsEnd);
       pMergeWin->pTsEnd = NULL;
       code = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index), &pMergeWin->pTsEnd);
-      if (NULL == pMergeWin->pTsEnd) {
-        code = code;
-      }
     }
     code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartWindow);
   }
@@ -1360,9 +1357,6 @@ static int32_t stbSplCreatePartSortNode(SSortLogicNode* pSort, SLogicNode** pOut
   int32_t         code = TSDB_CODE_SUCCESS;
   SSortLogicNode* pPartSort = NULL;
   code = nodesCloneNode((SNode*)pSort, (SNode**)&pPartSort);
-  if (NULL == pPartSort) {
-    code = code;
-  }
 
   SNodeList* pMergeKeys = NULL;
   if (TSDB_CODE_SUCCESS == code) {
@@ -1543,9 +1537,6 @@ static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOu
   int32_t         code = TSDB_CODE_SUCCESS;
   SScanLogicNode* pMergeScan = NULL;
   code = nodesCloneNode((SNode*)pScan, (SNode**)&pMergeScan);
-  if (NULL == pMergeScan) {
-    code = code;
-  }
 
   SNodeList* pMergeKeys = NULL;
   if (TSDB_CODE_SUCCESS == code) {

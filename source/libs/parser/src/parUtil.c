@@ -595,8 +595,8 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                 char* pStr, bool isView) {
-  return sprintf(pStr, "%s*%d*%s*%s*%d*%d", pUser, acctId, pDb, (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable,
-                 type, isView);
+  return snprintf(pStr, USER_AUTH_KEY_MAX_LEN, "%s*%d*%s*%s*%d*%d", pUser, acctId, pDb,
+                  (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable, type, isView);
 }
 
 static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
@@ -831,7 +831,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   select->isDistinct = isDistinct;
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
-  sprintf(select->stmtName, "%p", select);
+  snprintf(select->stmtName, TSDB_TABLE_NAME_LEN, "%p", select);
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->timeLineCurMode = TIME_LINE_GLOBAL;
   select->onlyHasKeepOrderFunc = true;

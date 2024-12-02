@@ -109,7 +109,7 @@ bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
     if (*pDbName == NULL) {
       return false;
     }
-    strncpy(*pDbName, t.z, dbNameLen);
+    tstrncpy(*pDbName, t.z, dbNameLen);
     (*pDbName)[dbNameLen] = '\0';
     return true;
   }
@@ -185,7 +185,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      tstrncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
@@ -218,7 +218,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
 
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
   if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode)) {
-    sprintf(((SExprNode*)pNode)->aliasName, "#%d", *(int32_t*)pContext);
+    snprintf(((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN, "#%d", *(int32_t*)pContext);
     ++(*(int32_t*)pContext);
   }
   return DEAL_RES_CONTINUE;
@@ -433,9 +433,6 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = NULL;
     code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
-    if (NULL == pQuery->pRoot) {
-      code = code;
-    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     rewriteExprAlias(pQuery->pRoot);
@@ -475,7 +472,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      tstrncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
@@ -525,9 +522,6 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = NULL;
     code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
-    if (NULL == pQuery->pRoot) {
-      code = code;
-    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     rewriteExprAlias(pQuery->pRoot);

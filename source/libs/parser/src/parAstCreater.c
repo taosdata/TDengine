@@ -333,7 +333,7 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
       // If aliasName is truncated, hash value of aliasName could be the same.
       uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
-      sprintf(pExpr->aliasName, "%" PRIu64, hashVal);
+      snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN, "%" PRIu64, hashVal);
       tstrncpy(pExpr->userAlias, pRawExpr->p, len);
     }
   }
@@ -945,11 +945,11 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
       goto _err;
     }
     if ('+' == pVal->literal[0]) {
-      sprintf(pNewLiteral, "-%s", pVal->literal + 1);
+      snprintf(pNewLiteral, strlen(pVal->literal) + 2, "-%s", pVal->literal + 1);
     } else if ('-' == pVal->literal[0]) {
-      sprintf(pNewLiteral, "%s", pVal->literal + 1);
+      snprintf(pNewLiteral, strlen(pVal->literal) + 2, "%s", pVal->literal + 1);
     } else {
-      sprintf(pNewLiteral, "-%s", pVal->literal);
+      snprintf(pNewLiteral, strlen(pVal->literal) + 2, "-%s", pVal->literal);
     }
     taosMemoryFree(pVal->literal);
     pVal->literal = pNewLiteral;
@@ -1761,7 +1761,7 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
   setSubquery(setOp->pLeft);
   setOp->pRight = pRight;
   setSubquery(setOp->pRight);
-  sprintf(setOp->stmtName, "%p", setOp);
+  snprintf(setOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", setOp);
   return (SNode*)setOp;
 _err:
   nodesDestroyNode(pLeft);
