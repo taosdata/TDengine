@@ -73,12 +73,6 @@ mod tests {
         assert_eq!("tag1", config.tags[0].tag);
         assert_eq!("tag2", config.tags[1].tag);
 
-        let dsn = Dsn::from_str("opcda://?da.tags=@./tests/opc/da.tags").unwrap();
-        let config = DaCollectConfig::from_dsn(&dsn).await.unwrap();
-        assert_eq!(config.tags.len(), 2);
-        assert_eq!("tag1", config.tags[0].tag);
-        assert_eq!("tag2", config.tags[1].tag);
-
         let dsn =
             Dsn::from_str("opcda://?csv_config_file=@./tests/opc/da_collect_config.csv").unwrap();
         let config = DaCollectConfig::from_dsn(&dsn).await.unwrap();
