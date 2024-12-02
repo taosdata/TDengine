@@ -2002,6 +2002,7 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
     code = terrno;
     goto _exit;
   }
+  buf[fileSize] = 0;
   code = cfgDeserialize(array, buf, isGlobal);
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to deserialize config from %s since %s", filename, tstrerror(code));
