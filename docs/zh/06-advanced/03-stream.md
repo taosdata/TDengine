@@ -250,7 +250,7 @@ flush database stream_dest_db;   ---- 流计算写入数据的超级表所在的
 
 ```sql
 create stream streams1 into test1.streamst as select  _wstart, count(a) c1  from test.st interval(1s) ;
-drop database streams1;
+drop stream streams1;
 flush database test;
 flush database test1;
 ```

@@ -21,7 +21,7 @@ void getFields(TAOS *taos, const char *sql) {
   if (code != 0) {
     printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
   } else {
-    printf("col nums:%d\n", fieldNum);
+    printf("bind nums:%d\n", fieldNum);
     for (int i = 0; i < fieldNum; i++) {
       printf("field[%d]: %s, data_type:%d, field_type:%d\n", i, pFields[i].name, pFields[i].type,
              pFields[i].field_type);
@@ -76,7 +76,7 @@ void do_stmt(TAOS *taos) {
   // case 4 : INSERT INTO db.? using db.stb TAGS(?,?) VALUES(?,?)
   // not support this clause
   sql = "insert into db.? using db.stb tags(?, ?) values(?,?)";
-  printf("case 4 (not support): %s\n", sql);
+  printf("case 4 : %s\n", sql);
   getFields(taos, sql);
 
   // case 5 :  INSERT INTO db.stb(t1,t2,ts,b) values(?,?,?,?)
@@ -113,6 +113,36 @@ void do_stmt(TAOS *taos) {
   //  wrong para nums
   sql = "insert into db.ntb(nts,ni) values(?,?)";
   printf("case 10 : %s\n", sql);
+  getFields(taos, sql);
+
+  // case 11 : insert into db.? values(?,?)
+  // normal table must have tbnam
+  sql = "insert into db.? values(?,?)";
+  printf("case 11 (normal table must have tbname): %s\n", sql);
+  getFields(taos, sql);
+
+  // case 12 : insert into db.? using db.stb(t2,t1) tags(?, ?) (b,ts)values(?,?)
+  // disordered
+  sql = "insert into db.? using db.stb(t2,t1) tags(?, ?) (b,ts)values(?,?)";
+  printf("case 12 : %s\n", sql);
+  getFields(taos, sql);
+
+  // case 13 : insert into db.? using db.stb tags(?, ?) values(?,?)
+  // no field name
+  sql = "insert into db.? using db.stb tags(?, ?) values(?,?)";
+  printf("case 13 : %s\n", sql);
+  getFields(taos, sql);
+
+  // case 14 : insert into db.? using db.stb tags(?, ?) values(?,?)
+  //  less para
+  sql = "insert into db.? using db.stb (t2)tags(?) (ts)values(?)";
+  printf("case 14 : %s\n", sql);
+  getFields(taos, sql);
+
+    // case 15 : insert into db.? using db.stb tags(?, ?) values(?,?)
+  //  less para
+  sql = "insert into db.d0 (ts)values(?)";
+  printf("case 15 : %s\n", sql);
   getFields(taos, sql);
 }
 

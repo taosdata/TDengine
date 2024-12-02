@@ -31,6 +31,7 @@ typedef struct SInsertParseContext {
   bool           needTableTagVal;
   bool           needRequest;  // whether or not request server
   bool           isStmtBind;   // whether is stmt bind
+  bool           preCtbname;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -1831,6 +1832,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     if (TK_NK_QUESTION == pToken->type) {
       pCxt->isStmtBind = true;
       if (pCols->pColIndex[i] == tbnameIdx) {
+        pCxt->preCtbname = false;
         *bFoundTbName = true;
       }
       if (NULL == pCxt->pComCxt->pStmtCb) {
@@ -2571,10 +2573,11 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     }
     int32_t code = (*pCxt->pComCxt->pStmtCb->getTbNameFn)(pCxt->pComCxt->pStmtCb->pStmt, &tbName);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      pCxt->preCtbname = true;
+    } else {
+      pTbName->z = tbName;
+      pTbName->n = strlen(tbName);
     }
-    pTbName->z = tbName;
-    pTbName->n = strlen(tbName);
   }
 
   if (pCxt->isStmtBind) {
@@ -2599,7 +2602,7 @@ static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt)
   SStmtCallback* pStmtCb = pCxt->pComCxt->pStmtCb;
   int32_t        code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, &pStmt->targetTableName,
                                        pStmt->usingTableProcessing, pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj,
-                                       pStmt->usingTableName.tname);
+                                       pStmt->usingTableName.tname, pCxt->preCtbname);
 
   memset(&pCxt->tags, 0, sizeof(pCxt->tags));
   pStmt->pVgroupsHashObj = NULL;

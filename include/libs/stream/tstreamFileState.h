@@ -93,7 +93,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
                                            const SSessionKey* pWinKey, void** ppVal, int32_t* pVLen);
 
 SRowBuffPos* createSessionWinBuff(SStreamFileState* pFileState, SSessionKey* pKey, void* p, int32_t* pVLen);
-int32_t      recoverSesssion(SStreamFileState* pFileState, int64_t ckId);
+int32_t      recoverSession(SStreamFileState* pFileState, int64_t ckId);
 
 void sessionWinStateClear(SStreamFileState* pFileState);
 void sessionWinStateCleanup(void* pBuff);

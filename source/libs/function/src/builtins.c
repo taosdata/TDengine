@@ -187,8 +187,8 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
 }
 
 static int32_t addTimezoneParam(SNodeList* pList) {
-  char      buf[TD_TIME_STR_LEN] = {0};
-  time_t    t;
+  char    buf[TD_TIME_STR_LEN] = {0};
+  time_t  t;
   int32_t code = taosTime(&t);
   if (code != 0) {
     return code;
@@ -5596,6 +5596,20 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "_irowts_origin",
+    .type = FUNCTION_TYPE_IROWTS_ORIGIN,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_db_usage",
     .type = FUNCTION_TYPE_DB_USAGE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
@@ -5618,7 +5632,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .paramInfoPattern = 0,
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
-  },
+  }
 };
 // clang-format on
 

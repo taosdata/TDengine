@@ -204,15 +204,17 @@ typedef struct SStreamNodeOption {
 } SStreamNodeOption;
 
 typedef struct SInterpFuncLogicNode {
-  SLogicNode        node;
-  SNodeList*        pFuncs;
-  STimeWindow       timeRange;
-  int64_t           interval;
-  int8_t            intervalUnit;
-  int8_t            precision;
-  EFillMode         fillMode;
-  SNode*            pFillValues;  // SNodeListNode
-  SNode*            pTimeSeries;  // SColumnNode
+  SLogicNode    node;
+  SNodeList*    pFuncs;
+  STimeWindow   timeRange;
+  int64_t       interval;
+  int8_t        intervalUnit;
+  int8_t        precision;
+  EFillMode     fillMode;
+  SNode*        pFillValues;  // SNodeListNode
+  SNode*        pTimeSeries;  // SColumnNode
+  int64_t       rangeInterval;
+  int8_t        rangeIntervalUnit;
   SStreamNodeOption streamNodeOption;
 } SInterpFuncLogicNode;
 
@@ -528,6 +530,8 @@ typedef struct SInterpFuncPhysiNode {
   SNode*            pFillValues;  // SNodeListNode
   SNode*            pTimeSeries;  // SColumnNode
   SStreamNodeOption streamNodeOption;
+  int64_t       rangeInterval;
+  int8_t        rangeIntervalUnit;
 } SInterpFuncPhysiNode;
 
 typedef SInterpFuncPhysiNode SStreamInterpFuncPhysiNode;

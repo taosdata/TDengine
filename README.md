@@ -357,14 +357,14 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
-- [Java](https://docs.tdengine.com/reference/connector/java/)
-- [C/C++](https://docs.tdengine.com/reference/connector/cpp/)
-- [Python](https://docs.tdengine.com/reference/connector/python/)
-- [Go](https://docs.tdengine.com/reference/connector/go/)
-- [Node.js](https://docs.tdengine.com/reference/connector/node/)
-- [Rust](https://docs.tdengine.com/reference/connector/rust/)
-- [C#](https://docs.tdengine.com/reference/connector/csharp/)
-- [RESTful API](https://docs.tdengine.com/reference/rest-api/)
+- [Java](https://docs.tdengine.com/reference/connectors/java/)
+- [C/C++](https://docs.tdengine.com/reference/connectors/cpp/)
+- [Python](https://docs.tdengine.com/reference/connectors/python/)
+- [Go](https://docs.tdengine.com/reference/connectors/go/)
+- [Node.js](https://docs.tdengine.com/reference/connectors/node/)
+- [Rust](https://docs.tdengine.com/reference/connectors/rust/)
+- [C#](https://docs.tdengine.com/reference/connectors/csharp/)
+- [RESTful API](https://docs.tdengine.com/reference/connectors/rest-api/)
 
 # Contribute to TDengine
 

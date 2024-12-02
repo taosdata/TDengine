@@ -704,4 +704,13 @@ bool fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId) {
   return strcmp(pStateFunc->name, pStateMergeFunc->pMergeFunc) == 0;
 }
 
-bool fmIsCountLikeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_COUNT_LIKE_FUNC); }
+bool fmIsCountLikeFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_COUNT_LIKE_FUNC);
+}
+
+bool fmIsRowTsOriginFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_IROWTS_ORIGIN == funcMgtBuiltins[funcId].type;
+}
