@@ -1,0 +1,24 @@
+{
+    "filetype": "query",
+    "cfgdir": "/etc/taos",
+    "host": "localhost",
+    "port": 6030,
+    "rest_port": 6041,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "continue_if_fail": "yes",
+    "databases": "dbnew",
+    "query_times": 5,
+    "query_mode": "taosc",
+    "reset_query_cache": "yes",
+    "kill_slow_query_threshold": "120",
+    "kill_slow_query_interval": "10",
+    "specified_table_query": {
+        "query_interval": 0,
+        "threads": 20,
+        "concurrent": 5,
+        "sql_file": "/root/perf_test/json/bak/last.sql",
+        "result": "taos-query-result"
+     }
+}
