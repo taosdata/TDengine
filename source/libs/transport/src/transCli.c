@@ -377,6 +377,12 @@ static FORCE_INLINE void logConnMissHit(SCliConn* pConn);
 
 static void* cliWorkThread(void* arg);
 
+static bool isReqExccedLimit(STransMsg* pMsg) {
+  if (pMsg != NULL && pMsg->contLen >= TRANS_MSG_LIMIT) {
+    return true;
+  }
+  return false;
+}
 int32_t cliGetConnTimer(SCliThrd* pThrd, SCliConn* pConn) {
   uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
   if (timer == NULL) {
@@ -3209,6 +3215,10 @@ _exception:
 }
 
 int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
+  if (isReqExccedLimit(pReq)) {
+    return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
+  }
+
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)pInstRef);
   if (pInst == NULL) {
     transFreeMsg(pReq->pCont);
@@ -3236,9 +3246,6 @@ int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, 
     return (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
   }
 
-  // if (pReq->msgType == TDMT_SCH_DROP_TASK) {
-  //   TAOS_UNUSED(transReleaseCliHandle(pReq->info.handle));
-  // }
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
   return 0;
 
@@ -3254,6 +3261,9 @@ _exception:
 int32_t transSendRequestWithId(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
   if (transpointId == NULL) {
     return TSDB_CODE_INVALID_PARA;
+  }
+  if (isReqExccedLimit(pReq)) {
+    return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
   }
   int32_t code = 0;
   int8_t  transIdInited = 0;
@@ -3306,6 +3316,9 @@ _exception:
 }
 
 int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
+  if (isReqExccedLimit(pReq)) {
+    return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
+  }
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)pInstRef);
   if (pInst == NULL) {
     transFreeMsg(pReq->pCont);
