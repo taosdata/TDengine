@@ -1161,11 +1161,14 @@ async fn sync_concurrently(
                     let now = std::time::Instant::now();
                     let res = worker.write(&mut message).in_current_span().await;
                     let elapse = now.elapsed();
-                    worker
-                        .metrics
-                        .as_ref()
-                        .tmq()
-                        .add_write_cost_ms(elapse.as_millis() as _);
+                    let metrics = worker.metrics.as_ref().tmq();
+                    metrics.add_write_cost_ms(elapse.as_millis() as _);
+                    if res.is_ok() {
+                        metrics.add_success_messages(1);
+                    } else {
+                        metrics.add_write_raw_fails(1);
+                    }
+
                     let _ = worker.sender.send_async(res).await;
                 }
                 tracing::info!("Worker done");
@@ -1358,7 +1361,7 @@ pub async fn tmq_to_td(
         .or(from.remove("num.of.writers"))
         .or(std::env::var("TMQ_WRITE_CONCURRENCY").ok())
         .and_then(|s| s.parse().ok())
-        .unwrap_or(0); // 0 means auto, should be set after.
+        .unwrap_or(1); // 0 means auto, should be set after.
     let commit_chunk_size = from
         .remove("commit.chunk.size")
         .or(std::env::var("TMQ_COMMIT_CHUNK_SIZE").ok())
@@ -1393,7 +1396,7 @@ pub async fn tmq_to_td(
         .or(std::env::var("TMQ_MAX_POLLING_TIMEOUT").ok())
         .map(|s| parse_timeout_duration(&s))
         .transpose()?
-        .unwrap_or_else(|| Duration::from_secs(5));
+        .unwrap_or_else(|| Duration::from_secs(60));
     let mut options = WriteOptions {
         with_meta_delete,
         with_meta_drop,

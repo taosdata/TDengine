@@ -38,6 +38,7 @@ messages: Total number of messages received via TMQ in this task run
 messages_of_meta: Total number of messages with type "Meta" received via TMQ in this task run
 messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ in this task run
 write_raw_fails: Total times of failed to write TMQ messages in this task run
+success_messages: Total number of messages succeeded via TMQ in this task run
 total_received_batches: Total number of data batches received via IPC Stream
 total_processed_batches: Total number of data batches successfully processed by taosx
 total_failed_batches: Total number of data batches failed to process
@@ -51,6 +52,7 @@ total_drained_rows: Total number of rows filtered out to write in case of timest
 total_failed_points: Total number of points failed to write
 total_written_raw_blocks: Total number of raw blocks successfully written
 total_failed_raw_blocks: Total number of raw blocks failed to write
+total_success_messages: Total number of messages successfully written
 received_batches: Number of data batches received via IPC Stream in this task run
 processed_batches: Number of data batches successfully processed by taosx in this task run
 failed_batches: Number of data batches failed to process in this task run
