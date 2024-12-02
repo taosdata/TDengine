@@ -5,6 +5,7 @@ use chrono::{DateTime, FixedOffset};
 use taos::*;
 
 pub mod breakpoints;
+pub mod codec;
 pub mod constants;
 pub mod defer;
 pub mod dsn;

@@ -227,7 +227,7 @@ impl WriteStrategy {
 
     #[inline]
     pub fn require_blocks(&self) -> bool {
-        matches!(self, WriteStrategy::Raw)
+        !matches!(self, WriteStrategy::Raw)
     }
 
     #[inline]
@@ -1116,10 +1116,11 @@ impl Worker {
                 let _ = conn.write_raw_meta(&message.raw).await.inspect_err(|err| {
                     tracing::debug!(
                         error = format!("{err:#}"),
-                        "retry write raw with code {code}"
+                        "retry write raw with code {}",
+                        err.code()
                     );
                 });
-                return Err(err).context("Write raw meta into target error");
+                return Err(err).context("Write raw message into target error");
             }
             if let Some(meta) = &message.meta {
                 match code {

@@ -820,6 +820,7 @@ async fn sync(
     metrics_arc: Arc<CoreMetrics>,
     with_meta_delete: bool,
     with_meta_drop: bool,
+    group_id: &String,
 ) -> Result<Consumer> {
     tracing::info!("Task start");
     let mut stream = consumer.stream();
@@ -862,7 +863,7 @@ async fn sync(
                         .in_current_span()
                         .await?;
                     if refresh_progress_interval.ticked() {
-                        update_progress(&consumer, metrics).await;
+                        update_progress(source_pool, metrics, &topic.name, group_id).await;
                     }
 
                 } else {
@@ -871,7 +872,7 @@ async fn sync(
             }
         }
     }
-    update_progress(&consumer, metrics).await;
+    update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -896,6 +897,7 @@ async fn sync_interlace(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     options: &WriteOptions,
+    group_id: &String,
 ) -> Result<Consumer> {
     tracing::info!("Task start");
     // let mut stream = consumer.stream_with_timeout(Timeout::from_secs(5).into());
@@ -1023,7 +1025,6 @@ async fn sync_interlace(
                 msg_tx.send_async(InterlaceItem::Message(message)).await?;
                 res_rx.recv_async().await??;
                 consumer.commit(offset).await?;
-                println!("{}", metrics);
                 last_commit = std::time::Instant::now();
                 last_message = std::time::Instant::now();
                 continue;
@@ -1094,7 +1095,7 @@ async fn sync_interlace(
         clean_cache!();
         consumer.commit(last_offset.unwrap()).await?;
     }
-    update_progress(&consumer, metrics).await;
+    update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -1115,6 +1116,7 @@ async fn sync_concurrently(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     options: &WriteOptions,
+    group_id: &String,
 ) -> Result<Consumer> {
     tracing::info!("Task start");
     let taos = target_pool.get().await?;
@@ -1206,113 +1208,184 @@ async fn sync_concurrently(
     let refresh_progress_interval =
         crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
 
-    loop {
-        if cancel.is_cancelled() {
-            tracing::info!("Sync cancelled");
-            break;
-        }
-        drop(last_offset.take());
-        if let Some((offset, message)) = tokio::select! {
-            _ = cancel.cancelled() => {
+    let async_loop = async {
+        loop {
+            if cancel.is_cancelled() {
                 tracing::info!("Sync cancelled");
                 break;
             }
-            res = consumer.recv_timeout(timeout) => {
-                res?
-            }
-        } {
-            if refresh_progress_interval.ticked() {
-                update_progress(&consumer, metrics).await;
-            }
-            metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
+            drop(last_offset.take());
+            if let Some((offset, message)) = tokio::select! {
+                _ = cancel.cancelled() => {
+                    tracing::info!("Sync cancelled");
+                    break;
+                }
+                res = consumer.recv_timeout(timeout) => {
+                    res?
+                }
+            } {
+                if refresh_progress_interval.ticked() {
+                    update_progress(source_pool, metrics, &topic.name, group_id).await;
+                }
+                metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
-            let message_type = match &message {
-                MessageSet::Meta(_) => 1,
-                MessageSet::Data(_) => 2,
-                MessageSet::MetaData(_, _) => 3,
-            };
-            metrics.add_messages(1);
-            let raw = options
-                .parse_message(&message, metrics)
-                .in_current_span()
-                .await?;
-            drop(message);
-            if message_type == 1 {
-                clean_cache!();
-                // meta only, sync immediately.
-                msg_tx.send_async(raw).await?;
-                res_rx.recv_async().await??;
-                consumer.commit(offset).await?;
+                let message_type = match &message {
+                    MessageSet::Meta(_) => 1,
+                    MessageSet::Data(_) => 2,
+                    MessageSet::MetaData(_, _) => 3,
+                };
+                metrics.add_messages(1);
+                let raw = options
+                    .parse_message(&message, metrics)
+                    .in_current_span()
+                    .await?;
+                drop(message);
+                if message_type == 1 {
+                    clean_cache!();
+                    // meta only, sync immediately.
+                    msg_tx.send_async(raw).await?;
+                    res_rx.recv_async().await??;
+                    consumer.commit(offset).await?;
+                    metrics.add_commits(1);
+                    per_message_instant = std::time::Instant::now();
+                    continue;
+                }
+
+                if (last_type != 0 && last_type != message_type) || chunk_len >= chunk_size {
+                    clean_cache!();
+
+                    // meta only, sync immediately.
+                    msg_tx.send_async(raw).await?;
+                    res_rx.recv_async().await??;
+                    consumer.commit(offset).await?;
+                    metrics.add_commits(1);
+                } else {
+                    msg_tx.send_async(raw).await?;
+                    chunk_len += 1;
+                    last_offset.replace(offset);
+                }
+                last_type = message_type;
                 per_message_instant = std::time::Instant::now();
-                continue;
-            }
-
-            if (last_type != 0 && last_type != message_type) || chunk_len >= chunk_size {
-                clean_cache!();
-
-                // meta only, sync immediately.
-                msg_tx.send_async(raw).await?;
-                res_rx.recv_async().await??;
-                consumer.commit(offset).await?;
             } else {
-                msg_tx.send_async(raw).await?;
-                chunk_len += 1;
-                last_offset.replace(offset);
-            }
-            last_type = message_type;
-            per_message_instant = std::time::Instant::now();
-        } else {
-            // No message received
-            let elapsed = per_message_instant.elapsed();
-            if elapsed.as_millis() as u64 >= options.commit_interval_ms {
-                clean_cache!();
-                if let Some(offset) = last_offset.take() {
-                    if let Err(err) = consumer.commit(offset).await {
-                        tracing::warn!(?err, "Commit error: {err}");
-                    };
+                // No message received
+                let elapsed = per_message_instant.elapsed();
+                if elapsed.as_millis() as u64 >= options.commit_interval_ms && chunk_len > 0 {
+                    clean_cache!();
+                    if let Some(offset) = last_offset.take() {
+                        if let Err(err) = consumer.commit(offset).await {
+                            tracing::warn!(?err, "Commit error: {err}");
+                        };
+                        metrics.add_commits(1);
+                    }
+                }
+
+                if elapsed > options.max_polling_timeout {
+                    tracing::info!(
+                        "Polling timeout ({:?} > {:?}), commit immediately",
+                        elapsed,
+                        options.max_polling_timeout
+                    );
+                    break;
                 }
             }
-
-            if elapsed > options.max_polling_timeout {
-                tracing::info!(
-                    "Polling timeout ({:?} > {:?}), commit immediately",
-                    elapsed,
-                    options.max_polling_timeout
-                );
-                break;
+        }
+        println!(
+            "# [{id}] Consume done after {:?}, waiting for writers to finish",
+            now.elapsed()
+        );
+        tracing::info!(elapse = ?now.elapsed(), "Consume done, waiting for writers to finish");
+        if chunk_len > 0 {
+            clean_cache!();
+            if let Some(last_offset) = last_offset {
+                if let Err(err) = consumer.commit(last_offset).await {
+                    tracing::warn!(?err, "Final commit error: {err}");
+                };
+                metrics.add_commits(1);
             }
         }
+        update_progress(source_pool, metrics, &topic.name, group_id).await;
+        Ok(())
     }
-    println!(
-        "# [{id}] Consume done after {:?}, waiting for writers to finish",
-        now.elapsed()
-    );
-    tracing::info!(elapse = ?now.elapsed(), "Consume done, waiting for writers to finish");
-    if chunk_len > 0 {
-        clean_cache!();
-        if let Some(last_offset) = last_offset {
-            if let Err(err) = consumer.commit(last_offset).await {
-                tracing::warn!(?err, "Final commit error: {err}");
-            };
+    .in_current_span();
+
+    match async_loop.await {
+        Ok(_) => {
+            tracing::info!("Task done");
+            Ok(consumer)
+        }
+        Err(err) => {
+            tracing::info!("Task failed, unsubscribe: {err}");
+            consumer.unsubscribe().await;
+            Err(err)
         }
     }
-    update_progress(&consumer, metrics).await;
-    tracing::info!("Task done");
-    // let _ = sender.send(consumer); // tokio send
-    Ok(consumer)
 }
 
-async fn update_progress(consumer: &Consumer, metrics: &TmqMetrics) {
-    let assignments = consumer.assignments().await;
-    match assignments {
-        Some(assignments) => {
-            if !assignments.is_empty() {
-                metrics.update_progress(assignments);
-            }
+async fn update_progress(
+    source_pool: &TaosPool,
+    metrics: &TmqMetrics,
+    topic: &String,
+    group_id: &String,
+) {
+    let Ok(taos) = source_pool.get().await.inspect_err(|err| {
+        tracing::error!("Failed to get taos connection by source pool, {:?}", err);
+    }) else {
+        return;
+    };
+    if let Ok(mut res) = taos.query("show subscriptions").await {
+        let records = res.to_records().await.unwrap_or_else(|err| {
+            tracing::error!("query 'show subscriptions' error: {err}");
+            vec![]
+        });
+        let mut assignments: HashMap<String, Vec<Assignment>> = HashMap::new();
+        records
+            .iter()
+            .filter_map(|r| {
+                if r.len() == 8 {
+                    let topic_name = match r[0] {
+                        Value::VarChar(ref topic_name) => topic_name.clone(),
+                        _ => "".to_string(),
+                    };
+                    let consumer_group = match r[1] {
+                        Value::VarChar(ref consumer_group) => consumer_group.clone(),
+                        _ => "".to_string(),
+                    };
+                    let vgroup_id = match r[2] {
+                        Value::Int(vgroup_id) => vgroup_id,
+                        _ => 0,
+                    };
+                    let offset = match r[6] {
+                        Value::VarChar(ref offset) => offset.clone(),
+                        _ => "".to_string(),
+                    };
+                    if &topic_name == topic
+                        && &consumer_group == group_id
+                        && offset.starts_with("wal:")
+                    {
+                        let parts: Vec<&str> =
+                            offset.trim_start_matches("wal:").split('/').collect();
+                        if parts.len() == 2 {
+                            let part1 = parts[0];
+                            let part2 = parts[1];
+                            let offset = part1.parse::<i64>().unwrap_or(0);
+                            let end = part2.parse::<i64>().unwrap_or(0);
+                            return Some((topic_name, Assignment::new(vgroup_id, offset, 0, end)));
+                        }
+                    }
+                }
+                None
+            })
+            .for_each(|(topic, assignment)| {
+                assignments
+                    .entry(topic.clone())
+                    .or_default()
+                    .push(assignment);
+            });
+        if !assignments.is_empty() {
+            metrics.update_progress(assignments);
         }
-        None => {
-            tracing::warn!("Failed to get assignments");
-        }
+    } else {
+        tracing::warn!("execute sql 'show subscriptions' error");
     }
 }
 
@@ -1353,6 +1426,23 @@ pub async fn tmq_to_td(
         .or(std::env::var("TMQ_COMMIT_INTERVAL_MS").ok())
         .and_then(|s| s.parse().ok())
         .unwrap_or(5000);
+
+    const DEFAULT_ENABLE_CONCURRENT_POLLING: bool = true;
+    let concurrent_polling = from
+        .remove("enable.concurrent.polling")
+        .or(std::env::var("TMQ_CONCURRENT_POLLING").ok())
+        .and_then(|s| match s.as_str() {
+            "" | "true" | "TRUE" | "T" | "1" => Some(true),
+            "false" | "FALSE" | "F" | "0" => Some(false),
+            _ => {
+                tracing::warn!(
+                    "Invalid value for enable.concurrent.polling: {s}, use default value: {}",
+                    DEFAULT_ENABLE_CONCURRENT_POLLING
+                );
+                None
+            }
+        })
+        .unwrap_or(DEFAULT_ENABLE_CONCURRENT_POLLING);
 
     let max_polling_timeout = from
         .remove("max.polling.timeout")
@@ -1592,6 +1682,9 @@ pub async fn tmq_to_td(
         let duration = consumer_timer.elapsed();
         tracing::info!("Setup {} consumers in {:?}", jobs, duration);
 
+        let from_params = from.params;
+        let group_id = from_params.get("group.id").cloned().unwrap();
+
         let tmq = Arc::new(tmq);
         let topic = Arc::new(topic);
         for mut consumer in consumers {
@@ -1613,6 +1706,7 @@ pub async fn tmq_to_td(
             let notify = notify.clone();
             let target = target.clone();
             let options = options.clone();
+            let group_id = group_id.clone();
             join_set.spawn(
                 async move {
                     let mut retries = 0;
@@ -1631,9 +1725,10 @@ pub async fn tmq_to_td(
                                 cancellation.clone(),
                                 metrics_arc.clone(),
                                 &options,
+                                &group_id,
                             )
                             .await
-                        } else if actions.is_empty() {
+                        } else if concurrent_polling && actions.is_empty() {
                             sync_concurrently(
                                 &topic,
                                 consumer_task_id,
@@ -1644,6 +1739,7 @@ pub async fn tmq_to_td(
                                 cancellation.clone(),
                                 metrics_arc.clone(),
                                 &options,
+                                &group_id,
                             )
                             .await
                         } else {
@@ -1659,6 +1755,7 @@ pub async fn tmq_to_td(
                                 metrics_arc.clone(),
                                 with_meta_delete,
                                 with_meta_drop,
+                                &group_id,
                             )
                             .await
                         } {
@@ -1886,5 +1983,31 @@ mod tests {
             parse_timeout_duration("10m").unwrap(),
             Duration::from_secs(10 * 60)
         );
+    }
+
+    #[tokio::test]
+    async fn test_show_subscriptions() -> anyhow::Result<()> {
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let res = taos.query("show subscriptions").await;
+        match res {
+            Ok(mut res) => {
+                let records = res.to_records().await;
+                match records {
+                    Ok(records) => {
+                        for record in records {
+                            dbg!(record);
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!("Query error: {err}");
+                    }
+                }
+            }
+            Err(err) => {
+                tracing::error!("Query error: {err}");
+            }
+        }
+
+        Ok(())
     }
 }
