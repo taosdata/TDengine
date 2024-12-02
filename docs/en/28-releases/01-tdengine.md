@@ -26,6 +26,10 @@ The download links for installation packages of TDengine 3.x versions are as fol
 
 import Release from "/components/ReleaseV3";
 
+## 3.3.4.8
+
+<Release type="tdengine" version="3.3.4.8" />
+
 ## 3.3.3.0
 
 <Release type="tdengine" version="3.3.3.0" />
