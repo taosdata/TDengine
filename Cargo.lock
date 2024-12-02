@@ -8170,6 +8170,7 @@ dependencies = [
  "uuid",
  "winapi",
  "zerocopy 0.8.9",
+ "zstd 0.13.2",
 ]
 
 [[package]]
