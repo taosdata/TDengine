@@ -69,13 +69,17 @@ int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup
   if (NULL == pInfo->pGrpHead) {
     pInfo->pGrpHead = taosMemoryCalloc(1, sizeof(*pInfo->pGrpHead));
     if (NULL == pInfo->pGrpHead) {
-      uError("malloc chunkCache failed");
-      MP_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      uError("malloc pGrpHead failed, error:%s", tstrerror(terrno));
+      MP_ERR_RET(terrno);
     }
 
     pGrp = pInfo->pGrpHead;
   } else {
     pGrp = (SMPCacheGroup*)taosMemoryCalloc(1, sizeof(SMPCacheGroup));
+    if (NULL == pInfo->pGrpHead) {
+      uError("malloc SMPCacheGroup failed, error:%s", tstrerror(terrno));
+      MP_ERR_RET(terrno);
+    }
     pGrp->pNext = pHead;
   }
 
@@ -319,6 +323,7 @@ int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size) {
     code = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;
     uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, pJob->job.jobId, cAllocSize, quota);
     pPool->cfg.cb.reachFp(pJob->job.jobId, pJob->job.clientId, code);
+    atomic_store_8(&gMPMgmt.needTrim, 1); 
     (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
     MP_RET(code);
   }
@@ -328,6 +333,7 @@ int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size) {
     uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %" PRId64 " bytes", 
         pPool->name, atomic_load_64(&tsCurrentAvailMemorySize), size, pPool->cfg.reserveSize);
     pPool->cfg.cb.reachFp(pJob->job.jobId, pJob->job.clientId, code);
+    atomic_store_8(&gMPMgmt.needTrim, 1); 
     (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
     MP_RET(code);
   }
@@ -1026,9 +1032,20 @@ void mpUpdateSystemAvailableMemorySize() {
   uDebug("system available memory size: %" PRId64, sysAvailSize);
 }
 
+void mpLaunchTrim(int64_t* loopTimes) {
+  static int64_t trimTimes = 0;
+  
+  taosMemTrim(0, NULL);
+  
+  atomic_store_8(&gMPMgmt.needTrim, 0);
+  *loopTimes = 0;
+
+  uDebug("%" PRId64 "th memory trim launched", ++trimTimes);
+}
+
 void* mpMgmtThreadFunc(void* param) {
   int32_t timeout = 0;
-  int64_t retireSize = 0;
+  int64_t retireSize = 0, loopTimes = 0;
   SMemPool* pPool = (SMemPool*)atomic_load_ptr(&gMemPoolHandle);
   
   while (0 == atomic_load_8(&gMPMgmt.modExit)) {
@@ -1037,6 +1054,12 @@ void* mpMgmtThreadFunc(void* param) {
     retireSize = pPool->cfg.reserveSize - tsCurrentAvailMemorySize;
     if (retireSize > 0) {
       (*pPool->cfg.cb.failFp)(retireSize, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
+
+      mpLaunchTrim(&loopTimes);
+    }
+
+    if ((0 == (++loopTimes) % 500) || atomic_load_8(&gMPMgmt.needTrim)) {
+      mpLaunchTrim(&loopTimes);
     }
 
     taosMsleep(MP_DEFAULT_MEM_CHK_INTERVAL_MS);
@@ -1229,6 +1252,7 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, c
 
   pSession->sessionId = taosStrdup(sessionId);
   if (NULL == pSession->sessionId) {
+    uError("strdup sessionId failed, error:%s", tstrerror(terrno));
     MP_ERR_JRET(terrno);
   }
 
@@ -1668,6 +1692,10 @@ int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t
   }
   
   return code;
+}
+
+void taosMemPoolSchedTrim(void) {
+  atomic_store_8(&gMPMgmt.needTrim, 1);
 }
 
 int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {

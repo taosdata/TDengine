@@ -136,6 +136,7 @@ void    taosMemPoolUnLockPool(void* poolHandle, bool readLock);
 void    taosMemPoolGetUsedSizeBegin(void* poolHandle, int64_t* usedSize, bool* needEnd);
 void    taosMemPoolGetUsedSizeEnd(void* poolHandle);
 int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t* allocSize, int64_t* maxAllocSize);
+void    taosMemPoolSchedTrim(void);
 int32_t taosMemoryPoolInit(mpReserveFailFp, mpReserveReachFp);
 
 

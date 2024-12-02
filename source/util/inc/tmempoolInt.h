@@ -34,6 +34,7 @@ extern "C" {
 
 #define MP_DEFAULT_MEM_CHK_INTERVAL_MS       10
 #define MP_MIN_MEM_CHK_INTERVAL_MS       1
+#define MP_MEMORY_TRIM_INTERVAL_TIMES        500
 
 
 #define MP_RETIRE_HIGH_THRESHOLD_PERCENT          (0.95)
@@ -316,6 +317,7 @@ typedef struct SMemPoolMgmt {
   int8_t         modExit;
   int64_t        waitMs;
   int32_t        code;
+  int8_t         needTrim;
 } SMemPoolMgmt;
 
 extern SMemPoolMgmt gMPMgmt;
@@ -488,6 +490,7 @@ enum {
       if ((cAllocSize / 1048576L) > *(_pool)->cfg.jobQuota) {                                         \
         uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %dMB", (_job)->job.jobId, cAllocSize, *(_pool)->cfg.jobQuota);                  \
         (_pool)->cfg.cb.reachFp(pJob->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);                  \
+        atomic_store_8(&gMPMgmt.needTrim, 1);                                                                     \
         terrno = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;                  \
         return NULL;                                                            \
       }                  \
@@ -496,6 +499,7 @@ enum {
       uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %" PRId64 " bytes",                   \
           (_pool)->name, atomic_load_64(&tsCurrentAvailMemorySize), (_size), (_pool)->cfg.reserveSize);                  \
       (_pool)->cfg.cb.reachFp((_job)->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);                  \
+      atomic_store_8(&gMPMgmt.needTrim, 1);                                                                     \
       terrno = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;                  \
       return NULL;                  \
     }       \

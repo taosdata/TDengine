@@ -56,7 +56,7 @@ namespace {
 #define MPT_MIN_MEM_POOL_SIZE           (1048576UL)
 #define MPT_MAX_RETIRE_JOB_NUM          10000
 #define MPT_DEFAULT_TASK_RUN_TIMES      10
-#define MPT_NON_POOL_ALLOC_UNIT         (256 * 1048576UL)
+#define MPT_NON_POOL_ALLOC_UNIT         (1048576UL)
 #define MPT_NON_POOL_KEEP_ALLOC_UNIT    (10485760UL * 8)
 #define MPT_MAX_NON_POOL_ALLOC_TIMES    30000
 
@@ -418,6 +418,15 @@ void mptDestroyJobInfo(void* job) {
 }
 
 
+void mptWriteMem(void* pStart, int64_t size) {
+  char* pEnd = (char*)pStart + size - 1;
+  char* p = (char*)pStart;
+  while (p <= pEnd) {
+    *p = 'a' + taosRand() % 26;
+    p += 4096;
+  }
+}
+
 
 void mptInit() {
   osDefaultInit();
@@ -446,6 +455,9 @@ void mptInit() {
   mptCtx.pSrcString[mptCtrl.maxSingleAllocSize - 1] = 0;
 
   void* p = taosMemMalloc(1048576UL * 20000);
+
+  mptWriteMem(p, (1048576UL * 20000));
+
 }
 
 void mptDestroySession(uint64_t qId, int64_t tId, int32_t eId, int32_t taskIdx, SMPTestJobCtx* pJobCtx, void* session) {
@@ -796,14 +808,6 @@ void mptInitPool(void) {
   assert(0 == taosMemoryPoolInit(mptRetireJobsCb, mptRetireJobCb));
 }
 
-void mptWriteMem(void* pStart, int64_t size) {
-  char* pEnd = (char*)pStart + size - 1;
-  char* p = (char*)pStart;
-  while (p <= pEnd) {
-    *p = 'a' + taosRand() % 26;
-    p += 4096;
-  }
-}
 
 void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
   int32_t actId = 0;
@@ -1132,6 +1136,8 @@ void mptSimulateOutTask(int64_t targetSize) {
   }
 
   mptWriteMem(pCtx->p, pCtx->size);
+
+  mptCtx.npIdx++;
 }
 
 
@@ -1360,31 +1366,25 @@ void* mptRunThreadFunc(void* param) {
 }
 
 void* mptNonPoolThreadFunc(void* param) {
-  int64_t targetSize = MPT_NON_POOL_ALLOC_UNIT * 3;
+  int64_t targetSize = MPT_NON_POOL_ALLOC_UNIT;
   int64_t allocSize = 0;
-  int32_t loopTimes = 0;
   
   while (!atomic_load_8(&mptCtx.testDone)) {
     mptSimulateOutTask(targetSize);
+    allocSize += targetSize;
 
-    MPT_PRINTF("%d:Non-pool malloc and write %" PRId64 " bytes, keep size:%" PRId64 "\n", loopTimes, targetSize, allocSize);
+    MPT_EPRINTF("%d:Non-pool malloc and write %" PRId64 " bytes, keep size:%" PRId64 "\n", mptCtx.npIdx - 1, targetSize, allocSize);
+    taosUsleep(1);
     
-    taosMsleep(100);
-    taosMemFreeClear(mptCtx.npMemList[mptCtx.npIdx].p);
+    if ((mptCtx.npIdx * targetSize) >= (tsMinReservedMemorySize * 1048576UL * 10)) {
+      for (int32_t i = 0; i < mptCtx.npIdx; ++i) {
+        taosMemFreeClear(mptCtx.npMemList[i].p);
+      }
 
-    loopTimes++;
-
-    if (0 == (loopTimes % 100)) {
-      mptSimulateOutTask(MPT_NON_POOL_KEEP_ALLOC_UNIT);
-      allocSize += MPT_NON_POOL_KEEP_ALLOC_UNIT;
-      mptCtx.npIdx++;
-    }
-    
-    taosMsleep(100);
-
-    if (loopTimes >= 4000) {
+      mptCtx.npIdx = 0;
       targetSize += MPT_NON_POOL_ALLOC_UNIT;
-      loopTimes = 0;
+      allocSize = 0;
+      taosMsleep(100);
     }
   }
 

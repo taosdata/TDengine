@@ -45,6 +45,8 @@ extern "C" {
 
 #define QW_DEFAULT_THREAD_TASK_NUM     3
 
+#define QW_RETIRE_JOB_BATCH_NUM        5
+
 enum {
   QW_CONC_TASK_LEVEL_LOW = 1,
   QW_CONC_TASK_LEVEL_MIDDLE,
@@ -257,10 +259,17 @@ typedef struct SQWRetireCtx {
   BoundedQueue* pJobQueue;
 } SQWRetireCtx;
 
+typedef struct SQueryExecStat {
+  int64_t taskInitNum;
+  int64_t taskExecDestroyNum;
+  int64_t taskSinkDestroyNum;
+} SQueryExecStat;
+
 typedef struct SQueryMgmt {
-  SRWLatch     taskMgmtLock;
-  int32_t      concTaskLevel;
-  SHashObj*    pJobInfo;
+  SRWLatch       taskMgmtLock;
+  int32_t        concTaskLevel;
+  SHashObj*      pJobInfo;
+  SQueryExecStat stat;      
 } SQueryMgmt;
 
 #define QW_CTX_NOT_EXISTS_ERR_CODE(mgmt) (atomic_load_8(&(mgmt)->nodeStopped) ? TSDB_CODE_VND_STOPPED : TSDB_CODE_QRY_TASK_CTX_NOT_EXIST)
@@ -399,20 +408,20 @@ extern SQueryMgmt gQueryMgmt;
 #define QW_SCH_DLOG(param, ...) qDebug("QW:%p clientId:%" PRIx64 " " param, mgmt, clientId, __VA_ARGS__)
 
 #define QW_TASK_ELOG(param, ...) \
-  qError("qid:0x%" PRIx64 "SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
+  qError("qid:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
 #define QW_TASK_WLOG(param, ...) \
-  qWarn("qid:0x%" PRIx64 "SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
+  qWarn("qid:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
 #define QW_TASK_DLOG(param, ...) \
-  qDebug("qid:0x%" PRIx64 "SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
+  qDebug("qid:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
 #define QW_TASK_DLOGL(param, ...) \
-  qDebugL("qid:0x%" PRIx64 "SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
+  qDebugL("qid:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
 
 #define QW_TASK_ELOG_E(param) \
-  qError("qid:0x%" PRIx64 "SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
+  qError("qid:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
 #define QW_TASK_WLOG_E(param) \
-  qWarn("qid:0x%" PRIx64 "SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
+  qWarn("qid:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
 #define QW_TASK_DLOG_E(param) \
-  qDebug("qid:0x%" PRIx64 "SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
+  qDebug("qid:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
 
 #define QW_SCH_TASK_ELOG(param, ...)                                                                               \
   qError("QW:%p SID:%" PRId64 ",qid:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, \
@@ -530,7 +539,7 @@ void    qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped);
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwInitQueryPool(void);
 void    qwDestroyJobInfo(void* job);
-bool    qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx);
+bool    qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errCode);
 bool    qwRetireJob(SQWJobInfo* pJob);
 void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session);
 int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession);

@@ -144,6 +144,7 @@ int32_t qwAcquireTaskStatus(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus *sch, S
   *task = taosHashGet(sch->tasksHash, id, sizeof(id));
   if (NULL == (*task)) {
     QW_UNLOCK(rwType, &sch->tasksLock);
+    QW_TASK_ELOG_E("task status not exists");
     QW_ERR_RET(TSDB_CODE_QRY_TASK_NOT_EXIST);
   }
 
@@ -280,6 +281,8 @@ void qwFreeTaskHandle(SQWTaskCtx *ctx) {
     qDestroyTask(otaskHandle);
     taosDisableMemPoolUsage();
 
+    atomic_add_fetch_64(&gQueryMgmt.stat.taskExecDestroyNum, 1);
+
     qDebug("task handle destroyed");
   }
 }
@@ -291,6 +294,8 @@ void qwFreeSinkHandle(SQWTaskCtx *ctx) {
     QW_SINK_ENABLE_MEMPOOL(ctx);
     dsDestroyDataSinker(osinkHandle);
     QW_SINK_DISABLE_MEMPOOL();
+
+    atomic_add_fetch_64(&gQueryMgmt.stat.taskSinkDestroyNum, 1);
     
     qDebug("sink handle destroyed");
   }
@@ -739,48 +744,62 @@ void qwDestroyJobInfo(void* job) {
   pJob->pSessions = NULL;
 }
 
-bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx) {
+bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errCode) {
   int32_t code = TSDB_CODE_SUCCESS;
-  bool taskFreed = false;
+  bool resFreed = false;
   
   QW_LOCK(QW_WRITE, &ctx->lock);
   
-  QW_TASK_DLOG_E("start to force stop task");
+  QW_TASK_DLOG("start to stop task, forceStop:%d", forceStop);
   
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
     QW_TASK_WLOG_E("task already dropping");
     QW_UNLOCK(QW_WRITE, &ctx->lock);
   
-    return taskFreed;
+    return resFreed;
   }
   
   if (QW_QUERY_RUNNING(ctx)) {
-    code = qwKillTaskHandle(ctx, TSDB_CODE_VND_STOPPED);
+    code = qwKillTaskHandle(ctx, errCode);
     if (TSDB_CODE_SUCCESS != code) {
       QW_TASK_ELOG("task running, async kill failed, error: %x", code);
     } else {
       QW_TASK_DLOG_E("task running, async killed");
     }
   } else if (QW_FETCH_RUNNING(ctx)) {
-    QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_VND_STOPPED);
+    QW_UPDATE_RSP_CODE(ctx, errCode);
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
     QW_TASK_DLOG_E("task fetching, update drop received");
+//  } else if (forceStop) {
   } else {
+    QW_UPDATE_RSP_CODE(ctx, errCode);
     code = qwDropTask(QW_FPARAMS());
     if (TSDB_CODE_SUCCESS != code) {
       QW_TASK_ELOG("task drop failed, error: %x", code);
     } else {
       QW_TASK_DLOG_E("task dropped");
-      taskFreed = true;
+      resFreed = true;
     }
+/*
+  } else {
+    QW_UPDATE_RSP_CODE(ctx, errCode);
+    QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
+    
+    qwFreeTaskHandle(ctx);
+    qwFreeSinkHandle(ctx);
+
+    resFreed = true;
+    
+    QW_TASK_DLOG_E("task resources freed");
+*/    
   }
   
   QW_UNLOCK(QW_WRITE, &ctx->lock);
 
-  return taskFreed;
+  return resFreed;
 }
 
-bool qwRetireTask(QW_FPARAMS_DEF) {
+bool qwRetireTask(QW_FPARAMS_DEF, int32_t errCode) {
   SQWTaskCtx    *ctx = NULL;
 
   int32_t code = qwAcquireTaskCtx(QW_FPARAMS(), &ctx);
@@ -788,7 +807,7 @@ bool qwRetireTask(QW_FPARAMS_DEF) {
     return false;
   }
 
-  bool retired = qwStopTask(QW_FPARAMS(), ctx);
+  bool retired = qwStopTask(QW_FPARAMS(), ctx, false, errCode);
 
   qwReleaseTaskCtx(mgmt, ctx);
 
@@ -805,7 +824,7 @@ bool qwRetireJob(SQWJobInfo* pJob) {
   while (pIter) {
     SQWSessionInfo* pSession = (SQWSessionInfo*)pIter;
 
-    if (!qwRetireTask((SQWorker *)pSession->mgmt, pSession->sId, pSession->qId, pSession->cId, pSession->tId, pSession->rId, pSession->eId)) {
+    if (!qwRetireTask((SQWorker *)pSession->mgmt, pSession->sId, pSession->qId, pSession->cId, pSession->tId, pSession->rId, pSession->eId, pJob->errCode)) {
       retired = false;
     }
 

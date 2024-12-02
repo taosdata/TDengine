@@ -35,7 +35,7 @@ void qwStopAllTasks(SQWorker *mgmt) {
 
     sId = ctx->sId;
 
-    (void)qwStopTask(QW_FPARAMS(), ctx);
+    (void)qwStopTask(QW_FPARAMS(), ctx, true, TSDB_CODE_VND_STOPPED);
 
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
   }
@@ -561,6 +561,11 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
   QW_SET_PHASE(ctx, phase);
 
+  if (ctx->pJobInfo && (atomic_load_8(&ctx->pJobInfo->retired) || atomic_load_32(&ctx->pJobInfo->errCode))) {
+    QW_TASK_ELOG("job already failed, error:%s", tstrerror(ctx->pJobInfo->errCode));
+    QW_ERR_JRET(ctx->pJobInfo->errCode);
+  }
+
   if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask) {
     QW_TASK_ELOG_E("query already end");
     QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
@@ -763,6 +768,8 @@ _return:
     qwReleaseTaskCtx(mgmt, ctx);
   }
 
+  QW_TASK_DLOG("task preprocess %s, code:%s", code ? "failed": "succeed", tstrerror(code));
+
   return code;
 }
 
@@ -789,7 +796,6 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   taosDisableMemPoolUsage();
   
   if (TSDB_CODE_SUCCESS != code) {
-    code = TSDB_CODE_INVALID_MSG;
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
   }
@@ -809,6 +815,8 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     qDestroyTask(pTaskInfo);
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
+
+  atomic_add_fetch_64(&gQueryMgmt.stat.taskInitNum, 1);
 
   uint64_t flags = 0;
   dsGetSinkFlags(sinkHandle, &flags);
@@ -1307,15 +1315,14 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   SQWTaskCtx     ctx = {0};
 
   code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
+
   if (TSDB_CODE_SUCCESS != code) {
     code = TSDB_CODE_INVALID_MSG;
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
   }
 
-  tsEnableRandErr = true;
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, 0, NULL, OPTR_EXEC_MODEL_BATCH);
-  tsEnableRandErr = false;
   
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
@@ -1644,32 +1651,43 @@ void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode) {
 }
 
 void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
+  qDebug("need to retire jobs in batch, targetRetireSize:%" PRId64 ", remainJobNum:%d, task initNum:%" PRId64 ", task destroyNum:%" PRId64 " - %" PRId64, 
+      retireSize, taosHashGetSize(gQueryMgmt.pJobInfo), atomic_load_64(&gQueryMgmt.stat.taskInitNum), 
+      atomic_load_64(&gQueryMgmt.stat.taskExecDestroyNum), atomic_load_64(&gQueryMgmt.stat.taskSinkDestroyNum));
+
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
   int32_t jobNum = 0;
+  int32_t alreadyJobNum = 0;
   int64_t retiredSize = 0;
-  while (retiredSize < retireSize && NULL != pJob) {
+  while (retiredSize < retireSize && NULL != pJob && jobNum < QW_RETIRE_JOB_BATCH_NUM) {
     if (atomic_load_8(&pJob->retired)) {
       pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
+      alreadyJobNum++;
       continue;
     }
 
     if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
       int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
       bool retired = qwRetireJob(pJob);
-      if (retired) {
-        retiredSize += aSize;   
-      }
+
+      retiredSize += aSize;   
       
       jobNum++;
 
       qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job mark retired in batch, retired:%d, usedSize:%" PRId64 ", retireSize:%" PRId64, 
       pJob->memInfo->jobId, pJob->memInfo->clientId, retired, aSize, retireSize);
+    } else {
+      qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job may already failed, errCode:%s", pJob->memInfo->jobId, pJob->memInfo->clientId, tstrerror(pJob->errCode));
     }
 
     pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
   }
 
-  qDebug("total %d jobs mark retired, direct retiredSize:%" PRId64 " targetRetireSize:%" PRId64, jobNum, retiredSize, retireSize);
+  qDebug("job retire in batch done, [prev:%d, curr:%d, total:%d] jobs, direct retiredSize:%" PRId64 " targetRetireSize:%" PRId64 
+      ", task initNum:%" PRId64 ", task destroyNum:%" PRId64 " - %" PRId64, 
+      alreadyJobNum, jobNum, taosHashGetSize(gQueryMgmt.pJobInfo), retiredSize, retireSize, 
+      atomic_load_64(&gQueryMgmt.stat.taskInitNum), 
+      atomic_load_64(&gQueryMgmt.stat.taskExecDestroyNum), atomic_load_64(&gQueryMgmt.stat.taskSinkDestroyNum));
 }
 
 
