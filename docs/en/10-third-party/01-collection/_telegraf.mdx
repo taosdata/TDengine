@@ -1,4 +1,4 @@
-In the Telegraf configuration file (default location /etc/telegraf/telegraf.conf), add the outputs.http output module configuration:
+In the Telegraf configuration file (default location /etc/telegraf/telegraf.conf), add the configuration for the outputs.http output module:
 
 ```
 [[outputs.http]]
@@ -9,9 +9,9 @@ In the Telegraf configuration file (default location /etc/telegraf/telegraf.conf
   ...
 ```
 
-Here, \<taosAdapter's host> should be filled with the domain name or IP address of the server running the taosAdapter service, \<REST service port> should be filled with the REST service port (default is 6041), and \<TDengine's username> and \<TDengine's password> should be filled with the actual TDengine configuration currently in use. \<database name> should be filled with the name of the database where you want to save Telegraf data in TDengine.
+Where \<taosAdapter's host> should be filled with the domain name or IP address of the server running the taosAdapter service, \<REST service port> should be filled with the port of the REST service (default is 6041), \<TDengine's username> and \<TDengine's password> should be filled with the actual configuration of the running TDengine, and \<database name> should be filled with the database name where you want to save Telegraf data in TDengine.
 
-An example is as follows:
+Example as follows:
 
 ```
 [[outputs.http]]

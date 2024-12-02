@@ -1,43 +1,42 @@
 ---
 sidebar_label: Names & Limits
 title: Naming Conventions and Limitations
-description: Legal character set and naming restrictions
 slug: /tdengine-reference/sql-manual/names
 ---
 
 ## Naming Rules
 
 1. Legal characters: English letters, numbers, and underscores.
-2. Names may start with English letters or underscores, but cannot start with numbers.
-3. Case insensitive.
-4. Cannot be a [reserved keyword](../reserved-keywords/).
-5. Rules for escaped table (column) names:
-   To support more forms of table (column) names, TDengine introduces a new escape character ``"``. After using the escape character:
-   - Case uniformity is no longer applied to the content within escape characters, allowing the preservation of case sensitivity in user-specified table names. For example, \`aBc\` and \`abc\` are considered different table (column) names, while abc and aBc are treated as the same table (column) name.
-   - Table (column) names can include characters other than letters, numbers, and underscores, such as \`abc@TD\`, but escaped names still cannot contain `.`; otherwise, the error `The table name cannot contain '.'` will be prompted.
-   - Names can start with numbers, such as \`1970\`.
-   - Names can be the same as [reserved keywords](../reserved-keywords/), such as \`select\`.
+1. Allowed to start with English letters or underscores, not allowed to start with numbers.
+1. Case insensitive.
+1. Cannot be [reserved keywords](./20-keywords.md).
+1. Escaped table (column) name rules:
+   To support more forms of table (column) names, TDengine introduces a new escape character "`". After using the escape character:
+   - The content within the escape characters is not unified in case, meaning the case specified by the user is retained, for example: \`aBc\` and \`abc\` are different table (column) names, but abc and aBc are the same table (column) name.
+   - It is possible to create table (column) names containing characters other than letters, numbers, and underscores, for example: \`abc@TD\`, but the escaped name still cannot contain `.`, otherwise it will prompt `The table name cannot contain '.'`.
+   - It is possible to create table (column) names starting with numbers, for example \`1970\`.
+   - It is possible to create table (column) names using [reserved keywords](./20-keywords.md), for example \`select\`.
 
-## Password Legal Character Set
+## Legal Character Set for Passwords
 
 `[a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/]`
 
-This excludes ``‘“`\`` (single quotes, double quotes, apostrophes, backslashes, spaces).
+Removed `` ‘“`\ `` (single and double quotes, apostrophe, backslash, space)
 
 ## General Restrictions
 
-- Maximum length of database name: 64 bytes
-- Maximum length of table name: 192 bytes, excluding database prefix and separator
-- Maximum length of each data row: 48KB (64KB starting from version 3.0.5.0) (Note: Each BINARY/NCHAR type column in a data row will also occupy an additional 2 bytes of storage space.)
-- Maximum length of column name: 64 bytes
-- Maximum allowed columns: 4096, with a minimum of 2 columns, the first column must be a timestamp.
-- Maximum length of tag name: 64 bytes
-- Maximum allowed tags: 128, with at least 1 tag, the total length of tag values in a table cannot exceed 16KB.
-- Maximum length of SQL statements: 1,048,576 characters
-- For SELECT statement results, a maximum of 4096 columns are allowed (function calls in the statement may also occupy some column space); if exceeded, fewer return data columns must be explicitly specified to avoid execution errors.
-- The number of databases, supertables, and tables is not restricted by the system, only limited by system resources.
-- The number of database replicas can only be set to 1 or 3.
-- Maximum length of username: 23 bytes
-- Maximum length of user password: 31 bytes
-- Total number of data rows depends on available resources.
-- Maximum number of virtual nodes per single database: 1024
+- Maximum length of database name is 64 bytes
+- Maximum length of table name is 192 bytes, excluding the database name prefix and separator
+- Maximum length of each row of data is 48KB (from version 3.0.5.0 it is 64KB) (Note: each BINARY/NCHAR type column within a data row will additionally occupy 2 bytes of storage space)
+- Maximum length of column name is 64 bytes
+- Maximum of 4096 columns allowed, with a minimum of 2 columns, the first column must be a timestamp.
+- Maximum length of tag name is 64 bytes
+- Maximum of 128 tags allowed, with at least 1 tag required, total length of tag values in a table not exceeding 16KB
+- Maximum length of SQL statement is 1048576 characters
+- SELECT statement results can return up to 4096 columns (function calls in the statement may also occupy some column space), exceeding this limit requires explicitly specifying fewer return data columns to avoid execution errors
+- Number of databases, supertables, and tables are not limited by the system, only by system resources
+- Number of replicas for a database can only be set to 1 or 3
+- Maximum length of username is 23 bytes
+- Maximum length of user password is 31 bytes
+- Total number of data rows depends on available resources
+- Maximum number of virtual nodes for a single database is 1024

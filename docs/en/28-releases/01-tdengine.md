@@ -1,7 +1,6 @@
 ---
 sidebar_label: TDengine
 title: TDengine Release History and Download Links
-description: TDengine Release History, Release Notes, and Download Links
 slug: /release-history/tdengine
 ---
 
@@ -10,21 +9,25 @@ slug: /release-history/tdengine
 The TDengine version number consists of four digits separated by dots, defined as follows:
 
 - `[Major+].[Major].[Feature].[Maintenance]`
-- `Major+`: Indicates a major overhaul of the product that cannot be upgraded directly. If an upgrade is needed, please contact the TDengine customer support team.
-- `Major`: Indicates significant new features. Upgrading does not support rolling upgrades, and rolling back is not possible after the upgrade (for example, once upgraded from 3.2.3.0 to 3.3.0.0, it cannot be rolled back).
-- `Feature`: Indicates new features. Upgrading does not support rolling upgrades, but it is possible to roll back after upgrading from different Feature Releases of the same Major Release (for example, after upgrading from 3.3.0.0 to 3.3.1.0, it can be rolled back to 3.3.0.0). The client driver (libtaos.so) must be upgraded in sync with the server.
-- `Maintenance`: Indicates that there are no new features, only defect fixes, and supports rolling upgrades. It can be rolled back after the upgrade.
-- Rolling upgrade: In a cluster composed of three or more nodes using triple replication, one node is stopped for upgrading, then restarted, and this process is repeated until all nodes in the cluster are upgraded. During the upgrade, the cluster can continue to provide services. For version changes that do not support rolling upgrades, the entire cluster must be stopped, all nodes in the cluster must be upgraded, and then the entire cluster must be started. During the upgrade, the cluster cannot provide external services.
+- `Major+`: Significant restructuring of the product, direct upgrade is not possible, contact TDengine customer support team if upgrade is needed
+- `Major`: Major new features, does not support rolling upgrades, and is not reversible after upgrade, e.g., cannot revert back after upgrading from 3.2.3.0 to 3.3.0.0
+- `Feature`: New features, does not support rolling upgrades, but can revert back after upgrading from the same Major Release to a different Feature Release, e.g., can revert back to 3.3.0.0 after upgrading to 3.3.1.0. Client drivers (libtaos.so) and servers need to be upgraded simultaneously.
+- `Maintenance`: No new features, only bug fixes, supports rolling upgrades, and is reversible after upgrade
+- Rolling upgrade: For clusters composed of three or more nodes using three replicas, each node is stopped, upgraded, and restarted one at a time, repeating this process until all nodes in the cluster are upgraded. The cluster can still provide services during the upgrade. For versions that do not support rolling upgrades, the entire cluster must be stopped, all nodes upgraded, and then the entire cluster restarted. The cluster cannot provide services during the upgrade.
 
-## TDengine 2.x Download
+## TDengine 2.x Downloads
 
-For installation packages of TDengine 2.x versions, please visit [here](https://tdengine.com/downloads/historical/).
+For TDengine 2.x version installation packages, please visit [here](https://tdengine.com/downloads/historical/)
 
-## TDengine 3.x Download
+## TDengine 3.x Downloads
 
-The download links for installation packages of TDengine 3.x versions are as follows:
+Download links for TDengine 3.x version installation packages are as follows:
 
 import Release from "/components/ReleaseV3";
+
+## 3.3.4.3
+
+<Release type="tdengine" version="3.3.4.3" />
 
 ## 3.3.3.0
 
