@@ -79,7 +79,7 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKT_LEN);
   printf("%s%s%s%s\r\n", indent, "-n,", indent, SHELL_NET_ROLE);
   printf("%s%s%s%s\r\n", indent, "-N,", indent, SHELL_PKT_NUM);
-#ifndef WINDOWS
+#if defined(LINUX)
   printf("%s%s%s%s\r\n", indent, "-o,", indent, SHELL_LOG_OUTPUT);
 #endif
   printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
@@ -142,7 +142,7 @@ static struct argp_option shellOptions[] = {
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
-#ifndef WINDOWS
+#if defined(LINUX)
     {"log-output", 'o', "OUTPUT", 0, SHELL_LOG_OUTPUT},
 #endif
     {0},
@@ -233,7 +233,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
     case 'N':
       pArgs->pktNum = atoi(arg);
       break;
-#ifndef WINDOWS
+#if defined(LINUX)
     case 'o':
       if (strlen(arg) >= PATH_MAX) {
         printf("failed to set log output since length overflow, max length is %d\n", PATH_MAX);
