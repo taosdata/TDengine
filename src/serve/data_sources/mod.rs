@@ -235,6 +235,17 @@ pub(super) async fn data_source_sample(
     }
 }
 
+#[post("/transform/sample/flat/s_model/preview")]
+pub(super) async fn stable_preview(data: Json<DsSampleIn>) -> impl Responder {
+    let sample_in = data.into_inner();
+    match sample_in.stable_preview() {
+        Ok(output) => Ok(HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .json(output)),
+        Err(e) => Err(Failed::from_error(e)),
+    }
+}
+
 #[utoipa::path(
     tag = "transform parser plugins",
     responses(

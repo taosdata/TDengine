@@ -907,7 +907,7 @@ impl From<SuperTableConfig> for Parser {
         // )
         // .expect("Deserialize ParserImpl failed");
         // Parser::new(Some(parse), mutate, model)
-        Parser::new(None, mutate, model)
+        Parser::new(None, mutate, None, model)
     }
 }
 

@@ -24,6 +24,7 @@ use arrow::{
 };
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
+use map::Map;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::instrument;
@@ -31,6 +32,7 @@ use tracing::instrument;
 pub mod cast;
 mod join;
 mod json;
+mod map;
 pub mod plugin;
 mod regex;
 mod split;
@@ -54,6 +56,8 @@ pub enum ParseError {
     SplitError(#[from] split::SplitError),
     #[error("Unsupported data type: {0:?}")]
     UnsupportedDataType(arrow::datatypes::DataType),
+    #[error("map data type not utf8 string")]
+    MapNotUtf8,
     #[error(transparent)]
     OtherError(#[from] anyhow::Error),
 }
@@ -105,6 +109,8 @@ pub enum FieldParser {
     Udt(Udt),
     Join(Join),
     Plugin(plugin::ParserPlugin),
+    Raw { raw: bool },
+    Map(Map),
     // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
 }
@@ -128,6 +134,11 @@ impl Parse for FieldParser {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
                 Ok((batch, None))
             }
+            FieldParser::Raw { .. } => {
+                let batch = RecordBatch::try_from_iter([(field.name(), array.clone())])?;
+                Ok((batch, None))
+            }
+            FieldParser::Map(map) => map.parse_array(field, array),
         }
     }
 }

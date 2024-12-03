@@ -449,8 +449,12 @@ pub async fn flat_write_with_raw_block(
                                 {
                                     // debug_assert!(ty == col.ty());
                                     if col.length() < length {
-                                        let table =
-                                            records.table.using.as_deref().unwrap_or(&table_name);
+                                        let table = records
+                                            .table
+                                            .using
+                                            .as_ref()
+                                            .map(|s| s.name())
+                                            .unwrap_or(&table_name);
                                         let sql = format!(
                                             "alter table `{table}` modify column `{}` {}({})",
                                             name, ty, length
@@ -527,8 +531,7 @@ pub async fn flat_write_with_raw_block(
                                                 let code: i32 = err.code().into();
 
                                                 if code == 0x2605 {
-                                                    let table =
-                                                        records.table.using.as_deref().unwrap();
+                                                    let table = records.stable_name().unwrap();
                                                     let desc =
                                                         describe_table_with_connection_retries(
                                                             pool,
@@ -564,8 +567,7 @@ pub async fn flat_write_with_raw_block(
                                                 } else if code == 0x260D {
                                                     // Tags number not matched
                                                     // add Tag
-                                                    let table =
-                                                        records.table.using.as_deref().unwrap();
+                                                    let table = records.stable_name().unwrap();
                                                     let tags = records.tag_meta().unwrap();
                                                     for tag_meta in tags {
                                                         let mut need_add = true;
@@ -711,7 +713,7 @@ pub async fn flat_write_with_raw_block(
                             Err(err) => {
                                 let code: i32 = err.code().into();
                                 if code == 0x2605 {
-                                    let table = records.table.using.as_deref().unwrap();
+                                    let table = records.stable_name().unwrap();
                                     let desc = describe_table_with_connection_retries(
                                         pool,
                                         taos,
@@ -774,7 +776,7 @@ pub async fn flat_write_with_raw_block(
                     )
                     .in_current_span()
                     .await?;
-                    let table = records.table.using.as_deref().unwrap_or(&table_name);
+                    let table = records.stable_name().unwrap_or(&table_name);
                     for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type()) {
                         let sql = format!(
                             "alter table `{table}` modify column `{}` {}({})",
@@ -822,11 +824,7 @@ pub async fn flat_write_with_raw_block(
                             }
                             let sql = format!(
                                 "alter table `{}` add column `{}` {}",
-                                records
-                                    .table
-                                    .using
-                                    .as_ref()
-                                    .unwrap_or(&table_name.to_string()),
+                                records.stable_name().unwrap_or(table_name.as_ref()),
                                 &column_name,
                                 ipc_data_type.unwrap(),
                             );
@@ -1763,7 +1761,7 @@ mod tests {
     use taosx_ipc::prelude::IpcDataType;
     use IpcDataType::*;
 
-    use crate::plugins::transform::MessageTableMeta;
+    use crate::{plugins::transform::MessageTableMeta, sink::transform::STable};
 
     struct STableMessagesBuilder {
         /// The stable name of the table, if not set, use ordinary table instead.
@@ -2021,7 +2019,7 @@ mod tests {
 
                     MessageTableMeta {
                         name: Arc::new(table_name),
-                        using: Some(stable.to_string()),
+                        using: Some(STable::Name(stable.to_string())),
                         tags: Some(table_tags.slice(i, 1)),
                     }
                 })

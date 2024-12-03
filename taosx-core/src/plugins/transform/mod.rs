@@ -29,6 +29,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use either::Either;
 use itertools::Itertools;
+use modeler::s_model::SModeler;
 use serde::{Deserialize, Serialize};
 use taos::{
     taos_query::{
@@ -77,6 +78,8 @@ pub struct Pipeline {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    s_model: Option<SModeler>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     model: Option<Modeler>,
 }
 
@@ -99,6 +102,18 @@ impl Pipeline {
         } else {
             Ok(vec![ModeledRecordBatch::new(batch)])
         }
+    }
+
+    pub fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
+        let batch = self
+            .parse
+            .as_ref()
+            .map(|parse| parse.transform_record_batch(records))
+            .transpose()?
+            .unwrap_or_else(|| records.clone());
+        self.mutate
+            .iter()
+            .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))
     }
 
     fn check(&self) -> Result<(), Error> {
@@ -958,6 +973,7 @@ pub struct Parser {
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
+    s_model: Option<SModeler>,
     model: Modeler,
 }
 
@@ -1006,11 +1022,17 @@ impl FromStr for Parser {
 }
 
 impl Parser {
-    pub fn new(parse: Option<ParserImpl>, mutate: Vec<Mutate>, model: Modeler) -> Self {
+    pub fn new(
+        parse: Option<ParserImpl>,
+        mutate: Vec<Mutate>,
+        s_model: Option<SModeler>,
+        model: Modeler,
+    ) -> Self {
         Self {
             global: Arc::new(TableOptions::default()),
             parse,
             mutate,
+            s_model,
             model,
         }
     }
@@ -1073,30 +1095,6 @@ impl Parser {
             .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))
     }
 
-    fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
-        batches
-            .iter()
-            .map(|batch| {
-                let schema = batch.schema();
-                let fields = schema.fields();
-
-                RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
-                    |(idx, data)| {
-                        let dt = fields[idx].data_type();
-                        if matches!(dt, DataType::Binary | DataType::LargeBinary) {
-                            arrow::compute::cast(data, &DataType::Utf8)
-                                .ok()
-                                .map(|data| (fields[idx].name(), data))
-                        } else {
-                            Some((fields[idx].name(), data.clone()))
-                        }
-                    },
-                ))
-                .unwrap()
-            })
-            .collect()
-    }
-
     #[instrument(skip_all)]
     pub fn parse_message_from_records(
         &self,
@@ -1109,7 +1107,7 @@ impl Parser {
         let batch = &batches[0];
         // tracing::info!("Parse message {:?}", batch);
 
-        let json_batches = Parser::to_json_valid_batches(&batches);
+        let json_batches = to_json_valid_batches(&batches);
 
         let json: Vec<_> = json_batches
             .iter()
@@ -1117,12 +1115,15 @@ impl Parser {
             .flatten_ok()
             .try_collect()?;
 
+        let stables = self.s_model.as_ref().map(|s| s.apply(&json)).transpose()?;
+
         let mut data = vec![];
         for table in &self.model {
             let name = table.name.replace("${", "{");
             let mut template = TinyTemplate::new();
             template.add_template("name", &name).unwrap();
-            if let Some(using) = table.using.as_ref() {
+            let using = table.using.as_ref().map(|using| using.replace("${", "{"));
+            if let Some(using) = using.as_ref() {
                 template.add_template("using", using).unwrap();
             }
 
@@ -1219,11 +1220,13 @@ impl Parser {
                     .into_group_map()
             };
 
+            // name: sub_table_name, indices: group row index
             for (name, indices) in tables {
                 // because we did not set a useful name, so we skip it
                 if name.is_empty() || indices.is_empty() {
                     continue;
                 }
+                // 获取当前子表名的所有 batch
                 let ranges = indices_to_ranges(&indices);
                 let name_row = indices[0];
                 let batches = ranges
@@ -1232,13 +1235,18 @@ impl Parser {
                     .collect_vec();
                 let batch = arrow::compute::concat_batches(&columns.schema(), batches.iter())?;
 
-                let using = if table.using.is_some() {
-                    template.render("using", &json[name_row]).ok()
-                } else {
-                    None
-                };
+                let using = table
+                    .using
+                    .as_ref()
+                    .and_then(|_| template.render("using", &json[name_row]).ok());
 
                 let tags = tags.as_ref().map(|batch| batch.slice(name_row, 1));
+
+                let using = match (&stables, using) {
+                    (Some(map), Some(using)) => map.get(&using).map(|m| STable::Model(m.clone())),
+                    (None, Some(using)) => Some(STable::Name(using)),
+                    (_, None) => None,
+                };
 
                 let meta = MessageTableMeta::new(name, using, tags);
                 let item = MessageArrowRecords {
@@ -1306,6 +1314,30 @@ impl Parser {
     }
 }
 
+fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
+    batches
+        .iter()
+        .map(|batch| {
+            let schema = batch.schema();
+            let fields = schema.fields();
+
+            RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
+                |(idx, data)| {
+                    let dt = fields[idx].data_type();
+                    if matches!(dt, DataType::Binary | DataType::LargeBinary) {
+                        arrow::compute::cast(data, &DataType::Utf8)
+                            .ok()
+                            .map(|data| (fields[idx].name(), data))
+                    } else {
+                        Some((fields[idx].name(), data.clone()))
+                    }
+                },
+            ))
+            .unwrap()
+        })
+        .collect()
+}
+
 // impl TransformExt for Parser {
 //     // fn transform_message(&self, item: Message) -> Result<Option<Message>, Error> {
 //     //     match item {
@@ -1355,17 +1387,33 @@ pub struct MessageChildTable {
     pub table: Arc<String>,
     pub stable: Option<(String, Vec<Value>)>,
 }
+
+#[derive(Debug, Clone)]
+pub enum STable {
+    Name(String),
+    Model(SModeler),
+}
+
+impl STable {
+    pub fn name(&self) -> &str {
+        match self {
+            STable::Name(name) => name,
+            STable::Model(model) => model.name(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct MessageTableMeta {
     pub name: Arc<String>,
-    pub using: Option<String>,
+    pub using: Option<STable>,
     pub tags: Option<RecordBatch>,
 }
 
 impl MessageTableMeta {
     pub fn new(
         name: impl Into<Arc<String>>,
-        using: impl Into<Option<String>>,
+        using: impl Into<Option<STable>>,
         tags: impl Into<Option<RecordBatch>>,
     ) -> Self {
         Self {
@@ -1833,22 +1881,20 @@ impl MessageArrowRecords {
     }
 
     pub fn stable_sql(&self) -> Option<String> {
-        if let Some(using) = self.table.using.as_ref() {
-            let fields = self.column_meta();
-            let columns = fields.iter().map(|f| f.sql_repr()).join(",");
-            let tags = self
-                .tag_meta()
-                .unwrap()
-                .iter()
-                .map(|f| f.sql_repr())
-                .join(",");
-            Some(format!(
-                "create table `{}` ({}) tags ({})",
-                using, columns, tags
-            ))
-        } else {
-            None
-        }
+        self.table.using.as_ref().map(|using| match using {
+            STable::Name(using) => {
+                let fields = self.column_meta();
+                let columns = fields.iter().map(|f| f.sql_repr()).join(",");
+                let tags = self
+                    .tag_meta()
+                    .unwrap()
+                    .iter()
+                    .map(|f| f.sql_repr())
+                    .join(",");
+                format!("create table `{}` ({}) tags ({})", using, columns, tags)
+            }
+            STable::Model(model) => model.create_stable_sql(),
+        })
     }
     pub fn table_sql(&self) -> String {
         let table_name = self
@@ -1880,7 +1926,10 @@ impl MessageArrowRecords {
 
             format!(
                 "create table if not exists `{}` using `{}` ({}) tags({})",
-                table_name, using, names, values
+                table_name,
+                using.name(),
+                names,
+                values
             )
         } else {
             let fields = self.column_meta();
@@ -1952,7 +2001,11 @@ impl MessageArrowRecords {
                     (
                         format!(
                             "`{}` using `{}` ({}) tags({}) {}",
-                            tbname, using, names, tag_values, col_values
+                            tbname,
+                            using.name(),
+                            names,
+                            tag_values,
+                            col_values
                         ),
                         rows,
                     )
@@ -1969,7 +2022,10 @@ impl MessageArrowRecords {
                     (
                         format!(
                             "`{}` using `{}` tags ({}) {}",
-                            tbname, using, tag_values, col_values
+                            tbname,
+                            using.name(),
+                            tag_values,
+                            col_values
                         ),
                         rows,
                     )
@@ -1998,7 +2054,7 @@ impl MessageArrowRecords {
     }
 
     pub fn stable_name(&self) -> Option<&str> {
-        self.table.using.as_deref()
+        self.table.using.as_ref().map(|s| s.name())
     }
 
     pub fn table_name(&self) -> &str {
