@@ -1232,6 +1232,8 @@ void setFillInfo(SStreamFileState* pFileState) {
 }
 
 void clearExpiredState(SStreamFileState* pFileState) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
   SSHashObj* pSearchBuff = pFileState->searchBuff;
   void*      pIte = NULL;
   int32_t    iter = 0;
@@ -1249,6 +1251,13 @@ void clearExpiredState(SStreamFileState* pFileState) {
       }
     }
     taosArrayRemoveBatch(pWinStates, 0, size - 1, NULL);
+  }
+  code = clearRowBuff(pFileState);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
