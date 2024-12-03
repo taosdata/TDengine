@@ -1,10 +1,7 @@
 import os
 import sys
-import platform
 import subprocess
 import logging
-import configparser
-import paramiko
 import git  # 导入 GitPython
 # from prepare_env import EnvironmentPreparer
 
@@ -41,9 +38,7 @@ class EnvironmentPreparer:
     def install_node_nvm(self):
         logger.info("Installing NVM (Node Version Manager)...")
         self.executeCommand("curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash")
-        self.executeCommand("export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \. \"$NVM_DIR/nvm.sh\"")
-        self.executeCommand("nvm install 23")
-        self.executeCommand("npm install yarn -g")
+        self.executeCommand("export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \. \"$NVM_DIR/nvm.sh\" && nvm install 23 && npm install yarn -g")
         logger.info("Node.js and yarn installation completed.")
     
     def prepare_build_doc_env(self):
@@ -198,13 +193,13 @@ def main():
 
     # workdir = "/root/enterprise_build_zip_work/"
     enterprise_doc_repo_path = f"{workdir}/enterprise-docs/"
-    enterprise_doc_repo = f"https://github.com/enterprise-docs/"
+    enterprise_doc_repo = "https://github.com/taosdata/enterprise-docs.git"
     doc_zh_repo_path = f"{workdir}/docs.taosdata.com/"
-    doc_zh_repo = "https://github.com/docs.taosdata.com.git"
+    doc_zh_repo = "https://github.com/taosdata/docs.taosdata.com.git"
     doc_en_repo_path = f"{workdir}/docs.tdengine.com/"
-    doc_en_repo = "https://github.com/docs.tdengine.com.git"
+    doc_en_repo = "https://github.com/taosdata/docs.tdengine.com.git"
     TDengine_branch_name = sys.argv[1]
-    TDengine_repo = "https://github.com/tdengine.com.git"
+    TDengine_repo = "https://github.com/taosdata/tdengine.com.git"
     TDengine_repo_path = f"{workdir}/TDengine/"
     
     # prepare docs repo
