@@ -121,6 +121,9 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.getData(1, 1) in (7, 10), True)
         tdSql.checkEqual(tdSql.getData(0, 1) != tdSql.getData(1, 1), True)
 
+        # wait for compact finish
+        self.waitCompactFinish()
+
 
     # Test Framework Apis
     def init(self, conn, logSql, replicaVar=1):
