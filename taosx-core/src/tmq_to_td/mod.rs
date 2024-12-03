@@ -611,8 +611,7 @@ async fn write_meta(
                         // Fallback to sql method.
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
                         let sqls = json_meta.iter().map(ToString::to_string).collect_vec();
-                        taos.exec_many(&sqls)
-                            .in_current_span()
+                        execute_many_sql(taos, sqls)
                             .await
                             .context("Write raw meta with sql error")?;
                     }
@@ -1955,10 +1954,34 @@ fn parse_timeout_duration(s: &str) -> anyhow::Result<Duration> {
             .map(|d| if d.is_zero() { Duration::MAX } else { d })
     }
 }
+async fn execute_many_sql(conn: &Taos, sqls: Vec<String>) -> Result<()> {
+    for sql in sqls.iter() {
+        conn.exec(sql)
+            .in_current_span()
+            .await
+            .with_context(|| format!("failed to execute sql: {}", sql))?;
+    }
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_execute_many_sql_with_taos() {
+        // given
+        let dsn = "taos:///".into_dsn().unwrap();
+        let taos = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
+        // when
+        let res = execute_many_sql(&taos, vec!["invalid sql".to_string()]).await;
+        // then
+        assert!(res.is_err());
+        assert_eq!(
+            "failed to execute sql: invalid sql",
+            res.unwrap_err().to_string()
+        );
+    }
 
     #[test]
     fn dsn_parse_duration_test() {

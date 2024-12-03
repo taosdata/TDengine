@@ -19,7 +19,7 @@ use serde::Serialize;
 use taos::*;
 use tracing::Instrument;
 
-use super::TaosConnection;
+use super::{execute_many_sql, TaosConnection};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -375,10 +375,11 @@ impl Worker {
         let metrics = self.metrics.as_ref().tmq();
         let meta = message.meta.as_ref().unwrap();
         let sqls = meta.iter().map(ToString::to_string).collect_vec();
-        conn.exec_many(&sqls)
-            .in_current_span()
+
+        execute_many_sql(conn, sqls)
             .await
             .context("Write raw meta with sql error")?;
+
         metrics.add_suc_blocks(1);
         Ok(())
     }
@@ -1197,8 +1198,7 @@ impl Worker {
                         // Fallback to sql method.
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
                         let sqls = meta.iter().map(ToString::to_string).collect_vec();
-                        conn.exec_many(&sqls)
-                            .in_current_span()
+                        execute_many_sql(conn, sqls)
                             .await
                             .context("Write raw meta with sql error")?;
                     }
