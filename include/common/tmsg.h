@@ -161,6 +161,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USER_FULL,
   TSDB_MGMT_TABLE_ANODE,
   TSDB_MGMT_TABLE_ANODE_FULL,
+  TSDB_MGMT_TABLE_USAGE,
+  TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -178,6 +180,7 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_TABLE_DROP_TAG_INDEX                  12
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS          13
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION 14
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -187,6 +190,7 @@ typedef enum _mgmt_table {
 #define TSDB_FILL_LINEAR      5
 #define TSDB_FILL_PREV        6
 #define TSDB_FILL_NEXT        7
+#define TSDB_FILL_NEAR        8
 
 #define TSDB_ALTER_USER_PASSWD          0x1
 #define TSDB_ALTER_USER_SUPERUSER       0x2
@@ -263,6 +267,7 @@ typedef enum ENodeType {
   QUERY_NODE_COLUMN_OPTIONS,
   QUERY_NODE_TSMA_OPTIONS,
   QUERY_NODE_ANOMALY_WINDOW,
+  QUERY_NODE_RANGE_AROUND,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -395,9 +400,11 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TSMAS_STMT,
   QUERY_NODE_SHOW_ANODES_STMT,
   QUERY_NODE_SHOW_ANODES_FULL_STMT,
+  QUERY_NODE_SHOW_USAGE_STMT,
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
+  QUERY_NODE_SHOW_FILESETS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1768,6 +1775,21 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
+  int32_t     vgId;
+  int64_t     numOfTables;
+  int64_t     memSize;
+  int64_t     l1Size;
+  int64_t     l2Size;
+  int64_t     l3Size;
+  int64_t     cacheSize;
+  int64_t     walSize;
+  int64_t     metaSize;
+  int64_t     rawDataSize;
+  int64_t     s3Size;
+  const char* dbname;
+} SDbSizeStatisInfo;
+
+typedef struct {
   int32_t vgId;
   int64_t nTimeSeries;
 } SVnodeLoadLite;
@@ -2204,8 +2226,9 @@ int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq
 
 typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
-  char value[TSDB_CONFIG_VALUE_LEN + 1];
+  char value[TSDB_CONFIG_PATH_LEN + 1];
   char scope[TSDB_CONFIG_SCOPE_LEN + 1];
+  char info[TSDB_CONFIG_INFO_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {
@@ -3276,6 +3299,16 @@ int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
 int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
+typedef struct SMultiTagUpateVal {
+  char*    tagName;
+  int32_t  colId;
+  int8_t   tagType;
+  int8_t   tagFree;
+  uint32_t nTagVal;
+  uint8_t* pTagVal;
+  int8_t   isNull;
+  SArray*  pTagArray;
+} SMultiTagUpateVal;
 typedef struct {
   char*   tbName;
   int8_t  action;
@@ -3302,14 +3335,16 @@ typedef struct {
   int32_t  newTTL;
   int32_t  newCommentLen;
   char*    newComment;
-  int64_t  ctimeMs;   // fill by vnode
-  int8_t   source;    // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
-  uint32_t compress;  // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
+  int64_t  ctimeMs;    // fill by vnode
+  int8_t   source;     // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  uint32_t compress;   // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
+  SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
+void    tfreeMultiTagUpateVal(void* pMultiTag);
 
 typedef struct {
   int32_t        code;
@@ -3814,7 +3849,14 @@ typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
-} SVPauseStreamTaskReq, SVResetStreamTaskReq;
+} SVPauseStreamTaskReq;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+  int64_t  chkptId;
+} SVResetStreamTaskReq;
 
 typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];

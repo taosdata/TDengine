@@ -42,10 +42,11 @@ extern "C" {
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
 
-#define SHOW_LOCAL_VARIABLES_RESULT_COLS       3
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS       4
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
 
 #define COMPACT_DB_RESULT_COLS       3
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
@@ -279,7 +280,17 @@ typedef struct SAlterTableStmt {
   SDataType       dataType;
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
+  SNodeList*      pNodeListTagValue;
 } SAlterTableStmt;
+
+typedef struct SAlterTableMultiStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  int8_t    alterType;
+
+  SNodeList* pNodeListTagValue;
+} SAlterTableMultiStmt;
 
 typedef struct SCreateUserStmt {
   ENodeType   type;
@@ -337,7 +348,7 @@ typedef struct SAlterDnodeStmt {
 
 typedef struct {
   ENodeType type;
-  char      url[TSDB_ANAL_ANODE_URL_LEN + 3];
+  char      url[TSDB_ANALYTIC_ANODE_URL_LEN + 3];
 } SCreateAnodeStmt;
 
 typedef struct {
@@ -391,6 +402,11 @@ typedef struct SShowTableDistributedStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tableName[TSDB_TABLE_NAME_LEN];
 } SShowTableDistributedStmt;
+
+typedef struct SShowDBUsageStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} SShowDBUsageStmt;
 
 typedef struct SShowDnodeVariablesStmt {
   ENodeType type;

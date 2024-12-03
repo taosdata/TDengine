@@ -470,6 +470,11 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
+<<<<<<< HEAD
+=======
+    case QUERY_NODE_RANGE_AROUND:
+      code = makeNode(type, sizeof(SRangeAroundNode), &pNode); break;
+>>>>>>> feat/TS-4994-3.0
     case QUERY_NODE_SELECT_STMT:
       code = makeNode(type, sizeof(SSelectStmt), &pNode);
       break;
@@ -680,6 +685,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
+    case QUERY_NODE_SHOW_USAGE_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -1251,6 +1257,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pWin->pEndOffset);
       break;
     }
+    case QUERY_NODE_RANGE_AROUND: {
+      SRangeAroundNode* pAround = (SRangeAroundNode*)pNode;
+      nodesDestroyNode(pAround->pInterval);
+      nodesDestroyNode(pAround->pTimepoint);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -1272,6 +1284,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);
       nodesDestroyNode(pStmt->pRange);
+      nodesDestroyNode(pStmt->pRangeAround);
       nodesDestroyNode(pStmt->pEvery);
       nodesDestroyNode(pStmt->pFill);
       nodesDestroyList(pStmt->pOrderByList);
@@ -1363,6 +1376,15 @@ void nodesDestroyNode(SNode* pNode) {
       SAlterTableStmt* pStmt = (SAlterTableStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyNode((SNode*)pStmt->pVal);
+      if (pStmt->pNodeListTagValue != NULL) {
+        SNodeList* pNodeList = pStmt->pNodeListTagValue;
+        SNode*     pSubNode = NULL;
+        FOREACH(pSubNode, pNodeList) {
+          SAlterTableStmt* pSubAlterTable = (SAlterTableStmt*)pSubNode;
+          nodesDestroyNode((SNode*)pSubAlterTable->pOptions);
+          nodesDestroyNode((SNode*)pSubAlterTable->pVal);
+        }
+      }
       break;
     }
     case QUERY_NODE_CREATE_USER_STMT: {
@@ -1511,7 +1533,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
-    case QUERY_NODE_SHOW_TSMAS_STMT: {
+    case QUERY_NODE_SHOW_TSMAS_STMT:
+    case QUERY_NODE_SHOW_USAGE_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -3146,4 +3169,47 @@ void nodesSortList(SNodeList** pList, int32_t (*comp)(SNode* pNode1, SNode* pNod
     }
     inSize *= 2;
   }
+}
+
+static SNode* nodesListFindNode(SNodeList* pList, SNode* pNode) {
+  SNode* pFound = NULL;
+  FOREACH(pFound, pList) {
+    if (nodesEqualNode(pFound, pNode)) {
+      break;
+    }
+  }
+  return pFound;
+}
+
+int32_t nodesListDeduplicate(SNodeList** ppList) {
+  if (!ppList || LIST_LENGTH(*ppList) <= 1) return TSDB_CODE_SUCCESS;
+  if (LIST_LENGTH(*ppList) == 2) {
+    SNode* pNode1 = nodesListGetNode(*ppList, 0);
+    SNode* pNode2 = nodesListGetNode(*ppList, 1);
+    if (nodesEqualNode(pNode1, pNode2)) {
+      SListCell* pCell = nodesListGetCell(*ppList, 1);
+      (void)nodesListErase(*ppList, pCell);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  SNodeList* pTmp = NULL;
+  int32_t    code = nodesMakeList(&pTmp);
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, *ppList) {
+      SNode* pFound = nodesListFindNode(pTmp, pNode);
+      if (NULL == pFound) {
+        code = nodesCloneNode(pNode, &pFound);
+        if (TSDB_CODE_SUCCESS == code) code = nodesListStrictAppend(pTmp, pFound);
+        if (TSDB_CODE_SUCCESS != code) break;
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyList(*ppList);
+    *ppList = pTmp;
+  } else {
+    nodesDestroyList(pTmp);
+  }
+  return code;
 }

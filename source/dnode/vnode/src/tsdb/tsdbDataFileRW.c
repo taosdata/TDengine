@@ -972,7 +972,7 @@ static int32_t tsdbDataFileWriteBrinRecord(SDataFileWriter *writer, const SBrinR
     break;
   }
 
-  if ((writer->brinBlock->numOfRecords) >= writer->config->maxRow) {
+  if ((writer->brinBlock->numOfRecords) >= 256) {
     TAOS_CHECK_GOTO(tsdbDataFileWriteBrinBlock(writer), &lino, _exit);
   }
 

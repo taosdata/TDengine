@@ -179,6 +179,7 @@ static SKeyword keywordTable[] = {
     {"NORMAL",               TK_NORMAL},
     {"NCHAR",                TK_NCHAR},
     {"NEXT",                 TK_NEXT},
+    {"NEAR",                 TK_NEAR},
     {"NMATCH",               TK_NMATCH},
     {"NONE",                 TK_NONE},
     {"NOT",                  TK_NOT},
@@ -329,6 +330,7 @@ static SKeyword keywordTable[] = {
     {"WRITE",                TK_WRITE},
     {"_C0",                  TK_ROWTS},
     {"_IROWTS",              TK_IROWTS},
+    {"_IROWTS_ORIGIN",       TK_IROWTS_ORIGIN},
     {"_ISFILLED",            TK_ISFILLED},
     {"_QDURATION",           TK_QDURATION},
     {"_QEND",                TK_QEND},
@@ -351,6 +353,7 @@ static SKeyword keywordTable[] = {
     {"ARBGROUPS",            TK_ARBGROUPS},
     {"IS_IMPORT",            TK_IS_IMPORT},
     {"FORCE_WINDOW_CLOSE",   TK_FORCE_WINDOW_CLOSE},
+    {"DISK_INFO",            TK_DISK_INFO},
 };
 // clang-format on
 

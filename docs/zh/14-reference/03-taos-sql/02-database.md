@@ -8,10 +8,10 @@ description: "创建、删除数据库，查看、修改数据库参数"
 
 ```sql
 CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
- 
+
 database_options:
     database_option ...
- 
+
 database_option: {
     VGROUPS value
   | PRECISION {'ms' | 'us' | 'ns'}
@@ -26,6 +26,7 @@ database_option: {
   | MAXROWS value
   | MINROWS value
   | KEEP value
+  | KEEP_TIME_OFFSET value
   | STT_TRIGGER value
   | SINGLE_STABLE {0 | 1}
   | TABLE_PREFIX value
@@ -43,7 +44,7 @@ database_option: {
 
 - VGROUPS：数据库中初始 vgroup 的数目。
 - PRECISION：数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒。
-- REPLICA：表示数据库副本数，取值为 1、2 或 3，默认为 1; 2 仅在企业版 3.3.0.0 及以后版本中可用。在集群中使用，副本数必须小于或等于 DNODE 的数目。且使用时存在以下限制： 
+- REPLICA：表示数据库副本数，取值为 1、2 或 3，默认为 1; 2 仅在企业版 3.3.0.0 及以后版本中可用。在集群中使用，副本数必须小于或等于 DNODE 的数目。且使用时存在以下限制：
   - 暂不支持对双副本数据库相关 Vgroup 进行 SPLITE VGROUP 或 REDISTRIBUTE VGROUP 操作
   - 单副本数据库可变更为双副本数据库，但不支持从双副本变更为其它副本数，也不支持从三副本变更为双副本
 - BUFFER: 一个 VNODE 写入内存池大小，单位为 MB，默认为 256，最小为 3，最大为 16384。
@@ -63,7 +64,8 @@ database_option: {
 - DURATION：数据文件存储数据的时间跨度。可以使用加单位的表示形式，如 DURATION 100h、DURATION 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。不加时间单位时默认单位为天，如 DURATION 50 表示 50 天。
 - MAXROWS：文件块中记录的最大条数，默认为 4096 条。
 - MINROWS：文件块中记录的最小条数，默认为 100 条。
-- KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于3倍的 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持[多级存储](https://docs.taosdata.com/tdinternal/arch/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。
+- KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 3 倍的 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持[多级存储](https://docs.taosdata.com/tdinternal/arch/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。了解更多，请点击 [关于主键时间戳](https://docs.taosdata.com/reference/taos-sql/insert/)
+- KEEP_TIME_OFFSET：自 3.2.0.0 版本生效。删除或迁移保存时间超过 KEEP 值的数据的延迟执行时间，默认值为 0 (小时)。在数据文件保存时间超过 KEEP 后，删除或迁移操作不会立即执行，而会额外等待本参数指定的时间间隔，以实现与业务高峰期错开的目的。
 - STT_TRIGGER：表示落盘文件触发文件合并的个数。开源版本固定为 1，企业版本可设置范围为 1 到 16。对于少表高频写入场景，此参数建议使用默认配置；而对于多表低频写入场景，此参数建议配置较大的值。
 - SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
   - 0：表示可以创建多张超级表。
@@ -78,6 +80,7 @@ database_option: {
 - WAL_FSYNC_PERIOD：当 WAL_LEVEL 参数设置为 2 时，用于设置落盘的周期。默认为 3000，单位毫秒。最小为 0，表示每次写入立即落盘；最大为 180000，即三分钟。
 - WAL_RETENTION_PERIOD: 为了数据订阅消费，需要 WAL 日志文件额外保留的最大时长策略。WAL 日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 3600，表示在 WAL 保留最近 3600 秒的数据，请根据数据订阅的需要修改这个参数为适当值。
 - WAL_RETENTION_SIZE：为了数据订阅消费，需要 WAL 日志文件额外保留的最大累计大小策略。单位为 KB。默认为 0，表示累计大小无上限。
+
 ### 创建数据库示例
 
 ```sql
@@ -88,7 +91,7 @@ create database if not exists db vgroups 10 buffer 10
 
 ### 使用数据库
 
-```
+```sql
 USE db_name;
 ```
 
@@ -96,7 +99,7 @@ USE db_name;
 
 ## 删除数据库
 
-```
+```sql
 DROP DATABASE [IF EXISTS] db_name
 ```
 
@@ -126,7 +129,7 @@ alter_database_option: {
 }
 ```
 
-###  修改 CACHESIZE
+### 修改 CACHESIZE
 
 修改数据库参数的命令使用简单，难的是如何确定是否需要修改以及如何修改。本小节描述如何判断数据库的 cachesize 是否够用。
 
@@ -155,13 +158,13 @@ alter_database_option: {
 
 ### 查看系统中的所有数据库
 
-```
+```sql
 SHOW DATABASES;
 ```
 
 ### 显示一个数据库的创建语句
 
-```
+```sql
 SHOW CREATE DATABASE db_name \G;
 ```
 

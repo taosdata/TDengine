@@ -1103,6 +1103,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)strcpy(info.name, "statusInterval");
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
   (void)strcpy(info.scope, "server");
+  // fill info.info
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
@@ -1535,6 +1536,9 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, "s3blocksize");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #endif
+  } else if (strncasecmp(cfgReq.config, tsAlterCompactTaskKeywords, strlen(tsAlterCompactTaskKeywords) + 1) == 0) {
+    tstrncpy(dcfgReq.config, cfgReq.config, TSDB_DNODE_CONFIG_LEN);
+    tstrncpy(dcfgReq.value, cfgReq.value, TSDB_DNODE_VALUE_LEN);
   } else {
     TAOS_CHECK_GOTO (mndMCfg2DCfg(&cfgReq, &dcfgReq), NULL, _err_out);
     if (strlen(dcfgReq.config) > TSDB_DNODE_CONFIG_LEN) {

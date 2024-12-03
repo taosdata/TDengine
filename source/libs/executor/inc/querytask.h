@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "executorInt.h"
+
 #define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
 enum {

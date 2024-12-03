@@ -379,7 +379,7 @@ struct STsdb {
   struct {
     SVHashTable *ht;
     SArray      *arr;
-  } * commitInfo;
+  } *commitInfo;
 };
 
 struct TSDBKEY {
@@ -959,6 +959,8 @@ int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
+int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size);
+
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   TSDBKEY *pKey1 = (TSDBKEY *)p1;
@@ -1079,6 +1081,9 @@ void tsdbRemoveFile(const char *path);
       tsdbTrace("failed to close file"); \
     }                                    \
   } while (0)
+
+int32_t tsdbInit();
+void    tsdbCleanUp();
 
 #ifdef __cplusplus
 }

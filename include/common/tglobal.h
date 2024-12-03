@@ -67,6 +67,7 @@ extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
+extern int32_t tsBypassFlag;
 
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
@@ -90,6 +91,9 @@ extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
+
+extern const char *tsAlterCompactTaskKeywords;
+extern int32_t     tsNumOfCompactThreads;
 
 // sync raft
 extern int32_t tsElectInterval;
