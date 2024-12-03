@@ -115,7 +115,7 @@ class TDTestCase:
     def openTaosd(self, args="", waitSec=8):
         self.openBin(f'{self.taosdPath} {args}', waitSec)
 
-    def openTaos(self, args="", waitSec=3):
+    def openTaos(self, args="", waitSec=5):
         self.openBin(f'{self.taosPath} {args}', waitSec)
 
 
