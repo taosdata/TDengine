@@ -143,6 +143,8 @@ TEST_F(NodesCloneTest, intervalWindow) {
     if (NULL != pSrcNode->pFill) {
       ASSERT_EQ(nodeType(pSrcNode->pFill), nodeType(pDstNode->pFill));
     }
+    ASSERT_EQ(pSrcNode->timeRange.skey, pDstNode->timeRange.skey);
+    ASSERT_EQ(pSrcNode->timeRange.ekey, pDstNode->timeRange.ekey);
   });
 
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
@@ -156,6 +158,8 @@ TEST_F(NodesCloneTest, intervalWindow) {
     code = nodesMakeNode(QUERY_NODE_VALUE, &pNode->pOffset);
     code = nodesMakeNode(QUERY_NODE_VALUE, &pNode->pSliding);
     code = nodesMakeNode(QUERY_NODE_FILL, &pNode->pFill);
+    pNode->timeRange.skey = 1666756692907;
+    pNode->timeRange.ekey = 1666756699907;
     return srcNode.get();
   }());
 }
