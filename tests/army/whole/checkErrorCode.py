@@ -204,7 +204,7 @@ class TDTestCase(TBase):
         #print(errCodes)
         # result
         if failed > 0:
-            tdLog.exit("Failed to Check the consistency of error codes between header and doc. "
+            tdLog.exit("Failed to check the consistency of error codes between header and doc. "
                        f"failed:{failed}, ignored:{ignored}, all:{hLen}\n")
         
         tdLog.info(f"Check consistency successfully.  ok items={hLen - ignored}, ignored items={ignored}\n")
