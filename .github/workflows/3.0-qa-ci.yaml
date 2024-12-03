@@ -21,7 +21,7 @@ jobs:
   set_env:
     runs-on: [self-hosted, linux, x64, qa, rust]
     outputs:
-      COVERAGE_REPORT_DIR: ${{ github.env.coverage_report_dir }}
+      COVERAGE_REPORT_DIR: ${{ steps.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Set COVERAGE_REPORT_DIR
         id: set_env
@@ -34,7 +34,7 @@ jobs:
   remove_artifacts:
     needs: set_env
     env:
-      COVERAGE_REPORT_DIR: ${{ github.env.coverage_report_dir }}
+      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     runs-on: [self-hosted, linux, x64, qa, rust]
     steps:
       - name: Remove artifacts
@@ -46,11 +46,22 @@ jobs:
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DIR
+  test:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: remove_artifacts
+    env:
+      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+    steps:
+      - name: Print Env
+        run: |
+          pwd
+          echo $COVERAGE_REPORT_DIR
+
   # build_rust:
   #   needs: remove_artifacts
   #   runs-on: [self-hosted, linux, x64, qa, rust]
   #   env:
-  #     COVERAGE_REPORT_DIR: ${{ github.env.coverage_report_dir }}
+  #     COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
   #   steps:
   #     - name: Check out repository code
   #       uses: actions/checkout@v4
@@ -105,6 +116,8 @@ jobs:
   # build_go:
   #   runs-on: [self-hosted, linux, x64, qa, rust]
   #   needs: remove_artifacts
+  #   env:
+  #     COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
   #   steps:
   #     - name: Check out repository code
   #       uses: actions/checkout@v4
@@ -136,6 +149,8 @@ jobs:
   # build_java:
   #   runs-on: [self-hosted, linux, x64, qa, rust]
   #   needs: remove_artifacts
+  #   env:
+  #     COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
   #   steps:
   #     - name: Check out repository code
   #       uses: actions/checkout@v4    
