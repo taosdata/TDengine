@@ -749,7 +749,7 @@ func (gm *GeneralMetric) initColumnSeqMap() error {
 
 func (gm *GeneralMetric) createSTables() error {
 	var createTableSql = "create stable if not exists taosd_cluster_basic " +
-		"(ts timestamp, first_ep varchar(100), first_ep_dnode_id INT, cluster_version varchar(20)) " +
+		"(ts timestamp, first_ep varchar(255), first_ep_dnode_id INT, cluster_version varchar(20)) " +
 		"tags (cluster_id varchar(50))"
 
 	if gm.conn == nil {
@@ -760,8 +760,8 @@ func (gm *GeneralMetric) createSTables() error {
 		return err
 	}
 
-	createTableSql = "create stable if not exists taos_slow_sql_detail" +
-		" (start_ts TIMESTAMP, request_id BIGINT UNSIGNED PRIMARY KEY, query_time INT, code INT, error_info varchar(128), " +
+	createTableSql = "create stable if not exists taos_slow_sql_detail " +
+		"(start_ts TIMESTAMP, request_id BIGINT UNSIGNED PRIMARY KEY, query_time INT, code INT, error_info varchar(128), " +
 		"type TINYINT, rows_num BIGINT, sql varchar(16384), process_name varchar(32), process_id varchar(32)) " +
 		"tags (db varchar(1024), `user` varchar(32), ip varchar(32), cluster_id varchar(32))"
 
