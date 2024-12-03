@@ -339,7 +339,7 @@ jobs:
           PR_INFO="Coverage test results for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/\n"
+          Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
 
           post_to_feishu "$PR_INFO"
       
@@ -361,7 +361,7 @@ jobs:
           PR_INFO="Coverage test results for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/\n"
+          Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
 
           post_to_feishu "$PR_INFO"
 
