@@ -3,6 +3,8 @@ import sys
 import subprocess
 import logging
 import git  # 导入 GitPython
+from git import RemoteProgress
+
 # from prepare_env import EnvironmentPreparer
 
 # 配置日志记录
@@ -53,6 +55,12 @@ class EnvironmentPreparer:
             else:
                 logger.info("Node is not installed.")
                 self.install_node_nvm()
+
+
+class CloneProgress(RemoteProgress):
+    def update(self, op_code, cur_count, max_count=None, message=''):
+        if message:
+            print(message)  # 或使用 logger.info(message) 记录日志
 
 
 def checkout_branch(path, branch_name):
@@ -149,7 +157,7 @@ def clone_repo(repo_url, repo_path):
     """
     try:
         logger.info(f"Cloned repository from {repo_url} to {repo_path}")
-        git.Repo.clone_from(repo_url, repo_path)
+        git.Repo.clone_from(repo_url, repo_path, progress=CloneProgress())
        
     except Exception as e:
         logger.error(f"Error: {e}")
