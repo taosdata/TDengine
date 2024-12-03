@@ -149,7 +149,7 @@ int32_t taosMulMkDir(const char *dirname) {
   int32_t code = 0;
 #ifdef WINDOWS
   code = taosRealPath(dirname, temp, sizeof(temp));
-  if(code != 0) {
+  if (code != 0) {
     return code;
   }
   if (temp[1] == ':') pos += 3;
@@ -192,7 +192,7 @@ int32_t taosMulMkDir(const char *dirname) {
     code = mkdir(temp, 0755);
 #endif
     if (code < 0 && errno != EEXIST) {
-       terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return code;
     }
   }
@@ -214,7 +214,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
   int32_t code = 0;
 #ifdef WINDOWS
   code = taosRealPath(dirname, temp, sizeof(temp));
-  if(code != 0) {
+  if (code != 0) {
     return code;
   }
   if (temp[1] == ':') pos += 3;
@@ -223,7 +223,8 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
 #endif
 
   if (taosDirExist(temp)) {
-    if (checkAccess && taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
+    if (checkAccess &&
+        taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
       return 0;
     }
 
@@ -277,7 +278,8 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
   }
 
   if (code < 0 && errno == EEXIST) {
-    if (checkAccess && taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
+    if (checkAccess &&
+        taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
       return 0;
     }
   }
@@ -393,7 +395,7 @@ bool taosIsDir(const char *dirname) {
 }
 
 char *taosDirName(char *name) {
-  if(name == NULL) {
+  if (name == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -423,7 +425,7 @@ char *taosDirName(char *name) {
 }
 
 char *taosDirEntryBaseName(char *name) {
-  if(name == NULL) {
+  if (name == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -456,7 +458,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
   HANDLE hFind;
 
   TdDirPtr pDir = taosMemoryMalloc(sizeof(TdDir));
-  if(pDir == NULL) {
+  if (pDir == NULL) {
     return NULL;
   }
 
@@ -493,7 +495,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
 
 TdDirEntryPtr taosReadDir(TdDirPtr pDir) {
   if (pDir == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;  
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 #ifdef WINDOWS
@@ -541,13 +543,13 @@ char *taosGetDirEntryName(TdDirEntryPtr pDirEntry) {
 }
 
 int32_t taosCloseDir(TdDirPtr *ppDir) {
-  int32_t code =  0;
+  int32_t code = 0;
   if (ppDir == NULL || *ppDir == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 #ifdef WINDOWS
-  if(!FindClose((*ppDir)->hFind)) {
+  if (!FindClose((*ppDir)->hFind)) {
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
@@ -581,4 +583,49 @@ void taosGetCwd(char *buf, int32_t len) {
 #else
   tstrncpy(buf, "not implemented on windows", len);
 #endif
+}
+
+int taosGetDirSize(const char *path, int64_t *size) {
+  int32_t  code;
+  TdDirPtr pDir = taosOpenDir(path);
+  if (pDir == NULL) {
+    return code = terrno;
+  }
+  int32_t nBytes = 0;
+  char    fullPath[1024] = {0};
+
+  int64_t       totalSize = 0;
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir)) != NULL) {
+    char *name = taosGetDirEntryName(de);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+      continue;
+    }
+    nBytes = snprintf(fullPath, sizeof(fullPath), "%s%s%s", path, TD_DIRSEP, name);
+    if (nBytes <= 0 || nBytes >= sizeof(fullPath)) {
+      TAOS_UNUSED(taosCloseDir(&pDir));
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+
+    int64_t subSize = 0;
+    if (taosIsDir(fullPath)) {
+      code = taosGetDirSize(fullPath, &subSize);
+      if (code != 0) {
+        TAOS_UNUSED(taosCloseDir(&pDir));
+        return code;
+      }
+    } else {
+      code = taosStatFile(fullPath, &subSize, NULL, NULL);
+      if (code != 0) {
+        TAOS_UNUSED(taosCloseDir(&pDir));
+        return code;
+      }
+    }
+    totalSize += subSize;
+    fullPath[0] = 0;
+  }
+
+  *size = totalSize;
+  TAOS_UNUSED(taosCloseDir(&pDir));
+  return 0;
 }
