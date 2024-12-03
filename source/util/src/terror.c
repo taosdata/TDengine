@@ -63,6 +63,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_MODULE_QUIT,        "rpc async module alre
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_IN_PROCESS,         "rpc async in process")               
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NO_STATE,                 "rpc no state")               
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_STATE_DROPED,             "rpc state already dropped")               
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MSG_EXCCED_LIMIT,          "rpc msg exceed limit")               
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")

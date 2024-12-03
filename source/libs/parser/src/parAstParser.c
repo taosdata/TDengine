@@ -184,7 +184,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   }
   if (TSDB_CODE_SUCCESS == code &&
       (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) ||
-       0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS) || 0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) &&
+       0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE) ||
+       0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
   }
@@ -951,6 +952,20 @@ static int32_t collectMetaKeyFromDropTSMAStmt(SCollectMetaKeyCxt* pCxt, SDropTSM
   return code;
 }
 
+static int32_t collectMetaKeyFromShowUsage(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_DISK_USAGE,
+                                         pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,
+                               NULL, AUTH_TYPE_READ_OR_WRITE, pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowTSMASStmt(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TSMAS,
                                  pCxt->pMetaCache);
@@ -1098,6 +1113,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowApps(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return collectMetaKeyFromShowTransactions(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_USAGE_STMT:
+      return collectMetaKeyFromShowUsage(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:
       return collectMetaKeyFromDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_INSERT_STMT:

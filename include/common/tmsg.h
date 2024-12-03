@@ -161,6 +161,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USER_FULL,
   TSDB_MGMT_TABLE_ANODE,
   TSDB_MGMT_TABLE_ANODE_FULL,
+  TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
@@ -399,6 +400,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TSMAS_STMT,
   QUERY_NODE_SHOW_ANODES_STMT,
   QUERY_NODE_SHOW_ANODES_FULL_STMT,
+  QUERY_NODE_SHOW_USAGE_STMT,
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
@@ -682,7 +684,7 @@ typedef struct {
   int32_t tsSlowLogThreshold;
   int32_t tsSlowLogMaxLen;
   int32_t tsSlowLogScope;
-  int32_t tsSlowLogThresholdTest;   //Obsolete
+  int32_t tsSlowLogThresholdTest;  // Obsolete
   char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN];
 } SMonitorParas;
 
@@ -1757,6 +1759,21 @@ typedef struct {
   int32_t numOfCachedTables;
   int32_t learnerProgress;  // use one reservered
 } SVnodeLoad;
+
+typedef struct {
+  int32_t     vgId;
+  int64_t     numOfTables;
+  int64_t     memSize;
+  int64_t     l1Size;
+  int64_t     l2Size;
+  int64_t     l3Size;
+  int64_t     cacheSize;
+  int64_t     walSize;
+  int64_t     metaSize;
+  int64_t     rawDataSize;
+  int64_t     s3Size;
+  const char* dbname;
+} SDbSizeStatisInfo;
 
 typedef struct {
   int32_t vgId;

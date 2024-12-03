@@ -350,8 +350,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  {
-    .showType = QUERY_NODE_SHOW_ANODES_STMT,
+  {  .showType = QUERY_NODE_SHOW_ANODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_ANODES,
     .numOfShowCols = 1,
@@ -361,6 +360,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .showType = QUERY_NODE_SHOW_ANODES_FULL_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_ANODES_FULL,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_USAGE_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_DISK_USAGE,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -1506,6 +1512,17 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
         setColumnPrimTs(pCxt, pCol, pTable);
         *pFound = true;
         break;
+      }
+    }
+
+    if (pCxt->showRewrite && pMeta->tableType == TSDB_SYSTEM_TABLE) {
+      if (strncmp(pCol->dbName, TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB)) == 0 &&
+          strncmp(pCol->tableName, TSDB_INS_DISK_USAGE, strlen(TSDB_INS_DISK_USAGE)) == 0 &&
+          strncmp(pCol->colName, "db_name", strlen("db_name")) == 0) {
+        pCol->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+        pCol->node.resType.bytes = 8;
+        pCxt->skipCheck = true;
+        ((SSelectStmt*)pCxt->pCurrStmt)->mixSysTableAndActualTable = true;
       }
     }
   } else {
@@ -2788,6 +2805,26 @@ static int32_t translateBlockDistFunc(STranslateContext* pCtx, SFunctionNode* pF
   }
   return TSDB_CODE_SUCCESS;
 }
+static int32_t translateDBUsageFunc(STranslateContext* pCtx, SFunctionNode* pFunc) {
+  if (!fmIsDBUsageFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isSelectStmt(pCtx->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCtx->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCtx->pCurrStmt;
+  SNode*       pTable = pSelect->pFromTable;
+  // if (NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+  //                        (TSDB_SUPER_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+  //                         TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+  //                         TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType))) {
+  //   return generateSyntaxErrMsgExt(&pCtx->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+  //                                  "%s is only supported on super table, child table or normal table",
+  //                                  pFunc->functionName);
+  // }
+  return TSDB_CODE_SUCCESS;
+}
 
 static bool isStarParam(SNode* pNode) { return nodesIsStar(pNode) || nodesIsTableStar(pNode); }
 
@@ -3144,6 +3181,10 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateBlockDistFunc(pCxt, pFunc);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateDBUsageFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     setFuncClassification(pCxt, pFunc);
@@ -3771,7 +3812,8 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
   FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
-      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode) : DEAL_RES_IGNORE_CHILD;
+      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
+                                                        : DEAL_RES_IGNORE_CHILD;
     }
     if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
@@ -4084,7 +4126,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 
 static bool sysTableFromVnode(const char* pTable) {
   return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)));
+          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE) ||
+          (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -4155,9 +4198,10 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   }
 
   if (TSDB_CODE_SUCCESS == code &&
-          (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
-      0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
-      0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS)) {
+      ((0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
+       (0 == strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) && !hasUserDbCond) ||
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS))) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &pVgs);
   }
 
@@ -4256,8 +4300,9 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
   if (TSDB_SYSTEM_TABLE == tableType) {
     return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS);
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
 }
@@ -5402,7 +5447,8 @@ static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNod
   int32_t        fillNo = 0;
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
-  if (!pFillValues) return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
+  if (!pFillValues)
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   FOREACH(pProject, pProjectionList) {
     if (needFill(pProject)) {
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
@@ -6201,7 +6247,7 @@ static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
 }
 
 static EDealRes hasRowTsOriginFuncWalkNode(SNode* pNode, void* ctx) {
-  bool *hasRowTsOriginFunc = ctx;
+  bool* hasRowTsOriginFunc = ctx;
   if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (fmIsRowTsOriginFunc(pFunc->funcId)) {
@@ -6216,10 +6262,12 @@ static int32_t checkInterpForStream(STranslateContext* pCxt, SSelectStmt* pSelec
   if (pCxt->createStream) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     if (pFill->mode == FILL_MODE_NEAR) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "FILL NEAR is not supported by stream");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "FILL NEAR is not supported by stream");
     }
     if (pSelect->pRangeAround) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "RANGE with around is not supported by stream");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "RANGE with around is not supported by stream");
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -6244,24 +6292,25 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   nodesWalkExprs(pSelect->pProjectionList, hasRowTsOriginFuncWalkNode, &hasRowTsOriginFunc);
   if (hasRowTsOriginFunc && pCxt->createStream) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                "_irowts_origin is not supported by stream");
+                                   "_irowts_origin is not supported by stream");
   }
   if (TSDB_CODE_SUCCESS == code) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     if (pSelect->pRangeAround) {
       if (pFill->mode != FILL_MODE_PREV && pFill->mode != FILL_MODE_NEXT && pFill->mode != FILL_MODE_NEAR) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
-            "Range with interval can only used with fill PREV/NEXT/NEAR");
+                                       "Range with interval can only used with fill PREV/NEXT/NEAR");
       }
-      if (TSDB_CODE_SUCCESS == code)
-        code = doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
+      if (TSDB_CODE_SUCCESS == code) code = doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
     } else {
       if (FILL_MODE_PREV == pFill->mode || FILL_MODE_NEXT == pFill->mode || FILL_MODE_NEAR == pFill->mode) {
         if (pFill->pValues) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Can't specify fill values");
         }
       } else {
-        if (hasRowTsOriginFunc) return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC, "_irowts_origin can only be used with FILL PREV/NEXT/NEAR");
+        if (hasRowTsOriginFunc)
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+                                      "_irowts_origin can only be used with FILL PREV/NEXT/NEAR");
       }
       code = checkFillValues(pCxt, pFill, pSelect->pProjectionList);
     }
@@ -6279,7 +6328,8 @@ static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSele
       if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE) {
         SValueNode* pVal = (SValueNode*)pAround->pInterval;
         if (pVal->datum.i == 0) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Range interval cannot be 0");
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+                                      "Range interval cannot be 0");
         }
         int8_t unit = pVal->unit;
         if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
@@ -6332,7 +6382,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
           // single point interp every can be omitted
         } else {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-              "Missing RANGE clause, EVERY clause or FILL clause");
+                                         "Missing RANGE clause, EVERY clause or FILL clause");
         }
       }
     } else {
@@ -6341,8 +6391,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                        "Range clause with around interval can't be used with EVERY clause");
       }
       if (!pSelect->pFill) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                       "Missing FILL clause");
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE, "Missing FILL clause");
       }
     }
   }
@@ -13530,6 +13579,12 @@ static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) 
 static int32_t createSelectStmtForShowTableDist(SShowTableDistributedStmt* pStmt, SSelectStmt** pOutput) {
   return createSimpleSelectStmtFromCols(pStmt->dbName, pStmt->tableName, 0, NULL, pOutput);
 }
+static int32_t createSelectStmtForShowDBUsage(SShowStmt* pStmt, SSelectStmt** pOutput) {
+  int32_t                     type = nodeType(pStmt);
+  const SSysTableShowAdapter* pShow = &sysTableShowAdapter[type - SYSTABLE_SHOW_TYPE_OFFSET];
+  return createSimpleSelectStmtFromCols(pShow->pDbName, pShow->pTableName, pShow->numOfShowCols, pShow->pShowCols,
+                                        pOutput);
+}
 
 static int32_t createOperatorNode(EOperatorType opType, const char* pColName, const SNode* pRight, SNode** pOp) {
   if (NULL == pRight) {
@@ -14054,6 +14109,62 @@ static int32_t rewriteShowTableDist(STranslateContext* pCxt, SQuery* pQuery) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
+static int32_t createBlockDBUsageInfoFunc(SFunctionNode** ppNode) {
+  SFunctionNode* pFunc = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (NULL == pFunc) {
+    return code;
+  }
+
+  strcpy(pFunc->functionName, "_db_usage_info");
+  strcpy(pFunc->node.aliasName, "_db_usage_info");
+  *ppNode = pFunc;
+  return code;
+}
+static int32_t createDBUsageFunc(SFunctionNode** ppNode) {
+  SFunctionNode* pFunc = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (NULL == pFunc) {
+    return code;
+  }
+
+  strcpy(pFunc->functionName, "_db_usage");
+  strcpy(pFunc->node.aliasName, "_db_usage");
+  SFunctionNode* pFuncNew = NULL;
+  code = createBlockDBUsageInfoFunc(&pFuncNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pFuncNew);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+  *ppNode = pFunc;
+  return code;
+}
+static int32_t rewriteShowDBUsage(STranslateContext* pCtx, SQuery* pQuery) {
+  SSelectStmt* pStmt = NULL;
+  int32_t      code = createSelectStmtForShowDBUsage((SShowStmt*)pQuery->pRoot, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_DESTORY_LIST(pStmt->pProjectionList);
+    SFunctionNode* pFuncNew = NULL;
+    code = createDBUsageFunc(&pFuncNew);
+    if (TSDB_CODE_SUCCESS == code) code = nodesListMakeStrictAppend(&pStmt->pProjectionList, (SNode*)pFuncNew);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createShowCondition((SShowStmt*)pQuery->pRoot, pStmt);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pCtx->showRewrite = true;
     pQuery->showRewrite = true;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pStmt;
@@ -16582,6 +16693,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
       code = rewriteShow(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_USAGE_STMT:
+      code = rewriteShowDBUsage(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TAGS_STMT:
       code = rewriteShowTags(pCxt, pQuery);

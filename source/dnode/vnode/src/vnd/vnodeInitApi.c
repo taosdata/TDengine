@@ -111,6 +111,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->pauseCtbCursor = metaPauseCtbCursor;
   pMeta->closeCtbCursor = metaCloseCtbCursor;
   pMeta->ctbCursorNext = metaCtbCursorNext;
+  pMeta->getDBSize = vnodeGetDBSize;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

@@ -467,6 +467,19 @@ static const SSysDbTableSchema encryptionsSchema[] = {
     {.name = "key_status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema diskUsageSchema[] = {
+    {.name = "db_name", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "wal", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "data1", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "data2", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "data3", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "cache_rdb", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "table_meta", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "s3",.bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "raw_data", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+};
+
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -505,6 +518,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_TSMAS, tsmaSchema, tListLen(tsmaSchema), false},
     {TSDB_INS_TABLE_ANODES, anodesSchema, tListLen(anodesSchema), true},
     {TSDB_INS_TABLE_ANODES_FULL, anodesFullSchema, tListLen(anodesFullSchema), true},
+    {TSDB_INS_DISK_USAGE, diskUsageSchema, tListLen(diskUsageSchema), false},
     {TSDB_INS_TABLE_FILESETS, filesetsFullSchema, tListLen(filesetsFullSchema), false},
 };
 
