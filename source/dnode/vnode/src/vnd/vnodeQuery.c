@@ -870,6 +870,41 @@ int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64
   return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
 }
 
+int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
+  SVnode *pVnodeObj = pVnode;
+  if (pVnodeObj == NULL) {
+    return TSDB_CODE_VND_NOT_EXIST;
+  }
+  int32_t code = 0;
+  char    path[TSDB_FILENAME_LEN] = {0};
+
+  char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
+  int64_t dirSize[4];
+
+  vnodeGetPrimaryDir(pVnodeObj->path, pVnodeObj->diskPrimary, pVnodeObj->pTfs, path, TSDB_FILENAME_LEN);
+  int32_t offset = strlen(path);
+
+  for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
+    int64_t size = {0};
+    (void)snprintf(path + offset, TSDB_FILENAME_LEN, "%s%s", TD_DIRSEP, dirName[i]);
+    code = taosGetDirSize(path, &size);
+    if (code != 0) {
+      return code;
+    }
+    path[offset] = 0;
+    dirSize[i] = size;
+  }
+
+  pInfo->l1Size = dirSize[0] - dirSize[3];
+  pInfo->walSize = dirSize[1];
+  pInfo->metaSize = dirSize[2];
+  pInfo->cacheSize = dirSize[3];
+
+  code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
+
+  return code;
+}
+
 int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   int32_t            code = 0;
   SStreamProgressReq req;

@@ -103,7 +103,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
   // maybe update term
   if (pMsg->term > raftStoreGetTerm(ths)) {
-    syncNodeStepDown(ths, pMsg->term);
+    syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -116,7 +116,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     raftStoreVote(ths, &(pMsg->srcId));
 
     // candidate ?
-    syncNodeStepDown(ths, currentTerm);
+    syncNodeStepDown(ths, currentTerm, pMsg->srcId);
 
     // forbid elect for this round
     resetElect = true;
