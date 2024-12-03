@@ -665,7 +665,7 @@ MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
 
 if(NOT ${TD_WINDOWS})
     execute_process(
-            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean libtz.a
+            COMMAND make CFLAGS+=-fPIC TZDIR=${TZ_OUTPUT_PATH}/ clean libtz.a
             WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
     )
 

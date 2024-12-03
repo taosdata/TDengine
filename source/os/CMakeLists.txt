@@ -72,7 +72,7 @@ ENDIF ()
 
 if(NOT ${TD_WINDOWS})
     find_library(tz libtz.a "${TD_SOURCE_DIR}/contrib/tz")
-    target_link_libraries(os  PUBLIC ${tz})
+    target_link_libraries(os PUBLIC ${tz})
 endif(NOT ${TD_WINDOWS})
 
 if(${BUILD_TEST})
