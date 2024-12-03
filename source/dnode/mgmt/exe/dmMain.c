@@ -407,7 +407,6 @@ int mainWindows(int argc, char **argv) {
   int32_t code = 0;
 #endif
 
-  char *p = taosMemoryCalloc(10, 10);
   if (global.generateGrant) {
     dmGenerateGrant();
     taosCleanupArgs();

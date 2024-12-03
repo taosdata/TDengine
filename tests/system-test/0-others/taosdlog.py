@@ -1,19 +1,15 @@
-import taos
-import sys
-import time
+import concurrent.futures
 import os
 import os.path
 import platform
-import concurrent.futures
-import shutil  # Add this import
+import shutil
+import subprocess
+import time
 
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
-import time
-import socket
-import subprocess
 
 class TDTestCase:
 
@@ -64,86 +60,44 @@ class TDTestCase:
         else:
             tdLog.info("taos.cfg found in %s" % cfgPath)
 
-    def checkProcessPid(self,processName):
-        i=0
-        while i<60:
-            tdLog.info(f"wait stop {processName}")
-            processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
-            tdLog.info(f"times:{i},{processName}-pid:{processPid}")
-            if(processPid == ""):
-                break
-            i += 1
-            time.sleep(1)
+    def closeBin(self, binName):
+        tdLog.info("Closing %s" % binName)
+        if platform.system().lower() == 'windows':
+            psCmd = "for /f %%a in ('wmic process where \"name='%s.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)" % binName
         else:
-            tdLog.info(f'this processName is not stoped in 60s')
+            psCmd = "ps -ef | grep -w %s | grep -v grep | awk '{print $2}'" % binName
+        tdLog.info(f"psCmd:{psCmd}")
+
+        try:
+            rem = subprocess.run(psCmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            processID = rem.stdout.decode().strip()
+            tdLog.info(f"processID:{processID}")
+        except Exception as e:
+            tdLog.info(f"closeBin error:{e}")
+            processID = ""
+        onlyKillOnceWindows = 0
+        while(processID):
+            if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -9 %s > nul 2>&1" % processID
+                tdLog.info(f"killCmd:{killCmd}")
+                os.system(killCmd)
+                tdLog.info(f"killed {binName} process {processID}")
+                onlyKillOnceWindows = 1
+            time.sleep(1)
+            try:
+                rem = subprocess.run(psCmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                processID = rem.stdout.decode().strip()
+            except Exception as e:
+                tdLog.info(f"closeBin error:{e}")
+                processID = ""
 
     def closeTaosd(self, signal=9):
-        tdLog.info("Closing taosd")
-        if platform.system().lower() == 'windows':
-            psCmd = "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)" % (self.index)
-        else:
-            psCmd = "ps -ef | grep -w taosd | grep -v grep | awk '{print $2}' | xargs"
-        tdLog.info(f"psCmd:{psCmd}")
-
-        try:
-            rem = subprocess.run(psCmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            processID = rem.stdout.decode().strip()
-            tdLog.info(f"processID:{processID}")
-        except Exception as e:
-            tdLog.info(f"closeTaosd error:{e}")
-            processID = ""
-        tdLog.info(f"processID:{processID}")
-        onlyKillOnceWindows = 0
-        while(processID):
-            if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
-                killCmd = "kill -%d %s > /dev/null 2>&1" % (signal, processID)
-                if platform.system().lower() == 'windows':
-                    killCmd = "kill -%d %s > nul 2>&1" % (signal, processID)
-                tdLog.info(f"killCmd:{killCmd}")
-                os.system(killCmd)
-                tdLog.info(f"killed taosd process {processID}")
-                onlyKillOnceWindows = 1
-            time.sleep(1)
-            try:
-                rem = subprocess.run(psCmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                processID = rem.stdout.decode().strip()
-            except Exception as e:
-                tdLog.info(f"closeTaosd error:{e}")
-                processID = ""
+        self.closeBin("taosd")
 
     def closeTaos(self, signal=9):
-        tdLog.info("Closing taos")
-        if platform.system().lower() == 'windows':
-            psCmd = "for /f %%a in ('wmic process where \"name='taos.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-        else:
-            psCmd = "ps -ef | grep -w taos | grep -v grep | awk '{print $2}'"
-        tdLog.info(f"psCmd:{psCmd}")
-
-        try:
-            rem = subprocess.run(psCmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            processID = rem.stdout.decode().strip()
-            tdLog.info(f"processID:{processID}")
-        except Exception as e:
-            tdLog.info(f"closeTaos error:{e}")
-            processID = ""
-        tdLog.info(f"processID:{processID}")
-        onlyKillOnceWindows = 0
-        while(processID):
-            if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
-                killCmd = "kill -%d %s > /dev/null 2>&1" % (signal, processID)
-                if platform.system().lower() == 'windows':
-                    killCmd = "kill -%d %s > nul 2>&1" % (signal, processID)
-                tdLog.info(f"killCmd:{killCmd}")
-                os.system(killCmd)
-                tdLog.info(f"killed taos process {processID}")
-                onlyKillOnceWindows = 1
-            time.sleep(1)
-            try:
-                rem = subprocess.run(psCmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                processID = rem.stdout.decode().strip()
-            except Exception as e:
-                tdLog.info(f"closeTaos error:{e}")
-                processID = ""
+        self.closeBin("taos")
 
     def openBin(self, binPath, waitSec=5):
         tdLog.info(f"Opening {binPath}")
@@ -165,26 +119,30 @@ class TDTestCase:
         self.openBin(f'{self.taosPath} {args}', waitSec)
 
 
-    def prepare_logoutput(self, desc, port, logOutput):
+    def prepare_logoutput(self, desc, port, logOutput, skipOpenBin=False):
         tdLog.info("Preparing %s, port:%s" % (desc, port))
         dnodePath = self.buildPath + "/../sim/dnode%s" % port
         tdLog.info("remove dnodePath:%s" % dnodePath)
         try:
-            shutil.rmtree(dnodePath)
+            if os.path.exists(dnodePath):
+                shutil.rmtree(dnodePath)
         except Exception as e:
-            tdLog.info(f"Failed to remove directory {dnodePath}: {e}")
+            raise Exception(f"Failed to remove directory {dnodePath}: {e}")
         try:
             self.prepareCfg(dnodePath, {"serverPort": port,
                 "dataDir": dnodePath + os.sep + "data",
                 "logDir": dnodePath + os.sep + "log"})
         except Exception as e:
-            tdLog.info(f"Failed to prepare configuration for {dnodePath}: {e}")
-            return
+            raise Exception(f"Failed to prepare configuration for {dnodePath}: {e}")
         try:
             self.openTaosd(f"-c {dnodePath} {logOutput}")
             self.openTaos(f"-c {dnodePath} {logOutput}")
         except Exception as e:
-            tdLog.info(f"Failed to open taosd or taos for {dnodePath}: {e}")
+            if(skipOpenBin):
+                tdLog.info(f"Failed to prepare taosd and taos with log output {logOutput}: {e}")
+            else:
+                raise Exception(f"Failed to prepare taosd and taos with log output {logOutput}: {e}")
+
 
     def prepare_stdout(self):
         list = self.prepare_list[0]
@@ -215,18 +173,18 @@ class TDTestCase:
         dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[2][1]
         tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taosdlog.0"))
         tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taoslog0.0"))
-    
+
     def prepare_fullpath(self):
         list = self.prepare_list[3]
         dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[3][1]
         self.prepare_logoutput(list[0], list[1], "-o " + dnodePath + "/log0/" )
-    
+
     def check_fullpath(self):
         tdLog.info("Running check fullpath")
         logPath = self.buildPath + "/../sim/dnode%s/log0/" % self.prepare_list[3][1]
         tdSql.checkEqual(True, os.path.exists(f"{logPath}taosdlog.0"))
         tdSql.checkEqual(True, os.path.exists(f"{logPath}taoslog0.0"))
-    
+
     def prepare_fullname(self):
         list = self.prepare_list[4]
         dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[4][1]
@@ -238,17 +196,17 @@ class TDTestCase:
         logPath = self.buildPath + "/../sim/dnode%s/log0/" % self.prepare_list[4][1]
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[4][0] + ".0"))
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[4][0] + "0.0"))
-    
+
     def prepare_relativepath(self):
         list = self.prepare_list[5]
         self.prepare_logoutput(list[0], list[1], "--log-output=" + "log0/")
-    
+
     def check_relativepath(self):
         tdLog.info("Running check relativepath")
         logPath = self.buildPath + "/../sim/dnode%s/log/log0/" % self.prepare_list[5][1]
         tdSql.checkEqual(True, os.path.exists(logPath + "taosdlog.0"))
         tdSql.checkEqual(True, os.path.exists(logPath + "taoslog0.0"))
-    
+
     def prepare_relativename(self):
         list = self.prepare_list[6]
         self.prepare_logoutput(list[0], list[1], "-o " + "log0/" + list[0])
@@ -257,7 +215,7 @@ class TDTestCase:
         logPath = self.buildPath + "/../sim/dnode%s/log/log0/" % self.prepare_list[6][1]
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[6][0] + ".0"))
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[6][0] + "0.0"))
-    
+
     def prepare_filename(self):
         list = self.prepare_list[7]
         self.prepare_logoutput(list[0], list[1], "--log-output " + list[0])
@@ -266,20 +224,29 @@ class TDTestCase:
         logPath = self.buildPath + "/../sim/dnode%s/log/" % self.prepare_list[7][1]
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[7][0] + ".0"))
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[7][0] + "0.0"))
-    
+
     def prepare_empty(self):
         list = self.prepare_list[8]
-        self.prepare_logoutput(list[0], list[1], "--log-output=" + list[0])
+        self.prepare_logoutput(list[0], list[1], "--log-output=" + list[0], True)
     def check_empty(self):
         tdLog.info("Running check empty")
         logPath = self.buildPath + "/../sim/dnode%s/log" % self.prepare_list[8][1]
         tdSql.checkEqual(False, os.path.exists(f"{logPath}/taosdlog.0"))
         tdSql.checkEqual(False, os.path.exists(f"{logPath}/taoslog.0"))
 
+    def prepare_illegal(self):
+        list = self.prepare_list[9]
+        self.prepare_logoutput(list[0], list[1], "--log-output=" + list[0], True)
+    def check_illegal(self):
+        tdLog.info("Running check empty")
+        logPath = self.buildPath + "/../sim/dnode%s/log" % self.prepare_list[9][1]
+        tdSql.checkEqual(False, os.path.exists(f"{logPath}/taosdlog.0"))
+        tdSql.checkEqual(False, os.path.exists(f"{logPath}/taoslog.0"))
+
     def prepareCheckResources(self):
-        self.prepare_list = [["stdout", "10030"], ["stderr", "10031"], ["/dev/null", "10032"], 
-                             ["fullpath", "10033"], ["fullname", "10034"], ["relativepath", "10035"], 
-                             ["relativename", "10036"], ["filename", "10037"], ["empty", "10038"]]
+        self.prepare_list = [["stdout", "10030"], ["stderr", "10031"], ["/dev/null", "10032"], ["fullpath", "10033"],
+                             ["fullname", "10034"], ["relativepath", "10035"], ["relativename", "10036"], ["filename", "10037"], 
+                             ["empty", "10038"], ["illeg?al", "10039"]]
         self.check_functions = {
             self.prepare_stdout: self.check_stdout,
             self.prepare_stderr: self.check_stderr,
@@ -290,6 +257,7 @@ class TDTestCase:
             self.prepare_relativename: self.check_relativename,
             self.prepare_filename: self.check_filename,
             self.prepare_empty: self.check_empty,
+            self.prepare_illegal: self.check_illegal,
         }
 
     def checkLogOutput(self):
@@ -310,14 +278,70 @@ class TDTestCase:
                     future.result()
                 except Exception as e:
                     raise Exception(f"Error in prepare function: {e}")
+
+    def checkLogRotate(self):
+        tdLog.info("Running check log rotate")
+        dnodePath = self.buildPath + "/../sim/dnode10050"
+        logRotateAfterBoot = 6 # LOG_ROTATE_BOOT
         self.closeTaosd()
         self.closeTaos()
+        try:
+            if os.path.exists(dnodePath):
+                shutil.rmtree(dnodePath)
+            self.prepareCfg(dnodePath, {"serverPort": 10050,
+                "dataDir": dnodePath + os.sep + "data",
+                "logDir": dnodePath + os.sep + "log",
+                "logKeepDays": "3" })
+        except Exception as e:
+             raise Exception(f"Failed to prepare configuration for {dnodePath}: {e}")
 
-    def is_windows(self):
-        return os.name == 'nt'
+        nowSec = int(time.time())
+        stubFile99 = f"{dnodePath}/log/taosdlog.99"
+        stubFile101 = f"{dnodePath}/log/taosdlog.101"
+        stubGzFile98 = f"{dnodePath}/log/taosdlog.98.gz"
+        stubGzFile102 = f"{dnodePath}/log/taosdlog.102.gz"
+        stubFileNow = f"{dnodePath}/log/taosdlog.{nowSec}"
+        stubGzFileNow = f"{dnodePath}/log/taosdlog.%d.gz" % (nowSec - 1)
+        stubGzFileKeep = f"{dnodePath}/log/taosdlog.%d.gz" % (nowSec - 86400 * 2)
+        stubGzFileDel = f"{dnodePath}/log/taosdlog.%d.gz" % (nowSec - 86400 * 3)
+        stubFiles = [stubFile99, stubFile101, stubGzFile98, stubGzFile102, stubFileNow, stubGzFileNow, stubGzFileKeep, stubGzFileDel]
+
+        try:
+            os.makedirs(f"{dnodePath}/log", exist_ok=True)
+            for stubFile in stubFiles:
+                with open(stubFile, "w") as f:
+                    f.write("test log rotate")
+        except Exception as e:
+            raise Exception(f"Failed to prepare log files for {dnodePath}: {e}")
+        
+        tdSql.checkEqual(True, os.path.exists(stubFile101))
+        tdSql.checkEqual(True, os.path.exists(stubGzFile102))
+        tdSql.checkEqual(True, os.path.exists(stubFileNow))
+        tdSql.checkEqual(True, os.path.exists(stubGzFileDel))
+
+        self.openTaosd(f"-c {dnodePath}")
+        self.openTaos(f"-c {dnodePath}")
+
+        tdLog.info("wait %d seconds for log rotate" % (logRotateAfterBoot + 2))
+        time.sleep(logRotateAfterBoot + 2)
+
+        tdSql.checkEqual(True, os.path.exists(stubFile99))
+        tdSql.checkEqual(False, os.path.exists(stubFile101))
+        tdSql.checkEqual(False, os.path.exists(f'{stubFile101}.gz'))
+        tdSql.checkEqual(True, os.path.exists(stubGzFile98))
+        tdSql.checkEqual(True, os.path.exists(f'{stubFileNow}.gz'))
+        tdSql.checkEqual(True, os.path.exists(stubGzFileNow))
+        tdSql.checkEqual(True, os.path.exists(stubGzFileKeep))
+        tdSql.checkEqual(False, os.path.exists(stubGzFile102))
+        tdSql.checkEqual(False, os.path.exists(stubGzFileDel))
+        tdSql.checkEqual(True, os.path.exists(f"{dnodePath}/log/taosdlog.0"))
+        tdSql.checkEqual(True, os.path.exists(f"{dnodePath}/log/taoslog0.0"))
 
     def run(self):
         self.checkLogOutput()
+        self.checkLogRotate()
+        self.closeTaosd()
+        self.closeTaos()
 
     def stop(self):
         tdSql.close()

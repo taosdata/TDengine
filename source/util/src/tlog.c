@@ -1077,10 +1077,10 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
   pLogBuf->writeInterval = 0;
 }
 
-#define LOG_ROTATE_INTERVAL 1800
+#define LOG_ROTATE_INTERVAL 3600
 #ifdef ASSERT_NOT_CORE
-#define LOG_INACTIVE_TIME 3600
-#define LOG_ROTATE_BOOT   5
+#define LOG_INACTIVE_TIME 7200
+#define LOG_ROTATE_BOOT   900
 #else
 #define LOG_INACTIVE_TIME 5
 #define LOG_ROTATE_BOOT   (LOG_INACTIVE_TIME + 1)
@@ -1128,9 +1128,12 @@ static void *taosLogRotateFunc(void *param) {
       continue;
     }
 
+    char fullName[PATH_MAX] = {0};
+    snprintf(fullName, sizeof(fullName), "%s%s%s", tsLogDir, TD_DIRSEP, fname);
+
     int64_t mtime = 0;
-    if ((code = taosStatFile(fname, NULL, &mtime, NULL)) != 0) {
-      uWarn("%s:%d failed to stat file %s since %s", __func__, __LINE__, fname, tstrerror(code));
+    if ((code = taosStatFile(fullName, NULL, &mtime, NULL)) != 0) {
+      uWarn("%s:%d failed to stat file %s since %s", __func__, __LINE__, fullName, tstrerror(code));
       continue;
     }
 
@@ -1139,9 +1142,6 @@ static void *taosLogRotateFunc(void *param) {
     if (inactiveSec < LOG_INACTIVE_TIME) {
       continue;
     }
-
-    char fullName[PATH_MAX] = {0};
-    snprintf(fullName, sizeof(fullName), "%s%s%s", tsLogDir, TD_DIRSEP, fname);
 
     int32_t days = inactiveSec / 86400 + 1;
     if (tsLogKeepDays > 0 && days > tsLogKeepDays) {
@@ -1152,7 +1152,7 @@ static void *taosLogRotateFunc(void *param) {
     }
   }
   if ((code = taosCloseDir(&pDir)) != 0) {
-    uWarn("%s:%d failed to close dir:%s since %s\n", __func__, __LINE__, tsLogDir, tstrerror(code));
+    uWarn("%s:%d failed to close dir %s since %s\n", __func__, __LINE__, tsLogDir, tstrerror(code));
   }
 
   if (tsLogKeepDays > 0) {
@@ -1207,6 +1207,7 @@ static void *taosAsyncOutputLog(void *param) {
         (void)taosThreadAttrInit(&attr);
         (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
         if (taosThreadCreate(&thread, &attr, taosLogRotateFunc, tsLogObj.logHandle) == 0) {
+          uInfo("process log rotation");
           lastCheckSec = curSec;
         } else {
           uWarn("failed to create thread to process log rotation");
