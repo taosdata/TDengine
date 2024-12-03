@@ -315,14 +315,13 @@ func (cmd *Command) TransferDataToDest(data *db.Data, dstTable string, tagNum in
 
 // cluster_info
 func (cmd *Command) TransferTaosdClusterBasicInfo() error {
-
 	ctx := context.Background()
 
 	endTime := time.Now()
 	delta := time.Hour * 24 * 10
 
 	var createTableSql = "create stable if not exists taosd_cluster_basic " +
-		"(ts timestamp, first_ep varchar(100), first_ep_dnode_id INT, cluster_version varchar(20)) " +
+		"(ts timestamp, first_ep varchar(255), first_ep_dnode_id INT, cluster_version varchar(20)) " +
 		"tags (cluster_id varchar(50))"
 
 	if _, err := cmd.conn.Exec(ctx, createTableSql, util.GetQidOwn()); err != nil {
