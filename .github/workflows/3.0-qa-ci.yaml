@@ -45,16 +45,6 @@ jobs:
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DIR
-  test:
-    runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [remove_artifacts,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
-    steps:
-      - name: Print Env
-        run: |
-          pwd
-          echo $COVERAGE_REPORT_DIR
 
   build_rust:
     needs: [remove_artifacts,set_env]
