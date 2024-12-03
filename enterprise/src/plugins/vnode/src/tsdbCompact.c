@@ -721,7 +721,7 @@ int32_t tsdbInitCompact() {
   return 0;
 }
 
-void tsdbClearnupCompact() {
+void tsdbCleanupCompact() {
   (void)taosThreadMutexDestroy(&gCompactTaskStage.mutex);
   return;
 }
