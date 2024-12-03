@@ -109,7 +109,7 @@ bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
     if (*pDbName == NULL) {
       return false;
     }
-    tstrncpy(*pDbName, t.z, dbNameLen);
+    strncpy(*pDbName, t.z, dbNameLen);
     (*pDbName)[dbNameLen] = '\0';
     return true;
   }
@@ -185,7 +185,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      tstrncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
@@ -472,7 +472,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      tstrncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {

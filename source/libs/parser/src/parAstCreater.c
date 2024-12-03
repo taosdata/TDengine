@@ -50,12 +50,12 @@
     }                 \
   } while (0)
 
-#define COPY_STRING_FORM_ID_TOKEN(buf, pToken) tstrncpy(buf, (pToken)->z, TMIN((pToken)->n + 1, sizeof(buf)))
-#define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                           \
-  do {                                                                    \
-    if ((pToken)->n > 2) {                                                \
-      tstrncpy(buf, (pToken)->z + 1, TMIN((pToken)->n - 1, sizeof(buf))); \
-    }                                                                     \
+#define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
+#define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                              \
+  do {                                                                       \
+    if ((pToken)->n > 2) {                                                   \
+      strncpy(buf, (pToken)->z + 1, TMIN((pToken)->n - 2, sizeof(buf) - 1)); \
+    }                                                                        \
   } while (0)
 
 SToken nil_token = {.type = TK_NK_NIL, .n = 0, .z = NULL};
@@ -113,7 +113,7 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
   } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN + 2)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   } else {
-    tstrncpy(pPassword, pPasswordToken->z, TMIN(TSDB_USET_PASSWORD_LEN, pPasswordToken->n + 1));
+    strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     (void)strdequote(pPassword);
     if (strtrim(pPassword) <= 0) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
@@ -151,7 +151,7 @@ static int32_t parseEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* p
     tstrncpy(pFqdn, ep, TSDB_FQDN_LEN);
     return TSDB_CODE_SUCCESS;
   }
-  tstrncpy(pFqdn, ep, pColon - ep + 1);
+  strncpy(pFqdn, ep, pColon - ep);
   return parsePort(pCxt, pColon + 1, pPort);
 }
 
@@ -327,14 +327,15 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       tstrncpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
       tstrncpy(pExpr->aliasName, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
     } else {
-      int32_t len = TMIN(sizeof(pExpr->aliasName), pRawExpr->n + 1);
+      int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
 
       // See TS-3398.
       // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
       // If aliasName is truncated, hash value of aliasName could be the same.
       uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
       snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN, "%" PRIu64, hashVal);
-      tstrncpy(pExpr->userAlias, pRawExpr->p, len);
+      strncpy(pExpr->userAlias, pRawExpr->p, len);
+      pExpr->userAlias[len] = 0;
     }
   }
   pRawExpr->pNode = NULL;
@@ -1022,7 +1023,7 @@ static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncNa
   if (NULL == pFuncName) {
     tstrncpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME, TSDB_COL_NAME_LEN);
   } else {
-    tstrncpy(pCol->colName, pFuncName->z, pFuncName->n + 1);
+    strncpy(pCol->colName, pFuncName->z, pFuncName->n);
   }
   pCol->isPrimTs = true;
   return (SNode*)pCol;
@@ -1524,9 +1525,11 @@ SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias)
   CHECK_PARSER_STATUS(pCxt);
   trimEscape(pAlias);
   SExprNode* pExpr = (SExprNode*)pNode;
-  int32_t    len = TMIN(sizeof(pExpr->aliasName), pAlias->n + 1);
-  tstrncpy(pExpr->aliasName, pAlias->z, len);
-  tstrncpy(pExpr->userAlias, pAlias->z, len);
+  int32_t    len = TMIN(sizeof(pExpr->aliasName) - 1, pAlias->n);
+  strncpy(pExpr->aliasName, pAlias->z, len);
+  pExpr->aliasName[len] = '\0';
+  strncpy(pExpr->userAlias, pAlias->z, len);
+  pExpr->userAlias[len] = '\0';
   pExpr->asAlias = true;
   return pNode;
 _err:
@@ -2242,7 +2245,7 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* 
   char optionType[TSDB_CL_OPTION_LEN];
 
   memset(optionType, 0, TSDB_CL_OPTION_LEN);
-  tstrncpy(optionType, pVal1->z, TMIN(pVal1->n, TSDB_CL_OPTION_LEN));
+  strncpy(optionType, pVal1->z, TMIN(pVal1->n, TSDB_CL_OPTION_LEN));
   if (0 == strlen(optionType)) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return pOptions;
@@ -2374,7 +2377,7 @@ SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreEx
   if (TK_NK_STRING == pFilePath->type) {
     (void)trimString(pFilePath->z, pFilePath->n, pStmt->filePath, PATH_MAX);
   } else {
-    tstrncpy(pStmt->filePath, pFilePath->z, TMIN(PATH_MAX, pFilePath->n + 1));
+    strncpy(pStmt->filePath, pFilePath->z, pFilePath->n);
   }
 
   nodesDestroyNode(pUseRealTable);

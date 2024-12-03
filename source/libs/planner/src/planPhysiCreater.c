@@ -41,9 +41,9 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
         if (!*ppKey) {
           return terrno;
         }
-        strncat(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
-        strncat(*ppKey, ".", 2);
-        strncat(*ppKey, pCol->node.aliasName, TSDB_COL_NAME_LEN);
+        TAOS_STRNCAT(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
+        TAOS_STRNCAT(*ppKey, ".", 2);
+        TAOS_STRNCAT(*ppKey, pCol->node.aliasName, TSDB_COL_NAME_LEN);
         *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
         return code;
       } else {
@@ -51,7 +51,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
         if (!*ppKey) {
           return terrno;
         }
-        strncat(*ppKey, pCol->node.aliasName, TSDB_COL_NAME_LEN);
+        TAOS_STRNCAT(*ppKey, pCol->node.aliasName, TSDB_COL_NAME_LEN);
         *pLen = strlen(*ppKey);
         return code;
       }
@@ -61,7 +61,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       if (!*ppKey) {
         return terrno;
       }
-      strncat(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
       *pLen = strlen(*ppKey);
       return code;
     }
@@ -70,9 +70,9 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
     if (!*ppKey) {
       return terrno;
     }
-    strncat(*ppKey, pCol->tableAlias, TSDB_TABLE_NAME_LEN);
-    strncat(*ppKey, ".", 2);
-    strncat(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
+    TAOS_STRNCAT(*ppKey, pCol->tableAlias, TSDB_TABLE_NAME_LEN);
+    TAOS_STRNCAT(*ppKey, ".", 2);
+    TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
     *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
     return code;
   } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
@@ -85,9 +85,9 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
           if (!*ppKey) {
             return terrno;
           }
-          strncat(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
-          strncat(*ppKey, ".", 2);
-          strncat(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
+          TAOS_STRNCAT(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
+          TAOS_STRNCAT(*ppKey, ".", 2);
+          TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
           *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
           return code;
         }
@@ -95,9 +95,9 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
         if (!*ppKey) {
           return terrno;
         }
-        strncat(*ppKey, pVal->literal, strlen(pVal->literal));
-        strncat(*ppKey, ".", 2);
-        strncat(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
+        TAOS_STRNCAT(*ppKey, pVal->literal, strlen(pVal->literal));
+        TAOS_STRNCAT(*ppKey, ".", 2);
+        TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
         *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
         return code;
       }
@@ -109,9 +109,9 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
     if (!*ppKey) {
       return terrno;
     }
-    strncat(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
-    strncat(*ppKey, ".", 2);
-    strncat(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
+    TAOS_STRNCAT(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
+    TAOS_STRNCAT(*ppKey, ".", 2);
+    TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
     *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
     return code;
   }
@@ -120,7 +120,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
   if (!*ppKey) {
     return terrno;
   }
-  strncat(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
+  TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
   *pLen = strlen(*ppKey);
   return code;
 }

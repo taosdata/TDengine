@@ -606,7 +606,7 @@ static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
     tstrncpy(buf, pStart, 10);
     *pNext = NULL;
   } else {
-    tstrncpy(buf, pStart, p - pStart + 1);
+    strncpy(buf, pStart, p - pStart);
     *pNext = ++p;
   }
   return taosStr2Int32(buf, NULL, 10);
@@ -618,7 +618,7 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
     tstrncpy(pStr, pStart, strlen(pStart) + 1);
     *pNext = NULL;
   } else {
-    tstrncpy(pStr, pStart, p - pStart + 1);
+    strncpy(pStr, pStart, p - pStart);
     *pNext = ++p;
   }
   if (*pStart == '`' && *(pStart + 1) == '`') {
@@ -652,7 +652,7 @@ static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   fullName[TSDB_TABLE_FNAME_LEN] = {0};
-      tstrncpy(fullName, pKey, len);
+      strncpy(fullName, pKey, len);
       SName   name = {0};
       int32_t code = tNameFromString(&name, fullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
       if (TSDB_CODE_SUCCESS == code) {
@@ -683,7 +683,7 @@ static int32_t buildDbReq(SHashObj* pDbsHash, SArray** pDbs) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   fullName[TSDB_DB_FNAME_LEN] = {0};
-      tstrncpy(fullName, pKey, len);
+      strncpy(fullName, pKey, len);
       if (NULL == taosArrayPush(*pDbs, fullName)) {
         taosHashCancelIterate(pDbsHash, p);
         taosArrayDestroy(*pDbs);
@@ -737,7 +737,7 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   key[USER_AUTH_KEY_MAX_LEN] = {0};
-      tstrncpy(key, pKey, len);
+      strncpy(key, pKey, len);
       SUserAuthInfo userAuth = {0};
       stringToUserAuth(key, len, &userAuth);
       if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {
@@ -763,7 +763,7 @@ static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
       size_t len = 0;
       char*  pFunc = taosHashGetKey(p, &len);
       char   func[TSDB_FUNC_NAME_LEN] = {0};
-      tstrncpy(func, pFunc, len);
+      strncpy(func, pFunc, len);
       if (NULL == taosArrayPush(*pUdf, func)) {
         taosHashCancelIterate(pUdfHash, p);
         taosArrayDestroy(*pUdf);

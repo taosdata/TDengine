@@ -2131,7 +2131,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
         return generateDealNodeErrMsg(pCxt, terrno);
       }
       varDataSetLen(pVal->datum.p, len);
-      tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+      strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -4395,7 +4395,7 @@ static EDealRes doTranslateTbName(SNode** pNode, void* pContext) {
           return DEAL_RES_ERROR;
         }
         varDataSetLen(pVal->datum.p, tbLen);
-        tstrncpy(varDataVal(pVal->datum.p), pVal->literal, tbLen);
+        tstrncpy(varDataVal(pVal->datum.p), pVal->literal, tbLen + 1);
         tstrncpy(pVal->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
         tstrncpy(pVal->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
         nodesDestroyNode(*pNode);
