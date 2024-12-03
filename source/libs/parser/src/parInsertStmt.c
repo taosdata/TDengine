@@ -952,7 +952,7 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
     if (preCtbname && numOfBound != boundColsInfo.numOfBound) {
       (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
       tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
-      (*fields)[idx].type = TSDB_DATA_TYPE_VARCHAR;
+      (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
       (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
       idx++;
     }
@@ -988,6 +988,9 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
         if (idxCol == pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) {
           (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
           tstrncpy((*fields)[i].name, "tbname", sizeof((*fields)[idx].name));
+          (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
+          (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
+           idx++;
           continue;
         } else if (idxCol < pMeta->tableInfo.numOfColumns) {
           (*fields)[idx].field_type = TAOS_FIELD_COL;
