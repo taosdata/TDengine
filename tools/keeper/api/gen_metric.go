@@ -748,13 +748,14 @@ func (gm *GeneralMetric) initColumnSeqMap() error {
 }
 
 func (gm *GeneralMetric) createSTables() error {
-	var createTableSql = "create stable if not exists taosd_cluster_basic " +
-		"(ts timestamp, first_ep varchar(255), first_ep_dnode_id INT, cluster_version varchar(20)) " +
-		"tags (cluster_id varchar(50))"
-
 	if gm.conn == nil {
 		return errNoConnection
 	}
+
+	createTableSql := "create stable if not exists taosd_cluster_basic " +
+		"(ts timestamp, first_ep varchar(255), first_ep_dnode_id INT, cluster_version varchar(20)) " +
+		"tags (cluster_id varchar(50))"
+
 	_, err := gm.conn.Exec(context.Background(), createTableSql, util.GetQidOwn())
 	if err != nil {
 		return err

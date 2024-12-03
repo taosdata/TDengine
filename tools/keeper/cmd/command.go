@@ -315,7 +315,6 @@ func (cmd *Command) TransferDataToDest(data *db.Data, dstTable string, tagNum in
 
 // cluster_info
 func (cmd *Command) TransferTaosdClusterBasicInfo() error {
-
 	ctx := context.Background()
 
 	endTime := time.Now()
