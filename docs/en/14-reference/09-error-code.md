@@ -16,10 +16,19 @@ This document provides a detailed list of server error codes that may occur when
 | 0x80000015 | Unable to resolve FQDN                                              | Invalid FQDN setting                                                        | Check the FQDN setting                                                      |
 | 0x80000017 | Port is in use                                                      | Port P is occupied, but the service still tries to bind to it               | 1. Change the service port 2. Kill the process using the port               |
 | 0x80000018 | Network jitter or request timeout over 900s                         | 1. Network instability 2. Request took too long                             | 1. Increase the system’s timeout limit 2. Check request execution time      |
-| 0x80000019 | Unused error code                                                   |                                                                             |                                                                             |
+| 0x80000019 | Conn read timeout  | 1. The request processing time is too long  2. The server is overwhelmed  3. The server is deadlocked | 1. Explicitly configure the readTimeout parameter 2. Analyze the stack on taos | 
 | 0x80000020 | Unable to connect to dnodes after multiple retries                  | 1. All nodes are down 2. No available master nodes                          | 1. Check taosd status, analyze causes, or ensure a master node is active    |
 | 0x80000021 | All dnode connections failed after retries                          | 1. Network issues 2. Server deadlock caused disconnection                   | 1. Check the network 2. Check request execution time                        |
 | 0x80000022 | Connection limit reached                                            | 1. High concurrency, connection limit exceeded 2. Server bug not releasing | 1. Increase tsNumOfRpcSessions 2. Analyze logs for unreleased connections   |
+| 0x80000023  | RPC network error                            | 1. Network issues, possibly intermittent 2. Server crash                       | 1. Check the network 2. Check if the server has restarted                 |
+| 0x80000024  | RPC network bus                              | 1. When pulling data between clusters, no available connections are obtained, or the number of connections has reached the limit | 1. Check if the concurrency is too high 2. Check if there are any anomalies in the cluster nodes, such as deadlocks |
+| 0x80000025  | HTTP-report already quit                     | 1. Issues with HTTP reporting                                                  | Internal issue, can be ignored                                            |
+| 0x80000026  | RPC module already quit                      | 1. The client instance has already exited, but still uses the instance for queries | Check the business code to see if there is a mistake in usage             |
+| 0x80000027  | RPC async module already quit                | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+| 0x80000028  | RPC async in process                         | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+| 0x80000029  | RPC no state                                 | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+| 0x8000002A  | RPC state already dropped                    | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+| 0x8000002B  | RPC msg exceed limit                         | 1. Single RPC message exceeds the limit, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 
 ## common
 

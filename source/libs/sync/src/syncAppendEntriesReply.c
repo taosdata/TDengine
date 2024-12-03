@@ -61,7 +61,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     if (pMsg->term != raftStoreGetTerm(ths)) {
       syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
-      syncNodeStepDown(ths, pMsg->term);
+      syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
       return TSDB_CODE_SYN_WRONG_TERM;
     }
 
@@ -79,7 +79,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
-          syncNodeStepDown(ths, pMsg->term);
+          syncNodeStepDown(ths, pMsg->term, pMsg->destId);
         }
       } else {
         TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex));
