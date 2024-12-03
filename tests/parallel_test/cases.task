@@ -10,4 +10,4 @@
 # army-test
 #
 
-,,n,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdlog.py
+,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
