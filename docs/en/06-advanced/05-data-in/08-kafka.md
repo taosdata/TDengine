@@ -24,19 +24,19 @@ import imgStep16 from '../../assets/kafka-16.png';
 import imgStep17 from '../../assets/kafka-17.png';
 import imgStep18 from '../../assets/kafka-18.png';
 
-This section explains how to create a data migration task through the Explorer interface to migrate data from Kafka to the current TDengine cluster.
+This section describes how to create data migration tasks through the Explorer interface, migrating data from Kafka to the current TDengine cluster.
 
-## Overview
+## Feature Overview
 
-Apache Kafka is an open-source distributed streaming platform for stream processing, real-time data pipelines, and large-scale data integration.
+Apache Kafka is an open-source distributed streaming system used for stream processing, real-time data pipelines, and large-scale data integration.
 
-TDengine can efficiently read data from Kafka and write it into TDengine, enabling historical data migration or real-time data ingestion.
+TDengine can efficiently read data from Kafka and write it into TDengine, enabling historical data migration or real-time data streaming.
 
 ## Creating a Task
 
-### 1. Add Data Source
+### 1. Add a Data Source
 
-On the Data Ingestion page, click the **+Add Data Source** button to go to the Add Data Source page.
+On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
 <figure>
 <Image img={imgStep01} alt=""/>
@@ -44,11 +44,11 @@ On the Data Ingestion page, click the **+Add Data Source** button to go to the A
 
 ### 2. Configure Basic Information
 
-Enter the task name in the **Name** field, such as "test_kafka".
+Enter the task name in **Name**, such as: "test_kafka";
 
 Select **Kafka** from the **Type** dropdown list.
 
-The agent is optional. If needed, you can select an agent from the dropdown list, or click the **+Create New Agent** button.
+**Proxy** is optional; if needed, you can select a specific proxy from the dropdown, or click **+Create New Proxy** on the right.
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
@@ -58,11 +58,11 @@ Select a target database from the **Target Database** dropdown list, or click th
 
 ### 3. Configure Connection Information
 
-Enter **bootstrap-server**, for example: `192.168.1.92`.
+**bootstrap-server**, for example: `192.168.1.92`.
 
-Enter **Port**, for example: `9092`.
+**Service Port**, for example: `9092`.
 
-For multiple broker addresses, add more pairs of bootstrap-server and ports by clicking the **Add Broker** button at the bottom right of the connection configuration section.
+When there are multiple broker addresses, add a **+Add Broker** button at the bottom right of the connection settings to add bootstrap-server and service port pairs.
 
 <figure>
 <Image img={imgStep03} alt=""/>
@@ -70,7 +70,7 @@ For multiple broker addresses, add more pairs of bootstrap-server and ports by c
 
 ### 4. Configure SASL Authentication Mechanism
 
-If the server has SASL authentication enabled, configure SASL and select the appropriate authentication mechanism. Currently, PLAIN/SCRAM-SHA-256/GSSAPI are supported.
+If the server has enabled SASL authentication, you need to enable SASL here and configure the relevant content. Currently, three authentication mechanisms are supported: PLAIN/SCRAM-SHA-256/GSSAPI. Please choose according to the actual situation.
 
 #### 4.1. PLAIN Authentication
 
@@ -90,27 +90,24 @@ Select the `SCRAM-SHA-256` authentication mechanism and enter the username and p
 
 #### 4.3. GSSAPI Authentication
 
-Select `GSSAPI`, which uses the [RDkafka client](https://github.com/confluentinc/librdkafka) to call GSSAPI for Kerberos authentication:
+Select `GSSAPI`, which will use the [RDkafka client](https://github.com/confluentinc/librdkafka) to invoke the GSSAPI applying Kerberos authentication mechanism:
 
 <figure>
 <Image img={imgStep06} alt=""/>
 </figure>
 
-You will need to provide:
+The required information includes:
 
-- Kerberos service name, typically `kafka`.
-- Kerberos principal (authentication username), such as `kafkaclient`.
-- Kerberos initialization command (optional).
-- Kerberos keytab, a file that you must upload.
+- Kerberos service name, usually `kafka`;
+- Kerberos authentication principal, i.e., the authentication username, such as `kafkaclient`;
+- Kerberos initialization command (optional, generally not required);
+- Kerberos keytab, you need to provide and upload the file;
 
-These details must be provided by the Kafka administrator.
+All the above information must be provided by the Kafka service manager.
 
-You must also set up [Kerberos](https://web.mit.edu/kerberos/) authentication on your server. Install it using the following commands:
+In addition, the [Kerberos](https://web.mit.edu/kerberos/) authentication service needs to be configured on the server. Use `apt install krb5-user` on Ubuntu; on CentOS, use `yum install krb5-workstation`.
 
-- On Ubuntu: `apt install krb5-user`
-- On CentOS: `yum install krb5-workstation`
-
-After configuring, you can use the [kcat](https://github.com/edenhill/kcat) tool to validate the Kafka topic consumption:
+After configuration, you can use the [kcat](https://github.com/edenhill/kcat) tool to verify Kafka topic consumption:
 
 ```bash
 kcat <topic> \
@@ -123,11 +120,11 @@ kcat <topic> \
   -X sasl.kerberos.service.name=kafka
 ```
 
-If you get the error: "Server xxxx not found in kerberos database," ensure that the domain name for the Kafka node is configured properly and set `rdns = true` in the Kerberos client configuration file (`/etc/krb5.conf`).
+If an error occurs: "Server xxxx not found in kerberos database", you need to configure the domain name corresponding to the Kafka node and configure reverse DNS resolution `rdns = true` in the Kerberos client configuration file `/etc/krb5.conf`.
 
 ### 5. Configure SSL Certificate
 
-If SSL encryption authentication is enabled on the server, enable SSL here and configure the relevant details.
+If the server has enabled SSL encryption authentication, SSL needs to be enabled here and related content configured.
 
 <figure>
 <Image img={imgStep07} alt=""/>
@@ -135,24 +132,24 @@ If SSL encryption authentication is enabled on the server, enable SSL here and c
 
 ### 6. Configure Collection Information
 
-In the **Collection Configuration** section, fill in the relevant parameters for the collection task.
+Fill in the configuration parameters related to the collection task in the **Collection Configuration** area.
 
-Enter the **Timeout**. If Kafka does not provide any data within the timeout period, the data collection task will exit. The default is 0 ms, meaning it will wait indefinitely until data is available or an error occurs.
+Enter the timeout duration in **Timeout**. If no data is consumed from Kafka, and the timeout is exceeded, the data collection task will exit. The default value is 0 ms. When the timeout is set to 0, it will wait indefinitely until data becomes available or an error occurs.
 
-Enter the **Topic** name to consume. Multiple topics can be configured, separated by commas (e.g., `tp1,tp2`).
+Enter the Topic name to be consumed in **Topic**. Multiple Topics can be configured, separated by commas. For example: `tp1,tp2`.
 
-In the **Client ID** field, enter the client identifier. This will generate a client ID with the `taosx` prefix (e.g., if you enter "foo", the client ID will be `taosxfoo`). If you enable the switch at the end, the task ID will be appended to `taosx` before the entered identifier (e.g., `taosx100foo`). You should note that when using multiple taosX instances to subscribe to the same Topic for load balancing, you must provide a consistent Client ID to achieve the balancing effect.
+Enter the client identifier in **Client ID**. After entering, a client ID with the prefix `taosx` will be generated (for example, if the identifier entered is `foo`, the generated client ID will be `taosxfoo`). If the switch at the end is turned on, the current task's task ID will be concatenated after `taosx` and before the entered identifier (the generated client ID will look like `taosx100foo`). Note that when using multiple taosX subscriptions for the same Topic to achieve load balancing, a consistent client ID must be entered to achieve the balancing effect.
 
-In the **Consumer Group ID** field, enter the consumer group identifier. This will generate a consumer group ID with the `taosx` prefix (e.g., if you enter "foo", the consumer group ID will be `taosxfoo`). If you enable the switch at the end, the task ID will be appended to `taosx` before the entered identifier (e.g., `taosx100foo`).
+Enter the consumer group identifier in **Consumer Group ID**. After entering, a consumer group ID with the prefix `taosx` will be generated (for example, if the identifier entered is `foo`, the generated consumer group ID will be `taosxfoo`). If the switch at the end is turned on, the current task's task ID will be concatenated after `taosx` and before the entered identifier (the generated consumer group ID will look like `taosx100foo`).
 
-From the **Offset** dropdown list, choose the offset to start consuming data. There are three options: `Earliest`, `Latest`, `ByTime(ms)`. The default is `Earliest`.
+In the **Offset** dropdown, select from which Offset to start consuming data. There are three options: `Earliest`, `Latest`, `ByTime(ms)`. The default is Earliest.
 
 - Earliest: Requests the earliest offset.
 - Latest: Requests the latest offset.
 
-In the **Max Duration for Fetching Data**, set the maximum time to wait for data when the data is insufficient (in milliseconds). The default is 100ms.
+Set the maximum duration to wait for insufficient data when fetching messages in **Maximum Duration to Fetch Data** (in milliseconds), the default value is 100ms.
 
-Click the **Check Connectivity** button to check if the data source is available.
+Click the **Connectivity Check** button to check if the data source is available.
 
 <figure>
 <Image img={imgStep08} alt=""/>
@@ -160,38 +157,38 @@ Click the **Check Connectivity** button to check if the data source is available
 
 ### 7. Configure Payload Parsing
 
-In the **Payload Parsing** section, fill in the relevant parameters for payload parsing.
+Fill in the configuration parameters related to Payload parsing in the **Payload Parsing** area.
 
 #### 7.1 Parsing
 
-There are three ways to obtain sample data:
+There are three methods to obtain sample data:
 
-Click the **Fetch from Server** button to retrieve sample data from Kafka.
+Click the **Retrieve from Server** button to get sample data from Kafka.
 
-Click the **Upload File** button to upload a CSV file to obtain sample data.
+Click the **File Upload** button to upload a CSV file and obtain sample data.
 
-In the **Message Body** field, enter a sample of the Kafka message body.
+Enter sample data from the Kafka message body in **Message Body**.
 
-JSON data supports both `JSONObject` and `JSONArray`. Use the JSON parser to parse the following data:
+JSON data supports JSONObject or JSONArray, and the following data can be parsed using a JSON parser:
 
-```json
-{"id": 1, "message": "hello-world"}
-{"id": 2, "message": "hello-world"}
+``` json
+{"id": 1, "message": "hello-word"}
+{"id": 2, "message": "hello-word"}
 ```
 
 or
 
-```json
-[{"id": 1, "message": "hello-world"},{"id": 2, "message": "hello-world"}]
+``` json
+[{"id": 1, "message": "hello-word"},{"id": 2, "message": "hello-word"}]
 ```
 
-The parsed result is as follows:
+The parsing results are shown as follows:
 
 <figure>
 <Image img={imgStep09} alt=""/>
 </figure>
 
-Click the **Magnifying Glass Icon** to preview the parsed result.
+Click the **magnifying glass icon** to view the preview parsing results.
 
 <figure>
 <Image img={imgStep10} alt=""/>
@@ -199,17 +196,17 @@ Click the **Magnifying Glass Icon** to preview the parsed result.
 
 #### 7.2 Field Splitting
 
-In the **Extract or Split from Column** field, enter the fields to be extracted or split from the message body. For example, to split the `message` field into `message_0` and `message_1`, select the `split` extractor, set `separator` to `-`, and set `number` to `2`.
+In **Extract or Split from Columns**, fill in the fields to extract or split from the message body, for example: split the message field into `message_0` and `message_1`, select the split extractor, fill in the separator as -, and number as 2.
 
 Click **Add** to add more extraction rules.
 
-Click **Delete** to remove the current extraction rule.
+Click **Delete** to delete the current extraction rule.
 
 <figure>
 <Image img={imgStep11} alt=""/>
 </figure>
 
-Click the **Magnifying Glass Icon** to preview the extracted/split result.
+Click the **magnifying glass icon** to view the preview extraction/splitting results.
 
 <figure>
 <Image img={imgStep12} alt=""/>
@@ -217,17 +214,17 @@ Click the **Magnifying Glass Icon** to preview the extracted/split result.
 
 #### 7.3 Data Filtering
 
-In the **Filter** section, enter filtering conditions. For example, if you enter `id != 1`, only data where `id` is not equal to `1` will be written into TDengine.
+In **Filter**, fill in the filtering conditions, for example: enter `id != 1`, then only data with id not equal to 1 will be written to TDengine.
 
 Click **Add** to add more filtering rules.
 
-Click **Delete** to remove the current filtering rule.
+Click **Delete** to delete the current filtering rule.
 
 <figure>
 <Image img={imgStep13} alt=""/>
 </figure>
 
-Click the **Magnifying Glass Icon** to preview the filtered result.
+Click the **magnifying glass icon** to view the preview filtering results.
 
 <figure>
 <Image img={imgStep14} alt=""/>
@@ -235,15 +232,15 @@ Click the **Magnifying Glass Icon** to preview the filtered result.
 
 #### 7.4 Table Mapping
 
-From the **Target Supertable** dropdown list, select a target supertable, or click the **Create Supertable** button on the right.
+In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
-In the **Mapping** field, enter the name of the subtable in the target supertable, such as `t_{id}`. Based on the requirements, fill in the mapping rules. The mapping supports setting default values.
+In the **Mapping** section, fill in the name of the subtable in the target supertable, for example: `t_{id}`. Fill in the mapping rules as required, where mapping supports setting default values.
 
 <figure>
 <Image img={imgStep15} alt=""/>
 </figure>
 
-Click **Preview** to view the mapping result.
+Click **Preview** to view the results of the mapping.
 
 <figure>
 <Image img={imgStep16} alt=""/>
@@ -251,7 +248,7 @@ Click **Preview** to view the mapping result.
 
 ### 8. Configure Advanced Options
 
-The **Advanced Options** section is collapsed by default. Click the right `>` to expand it, as shown below:
+The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
 <figure>
 <Image img={imgStep17} alt=""/>
@@ -261,6 +258,6 @@ The **Advanced Options** section is collapsed by default. Click the right `>` to
 <Image img={imgStep18} alt=""/>
 </figure>
 
-### 9. Complete the Creation
+### 9. Completion of Creation
 
-Click the **Submit** button to complete the Kafka to TDengine data synchronization task. Go back to the **Data Sources** page to view the task's status.
+Click the **Submit** button to complete the creation of the Kafka to TDengine data synchronization task. Return to the **Data Source List** page to view the status of the task execution.

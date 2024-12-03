@@ -1,6 +1,5 @@
 ---
 title: qStudio
-description: A detailed guide to accessing TDengine data using qStudio
 slug: /third-party-tools/management/qstudio
 ---
 
@@ -12,48 +11,48 @@ import imgStep04 from '../../assets/qstudio-04.png';
 import imgStep05 from '../../assets/qstudio-05.png';
 import imgStep06 from '../../assets/qstudio-06.png';
 
-qStudio is a free multi-platform SQL data analysis tool that allows users to easily browse tables, variables, functions, and configuration settings in a database. The latest version of qStudio has built-in support for TDengine.
+qStudio is a free multi-platform SQL data analysis tool that allows easy browsing of tables, variables, functions, and configuration settings in databases. The latest version of qStudio has built-in support for TDengine.
 
 ## Prerequisites
 
-To connect qStudio to TDengine, the following preparations are necessary:
+Using qStudio to connect to TDengine requires the following preparations.
 
-- Install qStudio. qStudio supports major operating systems, including Windows, macOS, and Linux. Please ensure to [download](https://www.timestored.com/qstudio/download/) the installation package for the correct platform.
-- Install a TDengine instance. Ensure that TDengine is running normally and that the taosAdapter is installed and functioning correctly. For specific details, refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter/).
+- Install qStudio. qStudio supports mainstream operating systems including Windows, macOS, and Linux. Please make sure to [download](https://www.timestored.com/qstudio/download/) the correct platform package.
+- Install a TDengine instance, ensure that TDengine is running properly, and that taosAdapter is installed and running smoothly. For more details, please refer to [the taosAdapter user manual](../../../tdengine-reference/components/taosadapter).
 
 ## Using qStudio to Connect to TDengine
 
-1. Launch the qStudio application, select “Server” from the menu, and then choose “Add Server...”. In the Server Type dropdown, select TDengine.
+1. Launch the qStudio application, select "Server" and "Add Server..." from the menu items, then choose TDengine from the Server Type dropdown.
 
    <figure>
    <Image img={imgStep01} alt=""/>
    </figure>
 
-2. Configure the TDengine connection by entering the host address, port number, username, and password. If TDengine is deployed on the local machine, you can simply enter the username and password; the default username is root, and the default password is taosdata. Click “Test” to check the availability of the connection. If the TDengine Java connector is not installed on the local machine, qStudio will prompt you to download it.
+2. Configure the TDengine connection by entering the host address, port number, username, and password. If TDengine is deployed on the local machine, you can just enter the username and password, with the default username being root and the default password being taosdata. Click "Test" to check if the connection is available. If the TDengine Java connector is not installed on the local machine, qStudio will prompt to download and install it.
 
    <figure>
    <Image img={imgStep02} alt=""/>
    </figure>
 
-3. If the connection is successful, it will display as shown in the image below. If the connection fails, please check whether the TDengine service and taosAdapter are running correctly and verify the host address, port number, username, and password.
+3. A successful connection will be displayed as shown below. If the connection fails, please check whether the TDengine service and taosAdapter are running correctly, and whether the host address, port number, username, and password are correct.
 
    <figure>
    <Image img={imgStep03} alt=""/>
    </figure>
 
-4. Use qStudio to select databases and tables to browse the data from the TDengine service.
+4. Using qStudio to select databases and tables allows you to browse data from the TDengine service.
 
    <figure>
    <Image img={imgStep04} alt=""/>
    </figure>
 
-5. You can also perform operations on TDengine data by executing SQL commands.
+5. You can also operate on TDengine data by executing SQL commands.
 
    <figure>
    <Image img={imgStep05} alt=""/>
    </figure>
 
-6. qStudio supports features such as charting data. Please refer to the [qStudio help documentation](https://www.timestored.com/qstudio/help).
+6. qStudio supports features like charting based on data, please refer to [qStudio's help documentation](https://www.timestored.com/qstudio/help)
 
    <figure>
    <Image img={imgStep06} alt=""/>

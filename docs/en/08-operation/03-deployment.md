@@ -1,142 +1,139 @@
 ---
-title: Deploy Your Cluster
+title: Deploying Your Cluster
 slug: /operations-and-maintenance/deploy-your-cluster
 ---
 
-Since TDengine was designed from the outset with a distributed architecture, it has powerful horizontal scalability to meet the growing data processing demands. Therefore, TDengine supports clusters and open-sources this core functionality. Users can choose from four deployment methods based on their actual environment and needs—manual deployment, Docker deployment, Kubernetes deployment, and Helm deployment.
+Since TDengine was designed with a distributed architecture from the beginning, it has powerful horizontal scaling capabilities to meet the growing data processing needs. Therefore, TDengine supports clustering and has open-sourced this core functionality. Users can choose from four deployment methods according to their actual environment and needs—manual deployment, Docker deployment, Kubernetes deployment, and Helm deployment.
 
 ## Manual Deployment
 
 ### Deploying taosd
 
-taosd is the main service component in the TDengine cluster. This section describes the steps for manually deploying a taosd cluster.
+taosd is the most important service component in the TDengine cluster. This section describes the steps to manually deploy a taosd cluster.
 
 #### 1. Clear Data
 
-If there is any previous test data or if another version (such as 1.x/2.x) of TDengine has been installed on the physical nodes where the cluster is being set up, please delete it and clear all data.
+If the physical nodes for setting up the cluster contain previous test data or have had other versions of TDengine installed (such as 1.x/2.x), please delete them and clear all data first.
 
 #### 2. Check Environment
 
-Before deploying the TDengine cluster, it is crucial to thoroughly check the network settings of all dnodes and the physical nodes where the applications reside. Here are the checking steps:
+Before deploying the TDengine cluster, it is crucial to thoroughly check the network settings of all dnodes and the physical nodes where the applications are located. Here are the steps to check:
 
-- **Step 1:** Execute the command `hostname -f` on each physical node to check and confirm that all node hostnames are unique. This step can be skipped for the node where the application driver resides.
-- **Step 2:** Execute the command `ping host` on each physical node, where `host` is the hostname of other physical nodes. This step aims to detect network connectivity between the current node and other physical nodes. If any nodes cannot be pinged, immediately check the network and DNS settings. For Linux operating systems, check the `/etc/hosts` file; for Windows operating systems, check the `C:\Windows\system32\drivers\etc\hosts` file. Poor network connectivity will prevent the cluster from being formed, so be sure to resolve this issue.
-- **Step 3:** Repeat the above network check steps on the physical nodes running the applications. If network connectivity is poor, the application will not be able to connect to the taosd service. At this time, carefully check the DNS settings or hosts file on the physical node where the application resides to ensure correct configuration.
-- **Step 4:** Check the ports to ensure that all hosts in the cluster can communicate over TCP on port 6030.
+- Step 1: Execute the `hostname -f` command on each physical node to view and confirm that all node hostnames are unique. This step can be omitted for nodes where application drivers are located.
+- Step 2: Execute the `ping host` command on each physical node, where host is the hostname of other physical nodes. This step aims to detect the network connectivity between the current node and other physical nodes. If you cannot ping through, immediately check the network and DNS settings. For Linux operating systems, check the `/etc/hosts` file; for Windows operating systems, check the `C:\Windows\system32\drivers\etc\hosts` file. Network issues will prevent the formation of a cluster, so be sure to resolve this issue.
+- Step 3: Repeat the above network detection steps on the physical nodes where the application is running. If the network is found to be problematic, the application will not be able to connect to the taosd service. At this point, carefully check the DNS settings or hosts file of the physical node where the application is located to ensure it is configured correctly.
+- Step 4: Check ports to ensure that all hosts in the cluster can communicate over TCP on port 6030.
 
-By following these steps, you can ensure smooth network communication between all nodes, thereby laying a solid foundation for successfully deploying the TDengine cluster.
+By following these steps, you can ensure that all nodes communicate smoothly at the network level, laying a solid foundation for the successful deployment of the TDengine cluster.
 
 #### 3. Installation
 
-To ensure consistency and stability across the physical nodes in the cluster, please install the same version of TDengine on all physical nodes.
+To ensure consistency and stability within the cluster, install the same version of TDengine on all physical nodes.
 
 #### 4. Modify Configuration
 
-Modify the TDengine configuration file (all nodes' configuration files need to be modified). Suppose the endpoint of the first dnode to be started is `h1.tdengine.com:6030`, its related cluster configuration parameters are as follows.
+Modify the configuration file of TDengine (the configuration files of all nodes need to be modified). Assuming the endpoint of the first dnode to be started is `h1.tdengine.com:6030`, the cluster-related parameters are as follows.
 
 ```shell
-# firstEp is the first dnode to connect after each dnode starts
+# firstEp is the first dnode that each dnode connects to after the initial startup
 firstEp h1.tdengine.com:6030
-# Must be configured to the FQDN of this dnode. If the machine only has one hostname, this line can be commented out or deleted
+# Must be configured to the FQDN of this dnode, if there is only one hostname on this machine, you can comment out or delete the following line
 fqdn h1.tdengine.com
-# Configure the port for this dnode, default is 6030
+# Configure the port of this dnode, default is 6030
 serverPort 6030
 ```
 
-The parameters that must be modified are `firstEp` and `fqdn`. The `firstEp` configuration should be consistent for each dnode, but the `fqdn` must be configured to the value of the respective dnode. Other parameters need not be modified unless you are very clear about why changes are necessary.
+The parameters that must be modified are firstEp and fqdn. For each dnode, the firstEp configuration should remain consistent, but fqdn must be set to the value of the dnode it is located on. Other parameters do not need to be modified unless you are clear on why they should be changed.
 
-For dnodes that wish to join the cluster, it is essential to ensure that the parameters related to the TDengine cluster listed in the table below are set to be completely consistent. Any mismatch in parameters may prevent the dnode from successfully joining the cluster.
+For dnodes wishing to join the cluster, it is essential to ensure that the parameters related to the TDengine cluster listed in the table below are set identically. Any mismatch in parameters may prevent the dnode from successfully joining the cluster.
 
-| Parameter Name         | Meaning                                                       |
-|:----------------------:|:------------------------------------------------------------:|
-| statusInterval         | Interval at which the dnode reports status to the mnode     |
-| timezone               | Time zone                                                    |
-| locale                 | System locale information and encoding format               |
-| charset                | Character set encoding                                       |
-| ttlChangeOnWrite      | Whether the TTL expiration time changes with the table modification |
+| Parameter Name   | Meaning                                                   |
+|:----------------:|:---------------------------------------------------------:|
+| statusInterval   | Interval at which dnode reports status to mnode           |
+| timezone         | Time zone                                                 |
+| locale           | System locale information and encoding format             |
+| charset          | Character set encoding                                    |
+| ttlChangeOnWrite | Whether ttl expiration changes with table modification    |
 
 #### 5. Start
 
-Follow the previous steps to start the first dnode, for example, `h1.tdengine.com`. Then execute `taos` in the terminal to start the TDengine CLI program and execute the command `show dnodes` to view information about all dnodes currently in the cluster.
+Start the first dnode, such as `h1.tdengine.com`, following the steps mentioned above. Then execute taos in the terminal to start TDengine's CLI program taos, and execute the `show dnodes` command within it to view all dnode information in the current cluster.
 
 ```shell
 taos> show dnodes;
- id | endpoint          | vnodes | support_vnodes | status | create_time          | note |
-=================================================================================
- 1 | h1.tdengine.com:6030 | 0 | 1024 | ready | 2022-07-16 10:50:42.673 | |
+ id | endpoint | vnodes|support_vnodes|status| create_time | note |
+===================================================================================
+ 1| h1.tdengine.com:6030 | 0| 1024| ready| 2022-07-16 10:50:42.673 | |
 ```
 
-You can see that the endpoint of the newly started dnode is `h1.tdengine.com:6030`. This address is the first Ep of the newly created cluster.
+You can see that the endpoint of the dnode node that has just started is `h1.tdengine.com:6030`. This address is the first Ep of the new cluster.
 
-#### 6. Add dnode
+#### 6. Adding dnode
 
-Following the previous steps, start taosd on each physical node. Each dnode needs to have its `firstEp` parameter in the `taos.cfg` file set to the endpoint of the first node of the new cluster, which in this case is `h1.tdengine.com:6030`. On the machine where the first dnode resides, execute `taos` in the terminal to open the TDengine CLI program, then log into the TDengine cluster and execute the following SQL.
+Follow the steps mentioned earlier, start taosd on each physical node. Each dnode needs to configure the firstEp parameter in the taos.cfg file to the endpoint of the first node of the new cluster, which in this case is `h1.tdengine.com:6030`. On the machine where the first dnode is located, run taos in the terminal, open TDengine's CLI program taos, then log into the TDengine cluster, and execute the following SQL.
 
 ```shell
 create dnode "h2.tdengine.com:6030"
 ```
 
-This command adds the endpoint of the new dnode to the cluster's endpoint list. You must enclose `fqdn:port` in double quotes; otherwise, a runtime error will occur. Remember to replace the example `h2.tdengine.com:6030` with the endpoint of this new dnode. Then execute the following SQL to check whether the new node has successfully joined. If the dnode you wish to add is currently offline, please refer to the "Common Issues" section at the end of this section for resolution.
+Add the new dnode's endpoint to the cluster's endpoint list. You need to put `fqdn:port` in double quotes, otherwise, it will cause an error when running. Please note to replace the example h2.tdengine.com:6030 with the endpoint of this new dnode. Then execute the following SQL to see if the new node has successfully joined. If the dnode you want to join is currently offline, please refer to the "Common Issues" section later in this chapter for a solution.
 
 ```shell
 show dnodes;
 ```
 
-In the logs, please verify that the fqdn and port of the output dnode match the endpoint you just attempted to add. If they do not match, please correct it to the correct endpoint. By following the above steps, you can continue to add new dnodes one by one to expand the scale of the cluster and improve overall performance. Ensuring that the correct process is followed when adding new nodes helps maintain the stability and reliability of the cluster.
+In the logs, please confirm that the fqdn and port of the output dnode are consistent with the endpoint you just tried to add. If they are not consistent, correct it to the correct endpoint. By following the steps above, you can continuously add new dnodes to the cluster one by one, thereby expanding the scale of the cluster and improving overall performance. Make sure to follow the correct process when adding new nodes, which helps maintain the stability and reliability of the cluster.
 
-:::tip
+**Tips**
 
-- Any dnode that has already joined the cluster can serve as the `firstEp` for subsequent nodes to join. The `firstEp` parameter only takes effect when that dnode first joins the cluster; after joining, that dnode will retain the latest endpoint list of mnode and will no longer depend on this parameter. The `firstEp` parameter in the configuration file is primarily used for client connections. If no parameters are set for the TDengine CLI, the default connection will be to the node specified by `firstEp`.
-- Two dnodes that have not configured the `firstEp` parameter will operate independently after startup. In this case, it will not be possible to join one dnode to another to form a cluster.
+- Any dnode that has joined the cluster can serve as the firstEp for subsequent nodes to be added. The firstEp parameter only functions when that dnode first joins the cluster. After joining, the dnode will save the latest mnode's endpoint list, and subsequently, it no longer depends on this parameter. The firstEp parameter in the configuration file is mainly used for client connections, and if no parameters are set for TDengine's CLI, it will default to connecting to the node specified by firstEp.
+- Two dnodes that have not configured the firstEp parameter will run independently after starting. At this time, it is not possible to join one dnode to another to form a cluster.
 - TDengine does not allow merging two independent clusters into a new cluster.
 
-:::
+#### 7. Adding mnode
 
-#### 7. Add mnode
-
-When creating the TDengine cluster, the first dnode will automatically become the mnode, responsible for managing and coordinating the cluster. To achieve high availability of the mnode, subsequent dnodes need to manually create mnode. Note that a maximum of three mnodes can be created for one cluster, and only one mnode can be created on each dnode. When the number of dnodes in the cluster reaches or exceeds three, you can create an mnode for the existing cluster. On the first dnode, log into TDengine using the TDengine CLI program `taos`, then execute the following SQL.
+When creating a TDengine cluster, the first dnode automatically becomes the mnode of the cluster, responsible for managing and coordinating the cluster. To achieve high availability of mnode, subsequent dnodes need to manually create mnode. Please note that a cluster can create up to 3 mnodes, and only one mnode can be created on each dnode. When the number of dnodes in the cluster reaches or exceeds 3, you can create mnode for the existing cluster. In the first dnode, first log into TDengine through the CLI program taos, then execute the following SQL.
 
 ```shell
 create mnode on dnode <dnodeId>
 ```
 
-Be sure to replace the dnodeId in the example above with the sequence number of the newly created dnode (this can be obtained by executing the `show dnodes` command). Finally, execute the following `show mnodes` command to check whether the newly created mnode has successfully joined the cluster.
+Please note to replace the dnodeId in the example above with the serial number of the newly created dnode (which can be obtained by executing the `show dnodes` command). Finally, execute the following `show mnodes` to see if the newly created mnode has successfully joined the cluster.
 
-:::tip
+**Tips**
 
-During the process of building a TDengine cluster, if the new node always shows as offline after executing the `create dnode` command to add a new node, please follow these steps for troubleshooting.
+During the process of setting up a TDengine cluster, if a new node always shows as offline after executing the create dnode command to add a new node, please follow these steps for troubleshooting.
 
-- **Step 1:** Check whether the `taosd` service on the new node has started correctly. You can confirm this by checking the log files or using the `ps` command.
-- **Step 2:** If the `taosd` service has started, please check whether the network connection on the new node is smooth and whether the firewall is disabled. Poor network connectivity or firewall settings may prevent the node from communicating with other nodes in the cluster.
-- **Step 3:** Use the command `taos -h fqdn` to try connecting to the new node, then execute the `show dnodes` command. This will display the operating status of the new node as an independent cluster. If the displayed list is inconsistent with what is shown on the main node, it indicates that the new node may have formed a single-node cluster independently. To resolve this issue, first stop the `taosd` service on the new node. Next, clear all files in the dataDir directory specified in the `taos.cfg` configuration file on the new node. This will remove all data and configuration information related to that node. Finally, restart the `taosd` service on the new node. This will restore the new node to its initial state and prepare it to rejoin the main cluster.
-
-:::
+- Step 1, check whether the taosd service on the new node has started normally. You can confirm this by checking the log files or using the ps command.
+- Step 2, if the taosd service has started, next check whether the new node's network connection is smooth and confirm whether the firewall has been turned off. Network issues or firewall settings may prevent the node from communicating with other nodes in the cluster.
+- Step 3, use the taos -h fqdn command to try to connect to the new node, then execute the show dnodes command. This will display the running status of the new node as an independent cluster. If the displayed list is inconsistent with that shown on the main node, it indicates that the new node may have formed a single-node cluster on its own. To resolve this issue, follow these steps. First, stop the taosd service on the new node. Second, clear all files in the dataDir directory specified in the taos.cfg configuration file on the new node. This will delete all data and configuration information related to that node. Finally, restart the taosd service on the new node. This will reset the new node to its initial state, ready to rejoin the main cluster.
 
 ### Deploying taosAdapter
 
-This section describes how to deploy taosAdapter, which provides RESTful and WebSocket access capabilities for the TDengine cluster, thus playing a critical role in the cluster.
+This section discusses how to deploy taosAdapter, which provides RESTful and WebSocket access capabilities for the TDengine cluster, thus playing a very important role in the cluster.
 
-1. **Installation**
+1. Installation
 
-After completing the installation of TDengine Enterprise, you can use taosAdapter. If you want to deploy taosAdapter on different servers, TDengine Enterprise must be installed on those servers as well.
+After the installation of TDengine Enterprise is complete, taosAdapter can be used. If you want to deploy taosAdapter on different servers, TDengine Enterprise needs to be installed on these servers.
 
-2. **Single Instance Deployment**
+2. Single Instance Deployment
 
-Deploying a single instance of taosAdapter is straightforward; please refer to the manual for the commands and configuration parameters in the taosAdapter section.
+Deploying a single instance of taosAdapter is very simple. For specific commands and configuration parameters, please refer to the taosAdapter section in the manual.
 
-3. **Multi-instance Deployment**
+3. Multiple Instances Deployment
 
-The primary purposes of deploying multiple instances of taosAdapter are:
+The main purposes of deploying multiple instances of taosAdapter are as follows:
 
-- To enhance the throughput of the cluster and avoid taosAdapter becoming a bottleneck in the system.
-- To improve the robustness and high availability of the cluster, so that when one instance fails to provide service for some reason, incoming requests to the business system can be automatically routed to other instances.
+- To increase the throughput of the cluster and prevent taosAdapter from becoming a system bottleneck.
+- To enhance the robustness and high availability of the cluster, allowing requests entering the business system to be automatically routed to other instances when one instance fails.
 
-When deploying multiple instances of taosAdapter, you need to address the load balancing issue to avoid overloading one node while others remain idle. During deployment, you need to deploy multiple single instances separately, with the deployment steps for each instance being identical to that of a single instance. The critical part next is configuring Nginx. Below is a validated best practice configuration; you only need to replace the endpoint with the correct address for your actual environment. For the meanings of each parameter, please refer to the official Nginx documentation.
+When deploying multiple instances of taosAdapter, it is necessary to address load balancing issues to avoid overloading some nodes while others remain idle. During the deployment process, multiple single instances need to be deployed separately, and the deployment steps for each instance are exactly the same as those for deploying a single instance. The next critical part is configuring Nginx. Below is a verified best practice configuration; you only need to replace the endpoint with the correct address in the actual environment. For the meanings of each parameter, please refer to the official Nginx documentation.
 
 ```json
 user root;
 worker_processes auto;
 error_log /var/log/nginx_error.log;
+
 
 events {
         use epoll;
@@ -144,6 +141,7 @@ events {
 }
 
 http {
+
     access_log off;
 
     map $http_upgrade $connection_upgrade {
@@ -169,7 +167,7 @@ http {
         location ~* {
             proxy_pass http://keeper;
             proxy_read_timeout 60s;
-            proxy_next_upstream error http_502 http_500 non_idempotent;
+            proxy_next_upstream error  http_502 http_500  non_idempotent;
         }
     }
 
@@ -178,7 +176,7 @@ http {
         location ~* {
             proxy_pass http://explorer;
             proxy_read_timeout 60s;
-            proxy_next_upstream error http_502 http_500 non_idempotent;
+            proxy_next_upstream error  http_502 http_500  non_idempotent;
         }
     }
     upstream dbserver {
@@ -193,7 +191,7 @@ http {
         server 172.16.214.202:6043 ;
         server 172.16.214.203:6043 ;
     }
-    upstream explorer {
+    upstream explorer{
         ip_hash;
         server 172.16.214.201:6060 ;
         server 172.16.214.202:6060 ;
@@ -204,27 +202,27 @@ http {
 
 ### Deploying taosKeeper
 
-If you want to use the monitoring capabilities of TDengine, taosKeeper is a necessary component. Please refer to [TDinsight](../../tdengine-reference/components/tdinsight/) for monitoring details and refer to the [taosKeeper Reference Manual](../../tdengine-reference/components/taoskeeper/) for details on deploying taosKeeper.
+To use the monitoring capabilities of TDengine, taosKeeper is an essential component. For monitoring, please refer to [TDinsight](../../tdengine-reference/components/tdinsight), and for details on deploying taosKeeper, please refer to the [taosKeeper Reference Manual](../../tdengine-reference/components/taoskeeper).
 
 ### Deploying taosX
 
-If you want to use TDengine's data access capabilities, you need to deploy the taosX service. For detailed descriptions and deployment instructions, please refer to the Enterprise Edition Reference Manual.
+To utilize the data ingestion capabilities of TDengine, it is necessary to deploy the taosX service. For detailed explanations and deployment, please refer to the enterprise edition reference manual.
 
 ### Deploying taosX-Agent
 
-Some data sources, such as Pi and OPC, may have network conditions and access restrictions that prevent taosX from directly accessing the data sources. In such cases, it is necessary to deploy a proxy service, taosX-Agent. For detailed descriptions and deployment instructions, please refer to the Enterprise Edition Reference Manual.
+For some data sources such as Pi, OPC, etc., due to network conditions and data source access restrictions, taosX cannot directly access the data sources. In such cases, a proxy service, taosX-Agent, needs to be deployed. For detailed explanations and deployment, please refer to the enterprise edition reference manual.
 
 ### Deploying taos-Explorer
 
-TDengine provides capabilities to visually manage the TDengine cluster. To use the graphical interface, you need to deploy the taos-Explorer service. For detailed descriptions and deployment instructions, please refer to the [taos-Explorer Reference Manual](../../tdengine-reference/components/taosexplorer/).
+TDengine provides the capability to visually manage TDengine clusters. To use the graphical interface, the taos-Explorer service needs to be deployed. For detailed explanations and deployment, please refer to the [taos-Explorer Reference Manual](../../tdengine-reference/components/taosexplorer/)
 
 ## Docker Deployment
 
-This section will introduce how to start the TDengine service in a Docker container and access it. You can use environment variables in the `docker run` command line or the `docker-compose` file to control the behavior of the services in the container.
+This section will explain how to start TDengine services in Docker containers and access them. You can use environment variables in the docker run command line or docker-compose file to control the behavior of services in the container.
 
 ### Starting TDengine
 
-The TDengine image activates the HTTP service by default upon startup. You can create a containerized TDengine environment with HTTP service using the following command.
+The TDengine image is launched with HTTP service activated by default. Use the following command to create a containerized TDengine environment with HTTP service.
 
 ```shell
 docker run -d --name tdengine \
@@ -233,12 +231,12 @@ docker run -d --name tdengine \
 -p 6041:6041 tdengine/tdengine
 ```
 
-The detailed parameter explanations are as follows:
+Detailed parameter explanations are as follows:
 
-- `/var/lib/taos`: Default directory for TDengine data files, which can be modified in the configuration file.
-- `/var/log/taos`: Default directory for TDengine log files, which can also be modified in the configuration file.
+- /var/lib/taos: Default data file directory for TDengine, can be modified through the configuration file.
+- /var/log/taos: Default log file directory for TDengine, can be modified through the configuration file.
 
-The above command starts a container named `tdengine` and maps port 6041 of the HTTP service within the container to port 6041 on the host. You can use the following command to verify whether the HTTP service provided in that container is available.
+The above command starts a container named tdengine and maps the HTTP service's port 6041 to the host port 6041. The following command can verify if the HTTP service in the container is available.
 
 ```shell
 curl -u root:taosdata -d "show databases" localhost:6041/rest/sql
@@ -257,17 +255,17 @@ taos> show databases;
 Query OK, 2 rows in database (0.033802s)
 ```
 
-In the container, the TDengine CLI or various connectors (such as JDBC-JNI) establish connections with the server using the container's hostname. Accessing TDengine from outside the container is relatively complex; using RESTful/WebSocket connection methods is the simplest approach.
+Within the container, TDengine CLI or various connectors (such as JDBC-JNI) connect to the server via the container's hostname. Accessing TDengine inside the container from outside is more complex, and using RESTful/WebSocket connection methods is the simplest approach.
 
-### Starting TDengine in Host Network Mode
+### Starting TDengine in host network mode
 
-You can run the following command to start TDengine in host network mode, allowing connections to be established using the host's FQDN instead of the container's hostname.
+Run the following command to start TDengine in host network mode, which allows using the host's FQDN to establish connections, rather than using the container's hostname.
 
 ```shell
 docker run -d --name tdengine --network host tdengine/tdengine
 ```
 
-This method has the same effect as starting TDengine using the `systemctl` command on the host. If the TDengine client is already installed on the host, you can directly access the TDengine service using the command below.
+This method is similar to starting TDengine on the host using the systemctl command. If the TDengine client is already installed on the host, you can directly use the following command to access the TDengine service.
 
 ```shell
 $ taos
@@ -279,9 +277,9 @@ taos> show dnodes;
 Query OK, 1 rows in database (0.010654s)
 ```
 
-### Starting TDengine with Specified Hostname and Port
+### Start TDengine with a specified hostname and port
 
-You can use the following command to set the `TAOS_FQDN` environment variable or the `fqdn` configuration item in `taos.cfg` to have TDengine establish a connection using the specified hostname. This approach provides greater flexibility for deploying TDengine.
+Use the following command to establish a connection on a specified hostname using the TAOS_FQDN environment variable or the fqdn configuration item in taos.cfg. This method provides greater flexibility for deploying TDengine.
 
 ```shell
 docker run -d \
@@ -293,43 +291,42 @@ docker run -d \
    tdengine/tdengine
 ```
 
-First, the above command starts a TDengine service in the container that listens on the hostname `tdengine`, mapping the container's port 6030 to port 6030 on the host and mapping the container's port range [6041, 6049] to the host's port range [6041, 6049]. If the port range on the host is already occupied, you can modify the above command to specify a free port range on the host.
+First, the above command starts a TDengine service in the container, listening on the hostname tdengine, and maps the container's port 6030 to the host's port 6030, and the container's port range [6041, 6049] to the host's port range [6041, 6049]. If the port range on the host is already in use, you can modify the command to specify a free port range on the host.
 
-Secondly, ensure that the hostname `tdengine` is resolvable in the `/etc/hosts` file. You can save the correct configuration information to the hosts file using the command below.
+Secondly, ensure that the hostname tdengine is resolvable in /etc/hosts. Use the following command to save the correct configuration information to the hosts file.
 
 ```shell
 echo 127.0.0.1 tdengine |sudo tee -a /etc/hosts
 ```
 
-Finally, you can access the TDengine service using the TDengine CLI with `tdengine` as the server address using the following command.
+Finally, you can access the TDengine service using the TDengine CLI with tdengine as the server address, as follows.
 
 ```shell
 taos -h tdengine -P 6030
 ```
 
-If `TAOS_FQDN` is set to the same value as the hostname of the host, the effect will be the same as "starting TDengine in host network mode".
+If TAOS_FQDN is set to the same as the hostname of the host, the effect is the same as "starting TDengine in host network mode".
 
 ## Kubernetes Deployment
 
-As a time-series database designed for cloud-native architecture, TDengine natively supports Kubernetes deployment. This section describes how to create a high-availability TDengine cluster for production use step-by-step using YAML files, focusing on common operations for TDengine in a Kubernetes environment. This subsection requires readers to have a certain understanding of Kubernetes and be familiar with common `kubectl` commands, as well as concepts such as `statefulset`, `service`, `pvc`, etc. Readers who are unfamiliar with these concepts can refer to the official Kubernetes website for study.
+As a time-series database designed for cloud-native architectures, TDengine inherently supports Kubernetes deployment. This section introduces how to step-by-step create a highly available TDengine cluster for production use using YAML files, with a focus on common operations of TDengine in a Kubernetes environment. This subsection requires readers to have a certain understanding of Kubernetes, be proficient in running common kubectl commands, and understand concepts such as statefulset, service, and pvc. Readers unfamiliar with these concepts can refer to the Kubernetes official website for learning.
+To meet the requirements of high availability, the cluster needs to meet the following requirements:
 
-To meet the high-availability requirements, the cluster must meet the following criteria:
-
-- **Three or more dnodes:** Multiple vnodes from the same vgroup in TDengine cannot be distributed across a single dnode at the same time. Therefore, if creating a database with three replicas, the number of dnodes must be greater than or equal to three.
-- **Three mnodes:** The mnode is responsible for managing the entire cluster. By default, TDengine starts with one mnode. If this mnode's dnode goes offline, the entire cluster becomes unavailable.
-- **Three replicas of the database:** The replica configuration of TDengine is at the database level. Therefore, having three replicas of the database allows the cluster to continue functioning normally even if one of the dnodes goes offline. If two dnodes go offline, the cluster becomes unavailable, as RAFT cannot complete the election. (Enterprise Edition: In disaster recovery scenarios, any node with damaged data files can be recovered by restarting a dnode.)
+- 3 or more dnodes: Multiple vnodes in the same vgroup of TDengine should not be distributed on the same dnode, so if creating a database with 3 replicas, the number of dnodes should be 3 or more.
+- 3 mnodes: mnodes are responsible for managing the entire cluster, with TDengine defaulting to one mnode. If the dnode hosting this mnode goes offline, the entire cluster becomes unavailable.
+- 3 replicas of the database: TDengine's replica configuration is at the database level, so 3 replicas can ensure that the cluster remains operational even if any one of the 3 dnodes goes offline. If 2 dnodes go offline, the cluster becomes unavailable because RAFT cannot complete the election. (Enterprise edition: In disaster recovery scenarios, if the data files of any node are damaged, recovery can be achieved by restarting the dnode.)
 
 ### Prerequisites
 
-To deploy and manage a TDengine cluster using Kubernetes, the following preparations must be made:
+To deploy and manage a TDengine cluster using Kubernetes, the following preparations need to be made.
 
-- This article is applicable to Kubernetes v1.19 and above.
-- The installation of the `kubectl` tool for deployment is required; ensure the relevant software is installed.
-- Kubernetes must be installed, deployed, and accessible, or the necessary container repositories or other services must be updated.
+- This article applies to Kubernetes v1.19 and above.
+- This article uses the kubectl tool for installation and deployment, please install the necessary software in advance.
+- Kubernetes has been installed and deployed and can normally access or update necessary container repositories or other services.
 
 ### Configure Service
 
-Create a service configuration file: `taosd-service.yaml`. The service name `metadata.name` (here as "taosd") will be used in the next step. First, add the ports used by TDengine, and then set the selector to confirm the label `app` (here as “tdengine”).
+Create a Service configuration file: taosd-service.yaml, the service name metadata.name (here "taosd") will be used in the next step. First, add the ports used by TDengine, then set the determined labels app (here "tdengine") in the selector.
 
 ```yaml
 ---
@@ -351,11 +348,11 @@ spec:
     app: "tdengine"
 ```
 
-### Stateful Service StatefulSet
+### Stateful Services StatefulSet
 
-According to Kubernetes's instructions for various deployments, we will use `StatefulSet` as the deployment resource type for TDengine. Create a file `tdengine.yaml`, where `replicas` defines the number of nodes in the cluster to be 3. The timezone for the nodes is set to China (Asia/Shanghai), and each node is allocated 5G standard storage (you can modify this according to your actual situation).
+According to Kubernetes' descriptions of various deployment types, we will use StatefulSet as the deployment resource type for TDengine. Create the file tdengine.yaml, where replicas define the number of cluster nodes as 3. The node timezone is set to China (Asia/Shanghai), and each node is allocated 5G of standard storage, which you can modify according to actual conditions.
 
-Pay special attention to the configuration of `startupProbe`. When the Pod of the dnode goes offline for a period and then restarts, the newly launched dnode may be temporarily unavailable. If the `startupProbe` configuration is too small, Kubernetes will consider that Pod to be in an abnormal state and will attempt to restart it frequently, causing the dnode's Pod to repeatedly restart and never recover to a normal state.
+Please pay special attention to the configuration of startupProbe. After a dnode's Pod goes offline for a period of time and then restarts, the newly online dnode will be temporarily unavailable. If the startupProbe configuration is too small, Kubernetes will consider the Pod to be in an abnormal state and attempt to restart the Pod. This dnode's Pod will frequently restart and never return to a normal state.
 
 ```yaml
 ---
@@ -379,6 +376,18 @@ spec:
       labels:
         app: "tdengine"
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - tdengine
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: "tdengine"
           image: "tdengine/tdengine:3.2.3.0"
@@ -450,15 +459,15 @@ spec:
             storage: "5Gi"
 ```
 
-### Use kubectl Commands to Deploy the TDengine Cluster
+### Deploying TDengine Cluster Using kubectl Command
 
-First, create the corresponding namespace `dengine-test` and `pvc`, ensuring that the `storageClassName` is `standard` and that there is enough remaining space. Then execute the following commands in order:
+First, create the corresponding namespace `dengine-test`, as well as the PVC, ensuring that there is enough remaining space with `storageClassName` set to `standard`. Then execute the following commands in sequence:
 
 ```shell
 kubectl apply -f taosd-service.yaml -n tdengine-test
 ```
 
-The above configuration will generate a three-node TDengine cluster. The dnode will be automatically configured, and you can use the command `show dnodes` to check the current nodes in the cluster:
+The above configuration will create a three-node TDengine cluster, with `dnode` automatically configured. You can use the `show dnodes` command to view the current cluster nodes:
 
 ```shell
 kubectl exec -it tdengine-0 -n tdengine-test -- taos -s "show dnodes"
@@ -478,7 +487,7 @@ taos show dnodes
 Query OK, 3 row(s) in set (0.001853s)
 ```
 
-Check the current mnode
+View the current mnode:
 
 ```shell
 kubectl exec -it tdengine-1 -n tdengine-test -- taos -s "show mnodes\G"
@@ -500,7 +509,7 @@ kubectl exec -it tdengine-0 -n tdengine-test -- taos -s "create mnode on dnode 2
 kubectl exec -it tdengine-0 -n tdengine-test -- taos -s "create mnode on dnode 3"
 ```
 
-Check mnode
+View mnode
 
 ```shell
 kubectl exec -it tdengine-1 -n tdengine-test -- taos -s "show mnodes\G"
@@ -532,13 +541,13 @@ Query OK, 3 row(s) in set (0.003108s)
 
 ### Port Forwarding
 
-Using the `kubectl port-forward` feature allows applications to access the TDengine cluster running in the Kubernetes environment.
+Using kubectl port forwarding feature allows applications to access the TDengine cluster running in the Kubernetes environment.
 
 ```shell
 kubectl port-forward -n tdengine-test tdengine-0 6041:6041 &
 ```
 
-Use the `curl` command to verify the availability of the TDengine REST API on port 6041.
+Use the curl command to verify the TDengine REST API using port 6041.
 
 ```shell
 curl -u root:taosdata -d "show databases" 127.0.0.1:6041/rest/sql
@@ -553,13 +562,13 @@ TDengine supports cluster expansion:
 kubectl scale statefulsets tdengine  -n tdengine-test --replicas=4
 ```
 
-In the above command, the parameter `--replica=4` indicates that the TDengine cluster should be expanded to 4 nodes. After execution, first check the status of the PODs:
+The command line argument `--replica=4` indicates that the TDengine cluster is to be expanded to 4 nodes. After execution, first check the status of the POD:
 
 ```shell
 kubectl get pod -l app=tdengine -n tdengine-test  -o wide
 ```
 
-The output is as follows:
+Output as follows:
 
 ```text
 NAME                       READY   STATUS    RESTARTS        AGE     IP             NODE     NOMINATED NODE   READINESS GATES
@@ -569,13 +578,13 @@ tdengine-2   1/1     Running   0               5h16m   10.244.1.224   node85   <
 tdengine-3   1/1     Running   0               3m24s   10.244.2.76    node86   <none>           <none>
 ```
 
-At this point, the status of the PODs is still Running. The dnode status in the TDengine cluster can only be seen after the POD status is ready:
+At this point, the Pod status is still Running. The dnode status in the TDengine cluster can be seen after the Pod status changes to ready:
 
 ```shell
 kubectl exec -it tdengine-3 -n tdengine-test -- taos -s "show dnodes"
 ```
 
-The list of dnodes in the expanded four-node TDengine cluster:
+The dnode list of the four-node TDengine cluster after expansion:
 
 ```text
 taos> show dnodes
@@ -588,15 +597,12 @@ taos> show dnodes
 Query OK, 4 row(s) in set (0.003628s)
 ```
 
-### Cleaning the Cluster
+### Cleaning up the Cluster
 
-:::warning
+**Warning**
+When deleting PVCs, pay attention to the PV persistentVolumeReclaimPolicy. It is recommended to set it to Delete, so that when the PVC is deleted, the PV will be automatically cleaned up, along with the underlying CSI storage resources. If the policy to automatically clean up PVs when deleting PVCs is not configured, after deleting the PVCs, manually cleaning up the PVs may not release the corresponding CSI storage resources.
 
-When deleting PVCs, it is important to note the `pv persistentVolumeReclaimPolicy` strategy. It is recommended to change it to `Delete`, so that when the PVC is deleted, the PV is automatically cleaned, along with the underlying CSI storage resources. If the strategy to automatically clean PVs upon PVC deletion is not configured, then after deleting the PVC, the corresponding CSI storage resources for the PV may not be released when manually cleaning PVs.
-
-:::
-
-To completely remove the TDengine cluster, you need to clear the `statefulset`, `svc`, and `pvc` separately, and finally delete the namespace.
+To completely remove the TDengine cluster, you need to clean up the statefulset, svc, pvc, and finally delete the namespace.
 
 ```shell
 kubectl delete statefulset -l app=tdengine -n tdengine-test
@@ -605,17 +611,17 @@ kubectl delete pvc -l app=tdengine -n tdengine-test
 kubectl delete namespace tdengine-test
 ```
 
-### Cluster Disaster Recovery Capability
+### Cluster Disaster Recovery Capabilities
 
-For TDengine's high availability and reliability in the Kubernetes environment, regarding hardware damage and disaster recovery, it can be discussed on two levels:
+For high availability and reliability of TDengine in a Kubernetes environment, in terms of hardware damage and disaster recovery, it is discussed on two levels:
 
-- The underlying distributed block storage has disaster recovery capabilities. With multiple replicas of block storage, popular distributed block storage solutions like Ceph possess multi-replica capabilities, extending storage replicas to different racks, cabinets, rooms, or data centers (or directly using the block storage services provided by public cloud vendors).
-- The disaster recovery capability of TDengine itself: In TDengine Enterprise, it can automatically restore the work of a dnode if it goes offline permanently (such as due to physical disk damage or data loss) by restarting a blank dnode.
+- The disaster recovery capabilities of the underlying distributed block storage, which includes multiple replicas of block storage. Popular distributed block storage like Ceph has multi-replica capabilities, extending storage replicas to different racks, cabinets, rooms, and data centers (or directly using block storage services provided by public cloud vendors).
+- TDengine's disaster recovery, in TDengine Enterprise, inherently supports the recovery of a dnode's work by launching a new blank dnode when an existing dnode permanently goes offline (due to physical disk damage and data loss).
 
-## Using Helm to Deploy the TDengine Cluster
+## Deploying TDengine Cluster with Helm
 
 Helm is the package manager for Kubernetes.
-While the operations of deploying the TDengine cluster using Kubernetes are already simple, Helm can provide even more powerful capabilities.
+The previous section on deploying the TDengine cluster with Kubernetes was simple enough, but Helm can provide even more powerful capabilities.
 
 ### Installing Helm
 
@@ -626,31 +632,32 @@ chmod +x get_helm.sh
 ./get_helm.sh
 ```
 
-Helm will use `kubectl` and the kubeconfig configuration to operate Kubernetes; you can refer to the Rancher installation of Kubernetes for configuration.
+Helm operates Kubernetes using kubectl and kubeconfig configurations, which can be set up following the Rancher installation configuration for Kubernetes.
 
-### Installing the TDengine Chart
+### Installing TDengine Chart
 
-The TDengine Chart has not yet been released to the Helm repository. Currently, it can be directly downloaded from GitHub:
+The TDengine Chart has not yet been released to the Helm repository, it can currently be downloaded directly from GitHub:
 
 ```shell
 wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.2.tgz
 ```
 
-Get the current Kubernetes storage classes:
+Retrieve the current Kubernetes storage class:
 
 ```shell
 kubectl get storageclass
 ```
 
-In `minikube`, the default is `standard`. Then use the `helm` command to install:
+In minikube, the default is standard. Then, use the helm command to install:
 
 ```shell
 helm install tdengine tdengine-3.0.2.tgz \
   --set storage.className=<your storage class name> \
   --set image.tag=3.2.3.0
+
 ```
 
-In the `minikube` environment, you can set a smaller capacity to avoid exceeding the available disk space:
+In a minikube environment, you can set a smaller capacity to avoid exceeding disk space:
 
 ```shell
 helm install tdengine tdengine-3.0.2.tgz \
@@ -681,22 +688,22 @@ kubectl --namespace default exec $POD_NAME -- \
     select * from t1;"
 ```
 
-### Configuring Values
+### Configuring values
 
-TDengine supports `values.yaml` customization.
-You can use `helm show values` to get the complete list of values supported by the TDengine Chart:
+TDengine supports customization through `values.yaml`.
+You can obtain the complete list of values supported by the TDengine Chart with helm show values:
 
 ```shell
 helm show values tdengine-3.0.2.tgz
 ```
 
-You can save the output as `values.yaml`, then modify the parameters such as the number of replicas, storage class name, capacity size, TDengine configuration, etc., and install the TDengine cluster using the command below:
+You can save the results as `values.yaml`, then modify various parameters in it, such as the number of replicas, storage class name, capacity size, TDengine configuration, etc., and then use the following command to install the TDengine cluster:
 
 ```shell
 helm install tdengine tdengine-3.0.2.tgz -f values.yaml
 ```
 
-The full parameters are as follows:
+All parameters are as follows:
 
 ```yaml
 # Default values for tdengine.
@@ -838,7 +845,7 @@ taoscfg:
   # 199: output debug, warning and error to both screen and file
   # 207: output trace, debug, warning and error to both screen and file
   #
-  # debug flag for all log type, take effect when non-zero value
+  # debug flag for all log type, take effect when non-zero value\
   #TAOS_DEBUG_FLAG: "143"
 
   # generate core file when service crash
@@ -847,8 +854,8 @@ taoscfg:
 
 ### Expansion
 
-For expansion, refer to the explanation in the previous section. There are some additional operations needed to obtain from the Helm deployment.
-First, obtain the name of the StatefulSet from the deployment.
+For expansion, refer to the explanation in the previous section, with some additional operations needed from the helm deployment.
+First, retrieve the name of the StatefulSet from the deployment.
 
 ```shell
 export STS_NAME=$(kubectl get statefulset \
@@ -856,20 +863,20 @@ export STS_NAME=$(kubectl get statefulset \
   -o jsonpath="{.items[0].metadata.name}")
 ```
 
-The expansion operation is straightforward; just increase the replica count. The following command expands TDengine to three nodes:
+The expansion operation is extremely simple, just increase the replica. The following command expands TDengine to three nodes:
 
 ```shell
 kubectl scale --replicas 3 statefulset/$STS_NAME
 ```
 
-Use the commands `show dnodes` and `show mnodes` to check whether the expansion was successful.
+Use the commands `show dnodes` and `show mnodes` to check if the expansion was successful.
 
-### Cleaning the Cluster
+### Cleaning up the Cluster
 
-With Helm management, the cleanup operation has also become simple:
+Under Helm management, the cleanup operation also becomes simple:
 
 ```shell
 helm uninstall tdengine
 ```
 
-However, Helm will not automatically remove PVCs; you need to manually retrieve and delete them.
+However, Helm will not automatically remove PVCs, you need to manually retrieve and then delete the PVCs.

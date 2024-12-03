@@ -1,22 +1,21 @@
 ---
 title: StatsD
-description: Writing to TDengine Using StatsD
 slug: /third-party-tools/data-collection/statsd
 ---
 
 import StatsD from "./_statsd.mdx"
 
-StatsD is a simple daemon for aggregating and summarizing application metrics. In recent years, it has rapidly evolved into a unified protocol for collecting application performance metrics.
+StatsD is a simple daemon for aggregating and summarizing application metrics that has rapidly evolved in recent years into a unified protocol for collecting application performance metrics.
 
-By simply filling in the domain name (or IP address) of the server running taosAdapter and the corresponding port in the StatsD configuration file, the data from StatsD can be written into TDengine, fully utilizing TDengine's efficient storage and query performance for time-series data as well as its cluster processing capabilities.
+Simply fill in the domain name (or IP address) and corresponding port of the server running taosAdapter in the StatsD configuration file to write StatsD data into TDengine, fully leveraging TDengine's efficient storage, query performance, and cluster processing capabilities for time-series data.
 
 ## Prerequisites
 
-To write StatsD data into TDengine, several preparations are needed:
+The following preparations are needed to write StatsD data into TDengine:
 
-- The TDengine cluster has been deployed and is running normally.
-- The taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter User Manual](../../../tdengine-reference/components/taosadapter/).
-- StatsD has been installed. For installation instructions, please refer to the [official documentation](https://github.com/statsd/statsd).
+- TDengine cluster is deployed and running normally
+- taosAdapter is installed and running normally. For details, please refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter)
+- StatsD is installed. For installation of StatsD, please refer to the [official documentation](https://github.com/statsd/statsd)
 
 ## Configuration Steps
 
@@ -26,20 +25,20 @@ To write StatsD data into TDengine, several preparations are needed:
 
 Run StatsD:
 
-```shell
+```text
 $ node stats.js config.js &
 [1] 8546
 $ 20 Apr 09:54:41 - [8546] reading config file: config.js
 20 Apr 09:54:41 - server is up INFO
 ```
 
-Use `nc` to write test data:
+Use nc to write test data:
 
 ```shell
 echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 ```
 
-Use TDengine CLI to verify that data is written from StatsD to TDengine and can be read correctly:
+Use TDengine CLI to verify that data is written from StatsD to TDengine and can be correctly read:
 
 ```text
 taos> show databases;
@@ -70,6 +69,6 @@ taos>
 
 :::note
 
-TDengine will automatically create unique IDs for subtable names by the rule.
+- TDengine will automatically create unique IDs for subtable names by the rule.
 
 :::
