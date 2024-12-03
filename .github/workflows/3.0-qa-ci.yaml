@@ -49,9 +49,9 @@ jobs:
         run: echo $COVERAGE_REPORT_DIR
   test:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: remove_artifacts
+    needs: [remove_artifacts,set_env]
     env:
-      COVERAGE_REPORT_DIR: ${{ github.env.coverage_report_dir }}
+      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Print Env
         run: |
