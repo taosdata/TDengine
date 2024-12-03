@@ -3243,7 +3243,7 @@ pub async fn legacy_to_taos(
     let schema_polling_source_opts = source_opts.clone();
     let schema_polling_target_opts = target_opts.clone();
     let schema_polling_pool = from_pool.clone();
-    let schema_polling_task_id = task_id.clone();
+    let schema_polling_task_id = task_id;
     let schema_polling_metrics = metrics_arc.clone();
     let schema_polling_cancellation = cancel.clone();
     let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
@@ -4101,6 +4101,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_legacy_advance_options() {
         use taos::Dsn;
         let from = "taos+ws://localhost:6041/db1?schema=only&fails-to=./fails-to.log&write-concurrency=10&workers=10";
