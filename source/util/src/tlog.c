@@ -1198,7 +1198,7 @@ static void *taosAsyncOutputLog(void *param) {
       break;
     }
 
-    // process the log rotation every LOG_ROTATE_INTERVAL minutes
+    // process the log rotation every LOG_ROTATE_INTERVAL
     int64_t curSec = taosGetTimestampMs() / 1000;
     if (curSec >= lastCheckSec) {
       if ((curSec - lastCheckSec) >= LOG_ROTATE_INTERVAL) {
