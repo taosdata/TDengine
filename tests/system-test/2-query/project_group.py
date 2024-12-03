@@ -15,6 +15,30 @@ class TDTestCase:
         self.batchNum = 5
         self.ts = 1537146000000
 
+    def groupby_value(self):
+        tdSql.query('select 1 from stb group by now')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.query('select 1 from stb group by "1"')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.query('select count(*) from stb group by now')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
+        tdSql.query('select count(*) from stb group by now+1')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
+        tdSql.query('select 1, count(*) from stb group by now, "1"')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 12)
+        tdSql.query('select count(*) as cc from sta1 as a join sta2 as b on a.ts = b.ts group by now')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+        tdSql.query('select a.tbname, count(*) as cc from sta1 as a join sta2 as b on a.ts = b.ts group by a.tbname, "1"')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 3)
+
     def run(self):
         dbname = "db"
         tdSql.prepare()
@@ -59,6 +83,9 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query('select col1 > 0 and col2 > 0 from stb')
         tdSql.checkRows(12)
+
+        self.groupby_value()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

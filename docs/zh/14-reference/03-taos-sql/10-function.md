@@ -1065,7 +1065,7 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
+**功能说明**：将时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
 
 **返回结果数据类型**：VARCHAR 类型。
 
@@ -1109,7 +1109,7 @@ return_timestamp: {
 }
 ```
 
-**功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
+**功能说明**：将日期时间格式的字符串转换成为时间戳。
 
 **返回结果数据类型**：BIGINT, TIMESTAMP。
 
@@ -1257,8 +1257,8 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
-- `expr1`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
-- `expr2`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr1`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr2`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 - `time_unit`：见使用说明。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
@@ -1301,7 +1301,7 @@ use_current_timezone: {
 
 **返回结果数据类型**：TIMESTAMP。
 
-**应用字段**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**应用字段**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **适用于**：表和超级表。
 
@@ -1364,7 +1364,7 @@ WEEK(expr [, mode])
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
-- `expr`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 - `mode`：0 - 7 之间的整数。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
@@ -1424,7 +1424,7 @@ WEEKOFYEAR(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1451,7 +1451,7 @@ WEEKDAY(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示 表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1478,7 +1478,7 @@ DAYOFWEEK(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1838,6 +1838,9 @@ ignore_null_values: {
 - INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.2.0 版本以后支持)。
 - INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.3.0 版本以后支持)。
 - INTERP 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
+- INTERP 查询支持NEAR FILL模式, 即当需要FILL时, 使用距离当前时间点最近的数据进行插值, 当前后时间戳与当前时间断面一样近时, FILL 前一行的值. 此模式在流计算中和窗口查询中不支持。例如: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)。(3.3.4.9版本及以后支持)。
+- INTERP 只有在使用FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`。`_irowts_origin`在3.3.4.9版本及以后支持。
+- INTERP `RANEG`子句支持时间范围的扩展(3.3.4.9版本及以后支持), 如`RANGE('2023-01-01 00:00:00', 10s)`表示在时间点'2023-01-01 00:00:00'查找前后10s的数据进行插值, FILL PREV/NEXT/NEAR分别表示从时间点向前/向后/前后查找数据, 若时间点周围没有数据, 则使用FILL指定的值进行插值, 因此此时FILL子句必须指定值。例如: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1). 目前仅支持时间点和时间范围的组合, 不支持时间区间和时间范围的组合, 即不支持RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h)。所指定的时间范围规则与EVERY类似, 单位不能是年或月, 值不能为0, 不能带引号。使用该扩展时, 不支持除FILL PREV/NEXT/NEAR外的其他FILL模式, 且不能指定EVERY子句。
 
 ### LAST
 

@@ -74,6 +74,7 @@ void destroyStreamIntervalSliceOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pDelRes);
 
   blockDataDestroy(pInfo->pCheckpointRes);
+  taosMemoryFreeClear(pInfo->pOffsetInfo);
 
   taosMemoryFreeClear(param);
 }
@@ -163,7 +164,7 @@ _end:
 }
 
 void doStreamSliceInterpolation(SSliceRowData* pPrevWinVal, TSKEY winKey, TSKEY curTs, SSDataBlock* pDataBlock,
-                                int32_t curRowIndex, SExprSupp* pSup, SIntervalSliceType type) {
+                                int32_t curRowIndex, SExprSupp* pSup, SIntervalSliceType type, int32_t* pOffsetInfo) {
   SqlFunctionCtx* pCtx = pSup->pCtx;
   for (int32_t k = 0; k < pSup->numOfExprs; ++k) {
     if (!fmIsIntervalInterpoFunc(pCtx[k].functionId)) {
@@ -175,7 +176,7 @@ void doStreamSliceInterpolation(SSliceRowData* pPrevWinVal, TSKEY winKey, TSKEY 
     SColumnInfoData* pColInfo = taosArrayGet(pDataBlock->pDataBlock, pParam->pCol->slotId);
 
     double           prevVal = 0, curVal = 0, winVal = 0;
-    SResultCellData* pCell = getSliceResultCell((SResultCellData*)pPrevWinVal->pRowVal, pParam->pCol->slotId);
+    SResultCellData* pCell = getSliceResultCell((SResultCellData*)pPrevWinVal->pRowVal, pParam->pCol->slotId, pOffsetInfo);
     GET_TYPED_DATA(prevVal, double, pCell->type, pCell->pData);
     GET_TYPED_DATA(curVal, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex));
 
@@ -278,7 +279,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
 
       resetIntervalSliceFunctionKey(pSup->pCtx, numOfOutput);
       doSetElapsedEndKey(prevPoint.winKey.win.ekey, &pOperator->exprSupp);
-      doStreamSliceInterpolation(prevPoint.pLastRow, prevPoint.winKey.win.ekey, curTs, pBlock, startPos, &pOperator->exprSupp, INTERVAL_SLICE_END);
+      doStreamSliceInterpolation(prevPoint.pLastRow, prevPoint.winKey.win.ekey, curTs, pBlock, startPos, &pOperator->exprSupp, INTERVAL_SLICE_END, pInfo->pOffsetInfo);
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &prevPoint.winKey.win, 1);
       code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos,
                                              0, pBlock->info.rows, numOfOutput);
@@ -294,7 +295,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
 
     resetIntervalSliceFunctionKey(pSup->pCtx, numOfOutput);
     if (pInfo->hasInterpoFunc && IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && curPoint.winKey.win.skey != curTs) {
-      doStreamSliceInterpolation(prevPoint.pLastRow, curPoint.winKey.win.skey, curTs, pBlock, startPos, &pOperator->exprSupp, INTERVAL_SLICE_START);
+      doStreamSliceInterpolation(prevPoint.pLastRow, curPoint.winKey.win.skey, curTs, pBlock, startPos, &pOperator->exprSupp, INTERVAL_SLICE_START, pInfo->pOffsetInfo);
     }
     forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, curWin.ekey, binarySearchForKey, NULL,
                                            TSDB_ORDER_ASC);
@@ -302,7 +303,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
     if (pInfo->hasInterpoFunc && winCode != TSDB_CODE_SUCCESS) {
       int32_t endRowId = getQualifiedRowNumDesc(pSup, pBlock, tsCols, prevEndPos, false);
       TSKEY endRowTs = tsCols[endRowId];
-      transBlockToSliceResultRow(pBlock, endRowId, endRowTs, curPoint.pLastRow, 0, NULL, NULL);
+      transBlockToSliceResultRow(pBlock, endRowId, endRowTs, curPoint.pLastRow, 0, NULL, NULL, pInfo->pOffsetInfo);
     }
     SWinKey curKey = {.ts = curPoint.winKey.win.skey, .groupId = curPoint.winKey.groupId};
     if (pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS) {
@@ -359,9 +360,14 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       return code;
     }
 
-    if (pInfo->hasFill == false) {
-      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
-    }
+    if (pInfo->recvCkBlock) {
+      pInfo->recvCkBlock = false;
+      printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->pCheckpointRes;
+      return code;
+    } 
+
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
     return code;
@@ -392,8 +398,6 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       case STREAM_CHECKPOINT: {
         pInfo->recvCkBlock = true;
         pAggSup->stateStore.streamStateCommit(pAggSup->pState);
-        // doStreamIntervalSliceSaveCheckpoint(pOperator);
-        pInfo->recvCkBlock = true;
         code = copyDataBlock(pInfo->pCheckpointRes, pBlock);
         QUERY_CHECK_CODE(code, lino, _end);
         continue;
@@ -451,9 +455,13 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
   QUERY_CHECK_CODE(code, lino, _end);
 
   if ((*ppRes) == NULL) {
-    if (pInfo->hasFill == false) {
-      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
-    }
+    if (pInfo->recvCkBlock) {
+      pInfo->recvCkBlock = false;
+      printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->pCheckpointRes;
+      return code;
+    } 
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
     setStreamOperatorCompleted(pOperator);
   }
 
@@ -594,6 +602,9 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   SSDataBlock* pDownRes = NULL;
   SColumnInfo* pPkCol = NULL;
   code = getDownstreamRes(downstream, &pDownRes, &pPkCol);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  code = initOffsetInfo(&pInfo->pOffsetInfo, pDownRes);
   QUERY_CHECK_CODE(code, lino, _error);
 
   int32_t keyBytes = sizeof(TSKEY);

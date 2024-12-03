@@ -271,6 +271,7 @@ typedef struct SCtgViewsCtx {
   SArray* pNames;
   SArray* pResList;
   SArray* pFetchs;
+  bool    forceFetch;
 } SCtgViewsCtx;
 
 typedef enum {
@@ -831,12 +832,12 @@ typedef struct SCtgCacheItemInfo {
 #define ctgDebug(param, ...) qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgTrace(param, ...) qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
 
-#define ctgTaskFatal(param, ...) qFatal("qid:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskError(param, ...) qError("qid:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskWarn(param, ...)  qWarn("qid:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskInfo(param, ...)  qInfo("qid:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskDebug(param, ...) qDebug("qid:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskTrace(param, ...) qTrace("qid:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskError(param, ...) qError("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskWarn(param, ...)  qWarn("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskInfo(param, ...)  qInfo("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
 
 #define CTG_LOCK_DEBUG(...)     \
   do {                          \

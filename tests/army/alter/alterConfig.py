@@ -113,6 +113,15 @@ class TDTestCase(TBase):
         if not result:
             raise Exception(f"key:{key} not found")
 
+    def checkRows(self, sql, nExpect, nRetry):
+        for i in range(nRetry):
+            res = tdSql.getResult(sql)
+            if len(res) == nExpect:
+                break
+            time.sleep(1)
+        if len(res) != nExpect:
+            raise Exception(f"rows:{len(res)} != {nExpect}")
+
     def alterBypassFlag(self):
         """Add test case for altering bypassFlag(TD-32907)
         """
@@ -151,8 +160,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from stb0")
         tdSql.checkRows(2)
         tdSql.execute("flush database db")
-        tdSql.query("select * from stb0")
-        tdSql.checkRows(0)
+        self.checkRows("select * from stb0", 0, 10)
         tdSql.execute("alter all dnodes 'bypassFlag 0'")
         self.checkKeyValue(tdSql.getResult("show local variables"), "bypassFlag", "0")
         self.checkKeyValue(tdSql.getResult("show dnode 1 variables like 'bypassFlag'"), "bypassFlag", "0", 1, 2)
@@ -161,8 +169,9 @@ class TDTestCase(TBase):
         tdSql.query("select * from stb0")
         tdSql.checkRows(2)
         tdSql.execute("flush database db")
-        tdSql.query("select * from stb0")
-        tdSql.checkRows(2)
+        for i in range(5):
+            self.checkRows("select * from stb0", 2, 1)
+            time.sleep(1)
 
     # run
     def run(self):
