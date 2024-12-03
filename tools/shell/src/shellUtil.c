@@ -78,12 +78,15 @@ void shellGenerateAuth() {
 }
 
 void shellDumpConfig() {
-  SConfig *pCfg = taosGetCfg();
-  if (pCfg == NULL) {
-    printf("read global config failed!\r\n");
-  } else {
-    cfgDumpCfg(pCfg, 1, true);
+  (void)osDefaultInit();
+
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
+    fprintf(stderr, "failed to load cfg since %s\n", terrstr());
+    return;
   }
+
+  cfgDumpCfg(taosGetCfg(), 1, true);
+
   fflush(stdout);
 }
 

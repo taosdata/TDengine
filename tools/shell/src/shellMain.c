@@ -87,6 +87,11 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
+  if (shell.args.is_dump_config) {
+    shellDumpConfig();
+    return 0;
+  }
+
   if (shellCheckDsn() != 0) {
     return -1;
   }
@@ -104,12 +109,6 @@ int main(int argc, char *argv[]) {
 
   // kill heart-beat thread when quit
   taos_set_hb_quit(1);
-
-  if (shell.args.is_dump_config) {
-    shellDumpConfig();
-    taos_cleanup();
-    return 0;
-  }
 
   if (shell.args.is_startup || shell.args.is_check) {
     shellCheckServerStatus();
