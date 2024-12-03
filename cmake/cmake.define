@@ -106,12 +106,6 @@ ELSE()
     SET(TAOS_LIB_PLATFORM_SPEC taos)
 ENDIF()
 
-IF(NOT DEFINED TZ_OUTPUT_PATH)
-    SET(TZ_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/share/timezone)
-ENDIF()
-MESSAGE(STATUS "timezone output path: " ${TZ_OUTPUT_PATH})
-
-
 # build TSZ by default
 IF("${TSZ_ENABLED}" MATCHES "false")
     set(VAR_TSZ "" CACHE INTERNAL "global variant empty")

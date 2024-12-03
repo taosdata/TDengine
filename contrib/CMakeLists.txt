@@ -655,17 +655,25 @@ if(${TD_LINUX} AND ${BUILD_WITH_S3})
     add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
 endif()
 
+IF(TD_LINUX)
+    SET(TZ_OUTPUT_PATH /usr/share/zoneinfo)
+ELSEIF(TD_DARWIN)
+    SET(TZ_OUTPUT_PATH /var/db/timezone/zoneinfo)
+ENDIF()
+
+MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
+
 if(NOT ${TD_WINDOWS})
     execute_process(
-            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean zic posix_only
+            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean libtz.a
             WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
     )
 
-    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
-    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
-    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
-            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
-            DESTINATION ${TZ_SRC_DIR})
+#    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+#    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+#    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+#            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+#            DESTINATION ${TZ_SRC_DIR})
 endif(NOT ${TD_WINDOWS})
 # ================================================================================================
 # Build test

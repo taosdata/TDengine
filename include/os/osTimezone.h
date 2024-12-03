@@ -29,11 +29,12 @@ extern void* pTimezoneNameMap;
 typedef void *timezone_t;
 #else
 typedef struct state *timezone_t;
-struct tm *localtime_rz(timezone_t , time_t const *, struct tm *);
-time_t mktime_z(timezone_t, struct tm *);
+
+struct tm* localtime_rz(timezone_t , time_t const *, struct tm *);
+time_t     mktime_z(timezone_t, struct tm *);
 timezone_t tzalloc(char const *);
-void tzfree(timezone_t);
-void    getTimezoneStr(char *tz);
+void       tzfree(timezone_t);
+void       getTimezoneStr(char *tz);
 
 #endif
 
