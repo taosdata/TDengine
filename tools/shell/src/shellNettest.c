@@ -140,6 +140,9 @@ static void shellWorkAsServer() {
 }
 
 void shellTestNetWork() {
+  (void)osDefaultInit();
+  (void)rpcInit();
+
   if (strcmp(shell.args.netrole, "client") == 0) {
     shellWorkAsClient();
   }
