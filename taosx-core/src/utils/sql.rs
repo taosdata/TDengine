@@ -104,9 +104,8 @@ pub async fn get_current_precision(
     }
 }
 
-#[ignore]
 #[tokio::test]
-async fn test_precision() {
+async fn test_precision_with_taos() {
     use taos::AsyncTBuilder;
     let dsn = "taos://";
     let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -211,9 +210,8 @@ pub async fn get_minimum_timestamp(
     }
 }
 
-#[ignore]
 #[tokio::test]
-async fn test_min_timestamp() {
+async fn test_min_timestamp_with_taos() {
     use taos::AsyncTBuilder;
     let dsn = "taos://";
     let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
