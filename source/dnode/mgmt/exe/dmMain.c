@@ -240,6 +240,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+#ifndef WINDOWS
     } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--log-output") == 0 ||
                strncmp(argv[i], "--log-output=", 13) == 0) {
       if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--log-output=", 13) == 0)) {
@@ -264,6 +265,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         printf("'%s' requires a parameter\n", argv[i]);
         return TSDB_CODE_INVALID_CFG;
       }
+#endif
     } else if (strcmp(argv[i], "-y") == 0) {
       global.generateCode = true;
       if (i < argc - 1) {
@@ -341,7 +343,9 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
+#ifndef WINDOWS
   printf("%s%s%s%s\n", indent, "-o, --log-output=OUTPUT", indent, DM_LOG_OUTPUT);
+#endif
   printf("%s%s%s%s\n", indent, "-y,", indent, DM_SET_ENCRYPTKEY);
   printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
