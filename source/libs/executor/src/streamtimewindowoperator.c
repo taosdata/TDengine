@@ -1834,7 +1834,7 @@ int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption) {
   return deleteMark;
 }
 
-static TSKEY compareTs(void* pKey) {
+TSKEY compareTs(void* pKey) {
   SWinKey* pWinKey = (SWinKey*)pKey;
   return pWinKey->ts;
 }

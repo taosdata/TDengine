@@ -684,6 +684,10 @@ _return:
 
   if (TSDB_CODE_SUCCESS == code && QW_PHASE_POST_QUERY == phase) {
     code = qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_PART_SUCC, ctx->dynamicTask);
+    if (code == TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS && ctx->queryRsped) {
+      QW_TASK_DLOG("skip error: %s. ", tstrerror(code));
+      code = TSDB_CODE_SUCCESS;
+    }
     ctx->queryGotData = true;
   }
 

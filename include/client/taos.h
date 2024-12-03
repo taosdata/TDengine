@@ -109,7 +109,7 @@ typedef struct TAOS_FIELD_STB {
   uint8_t      precision;
   uint8_t      scale;
   int32_t      bytes;
-  TAOS_FIELD_T field_type;
+  uint8_t      field_type;
 } TAOS_FIELD_STB;
 
 #ifdef WINDOWS

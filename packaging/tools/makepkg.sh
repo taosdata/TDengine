@@ -97,6 +97,7 @@ else
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
       ${build_dir}/bin/${clientName}adapter \
+      ${build_dir}/bin/${clientName}keeper \
       ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
@@ -138,9 +139,15 @@ mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${
 if [ -f "${compile_dir}/test/cfg/${clientName}adapter.toml" ]; then
   cp ${compile_dir}/test/cfg/${clientName}adapter.toml ${install_dir}/cfg || :
 fi
+if [ -f "${compile_dir}/test/cfg/${clientName}keeper.toml" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}keeper.toml ${install_dir}/cfg || :
+fi
 
 if [ -f "${compile_dir}/test/cfg/${clientName}adapter.service" ]; then
   cp ${compile_dir}/test/cfg/${clientName}adapter.service ${install_dir}/cfg || :
+fi
+if [ -f "${compile_dir}/test/cfg/${clientName}keeper.service" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}keeper.service ${install_dir}/cfg || :
 fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
@@ -422,19 +429,19 @@ if [ "$exitcode" != "0" ]; then
   exit $exitcode
 fi
 
-if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then
-    wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${taostools_install_dir}/bin/TDinsight.sh && echo "TDinsight.sh downloaded!"|| echo "failed to download TDinsight.sh"
-    if [ "$osType" != "Darwin" ]; then
-        tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
-    else
-        tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" || :
-        rm -rf ${taostools_install_dir} ||:
-    fi
-    exitcode=$?
-    if [ "$exitcode" != "0" ]; then
-        echo "tar ${taostools_pkg_name}.tar.gz error !!!"
-        exit $exitcode
-    fi
-fi
+# if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then
+#     wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${taostools_install_dir}/bin/TDinsight.sh && echo "TDinsight.sh downloaded!"|| echo "failed to download TDinsight.sh"
+#     if [ "$osType" != "Darwin" ]; then
+#         tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
+#     else
+#         tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" || :
+#         rm -rf ${taostools_install_dir} ||:
+#     fi
+#     exitcode=$?
+#     if [ "$exitcode" != "0" ]; then
+#         echo "tar ${taostools_pkg_name}.tar.gz error !!!"
+#         exit $exitcode
+#     fi
+# fi
 
 cd ${curr_dir}

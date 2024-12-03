@@ -1,0 +1,8 @@
+The `reqId` can be used for request tracing, serving a similar purpose as `traceId` in distributed systems. A request may need to pass through multiple services or modules to be completed. The `reqId` is used to identify and associate all related operations of this request, allowing us to trace and analyze the complete path of the request.
+
+Using `reqId` offers the following benefits:
+- **Request Tracing**: By associating the same `reqId` with all related operations of a request, we can track the complete path of the request within the system.
+- **Performance Analysis**: By analyzing the `reqId` of a request, we can understand the processing time of the request across various services and modules, helping to identify performance bottlenecks.
+- **Fault Diagnosis**: When a request fails, we can identify the location of the problem by examining the `reqId` associated with that request.
+
+If the user does not set a `reqId`, the connector will internally generate a random one. However, it is still recommended that users set it to better associate with their requests.
