@@ -19,7 +19,7 @@
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
 extern void    tsdbCloseCompMonitor(STsdb *tsdb);
 extern int32_t tsdbInitCompact();
-extern void    tsdbClearnupCompact();
+extern void    tsdbCleanupCompact();
 
 int32_t tsdbInit() {
 #ifdef TD_ENTERPRISE
@@ -30,7 +30,7 @@ int32_t tsdbInit() {
 
 void tsdbCleanUp() {
 #ifdef TD_ENTERPRISE
-  tsdbClearnupCompact();
+  tsdbCleanupCompact();
 #endif
   return;
 }

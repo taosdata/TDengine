@@ -342,8 +342,8 @@ integer_list(A) ::= integer_list(B) NK_COMMA NK_INTEGER(C).                     
 
 %type signed_integer_list                                                         { SNodeList* }
 %destructor signed_integer_list                                                   { nodesDestroyList($$); }
-signed_integer_list(A) ::= signed_integer(B).                                     { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B)); }
-signed_integer_list(A) ::= signed_integer_list(B) NK_COMMA signed_integer(C).     { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C)); }
+signed_integer_list(A) ::= signed_integer(B).                                     { A = createNodeList(pCxt, B); }
+signed_integer_list(A) ::= signed_integer_list(B) NK_COMMA signed_integer(C).     { A = addNodeToList(pCxt, B, C); }
 
 %type variable_list                                                               { SNodeList* }
 %destructor variable_list                                                         { nodesDestroyList($$); }
@@ -352,8 +352,8 @@ variable_list(A) ::= variable_list(B) NK_COMMA NK_VARIABLE(C).                  
 
 %type signed_variable_list                                                        { SNodeList* }
 %destructor signed_variable_list                                                  { nodesDestroyList($$); }
-signed_variable_list(A) ::= NK_VARIABLE(B).                                              { A = createNodeList(pCxt, createDurationValueNode(pCxt, &B)); }
-signed_variable_list(A) ::= variable_list(B) NK_COMMA NK_VARIABLE(C).                    { A = addNodeToList(pCxt, B, createDurationValueNode(pCxt, &C)); }
+signed_variable_list(A) ::= signed_variable(B).                                   { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
+signed_variable_list(A) ::= signed_variable_list(B) NK_COMMA signed_variable(C).  { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 
 %type retention_list                                                              { SNodeList* }
 %destructor retention_list                                                        { nodesDestroyList($$); }

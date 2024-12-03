@@ -470,11 +470,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
-<<<<<<< HEAD
-=======
     case QUERY_NODE_RANGE_AROUND:
-      code = makeNode(type, sizeof(SRangeAroundNode), &pNode); break;
->>>>>>> feat/TS-4994-3.0
+      code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
+      break;
     case QUERY_NODE_SELECT_STMT:
       code = makeNode(type, sizeof(SSelectStmt), &pNode);
       break;
