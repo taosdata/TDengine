@@ -213,7 +213,7 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 ```sql
 [field1_name,...]
 ```
-在本页文档顶部的 [field1_name,...] 是用来指定 stb_name 的列与 subquery 输出结果的对应关系的。如果 stb_name 的列与 subquery 输出结果的位置、数量全部匹配，则不需要显示指定对应关系。如果 stb_name 的列与 subquery 输出结果的数据类型不匹配，会把 subquery 输出结果的类型转换成对应的 stb_name 的列的类型。不能指定 stb_name 的列和 TAG 的数据类型，否则创建流计算时会报错。
+在本页文档顶部的 [field1_name,...] 是用来指定 stb_name 的列与 subquery 输出结果的对应关系的。如果 stb_name 的列与 subquery 输出结果的位置、数量全部匹配，则不需要显示指定对应关系。如果 stb_name 的列与 subquery 输出结果的数据类型不匹配，会把 subquery 输出结果的类型转换成对应的 stb_name 的列的类型。创建流计算时不能指定 stb_name 的列和 TAG 的数据类型，否则会报错。
 
 对于已经存在的超级表，检查列的schema信息
 1. 检查列的 schema 信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于 4096byte 时才报错，其余场景都能进行类型转换。
