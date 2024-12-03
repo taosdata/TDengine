@@ -19,19 +19,19 @@ import imgStep12 from '../../assets/mqtt-12.png';
 import imgStep13 from '../../assets/mqtt-13.png';
 import imgStep14 from '../../assets/mqtt-14.png';
 
-This section explains how to create a data migration task through the Explorer interface to migrate data from MQTT to the current TDengine cluster.
+This section describes how to create data migration tasks through the Explorer interface, migrating data from MQTT to the current TDengine cluster.
 
 ## Overview
 
-MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol, easy to implement and use.
+MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol that is easy to implement and use.
 
-TDengine can use the MQTT connector to subscribe to data from an MQTT broker and write it to TDengine to enable real-time data ingestion.
+TDengine can subscribe to data from an MQTT broker via an MQTT connector and write it into TDengine, enabling real-time data streaming.
 
 ## Creating a Task
 
-### 1. Add Data Source
+### 1. Add a Data Source
 
-On the Data Ingestion page, click the **+Add Data Source** button to go to the Add Data Source page.
+On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
 <figure>
 <Image img={imgStep01} alt=""/>
@@ -39,11 +39,11 @@ On the Data Ingestion page, click the **+Add Data Source** button to go to the A
 
 ### 2. Configure Basic Information
 
-Enter the task name in the **Name** field, such as "test_mqtt".
+Enter the task name in **Name**, such as: "test_mqtt";
 
 Select **MQTT** from the **Type** dropdown list.
 
-The agent is optional. If needed, you can select an agent from the dropdown list, or click the **+Create New Agent** button.
+**Broker** is optional, you can select a specific broker from the dropdown list or click the **+Create New Broker** button on the right.
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
@@ -53,21 +53,21 @@ Select a target database from the **Target Database** dropdown list, or click th
 
 ### 3. Configure Connection and Authentication Information
 
-In the **MQTT Address** field, enter the address of the MQTT broker, for example: `192.168.1.42`.
+Enter the MQTT broker's address in **MQTT Address**, for example: `192.168.1.42`
 
-In the **MQTT Port** field, enter the port of the MQTT broker, for example: `1883`.
+Enter the MQTT broker's port in **MQTT Port**, for example: `1883`
 
-In the **User** field, enter the username for the MQTT broker.
+Enter the MQTT broker's username in **User**.
 
-In the **Password** field, enter the password for the MQTT broker.
+Enter the MQTT broker's password in **Password**.
 
 <figure>
 <Image img={imgStep03} alt=""/>
 </figure>
 
-### 4. Configure SSL Certificates
+### 4. Configure SSL Certificate
 
-If the MQTT broker uses SSL certificates, upload the certificate file in the **SSL Certificate** field.
+If the MQTT broker uses an SSL certificate, upload the certificate file in **SSL Certificate**.
 
 <figure>
 <Image img={imgStep04} alt=""/>
@@ -75,19 +75,20 @@ If the MQTT broker uses SSL certificates, upload the certificate file in the **S
 
 ### 5. Configure Collection Information
 
-In the **Collection Configuration** section, enter the relevant parameters for the collection task.
+Fill in the collection task related configuration parameters in the **Collection Configuration** area.
 
-Select the MQTT protocol version from the **MQTT Protocol** dropdown list. There are three options: `3.1`, `3.1.1`, and `5.0`. The default is 3.1.
+Select the MQTT protocol version from the **MQTT Protocol** dropdown list. There are three options: `3.1`, `3.1.1`, `5.0`. The default value is 3.1.
 
-In the **Client ID** field, enter the client identifier. This will generate a client ID with the `taosx` prefix (for example, if you enter "foo", the generated client ID will be `taosxfoo`). If the switch at the end is enabled, the task ID will be appended after `taosx` before the entered identifier (the generated client ID will be like `taosx100foo`). All client IDs connected to the same MQTT address must be unique.
+Enter the client identifier in **Client ID**, after which a client id with the prefix `taosx` will be generated (for example, if the identifier entered is `foo`, the generated client id will be `taosxfoo`). If the switch at the end is turned on, the current task's task id will be concatenated after `taosx` and before the entered identifier (the generated client id will look like `taosx100foo`). All client ids connecting to the same MQTT address must be unique.
 
-In the **Keep Alive** field, enter the keep-alive interval. If the broker does not receive any messages from the client within this interval, it will assume the client has disconnected and close the connection. The keep-alive interval is the negotiated time between the client and the broker to detect if the client is active. If no messages are sent within this interval, the broker will disconnect the client.
+Enter the keep alive interval in **Keep Alive**. If the broker does not receive any message from the client within the keep alive interval, it will assume the client has disconnected and will close the connection.
+The keep alive interval is the time interval negotiated between the client and the broker to check if the client is active. If the client does not send a message to the broker within the keep alive interval, the broker will disconnect.
 
-In the **Clean Session** field, choose whether to clean the session. The default value is true.
+In **Clean Session**, choose whether to clear the session. The default value is true.
 
-In the **Subscription Topics and QoS Configuration** field, enter the Topic names to consume, using the following format: `topic1::0,topic2::1`.
+Fill in the Topic names to be consumed in **Subscription Topics and QoS Configuration**. Use the following format: `topic1::0,topic2::1`.
 
-Click the **Connectivity Check** button to test if the data source is available.
+Click the **Check Connectivity** button to check if the data source is available.
 
 <figure>
 <Image img={imgStep05} alt=""/>
@@ -95,40 +96,40 @@ Click the **Connectivity Check** button to test if the data source is available.
 
 ### 6. Configure MQTT Payload Parsing
 
-In the **MQTT Payload Parsing** section, enter the configuration parameters related to parsing the Payload.
+Fill in the Payload parsing related configuration parameters in the **MQTT Payload Parsing** area.
 
-taosX can use a JSON extractor to parse the data and allows users to specify the data model in the database, including specifying table names, supertable names, setting regular columns, and tag columns.
+taosX can use a JSON extractor to parse data and allows users to specify the data model in the database, including specifying table names and supertable names, setting ordinary columns and tag columns, etc.
 
 #### 6.1 Parsing
 
-There are three ways to obtain sample data:
+There are three methods to obtain sample data:
 
 Click the **Retrieve from Server** button to get sample data from MQTT.
 
-Click the **File Upload** button to upload a CSV file and get sample data.
+Click the **File Upload** button to upload a CSV file and obtain sample data.
 
-Enter sample data from the MQTT message body in the **Message Body** field.
+Fill in the example data from the MQTT message body in **Message Body**.
 
-json data supports `JSONObject` or `JSONArray`. The following data can be parsed using the JSON parser:
+JSON data supports JSONObject or JSONArray, and the json parser can parse the following data:
 
-```json
-{"id": 1, "message": "hello-world"}
-{"id": 2, "message": "hello-world"}
+``` json
+{"id": 1, "message": "hello-word"}
+{"id": 2, "message": "hello-word"}
 ```
 
 or
 
-```json
-[{"id": 1, "message": "hello-world"},{"id": 2, "message": "hello-world"}]
+``` json
+[{"id": 1, "message": "hello-word"},{"id": 2, "message": "hello-word"}]
 ```
 
-The parsing result is shown below:
+The analysis results are as follows:
 
 <figure>
 <Image img={imgStep06} alt=""/>
 </figure>
 
-Click the **Magnifier Icon** to preview the parsing result.
+Click the **magnifying glass icon** to view the preview of the analysis results.
 
 <figure>
 <Image img={imgStep07} alt=""/>
@@ -136,7 +137,7 @@ Click the **Magnifier Icon** to preview the parsing result.
 
 #### 6.2 Field Splitting
 
-In the **Extract or Split from Column** section, enter the fields to extract or split from the message body. For example, to split the `message` field into `message_0` and `message_1`, select the `split` extractor, enter `-` as the separator, and `2` as the number.
+In **Extract or Split from Column**, fill in the fields to extract or split from the message body, for example: split the `message` field into `message_0` and `message_1`, select the split extractor, fill in the separator as -, and number as 2.
 
 <figure>
 <Image img={imgStep08} alt=""/>
@@ -144,9 +145,9 @@ In the **Extract or Split from Column** section, enter the fields to extract or 
 
 Click **Delete** to remove the current extraction rule.
 
-Click **Add more** to add more extraction rules.
+Click **Add** to add more extraction rules.
 
-Click the **Magnifier Icon** to preview the extraction/split results.
+Click the **magnifying glass icon** to view the preview of the extraction/split results.
 
 <figure>
 <Image img={imgStep09} alt=""/>
@@ -154,15 +155,15 @@ Click the **Magnifier Icon** to preview the extraction/split results.
 
 #### 6.3 Data Filtering
 
-In the **Filter** section, enter filtering conditions. For example, entering `id != 1` will filter out data where the `id` is equal to `1`, and only data with `id` not equal to 1 will be written to TDengine.
+In **Filter**, fill in the filtering conditions, for example: write `id != 1`, then only data with id not equal to 1 will be written to TDengine.
 
 <figure>
 <Image img={imgStep10} alt=""/>
 </figure>
 
-Click **Delete** to remove the current filter rule.
+Click **Delete** to remove the current filtering rule.
 
-Click the **Magnifier Icon** to preview the filtering results.
+Click the **magnifying glass icon** to view the preview of the filtering results.
 
 <figure>
 <Image img={imgStep11} alt=""/>
@@ -170,9 +171,9 @@ Click the **Magnifier Icon** to preview the filtering results.
 
 #### 6.4 Table Mapping
 
-In the **Target Supertable** dropdown list, select a target supertable, or click the **Create Supertable** button to create a new one.
+In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
-In the **Mapping** section, enter the mapping rule for the target table’s name. For example, enter `t_{id}`. Fill in the mapping rules according to your needs, and mapping supports setting default values.
+In **Mapping**, fill in the subtable name in the target supertable, for example: `t_{id}`. Fill in the mapping rules according to the requirements, where mapping supports setting default values.
 
 <figure>
 <Image img={imgStep12} alt=""/>
@@ -186,13 +187,13 @@ Click **Preview** to view the mapping results.
 
 ### 7. Advanced Options
 
-In the **Log Level** dropdown list, select the log level. There are five options: `TRACE`, `DEBUG`, `INFO`, `WARN`, and `ERROR`. The default is `INFO`.
+In the **Log Level** dropdown, select a log level. There are five options: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`. The default is INFO.
 
-When saving raw data, the following two parameters are enabled:
+When **saving raw data**, the following two parameters are effective.
 
-**Max Retention Days:** Set the maximum number of days to retain raw data.
+Set the maximum retention days for raw data in **Maximum Retention Days**.
 
-**Raw Data Storage Directory:** Set the path for storing raw data. If an agent is used, this path refers to the server where the agent is located; otherwise, it refers to the server where taosX is running. You can use placeholders like `DATA_DIR` and `:id` as part of the path.
+Set the storage path for raw data in **Raw Data Storage Directory**.
 
 <figure>
 <Image img={imgStep14} alt=""/>
@@ -200,4 +201,4 @@ When saving raw data, the following two parameters are enabled:
 
 ### 8. Completion
 
-Click the **Submit** button to complete the creation of the MQTT to TDengine data synchronization task. Go back to the **Data Source List** page to monitor the task's execution status.
+Click the **Submit** button to complete the creation of the MQTT to TDengine data synchronization task, return to the **Data Source List** page to view the status of the task execution.
