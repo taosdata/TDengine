@@ -1078,7 +1078,7 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 }
 
 #define LOG_ROTATE_INTERVAL 3600
-#ifdef ASSERT_NOT_CORE
+#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE)
 #define LOG_INACTIVE_TIME 7200
 #define LOG_ROTATE_BOOT   900
 #else
@@ -1087,7 +1087,7 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 #endif
 
 static void *taosLogRotateFunc(void *param) {
-  setThreadName("logRotate");
+  setThreadName("log_rotate");
   int32_t code = 0;
   taosWLockLatch(&tsLogRotateLatch);
   // compress or remove the old log files

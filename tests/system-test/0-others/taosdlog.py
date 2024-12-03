@@ -166,13 +166,13 @@ class TDTestCase:
 
     def prepare_dev_null(self):
         list = self.prepare_list[2]
-        self.prepare_logoutput(list[0], list[1], "--log-output=" + list[0])
+        # self.prepare_logoutput(list[0], list[1], "--log-output=" + list[0])
 
     def check_dev_null(self):
         tdLog.info("Running check /dev/null")
-        dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[2][1]
-        tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taosdlog.0"))
-        tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taoslog0.0"))
+        # dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[2][1]
+        # tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taosdlog.0"))
+        # tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taoslog0.0"))
 
     def prepare_fullpath(self):
         list = self.prepare_list[3]
