@@ -375,11 +375,10 @@ impl Worker {
         let metrics = self.metrics.as_ref().tmq();
         let meta = message.meta.as_ref().unwrap();
         let sqls = meta.iter().map(ToString::to_string).collect_vec();
-
         execute_many_sql(conn, sqls)
+            .in_current_span()
             .await
             .context("Write raw meta with sql error")?;
-
         metrics.add_suc_blocks(1);
         Ok(())
     }
@@ -1199,6 +1198,7 @@ impl Worker {
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
                         let sqls = meta.iter().map(ToString::to_string).collect_vec();
                         execute_many_sql(conn, sqls)
+                            .in_current_span()
                             .await
                             .context("Write raw meta with sql error")?;
                     }

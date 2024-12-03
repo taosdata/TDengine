@@ -612,6 +612,7 @@ async fn write_meta(
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
                         let sqls = json_meta.iter().map(ToString::to_string).collect_vec();
                         execute_many_sql(taos, sqls)
+                            .in_current_span()
                             .await
                             .context("Write raw meta with sql error")?;
                     }
