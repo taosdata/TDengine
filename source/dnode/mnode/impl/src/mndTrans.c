@@ -1671,9 +1671,6 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
       return false;
     }
   }
-
-  // if (mndCannotExecuteTrans(pMnode, topHalf)) return false;
-
   terrno = code;
 
   if (code == 0) {
