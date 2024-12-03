@@ -2555,6 +2555,9 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     if (TSDB_CODE_SUCCESS == code) {
       pTbName->z = tbName;
       pTbName->n = strlen(tbName);
+    } else if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
+      pCxt->preCtbname = true;
+      code = TSDB_CODE_SUCCESS;
     } else {
       return code;
     }
