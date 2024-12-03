@@ -14,6 +14,7 @@
  */
 
 #include "wrapper.h"
+#include "version.h"
 
 static TdThreadOnce tsDriverOnce = PTHREAD_ONCE_INIT;
 volatile int32_t    tsDriverOnceRet = 0;
@@ -492,8 +493,11 @@ const char *taos_get_server_info(TAOS *taos) {
 }
 
 const char *taos_get_client_info() {
-  CHECK_PTR(fp_taos_get_client_info);
-  return (*fp_taos_get_client_info)();
+  if (fp_taos_get_client_info == NULL) {
+    return td_version;
+  } else {
+    return (*fp_taos_get_client_info)();
+  }
 }
 
 int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {

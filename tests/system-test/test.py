@@ -39,6 +39,9 @@ import taos
 import taosrest
 import taosws
 
+from taos.cinterface import *
+taos.taos_options(6, "internal")
+
 def checkRunTimeError():
     import win32gui
     timeCount = 0
