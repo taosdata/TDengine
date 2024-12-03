@@ -44,7 +44,8 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
           mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
-
+      - name: Print COVERAGE_REPORT_DIR
+        run: echo $COVERAGE_REPORT_DIR
   # build_rust:
   #   needs: remove_artifacts
   #   runs-on: [self-hosted, linux, x64, qa, rust]
