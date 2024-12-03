@@ -5623,6 +5623,9 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
   int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
+    if(nodeType(pNew) == QUERY_NODE_VALUE) {
+      *pTimeRange = TSWINDOW_INITIALIZER;
+    }
     code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
   }
   return code;
