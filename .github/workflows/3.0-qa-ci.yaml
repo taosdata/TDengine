@@ -28,7 +28,7 @@ jobs:
         run: |
           echo "COVERAGE_REPORT_DIR=/data/code_coverage_taosx/$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
           echo "::set-output name=coverage_report_dir::/data/code_coverage_taosx/$(date +%Y%m%d_%H%M%S)"
-
+          
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DIR
   remove_artifacts:
@@ -39,7 +39,8 @@ jobs:
     steps:
       - name: Remove artifacts
         run: |
-          find $COVERAGE_REPORT_DIR -mindepth 1 -mtime +10 -exec rm -rf {} +
+          mkdir -p $COVERAGE_REPORT_DIR
+          find /data/code_coverage_taosx/ -mindepth 1 -mtime +10 -exec rm -rf {} +
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
           mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
