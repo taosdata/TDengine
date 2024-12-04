@@ -1,6 +1,5 @@
 ---
 title: Architecture
-description: TDengine architecture design, including clusters, storage, caching and persistence, data backup, multi-level storage, and more.
 slug: /inside-tdengine/architecture
 ---
 
@@ -12,330 +11,325 @@ import imgFollower from '../assets/architecture-04.png';
 
 ## Cluster and Basic Logical Units
 
-TDengine's design assumes that individual hardware and software systems are unreliable and that no single computer can provide sufficient computing and storage capacity to handle massive data volumes. Therefore, from day one, TDengine has been designed as a distributed, highly reliable architecture, supporting horizontal scaling. This way, hardware failures or software errors on any single or multiple servers will not affect the availability and reliability of the system. Additionally, with node virtualization and load-balancing technology, TDengine efficiently utilizes heterogeneous clusters' computing and storage resources to reduce hardware investment.
+TDengine is designed based on the assumption that a single hardware or software system is unreliable, and that no single computer can provide sufficient computing power and storage capacity to handle massive amounts of data. Therefore, from the first day of its development, TDengine has been designed with a distributed and highly reliable architecture that supports horizontal scaling. This ensures that the system's availability and reliability are not affected by hardware failures or software errors in any single or multiple servers. Additionally, through node virtualization and load balancing technology, TDengine can efficiently utilize the computing and storage resources in a heterogeneous cluster to reduce hardware investment.
 
 ### Main Logical Units
 
-The logical structure of TDengine's distributed architecture is shown below:
+The logical structure diagram of the TDengine distributed architecture is as follows:
 
 <figure>
 <Image img={imgArch} alt="TDengine architecture diagram"/>
 <figcaption>Figure 1. TDengine architecture diagram</figcaption>
 </figure>
 
-A complete TDengine system runs on one or more physical nodes. Logically, it includes data nodes (dnode), TDengine application drivers (taosc), and applications (app). The system contains one or more data nodes, which form a cluster. Applications interact with the TDengine cluster through the taosc API. Below is a brief introduction to each logical unit.
+A complete TDengine system runs on one to several physical nodes. Logically, it includes data nodes (dnode), TDengine application drivers (taosc), and applications (app). There are one or more data nodes in the system, which form a cluster (cluster). Applications interact with the TDengine cluster through the API of taosc. Below is a brief introduction to each logical unit.
 
-**Physical Node (pnode):**  
-A pnode is an independent computer with its own computing, storage, and networking capabilities. It can be a physical machine, virtual machine, or Docker container with an operating system installed. Each physical node is identified by its configured Fully Qualified Domain Name (FQDN). TDengine relies entirely on FQDN for network communication.
+**Physical Node (pnode):**
+A pnode is an independent computer with its own computing, storage, and networking capabilities, which can be a physical machine, virtual machine, or Docker container with an OS installed. Physical nodes are identified by their configured FQDN (Fully Qualified Domain Name). TDengine relies entirely on the FQDN for network communication.
 
-**Data Node (dnode):**  
-A dnode is an instance of the TDengine server-side execution code (taosd) running on a physical node. At least one dnode is required for the proper functioning of a TDengine system. Each dnode contains zero or more logical virtual nodes (vnode). However, management, elastic computing, and stream computing nodes each have at most one logical instance.
+**Data Node (dnode):**
+A dnode is a running instance of the TDengine server-side execution code taosd on a physical node. At least one dnode is required to ensure the normal operation of a TDengine system. Each dnode contains zero to several logical virtual nodes (vnode), but management nodes, elastic computing nodes, and stream computing nodes each have 0 or 1 logical instance.
 
-A dnode is uniquely identified in a TDengine cluster by its endpoint (EP), which is a combination of the dnode's FQDN and configured network port. By configuring different ports, a single pnode (whether a physical machine, virtual machine, or Docker container) can run multiple instances, each with its own dnode.
+The unique identifier of a dnode in the TDengine cluster is determined by its instance's endpoint (EP). The endpoint is a combination of the FQDN and the configured network port of the physical node where the dnode is located. By configuring different ports, a pnode (whether it is a physical machine, virtual machine, or Docker container) can run multiple instances, i.e., have multiple dnodes.
 
-**Virtual Node (vnode):**  
-To better support data sharding, load balancing, and prevent data hotspots or skew, TDengine introduces the concept of virtual nodes (vnode). A vnode is virtualized into multiple independent instances (e.g., V2, V3, V4 in the architecture diagram), each responsible for storing and managing a portion of time-series data.
+**Virtual Node (vnode):**
+To better support data sharding, load balancing, and prevent data overheating or skew, TDengine introduces the concept of vnode (virtual node). Virtual nodes are virtualized into multiple independent vnode instances (as shown in the architecture diagram above, such as V2, V3, V4, etc.), each vnode is a relatively independent working unit responsible for storing and managing a portion of time-series data.
 
-Each vnode operates with independent threads, memory space, and persistent storage paths to ensure data isolation and efficient access. A vnode can contain multiple tables (data collection points) distributed across different vnodes to achieve balanced load distribution.
+Each vnode has its own running thread, memory space, and persistent storage path, ensuring data isolation and efficient access. A vnode can contain multiple tables (i.e., data collection points), which are physically distributed across different vnodes to achieve even data distribution and load balancing.
 
-When creating a new database in the cluster, the system automatically creates the corresponding vnodes. The number of vnodes that can be created on a dnode depends on the physical node's resources, such as CPU, memory, and storage capacity. Note that a vnode belongs to only one database, but a database may contain multiple vnodes.
+When a new database is created in the cluster, the system automatically creates the corresponding vnode for that database. The number of vnodes that can be created on a dnode depends on the hardware resources of the physical node where the dnode is located, such as CPU, memory, and storage capacity. Note that a vnode can only belong to one database, but a database can contain multiple vnodes.
 
-In addition to storing time-series data, each vnode holds metadata such as schema information and tag values for the tables it manages. This metadata is essential for querying and managing data.
+In addition to storing time-series data, each vnode also stores the schema information and tag values of the tables it contains, which are crucial for data querying and management.
 
-Within the cluster, a vnode is uniquely identified by the endpoint of its dnode and its vgroup ID. Management nodes oversee the creation and coordination of these vnodes to ensure smooth operation.
+Internally within the cluster, a vnode is uniquely identified by the endpoint of its belonging dnode and its vgroup ID. Management nodes are responsible for creating and managing these vnodes, ensuring they operate normally and work collaboratively.
 
-**Management Node (mnode):**  
-The mnode, or management node, is the central logical unit within the TDengine cluster, responsible for monitoring the status of all dnodes and implementing load balancing (as shown by M1, M2, and M3 in Figure 15-1). It serves as the storage and management center for metadata (such as users, databases, and supertables) and is also known as the MetaNode.
+**Management Node (mnode):**
+The mnode (management node) is the core logical unit in the TDengine cluster, responsible for monitoring and maintaining the operational status of all dnodes and implementing load balancing between nodes (as shown in Figure 15-1, M1, M2, M3). As the storage and management center for metadata (including users, databases, supertables, etc.), mnode is also known as MetaNode.
 
-To enhance availability and reliability, TDengine clusters allow multiple mnodes (up to three). These mnodes form a virtual mnode group that shares management responsibilities. TDengine employs the Raft consensus protocol to maintain consistency and reliability. Data updates in the mnode group must be performed on the leader node.
+To enhance the cluster's high availability and reliability, the TDengine cluster allows for multiple (up to 3) mnodes. These mnodes automatically form a virtual mnode group, sharing management responsibilities. Mnodes support multiple replicas and use the Raft consistency protocol to ensure data consistency and operation reliability. In the mnode cluster, any data update operation must be performed on the leader node.
 
-The first mnode is created automatically during cluster deployment, and additional mnodes can be added or removed manually through SQL commands. Each dnode can have one mnode, identified by its dnode's endpoint.
+The first node of the mnode cluster is automatically created during cluster deployment, while the creation and deletion of other nodes are manually completed by users through SQL. Each dnode can have at most one mnode, uniquely identified by the endpoint of the dnode to which it belongs.
 
-All dnodes in the cluster use internal messaging to automatically discover and communicate with the mnodes.
+To achieve information sharing and communication within the cluster, each dnode automatically obtains the endpoint of the dnode where all mnodes in the entire cluster are located through an internal message exchange mechanism.
 
-**Compute Node (qnode):**  
-A qnode, or compute node, is a logical unit responsible for executing query tasks and processing `show` commands. Multiple qnodes can be configured within a cluster to enhance query performance and parallel processing capabilities (as shown by Q1, Q2, and Q3 in Figure 15-1).
+**Compute Node (qnode):**
+qnode (compute node) is a virtual logical unit in the TDengine cluster responsible for executing query computation tasks and also handles show commands based on system tables. To improve query performance and parallel processing capabilities, multiple qnodes can be configured in the cluster, which are shared across the entire cluster (as shown in Q1, Q2, Q3 in Figure 15-1).
 
-Unlike dnodes, qnodes are not bound to specific databases, meaning they can process queries from multiple databases. Each dnode can host one qnode, identified by its endpoint.
+Unlike dnode, qnode is not bound to a specific database, meaning a qnode can handle query tasks from multiple databases simultaneously. Each dnode can have at most one qnode, uniquely identified by the endpoint of the dnode to which it belongs.
 
-When a client sends a query, it interacts with an mnode to obtain a list of available qnodes. If no qnode is available, query tasks are executed on vnodes. A scheduler allocates one or more qnodes to perform tasks based on the execution plan. Qnodes retrieve data from vnodes and forward results to other qnodes for further processing.
+When a client initiates a query request, it first interacts with mnode to obtain the current list of available qnodes. If there are no available qnodes in the cluster, the computation task will be executed in vnode. When executing a query, the scheduler allocates one or more qnodes to complete the task according to the execution plan. qnode can obtain the required data from vnode and send the computation results to other qnodes for further processing.
 
-By introducing independent qnodes, TDengine separates storage from computation.
+By introducing independent qnodes, TDengine achieves separation of storage and computation.
 
-**Stream Compute Node (snode):**  
-An snode, or stream compute node, is a specialized logical unit for handling stream processing tasks (as shown by S1, S2, and S3 in the architecture diagram). Multiple snodes can be configured across the cluster to support real-time data processing.
+**Stream Compute Node (snode):**
+snode (stream compute node) is a virtual logical unit in the TDengine cluster specifically responsible for handling stream computing tasks (as shown in the architecture diagram S1, S2, S3). To meet the needs of real-time data processing, multiple snodes can be configured in the cluster, which are shared across the entire cluster.
 
-Similar to dnodes, snodes are not tied to specific streams, enabling them to handle multiple stream tasks concurrently. Each dnode can host one snode, identified by its endpoint.
+Similar to dnode, snode is not bound to a specific stream, meaning an snode can handle computation tasks from multiple streams simultaneously. Each dnode can have at most one snode, uniquely identified by the endpoint of the dnode to which it belongs.
 
-When stream processing tasks are required, the mnode schedules available snodes to execute these tasks. If no snode is available, the tasks will be executed on vnodes.
+When a stream computing task needs to be executed, mnode schedules available snodes to complete these tasks. If there are no available snodes in the cluster, the stream computing task will be executed in vnode.
 
-Centralizing stream processing in snodes enhances real-time data handling capabilities.
+By centralizing stream computing tasks in snodes, TDengine achieves separation of stream computing and batch computing, thereby enhancing the system's capability to handle real-time data.
 
-**Virtual Node Group (VGroup):**  
+**Virtual Node Group (VGroup):**
 
-A vgroup consists of vnodes spread across different dnodes. These vnodes use the Raft consensus protocol to ensure high availability and reliability. Write operations are performed on the leader vnode, and data is asynchronously replicated to follower vnodes, ensuring multiple physical copies.
+vgroup (virtual node group) is a logical unit composed of vnodes from different dnodes. These vnodes use the Raft consistency protocol to ensure high availability and reliability of the cluster. In vgroup, write operations can only be performed on the leader vnode, while data is asynchronously replicated to other follower vnodes, thus retaining data replicas across multiple physical nodes.
 
-The number of vnodes in a vgroup determines the replication factor. To create a database with N replicas, the cluster must have at least N dnodes. The replication factor can be specified during database creation, with the default value set to 1. TDengine's multi-replica design eliminates the need for expensive storage arrays while maintaining data reliability.
+The number of vnodes in a vgroup determines the number of data replicas. To create a database with N replicas, the cluster must contain at least N dnodes. The number of replicas can be specified during database creation through the replica parameter, with a default value of 1. By utilizing TDengine's multi-replica feature, enterprises can forego expensive traditional storage devices like disk arrays while still achieving high data reliability.
 
-The mnode manages each vgroup and assigns a unique cluster-wide ID. Vnodes within the same vgroup share the same vgroup ID and act as backups. Although the number of vnodes in a vgroup can change dynamically, the vgroup ID remains constant, even if the vgroup is deleted.
+vgroup is created and managed by mnode, and is assigned a unique cluster ID, the vgroup ID. If two vnodes have the same vgroup ID, it means they belong to the same group, and their data are backups of each other. Notably, the number of vnodes in a vgroup can be dynamically adjusted, but the vgroup ID remains constant, even if the vgroup is deleted, its ID will not be recycled or reused.
 
-This design ensures both data security and flexible replica management and scaling capabilities.
+Through this design, TDengine ensures data security while achieving flexible replica management and dynamic expansion capabilities.
 
-**Taosc**  
+**Taosc**
 
-Taosc, the application driver for TDengine, bridges applications and the cluster. It provides native C/C++ interfaces and is embedded in connectors for various languages such as JDBC, C#, Python, Go, and Node.js, enabling these languages to interact with the database.
+taosc (application driver) is a driver provided by TDengine for application programs, responsible for handling the interface interaction between applications and the cluster. taosc provides native interfaces for C/C++ languages and is embedded in connection libraries for various programming languages such as JDBC, C#, Python, Go, Node.js, thus supporting these programming languages in interacting with the database.
 
-Applications communicate with the cluster through taosc rather than directly connecting to individual dnodes. Taosc retrieves and caches metadata, forwards queries and write requests to the appropriate dnode, and performs final aggregation, sorting, and filtering before returning results to the application. For JDBC, C/C++, C#, Python, Go, and Node.js interfaces, taosc runs on the physical node hosting the application.
+Applications communicate with the entire cluster through taosc rather than directly connecting to dnodes in the cluster. taosc is responsible for obtaining and caching metadata, forwarding write and query requests to the correct dnode, and performing final aggregation, sorting, filtering, etc., before returning results to the application. For interfaces such as JDBC, C/C++, C#, Python, Go, Node.js, taosc runs on the physical node where the application is located.
 
-Additionally, taosc can interact with taosAdapter, supporting distributed RESTful interfaces. This design ensures compatibility with multiple programming languages and interfaces while maintaining high performance and scalability.
+Additionally, taosc can interact with taosAdapter to support a fully distributed RESTful interface. This design allows TDengine to support multiple programming languages and interfaces in a unified manner while maintaining high performance and scalability.
 
 ### Communication Between Nodes
 
-**Communication Method:**
+**Communication Methods:**
 
-Communication between dnodes within a TDengine cluster, as well as between application drivers and dnodes, is implemented using TCP. This method ensures stable and reliable data transmission.
+Within a TDengine cluster, communication between various dnodes as well as between application drivers and dnodes is implemented through TCP. This method ensures the stability and reliability of data transmission.
 
-To optimize network transmission performance and ensure data security, TDengine automatically compresses and decompresses transmitted data based on configuration, reducing network bandwidth usage. Additionally, TDengine supports digital signatures and authentication mechanisms to guarantee the integrity and confidentiality of data during transmission.
+To optimize network transmission performance and ensure data security, TDengine automatically compresses and decompresses data according to the configuration to reduce network bandwidth usage. Additionally, TDengine supports digital signatures and authentication mechanisms to ensure the integrity and confidentiality of data during transmission.
 
 **FQDN Configuration:**
 
-In a TDengine cluster, each dnode can have one or more Fully Qualified Domain Names (FQDN). To specify a dnode's FQDN, you can configure the `fqdn` parameter in the `taos.cfg` file. If not explicitly specified, the dnode will automatically use the hostname of the computer it runs on as its default FQDN.
+In the TDengine cluster, each dnode can have one or more FQDNs. To specify the FQDN of a dnode, you can configure the fqdn parameter in the taos.cfg configuration file. If not explicitly specified, the dnode will automatically obtain the hostname of its computer as the default FQDN.
 
-While it's technically possible to set the FQDN parameter to an IP address in the `taos.cfg` file, this is not recommended. IP addresses may change with network configurations, potentially causing cluster disruptions. When using FQDN, ensure DNS services function properly, or configure the hosts file on relevant nodes to resolve the FQDN to the correct IP address. For better compatibility and portability, keep the `fqdn` value within 96 characters.
+Although it is theoretically possible to set the FQDN parameter in taos.cfg to an IP address, this practice is not recommended by the official documentation. Because IP addresses may change with network environment changes, this could cause the cluster to malfunction. When using FQDNs, it is necessary to ensure that the DNS service is functioning properly, or that the hosts file is correctly configured on the nodes and application nodes to resolve the FQDN to the corresponding IP address. Additionally, to maintain good compatibility and portability, the length of the fqdn parameter value should be kept within 96 characters.
 
 **Port Configuration:**
 
-Each dnode in the TDengine cluster offers services using the port specified by the `serverPort` parameter. By default, this parameter is set to 6030. Adjusting the `serverPort` parameter allows flexible port configuration to meet various deployment environments and security policies.
+In the TDengine cluster, the port used by each dnode to provide external services is determined by the serverPort configuration parameter. By default, this parameter is set to 6030. By adjusting the serverPort parameter, you can flexibly configure the external service port of the dnode to meet different deployment environments and security policies.
 
-**Cluster External Connection:**
+**External Cluster Connections:**
 
-A TDengine cluster can accommodate a single, multiple, or thousands of data nodes. Applications only need to connect to any one of the data nodes in the cluster. This design simplifies interactions between applications and the cluster, improving scalability and ease of use.
+The TDengine cluster can accommodate single, multiple, or even thousands of data nodes. Applications only need to connect to any data node in the cluster. This design simplifies the interaction process between applications and the cluster, enhancing the system's scalability and usability.
 
-When launching the `taos` CLI, you can specify the connection information for a dnode using the following options:
+When using the TDengine CLI to start taos, you can specify the connection information for a dnode with the following options:
 
-- `-h`: Specifies the FQDN of the dnode, indicating which dnode the application should connect to.
-- `-P`: Specifies the port for the dnode. If not provided, the default value from the `serverPort` parameter is used.
+- -h: Used to specify the FQDN of the dnode. This is a required item, used to inform the application which dnode to connect to.
+- -P: Used to specify the port of the dnode. This is an optional item; if not specified, the TDengine configuration parameter serverPort will be used as the default.
 
-This method allows applications to connect flexibly to any dnode without needing to understand the cluster's topology.
+In this way, applications can flexibly connect to any dnode in the cluster without having to worry about the specific topology of the cluster.
 
 **Internal Cluster Communication:**
 
-Within the TDengine cluster, dnodes communicate with each other using TCP. When a dnode starts, it first obtains the endpoint information of the mnode. The newly started dnode then connects with the mnode in the cluster and exchanges information.
+In the TDengine cluster, communication between various dnodes is carried out through TCP. When a dnode starts, it first obtains the endpoint information of the mnode located dnode. Subsequently, the newly started dnode establishes a connection with the mnode in the cluster and exchanges information.
 
-This process ensures the dnode can join the cluster and synchronize with the mnode, allowing it to receive and execute cluster-wide commands and tasks. Reliable data transmission between dnodes and between dnodes and mnodes guarantees the cluster's stable operation and efficient data processing.
+This process ensures that the dnode can join the cluster in a timely manner and maintain synchronization with the mnode, thus being able to receive and execute cluster-level commands and tasks. Through TCP connections, dnodes and mnodes can reliably transfer data, ensuring the stable operation and efficient data processing capabilities of the cluster.
 
-The steps to obtain the mnode's endpoint information are as follows:
+Steps to obtain the mnode endpoint information are as follows:
 
-1. Check if the `dnode.json` file exists and can be opened to retrieve the mnode's endpoint information. If not, proceed to step 2.
-2. Check the `taos.cfg` configuration file for the `firstEp` and `secondEp` parameters. These parameters may refer to ordinary nodes without mnodes, which will redirect to the appropriate mnode during connection. If these parameters are missing or invalid, proceed to step 3.
-3. Set the dnode's own endpoint as the mnode endpoint and run independently.
+- Step 1: Check if the dnode.json file exists; if it does not exist or cannot be opened normally to obtain mnode endpoint information, proceed to Step 2.
+- Step 2: Check the configuration file taos.cfg, obtain the node configuration parameters firstEp, secondEp (these two parameters can specify nodes without mnode; in such cases, when the node is connected, it will try to redirect to the mnode node); if firstEP, secondEp do not exist, or if these two parameters are not in taos.cfg, or if the parameters are invalid, proceed to Step 3.
+- Step 3: Set your own endpoint as the mnode endpoint and operate independently.
 
-Once the mnode's endpoint list is obtained, the dnode initiates a connection. If successful, it joins the working cluster. If not, it tries the next endpoint in the list. If all attempts fail, the dnode will pause for a few seconds before retrying.
+After obtaining the mnode endpoint list, the dnode initiates a connection; if successful, it joins the working cluster; if not, it tries the next one in the mnode endpoint list. If all attempts fail, it sleeps for a few seconds before trying again.
 
-**Mnode Selection:**
+**Selection of Mnode:**
 
-In a TDengine cluster, the mnode is a logical concept and does not correspond to a standalone code entity. Instead, the mnode's functions are managed by the `taosd` process on the server side.
+In the TDengine cluster, mnode is a logical concept and does not correspond to an entity that executes code independently. In fact, the functionality of the mnode is managed by the server-side taosd process.
 
-During cluster deployment, the first dnode automatically assumes the mnode role. Users can later add or remove mnodes via SQL commands to meet cluster management needs. This design provides flexibility in the number and configuration of mnodes based on real-world application scenarios.
+During the cluster deployment phase, the first dnode automatically assumes the role of mnode. Subsequently, users can create or delete additional mnodes in the cluster through SQL to meet the needs of cluster management. This design makes the number and configuration of mnodes highly flexible, allowing adjustments based on actual application scenarios.
 
-**Adding New Data Nodes:**
+**Joining of New Data Nodes:**
 
-Once a dnode is started and running, the TDengine cluster becomes operational. To expand the cluster, follow these two steps to add new nodes:
+Once a dnode in the TDengine cluster is started and running, the cluster has basic operational capabilities. To expand the scale of the cluster, new nodes can be added by following these two steps:
 
-1. Use the TDengine CLI to connect to an existing dnode. Then, execute the `create dnode` command to add a new dnode. This process guides users through the configuration and registration of the new dnode.
-2. Set the `firstEp` and `secondEp` parameters in the `taos.cfg` file of the new dnode. These parameters should point to any two active dnodes in the existing cluster, ensuring the new dnode can join the cluster and communicate with other nodes.
+- Step 1, first use the TDengine CLI to connect to an existing dnode. Next, execute the create dnode command to add a new dnode. This process will guide the user through the configuration and registration process of the new dnode.
+- Step 2, set the firstEp and secondEp parameters in the configuration file taos.cfg of the newly added dnode. These two parameters should point to the endpoints of any two active dnodes in the existing cluster. This ensures that the new dnode can correctly join the cluster and communicate with the existing nodes.
 
 **Redirection:**
 
-In the TDengine cluster, newly started dnodes or `taosc` instances first need to connect with an mnode. However, users typically don't know which dnode is currently running the mnode. To solve this, TDengine employs a mechanism to ensure correct connections.
+In the TDengine cluster, whether it is a newly started dnode or taosc, they first need to establish a connection with the mnode in the cluster. However, users usually do not know which dnode is running the mnode. To solve this problem, TDengine uses a clever mechanism to ensure the correct connection between them.
 
-Rather than requiring dnodes or `taosc` to connect directly to a specific mnode, they only need to connect to any active dnode in the cluster. Each active dnode maintains a list of the current mnode endpoints and can forward connection requests to the appropriate mnode.
+Specifically, TDengine does not require the dnode or taosc to directly connect to a specific mnode. Instead, they only need to initiate a connection to any working dnode in the cluster. Since each active dnode maintains a list of the current running mnode endpoints, this connection request will be forwarded to the appropriate mnode.
 
-When a new dnode or `taosc` sends a connection request, if the contacted dnode is not the mnode, it replies with the mnode's endpoint list. The requester can then attempt to connect to the appropriate mnode using the provided list.
+When a connection request from a newly started dnode or taosc is received, if the current dnode is not an mnode, it will immediately reply to the requester with the mnode endpoint list. After receiving this list, the taosc or the newly started dnode can try to establish a connection with the mnode based on this list.
 
-Additionally, TDengine uses an internal messaging mechanism to ensure all nodes in the cluster have the latest mnode endpoint list. When the mnode endpoint list changes, updates are quickly propagated to all dnodes and `taosc`.
+Furthermore, to ensure that all nodes in the cluster can timely receive the latest mnode endpoint list, TDengine uses an inter-node message exchange mechanism. When the mnode endpoint list changes, the related updates are quickly propagated to each dnode through messages, thereby notifying the taosc.
 
-### A Typical Message Flow
+### A typical message flow
 
-The following outlines the typical workflow for inserting data, illustrating the relationships between vnodes, mnodes, `taosc`, and applications.
+To explain the relationship between vnode, mnode, taosc, and applications, as well as the roles they play, the process of a typical operation of writing data is analyzed below.
 
 <figure>
 <Image img={imgFlow} alt="Typical operation flow in TDengine"/>
 <figcaption>Figure 2. Typical operation flow in TDengine</figcaption>
 </figure>
 
-1. The application sends an insert request via JDBC or other API interfaces.
-2. `Taosc` checks its cache to see if it has the vgroup-info of the database containing the table. If found, it proceeds to step 4. If not, `taosc` sends a `get vgroup-info` request to the mnode.
-3. The mnode returns the vgroup-info for the database. This info includes the vgroup distribution (vnode IDs and corresponding dnode endpoints). If the database has N replicas, there will be N endpoints. The hash range of each table in the vgroup is also included. If `taosc` doesn’t receive a response from the mnode, it will try another mnode if available.
-4. `Taosc` checks the cache for the table's metadata. If available, it proceeds to step 6. If not, it sends a `get meta-data` request to the vnode.
-5. The vnode returns the table's metadata, including its schema.
-6. `Taosc` sends an insert request to the leader vnode.
-7. After inserting the data, the vnode responds to `taosc` with a success confirmation. If the vnode doesn’t respond, `taosc` assumes it is offline and, if the database has replicas, sends the request to another vnode in the vgroup.
-8. `Taosc` notifies the application that the insertion was successful.
+1. The application initiates a request to insert data through JDBC or other API interfaces.
+2. taosc checks the cache to see if it has the vgroup-info of the database where the table is located. If it does, go directly to step 4. If not, taosc sends a get vgroup-info request to mnode.
+3. mnode returns the vgroup-info of the database where the table is located to taosc. Vgroup-info includes the distribution information of the database's vgroup (vnode ID and the End Point of the dnode where it is located, if the number of replicas is N, there are N sets of End Points), and also includes the hash range of the data tables stored in each vgroup. If taosc does not receive a response from mnode and there are multiple mnodes, taosc will send a request to the next mnode.
+4. taosc continues to check the cache to see if it has the meta-data of the table. If it does, go directly to step 6. If not, taosc sends a get meta-data request to vnode.
+5. vnode returns the meta-data of the table to taosc. Meta-data contains the schema of the table.
+6. taosc sends an insertion request to the leader vnode.
+7. After inserting the data, vnode responds to taosc, indicating that the insertion was successful. If taosc does not receive a response from vnode, taosc will assume that the node has gone offline. In this case, if the database being inserted has multiple replicas, taosc will send an insertion request to the next vnode in the vgroup.
+8. taosc notifies the APP that the write was successful.
 
-In step 2, since `taosc` does not initially know the mnode’s endpoint, it connects to the configured cluster service endpoint. If the contacted dnode isn’t an mnode, it returns the mnode endpoint list, and `taosc` retries the metadata request with the correct mnode.
+For step 2, when taosc starts, it does not know the End Point of mnode, so it will directly send a request to the cluster's external service End Point configured. If the dnode receiving this request does not have mnode configured, the dnode will inform the mnode EP list in the reply message, so taosc will resend the request to get meta-data to the new mnode's EP.
 
-For steps 4 and 6, if the cache doesn’t have the necessary info, `taosc` assumes the first vnode ID is the leader and sends the request. If the vnode isn’t the leader, it responds with the correct leader information, and `taosc` resends the request. Once successful, `taosc` caches the leader node information.
+For steps 4 and 6, without cache, taosc does not know who the leader in the virtual node group is, so it assumes the first vnodeID is the leader and sends the request to it. If the vnode receiving the request is not the leader, it will inform who the leader is in the reply, so taosc will send the request to the suggested leader vnode. Once a successful insertion response is received, taosc will cache the leader node's information.
 
-This process also applies to queries and computations. The complexity of these interactions is fully abstracted by `taosc`, making it transparent and easy for applications.
+The above describes the process of inserting data, and the process for querying and computing is exactly the same. Taosc encapsulates and shields all these complex processes, making them imperceptible and requiring no special handling for applications.
 
-With `taosc` caching, the mnode is only accessed during the first operation on a table, preventing it from becoming a system bottleneck. However, as schemas or vgroups may change due to load balancing, `taosc` periodically communicates with the mnode to refresh its cache automatically.
+Through the caching mechanism of taosc, it is only necessary to access mnode the first time a table is operated on, so mnode will not become a bottleneck in the system. However, since the schema may change and the vgroup may change (such as during load balancing), taosc will interact with mnode periodically and automatically update the cache.
 
-## Storage Model and Data Partitioning
+## Storage Model and Data Partitioning, Sharding
 
 ### Storage Model
 
-The data stored in TDengine includes collected time-series data, as well as metadata and tag data related to databases and tables. This data is divided into three parts:
+The data stored by TDengine includes collected time-series data as well as metadata related to databases and tables, label data, etc. These data are specifically divided into three parts:
 
-- **Time-series data:** This is the core storage object of TDengine, stored in `vnode` and consisting of `data`, `head`, and `last` files. The data volume is large, and query volume depends on the application scenario. It supports out-of-order writes but does not currently support delete operations. Updates are only allowed if the `update` parameter is set to 1. By adopting a one-collection-point-per-table model, data within a time range is stored sequentially. Writing to a table involves simple append operations, allowing multiple records to be read at once. This ensures optimal performance for inserts and queries on individual collection points.
-- **Table metadata:** This includes tag information and table schema, stored in the `meta` file within `vnode`. It supports standard CRUD operations. The data volume is large, with one record per table. An LRU storage mechanism supports tag data indexing. TDengine enables multi-core, multi-threaded concurrent queries. With sufficient memory, metadata is fully stored in memory, allowing results from filtering millions of tags to return within milliseconds. Even with limited memory, TDengine supports fast queries across tens of millions of tables.
-- **Database metadata:** This is stored in the `mnode` and includes system nodes, users, databases, and STable schema information. It supports CRUD operations. The data volume is relatively small and can be stored entirely in memory. Since clients cache this data, query volume is also low. Although managed centrally, this design does not create a performance bottleneck.
+- Time-Series data: Time series data is the core storage object of TDengine, stored in vnode. Time series data consists of data, head, sma, and stt files, which together form the complete storage structure of the time-series data. Due to the characteristics of time series data, which involve large volumes and query requirements depending on specific application scenarios, TDengine adopts a model of "one table per data collection point" to optimize storage and query performance. In this model, data within a time period is stored continuously, and writing to a single table is a simple append operation, allowing multiple records to be retrieved in one read. This design ensures optimal performance for both writing and querying operations at a single data collection point.
+- Table metadata: Includes label information and Table Schema information, stored in the meta files within vnode, supporting four standard operations: create, read, update, delete. With a large amount of data, if there are N tables, there are N records, thus LRU storage is used, supporting indexing of label data. TDengine supports multi-core and multi-threaded concurrent queries. As long as there is enough memory, metadata is stored entirely in memory, and filtering results of millions of label data can be returned in milliseconds. In cases of insufficient memory resources, it can still support fast querying of tens of millions of tables.
+- Database metadata: Stored in mnode, includes information about system nodes, users, DBs, STable Schema, etc., supporting four standard operations: create, read, update, delete. This part of the data is not large in volume and can be entirely stored in memory, and since the client has caching, the query volume is also not large. Therefore, although the current design is centralized storage management, it does not constitute a performance bottleneck.
 
-Compared to traditional NoSQL storage models, TDengine separates tag data from time-series data, offering two key advantages:
+Compared to traditional NoSQL storage models, TDengine completely separates label data from time-series data, which has two major advantages:
 
-- **Reduced redundancy in tag data storage:** In conventional NoSQL or time-series databases, key-value models include timestamps, device IDs, and various tags in the key, leading to excessive duplication. Each record carries redundant tag information, wasting storage space. Modifying tags in historical data requires rewriting the entire dataset, which is costly. TDengine, by separating tag data from time-series data, avoids these issues, reducing storage space waste and lowering the cost of tag operations.
-- **Efficient multi-table aggregation queries:** During multi-table aggregation, TDengine first identifies matching tables based on tag filters, then retrieves corresponding data blocks. This significantly reduces the dataset size to be scanned, greatly improving query efficiency. This strategy ensures TDengine maintains high-performance queries for large-scale time-series data, meeting complex analytical needs.
+- Significantly reduces the redundancy of label data storage. In common NoSQL databases or time-series databases, a Key-Value storage model is usually adopted, where the Key includes a timestamp, device ID, and various labels. This causes each record to carry a large amount of repetitive label information, thus wasting valuable storage space. Moreover, if an application needs to add, modify, or delete labels on historical data, it must traverse the entire dataset and rewrite it, which is extremely costly. In contrast, by separating label data from time series data, TDengine effectively avoids these problems, greatly reducing storage space waste and lowering the cost of label data operations.
+- Achieves extremely efficient aggregation queries across multiple tables. When performing aggregation queries across multiple tables, TDengine first identifies the tables that meet the label filtering criteria, then finds the corresponding data blocks for these tables. This method significantly reduces the size of the dataset that needs to be scanned, thereby greatly improving query efficiency. This optimization strategy allows TDengine to maintain efficient query performance when handling large-scale time-series data, meeting the data analysis needs of various complex scenarios.
 
 ### Data Sharding
 
-In managing large-scale data, horizontal scaling typically involves data sharding and partitioning strategies. TDengine implements data sharding using `vnode` and partitions time-series data by time range.
+In managing massive data, to achieve horizontal scaling, data sharding and partitioning strategies are usually necessary. TDengine implements data sharding through vnode and partitions time-series data by dividing data files by time period.
 
-`Vnode` handles time-series data writes, queries, and computations, while also supporting load balancing, data recovery, and heterogeneous environments. To achieve this, each `dnode` is divided into multiple `vnode` based on its computing and storage resources. This process is transparent to applications and managed automatically by TDengine.
+Vnode is responsible not only for writing, querying, and computing time-series data but also plays important roles in load balancing, data recovery, and supporting heterogeneous environments. To achieve these goals, TDengine splits a dnode based on its computing and storage resources into multiple vnodes. The management of these vnodes is completely transparent to the application, automatically handled by TDengine.
 
-For a single collection point, regardless of data volume, a `vnode` has sufficient computing and storage capacity to handle it (e.g., one 16B record per second generates less than 0.5GB of raw data annually). Therefore, all data for a single table (or collection point) is stored within one `vnode`, avoiding data distribution across multiple `dnode`. Each `vnode` can store data for multiple collection points (tables) and can hold up to one million tables. All tables within a `vnode` belong to the same database.
+For a single data collection point, regardless of the volume of data, a vnode has sufficient computing and storage resources to cope (for example, if a 16B record is generated every second, the raw data generated in a year is less than 0.5GB). Therefore, TDengine stores all data for a table (i.e., a data collection point) in one vnode, avoiding the dispersion of data from the same collection point across two or more dnodes. At the same time, a vnode can store data from multiple data collection points (tables), with a maximum capacity of up to 1 million tables. In design, all tables in a vnode belong to the same database.
 
-TDengine 3.0 uses a consistent hashing algorithm to determine which `vnode` stores each table. Upon database creation, the cluster allocates the specified number of `vnode` and defines the range of tables each `vnode` handles. When a table is created, the cluster calculates the `vnode` ID based on the table name and creates the table on that `vnode`. If the database has multiple replicas, the cluster creates a `vgroup` instead of a single `vnode`. The number of `vnode` is limited only by the physical node's computing and storage resources.
+TDengine 3.0 uses a consistent hashing algorithm to determine the vnode for each table. When creating a database, the cluster immediately allocates a specified number of vnodes and determines the range of tables each vnode is responsible for. When creating a table, the cluster calculates the vnode ID based on the table name and creates the table on that vnode. If the database has multiple replicas, TDengine cluster creates a vgroup, not just a vnode. The number of vnodes in the cluster is not limited, only constrained by the computing and storage resources of the physical node itself.
 
-Table metadata (e.g., schema, tags) is also stored within the `vnode`, not the `mnode`, effectively sharding metadata. This enhances parallel tag filtering and improves query performance.
+The metadata of each table (including schema, tags, etc.) is also stored in the vnode, rather than centrally in the mnode. This design effectively shards the metadata, facilitating efficient parallel tag filtering operations, further enhancing query performance.
 
 ### Data Partitioning
 
-In addition to sharding through `vnode`, TDengine partitions time-series data by time periods. Each data file contains time-series data for a specific time range, with the range determined by the `duration` database parameter. This partitioning strategy simplifies data management and facilitates efficient data retention. Once data files exceed the retention period set by the `keep` parameter, they are automatically deleted.
+In addition to data sharding through vnodes, TDengine also adopts a strategy of partitioning time-series data by time intervals. Each data file contains time series data for a specific period, the length of which is determined by the database parameter `duration`. This method of partitioning by time intervals not only simplifies data management but also facilitates the efficient implementation of data retention policies. Once a data file exceeds the specified number of days (determined by the database parameter `keep`), the system automatically deletes these expired data files.
 
-TDengine also supports storing data from different time ranges on various paths and storage media. This flexibility simplifies hot and cold data management, allowing users to implement multi-tier storage based on actual needs, optimizing both storage costs and access performance.
+Furthermore, TDengine supports storing data from different time periods in different paths and storage media. This flexibility makes the management of big data temperature simple and straightforward, allowing users to implement multi-tier storage according to actual needs, thereby optimizing storage costs and access performance.
 
-In summary, TDengine efficiently slices large datasets across both `vnode` and time dimensions, achieving parallel management and horizontal scalability. This design accelerates data processing while providing flexible and scalable storage and query solutions, meeting diverse application requirements.
+Overall, TDengine finely segments big data through the dimensions of vnode and time, achieving efficient parallel management and horizontal scaling. This design not only speeds up data processing and enhances efficiency but also provides users with a flexible, scalable data storage and query solution, meeting the needs of scenarios of various scales and requirements.
 
 ### Load Balancing and Scaling
 
-Each `dnode` periodically reports its status to the `mnode`, including key metrics such as disk usage, memory size, CPU utilization, network conditions, and the number of `vnode`. This information is essential for health monitoring and resource scheduling.
+Each dnode regularly reports its current status to the mnode, including key metrics such as disk space usage, memory size, CPU utilization, network conditions, and the number of vnodes. This information is crucial for cluster health monitoring and resource scheduling.
 
-Currently, load balancing is triggered manually. When new `dnode` are added to the cluster, users must initiate the load balancing process to maintain optimal cluster performance.
+Regarding the timing of load balancing, TDengine currently allows users to specify manually. When a new dnode is added to the cluster, users need to manually initiate the load balancing process to ensure the cluster operates in optimal condition.
 
-Over time, data distribution within the cluster may change, causing certain `vnode` to become hotspots. To address this, TDengine employs a Raft-based replica adjustment and data-splitting algorithm, enabling dynamic scaling and reallocation of data. This process is seamless during cluster operation, ensuring uninterrupted data writes and queries, maintaining system stability and availability.
+Over time, the distribution of data in the cluster may change, causing some vnodes to become data hotspots. To address this, TDengine uses a replica adjustment and data splitting algorithm based on the Raft protocol, achieving dynamic scaling and redistribution of data. This process can be seamlessly conducted while the cluster is running, without affecting data writing and query services, thus ensuring system stability and availability.
 
-## Data Write and Replication Process
+## Data Writing and Replication Process
 
-In a database with **N** replicas, the corresponding `vgroup` will contain **N** `vnode` with the same ID. Among these `vnode`, one is designated as the **leader**, while the others act as **followers**. This master-slave architecture ensures data consistency and reliability.
+In a database with N replicas, the corresponding vgroup will contain N vnodes with the same number. Among these vnodes, only one is designated as the leader, while the others act as followers. This architecture ensures data consistency and reliability.
 
-When an application attempts to write a new record to the cluster, only the **leader vnode** can accept the write request. If a **follower vnode** accidentally receives the request, the cluster immediately informs `taosc` to redirect the request to the correct **leader vnode**, ensuring that all write operations occur on the correct node, maintaining data consistency and integrity.
+When an application attempts to write new records to the cluster, only the leader vnode can accept write requests. If a follower vnode accidentally receives a write request, the cluster will immediately notify taosc to redirect to the leader vnode. This measure ensures that all write operations occur on the correct leader vnode, thus maintaining data consistency and integrity.
 
-This design guarantees data reliability and consistency in a distributed environment while providing high read-write performance.
+Through this design, TDengine ensures data reliability and consistency in a distributed environment, while providing efficient read and write performance.
 
-### Leader Vnode Write Process
+### Leader Vnode Writing Process
 
-The **leader vnode** follows the write process outlined below:
+The Leader Vnode follows the writing process below:
 
 <figure>
 <Image img={imgLeader} alt="Leader write process"/>
 <figcaption>Figure 3. Leader write process</figcaption>
 </figure>
 
-1. **Step 1**: The **leader vnode** receives the write request from the application, validates it, and proceeds to Step 2.
-2. **Step 2**: The **vnode** writes the original data packet into the **Write-Ahead Log (WAL)**. If the `wal_level` is set to 2 and `wal_fsync_period` is set to 0, TDengine immediately writes the WAL data to disk, ensuring data recovery in case of a crash.
-3. **Step 3**: If multiple replicas exist, the **leader vnode** forwards the data packet to the follower `vnode` in the same `vgroup`, including a version number.
-4. **Step 4**: The data is written to memory and added to the **skip list**. If agreement is not reached, a rollback is triggered.
-5. **Step 5**: The **leader vnode** returns a confirmation to the application, indicating a successful write.
-6. **Step 6**: If any step from 2 to 4 fails, an error message is returned to the application.
+- Step 1: The leader vnode receives a write data request from the application, verifies OK, and proceeds to step 2 after verifying validity;
+- Step 2: The vnode writes the original data packet of the request into the database log file WAL. If `wal_level` is set to 2 and `wal_fsync_period` is set to 0, TDengine will also immediately persist the WAL data to disk to ensure that data can be recovered from the database log file in case of a crash, preventing data loss;
+- Step 3: If there are multiple replicas, the vnode will forward the data packet to the follower vnodes within the same virtual node group, including the data version number (version);
+- Step 4: Write to memory and add the record to the skip list. However, if consensus is not reached, a rollback operation will be triggered;
+- Step 5: The leader vnode returns a confirmation message to the application, indicating successful writing;
+- Step 6: If any step among 2, 3, or 4 fails, an error will be directly returned to the application;
 
-### Follower Vnode Write Process
+### Follower Vnode Writing Process
 
-The write process for **follower vnode** is as follows:
+For the follower vnode, the writing process is:
 
 <figure>
 <Image img={imgFollower} alt="Follower write process"/>
 <figcaption>Figure 4. Follower write process</figcaption>
 </figure>
 
-1. **Step 1**: The **follower vnode** receives the data insertion request forwarded by the **leader vnode**.
-2. **Step 2**: The **vnode** writes the original data packet to the **WAL**. If `wal_level` is set to 2 and `wal_fsync_period` is 0, the data is immediately persisted to disk to prevent data loss during crashes.
-3. **Step 3**: The data is written to memory, updating the **skip list**.
+<center> Figure 4 TDengine Follower Writing Process </center>
 
-Compared to the **leader vnode**, the **follower vnode** process omits forwarding and confirmation steps. However, memory writes and WAL operations are identical.
+- Step 1: The follower vnode receives a data insertion request forwarded by the leader vnode.
+- Step 2: The vnode writes the original data packet of the request into the database log file WAL. If `wal_level` is set to 2 and `wal_fsync_period` is set to 0, TDengine will also immediately persist the WAL data to disk to ensure that data can be recovered from the database log file in case of a crash, preventing data loss.
+- Step 3: Write to memory, updating the skip list in memory.
 
-### Leader Election
+Compared to the leader vnode, the follower vnode does not have a forwarding stage or a reply confirmation stage, reducing two steps. However, writing to memory and WAL is exactly the same.
 
-Each `vnode` maintains a **version number** that is persisted when data is stored in memory. Every time data, whether time-series or metadata, is updated, the version number increments to accurately track changes.
+### Leader Selection
 
-When a `vnode` starts, its role (leader or follower) is undetermined, and data is unsynchronized. To determine its role and synchronize data, the `vnode` establishes **TCP connections** with other nodes in the same `vgroup`. During these connections, the nodes exchange version numbers and term information. Using the Raft consensus algorithm, they determine the **leader** and assign follower roles.
+Each vnode maintains a version number for the data, which is also persisted when the vnode persists data in memory. Each data update, whether it's time-series data or metadata, increments the version number to ensure that every modification is accurately recorded.
 
-This mechanism ensures coordination and consistency among `vnode` in a distributed environment, maintaining system stability.
+When a vnode starts, its role (leader or follower) is uncertain, and the data is unsynchronized. To determine its role and synchronize data, the vnode needs to establish a TCP connection with other nodes in the same vgroup. After the connection is established, the vnodes exchange critical information such as version numbers and terms. Based on this information, the vnode will use the standard Raft consistency algorithm to complete the leader election process, thus determining who is the leader and who should act as a follower.
+
+This mechanism ensures that vnodes can effectively coordinate and maintain data consistency and system stability in a distributed environment.
 
 ### Synchronous Replication
 
-In TDengine, when a **leader vnode** receives a write request and forwards it to other replicas, it does not immediately confirm the write success to the application. Instead, the **leader vnode** waits for more than half of the replicas (including itself) to reach consensus before confirming the write. If this consensus is not reached within a given time, the **leader vnode** returns an error to the application, indicating a failed write.
+In TDengine, when a leader vnode receives a data write request and forwards it to other replicas, it does not immediately notify the application that the write was successful. Instead, the leader vnode waits until more than half of the replicas (including itself) have agreed before confirming to the application that the write operation was successful. If the confirmation from more than half of the replicas is not obtained within the specified time, the leader vnode will return an error message to the application, indicating that the data write operation failed.
 
-This synchronous replication ensures consistency and safety across replicas but presents performance challenges. To balance consistency and performance, TDengine implements a **pipeline replication algorithm**.
+This synchronous replication mechanism ensures the consistency and security of data across multiple replicas but also presents challenges in terms of write performance. To balance data consistency and performance needs, TDengine introduces a pipeline replication algorithm during the synchronous replication process.
 
-This algorithm allows multiple write confirmations across database connections to occur simultaneously rather than sequentially. Even if one replica’s confirmation is delayed, it does not block other writes. This approach ensures that TDengine achieves high write performance with strong consistency, meeting high throughput and low latency requirements.
+The pipeline replication algorithm allows the confirmation process for write requests from different database connections to proceed simultaneously, rather than sequentially waiting. Thus, even if the confirmation from one replica is delayed, it does not affect the write operations of other replicas. By this means, TDengine significantly enhances write performance while ensuring data consistency, meeting the needs for high throughput and low latency data processing.
 
-### Membership Changes
+### Member Changes
 
-During **scaling or node migration**, the number of replicas within a `vgroup` may need adjustment. The amount of data impacts the time required for replication between replicas, and excessive replication can block read and write processes.
+In scenarios such as data scaling and node migration, it is necessary to adjust the number of replicas in a vgroup. In these cases, the amount of existing data directly affects the time required for data replication between replicas, and excessive data replication can severely block the data read and write process.
 
-To address this, TDengine extends the **Raft protocol** by introducing the **learner role**. Learners play a critical role during replication but do not participate in voting. They only receive replicated data. Since learners do not vote, their confirmation is not required to consider a write successful.
+To address this issue, TDengine extends the Raft protocol by introducing a learner role. Learners play a crucial role in the replication process but do not participate in the voting process; they are only responsible for receiving data replication. Since learners do not participate in voting, the conditions for determining a successful write do not include learner confirmation.
 
-When the data difference between a learner and the leader is large, the learner synchronizes using a **snapshot**. After the snapshot synchronization, the learner catches up with the leader’s logs. Once the data gap is minimal, the learner transitions to a **follower** role and begins participating in writes and elections.
+When there is a significant difference in data between the learner and the leader, the learner will use a snapshot method for data synchronization. After the snapshot synchronization is complete, the learner will continue to catch up with the leader's logs until their data volumes are close. Once the learner's data volume is sufficiently close to that of the leader, the learner will transition to a follower role, beginning to participate in the voting process for data writes and elections.
 
 ### Redirection
 
-When `taosc` writes new records to the TDengine cluster, it must first identify the current **leader vnode** since only the leader can process write requests. If `taosc` sends the request to a **follower vnode**, the cluster immediately informs `taosc` to redirect to the correct **leader vnode**.
+When taosc writes new records to the TDengine cluster, it first needs to locate the current leader vnode, as only the leader vnode handles write data requests. If taosc tries to send a write data request to a follower vnode, the cluster will immediately notify taosc to redirect to the correct leader vnode.
 
-To ensure that write requests are correctly routed, `taosc` maintains a **local cache** of the node topology. Upon receiving cluster notifications, `taosc` updates the cache with the latest topology and resends the request to the identified **leader vnode**. The cache is also updated for future use.
+To ensure that write data requests are correctly routed to the leader vnode, taosc maintains a local cache of the node group topology. Upon receiving a notification from the cluster, taosc recalculates and determines the position of the leader vnode based on the latest node group topology information, then sends the write data request to it. At the same time, taosc also updates the leader distribution information in the local cache for future use.
 
-This mechanism ensures that applications using `taosc` to access TDengine do not need to handle network retries. Regardless of node changes, `taosc` automatically manages the routing, ensuring write requests always reach the appropriate **leader vnode**.
+This mechanism ensures that applications accessing TDengine through taosc do not need to worry about network retries. Regardless of how the nodes in the cluster change, taosc can automatically handle these changes, ensuring that write data requests are always correctly routed to the leader vnode.
 
 ## Cache and Persistence
 
 ### Time-Series Data Cache
 
-TDengine adopts a unique **time-driven cache management strategy**, also known as the **write-driven cache management mechanism**. This approach differs from traditional read-driven caching models by prioritizing the storage of the most recently written data in the cluster’s cache. When the cache reaches its threshold, the system performs batch writes of the earliest data to disk. Specifically, each `vnode` has its own independent memory space divided into fixed-size blocks, with memory isolation across different `vnode`. During the write process, data is appended sequentially, similar to logging, and each `vnode` maintains its own **SkipList** structure for fast data retrieval. Once more than one-third of the memory blocks are full, the system triggers a **data flush to disk** and directs new writes to a fresh memory block. This strategy ensures that one-third of the memory blocks in a `vnode` retain the latest data, achieving caching while ensuring efficient querying. The size of each `vnode`’s memory can be configured using the **`buffer`** parameter.
+TDengine adopts a unique time-driven cache management strategy, also known as write-driven cache management. This strategy differs from the traditional read-driven data cache mode, with its core priority being to store the most recently written data in the cluster's cache. When the cache capacity approaches the threshold, the system performs batch writing of the earliest data to the disk. Specifically, each vnode has its own independent memory space, divided into multiple fixed-size memory blocks, and the memory between different vnodes is completely isolated. During the data writing process, a log-like sequential append method is used, and each vnode also maintains its own SkipList structure for fast data retrieval. Once more than one-third of the memory blocks are filled, the system initiates the data flushing process and guides new write operations to new memory blocks. In this way, one-third of the memory blocks in the vnode are reserved for the latest data, achieving the purpose of caching while ensuring efficient querying. The memory size of the vnode can be configured through the database parameter `buffer`.
 
-Considering the characteristics of IoT data, where users often prioritize real-time insights, TDengine optimizes by storing the **most recent (current state) data** in the cache. Specifically, TDengine stores incoming data directly in memory to quickly respond to queries and analysis of the most recent records, improving the database’s response time. With proper configuration, TDengine can serve as a data cache, eliminating the need for Redis or other caching systems. This design simplifies the system architecture and reduces operational costs. However, note that when TDengine restarts, **cached data is cleared**, and previously cached data is batch-written to disk without being reloaded into memory, unlike specialized key-value cache systems.
+Additionally, considering the characteristics of IoT data, users are usually most concerned about the timeliness of data, i.e., the most recently generated data. TDengine makes good use of this feature by prioritizing the storage of the latest arriving (current state) data in the cache. Specifically, TDengine directly stores the newly arrived data into the cache to quickly respond to user queries and analysis needs for the latest data, thereby improving the overall database query response speed. From this perspective, by setting database parameters appropriately, TDengine can be used as a data cache, eliminating the need to deploy Redis or other additional caching systems. This approach not only effectively simplifies the system architecture but also helps reduce maintenance costs. It should be noted that once TDengine is restarted, the data in the cache will be cleared, and all previously cached data will be batch written to the disk, unlike professional Key-Value caching systems that automatically reload previously cached data back into the cache.
 
 ### Persistent Storage
 
-TDengine employs a **data-driven strategy** for persisting cached data. When the cache in a `vnode` reaches a certain level, TDengine launches a **flush thread** to write the cached data to persistent storage devices, preventing write operations from being blocked. During this process, new database log files are created for the flush operation, and old log files are deleted after a successful flush to avoid unrestricted log growth.
+TDengine adopts a data-driven strategy to implement the persistent storage of cached data. When the cache data in a vnode accumulates to a certain amount, to avoid blocking subsequent data writing, TDengine will start a disk-writing thread to write these cached data to persistent storage devices. During this process, TDengine will create new database log files for data writing and delete old log files after successful disk writing to prevent unrestricted growth of log files.
 
-To leverage the characteristics of time-series data, TDengine divides each `vnode`’s data into **multiple files**, with each file storing data for a specific number of days, defined by the **`duration`** parameter. This segmented storage allows queries for specific time ranges to identify relevant files without relying on indexes, greatly improving read efficiency.
+To fully leverage the characteristics of time-series data, TDengine splits the data of a vnode into multiple files, each storing data for a fixed number of days set by the database parameter `duration`. This file-based storage method allows for rapid determination of which data files to open when querying specific time periods, greatly improving data reading efficiency.
 
-Collected data typically has a **retention period** determined by the **`keep`** parameter. When data exceeds this retention period, the cluster automatically removes the outdated files, freeing storage space.
+For collected data, there is usually a certain retention period specified by the database parameter `keep`. Data files exceeding the set number of days will be automatically removed by the cluster and the corresponding storage space released.
 
-When both `duration` and `keep` parameters are set, a typical `vnode` will have `(keep/duration) + 1` data files. The total number of files should be kept within a reasonable range, ideally between 10 and 100. This principle helps determine a suitable `duration`. While the `keep` parameter can be adjusted, the `duration` parameter is immutable once set.
+After setting the `duration` and `keep` parameters, a vnode in typical working condition should have a total number of data files equal to the ceiling of (keep/duration)+1. The total number of data files should be kept within a reasonable range, typically between 10 and 100. Based on this principle, the `duration` parameter can be reasonably set. The `keep` parameter can be adjusted, but once `duration` is set, it cannot be changed.
 
-Within each data file, table data is stored in **blocks**. A table may contain one or more data file blocks. Within each block, data is stored in a **columnar format** occupying contiguous storage space, significantly improving read performance. The block size is controlled by the **`maxRows`** parameter (default: 4096). Setting this value appropriately is crucial: a value too high may slow searches for specific time ranges, while a value too low may result in large indexes and reduced compression efficiency, affecting read speeds.
+In each data file, the data of a table is stored in blocks. A table may contain one to several data file blocks. Within a file block, data is stored in columns occupying continuous storage space, which helps significantly improve reading efficiency. The size of the file block is controlled by the database parameter `maxRows` (maximum number of records per block), with a default value of 4096. This value should be moderate; too large may lead to longer search times for locating specific time periods, affecting reading speed; too small may cause the data file block's index to be too large, reducing compression efficiency, also affecting reading speed.
 
-Each data block (with a `.data` extension) has an accompanying **index file** (with a `.head` extension) containing summary information such as the block’s offset, start and end times. Additionally, there is a **last file** (with a `.last` extension) to prevent fragmentation during flushes. If the number of records in a flush does not meet the **`minRows`** requirement, they are temporarily stored in the `last` file. These records are merged with new flushes before being written to the data block.
+Each data file block (ending with .data) is accompanied by an index file (ending with .head), which contains summary information of each data file block of each table, recording the offset of each data file block in the data file, the start and end times of the data, etc., to facilitate quick location of required data. Additionally, each data file block has an associated last file (ending with .last), which aims to prevent fragmentation during disk writing of data file blocks. If the number of records of a table written to disk does not meet the database parameter `minRows` (minimum number of records per block), these records will first be stored in the last file, and during the next disk writing, the newly written records will merge with the records in the last file before being written into the data file block.
 
-During data writes to disk, the compression of data depends on the **`comp`** parameter. TDengine offers three compression levels:
+Whether data is compressed during writing to disk depends on the setting of the database parameter `comp`. TDengine offers 3 compression options—no compression, first-level compression, and second-level compression, with corresponding `comp` values of 0, 1, and 2, respectively. First-level compression uses appropriate compression algorithms based on data type, such as delta-delta encoding, simple8B method, zig-zag encoding, LZ4, etc. Second-level compression further uses general compression algorithms on top of first-level compression to achieve higher compression rates.
 
-- **0**: No compression
-- **1**: Level 1 compression using algorithms like delta-delta encoding, Simple8B, Zig-Zag encoding, and LZ4
-- **2**: Level 2 compression, which applies additional general-purpose compression for higher efficiency
+### Precomputation
 
-### Pre-Computations
+To significantly improve the efficiency of query processing, TDengine stores statistical information of the data file block at the head of the data file block, including maximum, minimum, and total data values, known as precomputed units. When query processing involves these calculation results, these precomputed values can be directly utilized, eliminating the need to access the specific contents of the data file block. For scenarios where disk I/O becomes a bottleneck, using precomputed results can effectively reduce the pressure of reading disk I/O, thereby improving query speed.
 
-To significantly improve query performance, TDengine stores **statistical summaries** (e.g., maximum, minimum, and total values) in the header of each data block. These **pre-computed units** allow queries involving these metrics to access the summary directly without reading the full block. This optimization reduces disk I/O bottlenecks, enhancing query speed in scenarios where I/O is critical.
+In addition to precomputation, TDengine also supports various downsampling storage of raw data. One downsampling storage method is Rollup SMA, which automatically performs downsampling storage of raw data and supports 3 different data saving levels, allowing users to specify the aggregation period and duration for each level. This is particularly suitable for scenarios focused on data trends, with the core purpose of reducing storage overhead and improving query speed. Another downsampling storage method is Time-Range-Wise SMA, which performs downsampling storage based on aggregation results, very suitable for high-frequency interval query scenarios. This feature uses the same logic as ordinary stream computing and allows users to handle delayed data by setting a watermark, accordingly, the actual query results will also have some time delay.
 
-In addition to pre-computed units, TDengine supports various **downsampling storage methods**:
+### Multi-Level Storage and Object Storage
 
-- **Rollup SMA**: Automatically stores downsampled data with three levels of aggregation, each with configurable aggregation intervals and retention periods. This is ideal for scenarios focusing on data trends, as it reduces storage costs and improves query performance.
-- **Time-Range-Wise SMA**: Stores data based on aggregation results, suitable for frequent **interval queries**. This method uses logic similar to standard stream processing and supports delayed data handling with **watermarks**, though the query results may exhibit some latency.
+By default, TDengine stores all data in the /var/lib/taos directory. To expand storage capacity, reduce potential bottlenecks caused by file reading, and enhance data throughput, TDengine allows the use of the configuration parameter `dataDir` to enable the cluster to utilize multiple mounted hard drives simultaneously.
 
-### Multi-Tier and Object Storage
+Additionally, TDengine offers tiered data storage functionality, allowing users to store data from different time periods in directories on different storage devices. This facilitates the separation of "hot" data (frequently accessed) and "cold" data (less frequently accessed), making full use of various storage resources while saving costs. For example, data that is recently collected and requires frequent access can be stored on high-performance solid-state drives due to their high read performance requirements. Data that exceeds a certain age and has lower query demands can be stored on mechanically driven hard disks, which are relatively cheaper.
 
-By default, TDengine stores all data in the `/var/lib/taos` directory. To expand storage capacity, reduce file read bottlenecks, and increase data throughput, TDengine allows multiple mounted disks to be used via the **`dataDir`** configuration parameter.
-
-TDengine also supports **tiered storage**, enabling users to store data from different time ranges on different storage devices. This approach separates **hot data** from **cold data**, optimizing resource utilization and reducing costs. For example, the latest data, which requires frequent access, can be stored on high-performance SSDs, while older, less frequently accessed data can be moved to more cost-effective HDDs.
-
-To further reduce storage costs, TDengine supports storing time-series data in **object storage systems**. Thanks to its innovative design, querying time-series data from object storage often achieves **50% of the performance** of local disk storage and, in some cases, can even match local performance. TDengine also allows users to **delete and update** time-series data stored in object storage.
+To further reduce storage costs, TDengine also supports storing time-series data in object storage systems. Through its innovative design, in most cases, the performance of querying time-series data from object storage systems is close to half that of local disks, and in some scenarios, the performance can even be comparable to local disks. Additionally, TDengine allows users to perform delete and update operations on time-series data stored in object storage.
