@@ -728,6 +728,9 @@ impl Action {
                 taos::AlterType::ModifyTagLength => action.apply_in_place(&mut alter.table_name)?,
                 taos::AlterType::ModifyTableOption => (),
                 taos::AlterType::RenameColumn => (),
+                taos::AlterType::SetMultiTagValue => {
+                    action.apply_in_place(&mut alter.table_name)?
+                }
             },
             MetaUnit::Drop(drop) => {
                 if let MetaDrop::Super { table_name } = drop {

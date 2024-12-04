@@ -357,7 +357,31 @@ rm -rf ./TDengine-enterprise-${VER_NUMBER}
 cwd = "docker/dev/"
 script = """
 echo use manylinux2014 as base image with docker/dev/Dockerfile .
-docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev .
+docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev --load .
+"""
+
+[tasks.check-aarch64]
+alias = "check-arm64"
+[tasks.check-arm64]
+dependencies = ["assert-explorer-dist"]
+script_runner = "bash"
+script = """
+if [[ "$@" = "" ]]; then
+  extras="--workspace";
+else
+  extras="$@";
+fi
+echo cargo check $extras
+export PLATFORM=linux/arm64
+export TARGET_DIR=$PWD/target/${PLATFORM}
+mkdir -p $TARGET_DIR
+docker run --platform $PLATFORM --rm \
+  -v .:/app \
+  -v $HOME/.cargo/registry:/root/.cargo/registry \
+  -v $HOME/.cargo/git:/root/.cargo/git \
+  -v $TARGET_DIR:/app/target \
+  taosx/dev \
+  cargo check
 """
 
 # # Examples
@@ -661,11 +685,12 @@ install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rust
 install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
 [tasks.install-toml-cli]
 install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
-
 [tasks.assert-explorer-dist]
 script_runner = "@duckscript"
 script = """
-mkdir explorer/dist/ || true
+if not is_dir explorer/server/dist/
+  mkdir explorer/server/dist/
+end
 """
 
 [tasks.test]

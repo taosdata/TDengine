@@ -309,9 +309,8 @@ pub fn replace_date_placeholder(str: String, date: DateTime<FixedOffset>) -> Str
         .replace("${yj}", date.format("%y%j").to_string().as_str())
 }
 
-#[ignore]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_clear_database() -> anyhow::Result<()> {
+async fn test_clear_database_with_taos() -> anyhow::Result<()> {
     let dsn = "taos:///";
 
     let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
