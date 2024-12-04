@@ -2002,7 +2002,7 @@ static int32_t parseBoolFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
 
 static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal) {
   if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                          pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
+                          pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -8099,7 +8099,7 @@ static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, SDatabaseOp
     }
     interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
     if (interval != 0) {
-      code = checkDbRangeOption(pCxt, "compact_interval", pOptions->compactInterval, TSDB_MIN_COMPACT_INTERVAL,
+      code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL,
                                 pOptions->keep[2]);
     }
   } else if (pOptions->compactInterval != 0) {

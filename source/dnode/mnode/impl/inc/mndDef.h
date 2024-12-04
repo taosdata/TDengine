@@ -425,8 +425,8 @@ typedef struct {
   int8_t  encryptAlgorithm;
   int8_t  compactTimeOffset;
   int32_t compactInterval;
-  int64_t compactStartTime;
-  int64_t compactEndTime;
+  int32_t compactStartTime;
+  int32_t compactEndTime;
 } SDbCfg;
 
 typedef struct {
