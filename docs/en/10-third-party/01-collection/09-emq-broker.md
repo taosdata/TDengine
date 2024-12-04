@@ -1,6 +1,5 @@
 ---
 title: EMQX Platform
-description: Writing to TDengine Using EMQX Broker
 slug: /third-party-tools/data-collection/emqx-platform
 ---
 
@@ -17,25 +16,25 @@ import imgStep09 from '../../assets/emqx-platform-09.png';
 import imgStep10 from '../../assets/emqx-platform-10.png';
 import imgStep11 from '../../assets/emqx-platform-11.png';
 
-MQTT is a popular data transmission protocol for the Internet of Things, and [EMQX](https://github.com/emqx/emqx) is an open-source MQTT Broker software. Without any code, you can use the "Rules" feature in the EMQX Dashboard to perform simple configurations to directly write MQTT data into TDengine. EMQX supports saving data to TDengine via sending to web services and also provides a native TDengine driver implementation for direct saving in the enterprise edition.
+MQTT is a popular IoT data transmission protocol, and [EMQX](https://github.com/emqx/emqx) is an open-source MQTT Broker software. Without any coding, you can directly write MQTT data into TDengine by simply configuring "rules" in the EMQX Dashboard. EMQX supports saving data to TDengine by sending it to a web service and also provides a native TDengine driver in the enterprise version for direct saving.
 
 ## Prerequisites
 
-To enable EMQX to add TDengine as a data source, the following preparations are needed:
+To enable EMQX to properly add a TDengine data source, the following preparations are needed:
 
-- The TDengine cluster has been deployed and is running normally.
-- The taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter User Manual](../../../tdengine-reference/components/taosadapter/).
-- If you are using the simulated writing program mentioned later, you need to install a compatible version of Node.js, preferably version v12.
+- TDengine cluster is deployed and running normally
+- taosAdapter is installed and running normally. For details, please refer to [taosAdapter User Manual](../../../tdengine-reference/components/taosadapter)
+- If using the simulation writing program mentioned later, install the appropriate version of Node.js, version 12 recommended
 
 ## Install and Start EMQX
 
-Users can download the installation package from the [EMQX official website](https://www.emqx.com/en/downloads-and-install/broker) according to their operating system and execute the installation. After installation, start the EMQX service using `sudo emqx start` or `sudo systemctl start emqx`.
+Users can download the installation package from the [EMQX official website](https://www.emqx.io/zh/downloads) according to their operating system and execute the installation. After installation, start the EMQX service using `sudo emqx start` or `sudo systemctl start emqx`.
 
-Note: This document is based on EMQX version v4.4.5; other versions may have different configuration interfaces, methods, and features due to version upgrades.
+Note: This article is based on EMQX v4.4.5. Other versions may differ in configuration interface, configuration methods, and features as the version upgrades.
 
 ## Create Database and Table
 
-In TDengine, create the corresponding database and table structure to receive MQTT data. Enter the TDengine CLI and execute the following SQL statements:
+Create the corresponding database and table structure in TDengine to receive MQTT data. Enter the TDengine CLI and copy and execute the following SQL statement:
 
 ```sql
 CREATE DATABASE test;
@@ -45,19 +44,19 @@ CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volum
 
 ## Configure EMQX Rules
 
-Since the configuration interface differs across EMQX versions, the example below uses version v4.4.5; for other versions, please refer to the relevant official documentation.
+Since the configuration interface differs across EMQX versions, this section is only an example for v4.4.5. For other versions, please refer to the respective official documentation.
 
-### Log into EMQX Dashboard
+### Log in to EMQX Dashboard
 
-Open your browser and navigate to `http://IP:18083` to log into the EMQX Dashboard. The default username is `admin` and the password is `public`.
+Open the URL `http://IP:18083` in a browser and log in to the EMQX Dashboard. The initial username is `admin` and the password is: `public`.
 
 <figure>
 <Image img={imgStep01} alt=""/>
 </figure>
 
-### Create Rule
+### Create a Rule (Rule)
 
-Select "Rule" under the "Rule Engine" on the left and click the "Create" button:
+Select "Rule Engine (Rule Engine)" on the left, then "Rule (Rule)" and click the "Create (Create)" button:
 
 <figure>
 <Image img={imgStep02} alt=""/>
@@ -74,19 +73,19 @@ FROM
   "sensor/data"
 ```
 
-Here, `payload` represents the entire message body, and `sensor/data` is the message topic selected for this rule.
+Where `payload` represents the entire message body, `sensor/data` is the message topic selected for this rule.
 
 <figure>
 <Image img={imgStep03} alt=""/>
 </figure>
 
-### Add Action Handler
+### Add "Action Handler (action handler)"
 
 <figure>
 <Image img={imgStep04} alt=""/>
 </figure>
 
-### Add Resource
+### Add "Resource (Resource)"
 
 <figure>
 <Image img={imgStep05} alt=""/>
@@ -94,27 +93,27 @@ Here, `payload` represents the entire message body, and `sensor/data` is the mes
 
 Select "Send Data to Web Service" and click the "Create Resource" button:
 
-### Edit Resource
+### Edit "Resource"
 
-Select "WebHook" and fill in the "Request URL" with the address for taosAdapter providing REST services. If taosAdapter is running locally, the default address is `http://127.0.0.1:6041/rest/sql`.
+Select "WebHook" and fill in the "Request URL" with the address provided by taosAdapter for REST services. If taosadapter is started locally, the default address is `http://127.0.0.1:6041/rest/sql`.
 
-Keep the other attributes at their default values.
+Please keep other properties at their default values.
 
 <figure>
 <Image img={imgStep06} alt=""/>
 </figure>
 
-### Edit Action
+### Edit "Action"
 
-In the resource configuration, add the key/value pair for Authorization authentication. The default Authorization value corresponding to the username and password is:
+Edit the resource configuration, adding an Authorization key/value pair. The default username and password corresponding Authorization value is:
 
 ```text
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
 
-For more information, please refer to the [TDengine REST API documentation](../../../tdengine-reference/client-libraries/rest-api/).
+For related documentation, please refer to [TDengine REST API Documentation](../../../tdengine-reference/client-libraries/rest-api/).
 
-In the message body, input the rule engine replacement template:
+Enter the rule engine replacement template in the message body:
 
 ```sql
 INSERT INTO test.sensor_data VALUES(
@@ -139,19 +138,19 @@ INSERT INTO test.sensor_data VALUES(
 
 Finally, click the "Create" button at the bottom left to save the rule.
 
-## Write Simulation Test Program
+## Write a Mock Test Program
 
 ```javascript
 {{#include docs/examples/other/mock.js}}
 ```
 
-Note: You can initially set a smaller value for CLIENT_NUM in the code during the test to avoid overwhelming hardware performance with a large number of concurrent clients.
+Note: In the code, CLIENT_NUM can be set to a smaller value at the start of the test to avoid hardware performance not being able to fully handle a large number of concurrent clients.
 
 <figure>
 <Image img={imgStep08} alt=""/>
 </figure>
 
-## Execute Test to Simulate Sending MQTT Data
+## Execute Test Simulation Sending MQTT Data
 
 ```shell
 npm install mqtt mockjs --save --registry=https://registry.npm.taobao.org
@@ -164,7 +163,7 @@ node mock.js
 
 ## Verify EMQX Received Data
 
-Refresh the rule engine interface in the EMQX Dashboard to see how many records were correctly received:
+Refresh the EMQX Dashboard rule engine interface to see how many records were correctly received:
 
 <figure>
 <Image img={imgStep10} alt=""/>
@@ -172,10 +171,10 @@ Refresh the rule engine interface in the EMQX Dashboard to see how many records 
 
 ## Verify Data Written to TDengine
 
-Log into TDengine CLI and query the corresponding database and table to verify whether the data has been correctly written to TDengine:
+Use the TDengine CLI program to log in and query the relevant database and table to verify that the data has been correctly written to TDengine:
 
 <figure>
 <Image img={imgStep11} alt=""/>
 </figure>
 
-For detailed usage of EMQX, please refer to the [EMQX Official Documentation](https://docs.emqx.com/en/emqx/latest/data-integration/rules.html#rule-engine).
+For detailed usage of EMQX, please refer to [EMQX Official Documentation](https://docs.emqx.com/en/emqx/v4.4/rule/rule-engine.html).
