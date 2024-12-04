@@ -24,6 +24,31 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 
+#define PAR_ERR_RET(c)                \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
+#define PAR_RET(c)                    \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+#define PAR_ERR_JRET(c)              \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
+
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);

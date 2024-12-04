@@ -25,10 +25,12 @@ extern "C" {
 
 #define DESCRIBE_RESULT_COLS               4
 #define DESCRIBE_RESULT_COLS_COMPRESS      7
+#define DESCRIBE_RESULT_COLS_REF           5
 #define DESCRIBE_RESULT_FIELD_LEN          (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_TYPE_LEN           (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN           (16 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_COPRESS_OPTION_LEN (TSDB_CL_COMPRESS_OPTION_LEN + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_COL_REF_LEN         (TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -180,6 +182,7 @@ typedef struct SCompactVgroupsStmt {
 
 typedef struct STableOptions {
   ENodeType  type;
+  bool       virtualStb;
   bool       commentNull;
   char       comment[TSDB_TB_COMMENT_LEN];
   SNodeList* pMaxDelay;
@@ -204,7 +207,11 @@ typedef struct SColumnOptions {
   char      compress[TSDB_CL_COMPRESS_OPTION_LEN];
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
   bool      bPrimaryKey;
+  bool      hasRef;
+  char      refTable[TSDB_TABLE_NAME_LEN];
+  char      refColumn[TSDB_COL_NAME_LEN];
 } SColumnOptions;
+
 typedef struct SColumnDefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
@@ -222,6 +229,27 @@ typedef struct SCreateTableStmt {
   SNodeList*     pTags;
   STableOptions* pOptions;
 } SCreateTableStmt;
+
+typedef struct SCreateVTableStmt {
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pCols;
+} SCreateVTableStmt;
+
+typedef struct SCreateVSubTableStmt {
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  char           useDbName[TSDB_DB_NAME_LEN];
+  char           useTableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pSpecificTags;
+  SNodeList*     pValsOfTags;
+  SNodeList*     pSpecificColRefs;
+  SNodeList*     pColRefs;
+} SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
   ENodeType      type;
@@ -272,6 +300,14 @@ typedef struct SDropSuperTableStmt {
   bool      withOpt;
 } SDropSuperTableStmt;
 
+typedef struct SDropVirtualTableStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+  bool      withOpt;
+} SDropVirtualTableStmt;
+
 typedef struct SAlterTableStmt {
   ENodeType       type;
   char            dbName[TSDB_DB_NAME_LEN];
@@ -284,6 +320,8 @@ typedef struct SAlterTableStmt {
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
   SNodeList*      pNodeListTagValue;
+  char            refTableName[TSDB_TABLE_NAME_LEN];
+  char            refColName[TSDB_COL_NAME_LEN];
 } SAlterTableStmt;
 
 typedef struct SAlterTableMultiStmt {
