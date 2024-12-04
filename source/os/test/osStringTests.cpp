@@ -182,6 +182,12 @@ TEST(osStringTests, osStr2Int64) {
     assert(result == 0);
     assert(val == LLONG_MIN);
 
+    result = taosStr2int64("123abc", &val);
+    ASSERT_EQ(result, 0);     
+    ASSERT_EQ(val, 123);
+
+    result = taosStr2int64("abc123", &val);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
     // 测试有效的整数字符串
     result = taosStr2int64("12345", &val);
     assert(result == 0);
@@ -244,6 +250,12 @@ TEST(osStringTests, osStr2int32) {
     ASSERT_EQ(result, TAOS_SYSTEM_ERROR(ERANGE));
 
     
+    result = taosStr2int32("123abc", &val);
+    ASSERT_EQ(result, 0);     
+    ASSERT_EQ(val, 123);
+
+    result = taosStr2int32("abc123", &val);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
 
     // 测试有效的整数字符串
     result = taosStr2int32("12345", &val);
@@ -307,6 +319,12 @@ TEST(osStringTests, taosStr2int16) {
     result = taosStr2int16(large_num, &val);
     ASSERT_EQ(result, TAOS_SYSTEM_ERROR(ERANGE));
 
+    result = taosStr2int16("123abc", &val);
+    ASSERT_EQ(result, 0);     
+    ASSERT_EQ(val, 123);
+
+    result = taosStr2int16("abc123", &val);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
     // 测试有效的整数字符串
     result = taosStr2int16("12345", &val);
     ASSERT_EQ(result, 0);
@@ -370,6 +388,13 @@ TEST(osStringTests, taosStr2int8) {
     result = taosStr2int8(large_num, &val);
     ASSERT_EQ(result, TAOS_SYSTEM_ERROR(ERANGE));
 
+    result = taosStr2int8("123abc", &val);
+    ASSERT_EQ(result, 0);     
+    ASSERT_EQ(val, 123);
+
+    result = taosStr2int8("abc123", &val);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
+    
     // 测试有效的整数字符串
     result = taosStr2int8("123", &val);
     ASSERT_EQ(result, 0);
@@ -417,6 +442,12 @@ TEST(osStringTests, osStr2Uint64) {
     ASSERT_EQ(result, 0);
     ASSERT_EQ(val, ULLONG_MAX);
 
+    result = taosStr2Uint64("123abc", &val);
+    ASSERT_EQ(result, 0);     
+    ASSERT_EQ(val, 123);
+
+    result = taosStr2Uint64("abc123", &val);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
     // 测试有效的整数字符串
     result = taosStr2Uint64("12345", &val);
     ASSERT_EQ(result, 0);
@@ -467,6 +498,12 @@ TEST(osStringTests, taosStr2Uint32) {
     result = taosStr2Uint32(large_num, &val);
     ASSERT_EQ(result, TAOS_SYSTEM_ERROR(ERANGE));
 
+    result = taosStr2Uint32("123abc", &val);
+    ASSERT_EQ(result, 0);     
+    ASSERT_EQ(val, 123);
+
+    result = taosStr2Uint32("abc123", &val);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
     // 测试有效的整数字符串
     result = taosStr2Uint32("12345", &val);
     ASSERT_EQ(result, 0);
@@ -516,6 +553,12 @@ TEST(osStringTests, taosStr2Uint16) {
     result = taosStr2Uint16(large_num, &val);
     ASSERT_EQ(result, TAOS_SYSTEM_ERROR(ERANGE));
 
+    result = taosStr2Uint16("123abc", &val);
+    ASSERT_EQ(result, 0);     
+    ASSERT_EQ(val, 123);
+
+    result = taosStr2Uint16("abc123", &val);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
     // 测试有效的整数字符串
     result = taosStr2Uint16("12345", &val);
     ASSERT_EQ(result, 0);
@@ -565,6 +608,12 @@ TEST(osStringTests, taosStr2Uint8) {
     result = taosStr2Uint8(large_num, &val);
     ASSERT_EQ(result, TAOS_SYSTEM_ERROR(ERANGE));
 
+    result = taosStr2Uint8("123abc", &val);
+    ASSERT_EQ(result, 0);     
+    ASSERT_EQ(val, 123);
+
+    result = taosStr2Uint8("abc123", &val);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
     // 测试有效的整数字符串
     result = taosStr2Uint8("123", &val);
     ASSERT_EQ(result, 0);
