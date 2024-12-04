@@ -13,19 +13,19 @@ import imgStep06 from '../../assets/aveva-historian-06.png';
 import imgStep07 from '../../assets/aveva-historian-07.png';
 import imgStep08 from '../../assets/aveva-historian-08.png';
 
-This section explains how to create data migration/data synchronization tasks through the Explorer interface to migrate/synchronize data from AVEVA Historian to the current TDengine cluster.
+This section describes how to create data migration/data synchronization tasks through the Explorer interface, migrating/synchronizing data from AVEVA Historian to the current TDengine cluster.
 
-## Function Overview
+## Feature Overview
 
-AVEVA Historian is an industrial big data analytics software, formerly known as Wonderware. It captures and stores high-fidelity industrial big data, unlocking constrained potential to improve operations.
+AVEVA Historian is an industrial big data analytics software, formerly known as Wonderware. It captures and stores high-fidelity industrial big data, unleashing constrained potential to improve operations.
 
-TDengine can efficiently read data from AVEVA Historian and write it to TDengine for historical data migration or real-time data synchronization.
+TDengine can efficiently read data from AVEVA Historian and write it into TDengine, enabling historical data migration or real-time data synchronization.
 
-## Creating a Task
+## Creating Tasks
 
 ### 1. Add a Data Source
 
-Click the **+Add Data Source** button on the data writing page to enter the Add Data Source page.
+On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
 <figure>
 <Image img={imgStep01} alt=""/>
@@ -33,13 +33,13 @@ Click the **+Add Data Source** button on the data writing page to enter the Add 
 
 ### 2. Configure Basic Information
 
-In the **Name** field, enter a task name, such as: "test_avevaHistorian";
+Enter the task name in **Name**, such as: "test_avevaHistorian";
 
 Select **AVEVA Historian** from the **Type** dropdown list.
 
-The **Agent** field is optional; if needed, you can select a specified agent from the dropdown, or click the **+Create New Agent** button on the right.
+**Proxy** is optional, if needed, you can select a specific proxy from the dropdown, or click the **+Create New Proxy** button on the right.
 
-In the **Target Database** dropdown list, select a target database, or click the **+Create Database** button on the right.
+Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
 <figure>
 <Image img={imgStep02} alt=""/>
@@ -57,25 +57,25 @@ Click the **Connectivity Check** button to check if the data source is available
 <Image img={imgStep03} alt=""/>
 </figure>
 
-### 4. Configure Data Collection Information
+### 4. Configure Collection Information
 
-In the **Collection Configuration** area, fill in the parameters related to the collection task.
+Fill in the collection task related configuration parameters in the **Collection Configuration** area.
 
 #### 4.1. Migrate Data
 
-To perform data migration, configure the following parameters:
+If you want to perform data migration, configure the following parameters:
 
 Select **migrate** from the **Collection Mode** dropdown list.
 
-In the **Tags** field, enter the list of tags to migrate, separated by commas (,).
+In **Tags**, fill in the list of tags to migrate, separated by commas (,).
 
-In the **Tag Group Size** field, specify the size of the tag group.
+In **Tag Group Size**, fill in the size of the tag group.
 
-In the **Task Start Time** field, enter the start time for the data migration task.
+In **Task Start Time**, fill in the start time of the data migration task.
 
-In the **Task End Time** field, enter the end time for the data migration task.
+In **Task End Time**, fill in the end time of the data migration task.
 
-In the **Query Time Window** field, specify a time interval; the data migration task will segment the time window according to this interval.
+In **Query Time Window**, fill in a time interval, the data migration task will divide time windows according to this interval.
 
 <figure>
 <Image img={imgStep04} alt=""/>
@@ -83,23 +83,23 @@ In the **Query Time Window** field, specify a time interval; the data migration 
 
 #### 4.2. Synchronize Data from the History Table
 
-To synchronize data from the **Runtime.dbo.History** table to TDengine, configure the following parameters:
+If you want to synchronize data from the **Runtime.dbo.History** table to TDengine, configure the following parameters:
 
 Select **synchronize** from the **Collection Mode** dropdown list.
 
-In the **Table** field, select **Runtime.dbo.History**.
+In **Table**, select **Runtime.dbo.History**.
 
-In the **Tags** field, enter the list of tags to migrate, separated by commas (,).
+In **Tags**, fill in the list of tags to migrate, separated by commas (,).
 
-In the **Tag Group Size** field, specify the size of the tag group.
+In **Tag Group Size**, fill in the size of the tag group.
 
-In the **Task Start Time** field, enter the start time for the data migration task.
+In **Task Start Time**, fill in the start time of the data migration task.
 
-In the **Query Time Window** field, specify a time interval; the historical data part will segment according to this time interval.
+In **Query Time Window**, fill in a time interval, the historical data part will divide time windows according to this interval.
 
-In the **Real-Time Synchronization Interval** field, specify a time interval for polling real-time data.
+In **Real-time Synchronization Interval**, fill in a time interval, the real-time data part will poll data according to this interval.
 
-In the **Out-of-Order Time Limit** field, specify a time interval; data that arrives later than this interval may be lost during real-time synchronization.
+In **Disorder Time Upper Limit**, fill in a time interval, data that enters the database after this time during real-time data synchronization may be lost.
 
 <figure>
 <Image img={imgStep05} alt=""/>
@@ -107,15 +107,15 @@ In the **Out-of-Order Time Limit** field, specify a time interval; data that arr
 
 #### 4.3. Synchronize Data from the Live Table
 
-To synchronize data from the **Runtime.dbo.Live** table to TDengine, configure the following parameters:
+If you want to synchronize data from the **Runtime.dbo.Live** table to TDengine, configure the following parameters:
 
 Select **synchronize** from the **Collection Mode** dropdown list.
 
-In the **Table** field, select **Runtime.dbo.Live**.
+In **Table**, select **Runtime.dbo.Live**.
 
-In the **Tags** field, enter the list of tags to migrate, separated by commas (,).
+In **Tags**, fill in the list of tags to migrate, separated by commas (,).
 
-In the **Real-Time Synchronization Interval** field, specify a time interval for polling real-time data.
+In **Real-time Synchronization Interval**, fill in a time interval, the real-time data part will poll data according to this interval.
 
 <figure>
 <Image img={imgStep06} alt=""/>
@@ -123,17 +123,17 @@ In the **Real-Time Synchronization Interval** field, specify a time interval for
 
 ### 5. Configure Data Mapping
 
-In the **Data Mapping** area, fill in the parameters related to data mapping.
+Fill in the data mapping related configuration parameters in the **Data Mapping** area.
 
-Click the **Retrieve from Server** button to get sample data from the AVEVA Historian server.
+Click the **Retrieve from Server** button to fetch sample data from the AVEVA Historian server.
 
-In the **Extract or Split from Columns** section, fill in the fields to extract or split from the message body. For example, split the `vValue` field into `vValue_0` and `vValue_1` using the split extractor, specifying `,` as the separator and `2` for the number.
+In **Extract or Split from Column**, fill in the fields to extract or split from the message body, for example: split the `vValue` field into `vValue_0` and `vValue_1`, select the split extractor, fill in the separator as `,`, and number as 2.
 
-In the **Filtering** section, enter filtering conditions; for example, entering `Value > 0` means that only data where Value is greater than 0 will be written to TDengine.
+In **Filter**, fill in the filtering conditions, for example: enter `Value > 0`, then only data where Value is greater than 0 will be written to TDengine.
 
-In the **Mapping** section, select the supertable to map to TDengine, and specify the columns to map to the supertable.
+In **Mapping**, select the supertable in TDengine to which you want to map, as well as the columns to map to the supertable.
 
-Click **Preview** to view the mapping results.
+Click **Preview** to view the results of the mapping.
 
 <figure>
 <Image img={imgStep07} alt=""/>
@@ -141,24 +141,24 @@ Click **Preview** to view the mapping results.
 
 ### 6. Configure Advanced Options
 
-In the **Advanced Options** area, fill in the parameters related to advanced options.
+Fill in the related configuration parameters in the **Advanced Options** area.
 
-In the **Maximum Read Concurrency** field, set the maximum read concurrency. The default value is 0, which means auto, automatically configuring the concurrency.
+Set the maximum read concurrency in **Maximum Read Concurrency**. Default value: 0, which means auto, automatically configures the concurrency.
 
-In the **Batch Size** field, set the batch size for each write, that is, the maximum number of messages sent at one time.
+Set the batch size for each write in **Batch Size**, that is: the maximum number of messages sent at once.
 
-In the **Save Raw Data** section, choose whether to save the raw data. The default is no.
+In **Save Raw Data**, choose whether to save the raw data. Default value: No.
 
-When saving raw data, the following two parameters take effect.
+When saving raw data, the following two parameters are effective.
 
-In the **Maximum Retention Days** field, set the maximum retention days for the raw data.
+Set the maximum retention days for raw data in **Maximum Retention Days**.
 
-In the **Raw Data Storage Directory** field, set the path to save the raw data.
+Set the storage path for raw data in **Raw Data Storage Directory**.
 
 <figure>
 <Image img={imgStep08} alt=""/>
 </figure>
 
-### 7. Completion
+### 7. Completion of Creation
 
-Click the **Submit** button to complete the task creation. After submitting the task, return to the **Data Writing** page to check the task status.
+Click the **Submit** button to complete the creation of the task. After submitting the task, return to the **Data Writing** page to view the status of the task.
