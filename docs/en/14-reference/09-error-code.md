@@ -29,6 +29,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000002A  | RPC state already dropped                   | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002B  | RPC msg exceed limit                        | 1. Single RPC message exceeds the limit, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 
+
 ## common  
 
 | Error Code | Error Description                 | Possible Error Scenarios or Reasons                          | Recommended User Actions                                     |
