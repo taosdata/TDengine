@@ -36,7 +36,6 @@ int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
       if (code != 0) {
         return code;
       }
-      // vnum[vpos] = atoi(tmp);
       memset(tmp, 0, sizeof(tmp));
       vpos++;
       tpos = spos + 1;
