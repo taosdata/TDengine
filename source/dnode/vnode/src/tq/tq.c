@@ -1250,6 +1250,14 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     streamMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pMeta, pTask);
 
+    SRpcMsg rsp = {0};   // make the mnode retry until this task status completed
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SYN_PROPOSE_NOT_READY);
+    if (ret) {  // suppress the error in build checkpoint-source rsp
+      tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+    }
+
+    tmsgSendRsp(&rsp);  // error occurs
+
     return TSDB_CODE_SUCCESS;
   } else {  // checkpoint already finished, and not in checkpoint status
     if (req.checkpointId <= pTask->chkInfo.checkpointId) {
