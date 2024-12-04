@@ -117,7 +117,10 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 7);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COL_REF_LEN, 8);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
   } else {
@@ -146,10 +149,15 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   SColumnInfoData* pCol6 = NULL;
   // level
   SColumnInfoData* pCol7 = NULL;
+  // colref
+  SColumnInfoData* pCol8 = NULL;
   if (useCompress(pMeta->tableType)) {
     pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
     pCol6 = taosArrayGet(pBlock->pDataBlock, 5);
     pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
+  }
+  if (hasRefCol(pMeta->tableType)) {
+    pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
   }
 
   int32_t fillTagCol = 0;
@@ -194,6 +202,22 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         STR_TO_VARSTR(buf, fillTagCol == 0 ? "" : "disabled");
         COL_DATA_SET_VAL_AND_CHECK(pCol7, pBlock->info.rows, buf, false);
       }
+    } else if (hasRefCol(pMeta->tableType) && pMeta->colRef) {
+      if (i < pMeta->tableInfo.numOfColumns) {
+        if (pMeta->colRef[i].hasRef) {
+          char refColName[TSDB_COL_FNAME_LEN] = {0};
+          strcat(refColName, pMeta->colRef[i].refTableName);
+          strcat(refColName, ".");
+          strcat(refColName, pMeta->colRef[i].refColName);
+          STR_TO_VARSTR(buf, refColName);
+        } else {
+          STR_TO_VARSTR(buf, "");
+        }
+        COL_DATA_SET_VAL_AND_CHECK(pCol5, pBlock->info.rows, buf, false);
+      } else {
+        STR_TO_VARSTR(buf, "");
+        COL_DATA_SET_VAL_AND_CHECK(pCol5, pBlock->info.rows, buf, false);
+      }
     }
 
     fillTagCol = 0;
@@ -231,8 +255,13 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
     code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pDesc->pMeta && useCompress(pDesc->pMeta->tableType) && pDesc->pMeta->schemaExt) {
-      code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
+    if (pDesc->pMeta) {
+      if (useCompress(pDesc->pMeta->tableType) && pDesc->pMeta->schemaExt) {
+        code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
+      }
+      if (hasRefCol(pDesc->pMeta->tableType) && pDesc->pMeta->colRef) {
+        code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_REF, pRsp);
+      }
     } else {
       code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
     }
@@ -523,7 +552,8 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
 static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
-#define LTYPE_LEN (32 + 60)  // 60 byte for compress info
+    SColRef* pRef = pCfg->pColRefs + i;
+#define LTYPE_LEN (32 + 60 + TSDB_COL_FNAME_LEN + 10)  // 60 byte for compress info, TSDB_COL_FNAME_LEN for column ref
     char type[LTYPE_LEN];
     snprintf(type, LTYPE_LEN, "%s", tDataTypes[pSchema->type].name);
     int typeLen = strlen(type);
@@ -543,6 +573,13 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " LEVEL \'%s\'",
                            columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pCfg->pSchemaExt[i].compress)));
     }
+
+    if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM \'%s\'", pRef->refTableName);
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "\'%s\'", pRef->refColName);
+    }
+
     if (!(pSchema->flags & COL_IS_KEY)) {
       *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                         "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
@@ -551,6 +588,27 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                         "%s`%s` %s %s", ((i > 0) ? ", " : ""), pSchema->name, type, pk);
     }
+  }
+}
+
+static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + i;
+    SColRef* pRef = pCfg->pColRefs + i;
+    char type[TSDB_COL_NAME_LEN + 10 + TSDB_COL_FNAME_LEN];
+    int typeLen = 0;
+
+    if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "FROM \'%s\'", pRef->refTableName);
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "\'%s\'", pRef->refColName);
+    } else {
+      continue;
+    }
+
+    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                      "%s`%s` %s", ((i > 1) ? ", " : ""), pSchema->name, type);
+
   }
 }
 
@@ -774,13 +832,33 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
-  } else {
+  } else if (TSDB_NORMAL_TABLE == pCfg->tableType){
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                      "CREATE TABLE `%s` (", tbName);
     appendColumnFields(buf2, &len, pCfg);
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
+  } else if (TSDB_VIRTUAL_TABLE == pCfg->tableType) {
+    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                     "CREATE VTABLE `%s` (", tbName);
+    appendColumnFields(buf2, &len, pCfg);
+    len +=
+        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+  } else if (TSDB_VIRTUAL_CHILD_TABLE == pCfg->tableType) {
+    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                     "CREATE VTABLE `%s` (", tbName);
+    appendColRefFields(buf2, &len, pCfg);
+    len +=
+        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                 ") USING `%s` (", pCfg->stbName);
+    appendTagNameFields(buf2, &len, pCfg);
+    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                     ") TAGS (");
+    code = appendTagValues(buf2, &len, pCfg, charsetCxt);
+    TAOS_CHECK_ERRNO(code);
+    len +=
+        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
   }
 
   varDataLen(buf2) = (len > 65535) ? 65535 : len;
@@ -827,6 +905,19 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
 }
 
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp, void* charsetCxt) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTbResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg, charsetCxt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
+  }
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t execShowCreateVTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp, void* charsetCxt) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildCreateTbResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1084,6 +1175,8 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
       return execShowCreateDatabase((SShowCreateDatabaseStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
       return execShowCreateTable((SShowCreateTableStmt*)pStmt, pRsp, charsetCxt);
+    case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:
+      return execShowCreateVTable((SShowCreateTableStmt*)pStmt, pRsp, charsetCxt);
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return execShowCreateSTable((SShowCreateTableStmt*)pStmt, pRsp, charsetCxt);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
