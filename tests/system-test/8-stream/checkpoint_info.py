@@ -21,6 +21,7 @@ from util.cluster import *
 import threading
 # should be used by -N  option
 class TDTestCase:
+    updatecfgDict = {'debugFlag': 135, 'asynclog': 0, 'checkpointinterval':60}
 
     #updatecfgDict = {'checkpointInterval': 60 ,}
     def init(self, conn, logSql, replicaVar=1):
@@ -70,7 +71,7 @@ class TDTestCase:
         while(True):
             if(self.check_vnodestate()):
                 break
-        sql = 'select task_id, node_id, checkpoint_id, checkpoint_ver from information_schema.ins_stream_tasks where `level` = "source" or `level` = "agg" and node_type == "vnode"'
+        sql = 'select task_id, node_id, checkpoint_id, checkpoint_ver from information_schema.ins_stream_tasks where `level` = "source" or `level` = "agg" and node_type = "vnode"'
         for task_id, vnode, checkpoint_id, checkpoint_ver in tdSql.getResult(sql):
             dirpath = f"{cluster.dnodes[self.vnode_dict[vnode]-1].dataDir}/vnode/vnode{vnode}/"
             info_path = self.find_checkpoint_info_file(dirpath, checkpoint_id, task_id)

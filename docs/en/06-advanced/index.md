@@ -1,10 +1,9 @@
 ---
 title: Advanced Features
-description: 'TDengine Advanced Features'
 slug: /advanced-features
 ---
 
-This section describes the advanced features of TDengine, including data subscription, caching, and stream processing; edge–cloud orchestration; and connectors for various data sources.
+This chapter mainly introduces the advanced features of TDengine, such as data subscription, caching, stream computing, edge-cloud collaboration, and data access.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

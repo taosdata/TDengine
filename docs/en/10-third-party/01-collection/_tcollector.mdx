@@ -1,8 +1,8 @@
-### Configure taosAdapter
+### Configuring taosAdapter
 
-To configure taosAdapter to receive TCollector data:
+To configure taosAdapter to receive data from TCollector:
 
-- Enable the configuration item in the taosAdapter configuration file (default location is /etc/taos/taosadapter.toml)
+- Enable the configuration in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
 
 ```
 ...
@@ -17,17 +17,17 @@ password = "taosdata"
 ...
 ```
 
-Here, the default database name written by taosAdapter is `tcollector`, which can also be modified in the taosAdapter configuration file under the dbs field to specify a different name. The user and password should be filled with the actual TDengine configuration values. After modifying the configuration file, taosAdapter needs to be restarted.
+The default database name that taosAdapter writes to is `tcollector`, but you can specify a different name by modifying the dbs option in the taosAdapter configuration file. Fill in the user and password with the actual values configured in TDengine. After modifying the configuration file, taosAdapter needs to be restarted.
 
-- You can also enable the taosAdapter to receive TCollector data by using command line parameters or setting environment variables. For specific details, please refer to the taosAdapter reference manual.
+- You can also use taosAdapter command line arguments or set environment variables to enable the taosAdapter to receive tcollector data. For more details, please refer to the taosAdapter reference manual.
 
-### Configure TCollector
+### Configuring TCollector
 
-To use TCollector, you need to download its [source code](https://github.com/OpenTSDB/tcollector). The configuration items are in the source code. Note that there are significant differences between TCollector versions; here we only take the latest code from the current master branch (git commit: 37ae920) as an example.
+To use TCollector, download its [source code](https://github.com/OpenTSDB/tcollector). Its configuration options are in its source code. Note: There are significant differences between different versions of TCollector; this only refers to the latest code in the current master branch (git commit: 37ae920).
 
-Modify the corresponding contents in the `collectors/etc/config.py` and `tcollector.py` files. Change the address that originally pointed to the OpenTSDB host to the domain name or IP address of the server where taosAdapter is deployed, and modify the port to the one that taosAdapter supports for TCollector (default is 6049).
+Modify the contents of `collectors/etc/config.py` and `tcollector.py`. Change the original address pointing to the OpenTSDB host to the domain name or IP address where taosAdapter is deployed, and change the port to the corresponding port supported by taosAdapter for TCollector use (default is 6049).
 
-An example of the git diff output for the modified source code:
+Example of git diff output for source code modifications:
 
 ```
 index e7e7a1c..ec3e23c 100644

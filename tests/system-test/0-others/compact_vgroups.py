@@ -121,6 +121,9 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.getData(1, 1) in (7, 10), True)
         tdSql.checkEqual(tdSql.getData(0, 1) != tdSql.getData(1, 1), True)
 
+        # wait for compact finish
+        self.waitCompactFinish()
+
 
     # Test Framework Apis
     def init(self, conn, logSql, replicaVar=1):
@@ -148,7 +151,7 @@ class TDTestCase:
 
     def stop(self):
         tdSql.close()
-        tdLog.success(f"stop to execute {__file__}")
+        tdLog.success("%s successfully executed" % __file__)
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
