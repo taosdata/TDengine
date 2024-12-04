@@ -312,8 +312,10 @@ static SKeyword keywordTable[] = {
     {"VGROUPS",              TK_VGROUPS},
     {"VIEW",                 TK_VIEW},
     {"VIEWS",                TK_VIEWS},
+    {"VIRTUAL",              TK_VIRTUAL},
     {"VNODE",                TK_VNODE},
     {"VNODES",               TK_VNODES},
+    {"VTABLE",               TK_VTABLE},
     {"WAL_FSYNC_PERIOD",     TK_WAL_FSYNC_PERIOD},
     {"WAL_LEVEL",            TK_WAL_LEVEL},
     {"WAL_RETENTION_PERIOD", TK_WAL_RETENTION_PERIOD},
@@ -355,6 +357,7 @@ static SKeyword keywordTable[] = {
     {"FORCE_WINDOW_CLOSE",   TK_FORCE_WINDOW_CLOSE},
     {"DISK_INFO",            TK_DISK_INFO},
     {"AUTO",                 TK_AUTO},
+    {"VTABLES",              TK_VTABLES},
 };
 // clang-format on
 

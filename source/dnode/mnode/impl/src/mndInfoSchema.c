@@ -139,6 +139,7 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
   memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
 
   pRsp->pSchemaExt = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchemaExt));
+  pRsp->pColRefs = taosMemCalloc(pMeta->numOfColumns, sizeof(SColRef));
   TAOS_RETURN(code);
 }
 
