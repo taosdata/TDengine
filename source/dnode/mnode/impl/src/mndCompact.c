@@ -891,58 +891,33 @@ static void mndCompactPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
-static int32_t mndProcessAutoCompact(SRpcMsg *pReq) {
+static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   int32_t code = 0, lino = 0;
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
   int64_t now = taosGetTimestampMs();
 
-  void *pDbIter = NULL;
-  while (1) {
-    SDbObj *pDb = NULL;
-    pDbIter = sdbFetch(pSdb, SDB_DB, pDbIter, (void **)&pDb);
-    if (pDbIter == NULL) break;
-
-    if ((pDb->cfg.compactInterval == 0) || (pDb->cfg.compactStartTime == pDb->cfg.compactEndTime)) {
+  void   *pDbIter = NULL;
+  SDbObj *pDb = NULL;
+  while ((pDbIter = sdbFetch(pSdb, SDB_DB, pDbIter, (void **)&pDb))) {
+    if ((pDb->cfg.compactInterval == 0) || (pDb->cfg.compactStartTime >= pDb->cfg.compactEndTime)) {
       sdbRelease(pSdb, pDb);
       continue;
     }
 
-    if (pDb->cfg.compactStartTime > pDb->cfg.compactEndTime) {
-      mWarn("db:%s compact start time is greater than end time", pDb->name);
-      sdbRelease(pSdb, pDb);
-      continue;
-    }
-
-    // check if there is an unfinished compact task for this db
-    bool  hasCompact = false;
-    void *pCompactIter = NULL;
-    while (1) {
-      SCompactObj *pCompact = NULL;
-      pCompactIter = sdbFetch(pSdb, SDB_COMPACT, pCompactIter, (void **)&pCompact);
-      if (pCompactIter == NULL) break;
-      if (0 == strncmp(pCompact->dbname, pDb->name, TSDB_DB_FNAME_LEN) == 0) {
-        hasCompact = true;
-        sdbRelease(pSdb, pCompact);
-        break;
-      }
-      sdbRelease(pSdb, pCompact);
-    }
-    if (hasCompact) {
-      mInfo("db:%s skip auto compact since unfinished compact task", pDb->name);
-      sdbRelease(pSdb, pDb);
-      continue;
-    }
-
+    // mndCompactSendProgressReq(pMnode, pDb);
     sdbRelease(pSdb, pDb);
   }
-
-  return 0;
+_exit:
+  if (code) {
+    mWarn("failed to dispatch auto compact at line %d since %s", lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t mndProcessCompactTimer(SRpcMsg *pReq) {
   mTrace("start to process compact timer");
   mndCompactPullup(pReq->info.node);
-  TAOS_UNUSED(mndProcessAutoCompact(pReq));
+  TAOS_UNUSED(mndCompactDispatch(pReq));
   return 0;
 }
