@@ -1932,7 +1932,9 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
                                 .intervalUnit = pIntervalPhyNode->intervalUnit,
                                 .slidingUnit = pIntervalPhyNode->slidingUnit,
                                 .offset = pIntervalPhyNode->offset,
-                                .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
+                                .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
+                                .timeRange = pIntervalPhyNode->timeRange};
+  calcIntervalAutoOffset(&pInfo->interval);
   pInfo->twAggSup = (STimeWindowAggSupp){
       .waterMark = pIntervalPhyNode->window.watermark,
       .calTrigger = pIntervalPhyNode->window.triggerType,
@@ -5342,7 +5344,9 @@ static int32_t createStreamSingleIntervalOperatorInfo(SOperatorInfo* downstream,
       .slidingUnit = pIntervalPhyNode->slidingUnit,
       .offset = pIntervalPhyNode->offset,
       .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
+      .timeRange = pIntervalPhyNode->timeRange,
   };
+  calcIntervalAutoOffset(&pInfo->interval);
 
   pInfo->twAggSup =
       (STimeWindowAggSupp){.waterMark = pIntervalPhyNode->window.watermark,
