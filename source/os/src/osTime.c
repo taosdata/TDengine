@@ -345,6 +345,12 @@ char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
 #endif
 }
 
+size_t
+taosStrfTime(char *s, size_t maxsize, char const *format, struct tm const *t){
+  if (!s || !format || !t) return 0;
+  return strftime(s, maxsize, format, t);
+}
+
 int32_t taosGetTimeOfDay(struct timeval *tv) {
   if (tv == NULL) {
     return TSDB_CODE_INVALID_PARA;

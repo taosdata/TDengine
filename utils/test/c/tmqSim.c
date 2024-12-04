@@ -475,7 +475,7 @@ static char* shellFormatTimestamp(char* buf, int32_t bufSize, int64_t val, int32
   if (taosLocalTime(&tt, &ptm, buf, bufSize, NULL) == NULL) {
     return buf;
   }
-  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
+  size_t pos = taosStrfTime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);

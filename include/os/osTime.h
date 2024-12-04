@@ -24,6 +24,7 @@ extern "C" {
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
 #define strptime     STRPTIME_FUNC_TAOS_FORBID
+#define strftime     STRFTIME_FUNC_TAOS_FORBID
 #define gettimeofday GETTIMEOFDAY_FUNC_TAOS_FORBID
 #define localtime    LOCALTIME_FUNC_TAOS_FORBID
 #define localtime_s  LOCALTIMES_FUNC_TAOS_FORBID
@@ -92,6 +93,7 @@ static FORCE_INLINE int64_t taosGetMonoTimestampMs() {
 }
 
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
+size_t     taosStrfTime(char *s, size_t maxsize, char const *format, struct tm const *t);
 struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize, timezone_t tz);
 struct tm *taosGmTimeR(const time_t *timep, struct tm *result);
 time_t     taosTimeGm(struct tm *tmp);

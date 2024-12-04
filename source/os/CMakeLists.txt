@@ -1,5 +1,10 @@
 aux_source_directory(src OS_SRC)
-add_library(os STATIC ${OS_SRC})
+if(NOT ${TD_WINDOWS})
+    aux_source_directory(src/timezone OS_TZ)
+    add_library(os STATIC ${OS_SRC} ${OS_TZ})
+else()
+    add_library(os STATIC ${OS_SRC})
+endif(NOT ${TD_WINDOWS})
 target_include_directories(
     os
     PUBLIC "${TD_SOURCE_DIR}/include/os"
@@ -70,10 +75,10 @@ IF (JEMALLOC_ENABLED)
     target_link_libraries(os PUBLIC -L${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
 ENDIF ()
 
-if(NOT ${TD_WINDOWS})
-    find_library(tz libtz.a "${TD_SOURCE_DIR}/contrib/tz")
-    target_link_libraries(os PUBLIC ${tz})
-endif(NOT ${TD_WINDOWS})
+#if(NOT ${TD_WINDOWS})
+#    find_library(tz libtz.a "${TD_SOURCE_DIR}/contrib/tz")
+#    target_link_libraries(os PUBLIC ${tz})
+#endif(NOT ${TD_WINDOWS})
 
 if(${BUILD_TEST})
     add_subdirectory(test)

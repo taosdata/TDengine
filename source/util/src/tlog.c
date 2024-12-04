@@ -163,7 +163,7 @@ static int32_t getDay(char *buf, int32_t bufSize) {
   }
   struct tm tmInfo;
   if (taosLocalTime(&t, &tmInfo, buf, bufSize, NULL) != NULL) {
-    TAOS_UNUSED(strftime(buf, bufSize, "%Y-%m-%d", &tmInfo));
+    TAOS_UNUSED(taosStrfTime(buf, bufSize, "%Y-%m-%d", &tmInfo));
   }
   return 0;
 }

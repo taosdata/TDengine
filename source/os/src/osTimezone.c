@@ -813,13 +813,13 @@ int32_t taosFormatTimezoneStr(time_t t, const char* tz, timezone_t sp, char *out
    */
 
   char str1[TD_TIMEZONE_LEN] = {0};
-  if (strftime(str1, sizeof(str1), "%Z", &tm1) == 0){
+  if (taosStrfTime(str1, sizeof(str1), "%Z", &tm1) == 0){
     uError("failed to get timezone name");
     return TSDB_CODE_TIME_ERROR;
   }
 
   char str2[TD_TIMEZONE_LEN] = {0};
-  if (strftime(str2, sizeof(str2), "%z", &tm1) == 0){
+  if (taosStrfTime(str2, sizeof(str2), "%z", &tm1) == 0){
     uError("failed to get timezone offset");
     return TSDB_CODE_TIME_ERROR;
   }

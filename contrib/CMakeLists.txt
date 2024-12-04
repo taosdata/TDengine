@@ -665,16 +665,23 @@ MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
 
 if(NOT ${TD_WINDOWS})
     execute_process(
-            COMMAND make CFLAGS+=-fPIC TZDIR=${TZ_OUTPUT_PATH}/ clean libtz.a
+            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ tzdir.h
             WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
     )
 
-#    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
-#    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
-#    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
-#            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
-#            DESTINATION ${TZ_SRC_DIR})
+    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+            DESTINATION ${TZ_SRC_DIR})
 endif(NOT ${TD_WINDOWS})
+
+#if(NOT ${TD_WINDOWS})
+#    execute_process(
+#            COMMAND make CFLAGS+=-fPIC CFLAGS+=-g TZDIR=${TZ_OUTPUT_PATH} clean libtz.a
+#            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+#    )
+#endif(NOT ${TD_WINDOWS})
 # ================================================================================================
 # Build test
 # ================================================================================================

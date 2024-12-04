@@ -195,7 +195,7 @@ static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
   }
   struct tm tmInfo;
   if (taosLocalTime(&t, &tmInfo, buf, sizeof(buf), tz) != NULL) {
-    (void)strftime(buf, sizeof(buf), "%z", &tmInfo);
+    (void)taosStrfTime(buf, sizeof(buf), "%z", &tmInfo);
   }
   int32_t len = (int32_t)strlen(buf);
 

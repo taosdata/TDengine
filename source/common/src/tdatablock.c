@@ -2499,7 +2499,7 @@ static int32_t formatTimestamp(char* buf, size_t cap, int64_t val, int precision
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  size_t pos = strftime(buf, cap, "%Y-%m-%d %H:%M:%S", &ptm);
+  size_t pos = taosStrfTime(buf, cap, "%Y-%m-%d %H:%M:%S", &ptm);
   if (pos == 0) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     TSDB_CHECK_CODE(code, lino, _end);
