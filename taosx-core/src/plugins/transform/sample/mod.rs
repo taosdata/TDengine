@@ -111,7 +111,7 @@ impl DsSampleIn {
             .parser
             .s_model
             .as_ref()
-            .map(|s| s.apply(&json))
+            .map(|s| s.apply(&json, &self.parser.global))
             .transpose()?
             .context("stable model not found")?;
 
@@ -160,6 +160,7 @@ impl DsSampleIn {
             return None;
         }
 
+        dbg!(&schema);
         let fields = input[0]
             .iter()
             .map(|(name, value)| {

@@ -42,7 +42,6 @@ use data_sources::*;
 use taoslog::middleware::TaosRootSpanBuilder;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::trace::Qid;
-pub use task::check_parser_timestamp_precision;
 use task::*;
 
 mod agent;

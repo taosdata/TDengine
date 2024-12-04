@@ -33,6 +33,8 @@ mod tests {
     use arrow_schema::DataType;
     use taosx_ipc::prelude::IpcDataType;
 
+    use crate::plugins::transform::map::AsType;
+
     use super::*;
 
     #[test]
@@ -83,7 +85,7 @@ mod tests {
         )])
         .unwrap();
 
-        let result = builder.build_field("c", &batch, Some(IpcDataType::Bool));
+        let result = builder.build_field("c", &batch, Some(AsType::Ipc(IpcDataType::Bool)));
 
         assert!(result.is_err());
         assert_eq!(
@@ -102,7 +104,7 @@ mod tests {
         .unwrap();
 
         let (field, value) = builder
-            .build_field("c", &batch, Some(IpcDataType::Bool))
+            .build_field("c", &batch, Some(AsType::Ipc(IpcDataType::Bool)))
             .unwrap();
 
         assert_eq!(field.name(), "c");

@@ -127,6 +127,8 @@ mod tests {
     };
     use taosx_ipc::prelude::IpcDataType;
 
+    use crate::plugins::transform::map::AsType;
+
     use super::*;
 
     fn init_record_batch() -> RecordBatch {
@@ -167,7 +169,7 @@ mod tests {
         let builder: CastValueBuilder =
             serde_json::from_str(r#"{"cast": "undefined", "default": "10"}"#).unwrap();
         let (field, value) = builder
-            .build_field("n2", &batch, Some(IpcDataType::Int32))
+            .build_field("n2", &batch, Some(AsType::Ipc(IpcDataType::Int32)))
             .unwrap();
         assert_eq!(field.name(), "n2");
         assert_eq!(*field.data_type(), DataType::Int32);
@@ -184,7 +186,7 @@ mod tests {
         let builder: CastValueBuilder =
             serde_json::from_str(r#"{"cast": "undefined", "default": "10.18"}"#).unwrap();
         let (field, value) = builder
-            .build_field("n3", &batch, Some(IpcDataType::Float32))
+            .build_field("n3", &batch, Some(AsType::Ipc(IpcDataType::Float32)))
             .unwrap();
         assert_eq!(field.name(), "n3");
         assert_eq!(*field.data_type(), DataType::Float32);
@@ -201,7 +203,7 @@ mod tests {
         let builder: CastValueBuilder =
             serde_json::from_str(r#"{"cast": "undefined", "default": "true"}"#).unwrap();
         let (field, value) = builder
-            .build_field("n4", &batch, Some(IpcDataType::Bool))
+            .build_field("n4", &batch, Some(AsType::Ipc(IpcDataType::Bool)))
             .unwrap();
         assert_eq!(field.name(), "n4");
         assert_eq!(*field.data_type(), DataType::Boolean);
@@ -219,7 +221,9 @@ mod tests {
             .build_field(
                 "n5",
                 &batch,
-                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Nanosecond)),
+                Some(AsType::Ipc(IpcDataType::Timestamp(
+                    arrow_schema::TimeUnit::Nanosecond,
+                ))),
             )
             .unwrap();
         assert_eq!(field.name(), "n5");
@@ -372,7 +376,9 @@ mod tests {
             .build_field(
                 "n1",
                 &batch,
-                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Nanosecond)),
+                Some(AsType::Ipc(IpcDataType::Timestamp(
+                    arrow_schema::TimeUnit::Nanosecond,
+                ))),
             )
             .unwrap();
 
@@ -417,7 +423,9 @@ mod tests {
             .build_field(
                 "n1",
                 &batch,
-                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Millisecond)),
+                Some(AsType::Ipc(IpcDataType::Timestamp(
+                    arrow_schema::TimeUnit::Millisecond,
+                ))),
             )
             .unwrap();
 
@@ -446,7 +454,9 @@ mod tests {
             .build_field(
                 "n1",
                 &batch,
-                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Nanosecond)),
+                Some(AsType::Ipc(IpcDataType::Timestamp(
+                    arrow_schema::TimeUnit::Nanosecond,
+                ))),
             )
             .unwrap();
 
@@ -491,7 +501,9 @@ mod tests {
             .build_field(
                 "n1",
                 &batch,
-                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Millisecond)),
+                Some(AsType::Ipc(IpcDataType::Timestamp(
+                    arrow_schema::TimeUnit::Millisecond,
+                ))),
             )
             .unwrap();
 
@@ -516,7 +528,7 @@ mod tests {
         let batch = init_record_batch();
 
         let (field, value) = builder
-            .build_field("n1", &batch, Some(IpcDataType::Int32))
+            .build_field("n1", &batch, Some(AsType::Ipc(IpcDataType::Int32)))
             .unwrap();
 
         assert_eq!(field.name(), "n1");

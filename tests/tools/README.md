@@ -95,13 +95,13 @@ fixed = "abcde"
 [properties.a5]
 type = "float"
 # 固定值 6.4
-fixed = "6.4"
+fixed = 6.4
 
 # 浮点数类型字段，字段名 a6
 [properties.a6]
 type = "float"
 # 浮点数生成范围
-range = { min = "0.2", max = "0.5" }
+range = { min = 0.2, max = 0.5 }
 
 # Option 类型字段，字段名 a7
 # option 类型表示随机生成此字段或不生成此字段
@@ -122,7 +122,7 @@ type = "bool"
 [properties.a9]
 type = "bool"
 # 只生成固定值 false
-fixed = "false"
+fixed = false
 ```
 
 2. Array type

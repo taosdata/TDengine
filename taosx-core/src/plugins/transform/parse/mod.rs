@@ -22,17 +22,17 @@ use arrow::{
     ipc::FixedSizeBinary,
     record_batch::RecordBatch,
 };
+use convert::Convert;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
-use map::Map;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::instrument;
 
 pub mod cast;
+mod convert;
 mod join;
 mod json;
-mod map;
 pub mod plugin;
 mod regex;
 mod split;
@@ -109,8 +109,7 @@ pub enum FieldParser {
     Udt(Udt),
     Join(Join),
     Plugin(plugin::ParserPlugin),
-    Raw { raw: bool },
-    Map(Map),
+    Convert(Convert),
     // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
 }
@@ -134,11 +133,7 @@ impl Parse for FieldParser {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
                 Ok((batch, None))
             }
-            FieldParser::Raw { .. } => {
-                let batch = RecordBatch::try_from_iter([(field.name(), array.clone())])?;
-                Ok((batch, None))
-            }
-            FieldParser::Map(map) => map.parse_array(field, array),
+            FieldParser::Convert(map) => map.parse_array(field, array),
         }
     }
 }

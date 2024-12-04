@@ -29,7 +29,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use either::Either;
 use itertools::Itertools;
-use modeler::s_model::SModeler;
+use modeler::s_model::SModel;
 use serde::{Deserialize, Serialize};
 use taos::{
     taos_query::{
@@ -78,7 +78,7 @@ pub struct Pipeline {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    s_model: Option<SModeler>,
+    s_model: Option<SModel>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     model: Option<Modeler>,
 }
@@ -973,7 +973,7 @@ pub struct Parser {
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
-    s_model: Option<SModeler>,
+    s_model: Option<SModel>,
     model: Modeler,
 }
 
@@ -1025,7 +1025,7 @@ impl Parser {
     pub fn new(
         parse: Option<ParserImpl>,
         mutate: Vec<Mutate>,
-        s_model: Option<SModeler>,
+        s_model: Option<SModel>,
         model: Modeler,
     ) -> Self {
         Self {
@@ -1115,7 +1115,11 @@ impl Parser {
             .flatten_ok()
             .try_collect()?;
 
-        let stables = self.s_model.as_ref().map(|s| s.apply(&json)).transpose()?;
+        let stables = self
+            .s_model
+            .as_ref()
+            .map(|s| s.apply(&json, self.global()))
+            .transpose()?;
 
         let mut data = vec![];
         for table in &self.model {
@@ -1238,7 +1242,8 @@ impl Parser {
                 let using = table
                     .using
                     .as_ref()
-                    .and_then(|_| template.render("using", &json[name_row]).ok());
+                    .and_then(|_| template.render("using", &json[name_row]).ok())
+                    .map(|using| self.global().canonical_table_name(&using).to_string());
 
                 let tags = tags.as_ref().map(|batch| batch.slice(name_row, 1));
 
@@ -1388,10 +1393,10 @@ pub struct MessageChildTable {
     pub stable: Option<(String, Vec<Value>)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum STable {
     Name(String),
-    Model(SModeler),
+    Model(SModel),
 }
 
 impl STable {
@@ -1403,7 +1408,7 @@ impl STable {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MessageTableMeta {
     pub name: Arc<String>,
     pub using: Option<STable>,
@@ -1433,7 +1438,7 @@ impl MessageTableMeta {
             .map(|array| array.value(0))
     }
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MessageArrowRecords {
     pub table: MessageTableMeta,
     pub records: RecordBatch,
@@ -1535,7 +1540,7 @@ impl MessageArrowRecords {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum WrittenProtocol {
     #[default]
@@ -1545,7 +1550,7 @@ pub enum WrittenProtocol {
     Sml,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum WrittenMethod {
     #[default]
@@ -1555,7 +1560,7 @@ pub enum WrittenMethod {
     Sequential,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum NullValues {
     #[default]
@@ -1596,7 +1601,7 @@ impl FromStr for NullValues {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TableOptions {
     // TODO: support case insensitive identifier, including table name and column name.
     /// Whether identifier is case insensitive. Not work for now.
@@ -2253,7 +2258,14 @@ fn test_indices_to_ranges() {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::plugins::transform::modeler::Modeler;
+
+    use std::sync::Arc;
+
+    use anyhow::Context;
+    use arrow::array::{ArrayRef, RecordBatch, StringArray, TimestampNanosecondArray};
+    use serde_json as json;
+
+    use crate::plugins::transform::{modeler::Modeler, Message, STable};
 
     use super::Parser;
 
@@ -2281,5 +2293,139 @@ mod parser_tests {
         let parser: Parser = serde_json::from_str(parser).unwrap();
         let json = serde_json::to_string_pretty(&parser).unwrap();
         println!("{}", json);
+    }
+
+    #[test]
+    fn parse_message_from_records_test() -> anyhow::Result<()> {
+        let parser = json::json!({
+            "parse": {
+                "payload": {
+                    "json": ""
+                }
+            },
+            "s_model": {
+                "name": "site_${point_name}",
+                "tags": [
+                    {
+                        "name": "site_controller_id",
+                        "type": "VARCHAR(128)"
+                    }
+                ],
+                "columns": [
+                    {
+                        "name": "ts",
+                        "type": "TIMESTAMP",
+                        "encode": null,
+                        "compress": null,
+                        "level": null
+                    },
+                    {
+                        "name": "`value`",
+                        "type": "${data_type}",
+                        "encode": null,
+                        "compress": null,
+                        "level": null
+                    }
+                ]
+            },
+            "model": {
+                "name": "site_${point_name}_${site_controller_id}",
+                "using": "site_${point_name}",
+                "tags": [
+                    "site_controller_id"
+                ],
+                "columns": [
+                    "ts",
+                    "value"
+                ]
+            },
+            "mutate": [
+                {
+                    "extract": {
+                        "data_type": {
+                            "convert": {
+                                "boolean": "bool",
+                                "float": "double",
+                                "string": "varchar(128)"
+                            }
+                        }
+                    }
+                },
+                {
+                    "map": {
+                        "ts": {
+                            "cast": "ts",
+                            "as": "TIMESTAMP(ns)"
+                        },
+                        "value": {
+                            "cast": "value",
+                            "as": "VARCHAR"
+                        },
+                        "site_controller_id": {
+                            "cast": "site_controller_id",
+                            "as": "VARCHAR"
+                        }
+                    }
+                }
+            ]
+        });
+        let parser: Parser = json::from_value(parser)?;
+
+        let controllers: ArrayRef = Arc::new(StringArray::from(vec!["controller_1"]));
+        let points: ArrayRef = Arc::new(StringArray::from(vec!["point_1"]));
+        let data_types: ArrayRef = Arc::new(StringArray::from(vec!["string"]));
+        let timestamps: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![100]));
+        let values: ArrayRef = Arc::new(StringArray::from(vec!["abc"]));
+        let batch = RecordBatch::try_from_iter(vec![
+            ("site_controller_id", controllers),
+            ("point_name", points),
+            ("data_type", data_types),
+            ("ts", timestamps),
+            ("value", values),
+        ])?;
+        let message = parser.parse_message_from_records(&batch, false)?;
+        let Message::Records(records) = message else {
+            anyhow::bail!("not records")
+        };
+
+        let table = &records[0].table;
+        assert_eq!(
+            table.name,
+            Arc::new("site_point_1_controller_1".to_string())
+        );
+        assert_eq!(
+            table.using,
+            Some(STable::Model(json::from_value(json::json!({
+                "name": "site_point_1",
+                "columns":[
+                    {
+                        "name": "ts",
+                        "type": "TIMESTAMP",
+                    },{
+                        "name": "`value`",
+                        "type": "varchar(128)",
+                    }
+                ],
+                "tags": [
+                    {
+                        "name": "site_controller_id",
+                        "type": "VARCHAR(128)"
+                    }
+                ]
+            }))?))
+        );
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_1"]));
+                Some(array)
+            }
+        );
+        Ok(())
     }
 }

@@ -28,6 +28,7 @@
 use crate::plugins::transform::filter::expr::ExprRecordFilter;
 use crate::plugins::transform::filter::{Filter, FilterImpl};
 use crate::plugins::transform::map::expr::ExprValueBuilder;
+use crate::plugins::transform::map::AsType;
 use crate::plugins::transform::modeler::{Modeler, Table};
 use crate::plugins::transform::mutate::Mutate;
 use crate::{
@@ -671,7 +672,10 @@ impl SchemaRow {
                 None
             }
         };
-        Some(FieldValue::new(field_value_builder, ipc_data_type))
+        Some(FieldValue::new(
+            field_value_builder,
+            ipc_data_type.map(AsType::Ipc),
+        ))
 
         // if column_expr[1..] == column_name[..] {
         //     None

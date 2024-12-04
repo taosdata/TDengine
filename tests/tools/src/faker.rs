@@ -15,17 +15,16 @@ use rand::{
 };
 use serde_json as json;
 use snafu::{ensure, ResultExt};
-use tokio::io::AsyncReadExt;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
-    #[snafu(display("Open schema file error: {source}"))]
+    #[snafu(display("Open schema file error"))]
     OpenFile { source: std::io::Error },
-    #[snafu(display("Read schema file error: {source}"))]
+    #[snafu(display("Read schema file error"))]
     ReadFile { source: std::io::Error },
-    #[snafu(display("Desiralize toml error: {source}"))]
+    #[snafu(display("Desiralize toml error"))]
     DeserializeToml { source: toml::de::Error },
-    #[snafu(display("Parse timestamp error: {source}"))]
+    #[snafu(display("Parse timestamp error"))]
     ParseDateTime { source: chrono::ParseError },
     #[snafu(display("Expected timestamp type"))]
     ExpectedTimestamp,
@@ -219,10 +218,8 @@ pub struct DataFaker {
 }
 
 impl DataFaker {
-    pub async fn from_toml(path: impl AsRef<Path>) -> Result<Self> {
-        let mut file = tokio::fs::File::open(path).await.context(OpenFileSnafu)?;
-        let mut buf = String::new();
-        file.read_to_string(&mut buf).await.context(ReadFileSnafu)?;
+    pub fn from_toml(path: impl AsRef<Path>) -> Result<Self> {
+        let buf = std::fs::read_to_string(path).context(ReadFileSnafu)?;
 
         Ok(Self {
             ts: OnceLock::new(),

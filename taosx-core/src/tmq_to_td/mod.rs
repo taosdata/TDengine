@@ -1986,7 +1986,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_show_subscriptions() -> anyhow::Result<()> {
+    async fn test_show_subscriptions_with_taos() -> anyhow::Result<()> {
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         let res = taos.query("show subscriptions").await;
         match res {

@@ -120,7 +120,8 @@ impl Parse for Json {
                 continue;
             }
             let s = string.value(i);
-            let value = serde_json::from_str::<serde_json::Value>(s);
+            let s = s.replace('\n', r"\n");
+            let value = serde_json::from_str::<serde_json::Value>(&s);
             let value = match value {
                 Ok(v) => v,
                 Err(e) => {
@@ -182,7 +183,8 @@ impl Parse for Json {
                 }
 
                 let str = string.value(i);
-                let value = serde_json::from_str::<serde_json::Value>(str);
+                let str = str.replace('\n', r"\n");
+                let value = serde_json::from_str::<serde_json::Value>(&str);
 
                 match value {
                     Ok(JsonValue::Array(array)) => array
@@ -1282,5 +1284,16 @@ mod tests {
         let (records, indices) = v.unwrap();
         assert_eq!(records.num_rows(), 3);
         assert_eq!(indices, Some(vec![0, 0, 1]));
+    }
+
+    #[test]
+    fn json_parse_newline_test() -> anyhow::Result<()> {
+        let extract = Json::from_str("")?;
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![r#"{"a": "b\nc"}"#]));
+        let (batch, _) = extract.parse_array(&field, &array)?;
+        dbg!(batch);
+        Ok(())
     }
 }
