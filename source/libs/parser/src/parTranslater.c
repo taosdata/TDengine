@@ -8172,15 +8172,19 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, SDatabaseO
 }
 
 static int32_t checkDbCompactTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if (pOptions->compactTimeOffset < TSDB_MIN_COMPACT_TIME_OFFSET ||
-      pOptions->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_offset: %d"
-                                   ", valid range: [%d, %d]",
-                                   pOptions->compactTimeOffset, TSDB_MIN_COMPACT_TIME_OFFSET,
-                                   TSDB_MAX_COMPACT_TIME_OFFSET);
+  if (pOptions->pCompactTimeOffsetNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactTimeOffsetNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_HOUR != pOptions->pCompactTimeOffsetNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_offset unit: %c, only %c allowed",
+                                     pOptions->pCompactTimeOffsetNode->unit, TIME_UNIT_HOUR);
+    }
+    pOptions->compactTimeOffset = getBigintFromValueNode(pOptions->pCompactTimeOffsetNode) / 60;
   }
-  return TSDB_CODE_SUCCESS;
+  return checkDbRangeOption(pCxt, "compact_time_offset", pOptions->compactTimeOffset, TSDB_MIN_COMPACT_TIME_OFFSET,
+                            TSDB_MAX_COMPACT_TIME_OFFSET);
 }
 
 static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {

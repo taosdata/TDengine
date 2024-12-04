@@ -1416,6 +1416,14 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->compactInterval = pDb->cfg.compactInterval;
   cfgRsp->compactStartTime = pDb->cfg.compactStartTime;
   cfgRsp->compactEndTime = pDb->cfg.compactEndTime;
+  if (cfgRsp->compactInterval > 0) {
+    if (cfgRsp->compactStartTime == 0) {
+      cfgRsp->compactStartTime = -cfgRsp->daysToKeep2;
+    }
+    if (cfgRsp->compactEndTime == 0) {
+      cfgRsp->compactEndTime = -cfgRsp->daysPerFile;
+    }
+  }
   cfgRsp->compactTimeOffset = pDb->cfg.compactTimeOffset;
 }
 

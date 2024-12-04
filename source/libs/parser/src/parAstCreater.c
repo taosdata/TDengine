@@ -2034,7 +2034,11 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       pDbOptions->pCompactTimeRangeList = pVal;
       break;
     case DB_OPTION_COMPACT_TIME_OFFSET:
-      pDbOptions->compactTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      if (TK_NK_INTEGER == ((SToken*)pVal)->type) {
+        pDbOptions->compactTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      } else {
+        pDbOptions->pCompactTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      }
       break;
     default:
       break;
