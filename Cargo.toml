@@ -51,7 +51,7 @@ fundu = "2.0.1"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "532bae1"
+rev = "fa2521c"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
