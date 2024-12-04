@@ -120,6 +120,7 @@ int32_t taosStr2int64(const char *str, int64_t *val) {
   if (str == NULL || val == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  errno = 0;
   char   *endptr = NULL;
   int64_t ret = strtoll(str, &endptr, 10);
   if (errno == ERANGE && (ret == LLONG_MAX || ret == LLONG_MIN)) {
@@ -127,6 +128,9 @@ int32_t taosStr2int64(const char *str, int64_t *val) {
   } else if (errno == EINVAL && ret == 0) {
     return TSDB_CODE_INVALID_PARA;
   } else {
+    if (endptr == str) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     *val = ret;
     return 0;
   }
@@ -187,6 +191,9 @@ int32_t taosStr2Uint64(const char *str, uint64_t *val) {
   } else if (errno == EINVAL && ret == 0) {
     return TSDB_CODE_INVALID_PARA;
   } else {
+    if (str == endptr) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     *val = ret;
     return 0;
   }
