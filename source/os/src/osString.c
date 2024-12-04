@@ -132,6 +132,20 @@ int32_t taosStr2int64(const char *str, int64_t *val) {
   }
 }
 
+int32_t taosStr2int32(const char *str, int32_t *val) {
+  OS_PARAM_CHECK(str);
+  OS_PARAM_CHECK(val);
+  int64_t tmp = 0;
+  int32_t code = taosStr2int64(str, &tmp);
+  if (code) {
+    return code;
+  } else if (tmp > INT32_MAX || tmp < INT32_MIN) {
+    return TAOS_SYSTEM_ERROR(ERANGE);
+  } else {
+    *val = (int32_t)tmp;
+    return 0;
+  }
+}
 int32_t taosStr2int16(const char *str, int16_t *val) {
   OS_PARAM_CHECK(str);
   OS_PARAM_CHECK(val);
@@ -147,21 +161,6 @@ int32_t taosStr2int16(const char *str, int16_t *val) {
   }
 }
 
-int32_t taosStr2int32(const char *str, int32_t *val) {
-  OS_PARAM_CHECK(str);
-  OS_PARAM_CHECK(val);
-  int64_t tmp = 0;
-  int32_t code = taosStr2int64(str, &tmp);
-  if (code) {
-    return code;
-  } else if (tmp > INT32_MAX || tmp < INT32_MIN) {
-    return TAOS_SYSTEM_ERROR(ERANGE);
-  } else {
-    *val = (int32_t)tmp;
-    return 0;
-  }
-}
-
 int32_t taosStr2int8(const char *str, int8_t *val) {
   OS_PARAM_CHECK(str);
   OS_PARAM_CHECK(val);
@@ -170,6 +169,67 @@ int32_t taosStr2int8(const char *str, int8_t *val) {
   if (code) {
     return code;
   } else if (tmp > INT8_MAX || tmp < INT8_MIN) {
+    return TAOS_SYSTEM_ERROR(ERANGE);
+  } else {
+    *val = (int8_t)tmp;
+    return 0;
+  }
+}
+
+int32_t taosStr2Uint64(const char *str, uint64_t *val) {
+  if (str == NULL || val == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  char    *endptr = NULL;
+  uint64_t ret = strtoull(str, &endptr, 10);
+  if (errno == ERANGE && (ret == ULLONG_MAX)) {
+    return TAOS_SYSTEM_ERROR(errno);
+  } else if (errno == EINVAL && ret == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  } else {
+    *val = ret;
+    return 0;
+  }
+}
+
+int32_t taosStr2Uint32(const char *str, uint32_t *val) {
+  OS_PARAM_CHECK(str);
+  OS_PARAM_CHECK(val);
+  uint64_t tmp = 0;
+  int32_t  code = taosStr2Uint64(str, &tmp);
+  if (code) {
+    return code;
+  } else if (tmp > UINT32_MAX) {
+    return TAOS_SYSTEM_ERROR(ERANGE);
+  } else {
+    *val = (int32_t)tmp;
+    return 0;
+  }
+}
+
+int32_t taosStr2Uint16(const char *str, uint16_t *val) {
+  OS_PARAM_CHECK(str);
+  OS_PARAM_CHECK(val);
+  uint64_t tmp = 0;
+  int32_t  code = taosStr2Uint64(str, &tmp);
+  if (code) {
+    return code;
+  } else if (tmp > UINT16_MAX) {
+    return TAOS_SYSTEM_ERROR(ERANGE);
+  } else {
+    *val = (int16_t)tmp;
+    return 0;
+  }
+}
+
+int32_t taosStr2Uint8(const char *str, uint8_t *val) {
+  OS_PARAM_CHECK(str);
+  OS_PARAM_CHECK(val);
+  uint64_t tmp = 0;
+  int32_t  code = taosStr2Uint64(str, &tmp);
+  if (code) {
+    return code;
+  } else if (tmp > UINT8_MAX) {
     return TAOS_SYSTEM_ERROR(ERANGE);
   } else {
     *val = (int8_t)tmp;
@@ -223,7 +283,7 @@ int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4)
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  
+
   (void)memcpy(target_ucs4, source_ucs4, len_ucs4 * sizeof(TdUcs4));
 
   return TSDB_CODE_SUCCESS;
@@ -289,7 +349,7 @@ void taosConvDestroy() {
 }
 
 iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
-  if(idx == NULL) {
+  if (idx == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return (iconv_t)-1;
   }
@@ -356,7 +416,7 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   if (ucs4_max_len == 0) {
     return true;
   }
-  if(ucs4_max_len < 0 || mbs == NULL || ucs4 == NULL) {
+  if (ucs4_max_len < 0 || mbs == NULL || ucs4 == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return false;
   }
@@ -372,9 +432,9 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   if ((iconv_t)-1 == conv) {
     return false;
   }
-  
-  size_t  ucs4_input_len = mbsLength;
-  size_t  outLeft = ucs4_max_len;
+
+  size_t ucs4_input_len = mbsLength;
+  size_t outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosReleaseConv(idx, conv, M2C);
@@ -401,7 +461,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
   if (ucs4_max_len == 0) {
     return 0;
   }
-  if(ucs4_max_len < 0 || ucs4 == NULL || mbs == NULL) {
+  if (ucs4_max_len < 0 || ucs4 == NULL || mbs == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -417,18 +477,18 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
   if ((iconv_t)-1 == conv) {
     return terrno;
   }
-  
-  size_t  ucs4_input_len = ucs4_max_len;
-  size_t  outLen = ucs4_max_len;
+
+  size_t ucs4_input_len = ucs4_max_len;
+  size_t outLen = ucs4_max_len;
   if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
     code = TAOS_SYSTEM_ERROR(errno);
     taosReleaseConv(idx, conv, C2M);
-    terrno = code;    
+    terrno = code;
     return code;
   }
-  
+
   taosReleaseConv(idx, conv, C2M);
-  
+
   return (int32_t)(ucs4_max_len - outLen);
 #endif
 }
@@ -439,7 +499,7 @@ int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t c
   if (ucs4_max_len == 0) {
     return 0;
   }
-  if(ucs4_max_len < 0 || ucs4 == NULL || mbs == NULL) {
+  if (ucs4_max_len < 0 || ucs4 == NULL || mbs == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -455,13 +515,13 @@ int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t c
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-  
+
   return (int32_t)(ucs4_max_len - outLen);
 #endif
 }
 
 bool taosValidateEncodec(const char *encodec) {
-  if(encodec == NULL) {
+  if (encodec == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return false;
   }
@@ -513,7 +573,7 @@ int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len, int32_t 
 }
 
 int32_t taosHexDecode(const char *src, char *dst, int32_t len) {
-  if(!src || !dst || len <= 0) {
+  if (!src || !dst || len <= 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -556,9 +616,10 @@ int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size) {
   return mbstowcs(pWchars, pStrs, size);
 }
 
-int32_t taosWcharToMb(char *pStr, TdWchar wchar) { 
+int32_t taosWcharToMb(char *pStr, TdWchar wchar) {
   OS_PARAM_CHECK(pStr);
-  return wctomb(pStr, wchar); }
+  return wctomb(pStr, wchar);
+}
 
 char *taosStrCaseStr(const char *str, const char *pattern) {
   if (str == NULL) {
@@ -580,7 +641,7 @@ char *taosStrCaseStr(const char *str, const char *pattern) {
 }
 
 int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -592,7 +653,7 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
 }
 
 uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -604,7 +665,7 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
 }
 
 int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -616,7 +677,7 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
 }
 
 uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -628,7 +689,7 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
 }
 
 int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -640,7 +701,7 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
 }
 
 uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -652,7 +713,7 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
 }
 
 int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -661,7 +722,7 @@ int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
 }
 
 uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -673,7 +734,7 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
 }
 
 double taosStr2Double(const char *str, char **pEnd) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -682,7 +743,7 @@ double taosStr2Double(const char *str, char **pEnd) {
 }
 
 float taosStr2Float(const char *str, char **pEnd) {
-  if(str == NULL) {
+  if (str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -698,7 +759,7 @@ bool isHex(const char *z, uint32_t n) {
 }
 
 bool isValidateHex(const char *z, uint32_t n) {
-  if(!z) {
+  if (!z) {
     terrno = TSDB_CODE_INVALID_PARA;
     return false;
   }
@@ -724,12 +785,12 @@ int32_t taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size) {
     }
     return 0;
   }
-  
+
   uint8_t *tmp = (uint8_t *)taosMemoryCalloc(*size, 1);
   if (tmp == NULL) {
     return terrno;
   }
-  
+
   int8_t   num = 0;
   uint8_t *byte = tmp + *size - 1;
 
@@ -749,7 +810,7 @@ int32_t taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size) {
     }
   }
   *data = tmp;
-  
+
   return 0;
 }
 
@@ -825,7 +886,7 @@ int32_t taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size) {
   if (tmp == NULL) {
     return terrno;
   }
-  
+
   *data = tmp;
   *(tmp++) = '\\';
   *(tmp++) = 'x';
@@ -834,7 +895,7 @@ int32_t taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size) {
     tmp[i * 2] = valueOf(val >> 4);
     tmp[i * 2 + 1] = valueOf(val & 0x0F);
   }
-  
+
   return 0;
 }
 

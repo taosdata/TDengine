@@ -151,17 +151,19 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
 }
 
 static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  bool tmp = false;
+  int32_t code = 0;
+  bool    tmp = false;
   if (strcasecmp(value, "true") == 0) {
     tmp = true;
   }
-  if (atoi(value) > 0) {
+  int32_t val = 0;
+  if ((code = taosStr2int32(value, &val)) == 0 && val > 0) {
     tmp = true;
   }
 
   pItem->bval = tmp;
   pItem->stype = stype;
-  return 0;
+  return code;
 }
 
 static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
@@ -258,6 +260,7 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
 
 static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value, const char *level, const char *primary,
                              const char *disable, ECfgSrcType stype) {
+  int32_t code = 0;
   (void)taosThreadMutexLock(&pCfg->lock);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
@@ -278,9 +281,21 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
 
   SDiskCfg cfg = {0};
   tstrncpy(cfg.dir, pItem->str, sizeof(cfg.dir));
-  cfg.level = level ? atoi(level) : 0;
-  cfg.primary = primary ? atoi(primary) : 1;
-  cfg.disable = disable ? atoi(disable) : 0;
+
+  code = taosStr2int32(level, &cfg.level);
+  if (code != 0) {
+    cfg.level = 0;
+  }
+  code = taosStr2int32(primary, &cfg.primary);
+  if (code != 0) {
+    cfg.primary = 1;
+  }
+
+  code = taosStr2int8(primary, &cfg.disable);
+  if (code != 0) {
+    cfg.disable = 0;
+  }
+
   void *ret = taosArrayPush(pItem->array, &cfg);
   if (ret == NULL) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
@@ -412,6 +427,7 @@ void cfgLock(SConfig *pCfg) {
 void cfgUnLock(SConfig *pCfg) { (void)taosThreadMutexUnlock(&pCfg->lock); }
 
 int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer) {
+  int32_t     code = 0;
   ECfgDynType dynType = isServer ? CFG_DYN_SERVER : CFG_DYN_CLIENT;
 
   cfgLock(pCfg);
@@ -443,8 +459,9 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       }
     } break;
     case CFG_DTYPE_BOOL: {
-      int32_t ival = (int32_t)atoi(pVal);
-      if (ival != 0 && ival != 1) {
+      int32_t ival = 0;
+      code = taosStr2int32(pVal, &ival);
+      if (code != 0 || (ival != 0 && ival != 1)) {
         uError("cfg:%s, type:%s value:%d out of range[0, 1]", pItem->name, cfgDtypeStr(pItem->dtype), ival);
         cfgUnLock(pCfg);
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
@@ -887,9 +904,10 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
             for (size_t j = 0; j < sz; ++j) {
               SDiskCfg *pCfg = taosArrayGet(pItem->array, j);
               if (dump) {
-                (void)printf("%s %s %s l:%d p:%d d:%"PRIi8"\n", src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
+                (void)printf("%s %s %s l:%d p:%d d:%" PRIi8 "\n", src, name, pCfg->dir, pCfg->level, pCfg->primary,
+                             pCfg->disable);
               } else {
-                uInfo("%s %s %s l:%d p:%d d:%"PRIi8, src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
+                uInfo("%s %s %s l:%d p:%d d:%" PRIi8, src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
               }
             }
             break;
