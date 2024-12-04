@@ -4,465 +4,558 @@ sidebar_label: taosd
 slug: /tdengine-reference/components/taosd
 ---
 
-taosd is the core service of the TDengine database engine, with its configuration file defaulting to `/etc/taos/taos.cfg`, though it can also be specified at a different path. This section provides a detailed introduction to the command line parameters and configuration parameters within the taosd configuration file.
+taosd is the core service of the TDengine database engine, and its configuration file is by default located at `/etc/taos/taos.cfg`, but you can also specify a configuration file in a different path. This section provides a detailed introduction to the command-line parameters of taosd and the configuration parameters in the configuration file.
 
 ## Command Line Parameters
 
 The command line parameters for taosd are as follows:
 
-- -a `<json file>`: Specifies a JSON file that contains various configuration parameters for the service at startup, formatted like `{"fqdn":"td1"}`. For details on configuration parameters, please refer to the next section.
+- -a `<json file>`: Specifies a JSON file containing various configuration parameters for service startup, formatted like `{"fqdn":"td1"}`. For details on configuration parameters, please refer to the next section.
 - -c `<directory>`: Specifies the directory where the configuration file is located.
 - -s: Prints SDB information.
 - -C: Prints configuration information.
-- -e: Specifies an environment variable, formatted like `-e 'TAOS_FQDN=td1'`.
-- -k: Gets the machine code.
+- -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
+- -k: Retrieves the machine code.
 - -dm: Enables memory scheduling.
 - -V: Prints version information.
 
 ## Configuration Parameters
 
 :::note
-
-After modifying configuration file parameters, it is necessary to restart the *taosd* service or the client application for changes to take effect.
+After modifying configuration file parameters, you need to restart the *taosd* service or client application for the changes to take effect.
 
 :::
 
 ### Connection Related
 
-| Parameter Name         | support version | Parameter Description                                        |
-| :--------------------- |:---------------| :----------------------------------------------------------- |
-| firstEp                |                 | The endpoint of the first dnode in the cluster to connect to when taosd starts; default value: localhost:6030 |
-| secondEp               |                 | If firstEp cannot connect, attempt to connect to the second dnode's endpoint in the cluster; default value: none |
-| fqdn                   |                 | The service address that taosd listens on after startup; default value: the first hostname configured on the server |
-| compressMsgSize        |                 | Whether to compress RPC messages; -1: no messages are compressed; 0: all messages are compressed; N (N>0): only messages larger than N bytes are compressed; default value: -1 |
-| shellActivityTimer     |                 | The duration in seconds for the client to send heartbeats to the mnode; range: 1-120; default value: 3 |
-| numOfRpcSessions       |                 | The maximum number of RPC connections supported; range: 100-100000; default value: 30000 |
-| numOfRpcThreads        |                 | The number of threads for RPC data transmission; range: 1-50, default value: half of the CPU cores |
-| numOfTaskQueueThreads  |                 | The number of threads for the client to process RPC messages, range: 4-16, default value: half of the CPU cores  |
-| rpcQueueMemoryAllowed  |                 | The maximum amount of memory allowed for RPC messages received on a dnode; unit: bytes; range: 104857600-INT64_MAX; default value: 1/10 of server memory |
-| resolveFQDNRetryTime   | Removed in 3.x   | The number of retries when FQDN resolution fails |
-| timeToGetAvailableConn | Removed in 3.3.4.x | The maximum waiting time to obtain an available connection; range: 10-50000000; unit: milliseconds; default value: 500000 |
-| maxShellConns          | Removed in 3.x   | The maximum number of connections allowed to be created |
-| maxRetryWaitTime       |                 | The maximum timeout for reconnection; default value: 10s |
-| shareConnLimit         | Added in 3.3.4.0 | The number of requests that a connection can share; range: 1-512; default value: 10 |
-| readTimeout            | Added in 3.3.4.0 | The minimum timeout for a single request; range: 64-604800; unit: seconds; default value: 900 |
+|Parameter Name         |Supported Version        |Description|
+|-----------------------|-------------------------|------------|
+|firstEp                |                         |Endpoint of the first dnode in the cluster that taosd actively connects to at startup, default value localhost:6030|
+|secondEp               |                         |Endpoint of the second dnode in the cluster that taosd tries to connect to if the firstEp is unreachable, no default value|
+|fqdn                   |                         |The service address that taosd listens on, default is the first hostname configured on the server|
+|serverPort             |                         |The port that taosd listens on, default value 6030|
+|compressMsgSize        |                         |Whether to compress RPC messages; -1: do not compress any messages; 0: compress all messages; N (N>0): only compress messages larger than N bytes; default value -1|
+|shellActivityTimer     |                         |Duration in seconds for the client to send heartbeat to mnode, range 1-120, default value 3 |
+|numOfRpcSessions       |                         |Maximum number of connections supported by RPC, range 100-100000, default value 30000|
+|numOfRpcThreads        |                         |Number of threads for receiving and sending RPC data, range 1-50, default value is half of the CPU cores|
+|numOfTaskQueueThreads  |                         |Number of threads for client to process RPC messages, range 4-16, default value is half of the CPU cores|
+|rpcQueueMemoryAllowed  |                         |Maximum memory allowed for received RPC messages in dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory |
+|resolveFQDNRetryTime   | Cancelled after 3.x      |Number of retries when FQDN resolution fails|
+|timeToGetAvailableConn | Cancelled after 3.3.4.x  |Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000|
+|maxShellConns          | Cancelled after 3.x      |Maximum number of connections allowed|
+|maxRetryWaitTime       |                         |Maximum timeout for reconnection, default value is 10s|
+|shareConnLimit         |Added in 3.3.4.0          |Number of requests a connection can share, range 1-512, default value 10|
+|readTimeout            |Added in 3.3.4.0          |Minimum timeout for a single request, range 64-604800, in seconds, default value 900|
 
 ### Monitoring Related
 
-| Parameter Name     | Parameter Description                                        |
-| :----------------- | :----------------------------------------------------------- |
-| monitor            | Whether to collect monitoring data and report it; 0: off; 1: on; default value: 0 |
-| monitorFqdn        | The FQDN of the server where the taosKeeper service is located; default value: none |
-| monitorPort        | The port number the taosKeeper service listens on; default value: 6043 |
-| monitorInternal    | The time interval for recording system parameters (CPU/memory) in the monitoring database; unit: seconds; range: 1-200000; default value: 30 |
-| telemetryReporting | Whether to upload telemetry; 0: do not upload; 1: upload; default value: 1 |
-| crashReporting     | Whether to upload crash information; 0: do not upload; 1: upload; default value: 1 |
+|Parameter Name|Supported Version|Description|
+|-----------------------|----------|-|
+|monitor                |          |Whether to collect and report monitoring data, 0: off; 1: on; default value 0|
+|monitorFqdn            |          |The FQDN of the server where the taosKeeper service is located, default value none|
+|monitorPort            |          |The port number listened to by the taosKeeper service, default value 6043|
+|monitorInterval        |          |The time interval for recording system parameters (CPU/memory) in the monitoring database, in seconds, range 1-200000, default value 30|
+|monitorMaxLogs         |          |Number of cached logs pending report|
+|monitorComp            |          |Whether to use compression when reporting monitoring logs|
+|monitorLogProtocol     |          |Whether to print monitoring logs|
+|monitorForceV2         |          |Whether to use V2 protocol for reporting|
+|telemetryReporting     |          |Whether to upload telemetry, 0: do not upload, 1: upload, default value 1|
+|telemetryServer        |          |Telemetry server address|
+|telemetryPort          |          |Telemetry server port number|
+|telemetryInterval      |          |Telemetry upload interval, in seconds, default 43200|
+|crashReporting         |          |Whether to upload crash information; 0: do not upload, 1: upload; default value 1|
 
 ### Query Related
 
-| Parameter Name         | Parameter Description                                        |
-| :--------------------- | :----------------------------------------------------------- |
-| queryPolicy            | Query policy; 1: only use vnode, do not use qnode; 2: sub-tasks without scanning operators execute on qnode, those with scanning operators execute on vnode; 3: vnode only runs scanning operators, other operators run on qnode; 4: use client aggregation mode; default value: 1 |
-| maxNumOfDistinctRes    | The maximum number of distinct results allowed to be returned; default value: 100,000; maximum allowed value: 100 million |
-| countAlwaysReturnValue | Whether the count/hyperloglog function returns a value when the input data is empty or NULL; 0: returns empty row; 1: returns; when set to 1, if the query contains an INTERVAL clause or uses TSMA, and the corresponding group or window has no data or is NULL, that group or window will not return query results. Note that this parameter should have consistent values on both client and server. |
+|Parameter Name|Supported Version|Description|
+|------------------------|----------|-|
+|countAlwaysReturnValue  |          |Whether count/hyperloglog functions return a value when input data is empty or NULL; 0: return empty row, 1: return; default value 1; When this parameter is set to 1, if the query contains an INTERVAL clause or the query uses TSMA, and the corresponding group or window has empty or NULL data, the corresponding group or window will not return a query result; Note that this parameter should be consistent between client and server|
+|tagFilterCache          |          |Whether to cache tag filter results|
+|maxNumOfDistinctRes     |          |Maximum number of distinct results allowed to return, default value 100,000, maximum allowed value 100 million|
+|queryBufferSize         |          |Not effective yet|
+|queryRspPolicy          |          |Query response strategy|
+|filterScalarMode        |          |Force scalar filter mode, 0: off; 1: on, default value 0|
+|queryPlannerTrace       |          |Internal parameter, whether the query plan outputs detailed logs|
+|queryNodeChunkSize      |          |Internal parameter, chunk size of the query plan|
+|queryUseNodeAllocator   |          |Internal parameter, allocation method of the query plan|
+|queryMaxConcurrentTables|          |Internal parameter, concurrency number of the query plan|
+|queryRsmaTolerance      |          |Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds|
+|enableQueryHb           |          |Internal parameter, whether to send query heartbeat messages|
+|pqSortMemThreshold      |          |Internal parameter, memory threshold for sorting|
 
-### Regional Related
+### Region Related
 
-| Parameter Name |                    Parameter Description                     |
-| :------------- | :----------------------------------------------------------: |
-| timezone       | The timezone; default value: the timezone configured on the current server |
-| locale         | System locale information and encoding format; default value: dynamically retrieved from the system; if auto-retrieval fails, the user needs to set it in the configuration file or through the API |
-| charset        | Character set encoding; default value: automatically retrieved from the system |
+|Parameter Name|Supported Version|Description|
+|-----------------|----------|-|
+|timezone         |          |Time zone; defaults to dynamically obtaining the current time zone setting from the system|
+|locale           |          |System locale information and encoding format, defaults to obtaining from the system|
+|charset          |          |Character set encoding, defaults to obtaining from the system|
 
 :::info
 
-1. To address the issue of writing and querying data across multiple time zones, TDengine uses Unix timestamps (Unix Timestamp) to record and store timestamps. The characteristic of Unix timestamps ensures that at any given moment, regardless of time zone, the generated timestamps are consistent. Note that Unix timestamps are converted and recorded on the client side. To ensure other forms of time conversions on the client are correctly converted to Unix timestamps, the correct timezone needs to be set.
+1. To address the issue of data writing and querying across multiple time zones, TDengine uses Unix Timestamps to record and store timestamps. The nature of Unix Timestamps ensures that the timestamps generated are consistent at any given moment across any time zone. It is important to note that the conversion to Unix Timestamps is done on the client side. To ensure that other forms of time on the client are correctly converted to Unix Timestamps, it is necessary to set the correct time zone.
 
-   In Linux/macOS, the client will automatically read the timezone information set by the system. Users can also set the timezone in the configuration file in various ways. For example:
+On Linux/macOS, the client automatically reads the time zone information set by the system. Users can also set the time zone in the configuration file in various ways. For example:
 
-   ```text
-   timezone UTC-8
-   timezone GMT-8
-   timezone Asia/Shanghai
-   ```
+```text
+timezone UTC-8
+timezone GMT-8
+timezone Asia/Shanghai
+```
 
-   All of these are valid formats for setting the timezone to UTC+8. However, note that this format (timezone Asia/Shanghai) is not supported under Windows; it must be written as timezone UTC-8.
+All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone Asia/Shanghai` is not supported, and must be written as `timezone UTC-8`.
 
-   The timezone setting affects the contents of SQL statements for queries and writes that are not in Unix timestamp format (e.g., timestamp strings, the interpretation of the keyword now). For example:
+The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
 
-   ```sql
-   SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
-   ```
+```sql
+SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+```
 
-   In UTC+8, the SQL statement is equivalent to:
+In GMT+8, the SQL statement is equivalent to:
 
-   ```sql
-   SELECT count(*) FROM table_name WHERE TS<1554955268000;
-   ```
+```sql
+SELECT count(*) FROM table_name WHERE TS<1554955268000;
+```
 
-   In UTC, the SQL statement is equivalent to:
+In the UTC time zone, the SQL statement is equivalent to:
 
-   ```sql
-   SELECT count(*) FROM table_name WHERE TS<1554984068000;
-   ```
+```sql
+SELECT count(*) FROM table_name WHERE TS<1554984068000;
+```
 
-   To avoid uncertainty when using string time formats, Unix timestamps can be used directly. Additionally, timestamp strings with time zones can also be used in SQL statements, such as RFC3339 format timestamp strings (e.g., 2013-04-12T15:52:01.123+08:00) or ISO-8601 format timestamp strings (e.g., 2013-04-12T15:52:01.123+0800). The conversion of these two strings to Unix timestamps is not affected by the system's time zone.
+To avoid the uncertainties brought by using string time formats, you can also directly use Unix Timestamps. Additionally, you can use timestamp strings with time zones in SQL statements, such as RFC3339 formatted timestamp strings, 2013-04-12T15:52:01.123+08:00 or ISO-8601 formatted timestamp strings 2013-04-12T15:52:01.123+0800. The conversion of these two strings to Unix Timestamps is not affected by the system's local time zone.
 
-2. TDengine provides a special field type `nchar` for storing wide characters such as Chinese, Japanese, and Korean that are not ASCII encoded. Data written to `nchar` fields will be encoded in UCS4-LE format and sent to the server. It is important to note that the correctness of the encoding is guaranteed by the client. Therefore, if users want to use `nchar` fields to store non-ASCII characters like Chinese, Japanese, or Korean, the encoding format of the client must be correctly set.
+2. TDengine provides a special field type, nchar, for storing wide characters in non-ASCII encodings such as Chinese, Japanese, and Korean. Data written to the nchar field is uniformly encoded in UCS4-LE format and sent to the server. It is important to note that the correctness of the encoding is ensured by the client. Therefore, if users want to properly use the nchar field to store non-ASCII characters such as Chinese, Japanese, and Korean, they need to correctly set the client's encoding format.
 
-   Characters input by the client use the current default encoding format of the operating system, which is usually UTF-8 on Linux/macOS systems. Some Chinese systems may use GB18030 or GBK, etc. In Docker environments, the default encoding is POSIX. In Chinese versions of Windows, the encoding is CP936. Clients must ensure that the character set they are using is correctly set to guarantee that data in `nchar` is accurately converted to UCS4-LE format.
+The characters input by the client use the current default encoding format of the operating system, which is often UTF-8 on Linux/macOS systems, but may be GB18030 or GBK on some Chinese systems. The default encoding in a Docker environment is POSIX. In Chinese version Windows systems, the encoding is CP936. The client needs to ensure the correct setting of the character set they are using, i.e., the current encoding character set of the operating system on which the client is running, to ensure that the data in nchar is correctly converted to UCS4-LE encoding format.
 
-   In Linux/macOS, the naming convention for locales is: `<language>_<region>.<charset encoding>`, for example: zh_CN.UTF-8, where "zh" stands for Chinese, "CN" represents mainland China, and "UTF-8" denotes the character set. The character set encoding provides guidance for the client to correctly parse local strings. In Linux/macOS, the locale can be set to determine the system's character encoding; because Windows uses a locale format that is not POSIX compliant, it requires another configuration parameter `charset` to specify the character encoding. The `charset` parameter can also be used in Linux/macOS to specify the character encoding.
+In Linux/macOS, the naming rule for locale is: \<language>_\<region>.\<character set encoding> such as: zh_CN.UTF-8, where zh represents Chinese, CN represents mainland China, and UTF-8 represents the character set. The character set encoding provides instructions for the client to correctly parse local strings. Linux/macOS can set the system's character encoding by setting the locale, but since Windows uses a locale format that is not POSIX standard, another configuration parameter charset is used to specify the character encoding in Windows. Charset can also be used in Linux/macOS to specify the character encoding.
 
-3. If the configuration file does not specify `charset`, in Linux/macOS, taos will automatically read the system's current locale information at startup and extract the charset encoding format from it. If the automatic reading of locale information fails, it will attempt to read the charset configuration. If reading the charset configuration also fails, the startup process will be interrupted.
+3. If charset is not set in the configuration file, in Linux/macOS, taos automatically reads the current locale information of the system at startup, and extracts the charset encoding format from the locale information. If it fails to automatically read the locale information, it attempts to read the charset configuration, and if reading the charset configuration also fails, it interrupts the startup process.
 
-   In Linux/macOS, the locale information includes character encoding information, so if the locale of Linux/macOS is set correctly, there is no need to set `charset` separately. For example:
+In Linux/macOS, the locale information includes character encoding information, so after correctly setting the locale in Linux/macOS, there is no need to set charset separately. For example:
 
-   ```text
-   locale zh_CN.UTF-8
-   ```
+```text
+locale zh_CN.UTF-8
+```
 
-   In Windows, the system cannot retrieve the current encoding from the locale. If the encoding information cannot be retrieved from the configuration file, taos defaults to CP936 as the character encoding. This is equivalent to adding the following configuration to the configuration file:
+In Windows systems, it is not possible to obtain the current encoding from the locale. If it is not possible to read the string encoding information from the configuration file, taos defaults to setting the character encoding to CP936. This is equivalent to adding the following configuration in the configuration file:
 
-   ```text
-   charset CP936
-   ```
+```text
+charset CP936
+```
 
-   If you need to adjust the character encoding, please refer to the current operating system's encoding and set it correctly in the configuration file.
+If you need to adjust the character encoding, please consult the encoding used by the current operating system and set it correctly in the configuration file.
 
-   In Linux/macOS, if the user sets both `locale` and `charset` and they are inconsistent, the latter will override the former.
+In Linux/macOS, if the user sets both locale and charset encoding, and if the locale and charset are inconsistent, the latter setting will override the earlier one.
 
-   ```text
-   locale zh_CN.UTF-8
-   charset GBK
-   ```
+```text
+locale zh_CN.UTF-8
+charset GBK
+```
 
-   The effective value of `charset` is GBK.
+Then the effective value of charset is GBK.
 
-   ```text
-   charset GBK
-   locale zh_CN.UTF-8
-   ```
+```text
+charset GBK
+locale zh_CN.UTF-8
+```
 
-   The effective value of `charset` is UTF-8.
+The effective value of charset is UTF-8.
 
 :::
 
 ### Storage Related
 
-| Parameter Name   |                    Parameter Description                     |
-| :--------------- | :----------------------------------------------------------: |
-| dataDir          | Directory for data files; all data files will be written to this directory; default value: /var/lib/taos |
-| tempDir          | Specifies the directory for temporary files generated during system operation; default value: /tmp |
-| minimalTmpDirGB  | Minimum space required to be preserved in the tempDir specified; unit: GB; default value: 1 |
-| minimalDataDirGB | Minimum space required to be preserved in the dataDir specified; unit: GB; default value: 2 |
+|Parameter Name|Supported Version|Description|
+|--------------------|----------|-|
+|dataDir             |          |Directory for data files, all data files are written to this directory, default value /var/lib/taos|
+|tempDir             |          |Specifies the directory for generating temporary files during system operation, default value /tmp|
+|minimalDataDirGB    |          |Minimum space to be reserved in the time-series data storage directory specified by dataDir, in GB, default value 2|
+|minimalTmpDirGB     |          |Minimum space to be reserved in the temporary file directory specified by tempDir, in GB, default value 1|
+|minDiskFreeSize     |After 3.1.1.0|When the available space on a disk is less than or equal to this threshold, the disk will no longer be selected for generating new data files, unit is bytes, range 52428800-1073741824, default value 52428800; Enterprise parameter|
+|s3MigrateIntervalSec|After 3.3.4.3|Trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600; Enterprise parameter|
+|s3MigrateEnabled    |After 3.3.4.3|Whether to automatically perform S3 migration, default value is 0, which means auto S3 migration is off, can be set to 1; Enterprise parameter|
+|s3Accesskey         |After 3.3.4.3|Colon-separated user SecretId:SecretKey, for example AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E; Enterprise parameter|
+|s3Endpoint          |After 3.3.4.3|COS service domain name in the user's region, supports http and https, the region of the bucket must match the endpoint, otherwise it cannot be accessed; Enterprise parameter|
+|s3BucketName        |After 3.3.4.3|Bucket name, followed by a hyphen and the AppId of the user registered COS service, where AppId is unique to COS, not present in AWS and Alibaba Cloud, needs to be part of the bucket name, separated by a hyphen; parameter values are string type, but do not need quotes; for example test0711-1309024725; Enterprise parameter|
+|s3PageCacheSize     |After 3.3.4.3|Number of S3 page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter|
+|s3UploadDelaySec    |After 3.3.4.3|How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter|
+|cacheLazyLoadThreshold|        |Internal parameter, cache loading strategy|
 
 ### Cluster Related
 
-| Parameter Name | Parameter Description                                        |
-| :------------- | :----------------------------------------------------------- |
-| supportVnodes  | Maximum number of vnodes supported by dnode; range: 0-4096; default value: 2 times the number of CPU cores + 5 |
+|Parameter Name|Supported Version|Description|
+|--------------------------|----------|-|
+|supportVnodes             |          |Maximum number of vnodes supported by a dnode, range 0-4096, default value is twice the number of CPU cores + 5|
+|numOfCommitThreads        |          |Maximum number of commit threads, range 0-1024, default value 4|
+|numOfMnodeReadThreads     |          |Number of Read threads for mnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
+|numOfVnodeQueryThreads    |          |Number of Query threads for vnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16)|
+|numOfVnodeFetchThreads    |          |Number of Fetch threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
+|numOfVnodeRsmaThreads     |          |Number of Rsma threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
+|numOfQnodeQueryThreads    |          |Number of Query threads for qnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16)|
+|numOfSnodeSharedThreads   |          |Number of shared threads for snode, range 0-1024, default value is one quarter of the CPU cores (not less than 2, not exceeding 4)|
+|numOfSnodeUniqueThreads   |          |Number of exclusive threads for snode, range 0-1024, default value is one quarter of the CPU cores (not less than 2, not exceeding 4)|
+|ratioOfVnodeStreamThreads |          |Ratio of stream computing using vnode threads, range 0.01-4, default value 4|
+|ttlUnit                   |          |Unit for ttl parameter, range 1-31572500, in seconds, default value 86400|
+|ttlPushInterval           |          |Frequency of ttl timeout checks, range 1-100000, in seconds, default value 10|
+|ttlChangeOnWrite          |          |Whether ttl expiration time changes with table modification; 0: no change, 1: change; default value 0|
+|ttlBatchDropNum           |          |Number of subtables deleted in a batch for ttl, minimum value 0, default value 10000|
+|retentionSpeedLimitMB     |          |Speed limit for data migration across different levels of disks, range 0-1024, in MB, default value 0, which means no limit|
+|maxTsmaNum                |          |Maximum number of TSMAs that can be created in the cluster; range 0-3; default value 3|
+|tmqMaxTopicNum            |          |Maximum number of topics that can be established for subscription; range 1-10000; default value 20|
+|tmqRowSize                |          |Maximum number of records in a subscription data block, range 1-1000000, default value 4096|
+|audit                     |          |Audit feature switch; Enterprise parameter|
+|auditInterval             |          |Time interval for reporting audit data; Enterprise parameter|
+|auditCreateTable          |          |Whether to enable audit feature for creating subtables; Enterprise parameter|
+|encryptAlgorithm          |          |Data encryption algorithm; Enterprise parameter|
+|encryptScope              |          |Encryption scope; Enterprise parameter|
+|enableWhiteList           |          |Switch for whitelist feature; Enterprise parameter|
+|syncLogBufferMemoryAllowed|          |Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13|
+|syncElectInterval         |          |Internal parameter, for debugging synchronization module|
+|syncHeartbeatInterval     |          |Internal parameter, for debugging synchronization module|
+|syncHeartbeatTimeout      |          |Internal parameter, for debugging synchronization module|
+|syncSnapReplMaxWaitN      |          |Internal parameter, for debugging synchronization module|
+|syncSnapReplMaxWaitN      |          |Internal parameter, for debugging synchronization module|
+|arbHeartBeatIntervalSec   |          |Internal parameter, for debugging synchronization module|
+|arbCheckSyncIntervalSec   |          |Internal parameter, for debugging synchronization module|
+|arbSetAssignedTimeoutSec  |          |Internal parameter, for debugging synchronization module|
+|mndSdbWriteDelta          |          |Internal parameter, for debugging mnode module|
+|mndLogRetention           |          |Internal parameter, for debugging mnode module|
+|skipGrant                 |          |Internal parameter, for authorization checks|
+|trimVDbIntervalSec        |          |Internal parameter, for deleting expired data|
+|ttlFlushThreshold         |          |Internal parameter, frequency of ttl timer|
+|compactPullupInterval     |          |Internal parameter, frequency of data reorganization timer|
+|walFsyncDataSizeLimit     |          |Internal parameter, threshold for WAL to perform FSYNC|
+|transPullupInterval       |          |Internal parameter, retry interval for mnode to execute transactions|
+|mqRebalanceInterval       |          |Internal parameter, interval for consumer rebalancing|
+|uptimeInterval            |          |Internal parameter, for recording system uptime|
+|timeseriesThreshold       |          |Internal parameter, for usage statistics|
+|udf                       |          |Whether to start UDF service; 0: do not start, 1: start; default value 0 |
+|udfdResFuncs              |          |Internal parameter, for setting UDF result sets|
+|udfdLdLibPath             |          |Internal parameter, indicates the library path for loading UDF|
 
-### Memory Related
+### Stream Computing Parameters
 
-| Parameter Name             | Parameter Description                                        |
-| :------------------------- | :----------------------------------------------------------- |
-| rpcQueueMemoryAllowed      | Maximum amount of memory allowed for rpc messages on a dnode; unit: bytes; range: 10485760-INT64_MAX; default value: 1/10 of server memory |
-| syncLogBufferMemoryAllowed | Maximum amount of memory allowed for sync log buffer messages on a dnode; unit: bytes; range: 10485760-INT64_MAX; default value: 1/10 of server memory; effective from versions 3.1.3.2/3.3.2.13 |
-
-### Performance Tuning
-
-| Parameter Name     | Parameter Description                                        |
-| :----------------- | :----------------------------------------------------------- |
-| numOfCommitThreads | Maximum number of write threads; range: 0-1024; default value: 4 |
+| Parameter Name         | Supported Version | Description |
+|-----------------------|----------|-|
+| disableStream          |          | Switch to enable or disable stream computing |
+| streamBufferSize       |          | Controls the size of the window state cache in memory, default value is 128MB |
+| streamAggCnt           |          | Internal parameter, number of concurrent aggregation computations |
+| checkpointInterval     |          | Internal parameter, checkpoint synchronization interval |
+| concurrentCheckpoint   |          | Internal parameter, whether to check checkpoints concurrently |
+| maxStreamBackendCache  |          | Internal parameter, maximum cache used by stream computing |
+| streamSinkDataRate     |          | Internal parameter, used to control the write speed of stream computing results |
 
 ### Log Related
 
-| Parameter Name   | Parameter Description                                        |
-| :--------------- | :----------------------------------------------------------- |
-| logDir           | Directory for log files; runtime logs will be written to this directory; default value: /var/log/taos |
-| minimalLogDirGB  | When the available disk space of the log folder is less than this value, logging will stop; unit: GB; default value: 1 |
-| numOfLogLines    | Maximum number of lines allowed in a single log file; default value: 10,000,000 |
-| asyncLog         | Log writing mode; 0: synchronous, 1: asynchronous; default value: 1 |
-| logKeepDays      | Maximum retention time for log files; unit: days; default value: 0, meaning unlimited retention; log files will not be renamed, and no new log file rolling will occur, but the contents of the log file may continue to roll depending on the size settings; when set to a value greater than 0, if the log file size reaches the set limit, it will be renamed to taosdlog.xxx, where xxx is the timestamp of the last modification of the log file, and a new log file will be rolled |
-| slowLogThreshold | Slow query threshold; if it exceeds or equals the threshold, it is considered a slow query; unit: seconds; default value: 3 |
-| slowLogScope     | Determines which types of slow queries to log; optional values: ALL, QUERY, INSERT, OTHERS, NONE; default value: ALL |
-| debugFlag        | Run log switch; 131 (outputs error and warning logs), 135 (outputs error, warning, and debug logs), 143 (outputs error, warning, debug, and trace logs); default value: 131 or 135 (depending on different modules) |
-| tmrDebugFlag     | Timer module log switch; same value range as above           |
-| uDebugFlag       | Shared function module log switch; same value range as above |
-| rpcDebugFlag     | RPC module log switch; same value range as above             |
-| jniDebugFlag     | JNI module log switch; same value range as above             |
-| qDebugFlag       | Query module log switch; same value range as above           |
-| dDebugFlag       | Dnode module log switch; same value range as above; default value 135 |
-| vDebugFlag       | Vnode module log switch; same value range as above           |
-| mDebugFlag       | Mnode module log switch; same value range as above           |
-| wDebugFlag       | WAL module log switch; same value range as above             |
-| sDebugFlag       | Sync module log switch; same value range as above            |
-| tsdbDebugFlag    | TSDB module log switch; same value range as above            |
-| tqDebugFlag      | TQ module log switch; same value range as above              |
-| fsDebugFlag      | FS module log switch; same value range as above              |
-| udfDebugFlag     | UDF module log switch; same value range as above             |
-| smaDebugFlag     | SMA module log switch; same value range as above             |
-| idxDebugFlag     | Index module log switch; same value range as above           |
-| tdbDebugFlag     | TDB module log switch; same value range as above             |
+| Parameter Name     | Supported Version | Description |
+|----------------|----------|-|
+| logDir          |          | Log file directory, operational logs will be written to this directory, default value /var/log/taos |
+| minimalLogDirGB |          | Stops writing logs when the available space on the disk where the log folder is located is less than this value, unit GB, default value 1 |
+| numOfLogLines   |          | Maximum number of lines allowed in a single log file, default value 10,000,000 |
+| asyncLog        |          | Log writing mode, 0: synchronous, 1: asynchronous, default value 1 |
+| logKeepDays     |          | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out |
+| slowLogThreshold| 3.3.3.0 onwards | Slow query threshold, queries taking longer than or equal to this threshold are considered slow, unit seconds, default value 3 |
+| slowLogMaxLen   | 3.3.3.0 onwards | Maximum length of slow query logs, range 1-16384, default value 4096 |
+| slowLogScope    | 3.3.3.0 onwards | Type of slow query records, range ALL/QUERY/INSERT/OTHERS/NONE, default value QUERY |
+| slowLogExceptDb | 3.3.3.0 onwards | Specifies the database that does not report slow queries, only supports configuring one database |
+| debugFlag       |          | Log switch for running logs, 131 (outputs error and warning logs), 135 (outputs error, warning, and debug logs), 143 (outputs error, warning, debug, and trace logs); default value 131 or 135 (depending on the module) |
+| tmrDebugFlag    |          | Log switch for the timer module, range as above |
+| uDebugFlag      |          | Log switch for the utility module, range as above |
+| rpcDebugFlag    |          | Log switch for the rpc module, range as above |
+| qDebugFlag      |          | Log switch for the query module, range as above |
+| dDebugFlag      |          | Log switch for the dnode module, range as above |
+| vDebugFlag      |          | Log switch for the vnode module, range as above |
+| mDebugFlag      |          | Log switch for the mnode module, range as above |
+| azDebugFlag     | 3.3.4.3 onwards | Log switch for the S3 module, range as above |
+| sDebugFlag      |          | Log switch for the sync module, range as above |
+| tsdbDebugFlag   |          | Log switch for the tsdb module, range as above |
+| tqDebugFlag     |          | Log switch for the tq module, range as above |
+| fsDebugFlag     |          | Log switch for the fs module, range as above |
+| udfDebugFlag    |          | Log switch for the udf module, range as above |
+| smaDebugFlag    |          | Log switch for the sma module, range as above |
+| idxDebugFlag    |          | Log switch for the index module, range as above |
+| tdbDebugFlag    |          | Log switch for the tdb module, range as above |
+| metaDebugFlag   |          | Log switch for the meta module, range as above |
+| stDebugFlag     |          | Log switch for the stream module, range as above |
+| sndDebugFlag    |          | Log switch for the snode module, range as above |
+
+### Debugging Related
+
+| Parameter Name       | Supported Version | Description |
+|----------------------|-------------------|-------------|
+| enableCoreFile       |                   | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
+| configDir            |                   | Directory where the configuration files are located |
+| scriptDir            |                   | Directory for internal test tool scripts |
+| assert               |                   | Assertion control switch, default value is 0 |
+| randErrorChance      |                   | Internal parameter, used for random failure testing |
+| randErrorDivisor     |                   | Internal parameter, used for random failure testing |
+| randErrorScope       |                   | Internal parameter, used for random failure testing |
+| safetyCheckLevel     |                   | Internal parameter, used for random failure testing |
+| experimental         |                   | Internal parameter, used for some experimental features |
+| simdEnable           | After 3.3.4.3     | Internal parameter, used for testing SIMD acceleration |
+| AVX512Enable         | After 3.3.4.3     | Internal parameter, used for testing AVX512 acceleration |
+| rsyncPort            |                   | Internal parameter, used for debugging stream computing |
+| snodeAddress         |                   | Internal parameter, used for debugging stream computing |
+| checkpointBackupDir  |                   | Internal parameter, used for restoring snode data |
+| enableAuditDelete    |                   | Internal parameter, used for testing audit functions |
+| slowLogThresholdTest |                   | Internal parameter, used for testing slow logs |
 
 ### Compression Parameters
 
-| Parameter Name  | Parameter Description                                        |
-| :-------------: | :----------------------------------------------------------- |
-| compressMsgSize | Whether to compress RPC messages; -1: no messages are compressed; 0: all messages are compressed; N (N>0): only messages larger than N bytes are compressed; default value: -1 |
-|   fPrecision    | Sets the compression precision for float type floating-point numbers; range: 0.1 ~ 0.00000001; default value: 0.00000001; float numbers smaller than this value will have their tail truncated |
-|   dPrecision    | Sets the compression precision for double type floating-point numbers; range: 0.1 ~ 0.0000000000000001; default value: 0.0000000000000001; double numbers smaller than this value will have their tail truncated |
-|   lossyColumn   | Enables TSZ lossy compression for float and/or double types; range: float, double, none; default value: none; indicates that lossy compression is turned off. **Note: This parameter is no longer used in versions 3.3.0.0 and higher.** |
-|    ifAdtFse     | When TSZ lossy compression is enabled, use the FSE algorithm instead of the HUFFMAN algorithm. The FSE algorithm compresses faster but decompresses slightly slower. It can be selected if compression speed is a priority; 0: off, 1: on; default value: 0 |
+| Parameter Name | Supported Version | Description |
+|----------------|-------------------|-------------|
+| fPrecision     |                   | Sets the compression precision for float type floating numbers, range 0.1 ~ 0.00000001, default value 0.00000001, floating numbers smaller than this value will have their mantissa truncated |
+| dPrecision     |                   | Sets the compression precision for double type floating numbers, range 0.1 ~ 0.0000000000000001, default value 0.0000000000000001, floating numbers smaller than this value will have their mantissa truncated |
+| lossyColumn    | Before 3.3.0.0    | Enables TSZ lossy compression for float and/or double types; range float/double/none; default value none, indicating lossless compression is off |
+| ifAdtFse       |                   | When TSZ lossy compression is enabled, use the FSE algorithm instead of the HUFFMAN algorithm, FSE algorithm is faster in compression but slightly slower in decompression, choose this for faster compression speed; 0: off, 1: on; default value is 0 |
+| maxRange       |                   | Internal parameter, used for setting lossy compression |
+| curRange       |                   | Internal parameter, used for setting lossy compression |
+| compressor     |                   | Internal parameter, used for setting lossy compression |
 
-**Supplementary Notes**
+**Additional Notes**
 
-1. Effective from versions 3.2.0.0 to 3.3.0.0 (exclusive), enabling this parameter cannot revert back to the version prior to the upgrade.
-2. The TSZ compression algorithm uses data prediction techniques for compression, making it more suitable for data that varies in a regular pattern.
-3. TSZ compression may take longer; if your server's CPU is largely idle and storage space is limited, it is suitable to opt for this.
-4. Example: Enable lossy compression for both float and double types.
+1. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
+2. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
+3. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
+4. Example: Enable lossy compression for both float and double types
 
-   ```shell
-   lossyColumns     float|double
-   ```
+```shell
+lossyColumns     float|double
+```
 
-5. Configuration changes require a service restart to take effect. If you see the following content in the taosd log upon restarting, it indicates that the configuration has taken effect:
+5. Configuration requires service restart to take effect, if you see the following content in the taosd log after restarting, it indicates that the configuration has taken effect:
 
-   ```sql
+```sql
    02/22 10:49:27.607990 00002933 UTL  lossyColumns     float|double
-   ```
-
-### Other Parameters
-
-| Parameter Name   | Parameter Description                                        |
-| :--------------- | :----------------------------------------------------------- |
-| enableCoreFile   | Whether to generate a core file upon crash; 0: do not generate; 1: generate; default value: 1; Depending on the startup method, the directory for generated core files is as follows: 1. When started with systemctl start taosd: the core will be generated in the root directory; 2. When started manually, it will be in the directory where taosd is executed. |
-| udf              | Whether to start the UDF service; 0: do not start; 1: start; default value: 0 |
-| ttlChangeOnWrite | Whether the ttl expiration time changes along with table modifications; 0: do not change; 1: change; default value: 0 |
-| tmqMaxTopicNum   | Maximum number of topics that can be established for subscription; range: 1-10000; default value: 20 |
-| maxTsmaNum       | Number of TSMA that can be created in the cluster; range: 0-3; default value: 3 |
+```
 
 ## taosd Monitoring Metrics
 
-taosd reports monitoring metrics to taosKeeper, which writes these metrics to the monitoring database, defaulting to `log`. This section provides a detailed introduction to these monitoring metrics.
+taosd reports monitoring metrics to taosKeeper, which are written into the monitoring database by taosKeeper, default is `log` database, which can be modified in the taoskeeper configuration file. Below is a detailed introduction to these monitoring metrics.
 
 ### taosd_cluster_basic Table
 
-The `taosd_cluster_basic` table records basic cluster information.
+`taosd_cluster_basic` table records basic cluster information.
 
-| field             | type      | is_tag | comment                            |
-| :---------------- | :-------- | :----- | :--------------------------------- |
-| ts                | TIMESTAMP |        | timestamp                          |
-| first_ep          | VARCHAR   |        | Cluster first ep                   |
-| first_ep_dnode_id | INT       |        | Dnode ID of the cluster's first ep |
-| cluster_version   | VARCHAR   |        | TDengine version, e.g., 3.0.4.0    |
-| cluster_id        | VARCHAR   | TAG    | cluster id                         |
+| field                | type      | is\_tag | comment                         |
+| :------------------- | :-------- | :------ | :------------------------------ |
+| ts                   | TIMESTAMP |         | timestamp                       |
+| first\_ep            | VARCHAR   |         | cluster first ep                |
+| first\_ep\_dnode\_id | INT       |         | dnode id of cluster first ep    |
+| cluster_version      | VARCHAR   |         | tdengine version. e.g.: 3.0.4.0 |
+| cluster\_id          | VARCHAR   | tag     | cluster id                      |
 
-### taosd_cluster_info Table
+### taosd\_cluster\_info table
 
-The `taosd_cluster_info` table records cluster information.
+`taosd_cluster_info` table records cluster information.
 
-| field                   | type      | is_tag | comment                                                      |
-| :---------------------- | :-------- | :----- | :----------------------------------------------------------- |
-| \_ts                     | TIMESTAMP |        | timestamp                                                    |
-| cluster_uptime          | DOUBLE    |        | Current uptime of the master node; unit: seconds             |
-| dbs_total               | DOUBLE    |        | Total number of databases                                    |
-| tbs_total               | DOUBLE    |        | Current total number of tables in the cluster                |
-| stbs_total              | DOUBLE    |        | Current total number of stable tables                        |
-| dnodes_total            | DOUBLE    |        | Total number of dnodes in the cluster                        |
-| dnodes_alive            | DOUBLE    |        | Total number of alive dnodes in the cluster                  |
-| mnodes_total            | DOUBLE    |        | Total number of mnodes in the cluster                        |
-| mnodes_alive            | DOUBLE    |        | Total number of alive mnodes in the cluster                  |
-| vgroups_total           | DOUBLE    |        | Total number of vgroups in the cluster                       |
-| vgroups_alive           | DOUBLE    |        | Total number of alive vgroups in the cluster                 |
-| vnodes_total            | DOUBLE    |        | Total number of vnodes in the cluster                        |
-| vnodes_alive            | DOUBLE    |        | Total number of alive vnodes in the cluster                  |
-| connections_total       | DOUBLE    |        | Total number of connections in the cluster                   |
-| topics_total            | DOUBLE    |        | Total number of topics in the cluster                        |
-| streams_total           | DOUBLE    |        | Total number of streams in the cluster                       |
-| grants_expire_time      | DOUBLE    |        | Expiration time for authentication, valid for enterprise version, max value for community version |
-| grants_timeseries_used  | DOUBLE    |        | Used measuring points                                        |
-| grants_timeseries_total | DOUBLE    |        | Total measuring points, max value for open source version    |
-| cluster_id              | VARCHAR   | TAG    | cluster id                                                   |
+| field                    | type      | is\_tag | comment                                          |
+| :----------------------- | :-------- | :------ | :----------------------------------------------- |
+| \_ts                     | TIMESTAMP |         | timestamp                                        |
+| cluster_uptime           | DOUBLE    |         | uptime of the current master node. Unit: seconds |
+| dbs\_total               | DOUBLE    |         | total number of databases                        |
+| tbs\_total               | DOUBLE    |         | total number of tables in the current cluster    |
+| stbs\_total              | DOUBLE    |         | total number of stables in the current cluster   |
+| dnodes\_total            | DOUBLE    |         | total number of dnodes in the current cluster    |
+| dnodes\_alive            | DOUBLE    |         | total number of alive dnodes in the current cluster |
+| mnodes\_total            | DOUBLE    |         | total number of mnodes in the current cluster    |
+| mnodes\_alive            | DOUBLE    |         | total number of alive mnodes in the current cluster |
+| vgroups\_total           | DOUBLE    |         | total number of vgroups in the current cluster   |
+| vgroups\_alive           | DOUBLE    |         | total number of alive vgroups in the current cluster |
+| vnodes\_total            | DOUBLE    |         | total number of vnodes in the current cluster    |
+| vnodes\_alive            | DOUBLE    |         | total number of alive vnodes in the current cluster |
+| connections\_total       | DOUBLE    |         | total number of connections in the current cluster |
+| topics\_total            | DOUBLE    |         | total number of topics in the current cluster    |
+| streams\_total           | DOUBLE    |         | total number of streams in the current cluster   |
+| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in enterprise edition, maximum DOUBLE value in community edition |
+| grants_timeseries\_used  | DOUBLE    |         | number of used timeseries                        |
+| grants_timeseries\_total | DOUBLE    |         | total number of timeseries, maximum DOUBLE value in open source version |
+| cluster\_id              | VARCHAR   | tag     | cluster id                                       |
 
-### taosd_vgroups_info Table
+### taosd\_vgroups\_info Table
 
-The `taosd_vgroups_info` table records information about virtual node groups.
+`taosd_vgroups_info` table records virtual node group information.
 
-| field         | type      | is_tag | comment                                             |
-| :------------ | :-------- | :----- | :-------------------------------------------------- |
-| \_ts           | TIMESTAMP |        | timestamp                                           |
-| tables_num    | DOUBLE    |        | Number of tables in the vgroup                      |
-| status        | DOUBLE    |        | vgroup status, value range: unsynced = 0, ready = 1 |
-| vgroup_id     | VARCHAR   | TAG    | vgroup id                                           |
-| database_name | VARCHAR   | TAG    | Database name the vgroup belongs to                 |
-| cluster_id    | VARCHAR   | TAG    | cluster id                                          |
+| field          | type      | is\_tag | comment                                        |
+| :------------- | :-------- | :------ | :--------------------------------------------- |
+| \_ts           | TIMESTAMP |         | timestamp                                      |
+| tables\_num    | DOUBLE    |         | Number of tables in vgroup                     |
+| status         | DOUBLE    |         | vgroup status, range: unsynced = 0, ready = 1 |
+| vgroup\_id     | VARCHAR   | tag     | vgroup id                                      |
+| database\_name | VARCHAR   | tag     | Name of the database the vgroup belongs to     |
+| cluster\_id    | VARCHAR   | tag     | cluster id                                     |
 
-### taosd_dnodes_info Table
+### taosd\_dnodes\_info Table
 
-The `taosd_dnodes_info` table records dnode information.
+`taosd_dnodes_info` records dnode information.
 
-| field           | type      | is_tag | comment                                                      |
-| :-------------- | :-------- | :----- | :----------------------------------------------------------- |
-| \_ts             | TIMESTAMP |        | timestamp                                                    |
-| uptime          | DOUBLE    |        | dnode uptime; unit: seconds                                  |
-| cpu_engine      | DOUBLE    |        | taosd CPU usage, read from `/proc/<taosd_pid>/stat`          |
-| cpu_system      | DOUBLE    |        | Server CPU usage, read from `/proc/stat`                     |
-| cpu_cores       | DOUBLE    |        | Number of CPU cores on the server                            |
-| mem_engine      | DOUBLE    |        | taosd memory usage, read from `/proc/<taosd_pid>/status`     |
-| mem_free        | DOUBLE    |        | Available memory on the server; unit: KB                     |
-| mem_total       | DOUBLE    |        | Total memory on the server; unit: KB                         |
-| disk_used       | DOUBLE    |        | Disk usage of the data dir mount; unit: bytes                |
-| disk_total      | DOUBLE    |        | Total disk capacity of the data dir mount; unit: bytes       |
-| system_net_in   | DOUBLE    |        | Network throughput, read from `/proc/net/dev`, received bytes; unit: byte/s |
-| system_net_out  | DOUBLE    |        | Network throughput, read from `/proc/net/dev`, transmitted bytes; unit: byte/s |
-| io_read         | DOUBLE    |        | I/O throughput, calculated from rchar read from `/proc/<taosd_pid>/io` and previous values; unit: byte/s |
-| io_write        | DOUBLE    |        | I/O throughput, calculated from wchar read from `/proc/<taosd_pid>/io` and previous values; unit: byte/s |
-| io_read_disk    | DOUBLE    |        | Disk I/O throughput, read from read_bytes from `/proc/<taosd_pid>/io`; unit: byte/s |
-| io_write_disk   | DOUBLE    |        | Disk I/O throughput, read from write_bytes from `/proc/<taosd_pid>/io`; unit: byte/s |
-| vnodes_num      | DOUBLE    |        | Number of vnodes on the dnode                                |
-| masters         | DOUBLE    |        | Number of master nodes on the dnode                          |
-| has_mnode       | DOUBLE    |        | Whether the dnode contains an mnode, value range: contains=1, does not contain=0 |
-| has_qnode       | DOUBLE    |        | Whether the dnode contains a qnode, value range: contains=1, does not contain=0 |
-| has_snode       | DOUBLE    |        | Whether the dnode contains an snode, value range: contains=1, does not contain=0 |
-| has_bnode       | DOUBLE    |        | Whether the dnode contains a bnode, value range: contains=1, does not contain=0 |
-| error_log_count | DOUBLE    |        | Total number of errors                                       |
-| info_log_count  | DOUBLE    |        | Total number of info messages                                |
-| debug_log_count | DOUBLE    |        | Total number of debug messages                               |
-| trace_log_count | DOUBLE    |        | Total number of trace messages                               |
-| dnode_id        | VARCHAR   | TAG    | dnode id                                                     |
-| dnode_ep        | VARCHAR   | TAG    | dnode endpoint                                               |
-| cluster_id      | VARCHAR   | TAG    | cluster id                                                   |
+| field             | type      | is\_tag | comment                                                                                           |
+| :---------------- | :-------- | :------ | :------------------------------------------------------------------------------------------------ |
+| \_ts              | TIMESTAMP |         | timestamp                                                                                         |
+| uptime            | DOUBLE    |         | dnode uptime, unit: seconds                                                                       |
+| cpu\_engine       | DOUBLE    |         | taosd CPU usage, read from `/proc/<taosd_pid>/stat`                                               |
+| cpu\_system       | DOUBLE    |         | Server CPU usage, read from `/proc/stat`                                                          |
+| cpu\_cores        | DOUBLE    |         | Number of server CPU cores                                                                        |
+| mem\_engine       | DOUBLE    |         | taosd memory usage, read from `/proc/<taosd_pid>/status`                                          |
+| mem\_free         | DOUBLE    |         | Server free memory, unit: KB                                                                      |
+| mem\_total        | DOUBLE    |         | Total server memory, unit: KB                                                                     |
+| disk\_used        | DOUBLE    |         | Disk usage of data dir mount, unit: bytes                                                         |
+| disk\_total       | DOUBLE    |         | Total disk capacity of data dir mount, unit: bytes                                                |
+| system\_net\_in   | DOUBLE    |         | Network throughput, received bytes read from `/proc/net/dev`. Unit: byte/s                        |
+| system\_net\_out  | DOUBLE    |         | Network throughput, transmit bytes read from `/proc/net/dev`. Unit: byte/s                        |
+| io\_read          | DOUBLE    |         | IO throughput, speed calculated from `rchar` read from `/proc/<taosd_pid>/io` since last value. Unit: byte/s |
+| io\_write         | DOUBLE    |         | IO throughput, speed calculated from `wchar` read from `/proc/<taosd_pid>/io` since last value. Unit: byte/s |
+| io\_read\_disk    | DOUBLE    |         | Disk IO throughput, read_bytes read from `/proc/<taosd_pid>/io`. Unit: byte/s                     |
+| io\_write\_disk   | DOUBLE    |         | Disk IO throughput, write_bytes read from `/proc/<taosd_pid>/io`. Unit: byte/s                    |
+| vnodes\_num       | DOUBLE    |         | Number of vnodes on dnode                                                                         |
+| masters           | DOUBLE    |         | Number of master nodes on dnode                                                                   |
+| has\_mnode        | DOUBLE    |         | Whether dnode contains mnode, range: contains=1, does not contain=0                               |
+| has\_qnode        | DOUBLE    |         | Whether dnode contains qnode, range: contains=1, does not contain=0                               |
+| has\_snode        | DOUBLE    |         | Whether dnode contains snode, range: contains=1, does not contain=0                               |
+| has\_bnode        | DOUBLE    |         | Whether dnode contains bnode, range: contains=1, does not contain=0                               |
+| error\_log\_count | DOUBLE    |         | Total number of error logs                                                                        |
+| info\_log\_count  | DOUBLE    |         | Total number of info logs                                                                         |
+| debug\_log\_count | DOUBLE    |         | Total number of debug logs                                                                        |
+| trace\_log\_count | DOUBLE    |         | Total number of trace logs                                                                        |
+| dnode\_id         | VARCHAR   | tag     | dnode id                                                                                          |
+| dnode\_ep         | VARCHAR   | tag     | dnode endpoint                                                                                    |
+| cluster\_id       | VARCHAR   | tag     | cluster id                                                                                        |
 
-### taosd_dnodes_status Table
+### taosd\_dnodes\_status table
 
-The `taosd_dnodes_status` table records the status information of dnodes.
+The `taosd_dnodes_status` table records dnode status information.
 
-| field      | type      | is_tag | comment                                       |
-| :--------- | :-------- | :----- | :-------------------------------------------- |
-| \_ts        | TIMESTAMP |        | timestamp                                     |
-| status     | DOUBLE    |        | dnode status; value range: ready=1, offline=0 |
-| dnode_id   | VARCHAR   | TAG    | dnode id                                      |
-| dnode_ep   | VARCHAR   | TAG    | dnode endpoint                                |
-| cluster_id | VARCHAR   | TAG    | cluster id                                    |
+| field       | type      | is\_tag | comment                                  |
+| :---------- | :-------- | :------ | :--------------------------------------- |
+| \_ts        | TIMESTAMP |         | timestamp                                |
+| status      | DOUBLE    |         | dnode status, value range ready=1, offline=0 |
+| dnode\_id   | VARCHAR   | tag     | dnode id                                 |
+| dnode\_ep   | VARCHAR   | tag     | dnode endpoint                           |
+| cluster\_id | VARCHAR   | tag     | cluster id                               |
 
-### taosd_dnodes_log_dir Table
+### taosd\_dnodes\_log\_dir table
 
 The `taosd_dnodes_log_dir` table records log directory information.
 
-| field      | type      | is_tag | comment                                           |
-| :--------- | :-------- | :----- | :------------------------------------------------ |
-| \_ts        | TIMESTAMP |        | timestamp                                         |
-| avail      | DOUBLE    |        | Available space in the log directory; unit: bytes |
-| used       | DOUBLE    |        | Used space in the log directory; unit: bytes      |
-| total      | DOUBLE    |        | Total space in the log directory; unit: bytes     |
-| name       | VARCHAR   | TAG    | Log directory name, usually `/var/log/taos/`      |
-| dnode_id   | VARCHAR   | TAG    | dnode id                                          |
-| dnode_ep   | VARCHAR   | TAG    | dnode endpoint                                    |
-| cluster_id | VARCHAR   | TAG    | cluster id                                        |
+| field       | type      | is\_tag | comment                             |
+| :---------- | :-------- | :------ | :---------------------------------- |
+| \_ts        | TIMESTAMP |         | timestamp                           |
+| avail       | DOUBLE    |         | available space in log directory. Unit: byte |
+| used        | DOUBLE    |         | used space in log directory. Unit: byte       |
+| total       | DOUBLE    |         | space in log directory. Unit: byte             |
+| name        | VARCHAR   | tag     | log directory name, usually `/var/log/taos/` |
+| dnode\_id   | VARCHAR   | tag     | dnode id                            |
+| dnode\_ep   | VARCHAR   | tag     | dnode endpoint                      |
+| cluster\_id | VARCHAR   | tag     | cluster id                          |
 
-### taosd_dnodes_data_dir Table
+### taosd\_dnodes\_data\_dir table
 
 The `taosd_dnodes_data_dir` table records data directory information.
 
-| field | type      | is_tag | comment                                            |
-| :---- | :-------- | :----- | :------------------------------------------------- |
-| \_ts   | TIMESTAMP |        | timestamp                                          |
-| avail | DOUBLE    |        | Available space in the data directory; unit: bytes |
-| used  | DOUBLE    |        | Used space in the data directory; unit: bytes      |
-| total | DOUBLE    |        | Total space in the data directory; unit: bytes     |
-| level | VARCHAR   | TAG    | Multi-level storage level: 0, 1, 2                 |
-| name  | VARCHAR   | TAG    | Data directory, usually `/var/lib/taos`            |
+| field       | type      | is\_tag | comment                           |
+| :---------- | :-------- | :------ | :-------------------------------- |
+| \_ts        | TIMESTAMP |         | timestamp                         |
+| avail       | DOUBLE    |         | available space in data directory. Unit: byte      |
+| used        | DOUBLE    |         | used space in data directory. Unit: byte    |
+| total       | DOUBLE    |         | space in data directory. Unit: byte          |
+| level       | VARCHAR   | tag     | multi-level storage levels 0, 1, 2              |
+| name        | VARCHAR   | tag     | data directory, usually `/var/lib/taos` |
+| dnode\_id   | VARCHAR   | tag     | dnode id                          |
+| dnode\_ep   | VARCHAR   | tag     | dnode endpoint                    |
+| cluster\_id | VARCHAR   | tag     | cluster id                        |
 
-### taosd_mnodes_info Table
+### taosd\_mnodes\_info table
 
 The `taosd_mnodes_info` table records mnode role information.
 
-| field      | type      | is_tag | comment                                                      |
-| :--------- | :-------- | :----- | :----------------------------------------------------------- |
-| \_ts        | TIMESTAMP |        | timestamp                                                    |
-| role       | DOUBLE    |        | mnode role; value range: offline = 0, follower = 100, candidate = 101, leader = 102, error = 103, learner = 104 |
-| mnode_id   | VARCHAR   | TAG    | master node id                                               |
-| mnode_ep   | VARCHAR   | TAG    | master node endpoint                                         |
-| cluster_id | VARCHAR   | TAG    | cluster id                                                   |
+| field       | type      | is\_tag | comment                                                                                                  |
+| :---------- | :-------- | :------ | :------------------------------------------------------------------------------------------------------- |
+| \_ts        | TIMESTAMP |         | timestamp                                                                                                |
+| role        | DOUBLE    |         | mnode role, value range offline = 0, follower = 100, candidate = 101, leader = 102, error = 103, learner = 104 |
+| mnode\_id   | VARCHAR   | tag     | master node id                                                                                           |
+| mnode\_ep   | VARCHAR   | tag     | master node endpoint                                                                                     |
+| cluster\_id | VARCHAR   | tag     | cluster id                                                                                               |
 
-### taosd_vnodes_role Table
+### taosd\_vnodes\_role table
 
 The `taosd_vnodes_role` table records virtual node role information.
 
-| field         | type      | is_tag | comment                                                      |
-| :------------ | :-------- | :----- | :----------------------------------------------------------- |
-| \_ts           | TIMESTAMP |        | timestamp                                                    |
-| vnode_role    | DOUBLE    |        | vnode role; value range: offline = 0, follower = 100, candidate = 101, leader = 102, error = 103, learner = 104 |
-| vgroup_id     | VARCHAR   | TAG    | dnode id                                                     |
-| dnode_id      | VARCHAR   | TAG    | dnode id                                                     |
-| database_name | VARCHAR   | TAG    | Database name the vgroup belongs to                          |
+| field          | type      | is\_tag | comment                                                                                                 |
+| :------------- | :-------- | :------ | :------------------------------------------------------------------------------------------------------ |
+| \_ts           | TIMESTAMP |         | timestamp                                                                                               |
+| vnode\_role    | DOUBLE    |         | vnode role, value range offline = 0, follower = 100, candidate = 101, leader = 102, error = 103, learner = 104 |
+| vgroup\_id     | VARCHAR   | tag     | dnode id                                                                                                |
+| dnode\_id      | VARCHAR   | tag     | dnode id                                                                                                |
+| database\_name | VARCHAR   | tag     | vgroup's belonging database name                                                                        |
+| cluster\_id    | VARCHAR   | tag     | cluster id                                                                                              |
 
 ### taosd_sql_req Table
 
-The `taosd_sql_req` table records server-side SQL request information.
+`taosd_sql_req` records server-side SQL request information.
 
-| field      | type      | is_tag | comment                                            |
-| :--------- | :-------- | :----- | :------------------------------------------------- |
-| \_ts        | TIMESTAMP |        | timestamp                                          |
-| count      | DOUBLE    |        | Number of SQL requests                             |
-| result     | VARCHAR   | TAG    | SQL execution result; value range: Success, Failed |
-| username   | VARCHAR   | TAG    | User name executing the SQL                        |
-| sql_type   | VARCHAR   | TAG    | SQL type; value range: inserted_rows               |
-| dnode_id   | VARCHAR   | TAG    | dnode id                                           |
-| dnode_ep   | VARCHAR   | TAG    | dnode endpoint                                     |
-| vgroup_id  | VARCHAR   | TAG    | vgroup id                                          |
-| cluster_id | VARCHAR   | TAG    | cluster id                                         |
+| field       | type      | is_tag | comment                                          |
+| :---------- | :-------- | :------ | :----------------------------------------------- |
+| _ts         | TIMESTAMP |        | timestamp                                        |
+| count       | DOUBLE    |        | number of SQL queries                            |
+| result      | VARCHAR   | tag    | SQL execution result, values range: Success, Failed |
+| username    | VARCHAR   | tag    | user name executing the SQL                      |
+| sql_type    | VARCHAR   | tag    | SQL type, value range: inserted_rows             |
+| dnode_id    | VARCHAR   | tag    | dnode id                                         |
+| dnode_ep    | VARCHAR   | tag    | dnode endpoint                                   |
+| vgroup_id   | VARCHAR   | tag    | dnode id                                         |
+| cluster_id  | VARCHAR   | tag    | cluster id                                       |
 
 ### taos_sql_req Table
 
-The `taos_sql_req` table records client-side SQL request information.
+`taos_sql_req` records client-side SQL request information.
 
-| field      | type      | is_tag | comment                                            |
-| :--------- | :-------- | :----- | :------------------------------------------------- |
-| \_ts        | TIMESTAMP |        | timestamp                                          |
-| count      | DOUBLE    |        | Number of SQL requests                             |
-| result     | VARCHAR   | TAG    | SQL execution result; value range: Success, Failed |
-| username   | VARCHAR   | TAG    | User name executing the SQL                        |
-| sql_type   | VARCHAR   | TAG    | SQL type; value range: select, insert, delete      |
-| cluster_id | VARCHAR   | TAG    | cluster id                                         |
+| field       | type      | is_tag | comment                                          |
+| :---------- | :-------- | :------ | :----------------------------------------------- |
+| _ts         | TIMESTAMP |        | timestamp                                        |
+| count       | DOUBLE    |        | number of SQL queries                            |
+| result      | VARCHAR   | tag    | SQL execution result, values range: Success, Failed |
+| username    | VARCHAR   | tag    | user name executing the SQL                      |
+| sql_type    | VARCHAR   | tag    | SQL type, value range: select, insert, delete    |
+| cluster_id  | VARCHAR   | tag    | cluster id                                       |
 
 ### taos_slow_sql Table
 
-The `taos_slow_sql` table records client-side slow query information.
+`taos_slow_sql` records client-side slow query information.
 
-| field      | type      | is_tag | comment                                                      |
-| :--------- | :-------- | :----- | :----------------------------------------------------------- |
-| \_ts        | TIMESTAMP |        | timestamp                                                    |
-| count      | DOUBLE    |        | Number of SQL requests                                       |
-| result     | VARCHAR   | TAG    | SQL execution result; value range: Success, Failed           |
-| username   | VARCHAR   | TAG    | User name executing the SQL                                  |
-| duration   | VARCHAR   | TAG    | SQL execution duration; value range: 3-10s, 10-100s, 100-1000s, 1000s- |
-| cluster_id | VARCHAR   | TAG    | cluster id                                                   |
+| field       | type      | is_tag | comment                                          |
+| :---------- | :-------- | :------ | :------------------------------------------------ |
+| _ts         | TIMESTAMP |        | timestamp                                        |
+| count       | DOUBLE    |        | number of SQL queries                            |
+| result      | VARCHAR   | tag    | SQL execution result, values range: Success, Failed |
+| username    | VARCHAR   | tag    | user name executing the SQL                      |
+| duration    | VARCHAR   | tag    | SQL execution duration, value range: 3-10s, 10-100s, 100-1000s, 1000s- |
+| cluster_id  | VARCHAR   | tag    | cluster id                                       |
 
 ## Log Related
 
-TDengine uses log files to record the system's operational status, helping users monitor the system's operation and troubleshoot issues. This section mainly introduces the system logs related to taosc and taosd.
+TDengine records the system's operational status through log files, helping users monitor the system's condition and troubleshoot issues. This section mainly introduces the related explanations of two system logs: taosc and taosd.
 
-TDengine's log files mainly include ordinary logs and slow logs.
+TDengine's log files mainly include two types: normal logs and slow logs.
 
-1. Ordinary Log Behavior Explanation
-    1. Multiple client processes can run on the same machine, so client log naming follows the format taoslogX.Y, where X is the sequence number (which can be empty or a digit from 0 to 9) and Y is the suffix (0 or 1).
-    2. Only one server process can run on the same machine, so server log naming follows the format taosdlog.Y, where Y is the suffix (0 or 1).
-       The rules for determining sequence numbers and suffixes are as follows (assuming the log path is /var/log/taos/):
-        1. Determine the sequence number: Use 10 sequence numbers as log naming, from /var/log/taos/taoslog0.Y to /var/log/taos/taoslog9.Y, checking each sequence number to see if it is in use. The first unused sequence number will be used for the log file of that process. If all 10 sequence numbers are in use, the sequence number will be empty, i.e., /var/log/taos/taoslog.Y, and all processes will write to the same file.
-        2. Determine the suffix: 0 or 1. For example, if the determined sequence number is 3, the alternative log file names will be /var/log/taos/taoslog3.0 and /var/log/taos/taoslog3.1. If both files do not exist, use suffix 0; if one exists and one does not, use the existing suffix. If both exist, use the one with the most recent modification time.
-    3. If the log file exceeds the configured number of lines (numOfLogLines), it will switch suffixes and continue logging. For example, when /var/log/taos/taoslog3.0 is filled, it will switch to /var/log/taos/taoslog3.1 to continue logging. /var/log/taos/taoslog3.0 will be renamed with a timestamp suffix and compressed (asynchronous thread operation).
-    4. The parameter logKeepDays controls how many days the log files are retained. For instance, if configured to 1, logs older than one day will be checked and deleted when new logs are compressed. This is not based on natural days.
+1. Normal Log Behavior Explanation
+    1. Multiple client processes can be started on the same machine, so the client log naming convention is taoslogX.Y, where X is a number, either empty or from 0 to 9, and Y is a suffix, either 0 or 1.
+    2. Only one server process can exist on the same machine. Therefore, the server log naming convention is taosdlog.Y, where Y is a suffix, either 0 or 1.
 
-In addition to recording ordinary logs, SQL statements that exceed the configured execution time will be recorded in the slow logs. Slow log files are primarily used to analyze system performance and troubleshoot performance issues.
+       The rules for determining the number and suffix are as follows (assuming the log path is /var/log/taos/):
+        1. Determining the number: Use 10 numbers as the log naming convention, /var/log/taos/taoslog0.Y - /var/log/taos/taoslog9.Y, check each number sequentially to find the first unused number as the log file number for that process. If all 10 numbers are used by processes, do not use a number, i.e., /var/log/taos/taoslog.Y, and all processes write to the same file (number is empty).
+        2. Determining the suffix: 0 or 1. For example, if the number is determined to be 3, the alternative log file names would be /var/log/taos/taoslog3.0 /var/log/taos/taoslog3.1. If both files do not exist, use suffix 0; if one exists and the other does not, use the existing suffix. If both exist, use the suffix of the file that was modified most recently.
+    3. If the log file exceeds the configured number of lines numOfLogLines, it will switch suffixes and continue logging, e.g., /var/log/taos/taoslog3.0 is full, switch to /var/log/taos/taoslog3.1 to continue logging. /var/log/taos/taoslog3.0 will be renamed with a timestamp suffix and compressed for storage (handled by an asynchronous thread).
+    4. Control how many days log files are kept through the configuration logKeepDays, logs older than a certain number of days will be deleted when new logs are compressed and stored. It is not based on natural days.
+
+In addition to recording normal logs, SQL statements that take longer than the configured time will be recorded in the slow logs. Slow log files are mainly used for analyzing system performance and troubleshooting performance issues.
 
 2. Slow Log Behavior Explanation
-    1. Slow logs will be recorded in the local slow log file and, simultaneously, sent to taosKeeper for structured storage (the monitor switch must be enabled).
+    1. Slow logs are recorded both locally in slow log files and sent to taosKeeper for structured storage via taosAdapter (monitor switch must be turned on).
     2. Slow log file storage rules are:
-        1. A slow log file is generated for each day; if there are no slow logs on that day, there will be no file for that day.
-        2. The file name is taosSlowLog.yyyy-mm-dd (e.g., taosSlowLog.2024-08-02), and the log storage path is specified by the logDir configuration.
-        3. Logs from multiple clients will be stored in the same taosSlowLog.yyyy-mm-dd file in the specified log path.
-        4. Slow log files are not automatically deleted and are not compressed.
-        5. They share the same three parameters as ordinary log files: logDir, minimalLogDirGB, and asyncLog. The other two parameters, numOfLogLines and logKeepDays, do not apply to slow logs.
+        1. One slow log file per day; if there are no slow logs for the day, there is no file for that day.
+        2. The file name is taosSlowLog.yyyy-mm-dd (taosSlowLog.2024-08-02), and the log storage path is configured through logDir.
+        3. Logs from multiple clients are stored in the same taosSlowLog.yyyy.mm.dd file under the respective log path.
+        4. Slow log files are not automatically deleted or compressed.
+        5. Uses the same three parameters as normal log files: logDir, minimalLogDirGB, asyncLog. The other two parameters, numOfLogLines and logKeepDays, do not apply to slow logs.

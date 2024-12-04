@@ -17,10 +17,7 @@ var commonLogger = log.GetLogger("CMN")
 
 func CreateDatabase(username string, password string, host string, port int, usessl bool, dbname string, databaseOptions map[string]interface{}) {
 	qid := util.GetQidOwn()
-
-	commonLogger := commonLogger.WithFields(
-		logrus.Fields{config.ReqIDKey: qid},
-	)
+	commonLogger := commonLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
 
 	ctx := context.Background()
 
@@ -43,7 +40,6 @@ func CreateDatabase(username string, password string, host string, port int, use
 		}
 		return
 	}
-	panic(err)
 }
 
 func generateCreateDBSql(dbname string, databaseOptions map[string]interface{}) string {
