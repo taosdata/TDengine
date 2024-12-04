@@ -2008,7 +2008,8 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype) {
+static int32_t tsdbCacheGetBatchFromLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr,
+                                        int8_t ltype) {
   int32_t    code = 0;
   SArray    *remainCols = NULL;
   SArray    *ignoreFromRocks = NULL;
@@ -2128,6 +2129,42 @@ _exit:
   }
   if (ignoreFromRocks) {
     taosArrayDestroy(ignoreFromRocks);
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr,
+                                        int8_t ltype) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SLRUCache *pCache = pTsdb->lruCache;
+  SArray    *pCidList = pr->pCidList;
+  int        numKeys = TARRAY_SIZE(pCidList);
+
+  // 1, get from mem, imem filtered with delete info
+
+  // 2, merge with lru entries from pLastArray
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TSDB_CHECK_CODE(tsdbCacheGetBatchFromLru(pTsdb, uid, pLastArray, pr, ltype), lino, _exit);
+
+  TSDB_CHECK_CODE(tsdbCacheGetBatchFromMem(pTsdb, uid, pLastArray, pr, ltype), lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
 
   TAOS_RETURN(code);
