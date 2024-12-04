@@ -97,8 +97,9 @@ typedef struct SColumnNode {
 
 typedef struct SColumnRefNode {
   ENodeType type;
-  SDataType resType;
   char      colName[TSDB_COL_NAME_LEN];
+  char      refColName[TSDB_COL_NAME_LEN];
+  char      refTableName[TSDB_TABLE_NAME_LEN];
 } SColumnRefNode;
 
 typedef struct STargetNode {
