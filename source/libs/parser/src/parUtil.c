@@ -1378,6 +1378,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pTags = NULL;
   pNew->pSchemas = NULL;
   pNew->pSchemaExt = NULL;
+  pNew->pColRefs = NULL;
   if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
     if (!pNew->pComment) goto err;
@@ -1409,6 +1410,16 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   }
 
   pNew->pSchemaExt = pSchemaExt;
+
+  SColRef *pColRef = NULL;
+  if (hasRefCol(pCfg->tableType) && pCfg->pColRefs) {
+    int32_t colRefSize = pCfg->numOfColumns * sizeof(SColRef);
+    pColRef = taosMemoryMalloc(colRefSize);
+    if (!pColRef) goto err;
+    memcpy(pColRef, pCfg->pColRefs, colRefSize);
+  }
+
+  pNew->pColRefs = pColRef;
 
   return pNew;
 err:
