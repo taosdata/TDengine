@@ -82,7 +82,8 @@ typedef enum ETableOptionType {
   TABLE_OPTION_ROLLUP,
   TABLE_OPTION_TTL,
   TABLE_OPTION_SMA,
-  TABLE_OPTION_DELETE_MARK
+  TABLE_OPTION_DELETE_MARK,
+  TABLE_OPTION_VIRTUAL
 } ETableOptionType;
 
 typedef enum EColumnOptionType {
@@ -208,20 +209,27 @@ SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLi
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
+SNode* createColumnRefNode(SAstCreateContext* pCxt, SToken* pColName, SToken* pRefTableName, SToken* pRefColName);
 SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pOptions);
 SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal1, void* pVal2);
 SNode* setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions);
+SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SToken* pTableRef, SToken* pColumnRef);
 SNode* createDefaultColumnOptions(SAstCreateContext* pCxt);
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
                              SNodeList* pTags, SNode* pOptions);
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable,
                                   SNodeList* pSpecificTags, SNodeList* pValsOfTags, SNode* pOptions);
+SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols);
+SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                 SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
+                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags);
 SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pUseRealTable,
                                           SNodeList* pSpecificTags, const SToken* pFilePath);
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables);
 SNode* createDropTableClause(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createDropTableStmt(SAstCreateContext* pCxt, bool withOpt, SNodeList* pTables);
 SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable);
+SNode* createDropVirtualTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions);
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     SDataType dataType);
@@ -231,12 +239,19 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
 
 SNode* createAlterTableAddModifyColOptions(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
                                            SToken* pColName, SNode* pOptions);
+SNode* createAlterTableAddColWithRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
+                                     SToken* pColName, SDataType dataType, SToken* pRefTableName, SToken* pRefColName);
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName);
 SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pOldColName,
                                  SToken* pNewColName);
+SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                   SToken* pRefTableName, SToken* pRefColName);
+SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                    const SToken* pLiteral);
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal);
 SNode* createAlterTableSetMultiTagValue(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* singleNode);
 SNode* setAlterSuperTableType(SNode* pStmt);
+SNode* setAlterVirtualTableType(SNode* pStmt);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind);
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type);
@@ -245,9 +260,12 @@ SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pD
                               EOperatorType tableCondType);
 SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
                             EOperatorType tableCondType);
+SNode* createShowVTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
+                             EOperatorType tableCondType);
 SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type);
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
+SNode* createShowCreateVTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createShowCreateViewStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pLikePattern);
