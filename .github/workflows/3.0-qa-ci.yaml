@@ -5,13 +5,13 @@ on:
 
 
 env:
-  RELEASE_HOST: 192.168.1.45
+  RELEASE_HOST: taosx-ci-server
   RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
   DIR_PATH_3_0: "3.0"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
-  REPORT_BASE_URL: http://192.168.1.45:8788
+  REPORT_BASE_URL: http://taosx-ci-server:8788
   # COVERAGE_REPORT_DIR: /data/code_coverage_taosx/${{ github.run_id }}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
