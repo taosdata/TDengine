@@ -1019,11 +1019,12 @@ static int32_t taosSetLogOutput(SConfig *pCfg) {
       if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
         int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
         if (*pLog == '/' || *pLog == '\\') {
-          if (pathLen >= PATH_MAX) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          if (pathLen <= 0 || pathLen > PATH_MAX) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
           tstrncpy(tsLogDir, pLog, pathLen);
         } else {
           int32_t len = strlen(tsLogDir);
-          if (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\') {
+          if (len < 0 || len >= (PATH_MAX - 1)) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          if (len == 0 || (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\')) {
             tsLogDir[len++] = TD_DIRSEP_CHAR;
           }
           int32_t remain = PATH_MAX - len - 1;
