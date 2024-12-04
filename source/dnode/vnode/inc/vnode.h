@@ -291,6 +291,8 @@ typedef struct {
   int64_t numOfSTables;
   int64_t numOfCTables;
   int64_t numOfNTables;
+  int64_t numOfVTables;
+  int64_t numOfVCTables;
   int64_t numOfReportedTimeSeries;
   int64_t numOfNTimeSeries;
   int64_t numOfTimeSeries;
