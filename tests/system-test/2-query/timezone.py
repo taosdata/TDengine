@@ -188,10 +188,20 @@ class TDTestCase:
         for i in range(rows):
             if tdSql.getData(i, 0) == "timezone" :
                 if tdSql.getData(i, 1).find(timezone) == -1:
-                    tdLog.exit("show timezone:%s != %s"%(tdSql.getData(i, 1),timezone))
+                    tdLog.exit("show timezone:%s != %s"%(tdSql.getData(i, 1), timezone))
+
+    def charset_check(self, sql, charset):
+        tdSql.query(sql)
+        rows = tdSql.getRows()
+        for i in range(rows):
+            if tdSql.getData(i, 0) == "charset" :
+                if tdSql.getData(i, 1).find(charset) == -1:
+                    tdLog.exit("show charset:%s != %s"%(tdSql.getData(i, 1), charset))
     def run(self):  # sourcery skip: extract-duplicate-method
         timezone = self.get_system_timezone()
         # timezone = "Asia/Shanghai"
+        self.charset_check("show local variables", "UTF-8")
+        self.timezone_check("show dnode 1 variables", "UTF-8")
         self.timezone_check("show local variables", timezone)
         self.timezone_check("show dnode 1 variables", timezone)
 

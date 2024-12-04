@@ -150,7 +150,7 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
 #endif
 }
 
-const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len) {
+const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len) {
   const char *r = inet_ntop(AF_INET, &ipInt, dstStr, len);
   if (NULL == r) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -386,12 +386,19 @@ int32_t taosGetFqdn(char *fqdn) {
   return 0;
 }
 
-void tinet_ntoa(char *ipstr, uint32_t ip) {
+void taosInetNtoa(char *ipstr, uint32_t ip) {
   if (ipstr == NULL) {
     return;
   }
   unsigned char *bytes = (unsigned char *) &ip;
   (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
+}
+
+uint32_t taosInetAddr(const char *ipstr){
+  if (ipstr == NULL) {
+    return 0;
+  }
+  return inet_addr(ipstr);
 }
 
 int32_t taosIgnSIGPIPE() {

@@ -2306,7 +2306,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
                                          varDataVal(dst) + CHAR_BYTES, pResultInfo->charsetCxt);
           if (length <= 0) {
-            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset);
+            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
+              pResultInfo->charsetCxt != NULL ? ((SConvInfo *)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
           varDataSetLen(dst, length + CHAR_BYTES * 2);

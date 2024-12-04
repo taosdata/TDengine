@@ -11,9 +11,9 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
 )
 
-ADD_EXECUTABLE(timezoneTest timezoneTest.cpp)
+ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
 TARGET_LINK_LIBRARIES(
-        timezoneTest
+        connectOptionsTest
         os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
 )
 
@@ -48,7 +48,7 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 
 TARGET_INCLUDE_DIRECTORIES(
-        timezoneTest
+        connectOptionsTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
@@ -94,6 +94,6 @@ add_test(
 )
 
 add_test(
-        NAME timezoneTest
-        COMMAND timezoneTest
+        NAME connectOptionsTest
+        COMMAND connectOptionsTest
 )

@@ -253,7 +253,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  tinet_ntoa(ip, pReq->info.conn.clientIp);
+  taosInetNtoa(ip, pReq->info.conn.clientIp);
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT)) != 0) {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, tstrerror(code));
     goto _OVER;
@@ -907,7 +907,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    tinet_ntoa(varDataVal(endpoint), pConn->ip);
+    taosInetNtoa(varDataVal(endpoint), pConn->ip);
     (void)sprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)), ":%d", pConn->port);
     varDataLen(endpoint) = strlen(varDataVal(endpoint));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -942,7 +942,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE){
-      tinet_ntoa(varDataVal(userIp), pConn->userIp);
+      taosInetNtoa(varDataVal(userIp), pConn->userIp);
       varDataLen(userIp) = strlen(varDataVal(userIp));
     }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1039,7 +1039,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    tinet_ntoa(varDataVal(endpoint), pConn->ip);
+    taosInetNtoa(varDataVal(endpoint), pConn->ip);
     (void)sprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)), ":%d", pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1136,7 +1136,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE){
-      tinet_ntoa(varDataVal(userIp), pConn->userIp);
+      taosInetNtoa(varDataVal(userIp), pConn->userIp);
       varDataLen(userIp) = strlen(varDataVal(userIp));
     }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1222,7 +1222,7 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
 
     char ip[TD_IP_LEN + VARSTR_HEADER_SIZE] = {0};
-    tinet_ntoa(varDataVal(ip), pApp->ip);
+    taosInetNtoa(varDataVal(ip), pApp->ip);
     varDataLen(ip) = strlen(varDataVal(ip));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);

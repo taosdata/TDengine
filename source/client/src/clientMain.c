@@ -203,7 +203,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
 
   if (option == TSDB_OPTION_CONNECTION_USER_IP || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
-      pObj->optionInfo.userIp = inet_addr(val);
+      pObj->optionInfo.userIp = taosInetAddr(val);
       if (pObj->optionInfo.userIp == INADDR_NONE){
         code = TSDB_CODE_INVALID_PARA;
         goto END;

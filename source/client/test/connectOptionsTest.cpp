@@ -116,7 +116,7 @@ void check_sql_result(TAOS* pConn, const char *sql, const char* result){
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
-    ASSERT (strcmp((const char*)row[0], result) == 0);
+    ASSERT (memcmp((const char*)row[0], result, strlen(result)) == 0);
   }
   taos_free_result(pRes);
 }
@@ -195,11 +195,11 @@ void check_set_timezone(TAOS* optionFunc(const char *tz)){
     STscObj* pObj = acquireTscObj(*(int64_t*)taos); \
     ASSERT(pObj != nullptr);                        \
     char ip[TD_IP_LEN] = {0};                       \
-    tinet_ntoa(ip, pObj->optionInfo.option);        \
+    taosInetNtoa(ip, pObj->optionInfo.option);        \
     ASSERT(strcmp(ip, val) == 0);                   \
   }
 
-TEST(timezoneCase, setConnectionOption_Test) {
+TEST(connectionCase, setConnectionOption_Test) {
   int32_t code = taos_options_connection(NULL, TSDB_OPTION_CONNECTION_CHARSET, NULL);
   ASSERT(code != 0);
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -223,6 +223,7 @@ TEST(timezoneCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, false);
 
+#ifndef WINDOWS
   // test timezone
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "");
   ASSERT(code == 0);
@@ -248,6 +249,7 @@ TEST(timezoneCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
   check_sql_result(pConn, "select timezone()", "adbc (UTC, +0000)");
+#endif
 
   // test user APP
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "");
@@ -309,14 +311,99 @@ TEST(timezoneCase, setConnectionOption_Test) {
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CLEAR, "192.168.0.2");
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, true);
+
+#ifndef WINDOWS
   CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
   check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
+#endif
+
   CHECK_TAOS_OPTION_APP(pConn, userApp, "");
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
 
   taos_close(pConn);
 }
 
+TEST(charsetCase, charset_Test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != nullptr);
+
+  TAOS* pConnUTF8 = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConnUTF8 != nullptr);
+
+  TAOS* pConnDefault = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConnDefault != nullptr);
+
+  int32_t code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CHARSET, "gbk");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, false);
+
+  code = taos_options_connection(pConnUTF8, TSDB_OPTION_CONNECTION_CHARSET, "UTF-8");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConnUTF8, charsetCxt, false);
+
+  execQuery(pConn, "drop database if exists db1");
+  execQuery(pConn, "create database db1");
+  execQuery(pConn, "create table db1.stb (ts timestamp, c1 nchar(32), c2 int) tags(t1 timestamp, t2 nchar(32), t3 int)");
+  execQueryFail(pConn, "create table db1.ctb1 using db1.stb tags('2023-09-16 17:00:00+05:00', '芬', 1)");
+
+  // 芬 gbk encode is 0xB7D2, the file charset is UTF-8
+  char sqlTag[256] = {0};
+  snprintf(sqlTag, sizeof(sqlTag), "create table db1.ctb1 using db1.stb tags('2023-09-16 17:00:00+05:00', '%c%c', 1)", 0xB7, 0xD2);
+  execQuery(pConn, sqlTag);
+
+  // 中国 gbk encode is 0xD6D0B9FA
+  execQueryFail(pConn, "insert into db1.ctb1 values(1732178775133, '中国', 1)");
+  char sqlCol[256] = {0};
+  snprintf(sqlCol, sizeof(sqlCol), "insert into db1.ctb1 values(1732178775133, '%c%c%c%c', 1)", 0xD6, 0xD0, 0xB9, 0xFA);
+  execQuery(pConn, sqlCol);
+
+  char resTag[8] = {0};
+  snprintf(resTag, sizeof(resTag), "%c%c", 0xB7, 0xD2);
+  check_sql_result(pConn, "select t2 from db1.ctb1", resTag);
+
+  char resCol[8] = {0};
+  snprintf(resCol, sizeof(resCol), "%c%c%c%c", 0xD6, 0xD0, 0xB9, 0xFA);
+  check_sql_result(pConn, "select c1 from db1.ctb1", resCol);
+
+
+  check_sql_result(pConnUTF8, "select t2 from db1.ctb1", "芬");
+  check_sql_result(pConnUTF8, "select c1 from db1.ctb1", "中国");
+
+
+  execQuery(pConnDefault, "insert into db1.ctb1 values(1732178775134, '中国', 1)");
+  check_sql_result(pConnDefault, "select c1 from db1.ctb1 where ts = 1732178775134", "中国");
+
+  execQuery(pConnUTF8, "create table db1.jsta (ts timestamp, c1 nchar(32), c2 int) tags(t1 json)");
+  execQuery(pConnUTF8, "create table db1.jsta1 using db1.jsta tags('{\"k\":\"芬\"}')");
+  execQuery(pConnUTF8, "insert into db1.jsta1 values(1732178775133, '中国', 1)");
+  char resJsonTag[32] = {0};
+  snprintf(resJsonTag, sizeof(resJsonTag), "{\"k\":\"%c%c\"}", 0xB7, 0xD2);
+  check_sql_result(pConn, "select t1 from db1.jsta1", resJsonTag);
+
+  //reset charset to default(utf-8
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CHARSET, NULL);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, true);
+  check_sql_result(pConn, "select t2 from db1.ctb1 where ts = 1732178775134", "芬");
+  check_sql_result(pConn, "select c1 from db1.ctb1 where ts = 1732178775134", "中国");
+
+
+
+  taos_close(pConn);
+  taos_close(pConnUTF8);
+  taos_close(pConnDefault);
+
+}
+
+TEST(charsetCase, alter_charset_Test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != nullptr);
+
+  execQueryFail(pConn, "alter dnode 1 'charset gbk'");
+  execQueryFail(pConn, "local 'charset gbk'");
+}
+
+#ifndef WINDOWS
 TEST(timezoneCase, set_timezone_Test) {
   check_set_timezone(getConnWithGlobalOption);
   check_set_timezone(getConnWithOption);
@@ -767,6 +854,6 @@ TEST(timezoneCase, localtime_performance_Test) {
   printf("average: localtime cost:%" PRId64 " ns, localtime_rz cost:%" PRId64 " ns", time_localtime/times, time_localtime_rz/times);
   tzfree(sp);
 }
-
+#endif
 
 #pragma GCC diagnostic pop

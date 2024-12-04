@@ -477,7 +477,8 @@ void parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt) {
         }
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue, charsetCxt);
         if (length < 0) {
-          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC,
+                 charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
                  pTagVal->pData);
           taosMemoryFree(tagJsonValue);
           goto end;
