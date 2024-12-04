@@ -224,17 +224,18 @@ def main():
 
     # 切换到 doc_zh_repo 仓库并构建文档
     # change to doc_zh_repo and build the documentation
-    os.chdir(doc_zh_repo)
-    build_doc(doc_zh_repo)
+    os.chdir(doc_zh_repo_path)
+    build_doc(doc_zh_repo_path)
 
     # Change to doc_en_repo and build the documentation
-    os.chdir(doc_en_repo)
-    build_doc(doc_en_repo)
+    os.chdir(doc_en_repo_path)
+    build_doc(doc_en_repo_path)
+
     # generate zip docs for enterprise
-    build_doc_zip(enterprise_doc_repo)
+    build_doc_zip(enterprise_doc_repo_path)
      
     # generate pdf docs for enterprise
-    build_doc_pdf(enterprise_doc_repo)
+    build_doc_pdf(enterprise_doc_repo_path)
 
 if __name__ == "__main__":
     main()
