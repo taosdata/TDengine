@@ -11,8 +11,8 @@ env:
   COVERAGE_BASE_DIR: /data/coverage
   DIR_PATH_3_0: "3.0"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
-  REPORT_BASE_URL: http://taosx-ci-server:8788
-  # COVERAGE_REPORT_DIR: /data/code_coverage_taosx/${{ github.run_id }}
+  REPORT_BASE_URL: http://192.168.1.45:8788
+  COVERAGE_REPORT_BASE_DIR: /data/code_coverage_taosx
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -313,8 +313,8 @@ jobs:
       
       - name: save report daily
         run: |
-          cp -r $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ $COVERAGE_REPORT_DIR/
-          echo "see report at $COVERAGE_REPORT_DIR/"
+          cp -r $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/
+          echo "see report at $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/"
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [generate_report,set_env]
