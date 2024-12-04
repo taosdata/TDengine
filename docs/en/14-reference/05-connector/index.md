@@ -1,13 +1,20 @@
 ---
 title: Client Libraries
-description: Detailed introduction to connectors for various languages and REST API
 slug: /tdengine-reference/client-libraries
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
 import Image from '@theme/IdealImage';
 import imgClientLib from '../../assets/client-libraries-01.png';
+import InstallOnLinux from "./_linux_install.mdx";
+import InstallOnWindows from "./_windows_install.mdx";
+import InstallOnMacOS from "./_macos_install.mdx";
+import VerifyWindows from "./_verify_windows.mdx";
+import VerifyLinux from "./_verify_linux.mdx";
+import VerifyMacOS from "./_verify_macos.mdx";
 
-TDengine provides a rich set of application development interfaces. To help users quickly develop their applications, TDengine supports connectors for multiple programming languages. Official connectors include those for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support both native interfaces (taosc) and WebSocket interfaces to connect to the TDengine cluster. Community developers have also contributed several unofficial connectors, such as ADO.NET, Lua, and PHP connectors.
+TDengine provides a rich set of application development interfaces. To facilitate users in quickly developing their own applications, TDengine supports connectors for multiple programming languages, including official connectors for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support connecting to the TDengine cluster using the native interface (taosc) and WebSocket interface. Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, Lua connector, and PHP connector.
 
 <figure>
 <Image img={imgClientLib} alt="TDengine client library architecture"/>
@@ -16,7 +23,7 @@ TDengine provides a rich set of application development interfaces. To help user
 
 ## Supported Platforms
 
-Currently, TDengine's native interface connectors support the following platforms: X64/ARM64 hardware and Linux/Win64 development environments. The compatibility matrix is as follows:
+Currently, the native interface connectors for TDengine support platforms including: X64/ARM64 hardware platforms, as well as Linux/Win64 development environments. The compatibility matrix is as follows:
 
 | **CPU**       | **OS**    | **Java** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
 | ------------- | --------- | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
@@ -26,26 +33,26 @@ Currently, TDengine's native interface connectors support the following platform
 | **ARM64**     | **Linux** | ●        | ●          | ●      | ●           | ○      | ○        | ●     |
 | **ARM64**     | **macOS** | ●        | ●          | ●      | ○           | ○      | ●        | ●     |
 
-Here, ● indicates official testing and verification, ○ indicates unofficial testing and verification, and -- means untested.
+Where ● indicates official testing and verification passed, ○ indicates unofficial testing and verification passed, -- indicates unverified.
 
-Using the REST connection, which does not depend on client drivers, enables support for a broader range of operating systems.
+Using REST connections can support a wider range of operating systems as they do not depend on client drivers.
 
 ## Version Support
 
-TDengine updates often introduce new features. The connector versions listed correspond to the optimal versions for each TDengine release.
+TDengine version updates often add new features. The list below shows the best matching connector versions for each TDengine version.
 
-| **TDengine Version** | **Java**    | **Python**                                  | **Go**       | **C#**        | **Node.js**     | **Rust** | **C/C++**            |
-| -------------------- | ----------- | ------------------------------------------- | ------------ | ------------- | --------------- | -------- | -------------------- |
-| **3.3.0.0 and above** | 3.3.0+      | taospy 2.7.15+, taos-ws-py 0.3.2+           | 3.5.5+       | 3.1.3+        | 3.1.0+          | Latest   | Same as TDengine     |
-| **3.0.0.0 and above** | 3.0.2+      | Latest                                     | 3.0 branch   | 3.0.0         | 3.1.0           | Latest   | Same as TDengine     |
-| **2.4.0.14 and above** | 2.0.38     | Latest                                     | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | Latest   | Same as TDengine     |
-| **2.4.0.4 - 2.4.0.13** | 2.0.37     | Latest                                     | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | Latest   | Same as TDengine     |
-| **2.2.x.x**           | 2.0.36     | Latest                                     | master branch | n/a           | 2.0.7 - 2.0.9   | Latest   | Same as TDengine     |
-| **2.0.x.x**           | 2.0.34     | Latest                                     | master branch | n/a           | 2.0.1 - 2.0.6   | Latest   | Same as TDengine     |
+| **TDengine Version**   | **Java**    | **Python**                                  | **Go**       | **C#**        | **Node.js**     | **Rust** | **C/C++**            |
+| ---------------------- | ----------- | ------------------------------------------- | ------------ | ------------- | --------------- | -------- | -------------------- |
+| **3.3.0.0 and above**  | 3.3.0 and above | taospy 2.7.15 and above, taos-ws-py 0.3.2 and above | 3.5.5 and above  | 3.1.3 and above   | 3.1.0 and above     | Current version | Same as TDengine version |
+| **3.0.0.0 and above**  | 3.0.2 and above   | Current version                            | 3.0 branch     | 3.0.0         | 3.1.0           | Current version | Same as TDengine version |
+| **2.4.0.14 and above** | 2.0.38      | Current version                            | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | Current version | Same as TDengine version |
+| **2.4.0.4 - 2.4.0.13** | 2.0.37      | Current version                            | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | Current version | Same as TDengine version |
+| **2.2.x.x**            | 2.0.36      | Current version                            | master branch  | n/a           | 2.0.7 - 2.0.9   | Current version | Same as TDengine version |
+| **2.0.x.x**            | 2.0.34      | Current version                            | master branch  | n/a           | 2.0.1 - 2.0.6   | Current version | Same as TDengine version |
 
 ## Feature Support
 
-The following tables show the feature support for TDengine connectors.
+The following table compares the support for TDengine features by the connector:
 
 ### Using Native Interface (taosc)
 
@@ -55,10 +62,10 @@ The following tables show the feature support for TDengine connectors.
 | **Execute SQL**      | Supported | Supported | Supported | Supported | Supported | Supported |
 | **Parameter Binding**| Supported | Supported | Supported | Supported | Supported | Supported |
 | **Data Subscription (TMQ)** | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Schemaless Write** | Supported | Supported | Supported | Supported | Supported | Supported |
+| **Schema-less Write**| Supported | Supported | Supported | Supported | Supported | Supported |
 
 :::info
-Different programming languages follow their own database framework standards, so not all C/C++ interfaces require corresponding wrappers.
+Due to different database framework specifications in various programming languages, it does not imply that all C/C++ interfaces need corresponding encapsulation support.
 :::
 
 ### Using HTTP REST Interface
@@ -76,25 +83,19 @@ Different programming languages follow their own database framework standards, s
 | **Execute SQL**      | Supported | Supported | Supported | Supported | Supported | Supported | Supported |
 | **Parameter Binding**| Supported | Supported | Supported | Supported | Supported | Supported | Supported |
 | **Data Subscription (TMQ)** | Supported | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Schemaless Write** | Supported | Supported | Supported | Supported | Supported | Supported | Supported |
+| **Schema-less Write**| Supported | Supported | Supported | Supported | Supported | Supported | Supported |
 
 :::warning
-For TDengine version 2.0 and above, it is recommended that each thread in the application establish its own connection or use a connection pool based on threads to avoid interference between thread states caused by the "USE statement." However, query and write operations on connections are thread-safe.
+
+- Regardless of the programming language connector chosen, it is recommended for database applications using TDengine version 2.0 and above to establish an independent connection for each thread, or to establish a connection pool based on threads, to avoid interference of the "USE statement" state variable among threads (however, the connection's query and write operations are thread-safe).
+
 :::
 
-import Tabs from "@theme/Tabs";
-import TabItem from "@theme/TabItem";
-import InstallOnLinux from "./_linux_install.mdx";
-import InstallOnWindows from "./_windows_install.mdx";
-import InstallOnMacOS from "./_macos_install.mdx";
-import VerifyWindows from "./_verify_windows.mdx";
-import VerifyLinux from "./_verify_linux.mdx";
-import VerifyMacOS from "./_verify_macos.mdx";
-
-## Installing Client Drivers
+## Install Client Driver
 
 :::info
-Client drivers are only required when using native interface connectors on systems without TDengine server software installed.
+You only need to install the client driver if you are using a native interface connector on a system where the TDengine server software is not installed.
+
 :::
 
 ### Installation Steps
@@ -113,7 +114,7 @@ Client drivers are only required when using native interface connectors on syste
 
 ### Installation Verification
 
-After completing the installation and configuration, and ensuring the TDengine service is running properly, you can log in using the TDengine CLI tool.
+After completing the above installation and configuration, and confirming that the TDengine service has started running normally, you can now use the TDengine CLI tool to log in.
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
