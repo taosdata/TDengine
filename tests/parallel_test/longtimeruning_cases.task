@@ -13,6 +13,9 @@
 
 #tsim test
 #,,y,script,./test.sh -f tsim/query/timeline.sim
+,,y,script,./test.sh -f tsim/stream/streamTwaInterpFwcCheckpoint.sim
+,,y,script,./test.sh -f tsim/stream/streamFwcIntervalFill.sim
+,,y,script,./test.sh -f tsim/stream/streamTwaFwcInterval.sim
 
 #docs-examples test
 #,,n,docs-examples-test,bash c.sh

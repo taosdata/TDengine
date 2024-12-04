@@ -7,72 +7,79 @@ slug: /tdengine-reference/components/taoskeeper
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-taosKeeper is a tool for exporting monitoring metrics in TDengine version 3.0, allowing you to obtain the operational status of TDengine with just a few simple configurations. taosKeeper uses the TDengine RESTful interface, so there's no need to install the TDengine client.
+taosKeeper is a monitoring metric export tool for TDengine version 3.0, which can obtain the running status of TDengine with a few simple configurations. taosKeeper uses the TDengine RESTful interface, so there is no need to install the TDengine client to use it.
 
 ## Installation
 
-taosKeeper can be installed in two ways:
+There are two ways to install taosKeeper:
 
-- It is automatically installed when you install the official TDengine installation package. For details, please refer to [TDengine Installation](../../../get-started/).
-- You can also compile and install taosKeeper separately. For more details, please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository.
+- taosKeeper is automatically installed with the official TDengine installation package, for details please refer to [TDengine Installation](../../../get-started/).
+
+- Compile and install taosKeeper separately, for details please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository.
 
 ## Configuration
 
-taosKeeper needs to be executed in the operating system terminal. This tool supports three configuration methods: command line parameters, environment variables, and configuration files. The priority order is: command line parameters, environment variables, configuration file parameters. Generally, we recommend using a configuration file.
+taosKeeper needs to be executed in the operating system terminal, and this tool supports three configuration methods: command line parameters, environment variables, and configuration files. The priority is: command line parameters, environment variables, configuration file parameters. Generally, we recommend using the configuration file.
 
 ### Command Line Parameters and Environment Variables
 
-The command line parameters and environment variable descriptions can be referenced from the output of the command `taoskeeper --help`. Here’s an example:
+For explanations of command line parameters and environment variables, refer to the output of the command `taoskeeper --help`. Below is an example:
 
 ```shell
-Usage of taosKeeper v3.3.2.0:
-      --debug                          enable debug mode. Env "TAOS_KEEPER_DEBUG"
-  -P, --port int                       http port. Env "TAOS_KEEPER_PORT" (default 6043)
-      --logLevel string                log level (panic fatal error warn warning info debug trace). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
-      --gopoolsize int                 coroutine size. Env "TAOS_KEEPER_POOL_SIZE" (default 50000)
-  -R, --RotationInterval string        interval for refresh metrics, such as "300ms", Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h". Env "TAOS_KEEPER_ROTATION_INTERVAL" (default "15s")
-      --tdengine.host string           TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
-      --tdengine.port int              TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
-      --tdengine.username string       TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
-      --tdengine.password string       TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
-      --tdengine.usessl                TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
-      --metrics.prefix string          prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"
-      --metrics.database.name string   database for storing metrics data. Env "TAOS_KEEPER_METRICS_DATABASE" (default "log")
-      --metrics.tables stringArray     export some tables that are not super table, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
-      --environment.incgroup           whether running in cgroup. Env "TAOS_KEEPER_ENVIRONMENT_INCGROUP"
-      --log.path string                log path. Env "TAOS_KEEPER_LOG_PATH" (default "/var/log/taos")
-      --log.rotationCount uint         log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 5)
-      --log.rotationTime duration      log rotation time. Env "TAOS_KEEPER_LOG_ROTATION_TIME" (default 24h0m0s)
-      --log.rotationSize string        log rotation size(KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_ROTATION_SIZE" (default "100000000")
-  -c, --config string                  config path default /etc/taos/taoskeeper.toml
-  -V, --version                        Print the version and exit
-  -h, --help                           Print this help message and exit
+Usage of taoskeeper v3.3.3.0:
+  -R, --RotationInterval string                      interval for refresh metrics, such as "300ms", Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h". Env "TAOS_KEEPER_ROTATION_INTERVAL" (default "15s")
+  -c, --config string                                config path default /etc/taos/taoskeeper.toml
+      --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables. 
+      --environment.incgroup                         whether running in cgroup. Env "TAOS_KEEPER_ENVIRONMENT_INCGROUP"
+      --fromTime string                              parameter of transfer, example: 2020-01-01T00:00:00+08:00 (default "2020-01-01T00:00:00+08:00")
+      --gopoolsize int                               coroutine size. Env "TAOS_KEEPER_POOL_SIZE" (default 50000)
+  -h, --help                                         Print this help message and exit
+      --instanceId int                               instance ID. Env "TAOS_KEEPER_INSTANCE_ID" (default 64)
+      --log.compress                                 whether to compress old log. Env "TAOS_KEEPER_LOG_COMPRESS"
+      --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 30)
+      --log.level string                             log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
+      --log.path string                              log path. Env "TAOS_KEEPER_LOG_PATH" (default "/var/log/taos")
+      --log.reservedDiskSize string                  reserved disk size for log dir (KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_RESERVED_DISK_SIZE" (default "1GB")
+      --log.rotationCount uint                       log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 5)
+      --log.rotationSize string                      log rotation size(KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_ROTATION_SIZE" (default "1GB")
+      --log.rotationTime duration                    deprecated: log rotation time always 24 hours. Env "TAOS_KEEPER_LOG_ROTATION_TIME" (default 24h0m0s)
+      --logLevel string                              log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
+      --metrics.database.name string                 database for storing metrics data. Env "TAOS_KEEPER_METRICS_DATABASE" (default "log")
+      --metrics.database.options.buffer int          database option buffer for audit database. Env "TAOS_KEEPER_METRICS_BUFFER" (default 64)
+      --metrics.database.options.cachemodel string   database option cachemodel for audit database. Env "TAOS_KEEPER_METRICS_CACHEMODEL" (default "both")
+      --metrics.database.options.keep int            database option buffer for audit database. Env "TAOS_KEEPER_METRICS_KEEP" (default 90)
+      --metrics.database.options.vgroups int         database option vgroups for audit database. Env "TAOS_KEEPER_METRICS_VGROUPS" (default 1)
+      --metrics.prefix string                        prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"
+      --metrics.tables stringArray                   export some tables that are not supertable, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
+  -P, --port int                                     http port. Env "TAOS_KEEPER_PORT" (default 6043)
+      --tdengine.host string                         TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
+      --tdengine.password string                     TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
+      --tdengine.port int                            TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
+      --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
+      --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
+      --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
+  -V, --version                                      Print the version and exit
 ```
 
 ### Configuration File
 
-taosKeeper supports specifying a configuration file using the command `taoskeeper -c <keeper config file>`.
+taosKeeper supports specifying a configuration file with the command `taoskeeper -c <keeper config file>`.
+If no configuration file is specified, taosKeeper will use the default configuration file located at: `/etc/taos/taoskeeper.toml`.
+If neither a taosKeeper configuration file is specified nor does `/etc/taos/taoskeeper.toml` exist, the default configuration will be used.
 
-If you do not specify a configuration file, taosKeeper will use the default configuration file, which is located at `/etc/taos/taoskeeper.toml`.
-
-If neither the taosKeeper configuration file is specified, nor does `/etc/taos/taoskeeper.toml` exist, the default configuration will be used.
-
-**Here is an example configuration file:**
+**Below is an example of the configuration file:**
 
 ```toml
-# Start with debug middleware for gin
-debug = false
+# The ID of the currently running taoskeeper instance, default is 64.
+instanceId = 64
 
-# Listen port, default is 6043
+# Listening port, default is 6043.
 port = 6043
 
-# log level
-loglevel = "info"
-
-# go pool size
+# Go pool size
 gopoolsize = 50000
 
-# interval for metrics
+# Interval for metrics
 RotationInterval = "15s"
 
 [tdengine]
@@ -83,20 +90,21 @@ password = "taosdata"
 usessl = false
 
 [metrics]
-# metrics prefix in metrics names.
+# Metrics prefix in metrics names.
 prefix = "taos"
 
-# export some tables that are not super table
+# Export some tables that are not supertable.
 tables = []
 
-# database for storing metrics data
+# Database for storing metrics data.
 [metrics.database]
 name = "log"
-# database options for db storing metrics data
+
+# Database options for db storing metrics data.
 [metrics.database.options]
 vgroups = 1
 buffer = 64
-KEEP = 90
+keep = 90
 cachemodel = "both"
 
 [environment]
@@ -104,26 +112,36 @@ cachemodel = "both"
 incgroup = false
 
 [log]
-rotationCount = 5
-rotationTime = "24h"
-rotationSize = 100000000
+# The directory where log files are stored.
+# path = "/var/log/taos"
+level = "info"
+# Number of log file rotations before deletion.
+rotationCount = 30
+# The number of days to retain log files.
+keepDays = 30
+# The maximum size of a log file before rotation.
+rotationSize = "1GB"
+# If set to true, log files will be compressed.
+compress = false
+# Minimum disk space to reserve. Log files will not be written if disk space falls below this limit.
+reservedDiskSize = "1GB"
 ```
 
-## Start
+## Startup
 
-**Before running taosKeeper, ensure that the TDengine cluster and taosAdapter are running correctly.** Additionally, monitoring services must be enabled in the TDengine configuration file `taos.cfg`, requiring at least the configuration of `monitor` and `monitorFqdn`.
+**Before running taosKeeper, ensure that the TDengine cluster and taosAdapter are already running correctly.** Additionally, monitoring services must be enabled in TDengine, with at least `monitor` and `monitorFqdn` configured in the TDengine configuration file `taos.cfg`.
 
 ```shell
 monitor 1
-monitorFqdn localhost # FQDN of the taoskeeper service
+monitorFqdn localhost # FQDN for taoskeeper service
 ```
 
-For more details on TDengine monitoring configuration, please refer to: [Monitor Your Cluster](../../../operations-and-maintenance/monitor-your-cluster/).
+For details on TDengine monitoring configuration, please refer to: [TDengine Monitoring Configuration](../../../operations-and-maintenance/monitor-your-cluster/).
 
 <Tabs>
 <TabItem label="Linux" value="linux">
 
-After installation, use the `systemctl` command to start the taoskeeper service process.
+After installation, please use the `systemctl` command to start the taoskeeper service process.
 
 ```bash
 systemctl start taoskeeper
@@ -135,13 +153,13 @@ Check if the service is working properly:
 systemctl status taoskeeper
 ```
 
-If the service process is active, the status command will display the following related information:
+If the service process is active, the status command will display the following information:
 
 ```text
 Active: active (running)
 ```
 
-If the background service process is stopped, the status command will display the following related information:
+If the background service process is stopped, the status command will display the following information:
 
 ```text
 Active: inactive (dead)
@@ -150,18 +168,20 @@ Active: inactive (dead)
 The following `systemctl` commands can help you manage the taoskeeper service:
 
 - Start the service process: `systemctl start taoskeeper`
+
 - Stop the service process: `systemctl stop taoskeeper`
+
 - Restart the service process: `systemctl restart taoskeeper`
-- View service status: `systemctl status taoskeeper`
+
+- Check the service status: `systemctl status taoskeeper`
 
 :::info
 
-- The `systemctl` command requires _root_ permissions to run. If you are not a _root_ user, please add `sudo` before the command.
-- If your system does not support `systemd`, you can manually run `/usr/local/taos/bin/taoskeeper` to start the taoskeeper service.
-- Troubleshooting: If the service is abnormal, please check the logs for more information. The log files are stored by default in `/var/log/taos`.
+- `systemctl` commands require _root_ permissions to run. If you are not a _root_ user, please add `sudo` before the command.
+- If the system does not support `systemd`, you can also manually run `/usr/local/taos/bin/taoskeeper` to start the taoskeeper service.
+- Troubleshooting: If the service is abnormal, please check the log for more information. Log files are by default located in `/var/log/taos`.
 
 :::
-
 </TabItem>
 
 <TabItem label="macOS" value="macOS">
@@ -171,14 +191,16 @@ After installation, you can run `sudo launchctl start com.tdengine.taoskeeper` t
 The following `launchctl` commands are used to manage the taoskeeper service:
 
 - Start the service process: `sudo launchctl start com.tdengine.taoskeeper`
+
 - Stop the service process: `sudo launchctl stop com.tdengine.taoskeeper`
-- View service status: `sudo launchctl list | grep taoskeeper`
+
+- Check the service status: `sudo launchctl list | grep taoskeeper`
 
 :::info
 
-- The `launchctl` command requires administrator privileges to manage `com.tdengine.taoskeeper`, so make sure to add `sudo` before it for security.
-- The first column returned by `sudo launchctl list | grep taoskeeper` is the PID of the `taoskeeper` program. If it shows `-`, it means the taoskeeper service is not running.
-- Troubleshooting: If the service is abnormal, please check the logs for more information. The log files are stored by default in `/var/log/taos`.
+- `launchctl` commands managing `com.tdengine.taoskeeper` require administrator privileges, always use `sudo` to enhance security.
+- The command `sudo launchctl list | grep taoskeeper` returns the PID of the `taoskeeper` program in the first column. If it is `-`, it indicates that the taoskeeper service is not running.
+- Troubleshooting: If the service is abnormal, please check the log for more information. Log files are by default located in `/var/log/taos`.
 
 :::
 
@@ -187,13 +209,13 @@ The following `launchctl` commands are used to manage the taoskeeper service:
 
 ## Health Check
 
-You can access the taosKeeper `check_health` interface to determine if the service is alive. If the service is normal, it will return an HTTP 200 status code:
+You can access the taosKeeper's `check_health` interface to determine if the service is alive. If the service is normal, it will return an HTTP 200 status code:
 
 ```shell
 curl -i http://127.0.0.1:6043/check_health
 ```
 
-Return result:
+Response:
 
 ```text
 HTTP/1.1 200 OK
@@ -206,11 +228,11 @@ Content-Length: 21
 
 ## Data Collection and Monitoring
 
-taosKeeper, as a tool for exporting TDengine monitoring metrics, can record the monitoring data generated by TDengine in a specified database (default monitoring data is `log`). This monitoring data can be used to configure TDengine monitoring.
+taosKeeper, as a tool for exporting monitoring metrics of TDengine, can record the monitoring data generated by TDengine in a specified database (the default monitoring data is `log`). These monitoring data can be used to configure TDengine monitoring.
 
 ### Viewing Monitoring Data
 
-You can view the supertables in the `log` database, with each supertable corresponding to a set of monitoring metrics, which will not be detailed further.
+You can view the supertables under the `log` database, each supertable corresponds to a set of monitoring metrics, specific metrics are not further described.
 
 ```shell
 taos> use log;
@@ -234,9 +256,10 @@ taos> show stables;
  taosd_dnodes_data_dirs         |
  taosd_dnodes_log_dirs          |
 Query OK, 14 row(s) in set (0.006542s)
+
 ```
 
-You can check the most recent report record of a supertable, such as:
+You can view the most recent report record of a supertable, such as:
 
 ``` shell
 taos> select last_row(*) from taosd_dnodes_info;
@@ -246,17 +269,17 @@ taos> select last_row(*) from taosd_dnodes_info;
 Query OK, 1 row(s) in set (0.003168s)
 ```
 
-### Using TDInsight to Configure Monitoring
+### Configuring Monitoring with TDInsight
 
-Once monitoring data has been collected, you can use TDInsight to configure monitoring for TDengine. For specific details, please refer to the [TDInsight Reference Manual](../tdinsight/).
+After collecting monitoring data, you can use TDInsight to configure monitoring for TDengine. For details, please refer to the [TDinsight Reference Manual](../tdinsight/).
 
 ## Integrating Prometheus
 
-taosKeeper provides the `/metrics` interface, which returns monitoring data in Prometheus format. Prometheus can extract monitoring data from taosKeeper to monitor TDengine.
+taoskeeper provides a `/metrics` endpoint, which returns monitoring data in Prometheus format. Prometheus can extract monitoring data from taoskeeper to achieve monitoring of TDengine through Prometheus.
 
 ### Exporting Monitoring Metrics
 
-The following curl command shows the data format returned by the `/metrics` interface:
+Below, the data format returned by the `/metrics` endpoint is demonstrated using the `curl` command:
 
 ```shell
 curl http://127.0.0.1:6043/metrics
@@ -285,234 +308,234 @@ taos_cluster_info_first_ep{cluster_id="554014120921134497",value="tdengine:6030"
 taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 ```
 
-### Monitoring Metrics Details
+### Details of Monitoring Metrics
 
 #### taosd Cluster
 
-##### Supported Labels for Monitoring Information
+##### Supported Tags for Monitoring Information
 
 - `cluster_id`: Cluster ID
 
-##### Related Metrics and Their Meaning
+##### Related Metrics and Their Meanings
 
-| Metric Name                             | Type    | Meaning                              |
-| --------------------------------------- | ------- | ------------------------------------ |
-| taos_cluster_info_connections_total     | counter | Total number of connections           |
-| taos_cluster_info_dbs_total             | counter | Total number of databases             |
-| taos_cluster_info_dnodes_alive          | counter | Number of alive dnodes               |
-| taos_cluster_info_dnodes_total          | counter | Total number of dnodes                |
-| taos_cluster_info_first_ep              | gauge   | First endpoint; the label value indicates the endpoint value |
-| taos_cluster_info_first_ep_dnode_id     | counter | The dnode ID of the first endpoint   |
-| taos_cluster_info_master_uptime         | gauge   | Uptime of the master node (in days) |
-| taos_cluster_info_mnodes_alive          | counter | Number of alive mnodes               |
-| taos_cluster_info_mnodes_total          | counter | Total number of mnodes               |
-| taos_cluster_info_stbs_total            | counter | Total number of supertables          |
-| taos_cluster_info_streams_total         | counter | Total number of streams               |
-| taos_cluster_info_tbs_total             | counter | Total number of tables                |
-| taos_cluster_info_topics_total          | counter | Total number of topics                |
-| taos_cluster_info_version               | gauge   | Version information; the label value indicates the version number |
-| taos_cluster_info_vgroups_alive         | counter | Number of alive virtual groups        |
-| taos_cluster_info_vgroups_total         | counter | Total number of virtual groups        |
-| taos_cluster_info_vnodes_alive          | counter | Number of alive virtual nodes         |
-| taos_cluster_info_vnodes_total          | counter | Total number of virtual nodes         |
-| taos_grants_info_expire_time            | counter | Remaining time until cluster authorization expires (in seconds) |
-| taos_grants_info_timeseries_total       | counter | Total number of time series allowed for cluster authorization |
-| taos_grants_info_timeseries_used        | counter | Number of time series already owned by the cluster |
+| Metric Name                              | Type    | Meaning                                       |
+| ---------------------------------------- | ------- | --------------------------------------------- |
+| taos_cluster_info_connections_total      | counter | Total number of connections                   |
+| taos_cluster_info_dbs_total              | counter | Total number of databases                     |
+| taos_cluster_info_dnodes_alive           | counter | Number of alive dnodes                        |
+| taos_cluster_info_dnodes_total           | counter | Total number of dnodes                        |
+| taos_cluster_info_first_ep               | gauge   | First endpoint, label value indicates endpoint value |
+| taos_cluster_info_first_ep_dnode_id      | counter | dnode ID of the first endpoint                |
+| taos_cluster_info_master_uptime          | gauge   | Master node uptime in days                    |
+| taos_cluster_info_mnodes_alive           | counter | Number of alive mnodes                        |
+| taos_cluster_info_mnodes_total           | counter | Total number of mnodes                        |
+| taos_cluster_info_stbs_total             | counter | Total number of supertables                  |
+| taos_cluster_info_streams_total          | counter | Total number of streams                       |
+| taos_cluster_info_tbs_total              | counter | Total number of tables                        |
+| taos_cluster_info_topics_total           | counter | Total number of topics                        |
+| taos_cluster_info_version                | gauge   | Version information, label value indicates version number |
+| taos_cluster_info_vgroups_alive          | counter | Number of alive virtual groups                |
+| taos_cluster_info_vgroups_total          | counter | Total number of virtual groups                |
+| taos_cluster_info_vnodes_alive           | counter | Number of alive virtual nodes                 |
+| taos_cluster_info_vnodes_total           | counter | Total number of virtual nodes                 |
+| taos_grants_info_expire_time             | counter | Remaining time until cluster authorization expires (in seconds) |
+| taos_grants_info_timeseries_total        | counter | Total number of time-series allowed by cluster authorization |
+| taos_grants_info_timeseries_used         | counter | Number of time-series currently owned by the cluster |
 
 #### dnode
 
-##### Supported Labels for Monitoring Information
+##### Supported Tags for Monitoring Information
 
-- `cluster_id`: Cluster ID
+- `cluster_id`: Cluster id
 - `dnode_ep`: dnode endpoint
-- `dnode_id`: dnode ID
+- `dnode_id`: dnode id
 
-##### Related Metrics and Their Meaning
+##### Relevant Metrics and Their Meanings
 
-| Metric Name                          | Type    | Meaning                                                                                  |
-| ------------------------------------- | ------- | ---------------------------------------------------------------------------------------- |
-| taos_d_info_status                    | gauge   | dnode status; the label value indicates the status: ready (normal), offline (down), unknown (unknown). |
-| taos_dnodes_info_cpu_cores            | gauge   | Number of CPU cores                                                                     |
-| taos_dnodes_info_cpu_engine           | gauge   | CPU percentage used by this dnode's process (range: 0-100)                             |
-| taos_dnodes_info_cpu_system           | gauge   | CPU percentage used by the system on which this dnode resides (range: 0-100)           |
-| taos_dnodes_info_disk_engine          | counter | Disk capacity used by this dnode's process (in Bytes)                                   |
-| taos_dnodes_info_disk_total           | counter | Total disk capacity of the node where this dnode resides (in Bytes)                     |
-| taos_dnodes_info_disk_used            | counter | Disk capacity used by the node where this dnode resides (in Bytes)                      |
-| taos_dnodes_info_has_mnode            | counter | Whether there is an mnode                                                              |
-| taos_dnodes_info_has_qnode            | counter | Whether there is a qnode                                                              |
-| taos_dnodes_info_has_snode            | counter | Whether there is an snode                                                              |
-| taos_dnodes_info_io_read              | gauge   | I/O read rate of the node where this dnode resides (in Bytes/s)                         |
-| taos_dnodes_info_io_read_disk         | gauge   | Disk I/O write rate of the node where this dnode resides (in Bytes/s)                   |
-| taos_dnodes_info_io_write             | gauge   | I/O write rate of the node where this dnode resides (in Bytes/s)                        |
-| taos_dnodes_info_io_write_disk        | gauge   | Disk I/O write rate of the node where this dnode resides (in Bytes/s)                   |
-| taos_dnodes_info_masters              | counter | Number of master nodes                                                                  |
-| taos_dnodes_info_mem_engine           | counter | Memory used by this dnode's process (in KB)                                            |
-| taos_dnodes_info_mem_system           | counter | Memory used by the system where this dnode resides (in KB)                             |
-| taos_dnodes_info_mem_total            | counter | Total memory of the node where this dnode resides (in KB)                              |
-| taos_dnodes_info_net_in               | gauge   | Network inbound rate of the node where this dnode resides (in Bytes/s)                  |
-| taos_dnodes_info_net_out              | gauge   | Network outbound rate of the node where this dnode resides (in Bytes/s)                 |
-| taos_dnodes_info_uptime               | gauge   | Uptime of this dnode (in seconds)                                                      |
-| taos_dnodes_info_vnodes_num           | counter | Number of vnodes on the node where this dnode resides                                   |
+| Metric Name                    | Type    | Meaning                                                                                   |
+| ------------------------------ | ------- | ---------------------------------------------------------------------------------------- |
+| taos_d_info_status             | gauge   | dnode status, the label value indicates the status, ready means normal, offline means offline, unknown means unknown. |
+| taos_dnodes_info_cpu_cores     | gauge   | Number of CPU cores                                                                       |
+| taos_dnodes_info_cpu_engine    | gauge   | Percentage of CPU used by the process on this dnode (range 0~100)                        |
+| taos_dnodes_info_cpu_system    | gauge   | Percentage of CPU used by the system on this dnode (range 0~100)                         |
+| taos_dnodes_info_disk_engine   | counter | Disk capacity used by the process on this dnode (unit Byte)                              |
+| taos_dnodes_info_disk_total    | counter | Total disk capacity of this dnode (unit Byte)                                            |
+| taos_dnodes_info_disk_used     | counter | Disk capacity used on this dnode (unit Byte)                                             |
+| taos_dnodes_info_has_mnode     | counter | Whether there is an mnode                                                                |
+| taos_dnodes_info_has_qnode     | counter | Whether there is a qnode                                                                 |
+| taos_dnodes_info_has_snode     | counter | Whether there is an snode                                                                |
+| taos_dnodes_info_io_read       | gauge   | IO read rate of this dnode (unit Byte/s)                                                 |
+| taos_dnodes_info_io_read_disk  | gauge   | Disk IO read rate of this dnode (unit Byte/s)                                            |
+| taos_dnodes_info_io_write      | gauge   | IO write rate of this dnode (unit Byte/s)                                                |
+| taos_dnodes_info_io_write_disk | gauge   | Disk IO write rate of this dnode (unit Byte/s)                                           |
+| taos_dnodes_info_masters       | counter | Number of master nodes                                                                   |
+| taos_dnodes_info_mem_engine    | counter | Memory used by the process on this dnode (unit KB)                                       |
+| taos_dnodes_info_mem_system    | counter | Memory used by the system on this dnode (unit KB)                                        |
+| taos_dnodes_info_mem_total     | counter | Total memory of this dnode (unit KB)                                                     |
+| taos_dnodes_info_net_in        | gauge   | Network incoming rate of this dnode (unit Byte/s)                                        |
+| taos_dnodes_info_net_out       | gauge   | Network outgoing rate of this dnode (unit Byte/s)                                        |
+| taos_dnodes_info_uptime        | gauge   | Uptime of this dnode (unit seconds)                                                      |
+| taos_dnodes_info_vnodes_num    | counter | Number of vnodes on this dnode                                                           |
 
 #### Data Directory
 
-##### Supported Labels for Monitoring Information
+##### Supported Tags for Monitoring Information
 
-- `cluster_id`: Cluster ID
+- `cluster_id`: Cluster id
 - `dnode_ep`: dnode endpoint
-- `dnode_id`: dnode ID
+- `dnode_id`: dnode id
 - `data_dir_name`: Data directory name
 - `data_dir_level`: Data directory level
 
-##### Related Metrics and Their Meaning
+##### Related Metrics and Their Meanings
 
-| Metric Name                          | Type  | Meaning                     |
-| ------------------------------------- | ----- | --------------------------- |
-| taos_taosd_dnodes_data_dirs_avail    | gauge | Available space (in Bytes)  |
-| taos_taosd_dnodes_data_dirs_total    | gauge | Total space (in Bytes)      |
-| taos_taosd_dnodes_data_dirs_used     | gauge | Used space (in Bytes)       |
+| Metric Name                          | Type  | Meaning                  |
+| ------------------------------------ | ----- | ------------------------ |
+| taos_taosd_dnodes_data_dirs_avail    | gauge | Available space (in Byte)|
+| taos_taosd_dnodes_data_dirs_total    | gauge | Total space (in Byte)    |
+| taos_taosd_dnodes_data_dirs_used     | gauge | Used space (in Byte)     |
 
 #### Log Directory
 
-##### Supported Labels for Monitoring Information
+##### Supported Tags for Monitoring Information
 
-- `cluster_id`: Cluster ID
+- `cluster_id`: Cluster id
 - `dnode_ep`: dnode endpoint
-- `dnode_id`: dnode ID
+- `dnode_id`: dnode id
 - `log_dir_name`: Log directory name
 
-##### Related Metrics and Their Meaning
+##### Related Metrics and Their Meanings
 
-| Metric Name                          | Type  | Meaning                     |
-| ------------------------------------- | ----- | --------------------------- |
-| taos_taosd_dnodes_log_dirs_avail     | gauge | Available space (in Bytes)  |
-| taos_taosd_dnodes_log_dirs_total     | gauge | Total space (in Bytes)      |
-| taos_taosd_dnodes_log_dirs_used      | gauge | Used space (in Bytes)       |
+| Metric Name                         | Type  | Meaning                  |
+| ----------------------------------- | ----- | ------------------------ |
+| taos_taosd_dnodes_log_dirs_avail    | gauge | Available space (in Byte)|
+| taos_taosd_dnodes_log_dirs_total    | gauge | Total space (in Byte)    |
+| taos_taosd_dnodes_log_dirs_used     | gauge | Used space (in Byte)     |
 
 #### Log Count
 
-##### Supported Labels for Monitoring Information
+##### Supported Tags for Monitoring Information
 
-- `cluster_id`: Cluster ID
+- `cluster_id`: Cluster id
 - `dnode_ep`: dnode endpoint
-- `dnode_id`: dnode ID
+- `dnode_id`: dnode id
 
-##### Related Metrics and Their Meaning
+##### Related Metrics and Their Meanings
 
-| Metric Name                          | Type    | Meaning                   |
-| ------------------------------------- | ------- | ------------------------- |
-| taos_log_summary_debug                | counter | Debug log count           |
-| taos_log_summary_error                | counter | Error log count           |
-| taos_log_summary_info                 | counter | Info log count            |
-| taos_log_summary_trace                | counter | Trace log count           |
+| Metric Name               | Type    | Meaning          |
+| ------------------------- | ------- | ---------------- |
+| taos_log_summary_debug    | counter | Number of debug logs |
+| taos_log_summary_error    | counter | Number of error logs |
+| taos_log_summary_info     | counter | Number of info logs  |
+| taos_log_summary_trace    | counter | Number of trace logs |
 
 #### taosadapter
 
-##### Supported Labels for Monitoring Information
+##### Supported Tags for Monitoring Information
 
 - `endpoint`: Endpoint
-- `req_type`: Request type, where 0 indicates REST, and 1 indicates WebSocket
+- `req_type`: Request type, 0 for rest, 1 for websocket
 
-##### Related Metrics and Their Meaning
+##### Related Metrics and Their Meanings
 
-| Metric Name                               | Type    | Meaning                      |
-| ------------------------------------------ | ------- | ----------------------------- |
-| taos_adapter_requests_fail                 | counter | Number of failed requests     |
-| taos_adapter_requests_in_process           | counter | Number of requests in process |
-| taos_adapter_requests_other                | counter | Number of other types of requests |
-| taos_adapter_requests_other_fail           | counter | Number of other types of failed requests |
-| taos_adapter_requests_other_success        | counter | Number of other types of successful requests |
-| taos_adapter_requests_query                | counter | Number of query requests       |
-| taos_adapter_requests_query_fail           | counter | Number of query failed requests |
-| taos_adapter_requests_query_in_process     | counter | Number of queries in process   |
-| taos_adapter_requests_query_success        | counter | Number of successful query requests |
-| taos_adapter_requests_success              | counter | Number of successful requests   |
-| taos_adapter_requests_total                | counter | Total number of requests       |
-| taos_adapter_requests_write                | counter | Number of write requests       |
-| taos_adapter_requests_write_fail           | counter | Number of write failed requests |
-| taos_adapter_requests_write_in_process     | counter | Number of write requests in process |
-| taos_adapter_requests_write_success        | counter | Number of successful write requests |
+| Metric Name                               | Type    | Meaning                  |
+| ----------------------------------------- | ------- | ------------------------ |
+| taos_adapter_requests_fail                | counter | Number of failed requests|
+| taos_adapter_requests_in_process          | counter | Number of requests in process|
+| taos_adapter_requests_other               | counter | Number of other type requests|
+| taos_adapter_requests_other_fail          | counter | Number of failed other type requests|
+| taos_adapter_requests_other_success       | counter | Number of successful other type requests|
+| taos_adapter_requests_query               | counter | Number of query requests |
+| taos_adapter_requests_query_fail          | counter | Number of failed query requests|
+| taos_adapter_requests_query_in_process    | counter | Number of queries in process|
+| taos_adapter_requests_query_success       | counter | Number of successful query requests|
+| taos_adapter_requests_success             | counter | Number of successful requests|
+| taos_adapter_requests_total               | counter | Total number of requests |
+| taos_adapter_requests_write               | counter | Number of write requests |
+| taos_adapter_requests_write_fail          | counter | Number of failed write requests|
+| taos_adapter_requests_write_in_process    | counter | Number of writes in process|
+| taos_adapter_requests_write_success       | counter | Number of successful write requests|
 
 #### taoskeeper
 
-##### Supported Labels for Monitoring Information
+##### Supported Tags for Monitoring Information
 
 - `identify`: Node endpoint
 
-##### Related Metrics and Their Meaning
+##### Related Metrics and Their Meanings
 
-| Metric Name                | Type  | Meaning                             |
-| --------------------------- | ----- | ----------------------------------- |
-| taos_keeper_monitor_cpu     | gauge | taoskeeper CPU usage (range: 0~1)  |
-| taos_keeper_monitor_mem     | gauge | taoskeeper memory usage (range: 0~1) |
+| Metric Name                | Type  | Meaning                                      |
+| -------------------------- | ----- | -------------------------------------------- |
+| taos_keeper_monitor_cpu    | gauge | taoskeeper CPU usage rate (range 0~1)        |
+| taos_keeper_monitor_mem    | gauge | taoskeeper memory usage rate (range 0~1)     |
 
 #### Other taosd Cluster Monitoring Items
 
 ##### taos_m_info_role
 
-- **Labels**:
-  - `cluster_id`: Cluster ID
+- **Tags**:
+  - `cluster_id`: Cluster id
   - `mnode_ep`: mnode endpoint
-  - `mnode_id`: mnode ID
-  - `value`: Role value (the status of this mnode; range: offline, follower, candidate, leader, error, learner)
+  - `mnode_id`: mnode id
+  - `value`: Role value (the state of this mnode, range: offline, follower, candidate, leader, error, learner)
 - **Type**: gauge
 - **Meaning**: mnode role
 
 ##### taos_taos_sql_req_count
 
-- **Labels**:
-  - `cluster_id`: Cluster ID
+- **Tags**:
+  - `cluster_id`: Cluster id
   - `result`: Request result (range: Success, Failed)
   - `sql_type`: SQL type (range: select, insert, inserted_rows, delete)
   - `username`: Username
 - **Type**: gauge
-- **Meaning**: SQL request count
+- **Meaning**: Number of SQL requests
 
 ##### taos_taosd_sql_req_count
 
-- **Labels**:
-  - `cluster_id`: Cluster ID
+- **Tags**:
+  - `cluster_id`: Cluster id
   - `dnode_ep`: dnode endpoint
-  - `dnode_id`: dnode ID
+  - `dnode_id`: dnode id
   - `result`: Request result (range: Success, Failed)
   - `sql_type`: SQL type (range: select, insert, inserted_rows, delete)
   - `username`: Username
-  - `vgroup_id`: Virtual group ID
+  - `vgroup_id`: Virtual group id
 - **Type**: gauge
-- **Meaning**: SQL request count
+- **Meaning**: Number of SQL requests
 
 ##### taos_taosd_vgroups_info_status
 
-- **Labels**:
-  - `cluster_id`: Cluster ID
+- **Tags**:
+  - `cluster_id`: Cluster id
   - `database_name`: Database name
-  - `vgroup_id`: Virtual group ID
+  - `vgroup_id`: Virtual group id
 - **Type**: gauge
-- **Meaning**: Virtual group status. 0 means unsynced, indicating no leader has been elected; 1 means ready.
+- **Meaning**: Virtual group status. 0 for unsynced, indicating no leader elected; 1 for ready.
 
 ##### taos_taosd_vgroups_info_tables_num
 
-- **Labels**:
-  - `cluster_id`: Cluster ID
+- **Tags**:
+  - `cluster_id`: Cluster id
   - `database_name`: Database name
-  - `vgroup_id`: Virtual group ID
+  - `vgroup_id`: Virtual group id
 - **Type**: gauge
-- **Meaning**: Number of tables in the virtual group.
+- **Meaning**: Number of tables in the virtual group
 
 ##### taos_taosd_vnodes_info_role
 
-- **Labels**:
-  - `cluster_id`: Cluster ID
+- **Tags**:
+  - `cluster_id`: Cluster id
   - `database_name`: Database name
-  - `dnode_id`: dnode ID
+  - `dnode_id`: dnode id
   - `value`: Role value (range: offline, follower, candidate, leader, error, learner)
-  - `vgroup_id`: Virtual group ID
+  - `vgroup_id`: Virtual group id
 - **Type**: gauge
 - **Meaning**: Virtual node role
+  
+### Extraction Configuration
 
-### Scrape Configuration
-
-Prometheus provides the `scrape_configs` configuration to extract monitoring data from an endpoint. Typically, you only need to modify the targets configuration in `static_configs` to the endpoint address of taoskeeper. For more configuration information, please refer to the [Prometheus Configuration Documentation](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config).
+Prometheus provides `scrape_configs` to configure how to extract monitoring data from endpoints. Usually, you only need to modify the targets in `static_configs` to the endpoint address of taoskeeper. For more configuration information, please refer to [Prometheus Configuration Documentation](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config).
 
 ```text
 # A scrape configuration containing exactly one endpoint to scrape:
@@ -527,21 +550,21 @@ scrape_configs:
 
 ### Dashboard
 
-We provide the `TaosKeeper Prometheus Dashboard for 3.x`, which offers a monitoring dashboard similar to TDInsight.
+We provide the `TaosKeeper Prometheus Dashboard for 3.x` dashboard, which offers a monitoring dashboard similar to TDinsight.
 
-In the Grafana Dashboard menu, click `import`, enter the dashboard ID `18587`, and click the `Load` button to import the `TaosKeeper Prometheus Dashboard for 3.x`.
+In the Grafana Dashboard menu, click `import`, fill in the dashboard ID `18587`, and click the `Load` button to import the `TaosKeeper Prometheus Dashboard for 3.x` dashboard.
 
 ## taosKeeper Monitoring Metrics
 
-taosKeeper will also write its collected monitoring data to the monitoring database, with the default being the `log` database, which can be modified in the taoskeeper configuration file.
+taosKeeper also writes the monitoring data it collects into a monitoring database, which by default is the `log` database. This can be modified in the taoskeeper configuration file.
 
-### keeper_monitor Table
+### keeper_monitor table
 
-The `keeper_monitor` table records monitoring data from taoskeeper.
+The `keeper_monitor` records taoskeeper monitoring data.
 
-| field    | type      | is_tag | comment         |
-| :------- | :-------- | :----- | :-------------- |
-| ts       | TIMESTAMP |        | timestamp       |
-| cpu      | DOUBLE    |        | CPU usage rate  |
-| mem      | DOUBLE    |        | Memory usage rate|
-| identify | NCHAR     | TAG    | Identity information |
+| field    | type      | is_tag | comment        |
+| :------- | :-------- | :------ | :----------- |
+| ts       | TIMESTAMP |         | timestamp    |
+| cpu      | DOUBLE    |         | CPU usage    |
+| mem      | DOUBLE    |         | Memory usage |
+| identify | NCHAR     | tag     | Identity information |
