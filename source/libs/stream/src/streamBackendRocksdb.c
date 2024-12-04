@@ -4378,7 +4378,6 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
 }
 
 int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal, int32_t* pVLen) {
-  stDebug("streamStateFillGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
