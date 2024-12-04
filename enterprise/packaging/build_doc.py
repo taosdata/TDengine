@@ -158,7 +158,6 @@ def clone_repo(repo_url, repo_path):
     try:
         logger.info(f"Cloned repository from {repo_url} to {repo_path}")
         git.Repo.clone_from(repo_url, repo_path, progress=CloneProgress())
-       
     except Exception as e:
         logger.error(f"Error: {e}")
 
@@ -184,8 +183,9 @@ def prepare_repo(repo_url, repo_path, branch_name):
     Prepare the repository by cloning it if it doesn't exist, or updating it if it does
     """
     if os.path.exists(repo_path):
+        if repo_url == "https://github.com/taosdata/tdengine.com.git" :
         # If the repository already exists, update it
-        update_repo(repo_path, branch_name)
+            update_repo(repo_path, branch_name)
     else:
         # If the repository doesn't exist, clone it
         clone_repo(repo_url, repo_path)
@@ -209,28 +209,32 @@ def main():
     TDengine_branch_name = sys.argv[1]
     TDengine_repo = "https://github.com/taosdata/tdengine.com.git"
     TDengine_repo_path = f"{workdir}/TDengine/"
+    taos_tools_repo = "https://github.com/taosdata/taos-tools.git"
+    taos_tools_repo_path = f"{workdir}/taos-tools/"
     
     # prepare docs repo
-    prepare_repo(doc_en_repo,doc_zh_repo_path, "master")
+    prepare_repo(taos_tools_repo, taos_tools_repo_path, "main")
+    prepare_repo(doc_zh_repo,doc_zh_repo_path, "master")
     prepare_repo(doc_en_repo, doc_en_repo_path, "main")
-    prepare_repo(enterprise_doc_repo, enterprise_doc_repo_path, TDengine_branch_name)
+    prepare_repo(enterprise_doc_repo, enterprise_doc_repo_path, "main")
+    prepare_repo(TDengine_repo, TDengine_repo_path, TDengine_branch_name)
     
     # # 切换到 TDengine_repo 仓库并切换到指定分支
     # checkout_branch(TDengine_repo_path, TDengine_branch_name)
 
-    # # 切换到 doc_zh_repo 仓库并构建文档
-    # # change to doc_zh_repo and build the documentation
-    # os.chdir(doc_zh_repo)
-    # build_doc(doc_zh_repo)
+    # 切换到 doc_zh_repo 仓库并构建文档
+    # change to doc_zh_repo and build the documentation
+    os.chdir(doc_zh_repo)
+    build_doc(doc_zh_repo)
 
-    # # Change to doc_en_repo and build the documentation
-    # os.chdir(doc_en_repo)
-    # build_doc(doc_en_repo)
-    # # generate zip docs for enterprise
-    # build_doc_zip(enterprise_doc_repo)
+    # Change to doc_en_repo and build the documentation
+    os.chdir(doc_en_repo)
+    build_doc(doc_en_repo)
+    # generate zip docs for enterprise
+    build_doc_zip(enterprise_doc_repo)
      
-    # # generate pdf docs for enterprise
-    # build_doc_pdf(enterprise_doc_repo)
+    # generate pdf docs for enterprise
+    build_doc_pdf(enterprise_doc_repo)
 
 if __name__ == "__main__":
     main()
