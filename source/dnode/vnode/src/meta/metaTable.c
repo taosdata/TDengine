@@ -82,12 +82,15 @@ static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
   } else if (pEntry->type == TSDB_NORMAL_TABLE) {
     pInfo->suid = 0;
     pInfo->skmVer = pEntry->ntbEntry.schemaRow.version;
+  } else if (pEntry->type == TSDB_VIRTUAL_TABLE) {
+    pInfo->suid = 0;
+    pInfo->skmVer = pEntry->ntbEntry.schemaRow.version;
   } else {
     metaError("meta/table: invalide table type: %" PRId8 " get entry info failed.", pEntry->type);
   }
 }
 
-static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
+static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp, int8_t tableType) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
     return terrno;
@@ -101,7 +104,7 @@ static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
 
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   pMetaRsp->numOfColumns = pSchema->nCols;
-  pMetaRsp->tableType = TSDB_NORMAL_TABLE;
+  pMetaRsp->tableType = tableType;
   pMetaRsp->sversion = pSchema->version;
   pMetaRsp->tuid = uid;
 
@@ -461,7 +464,6 @@ _drop_super_table:
 
   pMeta->changed = true;
 
-_exit:
   tdbFree(pKey);
   tdbFree(pData);
   metaDebug("vgId:%d, super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
@@ -668,7 +670,6 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   pMeta->changed = true;
 
-_exit:
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
@@ -1053,7 +1054,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   int32_t     ret;
 
   // validate message
-  if (pReq->type != TSDB_CHILD_TABLE && pReq->type != TSDB_NORMAL_TABLE) {
+  if (pReq->type != TSDB_CHILD_TABLE && pReq->type != TSDB_NORMAL_TABLE && pReq->type != TSDB_VIRTUAL_TABLE) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _err;
   }
@@ -1155,7 +1156,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
         goto _err;
       }
     }
-  } else {
+  } else if (me.type == TSDB_NORMAL_TABLE) {
     me.ntbEntry.btime = pReq->btime;
     me.ntbEntry.ttlDays = pReq->ttl;
     me.ntbEntry.commentLen = pReq->commentLen;
@@ -1168,6 +1169,19 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     ++pStats->numOfNTables;
     pStats->numOfNTimeSeries += me.ntbEntry.schemaRow.nCols - 1;
 
+    if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+      ret = tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
+      if (ret < 0) {
+        metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pReq->name, tstrerror(ret));
+        goto _err;
+      }
+    }
+  } else if (me.type == TSDB_VIRTUAL_TABLE) {
+    me.ntbEntry.btime = pReq->btime;
+    me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
+    me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
+    me.colRef = pReq->colRef;
+    ++pStats->numOfVTables;
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
       ret = tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
       if (ret < 0) {
@@ -1190,8 +1204,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
         (*pMetaRsp)->tuid = pReq->uid;
         (*pMetaRsp)->suid = pReq->ctb.suid;
         strcpy((*pMetaRsp)->tbName, pReq->name);
-      } else {
-        ret = metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
+      } else if (me.type == TSDB_NORMAL_TABLE) {
+        ret = metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp, me.type);
         if (ret < 0) {
           metaError("vgId:%d, failed to update meta rsp:%s since %s", TD_VID(pMeta->pVnode), pReq->name,
                     tstrerror(ret));
@@ -1200,6 +1214,27 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
           SColCmpr *p = &pReq->colCmpr.pColCmpr[i];
           (*pMetaRsp)->pSchemaExt[i].colId = p->id;
           (*pMetaRsp)->pSchemaExt[i].compress = p->alg;
+        }
+      } else if (me.type == TSDB_VIRTUAL_TABLE) {
+        ret = metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp, me.type);
+        if (ret < 0) {
+          metaError("vgId:%d, failed to update meta rsp:%s since %s", TD_VID(pMeta->pVnode), pReq->name,
+                    tstrerror(ret));
+        }
+        for (int32_t i = 0; i < pReq->colRef.nCols; i++) {
+          SColRef *p = &pReq->colRef.pColRef[i];
+          (*pMetaRsp)->pSchemaExt[i].colId = p->id;
+          (*pMetaRsp)->pSchemaExt[i].colRef.hasRef = p->hasRef;
+          if (p->hasRef) {
+            (*pMetaRsp)->pSchemaExt[i].colRef.refTableName = taosStrdup(p->refTableName);
+            if (NULL == (*pMetaRsp)->pSchemaExt[i].colRef.refTableName) {
+              goto _err;
+            }
+            (*pMetaRsp)->pSchemaExt[i].colRef.refColName = taosStrdup(p->refColName);
+            if (NULL == (*pMetaRsp)->pSchemaExt[i].colRef.refColName) {
+              goto _err;
+            }
+          }
         }
       }
     }
@@ -1364,7 +1399,7 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
       char tbFName[TSDB_TABLE_FNAME_LEN + 1];
       snprintf(tbFName, sizeof(tbFName), "%s.%s", pMeta->pVnode->config.dbname, me.name);
       tbFName[TSDB_TABLE_FNAME_LEN] = '\0';
-      int32_t ret = vnodeValidateTableHash(pMeta->pVnode, tbFName);
+      ret = vnodeValidateTableHash(pMeta->pVnode, tbFName);
       if (ret < 0 && terrno == TSDB_CODE_VND_HASH_MISMATCH) {
         if (taosArrayPush(uidList, &me.uid) == NULL) {
           code = terrno;
@@ -1505,7 +1540,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
         SMetaEntry stbEntry = {0};
 
         tDecoderInit(&tdc, tData, tLen);
-        int32_t ret = metaDecodeEntry(&tdc, &stbEntry);
+        ret = metaDecodeEntry(&tdc, &stbEntry);
         if (ret < 0) {
           tDecoderClear(&tdc);
           metaError("vgId:%d, failed to decode child table:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
@@ -1778,7 +1813,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   pSchema = &entry.ntbEntry.schemaRow;
 
   // save old entry
-  SMetaEntry oldEntry = {.type = TSDB_NORMAL_TABLE, .uid = entry.uid};
+  SMetaEntry oldEntry = {.type = entry.type, .uid = entry.uid};
   oldEntry.ntbEntry.schemaRow.nCols = pSchema->nCols;
 
   int32_t rowLen = -1;
@@ -1842,7 +1877,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
         int16_t cid = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId;
         int8_t  col_type = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].type;
-        int32_t ret = tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
+        ret = tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
         if (ret < 0) {
           terrno = ret;
           goto _err;
@@ -1983,7 +2018,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   metaULock(pMeta);
 
-  if (metaUpdateMetaRsp(uid, pAlterTbReq->tbName, pSchema, pMetaRsp) < 0) {
+  if (metaUpdateMetaRsp(uid, pAlterTbReq->tbName, pSchema, pMetaRsp, TSDB_NORMAL_TABLE) < 0) {
     metaError("vgId:%d, failed to update meta rsp:%s uid:%" PRId64, TD_VID(pMeta->pVnode), entry.name, entry.uid);
   }
   for (int32_t i = 0; i < entry.colCmpr.nCols; i++) {
@@ -2692,8 +2727,8 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
     goto _err;
   }
   for (;;) {
-    void *pKey, *pVal;
-    int   nKey, nVal;
+    void *pKey;
+    int   nKey;
     rc = tdbTbcNext(pCtbIdxc, &pKey, &nKey, &pVal, &nVal);
     if (rc < 0) break;
     if (((SCtbIdxKey *)pKey)->suid != uid) {
@@ -2838,8 +2873,8 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
   int rc =
       tdbTbcMoveTo(pTagIdxc, &(STagIdxKey){.suid = suid, .cid = INT32_MIN, .type = pCol->type}, sizeof(STagIdxKey), &c);
   for (;;) {
-    void *pKey, *pVal;
-    int   nKey, nVal;
+    void *pKey;
+    int   nKey;
     rc = tdbTbcNext(pTagIdxc, &pKey, &nKey, &pVal, &nVal);
     STagIdxKey *pIdxKey = (STagIdxKey *)pKey;
     if (pIdxKey->suid != suid || pIdxKey->cid != pCol->colId) {
@@ -3254,7 +3289,7 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
 
   if (pME->type == TSDB_SUPER_TABLE) {
     pSW = &pME->stbEntry.schemaRow;
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
+  } else if (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_TABLE) {
     pSW = &pME->ntbEntry.schemaRow;
   } else {
     metaError("meta/table: invalide table type: %" PRId8 " save skm db failed.", pME->type);

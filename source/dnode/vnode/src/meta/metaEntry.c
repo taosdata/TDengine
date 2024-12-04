@@ -15,6 +15,66 @@
 
 #include "meta.h"
 
+int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
+  const SColRefWrapper *pw = &pME->colRef;
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->version));
+  uDebug("encode cols:%d", pw->nCols);
+
+  for (int32_t i = 0; i < pw->nCols; i++) {
+    SColRef *p = &pw->pColRef[i];
+    TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
+    TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->hasRef));
+    if (p->hasRef) {
+      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refTableName));
+      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
+    }
+  }
+  return 0;
+}
+
+int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
+  SColRefWrapper *pWrapper = &pME->colRef;
+  TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nCols));
+  if (pWrapper->nCols == 0) {
+    return 0;
+  }
+
+  TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->version));
+  uDebug("decode cols:%d", pWrapper->nCols);
+  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColRef));
+  if (pWrapper->pColRef == NULL) {
+    return terrno;
+  }
+
+  for (int i = 0; i < pWrapper->nCols; i++) {
+    SColRef *p = &pWrapper->pColRef[i];
+    TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
+    if (p->hasRef) {
+      TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &p->refTableName));
+      TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &p->refColName));
+    }
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t metatInitDefaultSColRefWrapper(SDecoder *pDecoder, SColRefWrapper *pRef,
+                                                            SSchemaWrapper *pSchema) {
+  pRef->nCols = pSchema->nCols;
+  if ((pRef->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pRef->nCols * sizeof(SColRef))) == NULL) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pRef->nCols; i++) {
+    SColRef  *pColRef = &pRef->pColRef[i];
+    SSchema  *pColSchema = &pSchema->pSchema[i];
+    pColRef->id = pColSchema->colId;
+    pColRef->hasRef = false;
+  }
+  return 0;
+}
+
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
@@ -104,11 +164,18 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schemaRow));
   } else if (pME->type == TSDB_TSMA_TABLE) {
     TAOS_CHECK_RETURN(tEncodeTSma(pCoder, pME->smaEntry.tsma));
+  } else if (pME->type == TSDB_VIRTUAL_TABLE) {
+    TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ntbEntry.ncid));
+    TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schemaRow));
   } else {
     metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
     return TSDB_CODE_INVALID_PARA;
   }
-  TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+  if (pME->type == TSDB_VIRTUAL_TABLE) {
+    TAOS_CHECK_RETURN(meteEncodeColRefEntry(pCoder, pME));
+  } else {
+    TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+  }
 
   tEndEncode(pCoder);
   return 0;
@@ -152,6 +219,9 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       return terrno;
     }
     TAOS_CHECK_RETURN(tDecodeTSma(pCoder, pME->smaEntry.tsma, true));
+  } else if (pME->type == TSDB_VIRTUAL_TABLE) {
+    TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ntbEntry.ncid));
+    TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schemaRow));
   } else {
     metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
     return TSDB_CODE_INVALID_PARA;
@@ -179,6 +249,17 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow));
     }
     TABLE_SET_COL_COMPRESSED(pME->flags);
+  } else if (pME->type == TSDB_VIRTUAL_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      uDebug("set type: %d, tableName:%s", pME->type, pME->name);
+      TAOS_CHECK_RETURN(meteDecodeColRefEntry(pCoder, pME));
+      if (pME->colCmpr.nCols == 0) {
+        TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
+      }
+    } else {
+      uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
+      TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
+    }
   }
 
   tEndDecode(pCoder);

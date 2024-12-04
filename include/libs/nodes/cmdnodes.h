@@ -161,6 +161,7 @@ typedef struct SCompactDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType  type;
+  bool       allowVirtual;
   bool       commentNull;
   char       comment[TSDB_TB_COMMENT_LEN];
   SNodeList* pMaxDelay;
@@ -185,7 +186,11 @@ typedef struct SColumnOptions {
   char      compress[TSDB_CL_COMPRESS_OPTION_LEN];
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
   bool      bPrimaryKey;
+  bool      hasRef;
+  char      refTable[TSDB_TABLE_NAME_LEN];
+  char      refColumn[TSDB_COL_NAME_LEN];
 } SColumnOptions;
+
 typedef struct SColumnDefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
@@ -203,6 +208,14 @@ typedef struct SCreateTableStmt {
   SNodeList*     pTags;
   STableOptions* pOptions;
 } SCreateTableStmt;
+
+typedef struct SCreateVTableStmt {
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pCols;
+} SCreateVTableStmt;
 
 typedef struct SCreateSubTableClause {
   ENodeType      type;
@@ -265,6 +278,8 @@ typedef struct SAlterTableStmt {
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
   SNodeList*      pNodeListTagValue;
+  char            dependTableName[TSDB_TABLE_NAME_LEN];
+  char            dependColName[TSDB_COL_NAME_LEN];
 } SAlterTableStmt;
 
 typedef struct SAlterTableMultiStmt {
