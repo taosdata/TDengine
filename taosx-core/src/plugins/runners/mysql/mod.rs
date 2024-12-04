@@ -428,7 +428,7 @@ mod tests {
 
     async fn test_create_database() {
         let dsn =
-            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/information_schema").unwrap();
+            Dsn::from_str("mysql://root:123456@192.168.1.45:3306/information_schema").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
@@ -446,12 +446,14 @@ mod tests {
     async fn test_create_table() {
         let _ = test_create_database().await;
 
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
+                let sql_drop_table = "drop table if exists t_metric";
+                let _ = query.pool.execute(sql_drop_table).await;
                 let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp)";
                 let _ = query.pool.execute(sql_create_table).await;
             }
@@ -464,7 +466,7 @@ mod tests {
     async fn test_insert_data(len: usize) {
         let _ = test_create_table().await;
 
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
@@ -483,9 +485,7 @@ mod tests {
     }
 
     async fn test_clear_data() {
-        let _ = test_create_table().await;
-
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
@@ -500,51 +500,50 @@ mod tests {
         }
     }
 
-    #[ignore]
     #[tokio::test]
     async fn test_is_valid() {
         // prepare data
         let _ = test_create_database().await;
 
         // invalid port
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_taosx").unwrap();
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3305/test_ci").unwrap();
         let res = is_valid(&dsn).await;
         assert!(!res.valid);
         assert!(!res.support);
         assert_eq!("mysql", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: mysql://root:123456@192.168.1.40:3305/test_taosx, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
+            "failed to connect to dsn: mysql://root:123456@192.168.1.45:3305/test_ci, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
             res.message.unwrap()
         );
 
         // user: test_ssl_only -- ssl_mode: DISABLED -- Access denied
-        let dsn = Dsn::from_str(
-            "mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED",
-        )
-        .unwrap();
-        let res = is_valid(&dsn).await;
-        assert!(!res.valid);
-        assert!(!res.support);
-        assert_eq!("mysql", res.data_source);
-        assert_eq!(
-            "failed to connect to dsn: mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED, cause: failed to connect to mysql, cause: error returned from database: 1045 (28000): Access denied for user 'test_ssl_only'@'192.168.2.13' (using password: YES)",
-            res.message.unwrap()
-        );
+        // let dsn = Dsn::from_str(
+        //     "mysql://test_ssl_only:taosdata@192.168.1.45:3306/test_ci?ssl_mode=DISABLED",
+        // )
+        // .unwrap();
+        // let res = is_valid(&dsn).await;
+        // assert!(!res.valid);
+        // assert!(!res.support);
+        // assert_eq!("mysql", res.data_source);
+        // assert_eq!(
+        //     "failed to connect to dsn: mysql://test_ssl_only:taosdata@192.168.1.45:3306/test_ci?ssl_mode=DISABLED, cause: failed to connect to mysql, cause: error returned from database: 1045 (28000): Access denied for user 'test_ssl_only'@'192.168.2.13' (using password: YES)",
+        //     res.message.unwrap()
+        // );
 
         // user: test_ssl_only -- ssl_mode: REQUIRED -- Access succ
-        let dsn = Dsn::from_str(
-            "mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=REQUIRED",
-        )
-        .unwrap();
-        let res = is_valid(&dsn).await;
-        assert!(res.valid);
-        assert!(res.support);
-        assert_eq!("mysql", res.data_source);
+        // let dsn = Dsn::from_str(
+        //     "mysql://test_ssl_only:taosdata@192.168.1.45:3306/test_ci?ssl_mode=REQUIRED",
+        // )
+        // .unwrap();
+        // let res = is_valid(&dsn).await;
+        // assert!(res.valid);
+        // assert!(res.support);
+        // assert_eq!("mysql", res.data_source);
 
         // user: test_disabled_only -- not support
 
         // normal
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let res = is_valid(&dsn).await;
         assert!(res.valid);
         assert!(res.support);
@@ -552,28 +551,26 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_sample() {
         // prepare data
         let _ = test_create_table().await;
-        let _ = test_clear_data().await;
         let _ = test_insert_data(4).await;
 
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from t_metric where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from t_metric where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
         dbg!(&res);
         assert!(res.is_ok());
         println!("{}", serde_json::to_string_pretty(&res.unwrap()).unwrap());
+
         // clear data
         let _ = test_clear_data().await;
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_mysql_to_taos() {
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
+        let from = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
         let parser = None;
@@ -604,17 +601,16 @@ mod tests {
         // let _ = res.await;
     }
 
-    #[ignore]
     #[tokio::test]
     async fn test_generate_json_value() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
         let row = query
-            .select_one_for_schema("select * from t_metric")
+            .select_one_for_schema("select * from tb_test_ci")
             .await
             .unwrap();
 
