@@ -13,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 	rotatelogs "github.com/taosdata/file-rotatelogs/v2"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
-
 	"github.com/taosdata/taoskeeper/version"
 )
 

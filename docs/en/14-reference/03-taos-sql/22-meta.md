@@ -318,13 +318,29 @@ Configuration parameters for each dnode in the system. Users with SYSINFO set to
 
 Note: Users with SYSINFO set to 0 cannot view this table.
 
-| #    | **Column Name** | **Data Type**  | **Description**                      |
-| ---- | :-------------: | -------------- | ------------------------------------ |
-| 1    |    user_name    | VARCHAR(24)    | Username                             |
-| 2    |    privilege    | VARCHAR(10)    | Permission description               |
-| 3    |     db_name     | VARCHAR(65)    | Database name                        |
-| 4    |   table_name    | VARCHAR(193)   | Table name                           |
-| 5    |    condition    | VARCHAR(49152) | Subtable permission filter condition |
+| #   | **Column Name** | **Data Type**  | **Description**                      |
+| --- | :-------------: | -------------- | ------------------------------------ |
+| 1   |    user_name    | VARCHAR(24)    | Username                             |
+| 2   |    privilege    | VARCHAR(10)    | Permission description               |
+| 3   |     db_name     | VARCHAR(65)    | Database name                        |
+| 4   |   table_name    | VARCHAR(193)   | Table name                           |
+| 5   |    condition    | VARCHAR(49152) | Subtable permission filter condition |
+
+## INS_DISK_USAGE
+
+| #   | **Column Name** | **Data type** | **Description**                            |
+| --- | :-------------: | ------------- | ------------------------------------------ |
+| 1   |     db_name     | VARCHAR(32)   | Database name                              |
+| 2   |    vgroup_id    | INT           | vgroup ID                                  |
+| 3   |       wal       | BIGINT        | WAL file size, in KB                       |
+| 4   |      data1      | BIGINT        | Data file size on primary storage, in KB   |
+| 5   |      data2      | BIGINT        | Data file size on secondary storage, in KB |
+| 6   |      data3      | BIGINT        | Data file size on tertiary storage, in KB  |
+| 7   |    cache_rdb    | BIGINT        | Size of last/last_row files, in KB         |
+| 8   |   table_meta    | BIGINT        | Size of meta files, in KB                  |
+| 9   |       s3        | BIGINT        | Size occupied on S3, in KB                 |
+| 10  |    raw_data     | BIGINT        | Estimated size of raw data, in KB          |
+
 
 ## INS_FILESETS
 

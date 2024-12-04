@@ -11,10 +11,9 @@ import (
 	"github.com/taosdata/go-utils/web"
 	"github.com/taosdata/taoskeeper/api"
 	"github.com/taosdata/taoskeeper/db"
-	"github.com/taosdata/taoskeeper/util"
-
 	"github.com/taosdata/taoskeeper/infrastructure/config"
 	"github.com/taosdata/taoskeeper/infrastructure/log"
+	"github.com/taosdata/taoskeeper/util"
 )
 
 func TestStart(t *testing.T) {
@@ -35,7 +34,7 @@ func TestStart(t *testing.T) {
 	conf.RotationInterval = "1s"
 	StartMonitor("", conf, reporter)
 	time.Sleep(2 * time.Second)
-	for k, _ := range SysMonitor.outputs {
+	for k := range SysMonitor.outputs {
 		SysMonitor.Deregister(k)
 	}
 
