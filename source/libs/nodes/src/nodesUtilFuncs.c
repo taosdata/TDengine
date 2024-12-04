@@ -470,6 +470,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
+    case QUERY_NODE_RANGE_AROUND:
+      code = makeNode(type, sizeof(SRangeAroundNode), &pNode); break;
     case QUERY_NODE_SELECT_STMT:
       code = makeNode(type, sizeof(SSelectStmt), &pNode);
       break;
@@ -677,6 +679,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
+    case QUERY_NODE_SHOW_USAGE_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -1245,6 +1248,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pWin->pEndOffset);
       break;
     }
+    case QUERY_NODE_RANGE_AROUND: {
+      SRangeAroundNode* pAround = (SRangeAroundNode*)pNode;
+      nodesDestroyNode(pAround->pInterval);
+      nodesDestroyNode(pAround->pTimepoint);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -1266,6 +1275,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);
       nodesDestroyNode(pStmt->pRange);
+      nodesDestroyNode(pStmt->pRangeAround);
       nodesDestroyNode(pStmt->pEvery);
       nodesDestroyNode(pStmt->pFill);
       nodesDestroyList(pStmt->pOrderByList);
@@ -1506,7 +1516,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
-    case QUERY_NODE_SHOW_TSMAS_STMT: {
+    case QUERY_NODE_SHOW_TSMAS_STMT:
+    case QUERY_NODE_SHOW_USAGE_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);

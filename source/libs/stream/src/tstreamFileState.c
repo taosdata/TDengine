@@ -259,7 +259,7 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
   if (type == STREAM_STATE_BUFF_HASH || type == STREAM_STATE_BUFF_HASH_SEARCH) {
     code = recoverSnapshot(pFileState, checkpointId);
   } else if (type == STREAM_STATE_BUFF_SORT) {
-    code = recoverSesssion(pFileState, checkpointId);
+    code = recoverSession(pFileState, checkpointId);
   } else if (type == STREAM_STATE_BUFF_HASH_SORT) {
     code = recoverFillSnapshot(pFileState, checkpointId);
   }
@@ -914,7 +914,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   return code;
 }
 
-int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
+int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t winRes = TSDB_CODE_SUCCESS;
@@ -991,6 +991,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     }
 
     winCode = streamStateGetKVByCur_rocksdb(getStateFileStore(pFileState), pCur, pNewPos->pKey, (const void**)&pVal, &vlen);
+    qDebug("===stream=== get state by cur winres:%d. %s", winCode, __func__);
     if (winCode != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
       destroyRowBuffPos(pNewPos);
       SListNode* pNode = tdListPopTail(pFileState->usedBuffs);
@@ -1007,6 +1008,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     memcpy(pNewPos->pRowBuff, pVal, vlen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;
+    qDebug("===stream=== read checkpoint state from disc. %s", __func__);
     code = tSimpleHashPut(pFileState->rowStateBuff, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
       destroyRowBuffPos(pNewPos);
@@ -1077,6 +1079,7 @@ int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     int32_t      vlen = 0;
     SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
     winRes = streamStateFillGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &vlen);
+    qDebug("===stream=== get state by cur winres:%d. %s", winRes, __func__);
     if (winRes != TSDB_CODE_SUCCESS || isFlushedState(pFileState, pFileState->getTs(pNewPos->pKey), 0)) {
       destroyRowBuffPos(pNewPos);
       SListNode* pNode = tdListPopTail(pFileState->usedBuffs);
@@ -1085,9 +1088,17 @@ int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       break;
     }
 
+    if (vlen != pFileState->rowSize) {
+      qError("row size mismatch, expect:%d, actual:%d", pFileState->rowSize, vlen);
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      taosMemoryFreeClear(pVal);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
     memcpy(pNewPos->pRowBuff, pVal, vlen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;
+    qDebug("===stream=== read checkpoint state from disc. %s", __func__);
     winRes = tSimpleHashPut(pFileState->rowStateBuff, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (winRes != TSDB_CODE_SUCCESS) {
       destroyRowBuffPos(pNewPos);
@@ -1231,11 +1242,6 @@ void clearExpiredState(SStreamFileState* pFileState) {
       if (isFlushedState(pFileState, pKey->ts, 0)) {
         int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
         qTrace("clear expired file, ts:%" PRId64 ". %s at line %d res:%d", pKey->ts, __func__, __LINE__, code_file);
-      }
-
-      if (pFileState->hasFillCatch == false) {
-        int32_t code_file = streamStateFillDel_rocksdb(pFileState->pFileStore, pKey);
-        qTrace("force clear expired file, ts:%" PRId64 ". %s at line %d res %d", pKey->ts, __func__, __LINE__, code_file);
       }
     }
     taosArrayRemoveBatch(pWinStates, 0, size - 1, NULL);

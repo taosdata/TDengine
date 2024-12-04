@@ -17,6 +17,7 @@
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
+#include "osString.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tgrant.h"
@@ -289,7 +290,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 int32_t tsTransPullupInterval = 2;
 int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointInterval = 60;
+int32_t tsStreamCheckpointInterval = 300;
 float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 20;
 int32_t tsMaxConcurrentCheckpoint = 1;
@@ -1073,12 +1074,43 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+static int32_t taosSetLogOutput(SConfig *pCfg) {
+  if (tsLogOutput) {
+    char *pLog = tsLogOutput;
+    char *pEnd = NULL;
+    if (strcasecmp(pLog, "stdout") && strcasecmp(pLog, "stderr") && strcasecmp(pLog, "/dev/null")) {
+      if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
+        int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
+        if (*pLog == '/' || *pLog == '\\') {
+          if (pathLen <= 0 || pathLen > PATH_MAX) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          tstrncpy(tsLogDir, pLog, pathLen);
+        } else {
+          int32_t len = strlen(tsLogDir);
+          if (len < 0 || len >= (PATH_MAX - 1)) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          if (len == 0 || (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\')) {
+            tsLogDir[len++] = TD_DIRSEP_CHAR;
+          }
+          int32_t remain = PATH_MAX - len - 1;
+          if (remain < pathLen) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          tstrncpy(tsLogDir + len, pLog, pathLen);
+        }
+        TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
+      }
+    } else {
+      tstrncpy(tsLogDir, pLog, PATH_MAX);
+      TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
+    }
+  }
+  return 0;
+}
+
 static int32_t taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "logDir");
   tstrncpy(tsLogDir, pItem->str, PATH_MAX);
   TAOS_CHECK_RETURN(taosExpandDir(tsLogDir, tsLogDir, PATH_MAX));
+  TAOS_CHECK_RETURN(taosSetLogOutput(pCfg));
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalLogDirGB");
   tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
@@ -2082,8 +2114,10 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   }
 
   if (tsc) {
+    TAOS_CHECK_GOTO(taosSetClientLogCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
   } else {
+    TAOS_CHECK_GOTO(taosSetClientLogCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);

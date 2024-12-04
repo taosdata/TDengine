@@ -9,33 +9,37 @@ import imgStep02 from '../../assets/seeq-02.png';
 import imgStep03 from '../../assets/seeq-03.png';
 import imgStep04 from '../../assets/seeq-04.png';
 
-Seeq is an advanced analytics software designed for manufacturing and the Industrial Internet of Things (IIOT). It supports new features that leverage machine learning innovations within process manufacturing organizations. These features enable organizations to deploy their own or third-party machine learning algorithms to frontline process engineers and subject matter experts, thereby scaling the efforts of individual data scientists to many frontline employees.
+Seeq is advanced analytics software for the manufacturing and Industrial Internet of Things (IIOT). Seeq supports innovative new features using machine learning in process manufacturing organizations. These features enable organizations to deploy their own or third-party machine learning algorithms to advanced analytics applications used by frontline process engineers and subject matter experts, thus extending the efforts of a single data scientist to many frontline staff.
 
-With the TDengine Java connector, Seeq can easily support querying the time-series data provided by TDengine and offer capabilities for data display, analysis, and forecasting.
+Through the TDengine Java connector, Seeq can easily support querying time-series data provided by TDengine and offer data presentation, analysis, prediction, and other functions.
 
-## Installing Seeq
+## Seeq Installation Method
 
-Download the relevant software, such as Seeq Server and Seeq Data Lab, from the [Seeq official website](https://www.seeq.com/customer-download). Seeq Data Lab needs to be installed on a different server than Seeq Server and interconnected via configuration. For detailed installation instructions, refer to the [Seeq Knowledge Base](https://support.seeq.com/kb/latest/cloud/).
+Download the relevant software from [Seeq's official website](https://www.seeq.com/customer-download), such as Seeq Server and Seeq Data Lab, etc. Seeq Data Lab needs to be installed on a different server from Seeq Server and interconnected through configuration. For detailed installation and configuration instructions, refer to the [Seeq Knowledge Base](https://support.seeq.com/kb/latest/cloud/).
+
+### TDengine Local Instance Installation Method
+
+Please refer to the [official documentation](../../../get-started).
 
 ## Configuring Seeq to Access TDengine
 
-1. Check the data storage location.
+1. Check the data storage location
 
 ```shell
 sudo seeq config get Folders/Data
 ```
 
-2. Download the TDengine Java connector package from maven.org; the latest version is [3.2.5](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar), and copy it to the plugins\lib directory in the data storage location.
+2. Download the TDengine Java connector package from maven.org, the latest version is [3.2.5](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar), and copy it to the plugins\lib in the data storage location.
 
-3. Restart the Seeq server.
+3. Restart seeq server
 
 ```shell
 sudo seeq restart
 ```
 
-4. Enter the License.
+4. Enter License
 
-Access the server via the browser at `ip:34216` and follow the instructions to enter the license.
+Use a browser to visit ip:34216 and follow the instructions to enter the license.
 
 ## Using Seeq to Analyze TDengine Time-Series Data
 
@@ -43,7 +47,7 @@ This section demonstrates how to use Seeq software in conjunction with TDengine 
 
 ### Scenario Introduction
 
-The example scenario involves a power system where users collect electricity consumption data from station instruments daily and store it in a TDengine cluster. Now, users want to predict how electricity consumption will develop and purchase more equipment to support it. Electricity consumption varies with monthly orders and also changes with the seasons; for example, in summer, electricity consumption tends to be higher in this northern hemisphere city. We simulate data to reflect these assumptions.
+The example scenario is a power system where users collect electricity usage data from power station instruments daily and store it in the TDengine cluster. Now, users want to predict how power consumption will develop and purchase more equipment to support it. User power consumption varies with monthly orders, and considering seasonal changes, power consumption will differ. This city is located in the northern hemisphere, so more electricity is used in summer. We simulate data to reflect these assumptions.
 
 ### Data Schema
 
@@ -63,13 +67,13 @@ python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
 
-The source code is hosted in the [GitHub repository](https://github.com/sangshuduo/td-forecasting).
+The source code is hosted on [GitHub Repository](https://github.com/sangshuduo/td-forecasting).
 
-## Analyzing Data with Seeq
+## Using Seeq for Data Analysis
 
 ### Configuring Data Source
 
-Log in with a Seeq administrator account and create a new data source.
+Log in using a Seeq administrator role account and create a new data source.
 
 - Power
 
@@ -251,7 +255,7 @@ Log in with a Seeq administrator account and create a new data source.
 
 ### Using Seeq Workbench
 
-Log in to the Seeq service page and create a new Seeq Workbench. You can display or forecast data by selecting data sources and different tools as needed. For detailed usage instructions, refer to the [official knowledge base](https://support.seeq.com/space/KB/146440193/Seeq+Workbench).
+Log in to the Seeq service page and create a new Seeq Workbench. By selecting data sources from search results and choosing different tools as needed, you can display data or make predictions. For detailed usage methods, refer to the [official knowledge base](https://support.seeq.com/space/KB/146440193/Seeq+Workbench).
 
 <figure>
 <Image img={imgStep02} alt=""/>
@@ -259,7 +263,7 @@ Log in to the Seeq service page and create a new Seeq Workbench. You can display
 
 ### Further Data Analysis with Seeq Data Lab Server
 
-Log in to the Seeq service page and create a new Seeq Data Lab to use Python programming or other machine learning tools for more complex data mining functions.
+Log in to the Seeq service page and create a new Seeq Data Lab, where you can use Python programming or other machine learning tools for more complex data mining functions.
 
 ```Python
 from seeq import spy
@@ -322,17 +326,18 @@ pd.concat([data2, predicts]).set_index("ds").plot(title = "current data with for
 plt.show()
 ```
 
-The output of the program will be:
+Program output results:
 
 <figure>
 <Image img={imgStep03} alt=""/>
 </figure>
 
-## Configuring Seeq Data Source to Connect to TDengine Cloud
+## Configuring Seeq Data Source Connection to TDengine Cloud
 
-Configuring the Seeq data source to connect to TDengine Cloud is not fundamentally different from connecting to a locally installed instance of TDengine. Simply log in to TDengine Cloud, choose "Programming - Java," and copy the JDBC URL with the token string to fill in the DatabaseJdbcUrl value of the Seeq Data Source. Note that when using TDengine Cloud, you need to specify the database name in the SQL command.
+Configuring a Seeq data source connection to TDengine Cloud is essentially no different from connecting to a local TDengine installation. Simply log in to TDengine Cloud, select "Programming - Java" and copy the JDBC string with a token to fill in as the DatabaseJdbcUrl value for the Seeq Data Source.
+Note that when using TDengine Cloud, the database name needs to be specified in SQL commands.
 
-### Example Configuration for Using TDengine Cloud as Data Source
+### Configuration example using TDengine Cloud as a data source
 
 ```json
 {
@@ -391,7 +396,7 @@ Configuring the Seeq data source to connect to TDengine Cloud is not fundamental
 }
 ```
 
-### Example Seeq Workbench Interface with TDengine Cloud as Data Source
+### Example of Seeq Workbench Interface with TDengine Cloud as Data Source
 
 <figure>
 <Image img={imgStep04} alt=""/>
@@ -399,8 +404,8 @@ Configuring the Seeq data source to connect to TDengine Cloud is not fundamental
 
 ## Solution Summary
 
-By integrating Seeq with TDengine, users can fully leverage TDengine's efficient storage and querying performance while benefiting from the powerful data visualization and analysis capabilities that Seeq offers.
+By integrating Seeq and TDengine, users can fully leverage the efficient storage and querying capabilities of TDengine, while also benefiting from the powerful data visualization and analysis features provided by Seeq.
 
-This integration enables users to take full advantage of TDengine's high-performance time-series data storage and retrieval, ensuring efficient processing of large datasets. At the same time, Seeq provides advanced analytics features such as data visualization, anomaly detection, correlation analysis, and predictive modeling, allowing users to gain valuable insights and make data-driven decisions.
+This integration enables users to fully utilize TDengine's high-performance time-series data storage and retrieval, ensuring efficient handling of large volumes of data. Meanwhile, Seeq offers advanced analytical features such as data visualization, anomaly detection, correlation analysis, and predictive modeling, allowing users to gain valuable insights and make data-driven decisions.
 
-Overall, Seeq and TDengine together provide a comprehensive solution for time-series data analysis across various industries, including manufacturing, industrial IoT, and power systems. The combination of efficient data storage and advanced analytics empowers users to unlock the full potential of time-series data, drive operational improvements, and support predictive and planning analytics applications.
+Overall, Seeq and TDengine together provide a comprehensive solution for time-series data analysis across various industries such as manufacturing, industrial IoT, and power systems. The combination of efficient data storage and advanced analytics empowers users to fully exploit the potential of time-series data, driving operational improvements, and supporting predictive and planning analysis applications.

@@ -65,6 +65,10 @@ TDengine 可以通过 MQTT 连接器从 MQTT 代理订阅数据并将其写入 T
 
 在 **订阅主题及 QoS 配置** 中填写要消费的 Topic 名称和 QoS。使用如下格式设置： `{topic_name}::{qos}`（如：`my_topic::0`）。MQTT 协议 5.0 支持共享订阅，可以通过多个客户端订阅同一个 Topic 实现负载均衡，使用如下格式： `$share/{group_name}/{topic_name}::{qos}`，其中，`$share` 是固定前缀，表示启用共享订阅，`group_name` 是分组名称，类似 kafka 的消费者组。
 
+在 **数据压缩** 中，配置消息体压缩算法，taosX 在接收到消息后，使用对应的压缩算法对消息体进行解压缩获取原始数据。可选项 none(不压缩), gzip, snappy, lz4 和 zstd，默认为 none。
+
+在 **字符编码** 中，配置消息体编码格式，taosX 在接收到消息后，使用对应的编码格式对消息体进行解码获取原始数据。可选项 UTF_8, GBK, GB18030, BIG5，默认为 UTF_8
+
 点击 **检查连通性** 按钮，检查数据源是否可用。
 
 ![mqtt-05.png](./mqtt-05.png)
