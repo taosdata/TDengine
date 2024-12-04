@@ -221,7 +221,6 @@ struct LogOpts {
         default_missing_value = "true",
         value_parser = compress_arg_parser,
     )]
-
     /// Enable compress for log files.
     #[serde_as(as = "Option<FromInto<CompressType>>")]
     compress: Option<bool>,
