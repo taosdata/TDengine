@@ -153,7 +153,6 @@ void taskDbUnRefChkp(STaskDbWrapper* pTaskDb, int64_t chkp);
 int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId);
 int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId);
 
-#define GEN_COLUMN_FAMILY_NAME(name, idstr, SUFFIX) sprintf(name, "%s_%s", idstr, (SUFFIX));
 int32_t  copyFiles(const char* src, const char* dst);
 uint32_t nextPow2(uint32_t x);
 
@@ -1727,7 +1726,7 @@ void destroyRocksdbCfInst(RocksdbCfInst* inst) {
 }
 
 // |key|-----value------|
-// |key|ttl|len|userData|
+// |key|ttl|len|userData
 
 int defaultKeyComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
   int len = aLen < bLen ? aLen : bLen;
