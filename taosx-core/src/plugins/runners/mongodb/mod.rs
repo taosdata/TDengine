@@ -160,7 +160,6 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from mongodb to taos
-
 pub async fn mongodb_to_taos(
     from: Dsn,
     parser: Option<Parser>,

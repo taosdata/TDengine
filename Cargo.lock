@@ -7296,7 +7296,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha1",
- "shadow-rs 0.33.0",
+ "shadow-rs 0.35.2",
  "sqlx",
  "taos",
  "taoslog",

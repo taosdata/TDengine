@@ -69,3 +69,6 @@ sysinfo = { workspace = true }
 [build-dependencies]
 dotenv = "0.15.0"
 shadow-rs = { workspace = true }
+
+[lints]
+workspace = true
