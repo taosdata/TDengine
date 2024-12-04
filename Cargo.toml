@@ -187,9 +187,9 @@ rand = "0.8"
 console-subscriber = { version = "0.4.0", optional = true }
 file-rotate = "0.7.5"
 md5 = "0.7.0"
-opentelemetry = { version = "*" }
-opentelemetry-otlp = { version = "*" }
-opentelemetry_sdk = { version = "*" }
+opentelemetry = { version = "0.26.0" }
+opentelemetry-otlp = { version = "0.26.0" }
+opentelemetry_sdk = { version = "0.26.0" }
 reqwest = { version = "0.12.8", features = ["json"] }
 taosx-ipc = { path = "./taosx-ipc" }
 time = { version = "0.3", features = ["formatting", "macros"] }
