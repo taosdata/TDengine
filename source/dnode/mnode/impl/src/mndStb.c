@@ -2124,7 +2124,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     code = terrno;
     TAOS_RETURN(code);
   }
-
+  pRsp->pColRefs = NULL;
   tstrncpy(pRsp->dbFName, pStb->db, sizeof(pRsp->dbFName));
   tstrncpy(pRsp->tbName, tbName, sizeof(pRsp->tbName));
   tstrncpy(pRsp->stbName, tbName, sizeof(pRsp->stbName));
@@ -2228,6 +2228,8 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
     pSchExt->colId = pCmpr->id;
     pSchExt->compress = pCmpr->alg;
   }
+
+  pRsp->pColRefs = NULL;
 
   taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
@@ -3449,7 +3451,7 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *p
 
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
       TAOS_CHECK_GOTO(colDataSetVal(pColInfoData, numOfRows, (const char *)&pm->schema[j].bytes, false), &lino, _OVER);
-      for (int32_t k = 6; k <= 8; ++k) {
+      for (int32_t k = 6; k <= 9; ++k) {
         pColInfoData = taosArrayGet(p->pDataBlock, k);
         colDataSetNULL(pColInfoData, numOfRows);
       }
@@ -3457,6 +3459,7 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *p
       numOfRows += 1;
     }
   }
+  return numOfRows;
 _OVER:
   mError("failed at %s:%d since %s", __FUNCTION__, lino, tstrerror(code));
   return numOfRows;
