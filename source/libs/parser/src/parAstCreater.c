@@ -2268,6 +2268,15 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_DELETE_MARK:
       ((STableOptions*)pOptions)->pDeleteMark = pVal;
       break;
+    case TABLE_OPTION_VIRTUAL: {
+      int64_t virtualStb = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
+      if (virtualStb != 0 && virtualStb != 1) {
+        pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      } else {
+        ((STableOptions*)pOptions)->virtualStb = virtualStb;
+      }
+      break;
+    }
     default:
       break;
   }
@@ -2284,6 +2293,7 @@ SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   CHECK_MAKE_NODE(pOptions);
   pOptions->commentNull = true;
   pOptions->bPrimaryKey = false;
+  pOptions->hasRef = false;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2299,6 +2309,24 @@ EColumnOptionType getColumnOptionType(const char* optionType) {
   }
   return 0;
 }
+
+SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SToken* pTableRef, SToken* pColumnRef) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkTableName(pCxt, pTableRef));
+  CHECK_NAME(checkColumnName(pCxt, pColumnRef));
+
+  if (NULL == pTableRef || NULL == pColumnRef) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+  ((SColumnOptions*)pOptions)->hasRef = true;
+  COPY_STRING_FORM_ID_TOKEN(((SColumnOptions*)pOptions)->refTable, pTableRef);
+  COPY_STRING_FORM_ID_TOKEN(((SColumnOptions*)pOptions)->refColumn, pColumnRef);
+  return pOptions;
+_err:
+  nodesDestroyNode(pOptions);
+  return NULL;
+}
+
 SNode* setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
   ((SColumnOptions*)pOptions)->bPrimaryKey = true;
@@ -2351,6 +2379,29 @@ _err:
   return NULL;
 }
 
+SNode* createColumnRefNode(SAstCreateContext* pCxt, SToken* pColName, SToken* pRefTableName, SToken* pRefColName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pColName));
+  CHECK_NAME(checkColumnName(pCxt, pRefColName));
+  CHECK_NAME(checkTableName(pCxt, pRefTableName));
+
+  SColumnRefNode* pCol = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
+  CHECK_MAKE_NODE(pCol);
+  if (pColName) {
+    COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
+  }
+  if (!pRefTableName || !pRefColName) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+  COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, pRefTableName);
+  COPY_STRING_FORM_ID_TOKEN(pCol->refColName, pRefColName);
+  return (SNode*)pCol;
+_err:
+  return NULL;
+}
+
 SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
@@ -2382,6 +2433,52 @@ SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
   if (pLen) len = taosStr2Int32(pLen->z, NULL, 10);
   SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = len};
   return dt;
+}
+
+SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols) {
+  SCreateVTableStmt * pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pCols = pCols;
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyList(pCols);
+  return NULL;
+}
+
+SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                 SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
+                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateVSubTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
+  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pSpecificTags = pSpecificTags;
+  pStmt->pValsOfTags = pValsOfTags;
+  pStmt->pSpecificColRefs = pSpecificColRefs;
+  pStmt->pColRefs = pColRefs;
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  nodesDestroyList(pSpecificTags);
+  nodesDestroyList(pValsOfTags);
+  nodesDestroyList(pSpecificColRefs);
+  nodesDestroyList(pColRefs);
+  return NULL;
 }
 
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
@@ -2512,6 +2609,22 @@ _err:
   return NULL;
 }
 
+SNode* createDropVirtualTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropVirtualTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->withOpt = withOpt;
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
 static SNode* createAlterTableStmtFinalize(SNode* pRealTable, SAlterTableStmt* pStmt) {
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
@@ -2548,6 +2661,7 @@ _err:
   nodesDestroyNode(pRealTable);
   return NULL;
 }
+
 SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
                                             SToken* pColName, SDataType dataType, SNode* pOptions) {
   SAlterTableStmt* pStmt = NULL;
@@ -2562,7 +2676,11 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
 
   if (pOptions != NULL) {
     SColumnOptions* pOption = (SColumnOptions*)pOptions;
-    if (pOption->bPrimaryKey == false && pOption->commentNull == true) {
+    if (pOption->hasRef) {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "vtable add column with ref should use SET but not FROM");
+      CHECK_PARSER_STATUS(pCxt);
+    } else if (pOption->bPrimaryKey == false && pOption->commentNull == true) {
       if (strlen(pOption->compress) != 0 || strlen(pOption->compressLevel) || strlen(pOption->encode) != 0) {
         pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION;
       } else {
@@ -2601,6 +2719,25 @@ _err:
   return NULL;
 }
 
+SNode* createAlterTableAddColWithRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
+                                     SToken* pColName, SDataType dataType, SToken* pRefTableName, SToken* pRefColName) {
+  SAlterTableStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pColName));
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = alterType;
+  pStmt->dataType = dataType;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->refColName, pRefColName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->refTableName, pRefTableName);
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
@@ -2626,6 +2763,40 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pOldColName);
   COPY_STRING_FORM_ID_TOKEN(pStmt->newColName, pNewColName);
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+_err:
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                   SToken* pRefTableName, SToken* pRefColName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pColName));
+  CHECK_NAME(checkTableName(pCxt, pRefTableName));
+  CHECK_NAME(checkColumnName(pCxt, pRefColName));
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = alterType;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->refTableName, pRefTableName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->refColName, pRefColName);
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+_err:
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                    const SToken* pLiteral) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pColName));
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = alterType;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
@@ -2682,6 +2853,12 @@ SNode* setAlterSuperTableType(SNode* pStmt) {
   return pStmt;
 }
 
+SNode* setAlterVirtualTableType(SNode* pStmt) {
+  if (!pStmt) return NULL;
+  setNodeType(pStmt, QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT);
+  return pStmt;
+}
+
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
@@ -2698,7 +2875,8 @@ static bool needDbShowStmt(ENodeType type) {
   return QUERY_NODE_SHOW_TABLES_STMT == type || QUERY_NODE_SHOW_STABLES_STMT == type ||
          QUERY_NODE_SHOW_VGROUPS_STMT == type || QUERY_NODE_SHOW_INDEXES_STMT == type ||
          QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type ||
-         QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type || QUERY_NODE_SHOW_USAGE_STMT == type;
+         QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type ||
+         QUERY_NODE_SHOW_USAGE_STMT == type || QUERY_NODE_SHOW_VTABLES_STMT == type;
 }
 
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
@@ -2781,6 +2959,24 @@ _err:
   return NULL;
 }
 
+SNode* createShowVTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
+                             EOperatorType tableCondType) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNode* pDbName = NULL;
+  if (option.dbName.type == TK_NK_NIL) {
+    pDbName = createDefaultDatabaseCondValue(pCxt);
+  } else {
+    pDbName = createIdentifierValueNode(pCxt, &option.dbName);
+  }
+  SNode* pStmt = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_VTABLES_STMT, pDbName, pTbName, tableCondType);
+  CHECK_PARSER_STATUS(pCxt);
+  (void)setShowKind(pCxt, pStmt, option.kind);
+  return pStmt;
+_err:
+  nodesDestroyNode(pTbName);
+  return NULL;
+}
+
 SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, true));
@@ -2829,6 +3025,20 @@ _err:
 }
 
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowCreateTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createShowCreateVTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SShowCreateTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
