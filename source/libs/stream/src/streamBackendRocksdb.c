@@ -3386,7 +3386,8 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
   return streamStateDel_rocksdb(pState, &tmp);
 }
 
-int32_t streamStateFillGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+int32_t streamStateFillGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal,
+                                               int32_t* pVLen) {
   if (!pCur) {
     return -1;
   }
@@ -4343,7 +4344,7 @@ int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, cons
 
 void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t groupId, SStreamStateCur* pCur) {
   if (pCur == NULL) {
-    return ;
+    return;
   }
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
   pCur->number = pState->number;
@@ -4353,13 +4354,13 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
   int i = streamStateGetCfIdx(pState, "partag");
   if (i < 0) {
     stError("streamState failed to put to cf name:%s", "partag");
-    return ;
+    return;
   }
 
   char    buf[128] = {0};
   int32_t klen = ginitDict[i].enFunc((void*)&groupId, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, klen)) {
-    return ;
+    return;
   }
   // skip ttl expired data
   while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
@@ -4371,13 +4372,14 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
     size_t  kLen = 0;
     char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     TAOS_UNUSED(parKeyDecode((void*)&curGroupId, keyStr));
-    if (curGroupId > groupId) return ;
+    if (curGroupId > groupId) return;
 
     rocksdb_iter_next(pCur->iter);
   }
 }
 
-int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal, int32_t* pVLen) {
+int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal,
+                                            int32_t* pVLen) {
   stDebug("streamStateFillGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
@@ -4714,7 +4716,7 @@ int32_t compareHashTableImpl(SHashObj* p1, SHashObj* p2, SArray* diff) {
       if (fname == NULL) {
         return terrno;
       }
-      TAOS_UNUSED(strncpy(fname, name, len));
+      tstrncpy(fname, name, strlen(name));
       if (taosArrayPush(diff, &fname) == NULL) {
         taosMemoryFree(fname);
         return terrno;
@@ -4876,7 +4878,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
           return terrno;
         }
 
-        TAOS_UNUSED(strncpy(fname, name, len));
+        tstrncpy(fname, name, strlen(name));
         if (taosArrayPush(p->pAdd, &fname) == NULL) {
           taosMemoryFree(fname);
           TAOS_UNUSED(taosThreadRwlockUnlock(&p->rwLock));
@@ -5351,7 +5353,8 @@ SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWin
   return NULL;
 }
 
-int32_t streamStateGetGroupKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+int32_t streamStateGetGroupKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey,
+                                           const void** pVal, int32_t* pVLen) {
   if (!pCur) {
     return -1;
   }
