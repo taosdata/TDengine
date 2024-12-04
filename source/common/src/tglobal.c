@@ -1934,9 +1934,10 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
     if (pItem == NULL) {
       continue;
     }
-    if (strstr(item->name, "supportVnodes")) {
-      uDebug("supportVnodes:%d", pItem->valueint);
+    if (strstr(item->name, "syncLogBufferMemoryAllowed")) {
+      uDebug("syncLogBufferMemoryAllowed:%f", pItem->valuedouble);
     }
+    item->stype = CFG_STYPE_CFG_FILE;
     switch (item->dtype) {
       {
         case CFG_DTYPE_NONE:
@@ -1952,13 +1953,14 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          item->fval = pItem->valuedouble;
+          item->fval = atoll(cJSON_GetStringValue(pItem));
           break;
         case CFG_DTYPE_STRING:
         case CFG_DTYPE_DIR:
         case CFG_DTYPE_LOCALE:
         case CFG_DTYPE_CHARSET:
         case CFG_DTYPE_TIMEZONE:
+          taosMemoryFree(item->str);
           item->str = taosStrdup(pItem->valuestring);
           break;
       }
@@ -2076,7 +2078,6 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   if (!tsc) {
     TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
-    TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(tryLoadCfgFromDataDir(tsCfg), &lino, _exit);
   }
 
@@ -2084,6 +2085,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
   } else {
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetReleaseCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
@@ -2255,7 +2257,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"monitorForceV2", &tsMonitorForceV2},
                                          {"monitorLogProtocol", &tsMonitorLogProtocol},
                                          {"monitorMaxLogs", &tsMonitorMaxLogs},
-                                         {"audit", &tsEnableAudit},
                                          {"auditCreateTable", &tsEnableAuditCreateTable},
                                          {"auditInterval", &tsAuditInterval},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
@@ -2268,7 +2269,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"maxRange", &tsMaxRange},
                                          {"maxTsmaNum", &tsMaxTsmaNum},
                                          {"queryRsmaTolerance", &tsQueryRsmaTolerance},
-                                         {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"uptimeInterval", &tsUptimeInterval},
 
                                          {"slowLogMaxLen", &tsSlowLogMaxLen},
@@ -2293,14 +2293,12 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"enableCoreFile", &tsEnableCoreFile},
 
                                          {"telemetryInterval", &tsTelemInterval},
-                                         {"telemetryPort", &tsTelemPort},
 
                                          {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
                                          {"checkpointInterval", &tsStreamCheckpointInterval},
                                          {"concurrentCheckpoint", &tsMaxConcurrentCheckpoint},
 
                                          {"retentionSpeedLimitMB", &tsRetentionSpeedLimitMB},
-                                         {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
                                          {"ttlChangeOnWrite", &tsTtlChangeOnWrite},
 
                                          {"logKeepDays", &tsLogKeepDays},
@@ -2330,7 +2328,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"s3BlockCacheSize", &tsS3BlockCacheSize},
                                          {"s3PageCacheSize", &tsS3PageCacheSize},
                                          {"s3UploadDelaySec", &tsS3UploadDelaySec},
-                                         {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
                                          {"mndLogRetention", &tsMndLogRetention},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
@@ -2342,7 +2339,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"rpcQueueMemoryAllowed", &tsQueueMemoryAllowed},
                                          {"shellActivityTimer", &tsShellActivityTimer},
                                          {"timeToGetAvailableConn", &tsTimeToGetAvailableConn},
-                                         {"tsReadTimeout", &tsReadTimeout},
+                                         {"readTimeout", &tsReadTimeout},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"bypassFlag", &tsBypassFlag}};
 
@@ -2589,9 +2586,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"queryPlannerTrace", &tsQueryPlannerTrace},
                                          {"queryNodeChunkSize", &tsQueryNodeChunkSize},
                                          {"queryUseNodeAllocator", &tsQueryUseNodeAllocator},
-                                         {"randErrorChance", &tsRandErrChance},
-                                         {"randErrorDivisor", &tsRandErrDivisor},
-                                         {"randErrorScope", &tsRandErrScope},
                                          {"smlDot2Underline", &tsSmlDot2Underline},
                                          {"shellActivityTimer", &tsShellActivityTimer},
                                          {"useAdapter", &tsUseAdapter},
