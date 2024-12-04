@@ -163,7 +163,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 | 规则名称| 规则阈值| 无监控数据时的行为 | 数据扫描间隔 |持续时间 | 执行SQL              |
 | ------ | --------- | ---------------- | ----------- |------- |----------------------|
 |dnode 节点的CPU负载|均值 > 80%|触发告警|5分钟|5分钟 |select now(),  dnode_id, last(cpu_system) as cup_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_id having first(_ts) > 0 |
-|dnode 节点的的内存 |均值 > 60%|触发告警|5分钟|5分钟|select now(), dnode_id, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by|
+|dnode 节点的的内存 |均值 > 60%|触发告警|5分钟|5分钟|select now(), dnode_id, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_id|
 |dnode 节点的磁盘容量占用 | > 80%|触发告警|5分钟|5分钟|select now(), dnode_id, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_id|
 |集群授权到期 |< 60天|触发告警|1天|0秒|select now(), dnode_id, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_id|
 |测点数达到授权测点数|>= 90%|触发告警|1天|0秒|select now(), dnode_id, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_id|
