@@ -280,7 +280,6 @@ void shellRunSingleCommandImp(char *command) {
     if (error_no == 0) {
       printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
-      terrno = error_no;
       printf("Query interrupted (%s), %" PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(NULL), numOfRows,
              (et - st) / 1E6);
     }
@@ -1087,7 +1086,7 @@ void shellCleanupHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\r\nDB error: %s[0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
+  fprintf(stderr, "\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -1306,7 +1305,7 @@ int32_t shellExecute() {
   }
 
   if (shell.conn == NULL) {
-    printf("failed to connect to server, reason: %s[0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL),
+    printf("failed to connect to server, reason: %s [0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL),
            ERROR_CODE_DETAIL);
     fflush(stdout);
     return -1;

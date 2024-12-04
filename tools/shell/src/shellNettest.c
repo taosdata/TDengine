@@ -15,7 +15,6 @@
 
 #define _GNU_SOURCE
 #include "shellInt.h"
-#include "tversion.h"
 
 static void shellWorkAsClient() {
   SShellArgs *pArgs = &shell.args;

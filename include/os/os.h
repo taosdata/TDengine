@@ -50,6 +50,7 @@ extern "C" {
 #include <termios.h>
 
 #if defined(DARWIN)
+#include <pwd.h>
 #else
 #include <argp.h>
 #include <sys/prctl.h>

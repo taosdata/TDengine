@@ -24,13 +24,12 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGHUP);
   taosIgnSignal(SIGINT);
   taosIgnSignal(SIGBREAK);
-
-#if !defined(WINDOWS)
-  taosIgnSignal(SIGBUS);
-#endif
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
+#if !defined(WINDOWS)
+  taosIgnSignal(SIGBUS);
+#endif
 
   taosGenCrashJsonMsg(signum, sigInfo, "shell", 0, 0);
 
@@ -42,23 +41,6 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 }
 
 int main(int argc, char *argv[]) {
-  shell.exit = false;
-  shell.args.timeout = SHELL_WS_TIMEOUT;
-#ifdef WEBSOCKET
-  shell.args.is_internal = false;
-#else
-  shell.args.is_internal = true;
-#endif
-
-#if 0
-#if !defined(WINDOWS)
-  taosSetSignal(SIGBUS, shellCrashHandler);
-#endif
-  taosSetSignal(SIGABRT, shellCrashHandler);
-  taosSetSignal(SIGFPE, shellCrashHandler);
-  taosSetSignal(SIGSEGV, shellCrashHandler);
-#endif
-
   if (shellCheckIntSize() != 0) {
     return -1;
   }
@@ -98,12 +80,12 @@ int main(int argc, char *argv[]) {
 
   const char *driverType = shell.args.is_internal ? "internal" : "websocket";
   if (taos_options(TSDB_OPTION_DRIVER, driverType) != 0) {
-    printf("failed to load driver since %s [0x%x]\r\n", terrstr(), terrno);
+    fprintf(stderr, "failed to load driver since %s [0x%08X]\r\n", terrstr(), terrno);
     return -1;
   }
 
   if (taos_init() != 0) {
-    printf("failed to init shell since %s [0x%x]\r\n", terrstr(), terrno);
+    fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", terrstr(), terrno);
     return -1;
   }
 
@@ -116,15 +98,9 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (shell.args.netrole != NULL) {
-    shellTestNetWork();
-    taos_cleanup();
-    return 0;
-  }
-
-  // support port feature
   shellAutoInit();
   int32_t ret = shellExecute();
   shellAutoExit();
+
   return ret;
 }

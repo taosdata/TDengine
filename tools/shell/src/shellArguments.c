@@ -13,12 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef _TD_DARWIN_64
-#include <pwd.h>
-#endif
-
 #include "shellInt.h"
-#include "version.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -281,7 +276,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       ret = shellParseSingleOpt(key[1], val);
       i++;
     } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
-               key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R') {
+               key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R'|| key[1] == 'B') {
       ret = shellParseSingleOpt(key[1], NULL);
     } else {
       fprintf(stderr, "invalid option %s\r\n", key);
@@ -315,6 +310,7 @@ static void shellInitArgs(int argc, char *argv[]) {
         tstrncpy(shell.args.password, (char *)(argv[i] + 2), sizeof(shell.args.password));
         strcpy(argv[i], "-p");
       }
+      printf("\r\n");
     }
   }
   if (strlen(shell.args.password) == 0) {
@@ -326,6 +322,14 @@ static void shellInitArgs(int argc, char *argv[]) {
   pArgs->pktLen = SHELL_DEF_PKG_LEN;
   pArgs->pktNum = SHELL_DEF_PKG_NUM;
   pArgs->displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
+  pArgs->timeout = SHELL_WS_TIMEOUT;
+#ifdef WEBSOCKET
+  pArgs->is_internal = false;
+#else
+  pArgs->is_internal = true;
+#endif
+
+  shell.exit = false;
 }
 
 static int32_t shellCheckArgs() {

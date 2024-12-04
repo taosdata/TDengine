@@ -17,15 +17,17 @@
 #define _TD_SHELL_INT_H_
 
 #include "os.h"
-#include "taosinternal.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "taosinternal.h"
 #include "tcommon.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "trpc.h"
 #include "ttypes.h"
 #include "tutil.h"
+#include "tversion.h"
+#include "version.h"
 
 #define SHELL_WS_TIMEOUT                       30
 #define SHELL_WS_DSN_BUFF                      256
@@ -44,7 +46,9 @@
 #define SHELL_FLOAT_WIDTH                      20
 #define SHELL_DOUBLE_WIDTH                     25
 
-#define ERROR_CODE_DETAIL "\r\n\r\nTo view possible causes and suggested actions for error codes, see \r\n\"Error Code Reference\" in the TDengine online documentation.\r\n"
+#define ERROR_CODE_DETAIL                                                                                           \
+  "\r\n\r\nTo view possible causes and suggested actions for error codes, see \r\n\"Error Code Reference\" in the " \
+  "TDengine online documentation.\r\n"
 typedef struct {
   char*   hist[SHELL_MAX_HISTORY_SIZE];
   char    file[TSDB_FILENAME_LEN];
@@ -81,10 +85,10 @@ typedef struct {
 } SShellArgs;
 
 typedef struct {
-  const char *clientVersion;
-  char cusName[32];
-  char promptHeader[32];
-  char promptContinue[32];
+  const char* clientVersion;
+  char        cusName[32];
+  char        promptHeader[32];
+  char        promptContinue[32];
   const char* osname;
   int32_t     promptSize;
   char        programVersion[256];
