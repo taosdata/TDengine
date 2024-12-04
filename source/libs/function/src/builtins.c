@@ -273,8 +273,6 @@ static SDataType* getSDataTypeFromNode(SNode* pNode) {
   if (pNode == NULL) return NULL;
   if (nodesIsExprNode(pNode)) {
     return &((SExprNode*)pNode)->resType;
-  } else if (QUERY_NODE_COLUMN_REF == pNode->type) {
-    return &((SColumnRefNode*)pNode)->resType;
   } else {
     return NULL;
   }

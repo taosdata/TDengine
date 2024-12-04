@@ -15,6 +15,79 @@
 
 #include "meta.h"
 
+int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
+  const SColRefWrapper *pw = &pME->colRef;
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->version));
+  uDebug("encode cols:%d", pw->nCols);
+
+  for (int32_t i = 0; i < pw->nCols; i++) {
+    SColRef *p = &pw->pColRef[i];
+    TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->hasRef));
+    if (p->hasRef) {
+      TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
+      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refTableName));
+      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
+    }
+  }
+  return 0;
+}
+
+int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
+  SColRefWrapper *pWrapper = &pME->colRef;
+  TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nCols));
+  if (pWrapper->nCols == 0) {
+    return 0;
+  }
+
+  TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->version));
+  uDebug("decode cols:%d", pWrapper->nCols);
+  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColRef));
+  if (pWrapper->pColRef == NULL) {
+    return terrno;
+  }
+
+  for (int i = 0; i < pWrapper->nCols; i++) {
+    SColRef *p = &pWrapper->pColRef[i];
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
+    if (p->hasRef) {
+      TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
+      TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &p->refTableName));
+      TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &p->refColName));
+    }
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t metatInitDefaultSColRefWrapper(SDecoder *pDecoder, SColRefWrapper *pRef,
+                                                            SSchemaWrapper *pSchema) {
+  pRef->nCols = pSchema->nCols;
+  if ((pRef->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pRef->nCols * sizeof(SColRef))) == NULL) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pRef->nCols; i++) {
+    SColRef  *pColRef = &pRef->pColRef[i];
+    SSchema  *pColSchema = &pSchema->pSchema[i];
+    pColRef->id = pColSchema->colId;
+    pColRef->hasRef = false;
+  }
+  return 0;
+}
+
+static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) {
+  if (pSrc->nCols > 0) {
+    pDst->nCols = pSrc->nCols;
+    pDst->version = pSrc->version;
+    pDst->pColRef = (SColRef*)taosMemoryCalloc(pSrc->nCols, sizeof(SColRef));
+    if (NULL == pDst->pColRef) {
+      return terrno;
+    }
+    memcpy(pDst->pColRef, pSrc->pColRef, pSrc->nCols * sizeof(SColRef));
+  }
+  return 0;
+}
+
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
@@ -104,7 +177,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       if (TABLE_IS_ROLLUP(pME->flags)) {
         TAOS_CHECK_RETURN(tEncodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
       }
-    } else if (pME->type == TSDB_CHILD_TABLE) {
+    } else if (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
       TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.btime));
       TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ctbEntry.ttlDays));
       TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ctbEntry.commentLen));
@@ -113,7 +186,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       }
       TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.suid));
       TAOS_CHECK_RETURN(tEncodeTag(pCoder, (const STag *)pME->ctbEntry.pTags));
-    } else if (pME->type == TSDB_NORMAL_TABLE) {
+    } else if (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_TABLE) {
       TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.btime));
       TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ntbEntry.ttlDays));
       TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ntbEntry.commentLen));
@@ -128,7 +201,11 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
       return TSDB_CODE_INVALID_PARA;
     }
-    TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+    if (pME->type == TSDB_VIRTUAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      TAOS_CHECK_RETURN(meteEncodeColRefEntry(pCoder, pME));
+    } else {
+      TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+    }
   }
 
   tEndEncode(pCoder);
@@ -151,7 +228,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       if (TABLE_IS_ROLLUP(pME->flags)) {
         TAOS_CHECK_RETURN(tDecodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
       }
-    } else if (pME->type == TSDB_CHILD_TABLE) {
+    } else if (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.btime));
       TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pME->ctbEntry.ttlDays));
       TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ctbEntry.commentLen));
@@ -160,7 +237,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       }
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.suid));
       TAOS_CHECK_RETURN(tDecodeTag(pCoder, (STag **)&pME->ctbEntry.pTags));
-    } else if (pME->type == TSDB_NORMAL_TABLE) {
+    } else if (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_TABLE) {
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ntbEntry.btime));
       TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pME->ntbEntry.ttlDays));
       TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ntbEntry.commentLen));
@@ -202,6 +279,18 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
         TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow));
       }
       TABLE_SET_COL_COMPRESSED(pME->flags);
+    } else if (pME->type == TSDB_VIRTUAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      if (!tDecodeIsEnd(pCoder)) {
+        uDebug("set type: %d, tableName:%s", pME->type, pME->name);
+        TAOS_CHECK_RETURN(meteDecodeColRefEntry(pCoder, pME));
+        if (pME->colRef.nCols == 0 && pME->type == TSDB_VIRTUAL_TABLE) {
+          TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
+        }
+      } else {
+        uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
+        // TODO(smj) this may cause crash since child table do not have schemarow
+        TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
+      }
     }
   }
 
@@ -303,7 +392,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       metaCloneEntryFree(ppEntry);
       return code;
     }
-  } else if (pEntry->type == TSDB_CHILD_TABLE) {
+  } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     (*ppEntry)->ctbEntry.btime = pEntry->ctbEntry.btime;
     (*ppEntry)->ctbEntry.ttlDays = pEntry->ctbEntry.ttlDays;
     (*ppEntry)->ctbEntry.suid = pEntry->ctbEntry.suid;
@@ -329,7 +418,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       return code;
     }
     memcpy((*ppEntry)->ctbEntry.pTags, pEntry->ctbEntry.pTags, pTags->len);
-  } else if (pEntry->type == TSDB_NORMAL_TABLE) {
+  } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_TABLE) {
     (*ppEntry)->ntbEntry.btime = pEntry->ntbEntry.btime;
     (*ppEntry)->ntbEntry.ttlDays = pEntry->ntbEntry.ttlDays;
     (*ppEntry)->ntbEntry.ncid = pEntry->ntbEntry.ncid;
@@ -356,10 +445,18 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  code = metaCloneColCmpr(&pEntry->colCmpr, &(*ppEntry)->colCmpr);
-  if (code) {
-    metaCloneEntryFree(ppEntry);
-    return code;
+  if (pEntry->type == TSDB_VIRTUAL_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    code = metaCloneColRef(&pEntry->colRef, &(*ppEntry)->colRef);
+    if (code) {
+      metaCloneEntryFree(ppEntry);
+      return code;
+    }
+  } else {
+    code = metaCloneColCmpr(&pEntry->colCmpr, &(*ppEntry)->colCmpr);
+    if (code) {
+      metaCloneEntryFree(ppEntry);
+      return code;
+    }
   }
 
   return code;
