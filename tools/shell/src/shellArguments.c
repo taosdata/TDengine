@@ -49,9 +49,9 @@
 #define SHELL_TIMEOUT "Set the timeout for WebSocket query in seconds, default is 30."
 
 #ifdef WEBSOCKET
-#define SHELL_DRIVER_DEFAULT "'0'.'"
+#define SHELL_DRIVER_DEFAULT "0."
 #else
-#define SHELL_DRIVER_DEFAULT "'1'."
+#define SHELL_DRIVER_DEFAULT "1."
 #endif
 #define SHELL_DRIVER \
   "How to access the database, 0|websocket for WebSocket, 1|internal for Internal, default is " SHELL_DRIVER_DEFAULT
@@ -473,13 +473,13 @@ int32_t shellCheckDsn() {
     } else {
       shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
       if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
-        fprintf(stderr, "Use the environment variable TDENGINE_CLOUD_DSN:%s as the input for the DSN option.\r\n\r\n",
+        fprintf(stderr, "Use the environment variable TDENGINE_CLOUD_DSN:%s as the input for the DSN option.\r\n",
                 shell.args.dsn);
         return 0;
       }
       shell.args.dsn = getenv("TDENGINE_DSN");
       if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
-        fprintf(stderr, "Use the environment variable TDENGINE_DSN:%s as the input for the DSN option.\r\n\r\n",
+        fprintf(stderr, "Use the environment variable TDENGINE_DSN:%s as the input for the DSN option.\r\n",
                 shell.args.dsn);
         return 0;
       }
