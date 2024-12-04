@@ -114,7 +114,8 @@ typedef struct SConfigIter SConfigIter;
 
 int32_t      cfgInit(SConfig **ppCfg);
 int32_t      cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const void *sourceStr);
-int32_t      cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
+int32_t      cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);    // SConfigPair
+int32_t      cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigItem
 void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);

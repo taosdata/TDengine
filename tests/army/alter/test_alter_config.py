@@ -11,16 +11,18 @@
 
 # -*- coding: utf-8 -*-
 
-import subprocess
-import random
+import sys
 import time
-import os
-import platform
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+
+import taos
+import frame
+import frame.etool
+
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame.epath import *
 from frame.srvCtl import *
 from frame import *
 
@@ -475,14 +477,14 @@ class TDTestCase:
             ]
         }
     def cli_get_param_value(self, config_name):
-        tdSql.query("show local variables;")
-        for row in tdSql.queryResult:
+        res = tdSql.getResult("show local variables")
+        for row in res:
             if config_name == row[0]:
                 return row[1]
 
     def svr_get_param_value(self, config_name):
-        tdSql.query("show dnode 1 variables;")
-        for row in tdSql.queryResult:
+        res = tdSql.getResult("show dnode 1 variables")
+        for row in res:
             if config_name == row[1]:
                 return row[2]
             
@@ -522,10 +524,16 @@ class TDTestCase:
                     assert str(actVal) == str(item["value"]), f"tem name: {item['name']}, Expected value: {item['value']}, actual value: {actVal}"
             else:
                 raise Exception(f"unknown key: {key}")
+            
+        tdLog.info("success to alter all configurations")
 
         tdLog.info("stop and restart taosd")
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        time.sleep(3)
+        sc.dnodeStopAll()
+        sc.dnodeStart(1)
+        sc.dnodeStart(2)
+        sc.dnodeStart(3)
+        time.sleep(10)
 
         for key in self.configration_dic:
             if "cli" == key:
@@ -541,7 +549,7 @@ class TDTestCase:
 
     def stop(self):
         tdSql.close()
-        # tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} successfully executed")
 
 
 tdCases.addLinux(__file__, TDTestCase())

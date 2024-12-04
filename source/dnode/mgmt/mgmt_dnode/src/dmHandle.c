@@ -330,6 +330,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       }
     }
     if (needUpdate) {
+      code = cfgUpdateFromArray(tsCfg, configRsp.array);
       code = setAllConfigs(tsCfg);
       if (code != TSDB_CODE_SUCCESS) {
         dError("failed to set all configs since %s", tstrerror(code));

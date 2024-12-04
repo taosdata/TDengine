@@ -758,17 +758,15 @@ SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
-      pObj->str = taosStrdup(pItem->str);
-      pObj->strLen = strlen(pItem->str) + 1;
+      tstrncpy(pObj->str, pItem->str, TSDB_CONFIG_VALUE_LEN);
       break;
   }
   return pObj;
 }
 
-int32_t mndUpdateObj(SConfigObj *pObj, const char *name, char *value) {
+int32_t mndUpdateObj(SConfigObj *pObjNew, const char *name, char *value) {
   int32_t code = 0;
-
-  switch (pObj->dtype) {
+  switch (pObjNew->dtype) {
     case CFG_DTYPE_BOOL: {
       bool tmp = false;
       if (strcasecmp(value, "true") == 0) {
@@ -777,26 +775,26 @@ int32_t mndUpdateObj(SConfigObj *pObj, const char *name, char *value) {
       if (atoi(value) > 0) {
         tmp = true;
       }
-      pObj->bval = tmp;
+      pObjNew->bval = tmp;
       break;
     }
     case CFG_DTYPE_INT32: {
       int32_t ival;
       TAOS_CHECK_RETURN(taosStrHumanToInt32(value, &ival));
-      pObj->i32 = ival;
+      pObjNew->i32 = ival;
       break;
     }
     case CFG_DTYPE_INT64: {
       int64_t ival;
       TAOS_CHECK_RETURN(taosStrHumanToInt64(value, &ival));
-      pObj->i64 = ival;
+      pObjNew->i64 = ival;
       break;
     }
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE: {
       float dval = 0;
       TAOS_CHECK_RETURN(parseCfgReal(value, &dval));
-      pObj->fval = dval;
+      pObjNew->fval = dval;
       break;
     }
     case CFG_DTYPE_DIR:
@@ -804,10 +802,8 @@ int32_t mndUpdateObj(SConfigObj *pObj, const char *name, char *value) {
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_STRING: {
-      char *tmp = taosStrdup(value);
-      taosMemoryFreeClear(pObj->str);
-      pObj->str = tmp;
-      pObj->strLen = strlen(value) + 1;
+      strncpy(pObjNew->str, value, strlen(value));
+      pObjNew->str[strlen(value)] = 0;
       break;
     }
 

@@ -95,6 +95,51 @@ int32_t cfgLoadFromArray(SConfig *pCfg, SArray *pArgs) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
+  int32_t size = taosArrayGetSize(pArgs);
+  for (int32_t i = 0; i < size; ++i) {
+    SConfigItem *pItemNew = taosArrayGet(pArgs, i);
+
+    (void)taosThreadMutexLock(&pCfg->lock);
+
+    SConfigItem *pItemOld = cfgGetItem(pCfg, pItemNew->name);
+    if (pItemOld == NULL) {
+      (void)taosThreadMutexUnlock(&pCfg->lock);
+      TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
+    }
+    char value[30];
+    switch (pItemNew->dtype) {
+      case CFG_DTYPE_BOOL:
+        strncpy(value, pItemNew->bval ? "true" : "false", sizeof(value) - 1);
+        break;
+      case CFG_DTYPE_INT32:
+        sprintf(value, "%d", pItemNew->i32);
+        break;
+      case CFG_DTYPE_INT64:
+        sprintf(value, "%" PRId64, pItemNew->i64);
+        break;
+      case CFG_DTYPE_FLOAT:
+        sprintf(value, "%f", pItemNew->fval);
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        strcpy(value, pItemNew->str);
+      default:
+        break;
+    }
+    value[sizeof(value) - 1] = '\0';
+
+    TAOS_CHECK_RETURN(cfgSetItemVal(pItemOld, pItemNew->name, value, CFG_STYPE_ARG_LIST));
+
+    (void)taosThreadMutexUnlock(&pCfg->lock);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 void cfgItemFreeVal(SConfigItem *pItem) {
   if (pItem->dtype == CFG_DTYPE_STRING || pItem->dtype == CFG_DTYPE_DIR || pItem->dtype == CFG_DTYPE_LOCALE ||
       pItem->dtype == CFG_DTYPE_CHARSET || pItem->dtype == CFG_DTYPE_TIMEZONE) {
