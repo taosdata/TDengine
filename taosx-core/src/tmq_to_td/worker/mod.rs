@@ -275,14 +275,13 @@ impl WriteOptions {
             )
         };
 
-        if self.actions.is_empty() || self.strategy.require_blocks() {
+        if self.actions.is_empty() && !self.strategy.require_blocks() {
             return Ok(RawMessage::raw_only(
                 self.next_mid(),
                 MessageType::DataOnly,
                 raw,
             ));
         }
-        // if !self.actions.is_empty() || self.strategy.require_blocks() {
         let mut vec = Vec::new();
         while let Some(block) = data
             .fetch_raw_block()

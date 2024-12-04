@@ -52,6 +52,7 @@ class ReleaseInfo:
         self.CustomEmail = "support@taosdata.com"
         self.UploadAgent = False
         self.BuildAgent = False
+        self.build_without_docs = False
     def print(self):
         for attr in dir(self):
             if not attr.startswith("__"):
@@ -165,7 +166,7 @@ def reset_build_mode(sub_version_mode):
                     break
 
 def init_build_info():
-    global sub_module, release_info, test_process
+    global sub_module, release_info, test_process 
     parser = argparse.ArgumentParser()
 
     # 添加 -c 参数，connector集合
@@ -183,13 +184,14 @@ def init_build_info():
     parser.add_argument('-ce', '--cus_email', help='customized email')
     parser.add_argument('-ua', '--upload_agent', help='upload taosx-agent to taosdata.com')
     parser.add_argument('-ba', '--build_agent', help='build taosx-agent')
-
+    parser.add_argument('-bw', '--build_without_docs', action='store_true', help='build taosexplorer with docs zip')
     args, unknown_args = parser.parse_known_args()
 
     if unknown_args:
         print(f"Unknown args: {unknown_args}")
         sys.exit()
-
+    if args.build_without_docs:
+        release_info.build_without_docs = True
     release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(os.path.join(script_dir, "..", "release"))
     release_info.CpuType = GetCpuType()
@@ -463,8 +465,11 @@ def build_and_install_opentsdb(mode):
         sys.exit()
 
 def build_taos_explorer(explorer_path, mode):
-    update_docs_zip_file(explorer_path)
-    copy_docs_to_explorer(explorer_path)
+    if release_info.build_without_docs == False:
+        update_docs_zip_file(explorer_path)
+        copy_docs_to_explorer(explorer_path)
+    else:
+        print("build taos-explorer without docs zip")
     explorer_exe_path = os.path.join(taosx_dir, "target", "deploy")
     check_directory(explorer_exe_path)
     if release_info.OS.lower() == 'windows':
@@ -559,13 +564,14 @@ def unzip_docs(doc_zip_path, doc_public_path):
 
 def update_docs_zip_file(explorer_path):
     try:
+        remote_doc_zip_path = "/root/enterprise_build_zip_work/enterprise-docs"
         print("update docs zip file")
         doc_zip_path = os.path.join(explorer_path, "..")
         if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
-            subprocess.run(f"scp root@192.168.0.30:/root/enterprise-docs/docs-{release_info.CustomPrompt}.zip {doc_zip_path}", shell=True)
+            subprocess.run(f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-{release_info.CustomPrompt}.zip {doc_zip_path}", shell=True)
         else:
-            cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
-            cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
+            cmd1 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-en.zip {doc_zip_path}"
+            cmd2 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-zh.zip {doc_zip_path}"
             subprocess.run(cmd1, shell=True)
             subprocess.run(cmd2, shell=True)
     except Exception as e:
