@@ -491,7 +491,7 @@ static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
-int32_t vnodePreProcessDropTbMsg(SVnode* pVnode, SRpcMsg* pMsg) {
+int32_t vnodePreProcessDropTbMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   int32_t          size = 0;
@@ -514,14 +514,14 @@ int32_t vnodePreProcessDropTbMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 
   for (int32_t i = 0; i < receivedBatchReqs.nReqs; ++i) {
-    SVDropTbReq* pReq = receivedBatchReqs.pReqs + i;
-    tb_uid_t uid = metaGetTableEntryUidByName(pVnode->pMeta, pReq->name);
+    SVDropTbReq *pReq = receivedBatchReqs.pReqs + i;
+    tb_uid_t     uid = metaGetTableEntryUidByName(pVnode->pMeta, pReq->name);
     if (uid == 0) {
       vWarn("vgId:%d, preprocess drop ctb: %s not found", TD_VID(pVnode), pReq->name);
       continue;
     }
     pReq->uid = uid;
-    vDebug("vgId:%d %s for: %s, uid: %"PRId64, TD_VID(pVnode), __func__, pReq->name, pReq->uid);
+    vDebug("vgId:%d %s for: %s, uid: %" PRId64, TD_VID(pVnode), __func__, pReq->name, pReq->uid);
     if (taosArrayPush(sentBatchReqs.pArray, pReq) == NULL) {
       code = terrno;
       goto _exit;
@@ -1145,7 +1145,7 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
-  code = metaCreateSTable(pVnode->pMeta, ver, &req);
+  code = metaCreateSuperTable(pVnode->pMeta, ver, &req);
   if (code) {
     pRsp->code = code;
     goto _err;
@@ -2579,4 +2579,3 @@ _OVER:
 int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) { return 0; }
 int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) { return 0; }
 #endif
-
