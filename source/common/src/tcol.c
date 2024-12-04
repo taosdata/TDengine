@@ -352,6 +352,10 @@ bool useCompress(uint8_t tableType) {
   return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_CHILD_TABLE == tableType;
 }
 
+bool hasRefCol(uint8_t tableType) {
+  return TSDB_VIRTUAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType;
+}
+
 int8_t validColCompressLevel(uint8_t type, uint8_t level) {
   if (level == TSDB_COLVAL_LEVEL_DISABLED) return 1;
   if (level < TSDB_COLVAL_LEVEL_NOCHANGE || level > TSDB_COLVAL_LEVEL_HIGH) {
