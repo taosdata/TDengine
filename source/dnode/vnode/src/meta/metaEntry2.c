@@ -240,8 +240,7 @@ static int32_t metaHandleSuperTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
     metaInfo("vgId:%d, %s success, version:%" PRId64 " type:%d uid:%" PRId64 " name:%s", vgId, __func__,
              pEntry->version, pEntry->type, pEntry->uid, pEntry->name);
   } else {
-    metaError("vgId:%d, %s failed at %s:%d since %s, version" PRId64 " type:%d uid:%" PRId64 " name:%s", vgId, __func__,
-              __FILE__, __LINE__, tstrerror(code), pEntry->version, pEntry->type, pEntry->uid, pEntry->name);
+    metaErr(vgId, code);
   }
   return code;
 }
@@ -329,9 +328,7 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
     metaDebug("vgId:%d, %s success, version:%" PRId64 " type:%d uid:%" PRId64 " name:%s", vgId, __func__,
               pEntry->version, pEntry->type, pEntry->uid, pEntry->type > 0 ? pEntry->name : "");
   } else {
-    metaError("vgId:%d, %s failed at %s:%d since %s, version" PRId64 " type:%d uid:%" PRId64 " name:%s", vgId, __func__,
-              __FILE__, __LINE__, tstrerror(code), pEntry->version, pEntry->type, pEntry->uid,
-              pEntry->type > 0 ? pEntry->name : "");
+    metaErr(vgId, code);
   }
   TAOS_RETURN(code);
 }
