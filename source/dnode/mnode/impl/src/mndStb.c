@@ -33,7 +33,7 @@
 #include "mndVgroup.h"
 #include "tname.h"
 
-#define STB_VER_NUMBER   2
+#define STB_VER_NUMBER   3
 #define STB_RESERVE_SIZE 56
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
@@ -194,13 +194,13 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   }
   SDB_SET_INT64(pRaw, dataPos, pStb->keep, _OVER)
 
-
   if (hasTypeMod) {
     for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
       SDB_SET_INT32(pRaw, dataPos, pStb->pExtSchemas[i].typeMod, _OVER);
     }
   }
 
+  SDB_SET_INT8(pRaw, dataPos, pStb->virtualStb, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -313,7 +313,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   }
 
   pStb->pCmpr = taosMemoryCalloc(pStb->numOfColumns, sizeof(SColCmpr));
-  if (sver < STB_VER_NUMBER) {
+  if (sver < STB_VER_NUMBER - 1) {
     // compatible with old data, setup default compress value
     // impl later
     for (int i = 0; i < pStb->numOfColumns; i++) {
@@ -339,6 +339,12 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
       SSchema *pSchema = &pStb->pColumns[i];
       SDB_GET_INT32(pRaw, dataPos, &pStb->pExtSchemas[i].typeMod, _OVER)
     }
+  }
+
+  if (sver < STB_VER_NUMBER) {
+    pStb->virtualStb = 0;
+  } else {
+    SDB_GET_INT8(pRaw, dataPos, &pStb->virtualStb, _OVER)
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -674,6 +680,11 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
     TAOS_RETURN(code);
   }
 
+  if (pCreate->virtualStb != 0 && pCreate->virtualStb != 1) {
+    code = TSDB_CODE_MND_INVALID_STB_OPTION;
+    TAOS_RETURN(code);
+  }
+
   if (pCreate->numOfColumns < TSDB_MIN_COLUMNS || pCreate->numOfTags + pCreate->numOfColumns > TSDB_MAX_COLUMNS) {
     code = TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
     TAOS_RETURN(code);
@@ -909,6 +920,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->pFuncs = pCreate->pFuncs;
   pDst->source = pCreate->source;
   pDst->keep = pCreate->keep;
+  pDst->virtualStb = pCreate->virtualStb;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -2240,7 +2252,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     code = terrno;
     TAOS_RETURN(code);
   }
-
+  pRsp->pColRefs = NULL;
   tstrncpy(pRsp->dbFName, pStb->db, sizeof(pRsp->dbFName));
   tstrncpy(pRsp->tbName, tbName, sizeof(pRsp->tbName));
   tstrncpy(pRsp->stbName, tbName, sizeof(pRsp->stbName));
@@ -2350,6 +2362,8 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
       pSchExt->typeMod = pStb->pExtSchemas[i].typeMod;
     }
   }
+  pRsp->virtualStb = pStb->virtualStb;
+  pRsp->pColRefs = NULL;
 
   taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
@@ -3573,7 +3587,7 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *p
 
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
       TAOS_CHECK_GOTO(colDataSetVal(pColInfoData, numOfRows, (const char *)&pm->schema[j].bytes, false), &lino, _OVER);
-      for (int32_t k = 6; k <= 8; ++k) {
+      for (int32_t k = 6; k <= 9; ++k) {
         pColInfoData = taosArrayGet(p->pDataBlock, k);
         colDataSetNULL(pColInfoData, numOfRows);
       }
@@ -3581,6 +3595,7 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *p
       numOfRows += 1;
     }
   }
+  return numOfRows;
 _OVER:
   mError("failed at %s:%d since %s", __FUNCTION__, lino, tstrerror(code));
   return numOfRows;

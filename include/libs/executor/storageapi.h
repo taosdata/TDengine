@@ -85,6 +85,7 @@ typedef struct SMetaEntry {
 
   SColCmprWrapper colCmpr;  // col compress alg
   SExtSchema*     pExtSchemas;
+  SColRefWrapper  colRef;   // col reference for virtual table
 } SMetaEntry;
 
 typedef struct SMetaReader {

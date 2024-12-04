@@ -593,6 +593,7 @@ typedef struct {
   SColCmpr* pCmpr;
   int64_t   keep;
   SExtSchema* pExtSchemas;
+  int8_t    virtualStb;
 } SStbObj;
 
 typedef struct {
