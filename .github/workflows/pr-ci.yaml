@@ -19,7 +19,7 @@ on:
       - 'tests/e2e/**'
 
 env:
-  RELEASE_HOST: 192.168.1.45
+  RELEASE_HOST: taosx-ci-server
   # RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
