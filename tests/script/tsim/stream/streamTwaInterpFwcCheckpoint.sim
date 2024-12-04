@@ -110,10 +110,10 @@ print =====streamt4_rows=$streamt4_rows
 $loop_count = 0
 loop1:
 
-sleep 2000
+sleep 6000
 
 $loop_count = $loop_count + 1
-if $loop_count == 20 then
+if $loop_count == 100 then
   return -1
 endi
 
@@ -154,7 +154,7 @@ sql insert into t1 values(now +  3000a,10,10,10);
 $loop_count = 0
 loop2:
 
-sleep 2000
+sleep 6000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then

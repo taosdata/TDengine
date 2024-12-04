@@ -173,36 +173,36 @@ if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 
-if [ -n "${taostools_bin_files}" ]; then
-    mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
-    mkdir -p ${taostools_install_dir}/bin \
-        && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
-        && chmod a+x ${taostools_install_dir}/bin/* || :
+# if [ -n "${taostools_bin_files}" ]; then
+#     mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
+#     mkdir -p ${taostools_install_dir}/bin \
+#         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
+#         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
-            ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/install-tools.sh \
-            || echo -e "failed to copy install-tools.sh"
-    else
-        echo -e "install-tools.sh not found"
-    fi
+#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
+#         cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
+#             ${taostools_install_dir}/ > /dev/null \
+#             && chmod a+x ${taostools_install_dir}/install-tools.sh \
+#             || echo -e "failed to copy install-tools.sh"
+#     else
+#         echo -e "install-tools.sh not found"
+#     fi
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
-            ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
-            || echo -e "failed to copy uninstall-tools.sh"
-    else
-        echo -e "uninstall-tools.sh not found"
-    fi
+#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
+#         cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
+#             ${taostools_install_dir}/ > /dev/null \
+#             && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
+#             || echo -e "failed to copy uninstall-tools.sh"
+#     else
+#         echo -e "uninstall-tools.sh not found"
+#     fi
 
-    if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
-        mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
-        cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
-        cp ${build_dir}/lib/pkgconfig/avro-c.pc ${taostools_install_dir}/avro/lib/pkgconfig
-    fi
-fi
+#     if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
+#         mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
+#         cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
+#         cp ${build_dir}/lib/pkgconfig/avro-c.pc ${taostools_install_dir}/avro/lib/pkgconfig
+#     fi
+# fi
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
   mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
@@ -251,6 +251,7 @@ fi
 cd ${install_dir}
 if [ "$osType" != "Darwin" ]; then
     tar -zcv -f ${tarName} * --remove-files || :
+    ls ${install_dir}
 else
     tar -zcv -f ${tarName} * || :
 fi

@@ -4,15 +4,15 @@ sidebar_label: taosExplorer
 slug: /tdengine-reference/components/taosexplorer
 ---
 
-taosExplorer is a web service that provides users with a visual management interface for TDengine instances. Although it is not open source, it is offered for free with the open-source installation package. This section primarily discusses its installation and deployment. Its features are based on an easy-to-use graphical interface that can be directly tried out. If needed, you can also refer to the advanced features and operations guide. To ensure the best experience when accessing taosExplorer, please use Chrome version 79 or above, or Edge version 79 or above.
+taosExplorer is a web service that provides users with a visual management interaction tool for TDengine instances. Although it is not open source, it is provided for free with the open source version installation package. This section mainly discusses its installation and deployment. All its features are based on a simple and easy-to-use graphical interface, which you can try directly. If needed, you can also refer to the related content in the advanced features and operation and maintenance guide. To ensure the best experience when accessing taosExplorer, please use Chrome version 79 or above, or Edge version 79 or above.
 
 ## Installation
 
-taosExplorer does not require separate installation. Starting from TDengine version 3.3.0.0, it is bundled with the TDengine installation package. After installation, you will see the `taos-explorer` service. If you compile the TDengine source code yourself following the steps in GitHub, the installation package will not include taosExplorer.
+taosExplorer does not require separate installation. Starting from TDengine version 3.3.0.0, it is released together with the TDengine installation package. After installation, you can see the `taos-explorer` service. If you compile the TDengine source code according to the steps on GitHub, the installation package generated does not include taosExplorer.
 
 ## Configuration
 
-Before starting taosExplorer, please ensure that the contents of the configuration file are correct.
+Before starting taosExplorer, please make sure the content in the configuration file is correct.
 
 ```TOML
 # This is an automatically generated configuration file for Explorer in [TOML](https://toml.io/) format.
@@ -122,38 +122,38 @@ cors = true
 # keepDays = 30
 ```
 
-**Explanation:**
+Description:
 
-- `port`: The port that the taosExplorer service binds to.
-- `addr`: The IPv4 address that the taosExplorer service binds to, default is `0.0.0.0`. If you need to modify it, configure it to an address other than `localhost` to provide external services.
-- `ipv6`: The IPv6 address that the taosExplorer service binds to, default does not bind to IPv6.
-- `instanceId`: The instance ID of the current explorer service. If multiple explorer instances are started on the same machine, ensure that their instance IDs are unique.
-- `log_level`: The log level, optional values are "error", "warn", "info", "debug", "trace". This parameter is deprecated; please use `log.level` instead.
-- `cluster`: The taosAdapter address for the TDengine cluster.
-- `cluster_native`: The native connection address for the TDengine cluster, disabled by default.
-- `x_api`: The gRPC address for taosX.
-- `grpc`: The gRPC address for taosX agent to connect to taosX.
+- `port`: The port to which the taosExplorer service is bound.
+- `addr`: The IPv4 address to which the taosExplorer service is bound, default is `0.0.0.0`. To modify, configure it to an address other than `localhost` to provide external service.
+- `ipv6`: The IPv6 address to which the taosExplorer service is bound, by default no IPv6 address is bound.
+- `instanceId`: The instance ID of the current explorer service. If multiple explorer instances are started on the same machine, it is necessary to ensure that the instance IDs of each instance are unique.
+- `log_level`: Log level, options are "error", "warn", "info", "debug", "trace". This parameter is deprecated, please use `log.level` instead.
+- `cluster`: The taosAdapter address of the TDengine cluster.
+- `cluster_native`: The native connection address of the TDengine cluster, off by default.
+- `x_api`: The gRPC address of taosX.
+- `grpc`: The gRPC address for taosX proxy to establish connection with taosX.
 - `cors`: CORS configuration switch, default is `false`. When set to `true`, cross-origin access is allowed.
-- `ssl.certificate`: SSL certificate (HTTPS service will be enabled if both certificate and certificate_key parameters are set).
+- `ssl.certificate`: SSL certificate (if both certificate and certificate_key parameters are set, HTTPS service is enabled, otherwise it is not).
 - `ssl.certificate_key`: SSL certificate key.
-- `log.path`: The directory for storing log files.
-- `log.level`: The log level, optional values are "error", "warn", "info", "debug", "trace".
-- `log.compress`: Whether to compress archived log files.
-- `log.rotationCount`: The maximum number of log files to retain in the directory, exceeding this number will delete old files.
-- `log.rotationSize`: The size of log files that triggers rotation (in bytes). When the log file exceeds this size, a new file will be generated, and new logs will be written to the new file.
-- `log.reservedDiskSize`: The threshold for stopping log writing when the remaining disk space reaches this size (in bytes).
-- `log.keepDays`: The number of days that log files are retained. Old log files exceeding this duration will be deleted.
+- `log.path`: The directory where log files are stored.
+- `log.level`: Log level, options are "error", "warn", "info", "debug", "trace".
+- `log.compress`: Whether to compress the log files after rolling.
+- `log.rotationCount`: The maximum number of files to keep in the log file directory, older files exceeding this number are deleted.
+- `log.rotationSize`: The file size that triggers log file rolling (in bytes), a new file is generated when the log file exceeds this size, and new logs are written to the new file.
+- `log.reservedDiskSize`: The threshold of remaining disk space to stop writing logs (in bytes), logging stops when the disk space reaches this size.
+- `log.keepDays`: The number of days to keep log files, older log files exceeding this number of days are deleted.
 
-## Starting and Stopping
+## Start and Stop
 
-Next, start taosExplorer. You can directly execute `taos-explorer` in the command line or use the systemctl command:
+Then start taosExplorer, you can directly execute taos-explorer in the command line or use the systemctl command:
 
 ```bash
 systemctl start taos-explorer  # Linux
 sc.exe start taos-explorer # Windows
 ```
 
-To stop it, use the following commands:
+Correspondingly, use the following command to stop
 
 ```shell
 systemctl stop taos-explorer  # Linux
@@ -162,11 +162,11 @@ sc.exe stop taos-explorer # Windows
 
 ## Troubleshooting
 
-1. If you encounter an error message saying "Cannot access this website" when opening the Explorer site in the browser, log in to the machine where taosExplorer is located via the command line and check the service status using the command `systemctl status taos-explorer`. If the returned status is `inactive`, start the service using the command `systemctl start taos-explorer`.
-2. To obtain detailed logs for taosExplorer, use the command `journalctl -u taos-explorer`.
-3. When using Nginx or other tools for forwarding, pay attention to CORS settings or use `cors = true` in the configuration file.
+1. When encountering the error message "This site can't be reached" while opening the Explorer site through a browser, log in to the machine where taosExplorer is located via command line, and use the command `systemctl status taos-explorer` to check the status of the service. If the returned status is `inactive`, use the command `systemctl start taos-explorer` to start the service.
+2. If detailed logs of taosExplorer are needed, use the command `journalctl -u taos-explorer`.
+3. When using Nginx or other tools for forwarding, pay attention to setting CORS or use `cors = true` in the configuration file.
 
-    Here is an example of Nginx configuration file CORS settings:
+    Here is an example of a CORS setting in an Nginx configuration file:
 
     ```conf
     http {
@@ -180,15 +180,16 @@ sc.exe stop taos-explorer # Windows
     
                     add_header 'Access-Control-Allow-Credentials' 'true';
                     add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-    
+
+```nginx
                     add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
-    
+
                     add_header 'Access-Control-Max-Age' 86400;
                     add_header 'Content-Type' 'text/plain charset=UTF-8';
                     add_header 'Content-Length' 0;
                     return 204; break;
                 }
-    
+
                 if ($request_method = 'POST') {
                     add_header 'Access-Control-Allow-Origin' '*';
                     add_header 'Access-Control-Allow-Credentials' 'true';
@@ -201,10 +202,10 @@ sc.exe stop taos-explorer # Windows
                     add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
                     add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
                 }
-    
+
                 proxy_set_header Host      $host:$server_port;
                 proxy_set_header X-Real-IP $remote_addr;
-    
+
                 #proxy_http_version 1.1;
                 proxy_read_timeout 60s;
                 proxy_next_upstream error  http_502 http_500  non_idempotent;
@@ -216,12 +217,12 @@ sc.exe stop taos-explorer # Windows
             server 192.168.1.68:6060 ;
         }
     }
-    ```
+```
 
 ## Registration and Login
 
-Once installed, open your browser and access the taos-explorer service by default at `http://ip:6060`. If you haven't registered yet, first go to the registration page. Enter your phone number to receive a verification code, and after entering the correct code, registration will be successful.
+Once installed, open your browser and by default access `http://ip:6060` to visit the taos-explorer service. If you have not registered yet, first enter the registration screen. Enter your mobile number to get a verification code, and after entering the correct verification code, you can register successfully.
 
-When logging in, use your database username and password. The default username for first-time use is `root`, and the password is `taosdata`. Once logged in successfully, you will enter the `Data Browser` page, where you can manage functionalities such as viewing databases, creating databases, and creating supertables/subtables.
+When logging in, please use the database username and password. For first-time use, the default username is `root` and the password is `taosdata`. After a successful login, you will enter the `Data Browser` page, where you can use management functions such as viewing databases, creating databases, and creating supertables/subtables.
 
-Other feature pages, such as `Data Insertion - Data Source`, are exclusive to the enterprise version. You can click to view and have a simple experience, but they cannot be used practically.
+Other feature pages, such as `Data Writing - Data Source` and others, are exclusive to the enterprise edition. You can click to view and have a simple experience, but they cannot be actually used.

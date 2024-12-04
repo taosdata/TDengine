@@ -3,121 +3,98 @@ title: Caching
 slug: /advanced-features/caching
 ---
 
-TDengine includes caching as a built-in component. This includes write caching, read caching, metadata caching, and file system caching.
+In the big data applications of the Internet of Things (IoT) and the Industrial Internet of Things (IIoT), the value of real-time data often far exceeds that of historical data. Enterprises not only need data processing systems to have efficient real-time writing capabilities but also need to quickly obtain the latest status of devices or perform real-time calculations and analyses on the latest data. Whether it's monitoring the status of industrial equipment, tracking vehicle locations in the Internet of Vehicles, or real-time readings of smart meters, current values are indispensable core data in business operations. These data are directly related to production safety, operational efficiency, and user experience.
 
-## Write Cache
+For example, in industrial production, the current operating status of production line equipment is crucial. Operators need to monitor key indicators such as temperature, pressure, and speed in real-time. If there is an anomaly in the equipment, these data must be presented immediately so that process parameters can be quickly adjusted to avoid downtime or greater losses. In the field of the Internet of Vehicles, taking DiDi as an example, the real-time location data of vehicles is key to optimizing dispatch strategies and improving operational efficiency on the DiDi platform, ensuring that each passenger gets on the vehicle quickly and enjoys a higher quality travel experience.
 
-TDengine uses a time-driven cache management strategy that prioritizes caching the most recently ingested data. When the size of the data stored in cache reaches a preset threshold, the earliest data in cache is written to disk.
+At the same time, dashboard systems and smart meters, as windows for on-site operations and user ends, also need real-time data support. Whether it's factory managers obtaining real-time production indicators through dashboards or household users checking the usage of smart water and electricity meters at any time, real-time data not only affects operational and decision-making efficiency but also directly relates to user satisfaction with the service.
 
-You can optimize database performance for your use case by specifying the number of vgroups in the database and the size of the write cache allocated to each vnode.
+## Limitations of Traditional Caching Solutions
 
-For example, the following SQL statement creates a database with 10 vgroups, with each vnode having a 256 MB write cache.
+To meet these high-frequency real-time query needs, many enterprises choose to integrate caching technologies like Redis into their big data platforms, enhancing query performance by adding a caching layer between the database and applications. However, this approach also brings several problems:
 
-```sql
-CREATE DATABASE power VGROUPS 10 BUFFER 256 CACHEMODEL 'none' PAGES 128 PAGESIZE 16;
-```
+- Increased system complexity: Additional deployment and maintenance of the cache cluster are required, raising higher demands on system architecture.
+- Rising operational costs: Additional hardware resources are needed to support the cache, increasing maintenance and management expenses.
+- Consistency issues: Data synchronization between the cache and the database requires additional mechanisms to ensure consistency, otherwise data inconsistencies may occur.
 
-Generally, a larger cache size results in improved performance. However, there exists a certain point at which further increasing the cache size has no significant effect on performance.
+## TDengine's Solution: Built-in Read Cache
 
-## Read Cache
+To address these issues, TDengine has designed and implemented a read cache mechanism specifically for high-frequency real-time query scenarios in IoT and IIoT. This mechanism automatically caches the last record of each table in memory, thus meeting users' real-time query needs for current values without introducing third-party caching technologies.
 
-You can configure TDengine databases to cache the most recent data of each subtable, allowing for faster queries. To do so, you specify a cache model for your database by setting the the `CACHEMODEL` parameter to one of the following values:
+TDengine uses a time-driven cache management strategy, prioritizing the storage of the latest data in the cache, allowing for quick results without needing to access the hard disk. When the cache capacity reaches the set limit, the system will batch-write the earliest data to the disk, enhancing query efficiency and effectively reducing the disk's write load, thereby extending the hardware's lifespan.
 
-- `none`: The read cache is disabled.
-- `last_row`: The most recent row of data from each subtable is cached. The `LAST_ROW()` function will then retrieve this data from cache.
-- `last_value`: The most recent non-null value for each column of each subtable is cached. The `LAST()` function will then retrieve this data from cache.
-- `both`: The most recent row of each subtable and the most recent non-null value of each column of each subtable are cached. This simultaneously activates the behavior of both the `last_row` and `last_value` cache models.
+Users can customize the cache mode by setting the `cachemodel` parameter, including caching the latest row of data, the most recent non-NULL value of each column, or caching both rows and columns. This flexible design is particularly important in IoT scenarios, making real-time queries of device status more efficient and accurate.
 
-You can also configure the memory size for each vnode by specifying a value for the `CACHESIZE` parameter. This parameter can be set from 1 MB to 65536 MB. The default value is 1 MB.
+This built-in read cache mechanism significantly reduces query latency, avoids the complexity and operational costs of introducing external systems like Redis, and reduces the pressure of frequent queries on the storage system, greatly enhancing the overall throughput of the system. It ensures stable and efficient operation even in high-concurrency scenarios. Through read caching, TDengine provides a more lightweight real-time data processing solution, not only optimizing query performance but also reducing overall operational costs, providing strong technical support for IoT and IIoT users.
 
-## Metadata Cache
+## TDengine's Read Cache Configuration
 
-Each vnode caches metadata that it has previously accessed. The size of this metadata cache is determined by the `PAGES` and `PAGESIZE` parameters of the database. For example, the following SQL statement creates a database whose vnodes have a metadata cache of 128 pages with each page being 16 KB:
+When creating a database, users can choose whether to enable the caching mechanism to store the latest data of each subtable in that database. This caching mechanism is controlled by the database creation parameter `cachemodel`. The parameter `cachemodel` has the following 4 options:
 
-```sql
-CREATE DATABASE power PAGES 128 PAGESIZE 16;
-```
+- none: no caching
+- last_row: caches the most recent row of data from the subtable, significantly improving the performance of the `last_row` function
+- last_value: caches the most recent non-NULL value of each column from the subtable, significantly improving the performance of the `last` function when there are no special effects (such as WHERE, ORDER BY, GROUP BY, INTERVAL)
+- both: caches both the most recent row and column, equivalent to the behaviors of `last_row` and `last_value` simultaneously effective
 
-## File System Cache
+When using database read caching, the `cachesize` parameter can be used to configure the memory size for each vnode.
 
-For reliability purposes, TDengine records changes in a write-ahead log (WAL) file before any data is written to the data storage layer. The `fsync` function is then called to write the data from the WAL to disk. You can control when the `fsync` function is called for a database by specifying the `WAL_LEVEL` and `WAL_FSYNC_PERIOD` parameters.
+- cachesize: represents the memory size used to cache the most recent data of subtables in each vnode. The default is 1, the range is [1, 65536], in MB. It should be configured reasonably according to the machine memory.
 
-- `WAL_LEVEL`:
-  - Specify `1` to wait for the operating system to call `fsync`. In this configuration, TDengine does not call `fsync` itself.
-  - Specify `2` for TDengine to call `fsync` at a certain interval, specified by the WAL_FSYNC_PERIOD parameter.
+For specific database creation, related parameters, and operation instructions, please refer to [Creating a Database](../../tdengine-reference/sql-manual/manage-databases/)
 
-  The default value is `1`.
-  
-- `WAL_FSYNC_PERIOD`:
-  - Specify `0` to call `fsync` every time data is written to the WAL.
-  - Specify a value between `1` and `180000` milliseconds to call `fsync` each time this interval has elapsed. 
+## Caching Practices for Real-Time Data Queries
 
-  Note that this parameter takes effect only when `WAL_LEVEL` is set to `2`.
-
-The following SQL statement creates a database in which data in the WAL is written to disk every 3000 milliseconds:
-
-
-```sql
-CREATE DATABASE power WAL_LEVEL 2 WAL_FSYNC_PERIOD 3000;
-```
-
-The default configuration of `WAL_VALUE 1` delivers the highest performance. In use cases where data reliability is a higher priority than performance, you can set `WAL_LEVEL` to `2`.
-
-## Example: Enhancing Query Performance with Read Caching
-
-This example demonstrates the performance improvements delivered by read caching. The sample data from [Data Querying](../../basic-features/data-querying/) is used in this section. This data is generated by the following command: 
+This section takes smart electric meters as an example to look in detail at how LAST caching improves the performance of real-time data queries. First, use the taosBenchmark tool to generate the time-series data of smart electric meters needed for this chapter.
 
 ```shell
-taosBenchmark -d power -Q --start-timestamp=1600000000000 --tables=10000 --records=10000 --time-step=10000 -y
+# taosBenchmark -d power -Q --start-timestamp=1600000000000 --tables=10000 --records=10000 --time-step=10000 -y
 ```
 
-Note that read caching is disabled by default on the sample database generated by taosBenchmark.
+The above command, the taosBenchmark tool in TDengine created a test database for electric meters named `power`, generating a total of 1 billion time-series data entries. The timestamp of the time-series data starts from `1600000000000 (2020-09-13T20:26:40+08:00)`, with the supertable `meters` containing 10,000 devices (subtables), each device having 10,000 data entries, and the data collection frequency is 10 seconds per entry.
 
-1. To establish a performance baseline, run the following SQL statements:
+To query the latest current and timestamp data of any electric meter, execute the following SQL:
 
-   ```text
-   taos> SELECT LAST(ts, current) FROM meters;
-           last(ts)         |    last(current)     |
-   =================================================
-    2020-09-15 00:13:10.000 |            1.1294620 |
-   Query OK, 1 row(s) in set (0.353815s)
-   
-   taos> SELECT LAST_ROW(ts, current) FROM meters;
-         last_row(ts)       |  last_row(current)   |
-   =================================================
-    2020-09-15 00:13:10.000 |            1.1294620 |
-   Query OK, 1 row(s) in set (0.344070s)
-   ```
+```sql
+taos> select last(ts,current) from meters;
+        last(ts)         |    last(current)     |
+=================================================
+ 2020-09-15 00:13:10.000 |            1.1294620 |
+Query OK, 1 row(s) in set (0.353815s)
 
-   These return the most recent non-null value and the most recent row from any subtable in the `meters` supertable. It can be seen that these queries return in 353 and 344 milliseconds, respectively.
+taos> select last_row(ts,current) from meters;
+      last_row(ts)       |  last_row(current)   |
+=================================================
+ 2020-09-15 00:13:10.000 |            1.1294620 |
+Query OK, 1 row(s) in set (0.344070s)
+```
 
-2. Enable read caching on the database:
+If you want to use caching to query the latest timestamp data of any electric meter, execute the following SQL and check if the database cache is effective.
 
-   ```text
-   taos> ALTER DATABASE power CACHEMODEL 'both';
-   Query OK, 0 row(s) affected (0.046092s)
-   
-   taos> SHOW CREATE DATABASE power\G;
-   *************************** 1.row ***************************
-          Database: power
-   Create Database: CREATE DATABASE `power` BUFFER 256 CACHESIZE 1 CACHEMODEL 'both' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 2 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 10 SINGLE_STABLE 0 TABLE_PREFIX 0 TABLE_SUFFIX 0 TSDB_PAGESIZE 4 WAL_RETENTION_PERIOD 3600 WAL_RETENTION_SIZE 0 KEEP_TIME_OFFSET 0
-   Query OK, 1 row(s) in set (0.000282s)
-   ```
+```sql
+taos> alter database power cachemodel 'both' ;
+Query OK, 0 row(s) affected (0.046092s)
 
-3. Run the two queries from Step 1 again:
+taos> show create database power\G;
+*************************** 1.row ***************************
+       Database: power
+Create Database: CREATE DATABASE `power` BUFFER 256 CACHESIZE 1 CACHEMODEL 'both' COMP 2 DURATION 14400m WAL_FSYNC_P...
+Query OK, 1 row(s) in set (0.000282s)
+```
 
-   ```text
-   taos> SELECT LAST(ts, current) FROM meters;
-           last(ts)         |    last(current)     |
-   =================================================
-    2020-09-15 00:13:10.000 |            1.1294620 |
-   Query OK, 1 row(s) in set (0.044021s)
-   
-   taos> SELECT LAST_ROW(ts, current) FROM meters;
-         last_row(ts)       |  last_row(current)   |
-   =================================================
-    2020-09-15 00:13:10.000 |            1.1294620 |
-   Query OK, 1 row(s) in set (0.046682s)
-   ```
+Query the latest real-time data of the electric meter again; the first query will perform cache computation, significantly reducing the latency of subsequent queries.
 
-It can be seen that these queries now return in 44 and 47 milliseconds, respectively. This indicates that read caching on this system produces an approximately 8-fold improvement in query performance.
+```sql
+taos> select last(ts,current) from meters;
+        last(ts)         |    last(current)     |
+=================================================
+ 2020-09-15 00:13:10.000 |            1.1294620 |
+Query OK, 1 row(s) in set (0.044021s)
+
+taos> select last_row(ts,current) from meters;
+      last_row(ts)       |  last_row(current)   |
+=================================================
+ 2020-09-15 00:13:10.000 |            1.1294620 |
+Query OK, 1 row(s) in set (0.046682s)
+```
+
+As can be seen, the query latency has been reduced from 353/344ms to 44ms, an improvement of approximately 8 times.
