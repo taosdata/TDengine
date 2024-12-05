@@ -215,14 +215,16 @@ int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw,
   if (isExist) {
     mInfo("compact db:%s already exist", pDb->name);
 
-    int32_t rspLen = 0;
-    void   *pRsp = NULL;
-    compactRsp.compactId = 0;
-    compactRsp.bAccepted = false;
-    TAOS_CHECK_RETURN(mndBuildCompactDbRsp(&compactRsp, &rspLen, &pRsp, true));
+    if (pReq) {
+      int32_t rspLen = 0;
+      void   *pRsp = NULL;
+      compactRsp.compactId = 0;
+      compactRsp.bAccepted = false;
+      TAOS_CHECK_RETURN(mndBuildCompactDbRsp(&compactRsp, &rspLen, &pRsp, true));
 
-    pReq->info.rsp = pRsp;
-    pReq->info.rspLen = rspLen;
+      pReq->info.rsp = pRsp;
+      pReq->info.rspLen = rspLen;
+    }
 
     return TSDB_CODE_MND_COMPACT_ALREADY_EXIST;
   }
@@ -238,11 +240,13 @@ int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw,
   TAOS_CHECK_GOTO(mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, vgroupIds, &compactRsp), NULL, _OVER);
 
-  int32_t rspLen = 0;
-  void   *pRsp = NULL;
-  compactRsp.bAccepted = true;
-  TAOS_CHECK_GOTO(mndBuildCompactDbRsp(&compactRsp, &rspLen, &pRsp, false), NULL, _OVER);
-  mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+  if (pReq) {
+    int32_t rspLen = 0;
+    void   *pRsp = NULL;
+    compactRsp.bAccepted = true;
+    TAOS_CHECK_GOTO(mndBuildCompactDbRsp(&compactRsp, &rspLen, &pRsp, false), NULL, _OVER);
+    mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
