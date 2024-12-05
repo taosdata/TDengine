@@ -2585,6 +2585,8 @@ _exit:
     tsdbRowClose(&rowIter);
   }
 
+  tSimpleHashCleanup(iColHash);
+
   memRowIterClose(&iter);
 
   TAOS_RETURN(code);
