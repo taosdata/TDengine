@@ -76,7 +76,6 @@ static timezone_t setConnnectionTz(const char* val){
   if (pTimezoneMap == NULL){
     pTimezoneMap = taosHashInit(0, MurmurHash3_32, false, HASH_ENTRY_LOCK);
     if (pTimezoneMap == NULL) {
-      atomic_store_32(&lock_c, 0);
       goto END;
     }
     taosHashSetFreeFp(pTimezoneMap, freeTz);
@@ -85,7 +84,6 @@ static timezone_t setConnnectionTz(const char* val){
   if (pTimezoneNameMap == NULL){
     pTimezoneNameMap = taosHashInit(0, taosIntHash_64, false, HASH_ENTRY_LOCK);
     if (pTimezoneNameMap == NULL) {
-      atomic_store_32(&lock_c, 0);
       goto END;
     }
   }

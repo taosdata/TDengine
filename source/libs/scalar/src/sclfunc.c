@@ -584,7 +584,7 @@ static bool isCharStart(char c) {
 static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t remLen, bool trimLeft, bool isNchar) {
   if (trimLeft) {
     int32_t pos = 0;
-    for (int32_t i = 0; i < orgLen; i += remLen) {
+    for (int32_t i = 0; i < orgLen - remLen; i += remLen) {
       if (memcmp(orgStr + i, remStr, remLen) == 0) {
         if (isCharStart(orgStr[i + remLen]) || isNchar) {
           pos = i + remLen;

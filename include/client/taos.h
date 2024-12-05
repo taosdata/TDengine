@@ -65,21 +65,13 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef enum {
-  TSDB_OPTION_CONNECTION_CLEAR = -1,     // clear all option in this connection
+  TSDB_OPTION_CONNECTION_CLEAR = -1,     // means clear all option in this connection
   TSDB_OPTION_CONNECTION_CHARSET,        // charset, Same as the scope supported by the system
   TSDB_OPTION_CONNECTION_TIMEZONE,       // timezone, Same as the scope supported by the system
   TSDB_OPTION_CONNECTION_USER_IP,        // user ip
-  TSDB_OPTION_CONNECTION_USER_APP,       // user app
+  TSDB_OPTION_CONNECTION_USER_APP,       // user app, max lengthe is 23, truncated if longer than 23
   TSDB_MAX_OPTIONS_CONNECTION
 } TSDB_OPTION_CONNECTION;
-
-typedef enum {
-  TSDB_OPTION_CONNECT_CHARSET,
-  TSDB_OPTION_CONNECT_TIMEZONE,
-  TSDB_OPTION_CONNECT_IP,
-  TSDB_OPTION_CONNECT_APP_NAME,
-  TSDB_MAX_CONNECT_OPTIONS
-} TSDB_OPTION_CONNECT;
 
 typedef enum {
   TSDB_SML_UNKNOWN_PROTOCOL = 0,
@@ -189,9 +181,26 @@ typedef struct TAOS_STMT_OPTIONS {
   bool    singleTableBindOnce;
 } TAOS_STMT_OPTIONS;
 
+
+/*
+ description:
+    taos_options_connection use to set extra connect options and affect behavior for a connection.
+    This function may be called multiple times to set several options.
+    Call taos_options_connection() after taos_connect() or taos_connect_auth().
+    The option argument is the option that you want to set; the arg argument is the value for the option.
+    If you want to reset the option, set arg to NULL.
+ input:
+    taos:   returned by taos_connect
+    option: option name
+    arg:    option value(string)
+ output:
+    0:      success
+    others: fail, error msg can be got by taos_errstr(NULL)
+*/
+DLL_EXPORT int        taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
+
 DLL_EXPORT void       taos_cleanup(void);
 DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
-DLL_EXPORT int        taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 DLL_EXPORT setConfRet taos_set_config(const char *config);
 DLL_EXPORT int        taos_init(void);
 DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);

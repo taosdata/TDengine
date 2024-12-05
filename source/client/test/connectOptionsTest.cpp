@@ -474,6 +474,8 @@ TEST(charsetCase, alter_charset_Test) {
 
   execQueryFail(pConn, "alter dnode 1 'charset gbk'");
   execQueryFail(pConn, "local 'charset gbk'");
+
+  taos_close(pConn);
 }
 
 #ifndef WINDOWS
@@ -493,6 +495,8 @@ TEST(timezoneCase, alter_timezone_Test) {
   check_timezone(pConn, "show local variables", "Asia/Shanghai");
 
   execQueryFail(pConn, "alter dnode 1 'timezone Asia/Kolkata'");
+
+  taos_close(pConn);
 }
 
 char *tz_test[] = {
