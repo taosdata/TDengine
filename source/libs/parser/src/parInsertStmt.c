@@ -503,7 +503,12 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     goto end;
   }
 
-  SSchema* pSchema = getTableTagSchema(pDataBlock->pMeta);
+  SSchema* pSchema;
+  if (!tags->mixTagsCols) {
+    pSchema = getTableTagSchema(pDataBlock->pMeta);
+  } else {
+    pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  }
 
   bool  isJson = false;
   STag* pTag = NULL;
@@ -958,16 +963,16 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
     }
 
     if (tags->numOfBound > 0) {
-      SSchema* pSchema = getTableTagSchema(pMeta);
+      SSchema* tagSchema = getTableTagSchema(pMeta);
 
-      if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
+      if (TSDB_DATA_TYPE_TIMESTAMP == tagSchema->type) {
         (*fields)[0].precision = pMeta->tableInfo.precision;
       }
 
       for (int32_t i = 0; i < tags->numOfBound; ++i) {
         (*fields)[idx].field_type = TAOS_FIELD_TAG;
 
-        SSchema* schema = &pSchema[tags->pColIndex[i]];
+        SSchema* schema = &tagSchema[tags->pColIndex[i]];
         tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[i].name));
         (*fields)[idx].type = schema->type;
         (*fields)[idx].bytes = schema->bytes;

@@ -191,6 +191,7 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   pInfo->numOfCols = numOfBound;
   pInfo->numOfBound = numOfBound;
   pInfo->hasBoundCols = false;
+  pInfo->mixTagsCols = false;
   pInfo->pColIndex = taosMemoryCalloc(numOfBound, sizeof(int16_t));
   if (NULL == pInfo->pColIndex) {
     return terrno;
@@ -204,6 +205,7 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
 void insResetBoundColsInfo(SBoundColInfo* pInfo) {
   pInfo->numOfBound = pInfo->numOfCols;
   pInfo->hasBoundCols = false;
+  pInfo->mixTagsCols = false;
   for (int32_t i = 0; i < pInfo->numOfCols; ++i) {
     pInfo->pColIndex[i] = i;
   }
