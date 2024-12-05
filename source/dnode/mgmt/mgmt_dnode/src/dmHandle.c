@@ -315,6 +315,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         } else {
           // log the difference configurations
           printConfigNotMatch(configRsp.array);
+          dmStop();
           goto _exit;
         }
       }
