@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/taosdata/driver-go/v3/common"
 
 	_ "github.com/taosdata/driver-go/v3/taosRestful"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
@@ -70,9 +69,13 @@ func NewConnectorWithDb(username, password, host string, port int, dbname string
 	return &Connector{db: db}, nil
 }
 
+type ReqIDKeyTy string
+
+const ReqIDKey ReqIDKeyTy = "taos_req_id"
+
 func (c *Connector) Exec(ctx context.Context, sql string, qid uint64) (int64, error) {
 	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
-	ctx = context.WithValue(ctx, common.ReqIDKey, int64(qid))
+	ctx = context.WithValue(ctx, ReqIDKey, int64(qid))
 
 	dbLogger.Tracef("call adapter to execute sql:%s", sql)
 	startTime := time.Now()
@@ -120,7 +123,7 @@ func logData(data *Data, logger *logrus.Entry) {
 
 func (c *Connector) Query(ctx context.Context, sql string, qid uint64) (*Data, error) {
 	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
-	ctx = context.WithValue(ctx, common.ReqIDKey, int64(qid))
+	ctx = context.WithValue(ctx, ReqIDKey, int64(qid))
 
 	dbLogger.Tracef("call adapter to execute query, sql:%s", sql)
 

@@ -786,6 +786,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
       }
 
+      start = news;
       if (news <= ts) {
         int64_t prev = news;
         int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
@@ -805,7 +806,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
           }
         }
 
-        return prev;
+        start = prev;
       }
     } else {
       int64_t delta = ts - pInterval->interval;
@@ -858,8 +859,8 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     while (newe >= ts) {
       start = slidingStart;
       slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, NULL);
-      int64_t slidingEnd = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
-      newe = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, precision, NULL);
+      int64_t news = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, precision, NULL);
+      newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
     }
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, NULL);
   }
@@ -869,16 +870,86 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
 // used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
 int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
-  if (pInterval->offset > 0) {
-    int64_t slideStart =
-        taosTimeAdd(intervalStart, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
-    int64_t slideEnd = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
-    int64_t result = taosTimeAdd(slideEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
-    return result;
-  } else {
-    int64_t result = taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
-    return result;
+  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+}
+
+void calcIntervalAutoOffset(SInterval* interval) {
+  if (!interval || interval->offset != AUTO_DURATION_VALUE) {
+    return;
   }
+
+  interval->offset = 0;
+
+  if (interval->timeRange.skey == INT64_MIN) {
+    return;
+  }
+
+  TSKEY skey = interval->timeRange.skey;
+  TSKEY start = taosTimeTruncate(skey, interval);
+  TSKEY news = start;
+  while (news <= skey) {
+    start = news;
+    news = taosTimeAdd(start, interval->sliding, interval->slidingUnit, interval->precision, NULL);
+    if (news < start) {
+      // overflow happens
+      uError("%s failed and skip, skey [%" PRId64 "], inter[%" PRId64 "(%c)], slid[%" PRId64 "(%c)], precision[%d]",
+             __func__, skey, interval->interval, interval->intervalUnit, interval->sliding, interval->slidingUnit,
+             interval->precision);
+      return;
+    }
+  }
+  interval->offset = skey - start;
+}
+
+// internal function, when program is paused in debugger,
+// one can call this function from debugger to print a
+// timestamp as human readable string, for example (gdb):
+//     p fmtts(1593769722)
+// outputs:
+//     2020-07-03 17:48:42
+// and the parameter can also be a variable.
+const char* fmtts(int64_t ts) {
+  static char buf[TD_TIME_STR_LEN] = {0};
+  size_t      pos = 0;
+  struct tm   tm;
+
+  if (ts > -62135625943 && ts < 32503651200) {
+    time_t t = (time_t)ts;
+    if (taosLocalTime(&t, &tm, buf, sizeof(buf), NULL) == NULL) {
+      return buf;
+    }
+    pos += taosStrfTime(buf + pos, sizeof(buf), "s=%Y-%m-%d %H:%M:%S", &tm);
+  }
+
+  if (ts > -62135625943000 && ts < 32503651200000) {
+    time_t t = (time_t)(ts / 1000);
+    if (taosLocalTime(&t, &tm, buf, sizeof(buf), NULL) == NULL) {
+      return buf;
+    }
+    if (pos > 0) {
+      buf[pos++] = ' ';
+      buf[pos++] = '|';
+      buf[pos++] = ' ';
+    }
+    pos += taosStrfTime(buf + pos, sizeof(buf), "ms=%Y-%m-%d %H:%M:%S", &tm);
+    pos += sprintf(buf + pos, ".%03d", (int32_t)(ts % 1000));
+  }
+
+  {
+    time_t t = (time_t)(ts / 1000000);
+    if (taosLocalTime(&t, &tm, buf, sizeof(buf), NULL) == NULL) {
+      return buf;
+    }
+    if (pos > 0) {
+      buf[pos++] = ' ';
+      buf[pos++] = '|';
+      buf[pos++] = ' ';
+    }
+    pos += taosStrfTime(buf + pos, sizeof(buf), "us=%Y-%m-%d %H:%M:%S", &tm);
+    pos += sprintf(buf + pos, ".%06d", (int32_t)(ts % 1000000));
+  }
+
+  return buf;
 }
 
 int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) {

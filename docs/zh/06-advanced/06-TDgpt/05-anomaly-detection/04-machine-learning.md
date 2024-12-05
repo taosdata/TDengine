@@ -9,7 +9,7 @@ Autoencoder<sup>[1]</sup>: TDgpt 内置使用自编码器（Autoencoder）的异
 --- 在 options 中增加 model 的名称，ad_autoencoder_foo， 针对 foo 数据集（表）训练的采用自编码器的异常检测模型进行异常检测
 SELECT COUNT(*), _WSTART
 FROM foo
-ANOMALY_DETECTION(col1, 'algo=encoder, model=ad_autoencoder_foo');
+ANOMALY_WINDOW(col1, 'algo=encoder, model=ad_autoencoder_foo');
 ```
 
 ### 参考文献

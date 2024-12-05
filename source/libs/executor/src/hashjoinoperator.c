@@ -904,9 +904,9 @@ static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* 
 
 static int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* queryDone) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
-  SSDataBlock* pBlock = NULL;
-  int32_t code = TSDB_CODE_SUCCESS;
-  
+  SSDataBlock*        pBlock = NULL;
+  int32_t             code = TSDB_CODE_SUCCESS;
+
   while (true) {
     pBlock = getNextBlockFromDownstream(pOperator, pJoin->pBuild->downStreamIdx);
     if (NULL == pBlock) {

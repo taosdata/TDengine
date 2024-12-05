@@ -377,6 +377,12 @@ static FORCE_INLINE void logConnMissHit(SCliConn* pConn);
 
 static void* cliWorkThread(void* arg);
 
+static bool isReqExceedLimit(STransMsg* pMsg) {
+  if (pMsg != NULL && pMsg->contLen >= TRANS_MSG_LIMIT) {
+    return true;
+  }
+  return false;
+}
 int32_t cliGetConnTimer(SCliThrd* pThrd, SCliConn* pConn) {
   uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
   if (timer == NULL) {
@@ -2017,7 +2023,9 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
           tWarn("%s conn %p failed to added to heap cache since %s", pInst->label, pConn, tstrerror(code));
         }
       } else {
-        // TAOS_CHECK_GOTO(code, &lino, _exception);
+        if (code == TSDB_CODE_OUT_OF_MEMORY && pConn == NULL) {
+          TAOS_CHECK_GOTO(code, &lino, _exception);
+        }
         return;
       }
     }
@@ -2496,10 +2504,6 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 _end:
   if (pThrd) {
     TAOS_UNUSED(taosThreadMutexDestroy(&pThrd->msgMtx));
-
-    TAOS_UNUSED(uv_loop_close(pThrd->loop));
-    taosMemoryFree(pThrd->loop);
-    TAOS_UNUSED((taosThreadMutexDestroy(&pThrd->msgMtx)));
     transAsyncPoolDestroy(pThrd->asyncPool);
     for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
       uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
@@ -2509,6 +2513,9 @@ _end:
     taosArrayDestroy(pThrd->timerList);
 
     TAOS_UNUSED(destroyConnPool(pThrd));
+    TAOS_UNUSED(uv_loop_close(pThrd->loop));
+    taosMemoryFree(pThrd->loop);
+
     transDQDestroy(pThrd->delayQueue, NULL);
     transDQDestroy(pThrd->timeoutQueue, NULL);
     transDQDestroy(pThrd->waitConnQueue, NULL);
@@ -2927,6 +2934,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     transFreeMsg(pResp->pCont);
   }
   pResp->pCont = NULL;
+  pResp->info.hasEpSet = 0;
   if (code != TSDB_CODE_RPC_BROKEN_LINK && code != TSDB_CODE_RPC_NETWORK_UNAVAIL && code != TSDB_CODE_SUCCESS) {
     // save one internal code
     pCtx->retryCode = code;
@@ -3207,6 +3215,10 @@ _exception:
 }
 
 int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
+  if (isReqExceedLimit(pReq)) {
+    return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
+  }
+
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)pInstRef);
   if (pInst == NULL) {
     transFreeMsg(pReq->pCont);
@@ -3234,9 +3246,6 @@ int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, 
     return (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
   }
 
-  // if (pReq->msgType == TDMT_SCH_DROP_TASK) {
-  //   TAOS_UNUSED(transReleaseCliHandle(pReq->info.handle));
-  // }
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
   return 0;
 
@@ -3252,6 +3261,9 @@ _exception:
 int32_t transSendRequestWithId(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
   if (transpointId == NULL) {
     return TSDB_CODE_INVALID_PARA;
+  }
+  if (isReqExceedLimit(pReq)) {
+    return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
   }
   int32_t code = 0;
   int8_t  transIdInited = 0;
@@ -3304,6 +3316,9 @@ _exception:
 }
 
 int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
+  if (isReqExceedLimit(pReq)) {
+    return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
+  }
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)pInstRef);
   if (pInst == NULL) {
     transFreeMsg(pReq->pCont);

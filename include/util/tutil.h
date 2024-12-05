@@ -51,6 +51,8 @@ int32_t titoa(uint64_t val, size_t radix, char str[]);
 void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 
 int32_t parseCfgReal(const char *str, float *out);
+bool    tIsValidFileName(const char *fileName, const char *pattern);
+bool    tIsValidFilePath(const char *filePath, const char *pattern);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;

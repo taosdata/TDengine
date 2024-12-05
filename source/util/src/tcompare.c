@@ -1294,7 +1294,7 @@ void DestroyRegexCache(){
   uInfo("[regex cache] destory regex cache");
   bool ret = taosTmrStopA(&sRegexCache.timer);
   if (!ret) {
-    uError("failed to stop regex cache timer");
+    uInfo("stop regex cache timer may be failed");
   }
   taosWLockLatch(&sRegexCache.mutex);
   sRegexCache.exit = true;

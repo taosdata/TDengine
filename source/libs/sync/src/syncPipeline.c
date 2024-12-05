@@ -1152,11 +1152,11 @@ int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncApp
   int32_t code = 0;
   if (pMgr->restored) {
     if ((code = syncLogReplContinue(pMgr, pNode, pMsg)) != 0) {
-      sError("vgId:%d, failed to continue sync log repl since %s", pNode->vgId, tstrerror(code));
+      sWarn("vgId:%d, failed to continue sync log repl since %s", pNode->vgId, tstrerror(code));
     }
   } else {
     if ((code = syncLogReplRecover(pMgr, pNode, pMsg)) != 0) {
-      sError("vgId:%d, failed to recover sync log repl since %s", pNode->vgId, tstrerror(code));
+      sWarn("vgId:%d, failed to recover sync log repl since %s", pNode->vgId, tstrerror(code));
     }
   }
   (void)taosThreadMutexUnlock(&pBuf->mutex);

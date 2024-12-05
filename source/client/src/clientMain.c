@@ -2280,6 +2280,18 @@ int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fie
     return terrno;
   }
 
+  STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  if (pStmt->sql.type == 0) {
+    int isInsert = 0;
+    (void)stmtIsInsert2(stmt, &isInsert);
+    if (!isInsert) {
+      pStmt->sql.type = STMT_TYPE_QUERY;
+    }
+  }
+  if (pStmt->sql.type == STMT_TYPE_QUERY) {
+    return stmtGetParamNum2(stmt, count);
+  }
+
   return stmtGetStbColFields2(stmt, count, fields);
 }
 

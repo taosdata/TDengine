@@ -1,9 +1,9 @@
 ---
-title: Components Reference Guide
-sidebar_label: Components
+title: Components
+slug: /tdengine-reference/components
 ---
 
-In this section we will explain the major TDengine components, including their functionalities, command line parameters, configurations, etc.
+This section provides detailed explanations of the functions, command-line parameters, configuration parameters, etc., of the main product components in TDengine.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
