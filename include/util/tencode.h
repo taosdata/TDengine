@@ -413,9 +413,7 @@ static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint3
 
 static FORCE_INLINE int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len) {
   TAOS_CHECK_RETURN(tDecodeBinary(pCoder, (uint8_t**)val, len));
-  if (*len > 0) {
-    (*len) -= 1;
-  }
+  (*len) -= 1;      // *len = 0 - 1
   return 0;
 }
 
@@ -429,7 +427,7 @@ static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
   uint32_t len;
   TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
 
-  if (pCoder->pos + 1 < pCoder->size) {
+  if (len < pCoder->size) {
     TAOS_MEMCPY(val, pStr, len + 1);
   }
 
