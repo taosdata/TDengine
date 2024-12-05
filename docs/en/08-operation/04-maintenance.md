@@ -1,17 +1,17 @@
 ---
-title: Maintain Your Cluster
+title: Maintaining Your Cluster
 slug: /operations-and-maintenance/maintain-your-cluster
 ---
 
-This section introduces the advanced cluster maintenance techniques provided in TDengine Enterprise, which can help TDengine clusters run more robustly and efficiently over the long term.
+This section introduces advanced cluster maintenance methods provided in TDengine Enterprise, which can make the TDengine cluster run more robustly and efficiently over the long term.
 
 ## Node Management
 
-For managing cluster nodes, please refer to [Manage Nodes](../../tdengine-reference/sql-manual/manage-nodes/).
+For how to manage cluster nodes, please refer to [Node Management](../../tdengine-reference/sql-manual/manage-nodes/)
 
-## Data Compaction
+## Data Reorganization
 
-TDengine is designed for various write scenarios, but in many cases, its storage can lead to data amplification or empty spaces in data files. This not only affects storage efficiency but can also impact query performance. To address these issues, TDengine Enterprise provides a data compaction feature, called DATA COMPACT, which reorganizes stored data files, removes empty spaces and invalid data, and improves data organization, thereby enhancing both storage and query efficiency. The data compaction feature was first released in version 3.0.3.0 and has undergone multiple iterations and optimizations since then, so it is recommended to use the latest version.
+TDengine is designed for various writing scenarios, and many of these scenarios can lead to data storage amplification or data file holes in TDengine's storage. This not only affects the efficiency of data storage but also impacts query performance. To address these issues, TDengine Enterprise offers a data reorganization feature, namely the DATA COMPACT function, which reorganizes stored data files, removes file holes and invalid data, improves data organization, and thus enhances storage and query efficiency. The data reorganization feature was first released in version 3.0.3.0 and has since undergone several iterations of optimization. It is recommended to use the latest version.
 
 ### Syntax
 
@@ -23,87 +23,87 @@ KILL COMPACT compact_id;
 
 ### Effects
 
-- Scans and compresses all data files of all VGROUPs in the specified database.
-- COMPACT will delete deleted data and data of deleted tables.
-- COMPACT will merge multiple STT files.
-- You can specify the start time of the data to be compacted using the `start with` keyword.
-- You can specify the end time of the data to be compacted using the `end with` keyword.
-- The COMPACT command will return the ID of the COMPACT task.
-- The COMPACT task will execute asynchronously in the background; you can check the progress of the COMPACT task using the SHOW COMPACTS command.
-- The SHOW command will return the ID of the COMPACT task, and you can terminate the COMPACT task using the KILL COMPACT command.
+- Scans and compresses all data files in all VGROUP VNODEs of the specified DB
+- COMPACT will delete data that has been deleted and data from deleted tables
+- COMPACT will merge multiple STT files
+- You can specify the start time of the COMPACT data with the start with keyword
+- You can specify the end time of the COMPACT data with the end with keyword
+- The COMPACT command will return the ID of the COMPACT task
+- COMPACT tasks are executed asynchronously in the background, and you can view the progress of COMPACT tasks using the SHOW COMPACTS command
+- The SHOW command will return the ID of the COMPACT task, and you can terminate the COMPACT task using the KILL COMPACT command
 
-### Additional Notes
+### Additional Information
 
-- COMPACT is asynchronous; after executing the COMPACT command, it will return without waiting for the COMPACT to finish. If a previous COMPACT has not completed and another COMPACT task is initiated, it will wait for the previous task to finish before returning.
-- COMPACT may block writes, especially in databases with `stt_trigger = 1`, but it does not block queries.
+- COMPACT is asynchronous; after executing the COMPACT command, it returns without waiting for the COMPACT to finish. If a previous COMPACT has not completed, it will wait for the previous task to finish before returning.
+- COMPACT may block writing, especially in databases where stt_trigger = 1, but it does not block queries.
 
 ## Vgroup Leader Rebalancing
 
-After one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, there may be an imbalance in the load among the dnodes, and in extreme cases, all the leaders of vgroups may be located on the same dnode. To resolve this issue, you can use the command below, which was first released in version 3.0.4.0. It is recommended to use the latest version whenever possible.
+When one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, it may lead to an imbalance in the load among the various dnodes in the cluster. In extreme cases, all vgroup leaders may be located on the same dnode. To solve this problem, you can use the following commands, which were first released in version 3.0.4.0. It is recommended to use the latest version as much as possible.
 
 ```SQL
-balance vgroup leader; # Rebalance the leaders of all vgroups
-balance vgroup leader on <vgroup_id>; # Rebalance the leader of a specific vgroup
-balance vgroup leader database <database_name>; # Rebalance the leaders of all vgroups in a specific database
+balance vgroup leader; # Rebalance all vgroup leaders
+balance vgroup leader on <vgroup_id>; # Rebalance a vgroup leader
+balance vgroup leader database <database_name>; # Rebalance all vgroup leaders within a database
 ```
 
 ### Functionality
 
-This command attempts to distribute the leaders of one or all vgroups evenly across their respective replica nodes. It will force the vgroup to re-elect its leader, thereby changing the leader during the election process, which ultimately helps in achieving an even distribution of leaders.
+Attempts to evenly distribute one or all vgroup leaders across their respective replica nodes. This command forces a re-election of the vgroup, changing the vgroup's leader during the election process, thereby eventually achieving an even distribution of leaders.
 
-### Notes
+### Note
 
-Vgroup elections inherently involve randomness, so the even distribution produced by the re-election is also probabilistic and may not be completely uniform. The side effect of this command is that it can affect queries and writes; during the re-election of the vgroup, it will be unable to write or query until the new leader is elected. The election process typically completes within seconds. All vgroups will be re-elected one by one.
+Vgroup elections are inherently random, so the even distribution produced by the re-election is also probabilistic and not perfectly even. The side effect of this command is that it affects queries and writing; during the vgroup re-election, from the start of the election to the election of a new leader, this vgroup cannot be written to or queried. The election process generally completes within seconds. All vgroups will be re-elected one by one sequentially.
 
-## Restoring Data Nodes
+## Restore Data Node
 
-If a data node (dnode) in the cluster loses or damages all its data (e.g., due to disk failure or directory deletion), you can restore part or all of the logical nodes on that data node using the `restore dnode` command. This feature relies on data replication from other replicas, so it only works when the number of dnodes in the cluster is greater than or equal to 3, and the number of replicas is 3.
+If the data on a data node (dnode) in the cluster is completely lost or damaged, such as due to disk damage or directory deletion, you can use the restore dnode command to recover some or all logical nodes on that data node. This feature relies on data replication from other replicas in the cluster, so it only works when the number of dnodes in the cluster is three or more and the number of replicas is three.
 
-```SQL
-restore dnode <dnode_id>; # Restore the mnode, all vnodes, and qnodes on the dnode
-restore mnode on dnode <dnode_id>; # Restore the mnode on the dnode
-restore vnode on dnode <dnode_id>; # Restore all vnodes on the dnode
-restore qnode on dnode <dnode_id>; # Restore the qnode on the dnode
+```sql
+restore dnode <dnode_id>; # Restore mnode, all vnodes, and qnode on dnode
+restore mnode on dnode <dnode_id>; # Restore mnode on dnode
+restore vnode on dnode <dnode_id>; # Restore all vnodes on dnode
+restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 ```
 
 ### Limitations
 
-- This function is based on the existing replication capability for recovery; it is not a disaster recovery or backup recovery feature. Therefore, for the mnode and vnode that you want to restore, the prerequisite for using this command is that there are still two other functioning replicas of that mnode or vnode.
-- This command cannot repair individual file damage or loss in the data directory. For instance, if a particular file or data in a mnode or vnode is damaged, you cannot restore just that damaged file or data block. In this case, you can choose to clear all data from the mnode/vnode and then perform the restore.
+- This feature is based on the recovery of existing replication capabilities, not disaster recovery or backup recovery. Therefore, for the mnode and vnode to be recovered, the prerequisite for using this command is that the other two replicas of the mnode or vnode can still function normally.
+- This command cannot repair individual files in the data directory that are damaged or lost. For example, if individual files or data in an mnode or vnode are damaged, it is not possible to recover a specific file or block of data individually. In this case, you can choose to completely clear the data of that mnode/vnode and then perform recovery.
 
 ## Splitting Virtual Groups
 
-When a vgroup experiences high CPU or disk resource utilization due to an excessive number of subtables, and additional dnodes have been added, you can use the `split vgroup` command to split that vgroup into two virtual groups. After the split, the newly created two vgroups will share the read and write services originally provided by one vgroup. This command was first released in version 3.0.6.0, and it is recommended to use the latest version whenever possible.
+When a vgroup is overloaded with CPU or Disk resource usage due to too many subtables, after adding a dnode, you can split the vgroup into two virtual groups using the `split vgroup` command. After the split, the newly created two vgroups will undertake the read and write services originally provided by one vgroup. This command was first released in version 3.0.6.0, and it is recommended to use the latest version whenever possible.
 
-```SQL
+```sql
 split vgroup <vgroup_id>
 ```
 
-### Notes
+### Note
 
-- For a single-replica virtual group, the total disk space usage of historical time-series data may double after the split is complete. Therefore, before performing this operation, ensure that there are sufficient CPU and disk resources in the cluster by adding dnodes to avoid resource shortages.
-- This command is a database-level transaction; during the execution process, other management transactions for the current database will be rejected. Other databases in the cluster will not be affected.
-- The split task can continue to provide read and write services during execution; however, there may be a perceptible brief interruption in read and write services during this time.
-- Streaming and subscriptions are not supported during the split. After the split, historical WAL will be cleared.
-- The split operation supports fault tolerance for node crashes and restarts; however, it does not support fault tolerance for node disk failures.
+- For single-replica vgroups, after the split, the total disk space usage of historical time-series data may double. Therefore, before performing this operation, ensure there are sufficient CPU and disk resources in the cluster by adding dnode nodes to avoid resource shortages.
+- This command is a DB-level transaction; during execution, other management transactions of the current DB will be rejected. Other DBs in the cluster are not affected.
+- During the split task, read and write services can continue; however, there may be a perceptible brief interruption in read and write operations.
+- Streams and subscriptions are not supported during the splitting process. After the split ends, historical WAL will be cleared.
+- During the split process, node crash restart fault tolerance is supported; however, node disk failure fault tolerance is not supported.
 
-## Online Updating Cluster Configuration
+## Online Cluster Configuration Update
 
-Starting from version 3.1.1.0, TDengine Enterprise supports online hot updates for the important dnode configuration parameter `supportVnodes`. This parameter was originally configured in the `taos.cfg` configuration file, indicating the maximum number of vnodes that the dnode can support. When creating a database, new vnodes need to be allocated, and when deleting a database, its vnodes will be destroyed.
+Starting from version 3.1.1.0, TDengine Enterprise supports online hot updates of the very important dnode configuration parameter `supportVnodes`. This parameter, originally configured in the `taos.cfg` file, represents the maximum number of vnodes that the dnode can support. When a database is created, new vnodes are allocated, and when a database is deleted, its vnodes are destroyed.
 
-However, online updates to `supportVnodes` will not persist; after the system restarts, the maximum allowed number of vnodes will still be determined by the `supportVnodes` configured in `taos.cfg`.
+However, online updates of `supportVnodes` do not persist, and after a system restart, the maximum number of vnodes allowed will still be determined by the `supportVnodes` configured in taos.cfg.
 
-If the `supportVnodes` set by online updates or configuration file settings is less than the current actual number of vnodes, the existing vnodes will not be affected. However, whether a new database can be successfully created will still depend on the effective `supportVnodes` parameter.
+If the `supportVnodes` set through online updates or configuration files is less than the current actual number of vnodes on the dnode, the existing vnodes will not be affected. However, whether a new database can be successfully created will still depend on the actual effective `supportVnodes` parameter.
 
-## Dual Replica
+## Dual Replicas
 
-Dual replicas are a special high availability configuration for databases, and this section provides special instructions for their use and maintenance. This feature was first released in version 3.3.0.0, and it is recommended to use the latest version whenever possible.
+Dual replicas are a special high-availability configuration for databases. This section provides special instructions for their use and maintenance. This feature was first released in version 3.3.0.0, and it is recommended to use the latest version whenever possible.
 
 ### Viewing the Status of Vgroups
 
-You can view the status of each vgroup in the dual replica database using the following SQL command:
+Use the following SQL commands to view the status of each Vgroup in a dual-replica database:
 
-```SQL
+```sql
 show arbgroups;
 
 select * from information_schema.ins_arbgroups;
@@ -115,32 +115,32 @@ select * from information_schema.ins_arbgroups;
 
 ```
 
-The `is_sync` column has two possible values:
+is_sync has the following two values:
 
-- 0: Vgroup data is not synchronized. In this state, if a vnode in the vgroup becomes inaccessible, the other vnode cannot be designated as the `AssignedLeader`, and the vgroup will be unable to provide services.
-- 1: Vgroup data is synchronized. In this state, if a vnode in the vgroup becomes inaccessible, the other vnode can be designated as the `AssignedLeader`, and the vgroup can continue to provide services.
+- 0: Vgroup data has not achieved synchronization. In this state, if one Vnode in the Vgroup is inaccessible, the other Vnode cannot be designated as the `AssignedLeader` role, and the Vgroup will not be able to provide service.
+- 1: Vgroup data has achieved synchronization. In this state, if one Vnode in the Vgroup is inaccessible, the other Vnode can be designated as the `AssignedLeader` role, and the Vgroup can continue to provide service.
 
-The `assigned_dnode` column:
+assigned_dnode:
 
-- Indicates the DnodeId of the vnode designated as the AssignedLeader.
-- When there is no AssignedLeader specified, this column displays NULL.
+- Identifies the DnodeId of the Vnode designated as AssignedLeader
+- Displays NULL when no AssignedLeader is specified
 
-The `assigned_token` column:
+assigned_token:
 
-- Indicates the token of the vnode designated as the AssignedLeader.
-- When there is no AssignedLeader specified, this column displays NULL.
+- Identifies the Token of the Vnode designated as AssignedLeader
+- Displays NULL when no AssignedLeader is specified
 
 ### Best Practices
 
-1. Fresh Deployment
+1. New Deployment
 
-The main value of dual replicas lies in saving storage costs while ensuring a certain level of high availability and reliability. In practice, it is recommended to configure:
+The main value of dual replicas lies in saving storage costs while maintaining a certain level of high availability and reliability. In practice, the recommended configuration is:
 
-- An N-node cluster (where N >= 3).
-- N-1 of these dnodes are responsible for storing time-series data.
-- The Nth dnode does not participate in the storage and reading of time-series data, meaning it does not hold replicas; this can be achieved by setting the `supportVnodes` parameter to 0.
-- The dnode that does not store data replicas will have lower CPU/memory resource usage, allowing it to run on lower-specification servers.
+- N node cluster (where N>=3)
+- N-1 dnodes responsible for storing time-series data
+- The Nth dnode does not participate in the storage and retrieval of time-series data, i.e., it does not store replicas; this can be achieved by setting the `supportVnodes` parameter to 0
+- The dnode that does not store data replicas also has lower CPU/Memory resource usage, allowing the use of lower-specification servers
 
 2. Upgrading from Single Replica
 
-Assuming there is already a single replica cluster with N nodes (N >= 1), you can upgrade it to a dual replica cluster, ensuring that N >= 3 after the upgrade, and that the `supportVnodes` parameter of the newly added node is set to 0. After the cluster upgrade is complete, use the `alter database replica 2` command to change the number of replicas for a specific database.
+Assuming there is an existing single replica cluster with N nodes (N>=1), and you want to upgrade it to a dual replica cluster, ensure that N>=3 after the upgrade, and configure the `supportVnodes` parameter of a newly added node to 0. After completing the cluster upgrade, use the command `alter database replica 2` to change the replica count for a specific database.

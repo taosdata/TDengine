@@ -387,6 +387,11 @@ typedef struct SShowTableDistributedStmt {
   char      tableName[TSDB_TABLE_NAME_LEN];
 } SShowTableDistributedStmt;
 
+typedef struct SShowDBUsageStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} SShowDBUsageStmt;
+
 typedef struct SShowDnodeVariablesStmt {
   ENodeType type;
   SNode*    pDnodeId;

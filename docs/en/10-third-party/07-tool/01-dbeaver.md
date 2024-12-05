@@ -10,42 +10,43 @@ import imgStep03 from '../../assets/dbeaver-03.png';
 import imgStep04 from '../../assets/dbeaver-04.png';
 import imgStep05 from '../../assets/dbeaver-05.png';
 
-DBeaver is a popular cross-platform database management tool that facilitates data management for developers, database administrators, data analysts, and other users. Starting from version 23.1.1, DBeaver has built-in support for TDengine, accommodating both standalone TDengine clusters and TDengine Cloud.
+DBeaver is a popular cross-platform database management tool that facilitates developers, database administrators, and data analysts in managing data. DBeaver has embedded support for TDengine starting from version 23.1.1. It supports both standalone deployed TDengine clusters and TDengine Cloud.
 
 ## Prerequisites
 
-To manage TDengine with DBeaver, the following preparations are necessary:
+Using DBeaver to manage TDengine requires the following preparations.
 
-- Install DBeaver. DBeaver supports major operating systems, including Windows, macOS, and Linux. Please ensure to [download](https://dbeaver.io/download/) the installation package for the correct platform and version (23.1.1+). For detailed installation steps, refer to the [DBeaver official documentation](https://github.com/dbeaver/dbeaver/wiki/Installation).
-- If using a standalone TDengine cluster, ensure that TDengine is running normally and that the taosAdapter is installed and functioning correctly. For specific details, refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter/).
+- Install DBeaver. DBeaver supports mainstream operating systems including Windows, macOS, and Linux. Please make sure to [download](https://dbeaver.io/download/) the correct platform and version (23.1.1+) of the installer. For detailed installation steps, refer to the [DBeaver official documentation](https://github.com/dbeaver/dbeaver/wiki/Installation).
+- If using a standalone deployed TDengine cluster, ensure that TDengine is running normally, and that taosAdapter has been installed and is running properly. For specific details, refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter).
 
-## Using DBeaver to Access an On-Premises TDengine
+## Using DBeaver to Access Internally Deployed TDengine
 
-1. Launch the DBeaver application, click the button or menu item to "Connect to Database," and select TDengine from the time series category.
+1. Launch the DBeaver application, click the button or menu item to "Connect to Database", then select TDengine in the time-series category.
 
    <figure>
    <Image img={imgStep01} alt=""/>
    </figure>
 
-2. Configure the TDengine connection by entering the host address, port number, username, and password. If TDengine is deployed on the local machine, you can simply enter the username and password; the default username is root, and the default password is taosdata. Click "Test Connection" to check the availability of the connection. If the TDengine Java connector is not installed on the local machine, DBeaver will prompt you to download it.
+2. Configure the TDengine connection by entering the host address, port number, username, and password. If TDengine is deployed on the local machine, you can just enter the username and password, with the default username being root and the default password being taosdata. Click "Test Connection" to test if the connection is available. If the TDengine Java
+ connector is not installed on the local machine, DBeaver will prompt to download and install it.
 
    <figure>
    <Image img={imgStep02} alt=""/>
    </figure>
 
-3. If the connection is successful, it will display as shown in the image below. If the connection fails, please check whether the TDengine service and taosAdapter are running correctly, and verify the host address, port number, username, and password.
+3. A successful connection will be displayed as shown below. If the connection fails, check whether the TDengine service and taosAdapter are running correctly, and whether the host address, port number, username, and password are correct.
 
    <figure>
    <Image img={imgStep03} alt=""/>
    </figure>
 
-4. Use DBeaver to select databases and tables to browse the data from the TDengine service.
+4. Using DBeaver to select databases and tables allows you to browse data from the TDengine service.
 
    <figure>
    <Image img={imgStep04} alt=""/>
    </figure>
 
-5. You can also perform operations on TDengine data by executing SQL commands.
+5. You can also operate on TDengine data by executing SQL commands.
 
    <figure>
    <Image img={imgStep05} alt=""/>

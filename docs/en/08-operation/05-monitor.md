@@ -1,5 +1,5 @@
 ---
-title: Monitor Your Cluster
+title: Monitoring Your Cluster
 slug: /operations-and-maintenance/monitor-your-cluster
 ---
 
@@ -13,172 +13,160 @@ import imgMonitor6 from '../assets/monitor-your-cluster-06.png';
 import imgMonitor7 from '../assets/monitor-your-cluster-07.png';
 import imgMonitor8 from '../assets/monitor-your-cluster-08.png';
 
-To ensure the stable operation of the cluster, TDengine integrates various monitoring metrics collection mechanisms, which are aggregated through taosKeeper. TaosKeeper is responsible for receiving this data and writing it into a separate TDengine instance, which can operate independently from the monitored TDengine cluster. The two core components of TDengine, taosd (the database engine) and taosX (the data access platform), use the same monitoring architecture to achieve runtime monitoring, but their monitoring metric designs differ.
+To ensure stable operation of the cluster, TDengine integrates various monitoring metrics collection mechanisms and summarizes them through taosKeeper. taosKeeper is responsible for receiving these data and writing them into a separate TDengine instance, which can remain independent of the monitored TDengine cluster. The two core components of TDengine, taosd (database engine) and taosX (data access platform), both implement runtime monitoring through the same monitoring architecture, but their monitoring metrics are designed differently.
 
-Regarding how to obtain and use this monitoring data, users can utilize third-party monitoring tools like Zabbix to gather these saved system monitoring data, seamlessly integrating the operational status of TDengine into existing IT monitoring systems. Alternatively, users can use the TDinsight plugin provided by TDengine, which allows them to visually display and manage these monitoring information through the Grafana platform, as shown in the image below. This provides users with flexible monitoring options to meet different operational needs.
+As for how to obtain and use these monitoring data, users can use third-party monitoring tools such as Zabbix to retrieve the saved system monitoring data, thereby seamlessly integrating the operation status of TDengine into the existing IT monitoring system. Alternatively, users can use the TDinsight plugin provided by TDengine, which allows users to visually display and manage these monitoring information through the Grafana platform, as shown in the figure below. This provides users with flexible monitoring options to meet operational needs in different scenarios.
 
 <figure>
 <Image img={imgMonitor1} alt="Managing monitoring information"/>
 <figcaption>Figure 1. Managing monitoring information</figcaption>
 </figure>
 
-## Configuring TaosKeeper
+## Configuring taosKeeper
 
-Since all monitoring data of TDengine is reported and stored through TaosKeeper, this section first introduces the configuration of TaosKeeper.
+Since the monitoring data of TDengine are all reported and stored through taosKeeper, this section will first introduce the configuration of taosKeeper.
 
-The TaosKeeper configuration file is typically located at `/etc/taos/taoskeeper.toml`. Detailed configuration can be found in the [Reference Manual](../../tdengine-reference/components/taoskeeper/#configuration-file). One of the most critical configuration items is `database`, which determines which database in the target system will store the collected monitoring data.
+The configuration file of taosKeeper is located by default at `/etc/taos/taoskeeper.toml`. For detailed configuration, see [Reference Manual](../../tdengine-reference/components/taoskeeper/#configuration-file). Among them, the most critical configuration item is `database`, which determines which database in the target system the collected monitoring data is stored in.
 
-## Monitoring Taosd
+## Monitoring taosd
 
-### Monitoring Taosd Based on TDinsight
+### Monitoring taosd with TDinsight
 
-To simplify user configuration for monitoring TDengine, TDengine provides a Grafana plugin called TDinsight. This plugin works in conjunction with TaosKeeper to monitor various performance metrics of TDengine in real-time.
+To simplify the configuration work of users in TDengine monitoring, TDengine provides a Grafana plugin named TDinsight. This plugin works in conjunction with taosKeeper and can monitor various performance metrics of TDengine in real-time.
 
-By integrating Grafana with the TDengine data source plugin, TDinsight can read the monitoring data collected by TaosKeeper. This enables users to intuitively view key metrics such as the status of the TDengine cluster, node information, read/write requests, and resource usage on the Grafana platform, allowing for data visualization.
+By integrating Grafana and TDengine data source plugin, TDinsight can read the monitoring data collected by taosKeeper. This allows users to intuitively view the status of the TDengine cluster, node information, read/write requests, and resource usage on the Grafana platform, achieving data visualization.
 
-Here are detailed instructions for using TDinsight to help you make the most of this powerful tool.
+Below are the detailed instructions for using TDinsight to help you fully utilize this powerful tool.
 
 #### Prerequisites
 
-To successfully use TDinsight, the following conditions must be met:
+To use TDinsight smoothly, the following conditions should be met.
 
 - TDengine is installed and running normally.
-- TaosAdapter is installed and running normally.
-- TaosKeeper is installed and running normally.
-- Grafana is installed and running normally; the following instructions are based on Grafana version 11.0.0.
+- taosAdapter is installed and running normally.
+- taosKeeper is installed and running normally.
+- Grafana is installed and running normally, with the following introduction based on Grafna 11.0.0.
 
-Also, record the following information:
+Also, record the following information.
 
-- The RESTful interface address of TaosAdapter, such as `http://www.example.com:6041`.
-- The authentication information for the TDengine cluster, including the username and password.
+- RESTful interface address of taosAdapter, such as `http://www.example.com:6041`.
+- Authentication information of the TDengine cluster, including username and password.
 
 #### Importing the Dashboard
 
-The TDengine data source plugin has been submitted to the Grafana official website. For instructions on installing the TDengine data source plugin and configuring the data source, please refer to: [Install Grafana Plugin and Configure Data Source](../../third-party-tools/visualization/grafana/#install-grafana-plugin-and-configure-data-source). After completing the installation of the plugin and creating the data source, you can proceed to import the TDinsight dashboard.
+The TDengine data source plugin has been submitted to the Grafana official website. For how to install the TDengine data source plugin and configure the data source, please refer to: [Install Grafana Plugin and Configure Data Source](../../third-party-tools/visualization/grafana/#install-grafana-plugin-and-configure-data-source). After completing the installation of the plugin and the creation of the data source, you can proceed with the import of the TDinsight dashboard.
 
-On the Grafana "Home" -> "Dashboards" page, click the "New" -> "Import" button located in the upper right corner to enter the dashboard import page, which supports the following two import methods:
+On the "Home" -> "Dashboards" page of Grafana, click the "New" -> "import" button in the upper right corner to enter the Dashboard import page, which supports the following two import methods.
 
 - Dashboard ID: 18180.
 - Dashboard URL: [https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/](https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/)
 
-After filling in the Dashboard ID or Dashboard URL, click the "Load" button and follow the wizard to complete the import. Once the import is successful, the "TDinsight for 3.x" dashboard will appear on the Dashboards list page. Clicking on it will allow you to see the various metrics panels created in TDinsight, as shown in the image below:
+After filling in the above Dashboard ID or Dashboard URL, click the "Load" button and follow the guide to complete the import. After the import is successful, the "TDinsight for 3.x" dashboard will appear on the Dashboards list page. Click to enter, and you will see the panels of various metrics created in TDinsight, as shown in the figure below:
 
 <figure>
 <Image img={imgMonitor2} alt="TDinsight interface"/>
 <figcaption>Figure 2. TDinsight interface</figcaption>
 </figure>
 
-:::note
-
-In the TDinsight interface, you can select the `log` database from the "Log from" dropdown list in the upper left corner.
-
-:::
+**Note** In the "Log from" dropdown list in the upper left corner of the TDinsight interface, you can select the `log` database.
 
 ### TDengine V3 Monitoring Data
 
-The TDinsight dashboard data comes from the `log` database (the default database for storing monitoring data, which can be modified in the TaosKeeper configuration file). The "TDinsight for 3.x" dashboard queries the monitoring metrics of taosd and TaosAdapter.
+TDinsight dashboard data comes from the `log` database (the default database for storing monitoring data, which can be modified in the taoskeeper configuration file). The "TDinsight for 3.x" dashboard queries monitoring metrics for taosd and TaosAdapter.
 
-- For taosd monitoring metrics, please refer to [Taosd Monitoring Metrics](../../tdengine-reference/components/taosd/#taosd-monitoring-metrics).
-- For TaosAdapter monitoring metrics, please refer to [TaosAdapter Monitoring Metrics](../../tdengine-reference/components/taosadapter/#taosadapter-monitoring-metrics).
+- For taosd monitoring metrics, refer to [taosd monitoring metrics](../../tdengine-reference/components/taosd/)
+- For taosAdapter monitoring metrics, refer to [taosAdapter monitoring metrics](../../tdengine-reference/components/taosadapter/)
 
-## Monitoring TaosX
+## Monitoring taosX
 
-TaosX is the core component providing zero-code data access capabilities in TDengine, and monitoring it is also essential. The monitoring of TaosX is similar to that of TDengine; metrics collected from the service are written into a specified database through TaosKeeper, and visualized and alarmed using Grafana dashboards. This functionality can monitor the following objects:
+taosX is a core component in TDengine that provides zero-code data access capabilities, and monitoring it is also very important. Monitoring of taosX is similar to TDengine monitoring; it involves using taosKeeper to write collected metrics into a specified database, then leveraging Grafana panels for visualization and alerts. The monitorable objects include:
 
-1. The taosX process.
-2. All running taosx-agent processes.
-3. Various connector subprocesses running on either the taosX or taosx-agent side.
-4. Various data writing tasks in progress.
+1. taosX process
+2. All running taosx-agent processes
+3. Various connector subprocesses running on the taosX or taosx-agent side
+4. Various data writing tasks in progress
 
 ### Prerequisites
 
-1. Taosd, TaosAdapter, and TaosKeeper have all been successfully deployed and started.
-2. The TaosX service monitoring configuration is correct. For configuration details, refer to the section "Configuring TaosX Monitoring" below. The service must start successfully.  
-   :::note
-   The taosX included in TDengine Enterprise version 3.2.3.0 or above contains this functionality. If taosX is installed separately, it must be version 1.5.0 or above.
-   :::
-3. Deploy Grafana, install the TDengine Datasource plugin, and configure the data source. You can refer to: [Install Grafana Plugin and Configure Data Source](../../third-party-tools/visualization/grafana/#install-grafana-plugin-and-configure-data-source).
-   :::note
-   You need to install Grafana plugin [TDengine Datasource v3.5.0](https://grafana.com/grafana/plugins/tdengine-datasource/) or a higher version.
-   :::
+1. taosd, taosAdapter, and taosKeeper have all been deployed and started successfully.
+2. taosX service monitoring is configured correctly, see below "Configuring taosX Monitoring" for configuration details, and the service has started successfully.  
+   **Note**: TDengine Enterprise version 3.2.3.0 or above includes this functionality in taosX. If taosX is installed separately, it requires version 1.5.0 or above.
+3. Deploy Grafana, install the TDengine Datasource plugin, and configure the data source. Refer to: [Install Grafana Plugin and configure data source](../../third-party-tools/visualization/grafana/).  
+   **Note**: You need to install the Grafana plugin [TDengine Datasource v3.5.0](https://grafana.com/grafana/plugins/tdengine-datasource/) or above.
 
-### Configuring TaosX Monitoring
+### Configuring taosX Monitoring
 
-The configuration file for TaosX (default is /etc/taos/taosx.toml) contains the following monitor-related configurations:
+The configuration related to monitoring in the taosX configuration file (default /etc/taos/taosx.toml) is as follows:
 
 ```toml
 [monitor]
-# FQDN of the taosKeeper service, no default value
+# FQDN of taosKeeper service, no default value
 # fqdn = "localhost"
-# port of the taosKeeper service, default 6043
+# port of taosKeeper service, default 6043
 # port = 6043
-# how often to send metrics to taosKeeper, default every 10 seconds. Only values from 1 to 10 are valid.
+# how often to send metrics to taosKeeper, default every 10 seconds. Only value from 1 to 10 is valid.
 # interval = 10
 ```
 
-Each configuration also has corresponding command-line options and environment variables. The following table explains:
+Each configuration also has corresponding command line options and environment variables. Explained in the following table:
 
-| Configuration File Item | Command-Line Option   | Environment Variable | Meaning                                                  | Value Range | Default Value                          |
-| ----------------------- | --------------------- | -------------------- | -------------------------------------------------------- | ----------- | ------------------------------------- |
-| fqdn                    | --monitor-fqdn        | MONITOR_FQDN         | FQDN of the TaosKeeper service                           |             | No default value; configuring fqdn enables monitoring |
-| port                    | --monitor-port        | MONITOR_PORT         | Port of the TaosKeeper service                           |             | 6043                                  |
-| interval                | --monitor-interval    | MONITOR_INTERVAL     | Time interval (in seconds) for TaosX to send metrics to TaosKeeper | 1-10       | 10                                    |
+| Configuration File Option | Command Line Option | Environment Variable | Meaning                                              | Value Range | Default Value                             |
+| ------------------------- | ------------------- | -------------------- | ---------------------------------------------------- | ----------- | ----------------------------------------- |
+| fqdn                      | --monitor-fqdn      | MONITOR_FQDN         | FQDN of taosKeeper service                           |             | No default value, configuring fqdn enables monitoring |
+| port                      | --monitor-port      | MONITOR_PORT         | Port of taosKeeper service                           |             | 6043                                      |
+| interval                  | --monitor-interval  | MONITOR_INTERVAL     | Interval in seconds for taosX to send metrics to taosKeeper | 1-10      | 10                                        |
 
-### Monitoring TaosX Based on TDinsight
+### Monitoring tasoX Based on TDinsight
 
-"TDinsight for TaosX" is a Grafana dashboard specifically created for monitoring TaosX. You need to import this panel before use.
+"TDinsight for taosX" is a Grafana dashboard specifically created for monitoring taosX. You need to import this dashboard before using it.
 
-#### Accessing the Panel
+#### Entering the Dashboard
 
-1. In the Grafana interface menu, click on "Data sources," and then select the configured TDengine data source.
-2. In the data source configuration interface, select the "Dashboard" tab, and then import the "TDinsight for TaosX" panel (import it for the first time). Here is a sample image:
+1. In the Grafana interface menu, click "Data sources", then select the TDengine data source that has been configured.
+2. In the data source configuration interface, select the "Dashboard" tab, and then import the "TDinsight for taosX" dashboard (you need to import it the first time you use it). Below is an example image:
 
    <figure>
    <Image img={imgMonitor3} alt=""/>
    </figure>
 
-   Each row of this panel represents a monitored object or category. The top row is for taosX monitoring, followed by the agent monitoring row, and finally the monitoring of various data writing tasks.
-
+   Each row on the dashboard represents one or a category of monitoring objects. The top row is for monitoring taosX, followed by the Agent monitoring row, and finally the monitoring of various data writing tasks.
    :::note
-
-   - If you do not see any data after opening this panel, you may need to click the database list in the upper left corner (i.e., the "Log from" dropdown menu) to switch to the database where the monitoring data is located.
-   - The number of agents in the database will automatically create as many agent rows. (as shown in the image above)
-
+   - If you open this dashboard and see no data, you likely need to click on the database list in the upper left corner (the "Log from" dropdown menu) and switch to the database where the monitoring data is stored.
+   - The database will automatically create as many Agent rows as there are Agents' data. (As shown in the picture above)
    :::
 
 #### Monitoring Examples
 
-1. TaosX Monitoring Example Image
+1. taosX monitoring example image
 
    <figure>
    <Image img={imgMonitor4} alt=""/>
    </figure>
 
-2. Agent Monitoring Example Image
+2. Agent monitoring example image
 
    <figure>
    <Image img={imgMonitor5} alt=""/>
    </figure>
 
-3. TDengine 2 Data Source Monitoring Example Image
+3. TDengine2 data source monitoring example image
 
    <figure>
    <Image img={imgMonitor6} alt=""/>
    </figure>
 
    :::info
-
-   The monitoring panel only displays part of the monitoring metrics for data writing tasks. More comprehensive monitoring metrics with detailed explanations for each metric can be found on the Explorer page.
+   The monitoring panel only displays some monitoring indicators for data writing tasks. There are more comprehensive monitoring indicators on the Explorer page, with detailed explanations for each indicator.
 
    :::
 
-4. TDengine 3 Data Source Monitoring Example Image
+4. TDengine3 data source monitoring example image
 
    <figure>
    <Image img={imgMonitor7} alt=""/>
    </figure>
 
-5. Other Data Source Monitoring Example Image
+5. Other data source monitoring example image
 
    <figure>
    <Image img={imgMonitor8} alt=""/>
@@ -186,4 +174,4 @@ Each configuration also has corresponding command-line options and environment v
 
 #### Limitations
 
-Monitoring-related configurations will only take effect when taosX is running in server mode.
+Monitoring-related configurations only take effect when taosX is running in server mode.

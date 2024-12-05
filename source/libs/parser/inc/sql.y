@@ -587,6 +587,7 @@ cmd ::= SHOW db_name_cond_opt(A) VIEWS like_pattern_opt(B).                     
 cmd ::= SHOW CREATE VIEW full_table_name(A).                                      { pCxt->pRootNode = createShowCreateViewStmt(pCxt, QUERY_NODE_SHOW_CREATE_VIEW_STMT, A); }
 cmd ::= SHOW COMPACTS.                                                            { pCxt->pRootNode = createShowCompactsStmt(pCxt, QUERY_NODE_SHOW_COMPACTS_STMT); }
 cmd ::= SHOW COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createShowCompactDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
+cmd ::= SHOW db_name_cond_opt(A) DISK_INFO.                                        { pCxt->pRootNode = createShowDiskUsageStmt(pCxt, A,    QUERY_NODE_SHOW_USAGE_STMT); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }
@@ -1522,6 +1523,9 @@ twindow_clause_opt(A) ::=
   INTERVAL NK_LP interval_sliding_duration_literal(B) NK_COMMA
   interval_sliding_duration_literal(C) NK_RP
   sliding_opt(D) fill_opt(E).                                                     { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), D, E); }
+twindow_clause_opt(A) ::=
+  INTERVAL NK_LP interval_sliding_duration_literal(B) NK_COMMA
+  AUTO(C) NK_RP sliding_opt(D) fill_opt(E).                                          { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), createDurationValueNode(pCxt, &C), D, E); }
 twindow_clause_opt(A) ::=
   EVENT_WINDOW START WITH search_condition(B) END WITH search_condition(C).       { A = createEventWindowNode(pCxt, B, C); }
 twindow_clause_opt(A) ::=
