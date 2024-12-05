@@ -686,6 +686,14 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
     - `arg`：[入参] 设置项值。
   - **返回值**：`0`：成功，`-1`：失败。
 
+- `int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...)`
+  - **接口说明**：设置客户端每个连接选项（不影响服务端的行为，特别对于 charset 和 timezone），目前支持字符集设置（`TSDB_OPTION_CONNECTION_CHARSET`）、时区设置（`TSDB_OPTION_CONNECTION_TIMEZONE`）、用户 IP 设置（`TSDB_OPTION_CONNECTION_USER_IP`）、用户 APP 设置（`TSDB_OPTION_CONNECTION_USER_APP`）。字符集、时区默认为操作系统当前设置，windows 不支持连接级别的时区设置，多次调用接口设置相同的配置，以后面的设置为准。
+  - **参数说明**：
+    - `taos`:   [入参] taos_connect 返回的连接句柄。
+    - `option`：[入参] 设置项类型，具体类型的使用方法及约束详见 taos.h 文件。
+    - `arg`：[入参] 设置项值。为 NULL 时表示重置该选项。
+- **返回值**：`0`：成功，`非0`：失败。
+
 - `char *taos_get_client_info()`
   - **接口说明**：获取客户端版本信息。
   - **返回值**：返回客户端版本信息。

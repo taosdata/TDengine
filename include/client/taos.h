@@ -192,7 +192,7 @@ typedef struct TAOS_STMT_OPTIONS {
  input:
     taos:   returned by taos_connect
     option: option name
-    arg:    option value(string)
+    arg:    option value
  output:
     0:      success
     others: fail, error msg can be got by taos_errstr(NULL)

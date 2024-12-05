@@ -103,6 +103,16 @@ The base API is used to do things like create database connections and provide a
 
   Set client options, currently supports region setting (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), time zone (`TSDB_OPTION_TIMEZONE`), configuration file path (`TSDB_OPTION_CONFIGDIR`). The region setting, character set, and time zone default to the current settings of the operating system.
 
+- `int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...)`
+  - **description**:Set each connection option on the client side (which does not affect the behavior of the server, especially for charset and timezone). Currently, it supports character set setting(`TSDB_OPTION_CONNECTION_CHARSET`), time zone setting(`TSDB_OPTION_CONNECTION_TIMEZONE`), user IP setting(`TSDB_OPTION_CONNECTION_USER_IP`), and user APP setting(`TSDB_OPTION_CONNECTION_USER_APP`). The character set and time zone are set to the current settings of the operating system by default. Windows does not support connection level time zone settings. If the interface is called multiple times to set the same configuration, the later settings shall prevail.
+  - **input**:
+    - `taos`: returned by taos_connect.
+    - `option`: option name.
+    - `arg`: option value.
+  - **return**:
+    - `0`: success.
+    - `others`: fail.
+
 - `char *taos_get_client_info()`
 
   Get client version information.
