@@ -198,7 +198,7 @@ _err:
 }
 
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
-  if(path == NULL) {
+  if (path == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -301,6 +301,48 @@ int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *a
 
   return 0;
 }
+
+int32_t taosGetFileDiskID(const char *path, int64_t *diskid) {
+  OS_PARAM_CHECK(path);
+#ifdef WINDOWS
+  struct _stati64 fileStat;
+  int32_t         code = _stati64(path, &fileStat);
+#else
+  struct stat fileStat;
+  int32_t     code = stat(path, &fileStat);
+#endif
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  if (diskid != NULL) {
+    *diskid = fileStat.st_dev;
+  }
+
+  return 0;
+}
+
+bool taosCheckFileDiskID(const char *path, int64_t *actDiskID, int64_t expDiskID) {
+  OS_PARAM_CHECK(path);
+#ifdef WINDOWS
+  struct _stati64 fileStat;
+  int32_t         code = _stati64(path, &fileStat);
+#else
+  struct stat fileStat;
+  int32_t     code = stat(path, &fileStat);
+#endif
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  if (actDiskID != NULL) {
+    *actDiskID = fileStat.st_dev;
+  }
+  return fileStat.st_dev == expDiskID;
+}
+
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 #ifdef WINDOWS
   if (pFile == NULL || pFile->hFile == NULL) {
@@ -429,7 +471,7 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
-  if (pFile == NULL  ||  buf == NULL) {
+  if (pFile == NULL || buf == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -1572,7 +1614,7 @@ FILE *taosOpenCFile(const char *filename, const char *mode) {
 }
 
 int taosSeekCFile(FILE *file, int64_t offset, int whence) {
-  if(NULL == file) {
+  if (NULL == file) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }

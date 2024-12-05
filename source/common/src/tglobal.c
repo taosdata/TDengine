@@ -1964,39 +1964,55 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   for (int i = 0; i < sz; i++) {
-    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
-    cJSON       *pItem = cJSON_GetObjectItem(configs, item->name);
-    if (pItem == NULL) {
+    SConfigItem *pItem = (SConfigItem *)taosArrayGet(array, i);
+    cJSON       *pJson = cJSON_GetObjectItem(configs, pItem->name);
+    if (pJson == NULL) {
       continue;
     }
-    if (strstr(item->name, "syncLogBufferMemoryAllowed")) {
-      uDebug("syncLogBufferMemoryAllowed:%f", pItem->valuedouble);
+    if (strcasecmp(pItem->name, "dataDir") == 0) {
+      int    sz = cJSON_GetArraySize(pJson);
+      cJSON *filed = NULL;
+      // check disk id for each dir
+      for (int j = 0; j < sz; j++) {
+        cJSON *diskCfgJson = cJSON_GetArrayItem(pJson, j);
+        filed = cJSON_GetObjectItem(diskCfgJson, "dir");
+        char *dir = cJSON_GetStringValue(filed);
+        filed = cJSON_GetObjectItem(diskCfgJson, "disk_id");
+        int64_t actDiskID = 0;
+        int64_t expDiskID = atoll(cJSON_GetStringValue(filed));
+        if (!taosCheckFileDiskID(dir, &actDiskID, expDiskID)) {
+          uError("failed to check disk id for dir:%s, actDiskID:" PRId64 ", expDiskID:" PRId64, dir, actDiskID,
+                 expDiskID);
+          return TSDB_CODE_FAILED;
+        }
+      }
+      continue;
     }
-    item->stype = CFG_STYPE_CFG_FILE;
-    switch (item->dtype) {
+    pItem->stype = CFG_STYPE_CFG_FILE;
+    switch (pItem->dtype) {
       {
         case CFG_DTYPE_NONE:
           break;
         case CFG_DTYPE_BOOL:
-          item->bval = cJSON_IsTrue(pItem);
+          pItem->bval = cJSON_IsTrue(pJson);
           break;
         case CFG_DTYPE_INT32:
-          item->i32 = pItem->valueint;
+          pItem->i32 = pJson->valueint;
           break;
         case CFG_DTYPE_INT64:
-          item->i64 = atoll(cJSON_GetStringValue(pItem));
+          pItem->i64 = atoll(cJSON_GetStringValue(pJson));
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          item->fval = atoll(cJSON_GetStringValue(pItem));
+          pItem->fval = atoll(cJSON_GetStringValue(pJson));
           break;
         case CFG_DTYPE_STRING:
         case CFG_DTYPE_DIR:
         case CFG_DTYPE_LOCALE:
         case CFG_DTYPE_CHARSET:
         case CFG_DTYPE_TIMEZONE:
-          taosMemoryFree(item->str);
-          item->str = taosStrdup(pItem->valuestring);
+          taosMemoryFree(pItem->str);
+          pItem->str = taosStrdup(pJson->valuestring);
           break;
       }
     }
@@ -2127,7 +2143,6 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetReleaseCfg(tsCfg), &lino, _exit);
-    TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetS3Cfg(tsCfg), &lino, _exit);
   }
 
@@ -2820,6 +2835,34 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
   // string are used to prohibit the loss of precision
   for (int i = 0; i < sz; i++) {
     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    if (strcasecmp(item->name, "dataDir") == 0) {
+      int32_t sz = taosArrayGetSize(item->array);
+      cJSON  *dataDirs = cJSON_CreateArray();
+      if (!cJSON_AddItemToObject(cField, item->name, dataDirs)) {
+        uError("failed to serialize global config since %s", tstrerror(terrno));
+      }
+      for (int j = 0; j < sz; j++) {
+        SDiskCfg *disk = (SDiskCfg *)taosArrayGet(item->array, j);
+        cJSON    *dataDir = cJSON_CreateObject();
+        if (dataDir == NULL) goto _exit;
+        if (!cJSON_AddItemToArray(dataDirs, dataDir)) {
+          uError("failed to serialize global config since %s", tstrerror(terrno));
+        }
+        if (cJSON_AddStringToObject(dataDir, "dir", disk->dir) == NULL) goto _exit;
+        if (cJSON_AddNumberToObject(dataDir, "level", disk->level) == NULL) goto _exit;
+        if (disk->diskId == 0) {
+          if (taosGetFileDiskID(disk->dir, &disk->diskId) != 0) {
+            uError("failed to get disk id for %s", disk->dir);
+            goto _exit;
+          }
+        }
+        (void)sprintf(buf, "%" PRId64, disk->diskId);
+        if (cJSON_AddStringToObject(dataDir, "disk_id", buf) == NULL) goto _exit;
+        if (cJSON_AddNumberToObject(dataDir, "primary", disk->primary) == NULL) goto _exit;
+        if (cJSON_AddNumberToObject(dataDir, "disable", disk->disable) == NULL) goto _exit;
+      }
+      continue;
+    }
     switch (item->dtype) {
       {
         case CFG_DTYPE_NONE:
