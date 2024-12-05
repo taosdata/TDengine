@@ -386,9 +386,7 @@ int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj) {
     case CFG_DTYPE_STRING: {
       if (obj->str != NULL) {
         taosMemoryFree(pItem->str);
-        pItem->str = taosMemoryMalloc(strlen(obj->str) + 1);
-        tstrncpy(pItem->str, obj->str, strlen(obj->str));
-        pItem->str[strlen(obj->str)] = 0;
+        pItem->str = taosStrdup(obj->str);
       }
       break;
     }
