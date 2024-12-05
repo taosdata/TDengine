@@ -19,6 +19,7 @@ import time
 class TestTs4001(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.tdCom.stream_timeout = 30
 
     def run(self):
         self.tdCom.createDb(dbname="bug4001_test")
