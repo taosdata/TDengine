@@ -21,13 +21,12 @@ pip3 install taos-ws-py
 ```
 
 ## SuperSet 中配置连接
-第1步，进入新建数据库连接页面 
+1. 进入新建数据库连接页面 
      SuperSet -> Setting-> Database Connections -> +DATABASE   
-
-第2步，选择 TDengine 数据库连接
-   SUPPORTED DATABASES 下拉列表中选择 “TDengine” 项，若下拉列表中没有 TDengine 选项，请检查是否安装包安装顺序，需先安装 SuperSet 后安装 Python 连接器
-第3步，DISPLAY NAME 中给连接起个名字，随便填写即可   
-第4步，SQLALCHEMY URL* 项为关键连接信息串，需重点填写。   
+2. 选择 TDengine 数据库连接  
+   SUPPORTED DATABASES 下拉列表中选择 “TDengine” 项，若下拉列表中没有 TDengine 选项，请检查是否安装包安装顺序，需先安装 SuperSet 后安装 Python 连接器  
+3. DISPLAY NAME 中给连接起个名字，随便填写即可   
+4. SQLALCHEMY URL* 项为关键连接信息串，需重点填写。   
        连接串格式： taosws://用户名:密码@主机名:端口号
        参数说明：   
 
@@ -39,18 +38,21 @@ pip3 install taos-ws-py
 | 端口号： | 提供 WebSocket 服务的端口，默认为：6041  
          
 
-- 示例：本机安装的 TDengine 数据库，提供 WebSocket 服务端口为 6041，使用默认用户名密码，连接串为：    
-       taosws://root:taosdata@localhost:6041  
-第5步，配置好以上关键信息后，可点击 "TEST CONNECTION" 测试连接是否能够成功，测试通过后点 CONNECT 按钮，完成连接
+示例：    
+本机安装的 TDengine 数据库，提供 WebSocket 服务端口为 6041，使用默认用户名密码，连接串为：    
+```bash
+taosws://root:taosdata@localhost:6041  
+```
+5. 配置好以上关键信息后，可点击 "TEST CONNECTION" 测试连接是否能够成功，测试通过后点 CONNECT 按钮，完成连接
        
 
 ## 开始使用
 这里只介绍一款做基本的使用方式，方便确认可以获取得 TDengine 中存储的数据  
-第1步，点周右上角 “+”号按钮，选择 SQL query, 进入查询界面  
-第2步，左上角 DATABASE 下拉列表中可以看到刚才增加过的各种数据源连接驱动，选择一个你要测试的连接驱动  
-第3步，SCHEMA 下拉列表，对应 TDengine 数据库名（系统表在此不显示）  
-第4步，SEE TABLE SCHEMA 对应 TDengine 超级表名及普通表名，子表不在此显示  
-第5步，切换上面选择项，在下面相应会显示选择的表的列名及列数据类型信息及标识有索引的字段  
-第6步，在中间SQL编辑器中可以输入符合 TDengine 语法的任意 SQL 语句执行并显示结果  
+1. 点周右上角 “+”号按钮，选择 SQL query, 进入查询界面  
+2. 左上角 DATABASE 下拉列表中可以看到刚才增加过的各种数据源连接驱动，选择一个你要测试的连接驱动  
+3. SCHEMA 下拉列表，对应 TDengine 数据库名（系统表在此不显示）  
+4. SEE TABLE SCHEMA 对应 TDengine 超级表名及普通表名，子表不在此显示  
+5. 切换上面选择项，在下面相应会显示选择的表的列名及列数据类型信息及标识有索引的字段  
+6. 在中间SQL编辑器中可以输入符合 TDengine 语法的任意 SQL 语句执行并显示结果  
 
 ## 示例
