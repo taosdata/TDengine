@@ -324,8 +324,9 @@ TEST(connectionCase, setConnectionOption_Test) {
 }
 
 TEST(charsetCase, charset_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConn != nullptr);
+  // 1. build connection with different charset
+  TAOS* pConnGbk = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConnGbk != nullptr);
 
   TAOS* pConnUTF8 = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT(pConnUTF8 != nullptr);
@@ -333,63 +334,135 @@ TEST(charsetCase, charset_Test) {
   TAOS* pConnDefault = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT(pConnDefault != nullptr);
 
-  int32_t code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CHARSET, "gbk");
+  int32_t code = taos_options_connection(pConnGbk, TSDB_OPTION_CONNECTION_CHARSET, "gbk");
   ASSERT(code == 0);
-  CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, false);
+  CHECK_TAOS_OPTION_POINTER(pConnGbk, charsetCxt, false);
 
   code = taos_options_connection(pConnUTF8, TSDB_OPTION_CONNECTION_CHARSET, "UTF-8");
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConnUTF8, charsetCxt, false);
 
-  execQuery(pConn, "drop database if exists db1");
-  execQuery(pConn, "create database db1");
-  execQuery(pConn, "create table db1.stb (ts timestamp, c1 nchar(32), c2 int) tags(t1 timestamp, t2 nchar(32), t3 int)");
-  execQueryFail(pConn, "create table db1.ctb1 using db1.stb tags('2023-09-16 17:00:00+05:00', '芬', 1)");
-
-  // 芬 gbk encode is 0xB7D2, the file charset is UTF-8
+  // 2. build test string
   char sqlTag[256] = {0};
-  snprintf(sqlTag, sizeof(sqlTag), "create table db1.ctb1 using db1.stb tags('2023-09-16 17:00:00+05:00', '%c%c', 1)", 0xB7, 0xD2);
-  execQuery(pConn, sqlTag);
-
-  // 中国 gbk encode is 0xD6D0B9FA
-  execQueryFail(pConn, "insert into db1.ctb1 values(1732178775133, '中国', 1)");
   char sqlCol[256] = {0};
-  snprintf(sqlCol, sizeof(sqlCol), "insert into db1.ctb1 values(1732178775133, '%c%c%c%c', 1)", 0xD6, 0xD0, 0xB9, 0xFA);
-  execQuery(pConn, sqlCol);
 
-  char resTag[8] = {0};
-  snprintf(resTag, sizeof(resTag), "%c%c", 0xB7, 0xD2);
-  check_sql_result(pConn, "select t2 from db1.ctb1", resTag);
+  // 芬   gbk encode is 0xB7D2,     UTF-8 encode is 0xE88AAC
+  // 中国 gbk encode is 0xD6D0B9FA, UTF-8 encode is 0xE4B8ADE59BBD
+  char fenUtf8[32] = {0};
+  char fenGbk[32] = {0};
+  char zhongGbk[32] = {0};
+  char zhongguoUtf8[32] = {0};
+  char guoUtf8[32] = {0};
+  char zhongguoGbk[32] = {0};
+  snprintf(fenUtf8, sizeof(fenUtf8), "%c%c%c", 0xE8, 0x8A, 0xAC);
+  snprintf(fenGbk, sizeof(fenGbk), "%c%c", 0xB7, 0xD2);
+  snprintf(zhongguoUtf8, sizeof(zhongguoUtf8), "%c%c%c%c%c%c", 0xE4, 0xB8, 0xAD, 0xE5, 0x9B, 0xBD);
+  snprintf(guoUtf8, sizeof(guoUtf8), "%c%c%c", 0xE5, 0x9B, 0xBD);
+  snprintf(zhongguoGbk, sizeof(zhongguoGbk), "%c%c%c%c", 0xD6, 0xD0, 0xB9, 0xFA);
+  snprintf(zhongGbk, sizeof(zhongGbk), "%c%c", 0xD6, 0xD0);
 
-  char resCol[8] = {0};
-  snprintf(resCol, sizeof(resCol), "%c%c%c%c", 0xD6, 0xD0, 0xB9, 0xFA);
-  check_sql_result(pConn, "select c1 from db1.ctb1", resCol);
+  // 3. create stable
+  execQuery(pConnGbk, "drop database if exists db1");
+  execQuery(pConnGbk, "create database db1");
+  execQuery(pConnGbk, "create table db1.stb (ts timestamp, c1 nchar(32), c2 int) tags(t1 timestamp, t2 nchar(32), t3 int)");
 
+  // 4. test tag with different charset
+  snprintf(sqlTag, sizeof(sqlTag), "create table db1.ctb1 using db1.stb tags('2023-09-16 17:00:00+05:00', '%s', 1)", fenUtf8);
+  execQueryFail(pConnGbk, sqlTag);
 
-  check_sql_result(pConnUTF8, "select t2 from db1.ctb1", "芬");
-  check_sql_result(pConnUTF8, "select c1 from db1.ctb1", "中国");
+  snprintf(sqlTag, sizeof(sqlTag), "create table db1.ctb1 using db1.stb tags('2023-09-16 17:00:00+05:00', '%s', 1)", fenGbk);
+  execQuery(pConnGbk, sqlTag);
 
+  // 5. test column with different charset
+  snprintf(sqlCol, sizeof(sqlCol), "insert into db1.ctb1 values(1732178775133, '%s', 1)", zhongguoUtf8);
+  execQueryFail(pConnGbk, sqlCol);
 
-  execQuery(pConnDefault, "insert into db1.ctb1 values(1732178775134, '中国', 1)");
-  check_sql_result(pConnDefault, "select c1 from db1.ctb1 where ts = 1732178775134", "中国");
+  snprintf(sqlCol, sizeof(sqlCol), "insert into db1.ctb1 values(1732178775133, '%s', 1)", zhongguoGbk);
+  execQuery(pConnGbk, sqlCol);
 
+  // 6. check result with different charset
+  check_sql_result(pConnGbk, "select t2 from db1.ctb1", fenGbk);
+  check_sql_result(pConnUTF8, "select t2 from db1.ctb1", fenUtf8);
+
+  check_sql_result(pConnGbk, "select c1 from db1.ctb1", zhongguoGbk);
+  check_sql_result(pConnUTF8, "select c1 from db1.ctb1", zhongguoUtf8);
+
+  // 7. test function with different charset
+  // 7.1 concat
+  char zhongguofenGbk[32] = {0};
+  snprintf(zhongguofenGbk, sizeof(zhongguofenGbk), "%s%s", zhongguoGbk, fenGbk);
+  char sql[256] = {0};
+  snprintf(sql, sizeof(sql), "select concat(c1, '%s') from db1.ctb1", fenGbk);
+  execQueryFail(pConnGbk, sql);
+  snprintf(sql, sizeof(sql), "select concat(c1, '%s') from db1.ctb1", fenUtf8);
+  check_sql_result(pConnGbk, sql, zhongguofenGbk);
+
+  // 7.2 trim
+  snprintf(sql, sizeof(sql), "select trim(LEADING c1 from '%s') from db1.ctb1", zhongguofenGbk);
+  check_sql_result(pConnGbk, sql, zhongguofenGbk);
+  char zhongguofenUtf8[32] = {0};
+  snprintf(zhongguofenUtf8, sizeof(zhongguofenUtf8), "%s%s", zhongguoUtf8, fenUtf8);
+  snprintf(sql, sizeof(sql), "select trim(LEADING c1 from '%s') from db1.ctb1", zhongguofenUtf8);
+  check_sql_result(pConnGbk, sql, fenUtf8);
+
+  check_sql_result(pConnGbk, "select char(c1) from db1.ctb1", "");
+
+  check_sql_result_integer(pConnGbk, "select ascii(c1) from db1.ctb1", 0xE4);
+  check_sql_result_integer(pConnUTF8, "select ascii(c1) from db1.ctb1", 0xE4);
+  check_sql_result_integer(pConnGbk, "select LENGTH(c1) from db1.ctb1", 8);
+  check_sql_result_integer(pConnUTF8, "select LENGTH(c1) from db1.ctb1", 8);
+  check_sql_result_integer(pConnGbk, "select CHAR_LENGTH(c1) from db1.ctb1", 2);
+  check_sql_result_integer(pConnUTF8, "select CHAR_LENGTH(c1) from db1.ctb1", 2);
+
+  execQuery(pConnGbk, "select LOWER(c1) from db1.ctb1");
+  execQuery(pConnGbk, "select UPPER(c1) from db1.ctb1");
+
+  snprintf(sql, sizeof(sql), "select position(c1 in '%s') from db1.ctb1", zhongguofenGbk);
+  check_sql_result_integer(pConnGbk, sql, 0);
+
+  snprintf(sql, sizeof(sql), "select position('%s' in c1) from db1.ctb1", guoUtf8);
+  check_sql_result_integer(pConnUTF8, sql, 2);
+
+  snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoGbk);
+  execQueryFail(pConnGbk, sql);
+
+  snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoUtf8);
+  check_sql_result(pConnUTF8, sql, "a");
+
+  snprintf(sql, sizeof(sql), "%s%s", zhongguoGbk, zhongguoGbk);
+  check_sql_result(pConnGbk, "select repeat(c1, 2) from db1.ctb1", sql);
+
+  check_sql_result(pConnGbk, "select cast(c1 as binary(32)) from db1.ctb1", zhongguoUtf8);
+
+  check_sql_result(pConnUTF8, "select substr(c1,2,1) from db1.ctb1", guoUtf8);
+
+  snprintf(sql, sizeof(sql), "select SUBSTRING_INDEX(c1,'%s',1) from db1.ctb1", guoUtf8);
+  check_sql_result(pConnGbk, sql, zhongGbk);
+
+  // 8. test default charset
+  snprintf(sqlCol, sizeof(sqlCol), "insert into db1.ctb1 values(1732178775134, '%s', 1)", zhongguoUtf8);
+  execQuery(pConnDefault, sqlCol);
+  check_sql_result(pConnDefault, "select c1 from db1.ctb1 where ts = 1732178775134", zhongguoUtf8);
+
+  // 9. test json tag with different charset
   execQuery(pConnUTF8, "create table db1.jsta (ts timestamp, c1 nchar(32), c2 int) tags(t1 json)");
-  execQuery(pConnUTF8, "create table db1.jsta1 using db1.jsta tags('{\"k\":\"芬\"}')");
-  execQuery(pConnUTF8, "insert into db1.jsta1 values(1732178775133, '中国', 1)");
+  snprintf(sqlCol, sizeof(sqlCol), "create table db1.jsta1 using db1.jsta tags('{\"k\":\"%s\"}')", fenUtf8);
+  execQuery(pConnUTF8, sqlCol);
+  snprintf(sqlCol, sizeof(sqlCol), "insert into db1.jsta1 values(1732178775133, '%s', 1)", zhongguoUtf8);
+  execQuery(pConnUTF8, sqlCol);
+
   char resJsonTag[32] = {0};
-  snprintf(resJsonTag, sizeof(resJsonTag), "{\"k\":\"%c%c\"}", 0xB7, 0xD2);
-  check_sql_result(pConn, "select t1 from db1.jsta1", resJsonTag);
+  snprintf(resJsonTag, sizeof(resJsonTag), "{\"k\":\"%s\"}", fenGbk);
+  check_sql_result(pConnGbk, "select t1 from db1.jsta1", resJsonTag);
 
-  //reset charset to default(utf-8
-  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CHARSET, NULL);
+  // 10. reset charset to default(utf-8
+  code = taos_options_connection(pConnGbk, TSDB_OPTION_CONNECTION_CHARSET, NULL);
   ASSERT(code == 0);
-  CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, true);
-  check_sql_result(pConn, "select t2 from db1.ctb1 where ts = 1732178775134", "芬");
-  check_sql_result(pConn, "select c1 from db1.ctb1 where ts = 1732178775134", "中国");
+  CHECK_TAOS_OPTION_POINTER(pConnGbk, charsetCxt, true);
+  check_sql_result(pConnGbk, "select t2 from db1.ctb1 where ts = 1732178775134", fenUtf8);
+  check_sql_result(pConnGbk, "select c1 from db1.ctb1 where ts = 1732178775134", zhongguoUtf8);
 
-
-
-  taos_close(pConn);
+  taos_close(pConnGbk);
   taos_close(pConnUTF8);
   taos_close(pConnDefault);
 
@@ -851,7 +924,7 @@ TEST(timezoneCase, localtime_performance_Test) {
     time_localtime_rz += tmp/cnt;
     printf("\n\n");
   }
-  printf("average: localtime cost:%" PRId64 " ns, localtime_rz cost:%" PRId64 " ns", time_localtime/times, time_localtime_rz/times);
+  printf("average: localtime cost:%" PRId64 " ns, localtime_rz cost:%" PRId64 " ns\n", time_localtime/times, time_localtime_rz/times);
   tzfree(sp);
 }
 #endif

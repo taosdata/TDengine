@@ -1,5 +1,6 @@
 aux_source_directory(src OS_SRC)
 if(NOT ${TD_WINDOWS})
+    add_definitions(-DTHREAD_SAFE=1)
     aux_source_directory(src/timezone OS_TZ)
     add_library(os STATIC ${OS_SRC} ${OS_TZ})
 else()
