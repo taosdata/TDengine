@@ -163,7 +163,7 @@ static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType sty
 
   pItem->bval = tmp;
   pItem->stype = stype;
-  return code;
+  return 0;
 }
 
 static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
@@ -291,7 +291,7 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
     cfg.primary = 1;
   }
 
-  code = taosStr2int8(primary, &cfg.disable);
+  code = taosStr2int8(disable, &cfg.disable);
   if (code != 0) {
     cfg.disable = 0;
   }
