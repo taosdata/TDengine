@@ -954,6 +954,14 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
       continue;
     }
 
+    // daysToKeep2 would change after compactEndTime is set
+    if (pDb->cfg.compactEndTime && (pDb->cfg.compactEndTime <= -pDb->cfg.daysToKeep2)) {
+      mWarn("db:%p,%s, compact end time:%dm <= -keep2:%dm , skip", pDb, pDb->name, pDb->cfg.compactEndTime,
+            -pDb->cfg.daysToKeep2);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
     int64_t compactStartTime = pDb->cfg.compactStartTime ? pDb->cfg.compactStartTime : -pDb->cfg.daysToKeep2;
     int64_t compactEndTime = pDb->cfg.compactEndTime ? pDb->cfg.compactEndTime : -pDb->cfg.daysPerFile;
 
