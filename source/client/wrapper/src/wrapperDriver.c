@@ -32,9 +32,9 @@
   if (fptr == NULL) goto _OVER;
 
 #ifdef WEBSOCKET
-EDriverType tsDrverType = DRIVER_WEBSOCKET;
+EDriverType tsDriverType = DRIVER_WEBSOCKET;
 #else
-EDriverType tsDrverType = DRIVER_INTERNAL;
+EDriverType tsDriverType = DRIVER_INTERNAL;
 #endif
 
 void *tsDriver = NULL;

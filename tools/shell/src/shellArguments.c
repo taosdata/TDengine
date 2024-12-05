@@ -128,7 +128,7 @@ static struct argp_option shellOptions[] = {
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
-    {"driver", 'v', 0, 0, SHELL_DRIVER},
+    {"driver", 'v', "DRIVER", 0, SHELL_DRIVER},
     {0},
 };
 
@@ -136,9 +136,10 @@ static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) {
 
 static struct argp shellArgp = {shellOptions, shellParseOpt, "", ""};
 
-static void shellParseArgsUseArgp(int argc, char *argv[]) {
+static int32_t shellParseArgsUseArgp(int argc, char *argv[]) {
   argp_program_version = shell.info.programVersion;
-  argp_parse(&shellArgp, argc, argv, 0, 0, &shell.args);
+  error_t err = argp_parse(&shellArgp, argc, argv, 0, 0, &shell.args);
+  return (err != 0);
 }
 
 #endif
@@ -451,8 +452,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #else
   shell.info.osname = "Linux";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);
-  shellParseArgsUseArgp(argc, argv);
-  // if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
+  if (shellParseArgsUseArgp(argc, argv) != 0) return -1;
   if (shell.args.abort) {
     return -1;
   }
