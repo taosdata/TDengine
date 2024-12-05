@@ -7,12 +7,6 @@ toc_max_heading_level: 4
 
 通过 TDengine 的 Python Connector, ‌Apache Superset‌ 可轻松支持查询 TDengine 提供的时序数据，并提供数据展现、分析等功能
 
-## 版本要求
-SuperSet 版本： >= 2.1.0   
-taospy 连接器版本 >= 2.1.17  
-taos-ws-py 连接器版本 >= 0.3.0   
-TDengine 版本： >= 3.1  
-
 ## 安装 Apache Superset
 确保已安装 Apache SuperSet V2.1.0 及以上版本, 如未安装，请到其 [官网](https://superset.apache.org/) 安装
 
@@ -27,8 +21,6 @@ pip3 install taos-ws-py
 ```
 
 ## SuperSet 中配置连接
-进入
-
 第1步，进入新建数据库连接页面 
      SuperSet -> Setting-> Database Connections -> +DATABASE   
 
@@ -38,12 +30,13 @@ pip3 install taos-ws-py
 第4步，SQLALCHEMY URL* 项为关键连接信息串，需重点填写。   
        连接串格式： taosws://用户名:密码@主机名:端口号
        参数说明：   
-       | 参数名称 | 参数说明 |
-       | ------- | ------  |
-       | 用户名： | 登录 TDengine 数据库的用户名  
-       | 密码：   | 登录 TDengine 数据库的密码  
-       | 主机名： | TDengine 数据库所在主机的名称  
-       | 端口号： | 提供 WebSocket 服务的端口，默认为：6041  
+
+| 参数名称 | 参数说明 |
+|:-------:|:---------:|
+| 用户名： | 登录 TDengine 数据库的用户名  
+| 密码：   | 登录 TDengine 数据库的密码  
+| 主机名： | TDengine 数据库所在主机的名称  
+| 端口号： | 提供 WebSocket 服务的端口，默认为：6041  
          
 
 - 示例：本机安装的 TDengine 数据库，提供 WebSocket 服务端口为 6041，使用默认用户名密码，连接串为：    
