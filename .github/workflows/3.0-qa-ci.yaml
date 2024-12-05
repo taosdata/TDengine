@@ -323,10 +323,10 @@ jobs:
     steps:
       - name: get coverage percent for taosx and connecter
         run : |
-          export TAOSX_COVERAGE_PERCENT=$(grep -oP '(?<=<td class="headerCovTableEntryLo">)[^&]+' $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/taosx-report-merged/index.html | head -n 1)
-          export INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/influxdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
-          export OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/opentsdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
-          export OPC_CONNECTOR_COVERAGE_PERCENT=$(grep -oP '(?<=<div id="totalcov">)[^%]+' $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/opc/merged/index.html)
+          export TAOSX_COVERAGE_PERCENT=$(grep -oP '(?<=<td class="headerCovTableEntryLo">)[^&]+' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/taosx-report-merged/index.html | head -n 1)
+          export INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/influxdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
+          export OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/opentsdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
+          export OPC_CONNECTOR_COVERAGE_PERCENT=$(grep -oP '(?<=<div id="totalcov">)[^%]+' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/opc/merged/index.html)
           echo "TAOSX_COVERAGE_PERCENT=$TAOSX_COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$INFLUXDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$OPENTSDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
