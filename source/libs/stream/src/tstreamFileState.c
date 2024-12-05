@@ -947,6 +947,7 @@ int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
     }
 
     SRowBuffPos* pPos = createSessionWinBuff(pFileState, &key, pVal, &vlen);
+    pPos->beUsed = false;
     winRes = putSessionWinResultBuff(pFileState, pPos);
     if (winRes != TSDB_CODE_SUCCESS) {
       break;
@@ -1008,6 +1009,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     memcpy(pNewPos->pRowBuff, pVal, vlen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;
+    pNewPos->beUsed = false;
     qDebug("===stream=== read checkpoint state from disc. %s", __func__);
     code = tSimpleHashPut(pFileState->rowStateBuff, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1090,6 +1092,7 @@ int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
 
     if (vlen != pFileState->rowSize) {
       qError("row size mismatch, expect:%d, actual:%d", pFileState->rowSize, vlen);
+      destroyRowBuffPos(pNewPos);
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       taosMemoryFreeClear(pVal);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1098,6 +1101,7 @@ int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     memcpy(pNewPos->pRowBuff, pVal, vlen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;
+    pNewPos->beUsed = false;
     qDebug("===stream=== read checkpoint state from disc. %s", __func__);
     winRes = tSimpleHashPut(pFileState->rowStateBuff, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (winRes != TSDB_CODE_SUCCESS) {
