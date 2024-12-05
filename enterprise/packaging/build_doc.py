@@ -5,7 +5,7 @@ import logging
 import git  # 导入 GitPython
 from git import RemoteProgress
 
-# from prepare_env import EnvironmentPreparer
+no_upload_arm = ""
 
 # 配置日志记录
 logging.basicConfig(
@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 if len(sys.argv) < 2:
     print("Usage: python3 build_doc.py <branchname>")
     sys.exit(1)
+
+if len(sys.argv) == 3 and sys.argv[2] == "no_upload_arm":
+    no_upload_arm = "no_upload_arm"
+else:
+    no_upload_arm = ""
 
 class EnvironmentPreparer:
 
@@ -39,9 +44,17 @@ class EnvironmentPreparer:
     
     def install_node_nvm(self):
         logger.info("Installing NVM (Node Version Manager)...")
+        self.executeCommand("echo $PATH")
         self.executeCommand("curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash")
         self.executeCommand("export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \. \"$NVM_DIR/nvm.sh\" && nvm install 23 && npm install yarn -g")
+
         logger.info("Node.js and yarn installation completed.")
+        
+        # 获取 Node.js 的安装路径并更新 PATH
+        node_path = os.path.expanduser("~/.nvm/versions/node/v23.3.0/bin")  # 根据实际版本号调整
+        os.environ["PATH"] += os.pathsep + node_path
+        logger.info(f"Updated PATH: {os.environ['PATH']}")
+
     
     def prepare_build_doc_env(self):
         logger.info("Preparing build docs environment. Only supports Linux and macOS.")
@@ -55,7 +68,11 @@ class EnvironmentPreparer:
             else:
                 logger.info("Node is not installed.")
                 self.install_node_nvm()
-
+            if self.is_command_exist("zip"):
+                logger.info("zip is already installed.")
+            else:
+                logger.info("zip is not installed.")
+                self.executeCommand("apt install zip  -y ")
 
 class CloneProgress(RemoteProgress):
     def update(self, op_code, cur_count, max_count=None, message=''):
@@ -91,6 +108,7 @@ def build_doc(doc_repo_path):
         # 切换到指定的路径
         os.chdir(doc_repo_path)
         # 构建文档
+        subprocess.run(["yarn", "install"], check=True)
         subprocess.run(["yarn", "ass", "local"], check=True)
         subprocess.run(["yarn", "build"], check=True)
         logger.info("Built the documentation successfully")
@@ -116,11 +134,15 @@ def build_doc_zip(enterprise_path):
     use doc.taosdata.com build result to generate doc zh zip
     """
     try:
+        os.chdir(f"{enterprise_path}/enterprise-docs-en/")
+        subprocess.run(["yarn", "install"], check=True)
+        os.chdir(f"{enterprise_path}/enterprise-docs-zh/")
+        subprocess.run(["yarn", "install"], check=True)
+
         os.chdir(enterprise_path)
-        print(f"Changed directory to {enterprise_path}")
-        
+        print(f"Changed directory to {enterprise_path}")          
         # Run the build script
-        subprocess.run(["python3", "build.py", "enterprise", "zh+en", "zip"], check=True)
+        subprocess.run(f"python3 build.py enterprise  zh+en  zip  {no_upload_arm}", shell=True, check=True)
         
         # # Check if the build was successful
         # if subprocess.run(["echo", "$?"], capture_output=True, text=True).stdout.strip() == "0":
@@ -196,8 +218,9 @@ def main():
     preparer.prepare_build_doc_env()
     
     # set  workdir 
-    script_path = os.path.abspath(__file__)
-    workdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+    script_path = os.path.dirname(__file__)
+    script_file = os.path.abspath(__file__)
+    workdir = os.path.abspath(os.path.join(script_path, "../../../"))
 
     # workdir = "/root/enterprise_build_zip_work/"
     enterprise_doc_repo_path = f"{workdir}/enterprise-docs/"
@@ -222,17 +245,15 @@ def main():
     # # 切换到 TDengine_repo 仓库并切换到指定分支
     # checkout_branch(TDengine_repo_path, TDengine_branch_name)
 
-    # 切换到 doc_zh_repo 仓库并构建文档
-    # change to doc_zh_repo and build the documentation
-    os.chdir(doc_zh_repo_path)
-    build_doc(doc_zh_repo_path)
+    # # 切换到 doc_zh_repo 仓库并构建文档
+    # # change to doc_zh_repo and build the documentation
+    # build_doc(doc_zh_repo_path)
 
-    # Change to doc_en_repo and build the documentation
-    os.chdir(doc_en_repo_path)
-    build_doc(doc_en_repo_path)
+    # # Change to doc_en_repo and build the documentation
+    # build_doc(doc_en_repo_path)
 
-    # generate zip docs for enterprise
-    build_doc_zip(enterprise_doc_repo_path)
+    # # generate zip docs for enterprise
+    # build_doc_zip(enterprise_doc_repo_path)
      
     # generate pdf docs for enterprise
     build_doc_pdf(enterprise_doc_repo_path)
