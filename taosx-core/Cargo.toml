@@ -31,10 +31,13 @@ ring-channel = "0.12"
 
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
+bon = "3.3.0"
 bytes = "1"
 bitflags = "2"
+crossbeam = { version = "0.8.4" }
 rhai = { version = "1.18.0", features = ["sync"] }
 rhai-dylib = { version = "0.3.0", features = ["sync"] }
+strum = "0.26.3"
 paste = "1"
 half = "2.3"
 humantime = "2.1"

@@ -23,6 +23,7 @@ use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::runners::kafka::KAFKA_ID;
 use taosx_core::runners::mqtt::MQTT_ID;
+use taosx_core::task_set::prelude::HealthNotify;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -30,7 +31,7 @@ use utoipa::*;
 use uuid::Uuid;
 
 use crate::build;
-use crate::serve::controller::agent::Activity;
+pub use crate::serve::controller::agent::Activity;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
@@ -325,13 +326,12 @@ impl TaskControllerRef {
             task.load_breakpoints().await?;
             push_task_activity(
                 &self.pool,
-                &TaskActivity::info(id, "Automatically wake up task.".to_string(), "waken"),
+                &Activity::info(id, "Automatically wake up task.".to_string(), "waken"),
             )
             .await?;
             if let Err(err) = self.scheduler.push_task(task).await {
                 tracing::error!(task.id = id, "Push task to scheduler error: {err:?}");
-                push_task_activity(&self.pool, &TaskActivity::failed(id, format!("{:#}", err)))
-                    .await?;
+                push_task_activity(&self.pool, &Activity::failed(id, format!("{:#}", err))).await?;
             }
         }
         Ok(())
@@ -374,6 +374,14 @@ pub(super) enum Schedule {
 }
 
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
+    if activity.id == 0 || activity.id == -1 {
+        tracing::debug!("task id is 0 or -1, ignore activity");
+        return Ok(());
+    }
+    if activity.status == "health" {
+        tracing::debug!("task id is health, ignore activity");
+        return Ok(());
+    }
     let exists = sqlx::query!("select id, status from tasks where id = ?", activity.id)
         .fetch_optional(pool)
         .in_current_span()
@@ -784,7 +792,7 @@ impl TaskController {
             if !self.agent_alive(via).await {
                 self.scheduler
                     .global_state
-                    .send_task_activity(TaskActivity::error(
+                    .send_task_activity(Activity::error(
                         task.id,
                         format!("Agent {} is not alive", via),
                     ));
@@ -1322,13 +1330,10 @@ impl TaskController {
                     transform: vec![],
                     to,
                     parser: None,
-                    jobs: 0,
-                    compression_level: None,
-                    force: false,
+                    health: None,
                     cancel: Default::default(),
                     with_agent: None,
                     breakpoints: None,
-                    transferred: None,
                     task_id: Some(task.id.to_string()),
                     notify: tx,
                 };
@@ -2272,34 +2277,9 @@ pub struct Task {
     #[sqlx(default)]
     pub breakpoints: Option<String>,
 }
-// /// Task Activity
-// #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::FromRow)]
-// pub struct TaskActivity {
-//     /// Task id.
-//     #[schema(read_only)]
-//     pub id: i64,
-//     /// Stopped time.
-//     #[schema(read_only)]
-//     #[serde(with = "datetime_format")]
-//     at: DateTime<Utc>,
-
-//     /// Level
-//     level: LevelFilter,
-
-//     /// Activity
-//     #[schema(read_only)]
-//     pub activity: String,
-
-//     /// Activity result.
-//     pub status: String,
-//     /// Context
-//     #[schema(read_only)]
-//     context: Option<String>,
-// }
-pub type TaskActivity = Activity;
 
 #[allow(dead_code)]
-impl TaskActivity {
+impl Activity {
     pub fn stop(id: i64) -> Self {
         Self {
             id,
@@ -2553,6 +2533,17 @@ impl TaskActivity {
             activity: format!("Agent {agent_id} resumed"),
             status: "resumed".to_string(),
             context: None,
+        }
+    }
+
+    pub fn health_state(id: i64, state: HealthNotify) -> Self {
+        Self {
+            id,
+            at: state.at,
+            level: LevelFilter::Warn,
+            activity: format!("{}", state.state),
+            status: "health".to_string(),
+            context: Some(json!(state).into()),
         }
     }
 }

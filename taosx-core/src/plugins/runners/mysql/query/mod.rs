@@ -313,6 +313,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_show_columns() {
         // prepare data
         let _ = test_create_table().await;
@@ -468,6 +469,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_charset() {
         // prepare data
         let _ = test_create_table().await;

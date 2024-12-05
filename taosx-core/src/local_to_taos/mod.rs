@@ -178,7 +178,11 @@ async fn restore(
 
 #[tracing::instrument]
 #[async_backtrace::framed]
-pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
+pub async fn local_to_taos(from: Dsn, mut to: Dsn) -> Result<()> {
+    // FIXME(@zitsen)
+    let jobs = 0;
+    let force = true;
+
     // local dir
     let local_dir = from
         .path
@@ -425,8 +429,6 @@ async fn test() -> anyhow::Result<()> {
     crate::tmq_to_local(
         "tmq:///local_to_taos".parse()?,
         local.clone(),
-        1,
-        true,
         Default::default(),
         None,
     )
@@ -439,7 +441,7 @@ async fn test() -> anyhow::Result<()> {
     ])
     .await?;
 
-    local_to_taos(local.clone(), "taos:///".parse()?, 1, true).await?;
+    local_to_taos(local.clone(), "taos:///".parse()?).await?;
 
     let count: usize = taos.query_one("SELECT count(*) from tb1").await?.unwrap();
     assert_eq!(count, 3, "restored");

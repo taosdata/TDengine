@@ -10,7 +10,7 @@ members = [
   "crates/taoslog",
   "crates/tokio-cron-scheduler",
   "explorer/server",
-  "tests/tools",
+  "tests/tools", "crates/spawners/x-replication",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 

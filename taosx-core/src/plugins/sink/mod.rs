@@ -3034,7 +3034,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             });
 
             if notifier
-                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                 .is_err()
             {
                 bail!("write batch error: {err:#}");
@@ -3151,7 +3151,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                     Err(err) => {
                         metrics.add_failed_batches(1);
                         tracing::warn!("Writing batch error: {err:#}");
-                        let _ = notifier.send(crate::TaskNotify::Error(format!("{:#}", err)));
+                        let _ = notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)));
                         let _ = ipc_ack_writer.lock().await.ack(LushAck {
                             code: 0,
                             message: Some(err.to_string()),

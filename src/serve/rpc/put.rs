@@ -27,7 +27,7 @@ use taosx_core::{
 };
 
 use crate::serve::{
-    controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
+    controller::{transferred::ConnectorTransferred, Activity, TaskControllerRef, TaskDetail},
     scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
 
@@ -109,7 +109,7 @@ async fn ipc_stream_writer(
     // dbg!(&task);
     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
         agent_id,
-        TaskActivity::ipc_started(task.id),
+        Activity::ipc_started(task.id),
     ))?;
     let task_id = task.id;
     let from = task.from.parse().unwrap();
@@ -237,7 +237,7 @@ async fn ipc_stream_writer(
                         let _ = notify_sender.send(
                             crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                 agent_id,
-                                TaskActivity::warn(task_id, message),
+                                Activity::warn(task_id, message),
                             ),
                         );
                         if ipc_error_strategy.will_stop() || last_errors > 10 {
@@ -274,7 +274,7 @@ async fn ipc_stream_writer(
                             let _ = notify_sender.send(
                                 crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                     agent_id,
-                                    TaskActivity::info(
+                                    Activity::info(
                                         task_id,
                                         format!("Rescue from {} continuous errors", last_errors),
                                         "running",
@@ -487,7 +487,7 @@ async fn spawn_stream_writer(
                 let _ =
                     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                         agent_id,
-                        TaskActivity::warn(task_id, format!("{err:#}")),
+                        Activity::warn(task_id, format!("{err:#}")),
                     ));
                 drop(rx);
                 return;
@@ -505,7 +505,7 @@ async fn spawn_stream_writer(
             }
             let _ = notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                 agent_id,
-                TaskActivity::ipc_finished(task_id),
+                Activity::ipc_finished(task_id),
             ));
 
             tracing::info!(
@@ -791,7 +791,7 @@ impl PutStream {
                                     if let Err(err) = notify_sender.send(
                                         crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                             agent_id,
-                                            TaskActivity::warn(task_id, format!("Put stream message error: {err:#}")),
+                                            Activity::warn(task_id, format!("Put stream message error: {err:#}")),
                                         ),
                                     ) {
                                         tracing::warn!(

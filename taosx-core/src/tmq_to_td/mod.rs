@@ -1397,7 +1397,6 @@ pub async fn tmq_to_td(
     from: Dsn,
     actions: Vec<Action>,
     mut to: Dsn,
-    jobs: usize,
     cancel: CancellationToken,
     task_id: Option<String>,
     notify: crate::TaskNotifySender,
@@ -1408,7 +1407,7 @@ pub async fn tmq_to_td(
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
-        .unwrap_or(jobs); // 0 means auto
+        .unwrap_or(0); // 0 means auto
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
@@ -1781,7 +1780,7 @@ pub async fn tmq_to_td(
                                     return Err(err);
                                 }
                                 let _ = notify
-                                    .send_async(crate::TaskNotify::Warn(format!(
+                                    .send_async(crate::TaskNotify::source_error(format!(
                                         "Consuming task {consumer_task_id} error: {err:#}"
                                     )))
                                     .await;

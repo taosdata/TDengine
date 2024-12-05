@@ -1303,7 +1303,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                             ack_tx.send_async(ack).await.context("ACK writer error")?;
                             if ipc_error_strategy.will_stop()
                                 || notifier
-                                    .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                    .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                                     .is_err()
                             {
                                 Err(err).context("write batch error")?;
@@ -1462,7 +1462,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                         ack_tx.send_async(ack).await.context("ACK writer error")?;
                         if ipc_error_strategy.will_stop()
                             || notifier
-                                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                                 .is_err()
                         {
                             Err(err).context("write batch error")?;
@@ -1631,7 +1631,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                                 })
                                 .context("ACK writer error")?;
                             if let Err(error) =
-                                notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                             {
                                 tracing::warn!(%error, "Send error notify failed");
                                 cancel.cancel();

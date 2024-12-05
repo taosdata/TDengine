@@ -62,6 +62,18 @@ impl CoreMetrics {
     }
 }
 
+impl std::ops::Deref for CoreMetrics {
+    type Target = CommonMetrics;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            CoreMetrics::Legacy(legacy) => &legacy.com,
+            CoreMetrics::TMQ(tmq) => &tmq.com,
+            CoreMetrics::IPC(ipc) => &ipc.com,
+        }
+    }
+}
+
 /// CommonMetrics is a data structure to store metrics that are common to all task types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommonMetrics {
@@ -79,6 +91,8 @@ pub struct CommonMetrics {
     pub execute_time: AtomicU64,
     pub written_rows: AtomicU64,
     pub written_points: AtomicU64,
+    pub received_messages: AtomicU64,
+    pub processed_messages: AtomicU64,
 }
 
 impl Default for CommonMetrics {
@@ -95,6 +109,8 @@ impl Default for CommonMetrics {
             execute_time: AtomicU64::new(0),
             written_rows: AtomicU64::new(0),
             written_points: AtomicU64::new(0),
+            received_messages: AtomicU64::new(0),
+            processed_messages: AtomicU64::new(0),
         }
     }
 }
@@ -123,6 +139,13 @@ impl CommonMetrics {
         self.written_points.store(0, SeqCst);
         self.execute_time.store(0, SeqCst);
         self.last_persist_time.reset();
+    }
+
+    pub fn received_messages(&self) -> u64 {
+        self.received_messages.load(SeqCst)
+    }
+    pub fn processed_messages(&self) -> u64 {
+        self.processed_messages.load(SeqCst)
     }
 }
 

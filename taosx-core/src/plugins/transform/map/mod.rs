@@ -24,7 +24,7 @@ mod join;
 mod sum;
 mod timestamp;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Map(LinkedHashMap<String, FieldValue>);
 
 impl Map {
@@ -139,7 +139,7 @@ trait ValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldValue {
     #[serde(flatten)]
     builder: FieldValueBuilder,
@@ -152,7 +152,7 @@ impl FieldValue {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum FieldValueBuilder {
     Cast(cast::CastValueBuilder),
