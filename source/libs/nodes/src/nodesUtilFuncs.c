@@ -1327,14 +1327,20 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
-    case QUERY_NODE_CREATE_DATABASE_STMT:
-      nodesDestroyNode((SNode*)((SCreateDatabaseStmt*)pNode)->pOptions);
+    case QUERY_NODE_CREATE_DATABASE_STMT: {
+      SDatabaseOptions* pOptions = ((SCreateDatabaseStmt*)pNode)->pOptions;
+      taosMemoryFreeClear(pOptions->pDbCfg);
+      nodesDestroyNode((SNode*)pOptions);
       break;
+    }
     case QUERY_NODE_DROP_DATABASE_STMT:  // no pointer field
       break;
-    case QUERY_NODE_ALTER_DATABASE_STMT:
-      nodesDestroyNode((SNode*)((SAlterDatabaseStmt*)pNode)->pOptions);
+    case QUERY_NODE_ALTER_DATABASE_STMT: {
+      SDatabaseOptions* pOptions = ((SAlterDatabaseStmt*)pNode)->pOptions;
+      taosMemoryFreeClear(pOptions->pDbCfg);
+      nodesDestroyNode((SNode*)pOptions);
       break;
+    }
     case QUERY_NODE_FLUSH_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_TRIM_DATABASE_STMT:   // no pointer field
       break;

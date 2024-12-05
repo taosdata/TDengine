@@ -1154,26 +1154,28 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
-  if (pAlter->compactInterval != TSDB_DEFAULT_COMPACT_INTERVAL && pAlter->compactInterval != pDb->cfg.compactInterval) {
+  if (pAlter->compactInterval >= TSDB_DEFAULT_COMPACT_INTERVAL && pAlter->compactInterval != pDb->cfg.compactInterval) {
     pDb->cfg.compactInterval = pAlter->compactInterval;
     pDb->vgVersion++;
     code = 0;
   }
 
-  if (pAlter->compactStartTime != TSDB_DEFAULT_COMPACT_START_TIME &&
-      pAlter->compactStartTime != pDb->cfg.compactStartTime) {
+  if (pAlter->compactStartTime != pDb->cfg.compactStartTime &&
+      (pAlter->compactStartTime == TSDB_DEFAULT_COMPACT_START_TIME ||
+       pAlter->compactStartTime <= -pDb->cfg.daysPerFile)) {
     pDb->cfg.compactStartTime = pAlter->compactStartTime;
     pDb->vgVersion++;
     code = 0;
   }
 
-  if (pAlter->compactEndTime != TSDB_DEFAULT_COMPACT_END_TIME && pAlter->compactEndTime != pDb->cfg.compactEndTime) {
+  if (pAlter->compactEndTime != pDb->cfg.compactEndTime &&
+      (pAlter->compactEndTime == TSDB_DEFAULT_COMPACT_END_TIME || pAlter->compactEndTime <= -pDb->cfg.daysPerFile)) {
     pDb->cfg.compactEndTime = pAlter->compactEndTime;
     pDb->vgVersion++;
     code = 0;
   }
 
-  if (pAlter->compactTimeOffset != TSDB_DEFAULT_COMPACT_TIME_OFFSET &&
+  if (pAlter->compactTimeOffset >= TSDB_MIN_COMPACT_TIME_OFFSET &&
       pAlter->compactTimeOffset != pDb->cfg.compactTimeOffset) {
     pDb->cfg.compactTimeOffset = pAlter->compactTimeOffset;
     pDb->vgVersion++;

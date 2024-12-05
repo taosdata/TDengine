@@ -8045,6 +8045,16 @@ static int32_t checkDbTbPrefixSuffixOptions(STranslateContext* pCxt, int32_t tbP
   return TSDB_CODE_SUCCESS;
 }
 
+static FORCE_INLINE int32_t translateGetDbCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo** ppDbCfg) {
+  if (*ppDbCfg) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!(*ppDbCfg = taosMemoryCalloc(1, sizeof(SDbCfgInfo)))) {
+    return terrno;
+  }
+  return getDBCfg(pCxt, pDbName, *ppDbCfg);
+}
+
 static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t daysPerFile = pOptions->daysPerFile;
   int32_t s3KeepLocal = pOptions->s3KeepLocal;
@@ -8052,13 +8062,9 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   if (-1 == daysPerFile && -1 == daysToKeep0) {
     return TSDB_CODE_SUCCESS;
   } else if (-1 == daysPerFile || -1 == daysToKeep0) {
-    SDbCfgInfo dbCfg = {0};
-    int32_t    code = getDBCfg(pCxt, pDbName, &dbCfg);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-    daysPerFile = (-1 == daysPerFile ? dbCfg.daysPerFile : daysPerFile);
-    daysToKeep0 = (-1 == daysToKeep0 ? dbCfg.daysToKeep0 : daysToKeep0);
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+    daysPerFile = (-1 == daysPerFile ? pOptions->pDbCfg->daysPerFile : daysPerFile);
+    daysToKeep0 = (-1 == daysToKeep0 ? pOptions->pDbCfg->daysToKeep0 : daysToKeep0);
   }
   if (daysPerFile > daysToKeep0 / 3) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
@@ -8082,9 +8088,11 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t code = 0;
   int64_t interval = 0;
+  int32_t keep2 = pOptions->keep[2];
+
   if (NULL != pOptions->pCompactIntervalNode) {
     if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactIntervalNode)) {
       return pCxt->errCode;
@@ -8099,18 +8107,25 @@ static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, SDatabaseOp
     }
     interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
     if (interval != 0) {
-      code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL,
-                                pOptions->keep[2]);
+      if (keep2 == -1) {  // alter db
+        TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+        keep2 = pOptions->pDbCfg->daysToKeep2;
+      }
+      code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
     }
-  } else if (pOptions->compactInterval != 0) {
+  } else if (pOptions->compactInterval > 0) {
     interval = pOptions->compactInterval * 1440;  // convert to minutes
-    code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, pOptions->keep[2]);
+    if (keep2 == -1) {                            // alter db
+      TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+      keep2 = pOptions->pDbCfg->daysToKeep2;
+    }
+    code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
   }
   if (code == 0) pOptions->compactInterval = interval;
   return code;
 }
 
-static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   if (NULL == pOptions->pCompactTimeRangeList) {
     return TSDB_CODE_SUCCESS;
   }
@@ -8155,17 +8170,23 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, SDatabaseO
         "Invalid option compact_time_range: %dm,%dm, start time should be less than end time",
         pOptions->compactStartTime, pOptions->compactEndTime);
   }
-  if (pOptions->compactStartTime < -pOptions->keep[2] || pOptions->compactStartTime > -pOptions->daysPerFile) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%" PRIi64
-                                   "m, %dm]",
-                                   pOptions->compactStartTime, -pOptions->keep[2], -pOptions->daysPerFile);
+
+  int32_t keep2 = pOptions->keep[2];
+  int32_t days = pOptions->daysPerFile;
+  if (keep2 == -1 || days == -1) {  // alter db
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+    keep2 = pOptions->pDbCfg->daysToKeep2;
+    days = pOptions->pDbCfg->daysPerFile;
   }
-  if (pOptions->compactEndTime < -pOptions->keep[2] || pOptions->compactEndTime > -pOptions->daysPerFile) {
+  if (pOptions->compactStartTime < -keep2 || pOptions->compactStartTime > -days) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range: %dm, end time should be in range: [%" PRIi64
-                                   "m, %dm]",
-                                   pOptions->compactEndTime, -pOptions->keep[2], -pOptions->daysPerFile);
+                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%dm, %dm]",
+                                   pOptions->compactStartTime, -keep2, -days);
+  }
+  if (pOptions->compactEndTime < -keep2 || pOptions->compactEndTime > -days) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range: %dm, end time should be in range: [%dm, %dm]",
+                                   pOptions->compactEndTime, -keep2, -days);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -8304,10 +8325,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbRangeOption(pCxt, "s3_compact", pOptions->s3Compact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbCompactIntervalOption(pCxt, pOptions);
+    code = checkDbCompactIntervalOption(pCxt, pDbName, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbCompactTimeRangeOption(pCxt, pOptions);
+    code = checkDbCompactTimeRangeOption(pCxt, pDbName, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbCompactTimeOffsetOption(pCxt, pOptions);
@@ -8557,9 +8578,8 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
   if (pStmt->pOptions->walLevel == 0) {
-    SDbCfgInfo dbCfg = {0};
-    int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
-    if (TSDB_CODE_SUCCESS == code && dbCfg.replications > 1) {
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pStmt->dbName, &pStmt->pOptions->pDbCfg));
+    if (pStmt->pOptions->pDbCfg->replications > 1) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }

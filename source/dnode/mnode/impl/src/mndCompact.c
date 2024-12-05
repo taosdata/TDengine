@@ -932,7 +932,7 @@ static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pD
     sqlLen = tsnprintf(sql, sizeof(sql), "compact db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey,
                        tw->ekey);
   }
-  auditRecord(pReq, pMnode->clusterId, "autoCompactDB", name.dbname, "", sql, sqlLen);
+  auditRecord(NULL, pMnode->clusterId, "autoCompactDB", name.dbname, "", sql, sqlLen);
 
   return 0;
 }
@@ -992,7 +992,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
         .skey = convertTimePrecision(curMs + compactStartTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision),
         .ekey = convertTimePrecision(curMs + compactEndTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision)};
 
-    if ((code = mndCompactDb(pMnode, pReq, pDb, tw, NULL)) == 0) {
+    if ((code = mndCompactDb(pMnode, NULL, pDb, tw, NULL)) == 0) {
       mInfo("db:%p,%s, succeed to dispatch compact with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
             "m, end:%" PRIi64 "m, offset:%" PRIi8 "h",
             pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, compactStartTime, compactEndTime,
