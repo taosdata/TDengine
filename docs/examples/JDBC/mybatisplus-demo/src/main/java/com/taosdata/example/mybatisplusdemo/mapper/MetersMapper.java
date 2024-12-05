@@ -16,15 +16,16 @@ public interface MetersMapper extends BaseMapper<Meters> {
     @Insert("insert into meters (tbname, ts, groupid, location, current, voltage, phase) values(#{tbname}, #{ts}, #{groupid}, #{location}, #{current}, #{voltage}, #{phase})")
     int insertOne(Meters one);
 
-    @Insert({
-            "<script>",
-            "insert into meters (tbname, ts, groupid, location, current, voltage, phase) values ",
-            "<foreach collection='list' item='item' index='index' separator=','>",
-            "(#{item.tbname}, #{item.ts}, #{item.groupid}, #{item.location}, #{item.current}, #{item.voltage}, #{item.phase})",
-            "</foreach>",
-            "</script>"
-    })
-    int insertBatch(@Param("list") List<Meters> metersList);
+//    @Insert({
+//            "<script>",
+//            "insert into meters (tbname, ts, groupid, location, current, voltage, phase) values ",
+//            "<foreach collection='list' item='item' index='index' separator=','>",
+//            "(#{item.tbname}, #{item.ts}, #{item.groupid}, #{item.location}, #{item.current}, #{item.voltage}, #{item.phase})",
+//            "</foreach>",
+//            "</script>"
+//    })
+//    int insertBatch(@Param("list") List<Meters> metersList);
+
 
     @Update("drop stable if exists meters")
     void dropTable();

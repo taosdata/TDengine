@@ -63,8 +63,9 @@ public class MetersMapperTest {
             metersList.add(one);
 
         }
-        int affectRows = mapper.insertBatch(metersList);
-        Assert.assertEquals(100, affectRows);
+
+        List<org.apache.ibatis.executor.BatchResult> affectRows = mapper.insert(metersList, 100);
+        Assert.assertEquals(100, affectRows.size());
     }
 
     @Test
@@ -93,7 +94,7 @@ public class MetersMapperTest {
 
     @Test
     public void testSelectCount() {
-        int count = mapper.selectCount(null);
+        long count = mapper.selectCount(null);
 //        Assert.assertEquals(5, count);
         System.out.println(count);
     }
