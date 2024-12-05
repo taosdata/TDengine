@@ -71,7 +71,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->type));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->uid));
 
-  if (pME->type < 0) {
+  if (pME->type > 0) {
     if (pME->name == NULL) {
       return TSDB_CODE_INVALID_PARA;
     }
@@ -121,7 +121,8 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->version));
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->type));
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->uid));
-  if (pME->type < 0) {
+
+  if (pME->type > 0) {
     TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pME->name));
 
     if (pME->type == TSDB_SUPER_TABLE) {

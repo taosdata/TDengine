@@ -98,6 +98,12 @@ static int32_t metaSchemaTableInsert(SMeta *pMeta, const SMetaEntry *pEntry) {
     return code;
   }
 
+  value = taosMemoryMalloc(valueSize);
+  if (NULL == value) {
+    metaErr(vgId, terrno);
+    return terrno;
+  }
+
   tEncoderInit(&encoder, value, valueSize);
   code = tEncodeSSchemaWrapper(&encoder, pSchema);
   if (TSDB_CODE_SUCCESS != code) {
