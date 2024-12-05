@@ -948,9 +948,18 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   void   *pIter = NULL;
   SDbObj *pDb = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
-    if ((pDb->cfg.compactInterval == 0) || (pDb->cfg.compactStartTime >= pDb->cfg.compactEndTime)) {
-      mDebug("db:%p,%s, compact interval is %dm or start time:%dm >= end time:%dm, skip", pDb, pDb->name,
-             pDb->cfg.compactInterval, pDb->cfg.compactStartTime, pDb->cfg.compactEndTime);
+    if (pDb->cfg.compactInterval <= 0) {
+      mDebug("db:%p,%s, compact interval is %dm, skip", pDb, pDb->name, pDb->cfg.compactInterval);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    int64_t compactStartTime = pDb->cfg.compactStartTime ? pDb->cfg.compactStartTime : -pDb->cfg.daysToKeep2;
+    int64_t compactEndTime = pDb->cfg.compactEndTime ? pDb->cfg.compactEndTime : -pDb->cfg.daysPerFile;
+
+    if (compactStartTime >= compactEndTime) {
+      mDebug("db:%p,%s, compact start time:%" PRIi64 "m >= end time:%" PRIi64 "m, skip", pDb, pDb->name,
+             compactStartTime, compactEndTime);
       sdbRelease(pSdb, pDb);
       continue;
     }
@@ -971,21 +980,20 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
       continue;
     }
 
-    STimeWindow tw = {.skey = convertTimePrecision(curMs + (int64_t)pDb->cfg.compactStartTime * 60000LL,
-                                                   TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision),
-                      .ekey = convertTimePrecision(curMs + (int64_t)pDb->cfg.compactEndTime * 60000LL,
-                                                   TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision)};
+    STimeWindow tw = {
+        .skey = convertTimePrecision(curMs + compactStartTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision),
+        .ekey = convertTimePrecision(curMs + compactEndTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision)};
 
     if ((code = mndCompactDb(pMnode, pReq, pDb, tw, NULL)) == 0) {
-      mInfo("db:%p,%s, succeed to dispatch compact with range:[%" PRIi64 ",%" PRIi64
-            "], interval:%dm, start:%dm, end:%dm, offset:%" PRIi8 "h",
-            pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, pDb->cfg.compactStartTime,
-            pDb->cfg.compactEndTime, pDb->cfg.compactTimeOffset);
+      mInfo("db:%p,%s, succeed to dispatch compact with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
+            "m, end:%" PRIi64 "m, offset:%" PRIi8 "h",
+            pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, compactStartTime, compactEndTime,
+            pDb->cfg.compactTimeOffset);
     } else {
-      mWarn("db:%p,%s, failed to dispatch compact with range:[%" PRIi64 ",%" PRIi64
-            "], interval:%dm, start:%dm, end:%dm, offset:%" PRIi8 "h, since %s",
-            pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, pDb->cfg.compactStartTime,
-            pDb->cfg.compactEndTime, pDb->cfg.compactTimeOffset, tstrerror(code));
+      mWarn("db:%p,%s, failed to dispatch compact with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
+            "m, end:%" PRIi64 "m, offset:%" PRIi8 "h, since %s",
+            pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, compactStartTime, compactEndTime,
+            pDb->cfg.compactTimeOffset, tstrerror(code));
     }
 
     TAOS_UNUSED(mndCompactDispatchAudit(pMnode, pReq, pDb, &tw));
