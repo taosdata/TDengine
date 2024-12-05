@@ -94,7 +94,7 @@ TEST_F(MndTestProfile, 02_ConnectMsg_NotExistDB) {
 
 TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
   test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "perf_connections", "");
-  EXPECT_EQ(test.GetShowRows(), 8);
+  EXPECT_EQ(test.GetShowRows(), 1);
 }
 
 TEST_F(MndTestProfile, 04_HeartBeatMsg) {

@@ -1981,7 +1981,7 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
         int64_t actDiskID = 0;
         int64_t expDiskID = atoll(cJSON_GetStringValue(filed));
         if (!taosCheckFileDiskID(dir, &actDiskID, expDiskID)) {
-          uError("failed to check disk id for dir:%s, actDiskID:" PRId64 ", expDiskID:" PRId64, dir, actDiskID,
+          uError("failed to check disk id for dir:%s, actDiskID%" PRId64 ", expDiskID%" PRId64, dir, actDiskID,
                  expDiskID);
           return TSDB_CODE_FAILED;
         }
