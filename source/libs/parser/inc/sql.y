@@ -1226,6 +1226,9 @@ function_expression(A) ::=
 function_expression(A) ::= REPLACE(B) NK_LP expression_list(C) NK_RP(D).                              { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= literal_func(B).                                                           { A = B; }
 function_expression(A) ::= rand_func(B).                                                              { A = B; }
+function_expression(A) ::=
+  COLS(B) NK_LP function_expression(C) NK_COMMA expression_list(D) NK_RP(E).                          { A = createRawExprNodeExt(pCxt, &B, &E, createColsFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+
 
 literal_func(A) ::= noarg_func(B) NK_LP NK_RP(C).                                 { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= NOW(B).                                                       { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }

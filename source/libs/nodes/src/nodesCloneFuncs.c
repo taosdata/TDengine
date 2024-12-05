@@ -14,6 +14,7 @@
  */
 
 #include "cmdnodes.h"
+#include "nodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
@@ -1121,5 +1122,55 @@ int32_t nodesCloneList(const SNodeList* pList, SNodeList** ppList) {
     }
   }
   *ppList = pDst;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t colsFunctionNodeSplit(const SNode* pSrcNode, SNode** ppDstNode, int32_t paraIndex) {
+  if (nodeType(pSrcNode) != QUERY_NODE_FUNCTION) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  SNode* pDstNode = NULL;
+  int32_t code = nodesMakeNode(nodeType(pSrcNode), &pDstNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  const SFunctionNode* pSrc = (const SFunctionNode*)pSrcNode;
+  SFunctionNode* pDst = (SFunctionNode*)pDstNode;
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  COPY_CHAR_ARRAY_FIELD(functionName);
+  COPY_SCALAR_FIELD(funcId);
+  COPY_SCALAR_FIELD(funcType);
+  // CLONE_NODE_LIST_FIELD(pParameterList);
+  COPY_SCALAR_FIELD(udfBufSize);
+  COPY_SCALAR_FIELD(hasPk);
+  COPY_SCALAR_FIELD(pkBytes);
+  COPY_SCALAR_FIELD(hasOriginalFunc);
+  COPY_SCALAR_FIELD(originalFuncId);
+
+  SNode*     pNode;
+  int32_t index = 0;
+  FOREACH(pNode, pSrc->pParameterList) {
+    SNode* pNew = NULL;
+    if(index > 0 && index != paraIndex) {
+      ++index;
+      continue;
+    }
+    if(index > paraIndex) break;
+    int32_t code = nodesCloneNode(pNode, &pNew);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pDst->pParameterList);
+      nodesDestroyNode(pDstNode);
+      return code;
+    }
+    code = nodesListMakeStrictAppend(&pDst->pParameterList, pNew);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pDst->pParameterList);
+      nodesDestroyNode(pDstNode);
+      return code;
+    }
+    ++index;
+  }
+  *ppDstNode = pDstNode;
   return TSDB_CODE_SUCCESS;
 }
