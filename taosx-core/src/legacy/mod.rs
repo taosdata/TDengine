@@ -22,7 +22,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument, warn, Instrument};
 
 use crate::{
-    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
+    core_metrics::{get_metrics, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
     utils::{self, breakpoints::BreakpointDb, constants::VERSION_3_3_0, sql::get_v2_precision},
     Action,
@@ -401,12 +401,26 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         block = block.cast_precision(precision);
     }
 
+    let mut retries = 0;
     loop {
         let ok = to.write_raw_block(&block).await;
         if let Err(err) = ok {
+            retries += 1;
             let code: i32 = err.code().into();
             let err_str = err.to_string();
             tracing::debug!("sync_single_table_partial write raw block error: {err:#}",);
+            if retries > target_opts.retry_limit {
+                return Err(err)
+                    .with_context(|| block.pretty_format().to_string())
+                    .with_context(|| {
+                        format!(
+                            "[{}:{}]write raw block of table {table} ({} rows): retry limit exceeded",
+                            std::file!(),
+                            std::line!(),
+                            block.nrows(),
+                        )
+                    })?;
+            }
             let from = &context
                 .from
                 .0
@@ -445,9 +459,9 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                     scheduler::sync_add_column(from, to, table, remap.as_ref()).await?;
                 }
                 continue;
-            } else if err_str.contains("0x0911") {
-                // TSDB_CODE_SYN_PROPOSE_NOT_READY： Sync not ready to propose
-                tokio::time::sleep(Duration::from_secs(2)).await;
+            } else if matches!(code, 0x0900..=0x09FF) {
+                // Sync error codes.
+                tokio::time::sleep(target_opts.retry_sleep).await;
                 continue;
             } else if err_str.contains("0x0118") {
                 let desc = to
@@ -870,7 +884,11 @@ pub async fn sync_super_table_schema(
         .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
         .replace("create table", "CREATE TABLE IF NOT EXISTS")
         .replace("create stable", "CREATE STABLE IF NOT EXISTS")
-        .replace("IF NOT EXISTS IF NOT EXISTS ", "IF NOT EXISTS ");
+        .replace("IF NOT EXISTS IF NOT EXISTS ", "IF NOT EXISTS ")
+        .replace(
+            " ENCODE 'disabled' COMPRESS 'disabled' LEVEL 'disabled'",
+            "",
+        );
 
     let target_name: Cow<str> = if actions.is_empty() {
         name.into()
@@ -1645,7 +1663,7 @@ async fn sync_specified_tables_with_workers(
     todo: &Arc<LegacyTodo>,
     target_opts: TargetOpts,
     workers: usize,
-    task_id: &Option<String>,
+    task_id: Option<i64>,
 ) -> anyhow::Result<()> {
     tracing::info!(
         tables = todo.tables_todo(),
@@ -1658,12 +1676,9 @@ async fn sync_specified_tables_with_workers(
         Option<(Arc<String>, TimeRange)>,
         oneshot::Receiver<anyhow::Result<()>>,
     )>();
-    let task_id = task_id.clone().map(Arc::new);
-    let task_id_cloned = task_id.clone();
     let breakpoints = scheduler.breakpoints();
     let handle = tokio::spawn(async move {
         let mut fails = 0;
-        let task_id = task_id_cloned;
         while let Ok((sparse, reader)) = rx.recv_async().await {
             count += 1;
             match reader.await? {
@@ -1675,7 +1690,7 @@ async fn sync_specified_tables_with_workers(
                                 let breakpoint = end.to_string();
                                 if let Err(err) = breakpoints.set(&table, &breakpoint).await {
                                     tracing::warn!(
-                                        task.id = task_id.as_deref(),
+                                        task.id = task_id.as_ref(),
                                         "Set breakpoint error: {err:#}"
                                     );
                                 }
@@ -1684,7 +1699,7 @@ async fn sync_specified_tables_with_workers(
                     }
                 }
                 Err(err) => {
-                    tracing::error!(task.id = task_id.as_deref(), "Syncing error: {err:#}",);
+                    tracing::error!(task.id = task_id.as_ref(), "Syncing error: {err:#}",);
                     fails += 1;
                     if target_opts.fails_to.is_none() {
                         return Err(err);
@@ -1738,8 +1753,8 @@ async fn sync_specified_tables_with_workers(
         if item.mtlf {
             // get breakpoints use breakpoints_get
             if let Some(breakpoints) = breakpoints {
-                const MAX_RETRIES: usize = 5;
-                let mut retries = MAX_RETRIES;
+                const RETRY_LIMIT: usize = 5;
+                let mut retries = RETRY_LIMIT;
                 loop {
                     match breakpoints.get(table).await.and_then(|bp| {
                         bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
@@ -2055,6 +2070,8 @@ pub struct TargetOpts {
     batch_size: Option<usize>,
     interval: Option<Duration>,
     max_sql_length: Option<usize>,
+    retry_limit: usize,
+    retry_sleep: Duration,
     force_stmt: bool,
     fails_to: Option<Arc<tokio::sync::Mutex<std::fs::File>>>,
     timeout_per_table: Option<Duration>,
@@ -2083,6 +2100,8 @@ impl Default for TargetOpts {
             concurrent_limit: NonZeroUsize::new(1).unwrap(),
             blocks_chunk_size: NonZeroUsize::new(1).unwrap(),
             remap: None,
+            retry_sleep: Duration::from_secs(2),
+            retry_limit: 600,
         }
     }
 }
@@ -2177,8 +2196,10 @@ impl TargetOpts {
         }
         if let Some(value) = fails_to {
             let value = Path::new(&value);
-            let file = std::fs::File::create(value)?;
-
+            let file = std::fs::OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(value)?;
             opts.fails_to
                 .replace(Arc::new(tokio::sync::Mutex::new(file)));
         }
@@ -2191,6 +2212,20 @@ impl TargetOpts {
             if v != "false" {
                 opts.update_tags = true;
             }
+        }
+
+        if let Some(value) = to_dsn.remove("retry-limit").and_then(|v| v.parse().ok()) {
+            opts.retry_limit = value;
+        }
+
+        if let Some(value) = to_dsn.remove("retry-sleep").and_then(|v| {
+            utils::parse_duration(&v)
+                .inspect_err(|err| {
+                    tracing::warn!("parse retry-sleep `{v}` error: {err}, use default 1s");
+                })
+                .ok()
+        }) {
+            opts.retry_sleep = value;
         }
 
         if let Some(value) = to_dsn.remove("remap") {
@@ -2861,25 +2896,12 @@ async fn realtime(
 
 #[instrument(skip_all)]
 pub async fn legacy_to_taos(
-    from: Dsn,
-    actions: Vec<Action>,
-    to: Dsn,
-    concurrency: usize,
-    cancel: CancellationToken,
-    task_id: Option<String>,
-) -> anyhow::Result<()> {
-    legacy_to_taos_impl(from, actions, to, concurrency, cancel, task_id)
-        .in_current_span()
-        .await
-}
-
-async fn legacy_to_taos_impl(
     mut from: Dsn,
     actions: Vec<Action>,
     mut to: Dsn,
     concurrency: usize,
     cancel: CancellationToken,
-    task_id: Option<String>,
+    task_id: Option<i64>,
 ) -> anyhow::Result<()> {
     tracing::info!("synchronization started in legacy mode");
     let cancel = cancel.child_token();
@@ -2896,7 +2918,17 @@ async fn legacy_to_taos_impl(
             .unwrap_or(20)
     };
 
-    let metrics_arc = get_metrics_arc(task_id.clone()).await;
+    let metrics_arc = {
+        let task_id = task_id.unwrap_or(-1);
+        if let Some(arc) = get_metrics(task_id).await {
+            arc
+        } else {
+            let _ = crate::core_metrics::init_task_metrics(&from, &to, task_id, None).await;
+            get_metrics(task_id)
+                .await
+                .ok_or_else(|| anyhow::format_err!("Cannot get metrics"))?
+        }
+    };
     let metrics = metrics_arc.as_ref().legacy();
 
     let from_database = from
@@ -3085,9 +3117,9 @@ async fn legacy_to_taos_impl(
         source_opts.workers
     );
 
-    let breakpoints = if let Some(id) = task_id.as_deref() {
+    let breakpoints = if let Some(id) = task_id {
         Some(
-            BreakpointDb::new_with_task(id)
+            BreakpointDb::new_with_task(&format!("{id}"))
                 .await
                 .context("create breakpoint db failed")?, // TODO: handle error
         )
@@ -3211,7 +3243,7 @@ async fn legacy_to_taos_impl(
     let schema_polling_source_opts = source_opts.clone();
     let schema_polling_target_opts = target_opts.clone();
     let schema_polling_pool = from_pool.clone();
-    let schema_polling_task_id = task_id.clone();
+    let schema_polling_task_id = task_id;
     let schema_polling_metrics = metrics_arc.clone();
     let schema_polling_cancellation = cancel.clone();
     let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
@@ -3261,7 +3293,7 @@ async fn legacy_to_taos_impl(
                                 &updates,
                                 schema_polling_target_opts.clone(),
                                 schema_polling_source_opts.workers as _,
-                                &schema_polling_task_id,
+                                schema_polling_task_id,
                             )
                             .await
                             .context("Spawn data syncing of the updated tables error")?;
@@ -3298,7 +3330,7 @@ async fn legacy_to_taos_impl(
             &todo_non_changed,
             target_opts,
             source_opts.workers as _,
-            &task_id,
+            task_id,
         );
         tokio::select! {
             _ = future => {}
@@ -3356,7 +3388,7 @@ async fn legacy_to_taos_impl(
                             &updates,
                             schema_polling_target_opts.clone(),
                             schema_polling_source_opts.workers as _,
-                            &schema_polling_task_id,
+                            schema_polling_task_id,
                         )
                         .await?;
                         Ok::<_, anyhow::Error>(())
@@ -3661,8 +3693,8 @@ fn process_option_pair(option: &str, option_value: &str) -> String {
         "KEEP" => {
             let mut new_option = String::from(" KEEP ");
             let value_array: Vec<&str> = option_value.split(",").collect();
-            if value_array.first().is_some() {
-                new_option.push_str(&process_unit_value(value_array.first().unwrap()));
+            if let Some(value) = value_array.first() {
+                new_option.push_str(&process_unit_value(value));
             }
             new_option
         }
@@ -3739,8 +3771,7 @@ mod tests {
 
     //
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn sync() -> anyhow::Result<()> {
+    async fn test_sync_with_taos() -> anyhow::Result<()> {
         let _ = pretty_env_logger::formatted_timed_builder()
             .filter_level(log::LevelFilter::Debug)
             .try_init();
@@ -3788,8 +3819,7 @@ mod tests {
     ///
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn sync_large_table() -> anyhow::Result<()> {
+    async fn test_sync_large_table_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
@@ -3886,8 +3916,7 @@ mod tests {
     ///
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn sync_large_normal_table() -> anyhow::Result<()> {
+    async fn test_sync_large_normal_table_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
@@ -4015,7 +4044,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_incomplete_sqls() -> anyhow::Result<()> {
+    async fn test_incomplete_sqls_with_taos() -> anyhow::Result<()> {
         let sqls = [
             (0x2600, "CREATE STABLE `sTb1` (`ts` TIME"),
             (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, "),
@@ -4089,7 +4118,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ts5124() -> anyhow::Result<()> {
+    async fn test_ts5124_with_taos() -> anyhow::Result<()> {
         let builder = TaosBuilder::from_dsn("taos:///")?;
         let taos1 = builder.build().await?;
         let taos2 = builder.build().await?;
@@ -4133,7 +4162,7 @@ mod tests {
             sink,
             1,
             CancellationToken::new(),
-            Some(tid.to_string()),
+            Some(tid),
         )
         .await?;
 

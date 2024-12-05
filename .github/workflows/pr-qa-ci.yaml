@@ -114,30 +114,6 @@ jobs:
           ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/"
           scp taosx-opc root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/
 
-      - name: Build mqtt
-        run: |
-          cd plugins/mqtt
-          go build -cover -o taosx-mqtt
-
-      - name: Run Mqtt Unit Test
-        continue-on-error: true
-        run: |
-          cd plugins/mqtt
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-            echo "run mqtt unit test"
-            go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=5s ./...
-          fi
-      - name: Copy MQTT Files
-        run: |
-          cd plugins/mqtt
-          if [ -f "mqtt_unit_report.txt" ]; then
-            ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/"
-            scp mqtt_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/
-            rm mqtt_unit_report.txt
-          fi
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt/"
-          scp taosx-mqtt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt/
-
   build_java:
     needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, java]

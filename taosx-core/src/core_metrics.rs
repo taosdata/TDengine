@@ -16,7 +16,7 @@ use metrics::atomics::AtomicU64;
 use scc::HashMap;
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::Arc;
 use std::time::Instant;
@@ -229,7 +229,7 @@ pub async fn get_metrics(task_id: i64) -> Option<Arc<CoreMetrics>> {
 #[inline]
 pub async fn get_metrics_arc(task_id: Option<String>) -> Arc<CoreMetrics> {
     let task_id = match task_id {
-        Some(id) => id.parse::<i64>().unwrap(),
+        Some(id) => id.parse::<i64>().unwrap_or(-1),
         _ => -1,
     };
     get_metrics(task_id).await.expect("metrics not found")
@@ -328,19 +328,34 @@ pub fn compute_avg_speed(
 
 /// Get metrics from global metrics map first, if not exist, try to load metrics from persistence.
 /// If both failed, return None.
-pub async fn try_get_metrics<T: TaskMetrics>(task_id: i64) -> Option<Arc<CoreMetrics>> {
+pub async fn try_get_metrics<T: TaskMetrics>(task_id: i64, from: &Dsn) -> Option<Arc<CoreMetrics>> {
     if let Some(metrics) = get_metrics(task_id).await {
+        // 根据 dsn 过滤 TmqMetrics::progress 中的 topic
+        if let CoreMetrics::TMQ(tmq_metrics) = metrics.as_ref() {
+            filter_metrics_by_dsn(from, tmq_metrics);
+        }
         Some(metrics)
     } else {
         tracing::info!("load metrics for task {}", task_id);
         if let Some(metrics) = load_metrics::<T>(task_id.to_string().as_str()) {
             let metrics = Arc::new(metrics.into());
+            // 根据 dsn 过滤 TmqMetrics::progress 中的 topic
+            if let CoreMetrics::TMQ(tmq_metrics) = metrics.as_ref() {
+                filter_metrics_by_dsn(from, tmq_metrics);
+            }
             insert_metrics(task_id, metrics.clone()).await;
             Some(metrics)
         } else {
             tracing::debug!("no metrics found for task {}", task_id);
             None
         }
+    }
+}
+
+fn filter_metrics_by_dsn(from: &Dsn, metrics: &TmqMetrics) {
+    if let Some(database) = from.subject.clone() {
+        let topics: HashSet<String> = database.split(",").map(|s| s.trim().to_string()).collect();
+        metrics.progress.retain(|topic, _| topics.contains(topic));
     }
 }
 
@@ -366,7 +381,7 @@ pub async fn init_task_metrics(
     let driver = from.driver.as_str();
     match (driver, to.driver.as_str()) {
         ("taos", "taos") => {
-            let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id).await;
+            let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id, from).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.legacy().reset();
@@ -382,7 +397,7 @@ pub async fn init_task_metrics(
             }
         }
         ("tmq" | "sync", "taos" | "local") => {
-            let metrics = try_get_metrics::<TmqMetrics>(task_id).await;
+            let metrics = try_get_metrics::<TmqMetrics>(task_id, from).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.tmq().reset();
@@ -416,7 +431,7 @@ pub async fn init_task_metrics(
             | runners::mongodb::MONGODB_ID,
             "taos",
         ) => {
-            let metrics = try_get_metrics::<IpcMetrics>(task_id).await;
+            let metrics = try_get_metrics::<IpcMetrics>(task_id, from).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.ipc().reset();

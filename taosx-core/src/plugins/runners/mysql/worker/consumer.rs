@@ -191,18 +191,96 @@ impl Consumer {
 
 #[cfg(test)]
 mod tests {
-    use crate::runners::mysql::worker::producer::Producer;
+    use crate::runners::mysql::{config::connect::ConnectConfig, worker::producer::Producer};
 
     use super::*;
+    use sqlx::Executor;
     use std::str::FromStr;
     use taos::Dsn;
     use tests::appender::to_schema;
 
+    async fn test_create_database() {
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.45:3306/information_schema").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database if not exists test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_drop_table = "drop table if exists t_metric";
+                let _ = query.pool.execute(sql_drop_table).await;
+                let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp)";
+                let _ = query.pool.execute(sql_create_table).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_insert_data =
+                    "insert into t_metric (name, value, ts) values ('中文', 0.8, now())";
+                for _ in 0..len {
+                    let _ = query.pool.execute(sql_insert_data).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.pool.execute(sql).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ignore]
     async fn test_consumer() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(7).await;
+
         // config
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from t_metric&start=2024-01-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let mut config = MySqlConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);
@@ -254,5 +332,8 @@ mod tests {
         //         panic!("test_consumer error: {e}")
         //     }
         // }
+
+        // clear data
+        let _ = test_clear_data().await;
     }
 }

@@ -8,12 +8,12 @@ import (
 	"collector/common"
 	"collector/config"
 	"collector/log"
+	"collector/regexp"
 	"collector/types"
 	"container/list"
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -249,12 +249,27 @@ func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	if c.conn == nil {
 		return nil, fmt.Errorf("opcda get all points error: connection is nil")
 	}
-	var reg *regexp.Regexp
+	var reg regexp.Regexp
+	var regName regexp.Regexp
+	var regID regexp.Regexp
 	var err error
 	if len(conf.Regex) > 0 {
 		reg, err = regexp.Compile(conf.Regex)
 		if err != nil {
 			return nil, fmt.Errorf("invalid points regex: %w", err)
+		}
+	}
+	if len(conf.RegexName) > 0 {
+		regName, err = regexp.Compile(conf.RegexName)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex_name: %w", err)
+		}
+	}
+
+	if len(conf.RegexID) > 0 {
+		regID, err = regexp.Compile(conf.RegexID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex_id: %w", err)
 		}
 	}
 
@@ -279,11 +294,11 @@ func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		}
 	}
 
-	tags := c.browse(root, reg, conf.Limit)
+	tags := c.browse(root, reg, regName, regID, conf.Limit)
 	return tags, nil
 }
 
-func (c *DAClient) browse(tree *opc.Tree, pointRegex *regexp.Regexp, pointLimit int) (points []common.Point) {
+func (c *DAClient) browse(tree *opc.Tree, pointRegex, nameRegex, idRegex regexp.Regexp, pointLimit int) (points []common.Point) {
 	l := list.New()
 	l.PushBack(tree)
 
@@ -295,7 +310,9 @@ func (c *DAClient) browse(tree *opc.Tree, pointRegex *regexp.Regexp, pointLimit 
 
 		t := l.Remove(front).(*opc.Tree)
 		for _, leave := range t.Leaves {
-			if pointRegex != nil && !(pointRegex.MatchString(leave.Name) || pointRegex.MatchString(leave.Tag)) {
+			if (pointRegex != nil && !(pointRegex.MatchString(leave.Name) || pointRegex.MatchString(leave.Tag))) ||
+				(nameRegex != nil && !nameRegex.MatchString(leave.Name)) ||
+				(idRegex != nil && !idRegex.MatchString(leave.Tag)) {
 				continue
 			}
 

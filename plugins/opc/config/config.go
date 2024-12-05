@@ -57,10 +57,12 @@ type DaConnectConfig struct {
 
 // PointsConfig is used for collecting points
 type PointsConfig struct {
-	Limit int            `json:"limit,omitempty" yaml:"limit" toml:"limit"`
-	Regex string         `json:"regex,omitempty" yaml:"regex" toml:"regex"`
-	Ua    UaPointsConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
-	Da    DaPointsConfig `json:"da,omitempty" yaml:"da" toml:"da"`
+	Limit     int            `json:"limit,omitempty" yaml:"limit" toml:"limit"`
+	Regex     string         `json:"regex,omitempty" yaml:"regex" toml:"regex"`
+	RegexName string         `json:"regex_name,omitempty" yaml:"regex_name" toml:"regex_name"`
+	RegexID   string         `json:"regex_id,omitempty" yaml:"regex_id" toml:"regex_id"`
+	Ua        UaPointsConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
+	Da        DaPointsConfig `json:"da,omitempty" yaml:"da" toml:"da"`
 }
 
 type UaPointsConfig struct {

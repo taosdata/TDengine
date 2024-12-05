@@ -440,7 +440,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_export_import() -> anyhow::Result<()> {
+    async fn test_export_import_with_taos() -> anyhow::Result<()> {
         use file_guard::Lock;
         use std::fs::OpenOptions;
 

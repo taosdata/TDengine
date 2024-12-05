@@ -26,6 +26,7 @@ use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::instrument;
 
 pub mod cast;
 mod join;
@@ -109,6 +110,7 @@ pub enum FieldParser {
 }
 
 impl Parse for FieldParser {
+    #[instrument(skip_all)]
     fn parse_array(
         &self,
         field: &Field,
@@ -122,7 +124,6 @@ impl Parse for FieldParser {
             FieldParser::Cast(cast) => cast.parse_array(field, array),
             FieldParser::Regex(regex) => regex.parse_array(field, array),
             FieldParser::Plugin(plugin) => plugin.parse_array(field, array),
-
             FieldParser::Alias { alias } => {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
                 Ok((batch, None))
@@ -177,6 +178,7 @@ fn duplicate_rows(data_array: &Arc<dyn Array>, indices: &[usize]) -> Arc<dyn Arr
 }
 
 impl TransformExt for ParserImpl {
+    #[instrument(skip_all)]
     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
         if self.is_empty() {
             return Ok(records.clone());

@@ -5,7 +5,9 @@ use chrono::{DateTime, FixedOffset};
 use taos::*;
 
 pub mod breakpoints;
+pub mod codec;
 pub mod constants;
+pub mod defer;
 pub mod dsn;
 pub mod duration;
 pub mod files;
@@ -17,6 +19,7 @@ pub mod monitor;
 pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
+pub mod table_meta;
 pub mod timeout;
 pub mod trace;
 
@@ -252,13 +255,6 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
         );
     }
 
-    // if !TABLE_COLUMN_NAME_REGEX.is_match(name) {
-    //     bail!(
-    //         "The {}: {} is invalid, contains illegal characters.",
-    //         name_type,
-    //         name
-    //     );
-    // }
     Ok(())
 }
 
@@ -314,7 +310,7 @@ pub fn replace_date_placeholder(str: String, date: DateTime<FixedOffset>) -> Str
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_clear_database() -> anyhow::Result<()> {
+async fn test_clear_database_with_taos() -> anyhow::Result<()> {
     let dsn = "taos:///";
 
     let taos = TaosBuilder::from_dsn(dsn)?.build().await?;

@@ -19,7 +19,7 @@ use serde::Serialize;
 use taos::*;
 use tracing::Instrument;
 
-use super::TaosConnection;
+use super::{execute_many_sql, TaosConnection};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -227,7 +227,7 @@ impl WriteStrategy {
 
     #[inline]
     pub fn require_blocks(&self) -> bool {
-        !self.is_default() && !self.without_json_meta()
+        !matches!(self, WriteStrategy::Raw)
     }
 
     #[inline]
@@ -275,14 +275,13 @@ impl WriteOptions {
             )
         };
 
-        if self.actions.is_empty() || self.strategy.require_blocks() {
+        if self.actions.is_empty() && !self.strategy.require_blocks() {
             return Ok(RawMessage::raw_only(
                 self.next_mid(),
                 MessageType::DataOnly,
                 raw,
             ));
         }
-        // if !self.actions.is_empty() || self.strategy.require_blocks() {
         let mut vec = Vec::new();
         while let Some(block) = data
             .fetch_raw_block()
@@ -375,7 +374,7 @@ impl Worker {
         let metrics = self.metrics.as_ref().tmq();
         let meta = message.meta.as_ref().unwrap();
         let sqls = meta.iter().map(ToString::to_string).collect_vec();
-        conn.exec_many(&sqls)
+        execute_many_sql(conn, sqls)
             .in_current_span()
             .await
             .context("Write raw meta with sql error")?;
@@ -1112,7 +1111,15 @@ impl Worker {
             let code = *err.code().deref();
             if message.meta.is_none() && message.data.is_none() {
                 tracing::error!("Write raw into target error: {err:#}");
-                return Err(err).context("Write raw meta into target error");
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                let _ = conn.write_raw_meta(&message.raw).await.inspect_err(|err| {
+                    tracing::debug!(
+                        error = format!("{err:#}"),
+                        "retry write raw with code {}",
+                        err.code()
+                    );
+                });
+                return Err(err).context("Write raw message into target error");
             }
             if let Some(meta) = &message.meta {
                 match code {
@@ -1189,7 +1196,7 @@ impl Worker {
                         // Fallback to sql method.
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
                         let sqls = meta.iter().map(ToString::to_string).collect_vec();
-                        conn.exec_many(&sqls)
+                        execute_many_sql(conn, sqls)
                             .in_current_span()
                             .await
                             .context("Write raw meta with sql error")?;

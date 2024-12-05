@@ -1,537 +1,605 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Read, path::PathBuf, sync::Arc, time::Duration};
 
+use anyhow::Context;
 use itertools::Itertools;
+use rumqttc::{tokio_rustls::rustls, TlsConfiguration};
 use taos::Dsn;
-use uuid::Uuid;
 
 use crate::{
-    get_data_dir,
-    runners::{get_string_from_param_or_file, get_string_vec_from_param_or_file},
+    runners::NoCertificateVerification,
+    utils::codec::{Decompressor, StringDecoder},
 };
 
-#[derive(Debug, serde::Serialize)]
+use super::client::Version;
+
+#[derive(Debug)]
 pub struct MqttConfig {
-    pub log_level: String,
-    pub remote: String,
+    pub task: TaskConfig,
     pub mqtt: MqttConnectConfig,
     pub topics: HashMap<String, u8>,
-    pub dump: Option<Dump>,
+    pub dump: Option<DumpConfig>,
+    pub codec_processor: (Option<Decompressor>, Option<StringDecoder>),
 }
 
-#[derive(Debug, serde::Serialize)]
-pub struct Dump {
-    pub enable: bool,
-    pub path: String,
-    pub keep: usize,
+#[derive(Debug, PartialEq)]
+pub struct TaskConfig {
+    pub batch_size: usize,
+    pub batch_timeout: usize,
+    pub unprocessed_messages_buffer_size: usize,
+    pub maximum_processing_batch: usize,
 }
 
-impl Dump {
-    pub fn from_dsn(dsn: &Dsn, id: Option<i64>) -> anyhow::Result<Option<Self>> {
-        let enable = dsn
-            .params
-            .get("keep_raw_data")
-            .map(|v| {
-                let v = v.trim();
-                if v.is_empty() {
-                    return Ok(true);
-                }
-                v.trim().parse::<bool>().map_err(|err| {
-                    tracing::error!(
-                        "invalid keep_raw_data: `{}`, require boolean value, cause: {}",
-                        v,
-                        err
-                    );
-                    err
-                })
-            })
-            .transpose()?
-            .unwrap_or(false);
-        if !enable {
-            return Ok(None);
-        }
-        let path = dsn
-            .params
-            .get("keep_raw_data_dir")
-            .map(|v| v.to_string())
-            .or_else(|| {
-                id.map(|id| {
-                    let path = get_data_dir()
-                        .join("tasks")
-                        .join(format!("{id}"))
-                        .join("rawdata");
-                    path.display().to_string()
-                })
-            })
-            .ok_or_else(|| anyhow::anyhow!("path is required if keep_raw_data is enabled"))?;
-        let keep = dsn
-            .params
-            .get("keep_raw_data_days")
-            .map(|v| {
-                v.parse::<usize>().map_err(|err| {
-                    anyhow::anyhow!(
-                        "parse keep_raw_data_days failed, which requires integer value: {}",
-                        err.to_string()
-                    )
-                })
-            })
-            .transpose()?
-            .unwrap_or(1); // Default keep 1 day.
+impl TryFrom<&Dsn> for TaskConfig {
+    type Error = anyhow::Error;
 
-        Ok(Some(Dump { enable, path, keep }))
-    }
-}
-
-impl MqttConfig {
-    pub fn from(dsn: &Dsn, ipc_port: Option<u16>, task_id: Option<i64>) -> anyhow::Result<Self> {
-        let connect_config = MqttConnectConfig::from_dsn(dsn)?;
-        let dump = Dump::from_dsn(dsn, task_id)?;
-        let topics_vec = get_string_vec_from_param_or_file(&mut dsn.clone(), "topics")
-            .map_err(|err| anyhow::anyhow!("invalid topics, cause: {}", err.to_string()))?;
-
-        let mut topics = HashMap::new();
-        for topic in topics_vec {
-            let pair = topic.split("::").collect_vec();
-            if pair.len() != 2 {
-                return Err(anyhow::anyhow!(
-                    "invalid topic: {}, cause: the format of topic is name::qos",
-                    topic
-                ));
-            }
-            let topic = String::from(pair[0]);
-            let qos = pair[1].parse::<u8>().map_err(|err| {
-                anyhow::anyhow!(
-                    "invalid qos: {} in topic, cause: {}",
-                    pair[1].to_string(),
-                    err.to_string()
-                )
-            })?;
-            topics.insert(topic, qos);
-        }
-
-        Ok(MqttConfig {
-            log_level: dsn
-                .params
-                .get("log_level")
-                .cloned()
-                .unwrap_or("info".to_string())
-                .to_string(),
-            remote: format!("127.0.0.1:{}", ipc_port.unwrap_or(0)),
-            mqtt: connect_config,
-            topics,
-            dump,
+    fn try_from(dsn: &Dsn) -> Result<Self, Self::Error> {
+        Ok(Self {
+            batch_size: parse_simple_params(dsn, "batch_size")?.unwrap_or(1000),
+            batch_timeout: parse_simple_params(dsn, "batch_timeout")?.unwrap_or(500),
+            unprocessed_messages_buffer_size: parse_simple_params(
+                dsn,
+                "unprocessed_messages_buffer_size",
+            )?
+            .unwrap_or(50000),
+            maximum_processing_batch: parse_simple_params(dsn, "maximum_processing_batch")?
+                .unwrap_or(100),
         })
     }
 }
 
-#[derive(Debug, serde::Serialize, Default)]
-pub struct MqttConnectConfig {
-    address: String,
-    version: String,
-    client_id: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    keep_alive: Option<u64>,
-    clean_session: Option<bool>,
-    ca: Option<String>,
-    cert: Option<String>,
-    cert_key: Option<String>,
+#[derive(Debug, PartialEq)]
+pub struct DumpConfig {
+    pub enable: bool,
+    pub path: Option<PathBuf>,
+    pub keep: usize,
 }
 
-impl MqttConnectConfig {
-    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let ca = dsn.get("ca");
-        let ca = if ca.is_none() || ca.unwrap().is_empty() {
-            Ok(None)
-        } else {
-            let ca = ca.unwrap();
-            if ca.starts_with('@') {
-                get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None).map_err(|err| {
-                    anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string())
-                })
-            } else {
-                Ok(Some(ca.to_string()))
-            }
-        }?;
+impl DumpConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Self>> {
+        let enable = parse_simple_params(dsn, "keep_raw_data")?.is_some_and(|v| v);
+        if !enable {
+            return Ok(None);
+        }
+        let path = parse_simple_params(dsn, "keep_raw_data_dir")?;
+        let keep = parse_simple_params(dsn, "keep_raw_data_days")?.unwrap_or(1); // Default keep 1 day.
 
-        let cert = dsn.get("cert");
-        let cert = if cert.is_none() || cert.unwrap().is_empty() {
-            Ok(None)
-        } else {
-            let cert = cert.unwrap();
-            if cert.starts_with('@') {
-                get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None).map_err(|err| {
-                    anyhow::anyhow!("failed to read cert config, cause: {}", err.to_string())
-                })
-            } else {
-                Ok(Some(cert.to_string()))
-            }
-        }?;
+        Ok(Some(DumpConfig { enable, path, keep }))
+    }
+}
 
-        let cert_key = dsn.get("cert_key");
-        let cert_key = if cert_key.is_none() || cert_key.unwrap().is_empty() {
-            Ok(None)
-        } else {
-            let cert_key = cert_key.unwrap();
-            if cert_key.starts_with('@') {
-                get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None).map_err(
-                    |err| anyhow::anyhow!("failed to read cert config, cause: {}", err.to_string()),
-                )
-            } else {
-                Ok(Some(cert_key.to_string()))
-            }
-        }?;
+impl TryFrom<&Dsn> for MqttConfig {
+    type Error = anyhow::Error;
 
-        let host = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.host.clone())
-            .ok_or(anyhow::anyhow!("host is required"))?;
-        let port = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.port)
-            .ok_or(anyhow::anyhow!("port is required"))?;
-        let address = if ca.is_some() {
-            format!("ssl://{host}:{port}")
-        } else {
-            format!("tcp://{host}:{port}")
-        };
+    fn try_from(dsn: &Dsn) -> anyhow::Result<Self> {
+        Ok(MqttConfig {
+            task: dsn.try_into()?,
+            mqtt: dsn.try_into()?,
+            topics: parse_topics(dsn)?,
+            dump: DumpConfig::from_dsn(dsn)?,
+            codec_processor: parse_codec_processor(dsn)?,
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct MqttConnectConfig {
+    pub(crate) host: String,
+    pub(crate) port: u16,
+    pub(crate) version: Version,
+    pub(crate) client_id: String,
+    pub(crate) username: Option<String>,
+    pub(crate) password: Option<String>,
+    pub(crate) keep_alive: Duration,
+    pub(crate) clean_session: bool,
+    pub(crate) ca: Option<Vec<u8>>,
+    pub(crate) cert: Option<Vec<u8>>,
+    pub(crate) cert_key: Option<Vec<u8>>,
+}
+
+impl TryFrom<Dsn> for MqttConnectConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(dsn: Dsn) -> Result<Self, Self::Error> {
+        (&dsn).try_into()
+    }
+}
+
+impl TryFrom<&Dsn> for MqttConnectConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(dsn: &Dsn) -> Result<Self, Self::Error> {
+        let (ca, cert, cert_key) = parse_tls(dsn)?;
+        let (host, port) = parse_host_port(dsn)?;
 
         Ok(MqttConnectConfig {
-            address,
-            version: dsn
-                .params
-                .get("version")
-                .ok_or(anyhow::anyhow!("version is required"))?
-                .to_string(),
-            client_id: dsn.params.get("client_id").map(|v| v.to_string()),
+            host,
+            port,
+            version: parse_version(dsn)?,
+            client_id: parse_client_id(dsn)?,
             username: dsn.username.clone(),
             password: dsn.password.clone(),
-            keep_alive: Self::parse_keep_alive(dsn)?,
-            clean_session: dsn
-                .params
-                .get("clean_session")
-                .map(|v| {
-                    v.parse::<bool>().map_err(|err| {
-                        anyhow::anyhow!(
-                            "invalid clean_session: {}, cause: {}",
-                            v.to_string(),
-                            err.to_string()
-                        )
-                    })
-                })
-                .transpose()?,
+            keep_alive: parse_keep_alive(dsn)?,
+            clean_session: parse_clean_session(dsn)?,
             ca,
             cert,
             cert_key,
         })
     }
+}
 
-    pub fn parse_version(dsn: &Dsn) -> anyhow::Result<String> {
-        let version = dsn
-            .params
-            .get("version")
-            .map(|v| {
-                if v.is_empty() {
-                    return Err(anyhow::anyhow!("version is required"));
-                }
-                let version = match v.as_str() {
-                    "3.1" | "3.1.1" | "5.0" | "5" => Ok(v.to_string()),
-                    _ => Err(anyhow::anyhow!("invalid version: {}", v.to_string())),
-                };
-                version
-            })
-            .transpose()?
-            .ok_or_else(|| anyhow::anyhow!("version is required"))?;
-        Ok(version)
-    }
+#[allow(clippy::type_complexity)]
+fn parse_tls(dsn: &Dsn) -> anyhow::Result<(Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>)> {
+    let ca = parse_from_param_or_file(dsn, "ca")?;
+    let cert = parse_from_param_or_file(dsn, "cert")?;
+    let cert_key = parse_from_param_or_file(dsn, "cert_key")?;
+    Ok((ca, cert, cert_key))
+}
 
-    pub fn host_port(&self) -> (String, u16) {
-        let parts = self.address.split(':').collect::<Vec<&str>>();
-        let host = parts[1].trim_start_matches("//").to_string();
-        let port = parts[2].parse::<u16>().unwrap();
-        (host, port)
-    }
+pub fn build_tls_config(
+    ca: Vec<u8>,
+    _client_pem: Vec<u8>,
+    _client_key: Vec<u8>,
+) -> anyhow::Result<TlsConfiguration> {
+    let mut ca = std::io::Cursor::new(ca);
 
-    /// use UUID as client_id if not set
-    pub fn client_id(&self) -> impl Into<String> {
-        self.client_id
-            .clone()
-            .unwrap_or_else(|| Uuid::new_v4().to_string().replace("-", ""))
-    }
+    use itertools::Itertools;
+    let certs: Vec<_> = rustls_pemfile::certs(&mut ca).try_collect().unwrap();
+    let mut root_cert_store = rustls::RootCertStore::empty();
+    root_cert_store.add_parsable_certificates(
+        rustls_native_certs::load_native_certs().expect("could not load platform certs"),
+    );
+    root_cert_store.add_parsable_certificates(certs);
+    let mut rustls_config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_cert_store)
+        .with_no_client_auth();
+    rustls_config
+        .dangerous()
+        .set_certificate_verifier(Arc::new(NoCertificateVerification()));
+    let tls_config = TlsConfiguration::Rustls(Arc::new(rustls_config));
 
-    pub fn username(&self) -> Option<&str> {
-        self.username.as_deref()
-    }
+    Ok(tls_config)
+}
 
-    pub fn password(&self) -> Option<&str> {
-        self.password.as_deref()
-    }
+fn parse_host_port(dsn: &Dsn) -> anyhow::Result<(String, u16)> {
+    dsn.addresses
+        .first()
+        .and_then(|addr| addr.host.clone().zip(addr.port))
+        .context("mqtt invalid address")
+}
 
-    /// Default keep alive is 5 seconds
-    pub fn keep_alive(&self) -> core::time::Duration {
-        core::time::Duration::from_secs(self.keep_alive.unwrap_or(5))
-    }
+fn parse_keep_alive(dsn: &Dsn) -> anyhow::Result<Duration> {
+    let keep_alive = parse_simple_params::<u64>(dsn, "keep_alive")?.unwrap_or(5);
+    anyhow::ensure!(
+        keep_alive >= 5,
+        "The value of keep_alive must be at least 5"
+    );
+    Ok(Duration::from_secs(keep_alive))
+}
 
-    fn parse_keep_alive(dsn: &Dsn) -> anyhow::Result<Option<u64>> {
-        let keep_alive = dsn
-            .params
-            .get("keep_alive")
-            .map(|v| {
-                v.parse::<u64>().map_err(|err| {
-                    anyhow::anyhow!(
-                        "invalid keep_alive: {}, cause: {}",
-                        v.to_string(),
-                        err.to_string()
-                    )
+fn parse_version(dsn: &Dsn) -> anyhow::Result<Version> {
+    parse_simple_params(dsn, "version")?.context("MQTT version is required")
+}
+
+fn parse_client_id(dsn: &Dsn) -> anyhow::Result<String> {
+    dsn.get("client_id")
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .context("MQTT client id is requeired")
+}
+
+fn parse_clean_session(dsn: &Dsn) -> anyhow::Result<bool> {
+    Ok(parse_simple_params(dsn, "clean_session")?.unwrap_or(true))
+}
+
+fn parse_topics(dsn: &Dsn) -> anyhow::Result<HashMap<String, u8>> {
+    dsn.get("topics")
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .context("topics requeired")?
+        .split(',')
+        .map(|topic| {
+            topic
+                .split_once("::")
+                .with_context(|| format!("invalid topic: {topic}, format should be: `topic::qos`"))
+                .and_then(|(topic, qos)| {
+                    qos.parse::<u8>()
+                        .context("invalid qos")
+                        .map(|qos| (topic.to_string(), qos))
                 })
-            })
-            .transpose()?;
-        Ok(keep_alive)
-    }
+        })
+        .try_collect()
+}
 
-    /// Default clean session is true
-    pub fn clean_session(&self) -> bool {
-        self.clean_session.unwrap_or(true)
-    }
+fn parse_codec_processor(
+    dsn: &Dsn,
+) -> anyhow::Result<(Option<Decompressor>, Option<StringDecoder>)> {
+    Ok((
+        parse_simple_params(dsn, "compression")?,
+        parse_simple_params(dsn, "char_encoding")?,
+    ))
+}
 
-    pub fn ssl_enabled(dsn: &Dsn) -> bool {
-        dsn.params.contains_key("ca")
+fn parse_from_param_or_file(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Vec<u8>>> {
+    fn read_from_file(path: &str) -> std::io::Result<Vec<u8>> {
+        let path = std::fs::canonicalize(path)?;
+        let mut file = std::fs::File::open(path)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+        Ok(buf)
     }
+    dsn.get(key)
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.strip_prefix('@')
+                .map(|path| read_from_file(path).with_context(|| format!("read {key} file error")))
+                .unwrap_or(Ok(v.as_bytes().to_vec()))
+        })
+        .transpose()
+}
 
-    pub fn ssl(&self) -> anyhow::Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-        let ca = self
-            .ca
-            .as_ref()
-            .map(|v| v.as_bytes().to_vec())
-            .ok_or(anyhow::anyhow!(
-                "ca is required if ssl is enabled, please set ca or ca file path"
-            ))?;
-        let cert = self
-            .cert
-            .as_ref()
-            .map(|v| v.as_bytes().to_vec())
-            .ok_or(anyhow::anyhow!(
-                "cert is required if ssl is enabled, please set cert or cert file path"
-            ))?;
-        let cert_key = self
-            .cert_key
-            .as_ref()
-            .map(|v| v.as_bytes().to_vec())
-            .ok_or(anyhow::anyhow!(
-                "cert_key is required if ssl is enabled, please set cert_key or cert_key file path"
-            ))?;
-        Ok((ca, cert, cert_key))
-    }
+fn parse_simple_params<T>(dsn: &Dsn, key: &str) -> anyhow::Result<Option<T>>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    dsn.get(key)
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.parse::<T>()
+                .with_context(|| format!("invalid {key}: `{v}`"))
+        })
+        .transpose()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{io::Write, str::FromStr};
 
     use super::*;
 
     #[test]
-    fn test_parse_version() {
-        let dsn = Dsn::from_str("mqtt://").unwrap();
-        let version = MqttConnectConfig::parse_version(&dsn);
+    fn test_parse_version() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://")?;
+        let version = parse_version(&dsn);
         assert!(version.is_err());
-        assert_eq!("version is required", version.err().unwrap().to_string());
 
-        let dsn = Dsn::from_str("mqtt://?version=3.0").unwrap();
-        let version = MqttConnectConfig::parse_version(&dsn);
+        let dsn = Dsn::from_str("mqtt://?version=3.0")?;
+        let version = parse_version(&dsn);
         assert!(version.is_err());
-        assert_eq!("invalid version: 3.0", version.err().unwrap().to_string());
 
-        let dsn = Dsn::from_str("mqtt://?version=3.1").unwrap();
-        let version = MqttConnectConfig::parse_version(&dsn).unwrap();
-        assert_eq!("3.1", version);
+        let dsn = Dsn::from_str("mqtt://?version=3.1")?;
+        let version = parse_version(&dsn)?;
+        assert_eq!(Version::V3, version);
 
-        let dsn = Dsn::from_str("mqtt://?version=3.1.1").unwrap();
-        let version = MqttConnectConfig::parse_version(&dsn).unwrap();
-        assert_eq!("3.1.1", version);
+        let dsn = Dsn::from_str("mqtt://?version=3.1.1")?;
+        let version = parse_version(&dsn)?;
+        assert_eq!(Version::V3, version);
 
-        let dsn = Dsn::from_str("mqtt://?version=5.0").unwrap();
-        let version = MqttConnectConfig::parse_version(&dsn).unwrap();
-        assert_eq!("5.0", version);
+        let dsn = Dsn::from_str("mqtt://?version=5.0")?;
+        let version = parse_version(&dsn)?;
+        assert_eq!(Version::V5, version);
 
-        let dsn = Dsn::from_str("mqtt://?version=5").unwrap();
-        let version = MqttConnectConfig::parse_version(&dsn).unwrap();
-        assert_eq!("5", version);
+        let dsn = Dsn::from_str("mqtt://?version=5")?;
+        let version = parse_version(&dsn)?;
+        assert_eq!(Version::V5, version);
+
+        Ok(())
     }
 
     #[test]
-    fn test_host_port() {
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1884?version=3.1").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
-        let (host, port) = config.host_port();
-        assert_eq!("127.0.0.1", host);
-        assert_eq!(1884, port);
+    fn test_host_port() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://127.0.0.1:1884")?;
+        let (host, port) = parse_host_port(&dsn)?;
+        assert_eq!(host, "127.0.0.1");
+        assert_eq!(port, 1884);
+
+        let dsn = Dsn::from_str("mqtt://127.0.0.1:")?;
+        assert_eq!(parse_host_port(&dsn)?, ("127.0.0.1".into(), 0));
+        let dsn = Dsn::from_str("mqtt://:1883")?;
+        assert!(parse_host_port(&dsn).is_err());
+
+        let dsn = Dsn::from_str("mqtt://:")?;
+        assert!(parse_host_port(&dsn).is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_client_id() {
-        let config = MqttConnectConfig::default();
-        assert_eq!(32, config.client_id().into().len());
-    }
+    fn test_parse_keep_alive() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://?keep_alive=30")?;
+        let keep_alive = parse_keep_alive(&dsn)?;
+        assert_eq!(keep_alive, Duration::from_secs(30));
 
-    #[test]
-    fn test_parse_keep_alive() {
-        let dsn = Dsn::from_str("mqtt://?keep_alive=30").unwrap();
-        let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn).unwrap();
-        assert_eq!(Some(30), keep_alive);
-
-        let dsn = Dsn::from_str("mqtt://?keep_alive=abc").unwrap();
-        let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn);
+        let dsn = Dsn::from_str("mqtt://?keep_alive=abc")?;
+        let keep_alive = parse_keep_alive(&dsn);
         assert!(keep_alive.is_err());
-        assert_eq!(
-            "invalid keep_alive: abc, cause: invalid digit found in string",
-            keep_alive.err().unwrap().to_string()
-        );
 
-        let dsn = Dsn::from_str("mqtt://").unwrap();
-        let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn);
-        assert_eq!(None, keep_alive.unwrap());
+        let dsn = Dsn::from_str("mqtt://")?;
+        let keep_alive = parse_keep_alive(&dsn)?;
+        assert_eq!(keep_alive, Duration::from_secs(5));
 
-        let dsn = Dsn::from_str("mqtt://?keep_alive=").unwrap();
-        let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn);
-        assert!(keep_alive.is_err());
+        let dsn = Dsn::from_str("mqtt://?keep_alive=")?;
+        let keep_alive = parse_keep_alive(&dsn)?;
+        assert_eq!(keep_alive, Duration::from_secs(5));
+
+        let dsn = Dsn::from_str("mqtt://?keep_alive=1")?;
+        assert!(parse_keep_alive(&dsn).is_err());
+        Ok(())
     }
 
     #[test]
-    #[ignore]
-    fn test_mqtt_connect_config_from_dsn() {
-        let dsn = Dsn::from_str("mqtt://").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn);
-        assert!(config.is_err());
-        assert_eq!("host is required", config.err().unwrap().to_string());
+    fn parse_client_id_test() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://?client_id=")?;
+        assert!(parse_client_id(&dsn).is_err());
 
-        let dsn = Dsn::from_str("mqtt://127.0.0.1").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn);
-        assert!(config.is_err());
-        assert_eq!("port is required", config.err().unwrap().to_string());
+        let dsn = Dsn::from_str("mqtt://?")?;
+        assert!(parse_client_id(&dsn).is_err());
 
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn);
-        assert!(config.is_err());
-        assert_eq!("version is required", config.err().unwrap().to_string());
-
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
-        assert_eq!(config.version, "3.0");
-
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "clean_session is required",
-            config.err().unwrap().to_string()
-        );
-
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=abc").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "invalid keep_alive: abc, cause: invalid digit found in string",
-            config.err().unwrap().to_string()
-        );
-
-        let dsn =
-            Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true")
-                .unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
-        assert_eq!("tcp://127.0.0.1:1833", config.address);
-        assert_eq!("3.0", config.version);
-        assert_eq!(None, config.client_id);
-        assert_eq!(None, config.username);
-        assert_eq!(None, config.password);
-        assert_eq!(60, config.keep_alive.unwrap());
-        assert!(config.clean_session.unwrap());
-        assert_eq!(None, config.ca);
-        assert_eq!(None, config.cert);
-        assert_eq!(None, config.cert_key);
+        let dsn = Dsn::from_str("mqtt://?client_id=abc")?;
+        assert_eq!(&parse_client_id(&dsn)?, "abc");
+        Ok(())
     }
 
     #[test]
-    fn test_mqtt_config_from() {
-        let dsn =
-            Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true")
-                .unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086), None);
-        assert!(config.is_err());
-        assert_eq!(
-            "invalid topics, cause: Nodes not set",
-            config.err().unwrap().to_string()
-        );
+    fn parse_params_or_file_test() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://?ca=abc")?;
+        let ca = parse_from_param_or_file(&dsn, "ca")?.context("ca not found")?;
+        assert_eq!(ca, b"abc");
 
-        let dsn = Dsn::from_str(
-            "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=a,b,c",
-        )
-        .unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086), None);
-        assert!(config.is_err());
-        assert_eq!(
-            "invalid topic: a, cause: the format of topic is name::qos",
-            config.err().unwrap().to_string()
-        );
+        let mut ca_file = tempfile::NamedTempFile::new()?;
+        ca_file.write_all(b"abc")?;
+        let dsn = Dsn::from_str(&format!("mqtt://?ca=@{}", ca_file.path().display()))?;
+        let ca = parse_from_param_or_file(&dsn, "ca")?.context("ca not found")?;
+        assert_eq!(ca, b"abc");
 
-        let dsn = Dsn::from_str(
-            "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::abc",
-        )
-        .unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086), None);
-        assert!(config.is_err());
-        assert_eq!(
-            "invalid qos: abc in topic, cause: invalid digit found in string",
-            config.err().unwrap().to_string()
-        );
-
-        let dsn = Dsn::from_str(
-            "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0",
-        )
-        .unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086), None);
-        assert!(config.is_ok());
-
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0,tp2::1,tp3::2&log_level=debug&version=3.0&keep_alive=60&clean_session=true").unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086), None).unwrap();
-        assert_eq!("debug", config.log_level);
-        assert_eq!("127.0.0.1:10086", config.remote);
-        assert_eq!(3, config.topics.len());
-        assert_eq!(0, *config.topics.get("tp1").unwrap());
-        assert_eq!(1, *config.topics.get("tp2").unwrap());
-        assert_eq!(2, *config.topics.get("tp3").unwrap());
+        Ok(())
     }
 
     #[test]
-    #[ignore]
-    fn test_mqtt_config_from_with_file() {
-        let dsn = Dsn::from_str("mqtt://192.168.1.42:1833?version=3.0").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
-        let toml = toml::to_string(&config);
-        assert_eq!(
-            "address = \"tcp://192.168.1.42:1833\"\\nversion = \"3.0\"",
-            toml.unwrap()
-        );
+    fn parse_tls_test() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://?ca=abc&cert=def&cert_key=ghi")?;
+        let (ca, cert, cert_key) = parse_tls(&dsn)?;
+        assert_eq!(ca, Some(b"abc".into()));
+        assert_eq!(cert, Some(b"def".into()));
+        assert_eq!(cert_key, Some(b"ghi".into()));
+
+        let dsn = Dsn::from_str("mqtt://?ca=abc&cert=&cert_key=ghi")?;
+        let (ca, cert, cert_key) = parse_tls(&dsn)?;
+        assert_eq!(ca, Some(b"abc".into()));
+        assert_eq!(cert, None);
+        assert_eq!(cert_key, Some(b"ghi".into()));
+
+        let dsn = Dsn::from_str("mqtt://?ca=abc&cert_key=ghi")?;
+        let (ca, cert, cert_key) = parse_tls(&dsn)?;
+        assert_eq!(ca, Some(b"abc".into()));
+        assert_eq!(cert, None);
+        assert_eq!(cert_key, Some(b"ghi".into()));
+        Ok(())
     }
 
     #[test]
-    fn test_mqtt_dump() {
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0,tp2::1,tp3::2&log_level=debug&version=3.0&keep_alive=60&clean_session=true").unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086), None).unwrap();
-        assert_eq!("debug", config.log_level);
-        assert_eq!("127.0.0.1:10086", config.remote);
-        assert_eq!(3, config.topics.len());
-        assert_eq!(0, *config.topics.get("tp1").unwrap());
-        assert_eq!(1, *config.topics.get("tp2").unwrap());
-        assert_eq!(2, *config.topics.get("tp3").unwrap());
-        assert!(config.dump.is_none());
+    fn parse_task_config_test() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://?batch_size=1&batch_timeout=2&unprocessed_messages_buffer_size=3&maximum_processing_batch=4")?;
+        let config = TaskConfig::try_from(&dsn)?;
+        assert_eq!(config.batch_size, 1);
+        assert_eq!(config.batch_timeout, 2);
+        assert_eq!(config.unprocessed_messages_buffer_size, 3);
+        assert_eq!(config.maximum_processing_batch, 4);
 
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0,tp2::1,tp3::2&log_level=debug&version=3.0&keep_alive=60&clean_session=true&keep_raw_data&keep_raw_data_dir=./abc").unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086), None).unwrap();
-        let dump = config.dump.unwrap();
+        let dsn = Dsn::from_str("mqtt://")?;
+        let config = TaskConfig::try_from(&dsn)?;
+        assert_eq!(config.batch_size, 1000);
+        assert_eq!(config.batch_timeout, 500);
+        assert_eq!(config.unprocessed_messages_buffer_size, 50000);
+        assert_eq!(config.maximum_processing_batch, 100);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_dump_config() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://?keep_raw_data=true")?;
+        let dump = DumpConfig::from_dsn(&dsn)?.context("dump not found")?;
         assert!(dump.enable);
-        assert_eq!(dump.path, "./abc");
         assert_eq!(dump.keep, 1);
+        assert_eq!(dump.path, None);
+
+        let dsn = Dsn::from_str(
+            "mqtt://?keep_raw_data=true&keep_raw_data_dir=/a/b/c&keep_raw_data_days=4",
+        )?;
+        let dump = DumpConfig::from_dsn(&dsn)?.context("dump not found")?;
+        assert!(dump.enable);
+        assert_eq!(dump.keep, 4);
+        assert_eq!(dump.path, Some(PathBuf::from("/a/b/c")));
+
+        let dsn = Dsn::from_str("mqtt://")?;
+        let dump = DumpConfig::from_dsn(&dsn)?;
+        assert!(dump.is_none());
+
+        let dsn = Dsn::from_str("mqtt://?keep_raw_data=false")?;
+        let dump = DumpConfig::from_dsn(&dsn)?;
+        assert!(dump.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_clean_session_test() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://")?;
+        assert!(parse_clean_session(&dsn)?);
+
+        let dsn = Dsn::from_str("mqtt://?clean_session=")?;
+        assert!(parse_clean_session(&dsn)?);
+
+        let dsn = Dsn::from_str("mqtt://?clean_session=true")?;
+        assert!(parse_clean_session(&dsn)?);
+
+        let dsn = Dsn::from_str("mqtt://?clean_session=false")?;
+        assert!(!parse_clean_session(&dsn)?);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_topics_test() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://?topics=")?;
+        assert!(parse_topics(&dsn).is_err());
+
+        let dsn = Dsn::from_str("mqtt://")?;
+        assert!(parse_topics(&dsn).is_err());
+
+        let dsn = Dsn::from_str("mqtt://?topics=tp1")?;
+        assert!(parse_topics(&dsn).is_err());
+
+        let dsn = Dsn::from_str("mqtt://?topics=tp1:0")?;
+        assert!(parse_topics(&dsn).is_err());
+
+        let dsn = Dsn::from_str("mqtt://?topics=tp1,tp2")?;
+        assert!(parse_topics(&dsn).is_err());
+
+        let dsn = Dsn::from_str("mqtt://?topics=tp1::0,tp2::1")?;
+        let topics = parse_topics(&dsn)?;
+        assert_eq!(
+            topics,
+            HashMap::from_iter([("tp1".into(), 0), ("tp2".into(), 1)])
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parse_codec_processor_test() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://")?;
+        assert_eq!(parse_codec_processor(&dsn)?, (None, None));
+
+        let dsn = Dsn::from_str("mqtt://?compression=gzip")?;
+        assert_eq!(
+            parse_codec_processor(&dsn)?,
+            (Some(Decompressor::Gzip), None)
+        );
+
+        let dsn = Dsn::from_str("mqtt://?char_encoding=UTF_8")?;
+        assert_eq!(
+            parse_codec_processor(&dsn)?,
+            (None, Some(StringDecoder::Utf8))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn build_tls_config_test() -> anyhow::Result<()> {
+        let res = build_tls_config(
+            b"
+-----BEGIN CERTIFICATE-----
+MIIFDzCCA3egAwIBAgIQSL1JEpBqVfNDYePUWb6m3DANBgkqhkiG9w0BAQsFADCB
+nzEeMBwGA1UEChMVbWtjZXJ0IGRldmVsb3BtZW50IENBMTowOAYDVQQLDDF5YW55
+dXhpbmdAeWFueXV4aW5nZGVNYWMtU3R1ZGlvLmxvY2FsICjpl6vlrofmmJ8pMUEw
+PwYDVQQDDDhta2NlcnQgeWFueXV4aW5nQHlhbnl1eGluZ2RlTWFjLVN0dWRpby5s
+b2NhbCAo6Zer5a6H5pifKTAeFw0yNDAyMjUxNDEzNTJaFw0zNDAyMjUxNDEzNTJa
+MIGfMR4wHAYDVQQKExVta2NlcnQgZGV2ZWxvcG1lbnQgQ0ExOjA4BgNVBAsMMXlh
+bnl1eGluZ0B5YW55dXhpbmdkZU1hYy1TdHVkaW8ubG9jYWwgKOmXq+Wuh+aYnykx
+QTA/BgNVBAMMOG1rY2VydCB5YW55dXhpbmdAeWFueXV4aW5nZGVNYWMtU3R1ZGlv
+LmxvY2FsICjpl6vlrofmmJ8pMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKC
+AYEA0mjpCN7OeJhKTXKAsEFZ2GenuD16sFwPtR3XWJSpdUj2lwKYaSF4sRD5/fb9
+zFj9q1nvRp2tBwRFG/QIlXPzLiba/+7yhJvH5Iredg/tN3iwOJPwRXCHGUQH+c3B
+U31PSirl0VDpe/LQzG2iaud5UqdNkOOKOxk21spqbCJe6dccFizi5Y9Q+fYFPGfj
+6QU55ZX72ZRRkIbengSKj3yrOwmwUGICRytk6I3+DJNOi9DRTW0bDDO77AjhB6e1
+4Z7Un3R7A1emr38LRygrNF3T4/l9npS9K2SSYbQK1cIpG+2KoiMTCbaCMgD9rNZp
+0wgwVM2LOQg4SARsgAeLQFxPpnD2O5f1tFgelP+Fh0laOKpZCZLSWv4G20x710Xh
+lTr00vQ64CI0++VDsNtVi3bZQ+YROrMepv/huqA2WWnZj5JGSgx0nob5NbVTOqAj
+aFLBgjpA4aOlrLD9J2K1f4fhPOFiZud6CUKNMEiSoMQyHOpGiriE/juxVJ3s0LdI
+ev5rAgMBAAGjRTBDMA4GA1UdDwEB/wQEAwICBDASBgNVHRMBAf8ECDAGAQH/AgEA
+MB0GA1UdDgQWBBQJu/tU1aRs8H0ShzlD0bkWQbRhMTANBgkqhkiG9w0BAQsFAAOC
+AYEAmOY8sTs0D7P0P0avdaDV40/Crfexet0i16DKqjT1w9V7P9VueewA6qZF5sbk
+yugRCxCJARzrZJKn58aa3nAM9VvcoXA/iwrdbP83vKLs3Nq83pw5OzQWbFPtpfzs
+LVr9ZMcoOibDQD6AocW+BWaIn3CcYNlzBM8GOc3iLHNRHdduDl2z9k+rtSo6hLbT
+oidjYS6an7gYAbbYWoQZfBscFMjs7yyj8K//GUnmsVl285rkeOo6BiJyqjrbZkGr
+cpY3WfTfoCear1jGxu5rUJJy1GbBu36pTzNLFObyvVWFzz1t5xtoQeu8rtXq0lUy
+42uQY1HyFjwDNIXxl044R46hTCjY41bc/5cX8TbT7kSfZ3gE9H4njFYSBcb7Nv3J
+n6LGgw+tpZuDUpQXxG12TbLa8N5i2ScLm4SCeHQs1nXEfc7uUZcqKGKnUStUheeD
+9LgliGorTlSHG/7WbqHHNGB2VKsXuFJ3YkM5f+yj3v6wLeW/iM4fhkajHpJzMEGg
+JGMv
+-----END CERTIFICATE-----
+        "
+            .to_vec(),
+            vec![],
+            vec![],
+        );
+        assert!(res.is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn parse_mqtt_config_test() -> anyhow::Result<()> {
+        let params = vec![
+            "batch_size=100",
+            "batch_timeout=200",
+            "unprocessed_messages_buffer_size=300",
+            "maximum_processing_batch=400",
+            "keep_raw_data=true",
+            "keep_raw_data_dir=/a/b/c",
+            "keep_raw_data_days=7",
+            "ca=abc",
+            "cert=def",
+            "cert_key=ghi",
+            "keep_alive=5",
+            "version=5",
+            "client_id=aaa",
+            "clean_session=false",
+            "topics=tp1::0,tp2::1",
+            "compression=none",
+            "char_encoding=GBK",
+        ]
+        .join("&");
+        let dsn_str = format!("mqtt://root:taosdata@localhost:1883?{}", params);
+        let dsn = Dsn::from_str(&dsn_str)?;
+        let config = MqttConfig::try_from(&dsn)?;
+        assert_eq!(
+            config.codec_processor,
+            (Some(Decompressor::Noop), Some(StringDecoder::GBK))
+        );
+        let dump = config.dump.context("dump")?;
+        assert_eq!(
+            dump,
+            DumpConfig {
+                enable: true,
+                path: Some(PathBuf::from("/a/b/c")),
+                keep: 7
+            }
+        );
+
+        let conn = config.mqtt;
+        assert_eq!(
+            conn,
+            MqttConnectConfig {
+                host: "localhost".to_string(),
+                port: 1883,
+                version: Version::V5,
+                client_id: "aaa".to_string(),
+                username: Some("root".to_string()),
+                password: Some("taosdata".to_string()),
+                keep_alive: Duration::from_secs(5),
+                clean_session: false,
+                ca: Some(b"abc".to_vec()),
+                cert: Some(b"def".to_vec()),
+                cert_key: Some(b"ghi".to_vec())
+            }
+        );
+
+        assert_eq!(
+            config.task,
+            TaskConfig {
+                batch_size: 100,
+                batch_timeout: 200,
+                unprocessed_messages_buffer_size: 300,
+                maximum_processing_batch: 400
+            }
+        );
+
+        assert_eq!(
+            config.topics,
+            HashMap::from_iter([("tp1".to_string(), 0), ("tp2".to_string(), 1)])
+        );
+
+        Ok(())
     }
 }

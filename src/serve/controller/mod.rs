@@ -3402,7 +3402,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
     async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
@@ -3440,7 +3439,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
-    async fn test_task_offset() -> anyhow::Result<()> {
+    async fn test_task_offset_with_taos() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "taos=info");
         tracing_subscriber_init()?;
 
@@ -3485,7 +3484,11 @@ mod tests {
         ])
         .await?;
 
-        taos.exec_many(["drop database if exists db2"]).await?;
+        taos.exec_many([
+            "drop database if exists ws_abc2",
+            "create database if not exists ws_abc2",
+        ])
+        .await?;
 
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
 
@@ -3493,7 +3496,7 @@ mod tests {
             r#"
         {
             "from": "tmq:///ws_abc1",
-            "to":"taos:///db2",
+            "to":"taos:///ws_abc2",
             "force": true
         }
         "#,
@@ -3521,7 +3524,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
     async fn test_max_activities_per_entity() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
@@ -3562,10 +3564,9 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn legacy_edition_check() -> anyhow::Result<()> {
+    async fn legacy_edition_check_with_taos() -> anyhow::Result<()> {
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
-        let from = Dsn::from_str("taos+ws://192.168.1.40:6041")?;
+        let from = Dsn::from_str("taos://")?;
         let to = Dsn::from_str("taos+ws://localhost:6041")?;
         license::validate_task(&from, &to, Some(&controller.pool)).await?;
         Ok(())
@@ -3573,7 +3574,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
-    async fn active_active_edition_check() -> anyhow::Result<()> {
+    async fn active_active_edition_check_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber_init();
         let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;
         let to = Dsn::from_str("taos+ws://localhost:6041/test")?;
@@ -3588,5 +3589,12 @@ mod tests {
         dbg!(&res);
         assert!(res.is_err());
         Ok(())
+    }
+
+    #[test]
+    fn test_parse_csv() {
+        let dsn = Dsn::from_str("csv:./ab.csv,./cd.csv?param=1").unwrap();
+        dbg!(&dsn);
+        assert_eq!(dsn.path.unwrap(), "./ab.csv,./cd.csv");
     }
 }

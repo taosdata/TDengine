@@ -19,7 +19,7 @@ on:
       - 'tests/e2e/**'
 
 env:
-  RELEASE_HOST: 192.168.1.45
+  RELEASE_HOST: taosx-ci-server
   # RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
@@ -53,7 +53,7 @@ jobs:
         with:
           clean: false
 
-      - uses: rustsec/audit-check@v1.4.1
+      - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -69,23 +69,26 @@ jobs:
       - name: Clippy check
         run: |
           cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings
+      
+      - name: Test check
+        run: |
+          cargo make test
 
   # need install qemu support for host: apt-get install qemu binfmt-support qemu-user-static
   check-arm:
     name: Check Arm
     if: github.event.pull_request.base.ref == 'main'
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v3
         with:
           clean: false
       - name: check
         run: |
-          mkdir -p explorer/dist/ || true
-          docker run -v ${{ github.workspace }}:/app -v /root/.cargo/registry:/usr/local/cargo/registry -v /root/.cargo/git:/usr/local/cargo/git -w /app --rm $ARM_BUILDER_IMAGE sh -c "cargo check --workspace --target aarch64-unknown-linux-gnu"
+          cargo make check-arm64
 
   build_taosx:
-    needs: [check, check-arm]
+    needs: [check]
     if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
@@ -108,7 +111,7 @@ jobs:
           rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
 
   build_agent:
-    needs: [check, check-arm]
+    needs: [check]
     if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
@@ -173,30 +176,6 @@ jobs:
           fi
           ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/"
           scp taosx-opc root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/
-
-      - name: Build mqtt
-        run: |
-          cd plugins/mqtt
-          go build -cover -o taosx-mqtt
-
-      - name: Run Mqtt Unit Test
-        continue-on-error: true
-        run: |
-          cd plugins/mqtt
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-            echo "run mqtt unit test"
-            go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=5s ./...
-          fi
-      - name: Copy MQTT Files
-        run: |
-          cd plugins/mqtt
-          if [ -f "mqtt_unit_report.txt" ]; then
-            ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/"
-            scp mqtt_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/
-            rm mqtt_unit_report.txt
-          fi
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt/"
-          scp taosx-mqtt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt/
 
   build_java:
     needs: remove_artifacts

@@ -153,12 +153,23 @@ function mergeTaskDetailParams(cfgParams, dataParams) {
             }
             if (cfgParams[i].hint?.type === 'timeout' || cfgParams[i].hint?.type === 'duration') {
                 // dataParams[key + '_type'] 不存在，则是纯字符串版本
-                cfgParams[i].type_value = dataParams[key] 
-                    ? dataParams[key].match(/[a-zA-Z]+$/) 
-                        ? dataParams[key].match(/[a-zA-Z]+$/)[0] 
-                        : cfgParams[i].type_value
-                    : '';
-                cfgParams[i].value = dataParams[key] ? dataParams[key].match(/\d+/)[0] : '';
+                // dataParams[key + '_type'] 不存在，则是纯字符串版本
+                if (!dataParams[key] || dataParams[key] === 'never') {
+                    cfgParams[i].value = '0';
+                    cfgParams[i].type_value = '';
+                } else {
+                    // 匹配类似 15s, 1m, 1h
+                    let duration = dataParams[key].match(/^(\d+)([a-zA-Z]+)$/);
+                    if (duration && duration.length === 3) {
+                        // 时长
+                        cfgParams[i].value = duration[1];
+                        // 时间单位
+                        cfgParams[i].type_value = duration[2];
+                    } else {
+                        cfgParams[i].value = '0';
+                        cfgParams[i].type_value = '';
+                    }
+                }
             }
         }
     }
@@ -254,7 +265,6 @@ export async function refreshTask(id) {
         }
     }
     taskDetail.from_detail = dsConfig;
-    console.log("taskDetail.from_detail:", dsConfig)
     return taskDetail;
 }
 
@@ -487,6 +497,16 @@ export function getVgroupProgress(id) {
         method: 'get',
     })
 }
+
+//  获取 csv 文件处理进度
+export function getCSVProgress(id) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/${id}/csv_files`,
+        method: 'get',
+    })
+}
+
 // 校验 opc 点位合法性
 export function validOpcFile(dsn) {
     return request({
@@ -541,3 +561,11 @@ export function getOpcCsvHeader(taskId) {
         method: "get",
     });
 }
+
+export function checkFileExist(filePath) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/check_exists?file_path=${filePath}`,
+        method: "get",
+    });
+  }

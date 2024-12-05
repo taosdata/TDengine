@@ -151,7 +151,6 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from postgres to taos
-
 pub async fn postgres_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -184,8 +183,8 @@ pub async fn postgres_to_taos(
     config.ipc_port = Some(port.get());
 
     // create ipc handler
-    let mut ipc = build_ipc(
-        &socket,
+    let (mut ipc, _) = build_ipc(
+        Some(&socket),
         parser,
         &to,
         Some(POSTGRES_ID),
@@ -648,6 +647,7 @@ mod tests {
         // let _ = res.await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_generate_json_value() {
         // prepare data

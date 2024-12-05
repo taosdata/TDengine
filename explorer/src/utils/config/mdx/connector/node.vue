@@ -2,28 +2,47 @@
   <div>
     <h2 id="install-connector">{{ $t("docs.connector.node.step1") }}</h2>
     <pre
-      v-highlight="
-        `npm install @tdengine/rest
-`
-      "
+      v-highlight="'npm install @tdengine/websocket'"
     ><code class="language-bash"></code></pre>
-    <doc-config :url="url" :token="token"></doc-config>
+    <doc-config :url="url" :need-token="false"></doc-config>
     <h2 id="connect">{{ $t("docs.connector.node.step3") }}</h2>
     <pre
       v-highlight
-    ><code class="language-javascript">const { options, connect } = require(&quot;@tdengine/rest&quot;);
+    ><code class="language-javascript">const taos = require("@tdengine/websocket");
+const dsn = process.env.TDENGINE_URL;
 
 async function test() {
-  options.url = process.env.TDENGINE_URL;
-  options.query = { token: process.env.TDENGINE_TOKEN };
-  let conn = connect(options);
-  let cursor = conn.cursor();
-  try {
-    let res = await cursor.query(&quot;show databases&quot;);
-    res.toString();
+    let conn = null;
+    try {
+        let conf = new taos.WSConfig(dsn);
+        conf.setUser('root');
+        conf.setPwd('taosdata');
+        conn = await taos.sqlConnect(conf);
+        console.log("Connected to " + dsn + " successfully.");
   } catch (err) {
-    console.log(err);
+    console.log("Failed to connect to " + dsn + ", ErrCode: " + err.code + ", ErrMessage: " + err.message);
+    return;
   }
+
+  let wsRows = null;
+    try {
+        wsRows = await conn.query("show databases");
+        while (await wsRows.next()) {
+            let row = wsRows.getData();
+            console.log('database: ' + row[0] );
+        }
+    console.log("successfully!")
+    } catch (err) {
+        console.error(`Failed to query data from power.meters, sql: ${sql}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        return;
+    } finally {
+        if (wsRows) {
+            await wsRows.close();
+        }
+    if (conn) {
+            await conn.close();
+        }
+    }
 }
 
 test();

@@ -8,9 +8,10 @@ members = [
   "crates/arrow-cast-guess-precision",
   "crates/futures-ext",
   "crates/taoslog",
+  "crates/tokio-cron-scheduler",
   "explorer/server",
+  "tests/tools",
 ]
-
 exclude = ["crates/transform/parsers/hebeipower"]
 
 [workspace.dependencies]
@@ -18,6 +19,7 @@ chrono = { version = "0.4.37" }
 chrono-tz = { version = "0.10.0" }
 shadow-rs = { version = "0.35.0" }
 itertools = { version = "0.13.0" }
+flume = { version = "0.11" }
 
 clap = { version = "4.5.19", features = ["default", "derive"] }
 
@@ -49,7 +51,7 @@ fundu = "2.0.1"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-version = "0.12"
+rev = "fa2521c"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
@@ -76,26 +78,24 @@ description = "taosX - TDengine data integration tool"
 anyhow = "1"
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
-faststr = { workspace = true }
 zerocopy = { workspace = true }
 
-humantime = "2.1"
 multi_index_map = "0.11.0"
 scc = { version = "2.2.0", features = ["serde"] }
 semver = "1.0.22"
 shadow-rs = { workspace = true }
 strum = { version = "0.26.3", features = ["derive"] }
 
-twelf = { version = "0.15.0", default-features = false, features = ["toml", "env", "clap"] }
+twelf = { version = "0.15.0", default-features = false, features = [
+  "toml",
+  "env",
+  "clap",
+] }
 
-async-compression = { version = "0.4.13", features = ["all"] }
 async-trait = "0.1.83"
-bitflags = "2"
 chrono = { workspace = true }
 clap = { workspace = true, features = ["default", "derive", "env"] }
 clap-verbosity-flag = "2.2.2"
-config = "0.14.0"
-convert_case = "0.6.0"
 csv = "1.2"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 dashmap = { workspace = true }
@@ -105,16 +105,24 @@ itertools = { version = "0.13.0" }
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = { version = "0.4", features = ["serde"] }
-parquet = { workspace = true }
-regex = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"
-sha2 = "0.10"
 thiserror = "1"
-tokio = { version = "1.39.3", features = ["rt", "rt-multi-thread", "io-util", "io-std", "net", "time", "process", "macros", "sync", "signal", "fs"] }
+tokio = { version = "1.39.3", features = [
+  "rt",
+  "rt-multi-thread",
+  "io-util",
+  "io-std",
+  "net",
+  "time",
+  "process",
+  "macros",
+  "sync",
+  "signal",
+  "fs",
+] }
 tokio-util = { version = "0.7" }
 toml = "0.8.19"
-zstd = "0.13.0"
 
 actix-cors = "0.7.0"
 actix-files = "0.6.6"
@@ -122,12 +130,16 @@ actix-multipart = "0.7.2"
 actix-web = "4"
 actix-ws = "0.3.0"
 base64 = "0.22.1"
-cfg-if = "1.0.0"
 serde_json = { version = "1.0", features = ["raw_value"] }
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "json"] }
 utoipa = { version = "4.2.0", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "7.1.0", features = ["actix-web"] }
-uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
+uuid = { version = "1.4.0", features = [
+  "v4",
+  "fast-rng",
+  "macro-diagnostics",
+  "serde",
+] }
 
 # tonic version is restricted by arrow-flight
 socket2 = "0.5"
@@ -137,7 +149,9 @@ tonic = { workspace = true, features = ["tls", "tls-roots", "gzip"] }
 # lru = "0.7.5"
 const_format = "0.2.30"
 metrics = { workspace = true }
-metrics-exporter-prometheus = { version = "0.15.3", default-features = false, features = ["push-gateway"] }
+metrics-exporter-prometheus = { version = "0.15.3", default-features = false, features = [
+  "push-gateway",
+] }
 metrics-tracing-context = { workspace = true }
 metrics-util = { workspace = true }
 sysinfo = { workspace = true }
@@ -147,11 +161,9 @@ dotenv = "0.15.0"
 
 flume = "0.11.0"
 futures-util = "0.3.31"
-r2d2 = "0.8.10"
 serde_with.workspace = true
-tokio-cron-scheduler = { git = "https://github.com/zitsen/tokio-cron-scheduler.git" }
+tokio-cron-scheduler = { path = "crates/tokio-cron-scheduler" }
 
-bitvec = "1"
 mimalloc = { version = "0.1.43", default-features = false, optional = true }
 tempfile = "3.13.0"
 
@@ -160,18 +172,19 @@ jsonwebtoken = "9.1.0"
 rand = "0.8"
 
 console-subscriber = { version = "0.4.0", optional = true }
-file-rotate = "0.7.5"
-md5 = "0.7.0"
-opentelemetry = { version = "*" }
-opentelemetry-otlp = { version = "*" }
-opentelemetry_sdk = { version = "*" }
+opentelemetry = { version = "0.26.0" }
+opentelemetry-otlp = { version = "0.26.0" }
+opentelemetry_sdk = { version = "0.26.0" }
 reqwest = { version = "0.12.8", features = ["json"] }
 taosx-ipc = { path = "./taosx-ipc" }
-time = { version = "0.3", features = ["formatting", "macros"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-actix-web = "0.7.13"
 tracing-opentelemetry = { version = "0.27.0" }
-tracing-subscriber = { version = "0.3", features = ["time", "local-time", "env-filter"] }
+tracing-subscriber = { version = "0.3", features = [
+  "time",
+  "local-time",
+  "env-filter",
+] }
 
 gethostname = "0.5.0"
 prettytable = "0.10.0"
@@ -182,11 +195,13 @@ taosx-metrics = { path = "./taosx-metrics" }
 notify = "6.1.1"
 taoslog.workspace = true
 
-parse-size = "~1.0.0"
-
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.6.0", optional = true }
-tikv-jemalloc-sys = { version = "0.6.0", features = ["unprefixed_malloc_on_supported_platforms", "stats", "profiling"], optional = true }
+tikv-jemalloc-sys = { version = "0.6.0", features = [
+  "unprefixed_malloc_on_supported_platforms",
+  "stats",
+  "profiling",
+], optional = true }
 tikv-jemalloc-ctl = { version = "0.6.0", optional = true }
 jemalloc_pprof = { version = "0.6.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
 
@@ -195,6 +210,9 @@ sqlx = { version = "0.8", features = ["sqlite", "chrono", "mysql"] }
 dotenv = "0.15.0"
 
 shadow-rs = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = "2"
 
 [features]
 default = ["native-tls", "mimalloc"]

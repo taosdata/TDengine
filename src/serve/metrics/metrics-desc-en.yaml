@@ -38,6 +38,7 @@ messages: Total number of messages received via TMQ in this task run
 messages_of_meta: Total number of messages with type "Meta" received via TMQ in this task run
 messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ in this task run
 write_raw_fails: Total times of failed to write TMQ messages in this task run
+success_messages: Total number of messages succeeded via TMQ in this task run
 total_received_batches: Total number of data batches received via IPC Stream
 total_processed_batches: Total number of data batches successfully processed by taosx
 total_failed_batches: Total number of data batches failed to process
@@ -51,6 +52,7 @@ total_drained_rows: Total number of rows filtered out to write in case of timest
 total_failed_points: Total number of points failed to write
 total_written_raw_blocks: Total number of raw blocks successfully written
 total_failed_raw_blocks: Total number of raw blocks failed to write
+total_success_messages: Total number of messages successfully written
 received_batches: Number of data batches received via IPC Stream in this task run
 processed_batches: Number of data batches successfully processed by taosx in this task run
 failed_batches: Number of data batches failed to process in this task run
@@ -69,3 +71,17 @@ kafka_total_partitions: Total number of partitions of Kafka topic
 kafka_consuming_partitions: Number of partitions being consumed
 kafka_consumed_messages: Number of messages has been consumed
 total_kafka_consumed_messages: Total consumed messages since task started
+mqtt_fetched_messages: Total number of messages fetched in this task run
+mqtt_dumped_messages: Number of messages dumped in this task run 
+mqtt_fetched_acks: Total number of ACKs received in this task run
+mqtt_ack_fails: Total number of ACK failures in this task run
+mqtt_unprocessed_messages: Number of messages currently in the cache queue in this task run
+mqtt_processing_batches: Number of batches currently being processed in this task run
+mqtt_discarded_messages: Number of messages discarded in this task run
+mqtt_discarded_dump_messages: Number of messages discarded by the dump operation during this task run
+total_csv_files: Total number of CSV files
+total_csv_files_completed: Total number of CSV files completed
+total_csv_files_completed_rows: Total number of rows in CSV files completed
+csv_files: Number of CSV files
+csv_files_completed: Number of CSV files completed in this task run
+csv_files_completed_rows: Number of rows in CSV files completed in this task run

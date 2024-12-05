@@ -97,8 +97,8 @@ pub async fn opentsdb_to_taos(
     let exec_span = tracing::info_span!("extern plugin exec", plugin.name = "opentsdb");
 
     // create socket channel
-    let mut ipc_handler = build_ipc(
-        &format!("127.0.0.1:{}", ipc_port),
+    let (mut ipc_handler, _) = build_ipc(
+        Some(&format!("127.0.0.1:{}", ipc_port)),
         None,
         &to,
         Some("opentsdb"),

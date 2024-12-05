@@ -45,6 +45,7 @@ use crate::runners::kafka::config::connect::KafkaConnectConfig;
 use crate::runners::kafka::config::KafkaTaskConfig;
 use crate::runners::set_tcp_keepalive;
 use crate::sink::ipc_metric::IpcMetrics;
+use crate::utils::codec::{Processor, StringDecoder};
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
@@ -163,6 +164,8 @@ async fn get_sample_impl(
     };
     consumer.assign(&tp_list).unwrap();
 
+    let processor = KafkaTaskConfig::parse_codec_processor(dsn)?;
+
     // polling message from kafka
     let start = Utc::now().timestamp();
     let mut count = 0;
@@ -173,7 +176,9 @@ async fn get_sample_impl(
             match msg {
                 Ok(m) => {
                     if let Some(p) = m.payload() {
-                        payload_list.push(String::from_utf8_lossy(p).to_string());
+                        let payload = processor.process(p.to_vec())?;
+                        payload_list
+                            .push(String::from_utf8(payload).context("payload not valid string")?);
                     }
                 }
                 Err(err) => {
@@ -269,8 +274,8 @@ pub async fn kafka_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for Kafka connection"))?;
     let socket = format!("127.0.0.1:{}", ipc_port);
-    let mut ipc = build_ipc(
-        &socket,
+    let (mut ipc, _) = build_ipc(
+        Some(&socket),
         parser,
         &to,
         Some(KAFKA_ID),
@@ -552,7 +557,7 @@ async fn execute(
                 let mut errors = 0;
                 let mut last_errors = std::time::Instant::now();
                 const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(300);
-                const MAX_RETRY_TIMES: usize = 5;
+                const MAX_RETRY_TIMES: usize = 3;
                 loop {
                     match poll_message(
                         idx,
@@ -565,6 +570,7 @@ async fn execute(
                         batch_size,
                         batch_timeout_ms,
                         &notify,
+                        config.codec_processor,
                     )
                     .in_current_span()
                     .await
@@ -577,8 +583,9 @@ async fn execute(
                             if last_errors.elapsed() >= MAX_RETRY_INTERVAL {
                                 errors = 0;
                             }
+                            errors += 1;
                             let error = format!("{err:#}");
-                            if errors < MAX_RETRY_TIMES {
+                            if errors <= MAX_RETRY_TIMES {
                                 let context = consumer.context().clone();
                                 drop(consumer);
                                 context.metrics().sub_extra_metric(&METRIC_CONSUMERS, 1);
@@ -629,7 +636,6 @@ async fn execute(
                                 continue;
                             }
                             last_errors = std::time::Instant::now();
-                            errors += 1;
                             warn!(error, "Kafka consuming error");
                             Err(err)?;
                         }
@@ -810,6 +816,10 @@ struct MessagesSender<'a> {
     last_sent: i64,
     runtime_polling: Instant,
 
+    // codec
+    codec_processor: Option<StringDecoder>,
+    codec_err_count: usize,
+
     // Builders
     timestamp: TimestampNanosecondBuilder,
     topic: StringBuilder,
@@ -846,13 +856,28 @@ impl<'a> MessagesSender<'a> {
             for msg in iter {
                 offset.replace(msg.offset());
                 if let Some(s) = msg.payload() {
+                    let value = match self.codec_processor.process(s.to_vec()) {
+                        Ok(payload) => {
+                            self.codec_err_count = 0;
+                            payload
+                        }
+                        Err(e) => {
+                            tracing::error!("codec process message error: {e:#}");
+                            self.codec_err_count += 1;
+                            if self.codec_err_count < 3 {
+                                continue;
+                            }
+
+                            return Err(e);
+                        }
+                    };
                     self.timestamp
                         .append_value(Utc::now().timestamp_nanos_opt().unwrap());
                     self.topic.append_value(msg.topic());
                     self.partition.append_value(msg.partition());
                     self.offset.append_value(msg.offset());
                     self.key.append_value(msg.key().unwrap_or(&[]));
-                    self.value.append_value(s);
+                    self.value.append_value(value);
                 }
             }
             let offset = offset.expect("offset should always exist");
@@ -1104,6 +1129,7 @@ async fn poll_message<'a>(
     batch_size: usize,
     batch_timeout_ms: i64,
     notify: &crate::TaskNotifySender,
+    codec_processor: Option<StringDecoder>,
 ) -> anyhow::Result<ExitStatus> {
     const MAX_READY_CHUNK_SIZE: usize = 100;
 
@@ -1136,6 +1162,8 @@ async fn poll_message<'a>(
         last_polling: chrono::Utc::now().timestamp_millis(),
         last_sent: chrono::Utc::now().timestamp_millis(),
         runtime_polling: Instant::now(),
+        codec_processor,
+        codec_err_count: 0,
         timestamp,
         topic,
         partition,
@@ -1747,31 +1775,5 @@ mod tests {
             .filter(|tp| topics.contains(&tp.name().to_string()))
             .collect::<Vec<_>>();
         dbg!(topics_readable.len());
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn produce_messages() {
-        use rdkafka::config::ClientConfig;
-        use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
-        use rdkafka::util::Timeout;
-
-        let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", "kafka:9092")
-            .create()
-            .unwrap();
-
-        for _ in 0..300 {
-            producer
-                .send(
-                    FutureRecord::to("tp1")
-                        .payload(r#"{"a": 1725518745000, "c": 3}"#)
-                        .key("key"),
-                    Timeout::Never,
-                )
-                .await
-                .unwrap();
-        }
-        producer.flush(std::time::Duration::from_secs(5)).unwrap();
     }
 }

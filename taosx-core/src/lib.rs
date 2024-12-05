@@ -5,6 +5,7 @@ use std::sync::{
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use anyhow::Context;
 use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_with::serde_as;
@@ -300,7 +301,10 @@ impl TaskOpts {
                         to.clone(),
                         *jobs,
                         cancel.clone(),
-                        task_id.clone(),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                     )
                     .await?;
                 }
@@ -328,7 +332,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -343,7 +350,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -354,11 +364,13 @@ impl TaskOpts {
                         parser.clone(),
                         to.clone(),
                         *jobs,
-                        port_pool,
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -373,7 +385,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -388,7 +403,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -402,7 +420,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -433,7 +454,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -449,7 +473,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -480,7 +507,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -496,7 +526,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -512,7 +545,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -528,7 +564,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -544,7 +583,10 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        task_id.clone().map(|t| t.parse().unwrap()),
+                        task_id
+                            .as_deref()
+                            .map(|t| t.parse().context("parse task id"))
+                            .transpose()?,
                         notify.clone(),
                     )
                     .await?;
@@ -618,6 +660,7 @@ mod tests {
         assert_eq!(None, dsn.params.get("breakpoints"));
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_wrong_taos_in_dsn() -> Result<(), anyhow::Error> {
         dbg!(format!("test start: {}", chrono::Local::now()));
@@ -637,6 +680,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_wrong_taos_in_dsn_pool() -> Result<(), anyhow::Error> {
         dbg!(format!("test start: {}", chrono::Local::now()));

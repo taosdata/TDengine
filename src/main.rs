@@ -221,7 +221,6 @@ struct LogOpts {
         default_missing_value = "true",
         value_parser = compress_arg_parser,
     )]
-
     /// Enable compress for log files.
     #[serde_as(as = "Option<FromInto<CompressType>>")]
     compress: Option<bool>,
@@ -609,12 +608,13 @@ fn init_tracing_layers(
             .boxed(),
     );
 
-    // layers.push(filter_layer.boxed());
-
     // Enable console subscriber
     #[cfg(feature = "tokio-tracing")]
     {
         layers.push(console_subscriber::spawn().boxed());
+        env_filter = env_filter
+            .add_directive("tokio=trace".parse()?)
+            .add_directive("runtime=trace".parse()?);
     }
 
     let layered;

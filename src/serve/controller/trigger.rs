@@ -254,7 +254,7 @@ impl StopCondition {
         }
     }
 
-    /// Similar to `should_stop` but also check the result.
+    // Similar to `should_stop` but also check the result.
     // pub fn should_stop_with(&self, result: &Result<(), anyhow::Error>) -> bool {
     //     match self {
     //         StopCondition::Never => false,
@@ -384,10 +384,10 @@ impl FromStr for Strategy {
             Ok(trigger)
         } else {
             debug_assert!(s.starts_with("schedule:"));
-            return Ok(Strategy {
+            Ok(Strategy {
                 schedule: Some(s.trim_start_matches("schedule:").to_string()),
                 ..Default::default()
-            });
+            })
         }
     }
 }

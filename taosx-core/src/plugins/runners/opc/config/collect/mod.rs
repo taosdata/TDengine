@@ -1,6 +1,5 @@
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use taos::Dsn;
 
 use crate::runners::opc::config::collect::da::DaCollectConfig;
@@ -91,9 +90,110 @@ impl CollectConfig {
     }
 }
 
+/// 从 dsn 的参数 ua.nodes/da.tags 中解析出
+pub async fn parse_opc_node_ids(dsn: &Dsn, param_key: &str) -> anyhow::Result<Vec<String>> {
+    let param_val = dsn
+        .params
+        .get(param_key)
+        .and_then(|s| if s.is_empty() { None } else { Some(s) })
+        .ok_or(anyhow::anyhow!(""))?;
+
+    let mut node_ids = vec![];
+    for node in param_val
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        let node_id = node.split_once("::").map(|(id, _)| id).unwrap_or(node);
+        node_ids.push(node_id.to_string());
+    }
+
+    Ok(node_ids)
+}
+
+// pub fn get_string_vec_from_param_or_file_for_opc(
+//     dsn: &mut Dsn,
+//     key: &str,
+// ) -> Result<Vec<String>, String> {
+//     if let Some(nodes) = dsn.remove(key) {
+//         let mut rdr = ReaderBuilder::new()
+//             .delimiter(b',')
+//             .from_reader(nodes.as_bytes());
+//         let header = rdr.headers().map_err(|err| err.to_string())?;
+//         let (files, mut node_config): (Vec<_>, Vec<_>) = header
+//             .into_iter()
+//             // .split(",")
+//             .map(|s| s.trim())
+//             .filter(|s| !s.is_empty())
+//             .map(|s| s.to_string())
+//             .partition(|v| v.starts_with("@"));
+//         // dbg!(&files, &node_config);
+//         for file in files {
+//             tracing::info!(
+//                 "current log: {}",
+//                 std::env::current_dir().unwrap().to_str().unwrap()
+//             );
+//             let f = std::fs::File::open(&file[1..]);
+//             if f.is_err() {
+//                 tracing::warn!(
+//                     "file: {} read error, cause: {}",
+//                     &file[1..],
+//                     f.err().unwrap()
+//                 );
+//                 continue;
+//                 // return Err("file read error".to_string());
+//             }
+//             let buf = std::io::BufReader::new(f.unwrap());
+//             let mut file_data = buf.lines().collect_vec();
+//             // remove header
+//             if file_data.remove(0).is_err() {
+//                 tracing::warn!("file: {} content length < 1", file);
+//             }
+//
+//             node_config.extend(
+//                 file_data
+//                     .iter()
+//                     .filter_map(|r| r.as_ref().ok())
+//                     .map(|s| s.replace(",", "::")),
+//             );
+//         }
+//         if node_config.is_empty() {
+//             tracing::warn!("node config is empty");
+//             // return Err(format!("node config set but is empty: {nodes}"));
+//         }
+//         return Ok(node_config);
+//     }
+//     // tracing::warn!("node config is empty");
+//     Err("Nodes not set".to_string())
+// }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use taos::IntoDsn;
+
+    #[tokio::test]
+    async fn test_parse_opc_node_ids_in_dsn() {
+        // given
+        let dsn = "opcda://?ua.nodes=ns=3;i=1001,ns=3;i=1003"
+            .into_dsn()
+            .unwrap();
+        // when
+        let node_ids = parse_opc_node_ids(&dsn, "ua.nodes").await.unwrap();
+        // then
+        assert_eq!(node_ids.len(), 2);
+        assert_eq!(node_ids[0], "ns=3;i=1001");
+        assert_eq!(node_ids[1], "ns=3;i=1003");
+
+        // given
+        let dsn = "opcda://?da.tags=tag3::tb3,tag4::tb4".into_dsn().unwrap();
+        // when
+        let node_ids = parse_opc_node_ids(&dsn, "da.tags").await.unwrap();
+        // then
+        assert_eq!(node_ids.len(), 2);
+        assert_eq!(node_ids[0], "tag3");
+        assert_eq!(node_ids[1], "tag4");
+    }
 
     #[test]
     fn test_parse_interval() {
