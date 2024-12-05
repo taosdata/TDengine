@@ -1848,7 +1848,6 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         // bind column
       } else {
         pCxt->tags.mixTagsCols = true;
-        pCxt->tags.pColIndex = pStbRowsCxt->boundColsInfo.pColIndex;
         pCxt->tags.numOfBound++;
         pCxt->tags.numOfCols++;
       }
@@ -1894,6 +1893,16 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         code = buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
       }
     }
+  }
+
+  if (pCxt->isStmtBind && pCxt->tags.mixTagsCols) {
+    taosMemoryFreeClear(pCxt->tags.pColIndex);
+    pCxt->tags.pColIndex = taosMemoryCalloc(pStbRowsCxt->boundColsInfo.numOfBound, sizeof(int16_t));
+    if (NULL == pCxt->tags.pColIndex) {
+      return terrno;
+    }
+    (void)memcpy(pCxt->tags.pColIndex, pStbRowsCxt->boundColsInfo.pColIndex,
+                 sizeof(int16_t) * pStbRowsCxt->boundColsInfo.numOfBound);
   }
   return code;
 }

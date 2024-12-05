@@ -741,7 +741,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     if (colFormat) {
       SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, 0);
-      if (pCol->nVal <= 0) {
+      if (pCol && pCol->nVal <= 0) {
         p = taosHashIterate(pTableHash, p);
         continue;
       }
