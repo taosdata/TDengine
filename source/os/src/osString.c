@@ -184,7 +184,8 @@ int32_t taosStr2Uint64(const char *str, uint64_t *val) {
   if (str == NULL || val == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  char    *endptr = NULL;
+  char *endptr = NULL;
+  errno = 0;
   uint64_t ret = strtoull(str, &endptr, 10);
   if (errno == ERANGE && (ret == ULLONG_MAX)) {
     return TAOS_SYSTEM_ERROR(errno);
