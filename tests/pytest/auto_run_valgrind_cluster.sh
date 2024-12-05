@@ -5,6 +5,8 @@ export PATH=$PATH:/home/TDengine/debug/build/bin
 export LD_LIBRARY_PATH=/home/TDengine/debug/build/lib
 ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
 ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+ln -s /home/TDengine/debug/build/lib/libtaosinternal.so /usr/lib/libtaosinternal.so 2>/dev/null
+ln -s /home/TDengine/debug/build/lib/libtaosinternal.so /usr/lib/libtaosinternal.so.1 2>/dev/null
 ln -s /home/TDengine/include/client/taos.h /usr/include/taos.h 2>/dev/null
 ln -s /home/TDengine/include/client/taosinternal.h /usr/include/taosinternal.h 2>/dev/null
 

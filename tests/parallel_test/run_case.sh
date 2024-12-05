@@ -50,6 +50,8 @@ if [ $ent -eq 0 ]; then
     export LD_LIBRARY_PATH=/home/TDengine/debug/build/lib
     ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
     ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+    ln -s /home/TDengine/debug/build/lib/libtaosinternal.so /usr/lib/libtaosinternal.so 2>/dev/null
+    ln -s /home/TDengine/debug/build/lib/libtaosinternal.so /usr/lib/libtaosinternal.so.1 2>/dev/null
     ln -s /home/TDengine/include/client/taos.h /usr/include/taos.h 2>/dev/null
     ln -s /home/TDengine/include/client/taosinternal.h /usr/include/taosinternal.h 2>/dev/null
     ln -s /home/TDengine/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
@@ -61,6 +63,8 @@ else
     export LD_LIBRARY_PATH=/home/TDinternal/debug/build/lib
     ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
     ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+    ln -s /home/TDinternal/debug/build/lib/libtaosinternal.so /usr/lib/libtaosinternal.so 2>/dev/null
+    ln -s /home/TDinternal/debug/build/lib/libtaosinternal.so /usr/lib/libtaosinternal.so.1 2>/dev/null
     ln -s /home/TDinternal/community/include/client/taos.h /usr/include/taos.h 2>/dev/null
     ln -s /home/TDinternal/community/include/client/taosinternal.h /usr/include/taosinternal.h 2>/dev/null
     ln -s /home/TDinternal/community/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
@@ -77,6 +81,8 @@ ulimit -c unlimited
 
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
+md5sum /usr/lib/libtaosinternal.so.1
+md5sum /home/TDinternal/debug/build/lib/libtaosinternal.so
 
 #get python connector and update: taospy 2.7.16 taos-ws-py 0.3.5
 pip3 install taospy==2.7.16 
@@ -86,6 +92,8 @@ RET=$?
 echo "cmd exit code: $RET"
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
+md5sum /usr/lib/libtaosinternal.so.1
+md5sum /home/TDinternal/debug/build/lib/libtaosinternal.so
 
 
 if [ $RET -ne 0 ]; then

@@ -17,10 +17,10 @@ BEGIN
         BEGIN
             VALUE "FileDescription", "Internal C Driver for TDengine"
             VALUE "FileVersion", "${TD_VER_NUMBER}"
-            VALUE "InternalName", "taos.dll(${TD_VER_CPUTYPE})"
+            VALUE "InternalName", "taosinternal.dll(${TD_VER_CPUTYPE})"
             VALUE "LegalCopyright", "Copyright (C) 2024 TAOS Data"
             VALUE "OriginalFilename", ""
-            VALUE "ProductName", "taos.dll(${TD_VER_CPUTYPE})"
+            VALUE "ProductName", "taosinternal.dll(${TD_VER_CPUTYPE})"
             VALUE "ProductVersion", "${TD_VER_NUMBER}"
         END
     END

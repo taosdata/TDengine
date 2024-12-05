@@ -177,9 +177,11 @@ remove_bin() {
 function clean_lib() {
   # Remove link
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
+  [ -f ${lib_link_dir}/libtaosinternal.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosinternal.* || :
   [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
 
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+  [ -f ${lib64_link_dir}/libtaosinternal.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosinternal.* || :
   [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}           || :
 }

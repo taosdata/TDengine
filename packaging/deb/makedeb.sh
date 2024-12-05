@@ -30,6 +30,7 @@ mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
 libfile="libtaos.so.${tdengine_ver}"
+internallibfile="libtaosinternal.so.${tdengine_ver}"
 wslibfile="libtaosws.so"
 
 # create install dir
@@ -111,6 +112,7 @@ fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
+cp ${compile_dir}/build/lib/${internallibfile}      ${pkg_dir}${install_home_path}/driver
 [ -f ${compile_dir}/build/lib/${wslibfile} ] && cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver ||:
 cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/client/taosinternal.h  ${pkg_dir}${install_home_path}/include
