@@ -97,73 +97,73 @@ fi
 #git merge master
 #git push origin release/v$version
 
-# modify tar.gz to append taoskeeper
-cd $communityDir/release
-rm -rf build-taoskeeper
+# # modify tar.gz to append taoskeeper
+# cd $communityDir/release
+# rm -rf build-taoskeeper
 
-server_tar=$(ls *-enterprise-*.tar.gz | grep -v client)
-[ "$server_tar" == "" ] && exit # build taoskeeper only with server
+# server_tar=$(ls *-enterprise-*.tar.gz | grep -v client)
+# [ "$server_tar" == "" ] && exit # build taoskeeper only with server
 
-echo "build taoskeeper"
-if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
-  arch=amd64
-elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
-  arch=386
-elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
-  arch=arm
-elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
-  arch=arm64
-else
-  arch=$cpuType
-fi
+# echo "build taoskeeper"
+# if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
+#   arch=amd64
+# elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
+#   arch=386
+# elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
+#   arch=arm
+# elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
+#   arch=arm64
+# else
+#   arch=$cpuType
+# fi
 
-if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
-  taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version`
-else
-  taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version -N ${cusName} -M ${cusEmail} -P ${cusPrompt}`
-fi
+# if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
+#   taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version`
+# else
+#   taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version -N ${cusName} -M ${cusEmail} -P ${cusPrompt}`
+# fi
 
-set -e
-# unpack server package and repack with taoskeeper binary and service file.
-prefix=$(echo $server_tar |grep -Eo ".*-enterprise-[^\-]+")
-tar xf $server_tar
-[ -d "$prefix/taos" ] || mkdir $prefix/taos
-tar xf $prefix/package.tar.gz -C $prefix/taos/
-cp -f $taoskeeper_binary $prefix/taos/bin/
-cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
-cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
-cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
-rm -rf $prefix/taos
-tar acf $server_tar $prefix
-echo "append taoskeeper to enterprise server package"
-rm -rf $prefix/
-rm -rf build-taoskeeper
+# set -e
+# # unpack server package and repack with taoskeeper binary and service file.
+# prefix=$(echo $server_tar |grep -Eo ".*-enterprise-[^\-]+")
+# tar xf $server_tar
+# [ -d "$prefix/taos" ] || mkdir $prefix/taos
+# tar xf $prefix/package.tar.gz -C $prefix/taos/
+# cp -f $taoskeeper_binary $prefix/taos/bin/
+# cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
+# cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
+# cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
+# rm -rf $prefix/taos
+# tar acf $server_tar $prefix
+# echo "append taoskeeper to enterprise server package"
+# rm -rf $prefix/
+# rm -rf build-taoskeeper
 
-# copy TDengine package to nas [optional]
-if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
-    cd $archiveDir
-    cp -f $communityDir/release/* ./
+# # copy TDengine package to nas [optional]
+# if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
+#     cd $archiveDir
+#     cp -f $communityDir/release/* ./
 
-    if [ $skip == 0 ]; then
-      # copy client package to server if password free is set
-      ssh root@taosdata.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
-      if [ $? = 0 ]; then
-        scp $communityDir/release/*client* root@taosdata.com:/data/www/assets-download/3.0/
-        if [ $? > 0 ]; then
-          echo "copy client package to taosdata server failed"
-        fi
-      fi
+#     if [ $skip == 1 ]; then
+#       # copy client package to server if password free is set
+#       ssh root@taosdata.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
+#       if [ $? = 0 ]; then
+#         scp $communityDir/release/*client* root@taosdata.com:/data/www/assets-download/3.0/
+#         if [ $? > 0 ]; then
+#           echo "copy client package to taosdata server failed"
+#         fi
+#       fi
       
-      ssh ubuntu@tdengine.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
-      if [ $? = 0 ]; then
-        scp $communityDir/release/*client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
-        if [ $? > 0 ]; then
-          echo "copy client package to TDengine server failed"
-        fi
-      fi
-    fi
-else
-    echo "Cannot find $archiveDir on this machine"
-fi
+#       ssh ubuntu@tdengine.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
+#       if [ $? = 0 ]; then
+#         scp $communityDir/release/*client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+#         if [ $? > 0 ]; then
+#           echo "copy client package to TDengine server failed"
+#         fi
+#       fi
+#     fi
+# else
+#     echo "Cannot find $archiveDir on this machine"
+# fi
 
 echo " packaging release done! "
