@@ -41,6 +41,10 @@
 #include "cus_name.h"
 #endif
 
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "tao"
+#endif
+
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
@@ -936,14 +940,10 @@ void taos_init_imp(void) {
   taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
   deltaToUtcInitOnce();
 
-  char logDirName[64] = {0};
-#ifdef CUS_PROMPT
-  snprintf(logDirName, 64, "%slog", CUS_PROMPT);
-#else
-  (void)snprintf(logDirName, 64, "taoslog");
-#endif
-  if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
+  const char *logName = CUS_PROMPT "slog";
+  ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
+  if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
+    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
     tscInitRes = -1;
     return;
   }

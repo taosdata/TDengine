@@ -1724,9 +1724,8 @@ void syncNodeResetElectTimer(SSyncNode* pSyncNode) {
     electMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
   }
 
-  // TODO check return value
   if ((code = syncNodeRestartElectTimer(pSyncNode, electMS)) != 0) {
-    sError("vgId:%d, failed to restart elect timer since %s", pSyncNode->vgId, tstrerror(code));
+    sWarn("vgId:%d, failed to restart elect timer since %s", pSyncNode->vgId, tstrerror(code));
     return;
   };
 

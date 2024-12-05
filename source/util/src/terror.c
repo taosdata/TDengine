@@ -814,6 +814,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_UNSUPPORTED_FUNC,          "Tsma func not suppo
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_MUST_BE_DROPPED,           "Tsma must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NAME_TOO_LONG,             "Tsma name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_RECURSIVE_INTERVAL,"Invalid recursive tsma interval")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_AUTO_OFFSET,       "TSMA optimization cannot be applied with INTERVAL AUTO offset. Use SKIP_TSMA hint to skip TSMA optimization or specify a manual offset.")
 
 //rsma
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")

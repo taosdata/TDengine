@@ -17,7 +17,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
 
-![avevaHistorian-01.png](pic/avevaHistorian-01.png)
+![aveva-historian-01.png](pic/aveva-historian-01.png)
 
 ### 2. 配置基本信息
 
@@ -25,11 +25,11 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 在 **类型** 下拉列表中选择 **AVEVA Historian**。
 
-**代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮 
+**代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮
 
 在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮
 
-![avevaHistorian-02.png](pic/avevaHistorian-02.png)
+![aveva-historian-02.png](pic/aveva-historian-02.png)
 
 ### 3. 配置连接信息
 
@@ -39,7 +39,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 点击 **连通性检查** 按钮，检查数据源是否可用。
 
-![avevaHistorian-03.png](pic/avevaHistorian-03.png)
+![aveva-historian-03.png](pic/aveva-historian-03.png)
 
 ### 4. 配置采集信息
 
@@ -61,7 +61,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 在 **查询的时间窗口** 中，填写一个时间间隔，数据迁移任务将按照这个时间间隔划分时间窗口。
 
-![avevaHistorian-04.png](pic/avevaHistorian-04.png)
+![aveva-historian-04.png](pic/aveva-historian-04.png)
 
 #### 4.2. 同步 History 表的数据
 
@@ -83,7 +83,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 在 **乱序时间上限** 中，填写一个时间间隔，实时数据同步过程中，超过这个时间才入库的数据可能会丢失。
 
-![avevaHistorian-05.png](pic/avevaHistorian-05.png)
+![aveva-historian-05.png](pic/aveva-historian-05.png)
 
 #### 4.3. 同步 Live 表的数据
 
@@ -97,7 +97,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 在 **实时同步的时间间隔** 中，填写一个时间间隔，实时数据部分将按照这个时间间隔轮询数据。
 
-![avevaHistorian-06.png](pic/avevaHistorian-06.png)
+![aveva-historian-06.png](pic/aveva-historian-06.png)
 
 ### 5. 配置数据映射
 
@@ -105,7 +105,8 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 点击 **从服务器检索** 按钮，从 AVEVA Historian 服务器获取示例数据。
 
-在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 vValue 字段拆分成 `vValue_0` 和 `vValue_1` 这 2 个字段，选择 split 提取器，seperator 填写分割符 `,`, number 填写 2。
+在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 vValue 字段拆分成 `vValue_0` 和 `vValue_1` 这 2 个字段，选择
+split 提取器，seperator 填写分割符 `,`, number 填写 2。
 
 在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine。
 
@@ -113,7 +114,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 点击 **预览**，可以查看映射的结果。
 
-![avevaHistorian-07.png](pic/avevaHistorian-07.png)
+![aveva-historian-07.png](pic/aveva-historian-07.png)
 
 ### 6. 配置高级选项
 
@@ -131,7 +132,7 @@ TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine
 
 在 **原始数据存储目录** 中设置原始数据保存路径。
 
-![avevaHistorian-08.png](pic/avevaHistorian-08.png)
+![aveva-historian-08.png](pic/aveva-historian-08.png)
 
 ### 7. 创建完成
 

@@ -325,12 +325,13 @@ typedef struct SSessionWindowNode {
 } SSessionWindowNode;
 
 typedef struct SIntervalWindowNode {
-  ENodeType type;       // QUERY_NODE_INTERVAL_WINDOW
-  SNode*    pCol;       // timestamp primary key
-  SNode*    pInterval;  // SValueNode
-  SNode*    pOffset;    // SValueNode
-  SNode*    pSliding;   // SValueNode
-  SNode*    pFill;
+  ENodeType   type;       // QUERY_NODE_INTERVAL_WINDOW
+  SNode*      pCol;       // timestamp primary key
+  SNode*      pInterval;  // SValueNode
+  SNode*      pOffset;    // SValueNode
+  SNode*      pSliding;   // SValueNode
+  SNode*      pFill;
+  STimeWindow timeRange;
 } SIntervalWindowNode;
 
 typedef struct SEventWindowNode {

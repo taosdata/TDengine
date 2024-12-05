@@ -775,7 +775,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, const char *file, int32_t lmtime,
+static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, const char *file, int64_t lmtime,
                                          char const *object_name, int64_t contentLength, S3PutProperties *put_prop,
                                          put_object_callback_data *data) {
   int32_t code = 0, lino = 0;
@@ -963,7 +963,7 @@ _exit:
 
 int32_t s3PutObjectFromFile2ByEp(const char *file, const char *object_name, int8_t withcp, int8_t epIndex) {
   int32_t                  code = 0;
-  int32_t                  lmtime = 0;
+  int64_t                  lmtime = 0;
   const char              *filename = 0;
   uint64_t                 contentLength = 0;
   const char              *cacheControl = 0, *contentType = 0, *md5 = 0;
@@ -1040,7 +1040,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object_name, int8_t w
 static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *object_name, int64_t offset, int64_t size,
                                              int8_t epIndex) {
   int32_t                  code = 0;
-  int32_t                  lmtime = 0;
+  int64_t                  lmtime = 0;
   const char              *filename = 0;
   uint64_t                 contentLength = 0;
   const char              *cacheControl = 0, *contentType = 0, *md5 = 0;
@@ -1847,7 +1847,7 @@ _exit:
 
 typedef struct {
   int64_t size;
-  int32_t atime;
+  int64_t atime;
   char    name[TSDB_FILENAME_LEN];
 } SEvictFile;
 

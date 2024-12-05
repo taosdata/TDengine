@@ -809,6 +809,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
       }
 
+      start = news;
       if (news <= ts) {
         int64_t prev = news;
         int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
@@ -828,7 +829,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
           }
         }
 
-        return prev;
+        start = prev;
       }
     } else {
       int64_t delta = ts - pInterval->interval;
@@ -881,8 +882,8 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     while (newe >= ts) {
       start = slidingStart;
       slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision);
-      int64_t slidingEnd = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-      newe = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, precision);
+      int64_t news = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, precision);
+      newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
     }
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
   }
@@ -892,17 +893,37 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
 // used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
 int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
-  if (pInterval->offset > 0) {
-    int64_t slideStart =
-        taosTimeAdd(intervalStart, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-    int64_t slideEnd = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-    int64_t result = taosTimeAdd(slideEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-    return result;
-  } else {
-    int64_t result = taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-    return result;
-  }
+  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
 }
+
+void calcIntervalAutoOffset(SInterval* interval) {
+  if (!interval || interval->offset != AUTO_DURATION_VALUE) {
+    return;
+  }
+
+  interval->offset = 0;
+
+  if (interval->timeRange.skey == INT64_MIN) {
+    return;
+  }
+
+  TSKEY skey = interval->timeRange.skey;
+  TSKEY start = taosTimeTruncate(skey, interval);
+  TSKEY news = start;
+  while (news <= skey) {
+    start = news;
+    news = taosTimeAdd(start, interval->sliding, interval->slidingUnit, interval->precision);
+    if (news < start) {
+      // overflow happens
+      uError("%s failed and skip, skey [%" PRId64 "], inter[%" PRId64 "(%c)], slid[%" PRId64 "(%c)], precision[%d]",
+             __func__, skey, interval->interval, interval->intervalUnit, interval->sliding, interval->slidingUnit,
+             interval->precision);
+      return;
+    }
+  }
+  interval->offset = skey - start;
+}
+
 // internal function, when program is paused in debugger,
 // one can call this function from debugger to print a
 // timestamp as human readable string, for example (gdb):

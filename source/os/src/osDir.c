@@ -303,7 +303,7 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
     if (strcmp(taosGetDirEntryName(de), ".") == 0 || strcmp(taosGetDirEntryName(de), "..") == 0) continue;
 
     char filename[1024];
-    (void)snprintf(filename, sizeof(filename), "%s/%s", dirname, taosGetDirEntryName(de));
+    (void)snprintf(filename, sizeof(filename), "%s%s%s", dirname, TD_DIRSEP, taosGetDirEntryName(de));
     if (taosDirEntryIsDir(de)) {
       continue;
     } else {
@@ -349,7 +349,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
       wordfree(&full_path);
       // FALL THROUGH
     default:
-      return code;
+      return terrno = TSDB_CODE_INVALID_PARA;
   }
 
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
