@@ -330,7 +330,7 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
   if (pDebugFlagItem == NULL) return -1;
   if (pDebugFlagItem->array != NULL) {
     SLogVar logVar = {0};
-    (void)strncpy(logVar.name, name, TSDB_LOG_VAR_LEN - 1);
+    tstrncpy(logVar.name, name, TSDB_LOG_VAR_LEN);
     if (NULL == taosArrayPush(pDebugFlagItem->array, &logVar)) {
       TAOS_RETURN(terrno);
     }
@@ -942,7 +942,7 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
     name = value = value2 = value3 = value4 = NULL;
     olen = vlen = vlen2 = vlen3 = vlen4 = 0;
 
-    strncpy(line, *pEnv, sizeof(line) - 1);
+    tstrncpy(line, *pEnv, sizeof(line));
     pEnv++;
     if (taosEnvToCfg(line, line) < 0) {
       uTrace("failed to convert env to cfg:%s", line);
@@ -987,7 +987,7 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
   int32_t index = 0;
   if (envCmd == NULL) TAOS_RETURN(TSDB_CODE_SUCCESS);
   while (envCmd[index] != NULL) {
-    strncpy(buf, envCmd[index], sizeof(buf) - 1);
+    tstrncpy(buf, envCmd[index], sizeof(buf));
     buf[sizeof(buf) - 1] = 0;
     if (taosEnvToCfg(buf, buf) < 0) {
       uTrace("failed to convert env to cfg:%s", buf);
@@ -1438,7 +1438,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
   char **pEnv = environ;
   line[1023] = 0;
   while (*pEnv != NULL) {
-    strncpy(line, *pEnv, sizeof(line) - 1);
+    tstrncpy(line, *pEnv, sizeof(line));
     pEnv++;
     if (strncmp(line, "TAOS_APOLLO_URL", 14) == 0) {
       char *p = strchr(line, '=');

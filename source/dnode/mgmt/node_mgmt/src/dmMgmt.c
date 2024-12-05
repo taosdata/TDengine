@@ -179,7 +179,7 @@ int32_t dmInitVars(SDnode *pDnode) {
 
       //code = taosGetCryptKey(tsAuthCode, pData->machineId, tsCryptKey);
       code = 0;
-      strncpy(tsEncryptKey, tsAuthCode, 16);
+      tstrncpy(tsEncryptKey, tsAuthCode, 16);
 
       if (code != 0) {
         if(code == -1){
@@ -220,62 +220,62 @@ int32_t dmInitVars(SDnode *pDnode) {
 }
 
 extern SMonVloadInfo tsVinfo;
-void dmClearVars(SDnode *pDnode) {
-  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    taosMemoryFreeClear(pWrapper->path);
-    (void)taosThreadRwlockDestroy(&pWrapper->lock);
+void                 dmClearVars(SDnode *pDnode) {
+                  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
+                    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+                    taosMemoryFreeClear(pWrapper->path);
+                    (void)taosThreadRwlockDestroy(&pWrapper->lock);
   }
-  if (pDnode->lockfile != NULL) {
-    if (taosUnLockFile(pDnode->lockfile) != 0) {
-      dError("failed to unlock file");
+                  if (pDnode->lockfile != NULL) {
+                    if (taosUnLockFile(pDnode->lockfile) != 0) {
+                      dError("failed to unlock file");
     }
 
-    (void)taosCloseFile(&pDnode->lockfile);
-    pDnode->lockfile = NULL;
+                    (void)taosCloseFile(&pDnode->lockfile);
+                    pDnode->lockfile = NULL;
   }
 
-  SDnodeData *pData = &pDnode->data;
-  (void)taosThreadRwlockWrlock(&pData->lock);
-  if (pData->oldDnodeEps != NULL) {
-    if (dmWriteEps(pData) == 0) {
-      dmRemoveDnodePairs(pData);
+                  SDnodeData *pData = &pDnode->data;
+                  (void)taosThreadRwlockWrlock(&pData->lock);
+                  if (pData->oldDnodeEps != NULL) {
+                    if (dmWriteEps(pData) == 0) {
+                      dmRemoveDnodePairs(pData);
     }
-    taosArrayDestroy(pData->oldDnodeEps);
-    pData->oldDnodeEps = NULL;
+                    taosArrayDestroy(pData->oldDnodeEps);
+                    pData->oldDnodeEps = NULL;
   }
-  if (pData->dnodeEps != NULL) {
-    taosArrayDestroy(pData->dnodeEps);
-    pData->dnodeEps = NULL;
+                  if (pData->dnodeEps != NULL) {
+                    taosArrayDestroy(pData->dnodeEps);
+                    pData->dnodeEps = NULL;
   }
-  if (pData->dnodeHash != NULL) {
-    taosHashCleanup(pData->dnodeHash);
-    pData->dnodeHash = NULL;
+                  if (pData->dnodeHash != NULL) {
+                    taosHashCleanup(pData->dnodeHash);
+                    pData->dnodeHash = NULL;
   }
-  (void)taosThreadRwlockUnlock(&pData->lock);
+                  (void)taosThreadRwlockUnlock(&pData->lock);
 
-  (void)taosThreadRwlockDestroy(&pData->lock);
+                  (void)taosThreadRwlockDestroy(&pData->lock);
 
-  dDebug("begin to lock status info when thread exit");
-  if (taosThreadMutexLock(&pData->statusInfolock) != 0) {
-    dError("failed to lock status info lock");
-    return;
+                  dDebug("begin to lock status info when thread exit");
+                  if (taosThreadMutexLock(&pData->statusInfolock) != 0) {
+                    dError("failed to lock status info lock");
+                    return;
   }
-  if (tsVinfo.pVloads != NULL) {
-    taosArrayDestroy(tsVinfo.pVloads);
-    tsVinfo.pVloads = NULL;
+                  if (tsVinfo.pVloads != NULL) {
+                    taosArrayDestroy(tsVinfo.pVloads);
+                    tsVinfo.pVloads = NULL;
   }
-  if (taosThreadMutexUnlock(&pData->statusInfolock) != 0) {
-    dError("failed to unlock status info lock");
-    return;
+                  if (taosThreadMutexUnlock(&pData->statusInfolock) != 0) {
+                    dError("failed to unlock status info lock");
+                    return;
   }
-  if (taosThreadMutexDestroy(&pData->statusInfolock) != 0) {
-    dError("failed to destroy status info lock");
+                  if (taosThreadMutexDestroy(&pData->statusInfolock) != 0) {
+                    dError("failed to destroy status info lock");
   }
-  memset(&pData->statusInfolock, 0, sizeof(pData->statusInfolock));
+                  memset(&pData->statusInfolock, 0, sizeof(pData->statusInfolock));
 
-  (void)taosThreadMutexDestroy(&pDnode->mutex);
-  memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
+                  (void)taosThreadMutexDestroy(&pDnode->mutex);
+                  memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
 }
 
 void dmSetStatus(SDnode *pDnode, EDndRunStatus status) {
