@@ -516,11 +516,14 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[TSDB_INT32_ID_LEN] = {0};
-  (void)sprintf(obj, "%d", pCompact->compactId);
-
-  auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql, killCompactReq.sqlLen);
-
+  char    obj[TSDB_INT32_ID_LEN] = {0};
+  int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pCompact->compactId);
+  if ((uint32_t)nBytes < sizeof(obj)) {
+    auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql,
+                killCompactReq.sqlLen);
+  } else {
+    mError("compact:%" PRId32 " failed to audit since %s", pCompact->compactId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to kill compact %" PRId32 " since %s", killCompactReq.compactId, terrstr());
