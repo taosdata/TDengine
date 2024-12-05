@@ -275,8 +275,7 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
   SMetaInfo info = {0};
   int8_t    type = pEntry->type > 0 ? pEntry->type : -pEntry->type;
 
-  if (NULL == pMeta || NULL == pEntry || type != TSDB_SUPER_TABLE || type != TSDB_CHILD_TABLE ||
-      type != TSDB_NORMAL_TABLE) {
+  if (NULL == pMeta || NULL == pEntry) {
     metaError("%s failed at %s:%d since invalid parameter", __func__, __FILE__, __LINE__);
     return TSDB_CODE_INVALID_PARA;
   }
