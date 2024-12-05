@@ -23,9 +23,31 @@ void getFields(TAOS *taos, const char *sql) {
   } else {
     printf("bind nums:%d\n", fieldNum);
     for (int i = 0; i < fieldNum; i++) {
-      printf("field[%d]: %s, data_type:%d, field_type:%d\n", i, pFields[i].name, pFields[i].type,
-             pFields[i].field_type);
+      printf("field[%d]: %s, data_type:%d, field_type:%d, precision:%d\n", i, pFields[i].name, pFields[i].type,
+             pFields[i].field_type, pFields[i].precision);
     }
+  }
+  printf("====================================\n");
+  taos_stmt2_free_stb_fields(stmt, pFields);
+  taos_stmt2_close(stmt);
+}
+
+void getQueryFields(TAOS *taos, const char *sql) {
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2       *stmt = taos_stmt2_init(taos, &option);
+  int               code = taos_stmt2_prepare(stmt, sql, 0);
+  if (code != 0) {
+    printf("failed to execute taos_stmt2_prepare. error:%s\n", taos_stmt2_error(stmt));
+    taos_stmt2_close(stmt);
+    return;
+  }
+  int             fieldNum = 0;
+  TAOS_FIELD_STB *pFields = NULL;
+  code = taos_stmt2_get_stb_fields(stmt, &fieldNum, &pFields);
+  if (code != 0) {
+    printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
+  } else {
+    printf("bind nums:%d\n", fieldNum);
   }
   printf("====================================\n");
   taos_stmt2_free_stb_fields(stmt, pFields);
@@ -45,7 +67,7 @@ void do_query(TAOS *taos, const char *sql) {
 
 void do_stmt(TAOS *taos) {
   do_query(taos, "drop database if exists db");
-  do_query(taos, "create database db");
+  do_query(taos, "create database db PRECISION 'ns'");
   do_query(taos, "use db");
   do_query(taos,
            "create table db.stb (ts timestamp, b binary(10)) tags(t1 "
@@ -143,6 +165,18 @@ void do_stmt(TAOS *taos) {
       "v11,v12,v13,v14,v15) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
   printf("case 13 : %s\n", sql);
   getFields(taos, sql);
+
+  // case 14 : select * from ntb where ts = ?
+  // query type
+  sql = "select * from ntb where ts = ?";
+  printf("case 14 : %s\n", sql);
+  getQueryFields(taos, sql);
+
+  // case 15 : select * from ntb where ts = ? and b = ?
+  // query type
+  sql = "select * from ntb where ts = ? and b = ?";
+  printf("case 15 : %s\n", sql);
+  getQueryFields(taos, sql);
   printf("=================error test===================\n");
 
   // case 14 :  INSERT INTO db.d0 using db.stb values(?,?)
@@ -199,6 +233,12 @@ void do_stmt(TAOS *taos) {
   sql = "insert into db.stb values(?,?)";
   printf("case 22 : %s\n", sql);
   getFields(taos, sql);
+
+  // case 23 : select * from ? where ts = ?
+  // wrong query type
+  sql = "select * from ? where ts = ?";
+  printf("case 23 : %s\n", sql);
+  getQueryFields(taos, sql);
 }
 
 int main() {
