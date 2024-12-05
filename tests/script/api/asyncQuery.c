@@ -74,16 +74,16 @@ void selectCallback(void* param, TAOS_RES* res, int32_t code) {
 }
 
 static void verifyQueryAsync(TAOS* taos) {
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
+  taos_query_a(taos, "select * from (select cast(count(*) as binary(100)) a, rand() b from tbx where ts >= '2023-01-01' and ts <= '2024-12-01' interval(1s) fill(value, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) t1 group by t1.a, t1.b;;", selectCallback, NULL);
   taos_query_a(taos, "select twa(c1) from stb interval(10s);", selectCallback, NULL);
-  taos_query_a(taos, "select twa(c1) from stb interval(10s);", selectCallback, NULL);
-  taos_query_a(taos, "select twa(c1) from stb interval(10s);", selectCallback, NULL);
-  taos_query_a(taos, "select * from stb", selectCallback, NULL);
-  taos_query_a(taos, "select * from stb", selectCallback, NULL);
-  taos_query_a(taos, "select * from stb", selectCallback, NULL);
-  taos_query_a(taos, "select * from stb", selectCallback, NULL);
-  taos_query_a(taos, "select * from stb", selectCallback, NULL);
-  taos_query_a(taos, "select * from stb", selectCallback, NULL);
-  taos_query_a(taos, "select * from stb", selectCallback, NULL);
 }
 
 int main(int argc, char* argv[]) {
@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
   for (int64_t i = 0; i < 1000000000; ++i) {
     verifyQueryAsync(taos);
     printf("%llu queries launched, errTimes:%lld \n", i * 10, errTimes);
-    while ((i * 10 - atomic_load_64(&finQueries)) > 1000) {
+    while ((i * 10 - atomic_load_64(&finQueries)) > 100) {
       printf("left queries:%llu\n", (i * 10 - atomic_load_64(&finQueries)));
       taosMsleep(2000);
     }

@@ -317,7 +317,7 @@ int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
 
 void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
-    tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER, 0);
+    tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER, ctx->rspCode);
   }
 
   ctx->ctrlConnInfo.handle = NULL;
@@ -395,6 +395,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
   QW_SET_QTID(id, qId, cId, tId, eId);
   SQWTaskCtx octx;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == ctx) {
@@ -404,14 +405,20 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   octx = *ctx;
 
+  if (ctx->pJobInfo && TSDB_CODE_SUCCESS != ctx->pJobInfo->errCode) {
+    QW_UPDATE_RSP_CODE(ctx, ctx->pJobInfo->errCode);
+  }
+
   atomic_store_ptr(&ctx->taskHandle, NULL);
   atomic_store_ptr(&ctx->sinkHandle, NULL);
+  atomic_store_ptr(&ctx->pJobInfo, NULL);
+  atomic_store_ptr(&ctx->memPoolSession, NULL);
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_DROP);
 
   if (taosHashRemove(mgmt->ctxHash, id, sizeof(id))) {
     QW_TASK_ELOG_E("taosHashRemove from ctx hash failed");
-    QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
+    code = QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
   }
 
   qwFreeTaskCtx(QW_FPARAMS(), &octx);
@@ -419,7 +426,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   QW_TASK_DLOG_E("task ctx dropped");
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t qwDropTaskStatus(QW_FPARAMS_DEF) {
@@ -747,7 +754,7 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
   
   QW_LOCK(QW_WRITE, &ctx->lock);
   
-  QW_TASK_DLOG("start to stop task, forceStop:%d", forceStop);
+  QW_TASK_DLOG("start to stop task, forceStop:%d, error:%s", forceStop, tstrerror(errCode));
   
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
     QW_TASK_WLOG_E("task already dropping");
@@ -830,3 +837,49 @@ bool qwRetireJob(SQWJobInfo *pJob) {
 
   return retired;
 }
+
+
+void qwStopAllTasks(SQWorker *mgmt) {
+  uint64_t qId, cId, tId, sId;
+  int32_t  eId;
+  int64_t  rId = 0;
+
+  void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (pIter) {
+    SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
+    void       *key = taosHashGetKey(pIter, NULL);
+    QW_GET_QTID(key, qId, cId, tId, eId);
+
+    sId = ctx->sId;
+
+    (void)qwStopTask(QW_FPARAMS(), ctx, true, TSDB_CODE_VND_STOPPED);
+
+    pIter = taosHashIterate(mgmt->ctxHash, pIter);
+  }
+}
+
+
+void qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs) {
+  uint64_t qId, cId, tId, sId;
+  int32_t  eId;
+  int64_t  rId = 0;
+
+  void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (pIter) {
+    SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
+    if ((ctx->lastAckTs <= 0) || (currTs - ctx->lastAckTs) < tsQueryNoFetchTimeoutSec) {
+      pIter = taosHashIterate(mgmt->ctxHash, pIter);
+      continue;
+    }
+    
+    void       *key = taosHashGetKey(pIter, NULL);
+    QW_GET_QTID(key, qId, cId, tId, eId);
+
+    sId = ctx->sId;
+
+    (void)qwStopTask(QW_FPARAMS(), ctx, true, TSDB_CODE_QRY_NO_FETCH_TIMEOUT);
+
+    pIter = taosHashIterate(mgmt->ctxHash, pIter);
+  }
+}
+

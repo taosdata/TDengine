@@ -1047,7 +1047,10 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
         SCH_UNLOCK_TASK(pTask);
         SCH_RET(code);
       }
+      SCH_LOCK(SCH_WRITE, &pTask->planLock);
       qClearSubplanExecutionNode(pTask->plan);
+      SCH_UNLOCK(SCH_WRITE, &pTask->planLock);
+
       schResetTaskForRetry(pJob, pTask);
       SCH_UNLOCK_TASK(pTask);
     }

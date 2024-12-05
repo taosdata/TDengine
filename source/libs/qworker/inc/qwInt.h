@@ -47,6 +47,8 @@ extern "C" {
 
 #define QW_RETIRE_JOB_BATCH_NUM        5
 
+#define QW_DEFAULT_TIMEOUT_INTERVAL_SECS 3600
+
 enum {
   QW_CONC_TASK_LEVEL_LOW = 1,
   QW_CONC_TASK_LEVEL_MIDDLE,
@@ -186,6 +188,8 @@ typedef struct SQWTaskCtx {
   void      *sinkHandle;
   SArray    *tbInfo; // STbVerInfo
 
+  int64_t    lastAckTs;
+
   void      *memPoolSession;
   SQWJobInfo *pJobInfo;
 } SQWTaskCtx;
@@ -243,7 +247,8 @@ typedef struct SQWorker {
   SQWStat   stat;
   int32_t  *destroyed;
 
-  int8_t nodeStopped;
+  int8_t    nodeStopped;
+  int32_t   lastChkTs;
 } SQWorker;
 
 typedef struct SQWorkerMgmt {
@@ -529,6 +534,7 @@ int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t clientId, int32_t rwType, SQ
 void    qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 
+void    qwDbgDumpJobsInfo(void);
 void    qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore, bool dynamicTask);
 int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet);
@@ -540,6 +546,8 @@ int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwInitQueryPool(void);
 void    qwDestroyJobInfo(void* job);
 bool    qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errCode);
+void    qwStopAllTasks(SQWorker *mgmt);
+void    qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs);
 bool    qwRetireJob(SQWJobInfo* pJob);
 void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session);
 int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession);

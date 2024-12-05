@@ -85,9 +85,11 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
 
   int32_t remainSessions = atomic_sub_fetch_32(&pJobInfo->memInfo->remainSession, 1);
 
+  QW_TASK_DLOG("task session destoryed, remainSessions:%d", remainSessions);
+
   if (0 == remainSessions) {
     QW_LOCK(QW_WRITE, &pJobInfo->lock);
-    if (0 == taosHashGetSize(pJobInfo->pSessions) && 0 == atomic_load_32(&pJobInfo->memInfo->remainSession)) {
+    if (/*0 == taosHashGetSize(pJobInfo->pSessions) && */0 == atomic_load_32(&pJobInfo->memInfo->remainSession)) {
       atomic_store_8(&pJobInfo->destroyed, 1);
       QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
 
@@ -96,6 +98,7 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
       (void)taosHashRemove(gQueryMgmt.pJobInfo, id2, sizeof(id2));
       QW_TASK_DLOG_E("the whole query job removed");
     } else {
+      QW_TASK_DLOG("job not removed, remainSessions:%d, %d", taosHashGetSize(pJobInfo->pSessions), pJobInfo->memInfo->remainSession);
       QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
     }
   }

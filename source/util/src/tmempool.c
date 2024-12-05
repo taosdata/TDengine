@@ -1051,7 +1051,7 @@ void* mpMgmtThreadFunc(void* param) {
   while (0 == atomic_load_8(&gMPMgmt.modExit)) {
     mpUpdateSystemAvailableMemorySize();
 
-    retireSize = pPool->cfg.reserveSize - tsCurrentAvailMemorySize;
+    retireSize = pPool->cfg.reserveSize - atomic_load_64(&tsCurrentAvailMemorySize);
     if (retireSize > 0) {
       (*pPool->cfg.cb.failFp)(retireSize, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
 
@@ -1723,8 +1723,10 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
 
   uInfo("total memory size: %" PRId64 "KB", tsTotalMemoryKB);
 
-  tsMinReservedMemorySize = TMAX(MIN_RESERVE_MEM_SIZE, tsTotalMemoryKB / 1024 * MP_DEFAULT_RESERVE_MEM_PERCENT / 100);
-
+  if (0 == tsMinReservedMemorySize) {
+    tsMinReservedMemorySize = TMAX(MIN_RESERVE_MEM_SIZE, tsTotalMemoryKB / 1024 * MP_DEFAULT_RESERVE_MEM_PERCENT / 100);
+  }
+  
   SMemPoolCfg cfg = {0};
   int64_t sysAvailSize = 0;
   

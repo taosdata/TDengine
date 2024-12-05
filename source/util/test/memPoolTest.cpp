@@ -454,10 +454,6 @@ void mptInit() {
   memset(mptCtx.pSrcString, 'P', mptCtrl.maxSingleAllocSize - 1);
   mptCtx.pSrcString[mptCtrl.maxSingleAllocSize - 1] = 0;
 
-  void* p = taosMemMalloc(1048576UL * 20000);
-
-  mptWriteMem(p, (1048576UL * 20000));
-
 }
 
 void mptDestroySession(uint64_t qId, int64_t tId, int32_t eId, int32_t taskIdx, SMPTestJobCtx* pJobCtx, void* session) {
@@ -1576,7 +1572,7 @@ TEST(PerfTest, GetSysAvail) {
   memset(p, 0, msize);
   int64_t totalUs = taosGetTimestampUs() - st;  
   printf("memset %" PRId64 " used time:%" PRId64 "us, speed:%dMB/ms\n", msize, totalUs, msize/1048576UL/(totalUs/1000UL));
-  
+
   int64_t freeSize = 0;
   int32_t loopTimes = 1000000;
   st = taosGetTimestampUs();
@@ -1584,13 +1580,60 @@ TEST(PerfTest, GetSysAvail) {
   for (int32_t i = 0; i < loopTimes; ++i) {
     code = taosGetSysAvailMemory(&freeSize);
     assert(0 == code);
-    //taosMsleep(10);
+    //taosMsleep(1);
   }
   totalUs = taosGetTimestampUs() - st;
   
   printf("%d times getSysMemory total time:%" PRId64 "us, avg:%dus\n", loopTimes, totalUs, totalUs/loopTimes);
 }
 #endif
+
+#if 1
+TEST(MiscTest, monSysAvailSize) {
+  char* caseName = "MiscTest:monSysAvailSize";
+  int32_t code = 0;
+
+  int64_t freeSize = 0;
+  int32_t loopTimes = 1000000000;
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    code = taosGetSysAvailMemory(&freeSize);
+    assert(0 == code);
+    printf(" %" PRId64, freeSize);
+    if (i && 0 == (i % 10)) {
+      struct tm      Tm, *ptm;
+      struct timeval timeSecs;
+
+      TAOS_UNUSED(taosGetTimeOfDay(&timeSecs));
+      time_t curTime = timeSecs.tv_sec;
+      ptm = taosLocalTime(&curTime, &Tm, NULL, 0);
+
+      printf("- %02d/%02d %02d:%02d:%02d.%06d \n", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec);
+    }
+    taosMsleep(1);
+  }
+}
+#endif
+
+
+#if 0
+TEST(MiscTest, simNonPoolAct) {
+  char* caseName = "MiscTest:simNonPoolAct";
+  int64_t msize = 1048576UL*1024, asize = 0;
+  int32_t loopTimes = 1000000;
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    asize = taosRand() % msize;
+    void* p = taosMemMalloc(asize);
+    mptWriteMem(p, asize);
+
+    taosMsleep(100);
+    taosMemFree(p);
+    
+    printf("sim %dth alloc/free %" PRId64 " bytes\n", i, asize);
+  }  
+}
+#endif
+
 
 #if 0
 TEST(PerfTest, allocLatency) {

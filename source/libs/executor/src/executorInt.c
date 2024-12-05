@@ -972,7 +972,7 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
   }
 }
 
-int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz) {
+int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* defaultBufsz) {
   *defaultPgsz = 4096;
   uint32_t last = *defaultPgsz;
   while (*defaultPgsz < rowSize * 4) {
@@ -986,7 +986,8 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
   // The default buffer for each operator in query is 10MB.
   // at least four pages need to be in buffer
   // TODO: make this variable to be configurable.
-  *defaultBufsz = 4096 * 2560;
+//  *defaultBufsz = 4096 * 2560;
+  *defaultBufsz = 4096UL * 2560000;
   if ((*defaultBufsz) <= (*defaultPgsz)) {
     (*defaultBufsz) = (*defaultPgsz) * 4;
     if (*defaultBufsz < ((int64_t)(*defaultPgsz)) * 4) {

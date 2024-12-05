@@ -426,10 +426,11 @@ _return:
 void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
   pTask->waitRetry = true;
 
-  schDropTaskOnExecNode(pJob, pTask);
   if (pTask->delayTimer) {
-    schStopTaskDelayTimer(pJob, pTask, false);
+    taosTmrStop(pTask->delayTimer);
   }
+
+  schDropTaskOnExecNode(pJob, pTask);
   taosHashClear(pTask->execNodes);
   (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
   schDeregisterTaskHb(pJob, pTask);
@@ -745,6 +746,10 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
 
 int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   (void)atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
+
+  if (pTask->delayTimer) {
+    taosTmrStop(pTask->delayTimer);
+  }
 
   (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
@@ -1291,6 +1296,8 @@ void schHandleTimerEvent(void *param, void *tmrId) {
   SSchJob        *pJob = NULL;
   int32_t         code = 0;
 
+  qDebug("delayTimer %" PRIuPTR " is launched", (uintptr_t)tmrId);
+
   int64_t  rId = pTimerParam->rId;
   uint64_t queryId = pTimerParam->queryId;
   uint64_t taskId = pTimerParam->taskId;
@@ -1299,7 +1306,11 @@ void schHandleTimerEvent(void *param, void *tmrId) {
     return;
   }
 
-  code = schLaunchTask(pJob, pTask);
+  if (0 == atomic_load_8(&pTask->delayLaunchPar.exit)) {
+    code = schLaunchTask(pJob, pTask);
+  } else {
+    SCH_TASK_DLOG("task will not be launched since query job exiting, status: %d", pTask->status);
+  }
 
   schProcessOnCbEnd(pJob, pTask, code);
 }
@@ -1310,10 +1321,8 @@ int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
     pTask->delayLaunchPar.queryId = pJob->queryId;
     pTask->delayLaunchPar.taskId = pTask->taskId;
 
-    if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXEC) {
-      SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
-      SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXEC);
-    }
+    SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
+    SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXEC);
 
     if (NULL == pTask->delayTimer) {
       pTask->delayTimer = taosTmrStart(schHandleTimerEvent, pTask->delayExecMs, (void *)&pTask->delayLaunchPar, schMgmt.timer);
@@ -1321,6 +1330,8 @@ int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
         SCH_TASK_ELOG("start delay timer failed, handle:%p", schMgmt.timer);
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
+
+      SCH_TASK_DLOG("task delayTimer %" PRIuPTR " is started", (uintptr_t)pTask->delayTimer);
 
       return TSDB_CODE_SUCCESS;
     }
@@ -1357,10 +1368,11 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
   while (pIter) {
     SSchTask *pTask = *(SSchTask **)pIter;
 
-    SCH_LOCK_TASK(pTask);
     if (pTask->delayTimer) {
       schStopTaskDelayTimer(pJob, pTask, true);
     }
+
+    SCH_LOCK_TASK(pTask);
     schDropTaskOnExecNode(pJob, pTask);
     SCH_UNLOCK_TASK(pTask);
 

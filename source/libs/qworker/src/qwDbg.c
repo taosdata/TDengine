@@ -168,6 +168,36 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
   qwDbgDumpTasksInfo(mgmt);
 }
 
+void qwDbgDumpJobsInfo(void) {
+  if (!gQWDebug.dumpEnable) {
+    return;
+  }
+
+  qDebug("total remain job num %d, task initNum:%" PRId64 ", task destroyNum:%" PRId64 " - %" PRId64, 
+      taosHashGetSize(gQueryMgmt.pJobInfo), atomic_load_64(&gQueryMgmt.stat.taskInitNum), 
+      atomic_load_64(&gQueryMgmt.stat.taskExecDestroyNum), atomic_load_64(&gQueryMgmt.stat.taskSinkDestroyNum));
+
+  size_t keyLen = 0;
+  char* id = NULL;
+  int32_t jobIdx = 0;
+  SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
+  while (NULL != pJob) {
+    qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " the %dth remain job", pJob->memInfo->jobId, pJob->memInfo->clientId, jobIdx++);
+
+    int32_t sessionIdx = 0;
+    SQWSessionInfo* pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, NULL);
+    while (NULL != pSession) {
+      qDebug("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d the %dth remain session", 
+          pSession->qId, pSession->sId, pSession->cId, pSession->tId, pSession->eId, sessionIdx++);
+
+      pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, pSession);    
+    }
+
+    pJob = (SQWJobInfo *)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
+  }
+}
+
+
 int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet) {
   int32_t contLen = 0;
   char   *rsp = NULL;

@@ -162,7 +162,7 @@ int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *pStatus, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendFetchRsp(int32_t rspType, SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength,
+int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength,
                                int32_t code) {
   if (NULL == pRsp) {
     pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
@@ -183,6 +183,10 @@ int32_t qwBuildAndSendFetchRsp(int32_t rspType, SRpcHandleInfo *pConn, SRetrieve
 
   rpcRsp.info.compressed = pRsp->compressed;
   tmsgSendRsp(&rpcRsp);
+
+  if (NULL != ctx) {
+    ctx->lastAckTs = taosGetTimestampSec();
+  }
 
   return TSDB_CODE_SUCCESS;
 }

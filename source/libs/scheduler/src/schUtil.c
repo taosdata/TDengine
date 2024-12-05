@@ -424,13 +424,22 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan *pSubplan, int32_t level, int
 }
 
 void schStopTaskDelayTimer(SSchJob *pJob, SSchTask *pTask, bool syncOp) {
+  SCH_TASK_DLOG("try to stop task delayTimer %" PRIuPTR, (uintptr_t)pTask->delayTimer);
+  tmr_h delayTimer = pTask->delayTimer;
+
+  atomic_store_8(&pTask->delayLaunchPar.exit, 1);
+  
   if (!taosTmrStopA(&pTask->delayTimer)) {
+    SCH_TASK_DLOG("task delayTimer %" PRIuPTR " not stopped", (uintptr_t)delayTimer);
+
     if (syncOp) {
-      while (!taosTmrIsStopped(&pTask->delayTimer)) {
+      while (!taosTmrIsStopped(&delayTimer)) {
         taosMsleep(1);
       }
+
+      SCH_TASK_DLOG("task delayTimer %" PRIuPTR " is stopped", (uintptr_t)delayTimer);
     } else {
-      SCH_TASK_WLOG("stop task delayTimer failed, may stopped, status:%d", pTask->status);
+      SCH_TASK_WLOG("stop task delayTimer %" PRIuPTR " failed, may stopped, status:%d", (uintptr_t)delayTimer, pTask->status);
     }
   }
 }

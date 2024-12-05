@@ -218,6 +218,7 @@ typedef struct SSchRedirectCtx {
 } SSchRedirectCtx;
 
 typedef struct SSchTimerParam {
+  int8_t   exit;
   int64_t  rId;
   uint64_t queryId;
   uint64_t taskId;

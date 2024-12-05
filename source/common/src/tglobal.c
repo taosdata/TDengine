@@ -58,13 +58,14 @@ int8_t  tsMemPoolFullFunc = 0;
 int8_t  tsQueryUseMemoryPool = 1;
 int32_t tsQueryBufferPoolSize = 0; //MB
 int32_t tsSingleQueryMaxMemorySize = 0; //MB
-int32_t tsMinReservedMemorySize = MIN_RESERVE_MEM_SIZE; //MB
+int32_t tsMinReservedMemorySize = 0; //MB
 int64_t tsCurrentAvailMemorySize = 0;
 
 // queue & threads
 int32_t tsQueryMinConcurrentTaskNum = 1;
 int32_t tsQueryMaxConcurrentTaskNum = 0;
 int32_t tsQueryConcurrentTaskNum = 0;
+int32_t tsQueryNoFetchTimeoutSec = 3600 * 5;
 
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
@@ -750,9 +751,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0);
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0);
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "singleQueryMaxMemorySize", tsSingleQueryMaxMemorySize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "singleQueryMaxMemorySize", tsSingleQueryMaxMemorySize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0);
   //TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferPoolSize", tsQueryBufferPoolSize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0);
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "minReservedMemorySize", tsMinReservedMemorySize, 1024, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt32Ex(pCfg, "minReservedMemorySize", 0, 1024, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryNoFetchTimeoutSec", tsQueryNoFetchTimeoutSec, 60, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0);
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
@@ -2089,7 +2091,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"experimental", &tsExperimental},
                                          {"maxTsmaNum", &tsMaxTsmaNum},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
-                                         {"bypassFlag", &tsBypassFlag}};
+                                         {"bypassFlag", &tsBypassFlag},
+                                         {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
