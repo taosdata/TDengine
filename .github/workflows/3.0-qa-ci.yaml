@@ -321,6 +321,16 @@ jobs:
     env:
       COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
+      - name: get coverage percent for taosx and connecter
+        run : |
+          export TAOSX_COVERAGE_PERCENT=$(grep -oP '(?<=<td class="headerCovTableEntryLo">)[^&]+' $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/taosx-report-merged/index.html | head -n 1)
+          export INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/influxdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
+          export OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/opentsdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
+          export OPC_CONNECTOR_COVERAGE_PERCENT=$(grep -oP '(?<=<div id="totalcov">)[^%]+' $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/opc/merged/index.html)
+          echo "TAOSX_COVERAGE_PERCENT=$TAOSX_COVERAGE_PERCENT" >> $GITHUB_ENV
+          echo "INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$INFLUXDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
+          echo "OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$OPENTSDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
+          echo "OPC_CONNECTOR_COVERAGE_PERCENT=$OPC_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
       - name: Send Feishu Message to taosX CI Group
         run: |
           function post_to_feishu() {
@@ -339,6 +349,10 @@ jobs:
           PR_INFO="Coverage test results for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
 
           post_to_feishu "$PR_INFO"
@@ -361,6 +375,10 @@ jobs:
           PR_INFO="Coverage test results for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
 
           post_to_feishu "$PR_INFO"
