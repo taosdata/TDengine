@@ -490,7 +490,7 @@ enum {
       if ((cAllocSize / 1048576L) > *(_pool)->cfg.jobQuota) {                                         \
         uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %dMB", (_job)->job.jobId, cAllocSize, *(_pool)->cfg.jobQuota);                  \
         (_pool)->cfg.cb.reachFp(pJob->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);                  \
-        atomic_store_8(&gMPMgmt.needTrim, 1);                                                                     \
+        mpSchedTrim(NULL);                                                                     \
         terrno = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;                  \
         return NULL;                                                            \
       }                  \
@@ -499,7 +499,7 @@ enum {
       uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %" PRId64 " bytes",                   \
           (_pool)->name, atomic_load_64(&tsCurrentAvailMemorySize), (_size), (_pool)->cfg.reserveSize);                  \
       (_pool)->cfg.cb.reachFp((_job)->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);                  \
-      atomic_store_8(&gMPMgmt.needTrim, 1);                                                                     \
+      mpSchedTrim(NULL);                                                                     \
       terrno = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;                  \
       return NULL;                  \
     }       \
@@ -536,6 +536,7 @@ int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size);
 void    mpUpdateAllocSize(SMemPool* pPool, SMPSession* pSession, int64_t size, int64_t addSize);
 int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup* pHead);
 int32_t mpMalloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint32_t alignment, void** ppRes);
+void    mpSchedTrim(int64_t* loopTimes);
 
 
 

@@ -60,6 +60,7 @@ int32_t tsQueryBufferPoolSize = 0; //MB
 int32_t tsSingleQueryMaxMemorySize = 0; //MB
 int32_t tsMinReservedMemorySize = 0; //MB
 int64_t tsCurrentAvailMemorySize = 0;
+int8_t  tsNeedTrim = 0;
 
 // queue & threads
 int32_t tsQueryMinConcurrentTaskNum = 1;

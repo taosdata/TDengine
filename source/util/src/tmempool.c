@@ -323,7 +323,7 @@ int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size) {
     code = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;
     uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, pJob->job.jobId, cAllocSize, quota);
     pPool->cfg.cb.reachFp(pJob->job.jobId, pJob->job.clientId, code);
-    atomic_store_8(&gMPMgmt.needTrim, 1); 
+    mpSchedTrim(NULL);
     (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
     MP_RET(code);
   }
@@ -333,7 +333,7 @@ int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size) {
     uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %" PRId64 " bytes", 
         pPool->name, atomic_load_64(&tsCurrentAvailMemorySize), size, pPool->cfg.reserveSize);
     pPool->cfg.cb.reachFp(pJob->job.jobId, pJob->job.clientId, code);
-    atomic_store_8(&gMPMgmt.needTrim, 1); 
+    mpSchedTrim(NULL);
     (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
     MP_RET(code);
   }
@@ -1032,15 +1032,15 @@ void mpUpdateSystemAvailableMemorySize() {
   uDebug("system available memory size: %" PRId64, sysAvailSize);
 }
 
-void mpLaunchTrim(int64_t* loopTimes) {
+void mpSchedTrim(int64_t* loopTimes) {
   static int64_t trimTimes = 0;
   
-  taosMemTrim(0, NULL);
+  atomic_store_8(&tsNeedTrim, 1);
+  if (loopTimes) {
+    *loopTimes = 0;
+  }
   
-  atomic_store_8(&gMPMgmt.needTrim, 0);
-  *loopTimes = 0;
-
-  uDebug("%" PRId64 "th memory trim launched", ++trimTimes);
+  uDebug("%" PRId64 "th memory trim scheduled", ++trimTimes);
 }
 
 void* mpMgmtThreadFunc(void* param) {
@@ -1055,11 +1055,11 @@ void* mpMgmtThreadFunc(void* param) {
     if (retireSize > 0) {
       (*pPool->cfg.cb.failFp)(retireSize, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
 
-      mpLaunchTrim(&loopTimes);
+      mpSchedTrim(&loopTimes);
     }
 
-    if ((0 == (++loopTimes) % 500) || atomic_load_8(&gMPMgmt.needTrim)) {
-      mpLaunchTrim(&loopTimes);
+    if (0 == (++loopTimes) % 500) {
+      mpSchedTrim(&loopTimes);
     }
 
     taosMsleep(MP_DEFAULT_MEM_CHK_INTERVAL_MS);
@@ -1695,7 +1695,7 @@ int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t
 }
 
 void taosMemPoolSchedTrim(void) {
-  atomic_store_8(&gMPMgmt.needTrim, 1);
+  mpSchedTrim(NULL);
 }
 
 int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {

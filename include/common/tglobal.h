@@ -79,6 +79,7 @@ extern int8_t  tsMemPoolFullFunc;
 //extern int32_t tsQueryBufferPoolSize;
 extern int32_t tsMinReservedMemorySize;
 extern int64_t tsCurrentAvailMemorySize;
+extern int8_t  tsNeedTrim;
 extern int32_t tsQueryNoFetchTimeoutSec;
 extern int32_t tsNumOfQueryThreads;
 extern int32_t tsNumOfRpcThreads;
