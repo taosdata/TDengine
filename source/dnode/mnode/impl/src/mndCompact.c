@@ -891,24 +891,6 @@ static void mndCompactPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
-static int32_t mndCompactDispatchReq(SMnode *pMnode, SDnodeInfo *pDnodeInfo, int32_t contLen, void *pCont) {
-  // send grant status to dnode
-  SRpcMsg rpcMsg = {
-      .pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_GRANT, .info.ahandle = (void *)0x818, .info.noResp = 1};
-
-  SEpSet epSet = {.numOfEps = 1};
-  tstrncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
-  epSet.eps[0].port = pDnodeInfo->ep.port;
-
-  int32_t code = 0;
-  if ((code = tmsgSendReq(&epSet, &rpcMsg)) != 0) {
-    uWarn("failed to send grant status msg since %s", tstrerror(code));
-    TAOS_RETURN(code);
-  }
-
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
-}
-
 static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow *tw) {
   if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
     return 0;
@@ -954,7 +936,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
       continue;
     }
 
-    // daysToKeep2 would change after compactEndTime is set
+    // daysToKeep2 would be altered
     if (pDb->cfg.compactEndTime && (pDb->cfg.compactEndTime <= -pDb->cfg.daysToKeep2)) {
       mWarn("db:%p,%s, compact end time:%dm <= -keep2:%dm , skip", pDb, pDb->name, pDb->cfg.compactEndTime,
             -pDb->cfg.daysToKeep2);
