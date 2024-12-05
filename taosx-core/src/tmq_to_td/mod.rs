@@ -1392,7 +1392,7 @@ pub async fn tmq_to_td(
 
     let max_polling_timeout = from
         .remove("max.polling.timeout")
-        .or(from.remove("timeout")) // for compatibility
+        .or(from.get("timeout").map(Clone::clone)) // for compatibility
         .or(std::env::var("TMQ_MAX_POLLING_TIMEOUT").ok())
         .map(|s| parse_timeout_duration(&s))
         .transpose()?
