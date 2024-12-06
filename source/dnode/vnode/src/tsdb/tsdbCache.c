@@ -606,7 +606,6 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
   int32_t     lino = 0;
   STsdb      *pTsdb = imem->pTsdb;
   SArray     *pMemDelData = NULL;
-  SArray     *pTombData = NULL;
   SArray     *pSkyline = NULL;
   int64_t     iSkyline = 0;
   STbDataIter tbIter = {0};
@@ -626,7 +625,12 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
   // tsdbBuildDeleteSkyline
   size_t delSize = TARRAY_SIZE(pMemDelData);
   if (delSize > 0) {
-    TAOS_CHECK_EXIT(tsdbBuildDeleteSkyline(pTombData, 0, (int32_t)(delSize - 1), pSkyline));
+    pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
+    if (!pSkyline) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    TAOS_CHECK_EXIT(tsdbBuildDeleteSkyline(pMemDelData, 0, (int32_t)(delSize - 1), pSkyline));
     iSkyline = taosArrayGetSize(pSkyline) - 1;
   }
 
