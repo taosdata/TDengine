@@ -775,11 +775,13 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
       QW_TASK_DLOG_E("task running, async killed");
     }
   } else if (QW_FETCH_RUNNING(ctx)) {
+    QW_TASK_DLOG_E("task fetching");
     QW_UPDATE_RSP_CODE(ctx, errCode);
-    QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
-    QW_TASK_DLOG_E("task fetching, update drop received");
-//  } else if (forceStop) {
-  } else {
+    if (forceStop) {
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
+      QW_TASK_DLOG_E("update drop received");
+    }
+  } else if (forceStop) {
     QW_UPDATE_RSP_CODE(ctx, errCode);
     code = qwDropTask(QW_FPARAMS());
     if (TSDB_CODE_SUCCESS != code) {
@@ -788,10 +790,8 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
       QW_TASK_DLOG_E("task dropped");
       resFreed = true;
     }
-/*
   } else {
     QW_UPDATE_RSP_CODE(ctx, errCode);
-    QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
     
     qwFreeTaskHandle(ctx);
     qwFreeSinkHandle(ctx);
@@ -799,7 +799,6 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
     resFreed = true;
     
     QW_TASK_DLOG_E("task resources freed");
-*/    
   }
 
   QW_UNLOCK(QW_WRITE, &ctx->lock);
@@ -871,7 +870,7 @@ void qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs) {
   void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
-    if (((ctx->lastAckTs <= 0) || (currTs - ctx->lastAckTs) < tsQueryNoFetchTimeoutSec) && (!QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP))) {
+    if (((ctx->lastAckTs <= 0) || (currTs - ctx->lastAckTs) < 60 /*tsQueryNoFetchTimeoutSec*/) && (!QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP))) {
       pIter = taosHashIterate(mgmt->ctxHash, pIter);
       continue;
     }

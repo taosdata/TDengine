@@ -1763,7 +1763,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
     return code;
   }  
 
-  uInfo("memory pool initialized, reservedSize:%dMB, freeAfterReserved:%" PRId64 "MB", tsMinReservedMemorySize, freeSizeAfterRes/1048576UL);
+  uInfo("memory pool initialized, reservedSize:%dMB, freeAfterReserved:%" PRId64 "MB, jobQuota:%dMB", tsMinReservedMemorySize, freeSizeAfterRes/1048576UL, tsSingleQueryMaxMemorySize);
 
   return code;
 }

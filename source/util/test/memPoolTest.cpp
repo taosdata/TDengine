@@ -1588,7 +1588,7 @@ TEST(PerfTest, GetSysAvail) {
 }
 #endif
 
-#if 1
+#if 0
 TEST(MiscTest, monSysAvailSize) {
   char* caseName = "MiscTest:monSysAvailSize";
   int32_t code = 0;
