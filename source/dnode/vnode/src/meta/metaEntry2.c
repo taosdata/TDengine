@@ -385,11 +385,12 @@ static int32_t metaHandleNormalTableCreateImpl(SMeta *pMeta, const SMetaEntry *p
 
   SMetaTableOp ops[] = {
       {META_ENTRY_TABLE, META_TABLE_OP_INSERT},   //
-      {META_SCHEMA_TABLE, META_TABLE_OP_INSERT},  //
+      {META_SCHEMA_TABLE, META_TABLE_OP_UPDATA},  // TODO: need to be insert
       {META_UID_IDX, META_TABLE_OP_INSERT},       //
       {META_NAME_IDX, META_TABLE_OP_INSERT},      //
       {META_BTIME_IDX, META_TABLE_OP_INSERT},     //
       {META_TTL_IDX, META_TABLE_OP_INSERT},       //
+                                                  // TODO: need ncol idx
   };
 
   for (int i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
@@ -407,14 +408,25 @@ static int32_t metaHandleNormalTableCreateImpl(SMeta *pMeta, const SMetaEntry *p
 static int32_t metaHandleNormalTableCreate(SMeta *pMeta, const SMetaEntry *pEntry) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  // update TDB
   metaWLock(pMeta);
   code = metaHandleNormalTableCreateImpl(pMeta, pEntry);
   metaULock(pMeta);
 
-  {
-    // TODO: other stuff
+  // update other stuff
+  if (TSDB_CODE_SUCCESS != code) {
+    pMeta->pVnode->config.vndStats.numOfNTables++;
+    pMeta->pVnode->config.vndStats.numOfNTimeSeries += pEntry->ntbEntry.schemaRow.nCols - 1;
+    pMeta->changed = true;
+    if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+      int32_t rc = tsdbCacheNewTable(pMeta->pVnode->pTsdb, pEntry->uid, -1, &pEntry->ntbEntry.schemaRow);
+      if (rc < 0) {
+        metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pEntry->name, tstrerror(rc));
+      }
+    }
+  } else {
+    metaErr(TD_VID(pMeta->pVnode), code);
   }
-
   return code;
 }
 

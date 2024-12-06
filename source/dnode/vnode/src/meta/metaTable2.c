@@ -16,6 +16,7 @@
 #include "meta.h"
 
 extern int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry);
+extern int32_t metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp);
 
 static int32_t metaCheckCreateSuperTableReq(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t   vgId = TD_VID(pMeta->pVnode);
@@ -129,6 +130,12 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
   SMetaReader mr = {0};
   int32_t     ret;
 
+  // validate message
+  if (pReq->type != TSDB_CHILD_TABLE && pReq->type != TSDB_NORMAL_TABLE) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
+
   if (pReq->type == TSDB_CHILD_TABLE) {
     tb_uid_t suid = metaGetTableEntryUidByName(pMeta, pReq->ctb.stbName);
     if (suid != pReq->ctb.suid) {
@@ -160,48 +167,91 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
 
   // build SMetaEntry
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-  me.version = version;
+  me.version = ver;
   me.type = pReq->type;
   me.uid = pReq->uid;
   me.name = pReq->name;
-  me.ctbEntry.btime = pReq->btime;
-  me.ctbEntry.ttlDays = pReq->ttl;
-  me.ctbEntry.commentLen = pReq->commentLen;
-  me.ctbEntry.comment = pReq->comment;
-  me.ctbEntry.suid = pReq->ctb.suid;
-  me.ctbEntry.pTags = pReq->ctb.pTag;
+  if (me.type == TSDB_CHILD_TABLE) {
+    me.ctbEntry.btime = pReq->btime;
+    me.ctbEntry.ttlDays = pReq->ttl;
+    me.ctbEntry.commentLen = pReq->commentLen;
+    me.ctbEntry.comment = pReq->comment;
+    me.ctbEntry.suid = pReq->ctb.suid;
+    me.ctbEntry.pTags = pReq->ctb.pTag;
 
-  ++pStats->numOfCTables;
+#ifdef TAG_FILTER_DEBUG
+    SArray *pTagVals = NULL;
+    int32_t code = tTagToValArray((STag *)pReq->ctb.pTag, &pTagVals);
+    for (int i = 0; i < taosArrayGetSize(pTagVals); i++) {
+      STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
 
-  if (!sysTbl) {
-    int32_t nCols = 0;
-    ret = metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        char *buf = taosMemoryCalloc(pTagVal->nData + 1, 1);
+        memcpy(buf, pTagVal->pData, pTagVal->nData);
+        metaDebug("metaTag table:%s varchar index:%d cid:%d type:%d value:%s", pReq->name, i, pTagVal->cid,
+                  pTagVal->type, buf);
+        taosMemoryFree(buf);
+      } else {
+        double val = 0;
+        GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
+        metaDebug("metaTag table:%s number index:%d cid:%d type:%d value:%f", pReq->name, i, pTagVal->cid,
+                  pTagVal->type, val);
+      }
+    }
+#endif
+
+    ++pStats->numOfCTables;
+
+    if (!sysTbl) {
+      int32_t nCols = 0;
+      ret = metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
+      if (ret < 0) {
+        metaError("vgId:%d, failed to get stb stats:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+                  pReq->ctb.suid, tstrerror(ret));
+      }
+      pStats->numOfTimeSeries += nCols - 1;
+    }
+
+    metaWLock(pMeta);
+    metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1, 0);
+    ret = metaUidCacheClear(pMeta, me.ctbEntry.suid);
     if (ret < 0) {
-      metaError("vgId:%d, failed to get stb stats:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+      metaError("vgId:%d, failed to clear uid cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
                 pReq->ctb.suid, tstrerror(ret));
     }
-    pStats->numOfTimeSeries += nCols - 1;
-  }
-
-  metaWLock(pMeta);
-  metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1, 0);
-  ret = metaUidCacheClear(pMeta, me.ctbEntry.suid);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to clear uid cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
-              pReq->ctb.suid, tstrerror(ret));
-  }
-  ret = metaTbGroupCacheClear(pMeta, me.ctbEntry.suid);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to clear group cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
-              pReq->ctb.suid, tstrerror(ret));
-  }
-  metaULock(pMeta);
-
-  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
-    ret = tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, me.ctbEntry.suid, NULL);
+    ret = metaTbGroupCacheClear(pMeta, me.ctbEntry.suid);
     if (ret < 0) {
-      metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pReq->name, tstrerror(ret));
-      goto _err;
+      metaError("vgId:%d, failed to clear group cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+                pReq->ctb.suid, tstrerror(ret));
+    }
+    metaULock(pMeta);
+
+    if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+      ret = tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, me.ctbEntry.suid, NULL);
+      if (ret < 0) {
+        metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pReq->name, tstrerror(ret));
+        goto _err;
+      }
+    }
+  } else {
+    me.ntbEntry.btime = pReq->btime;
+    me.ntbEntry.ttlDays = pReq->ttl;
+    me.ntbEntry.commentLen = pReq->commentLen;
+    me.ntbEntry.comment = pReq->comment;
+    me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
+    me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
+    me.colCmpr = pReq->colCmpr;
+    TABLE_SET_COL_COMPRESSED(me.flags);
+
+    ++pStats->numOfNTables;
+    pStats->numOfNTimeSeries += me.ntbEntry.schemaRow.nCols - 1;
+
+    if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+      ret = tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
+      if (ret < 0) {
+        metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pReq->name, tstrerror(ret));
+        goto _err;
+      }
     }
   }
 
@@ -213,10 +263,23 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
     *pMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
 
     if (*pMetaRsp) {
-      (*pMetaRsp)->tableType = TSDB_CHILD_TABLE;
-      (*pMetaRsp)->tuid = pReq->uid;
-      (*pMetaRsp)->suid = pReq->ctb.suid;
-      strcpy((*pMetaRsp)->tbName, pReq->name);
+      if (me.type == TSDB_CHILD_TABLE) {
+        (*pMetaRsp)->tableType = TSDB_CHILD_TABLE;
+        (*pMetaRsp)->tuid = pReq->uid;
+        (*pMetaRsp)->suid = pReq->ctb.suid;
+        strcpy((*pMetaRsp)->tbName, pReq->name);
+      } else {
+        ret = metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
+        if (ret < 0) {
+          metaError("vgId:%d, failed to update meta rsp:%s since %s", TD_VID(pMeta->pVnode), pReq->name,
+                    tstrerror(ret));
+        }
+        for (int32_t i = 0; i < pReq->colCmpr.nCols; i++) {
+          SColCmpr *p = &pReq->colCmpr.pColCmpr[i];
+          (*pMetaRsp)->pSchemaExt[i].colId = p->id;
+          (*pMetaRsp)->pSchemaExt[i].compress = p->alg;
+        }
+      }
     }
   }
 
@@ -237,93 +300,106 @@ _err:
 // Alter Child Table
 
 // Create Normal Table
+static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
+  int32_t code = 0;
+  void   *value = NULL;
+  int32_t valueSize = 0;
+
+  if (NULL == pReq->name || strlen(pReq->name) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid name:%s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->name, version);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  // check name
+  if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize) == 0) {
+    // for auto create table, we return the uid of the existing table
+    pReq->uid = *(tb_uid_t *)value;
+    tdbFree(value);
+    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+  }
+
+  // grant check
+  code = grantCheck(TSDB_GRANT_TIMESERIES);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, tstrerror(code), version, pReq->name);
+  }
+  return code;
+}
+
+static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == ppRsp) {
+    return code;
+  }
+
+  *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == *ppRsp) {
+    return terrno;
+  }
+
+  code = metaUpdateMetaRsp(pEntry->uid, pEntry->name, &pEntry->ntbEntry.schemaRow, *ppRsp);
+  if (code) {
+    taosMemoryFreeClear(*ppRsp);
+    return code;
+  }
+
+  for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
+    SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
+    (*ppRsp)->pSchemaExt[i].colId = p->id;
+    (*ppRsp)->pSchemaExt[i].compress = p->alg;
+  }
+
+  return code;
+}
+
 static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-#if 0
-  SMetaEntry  me = {0};
-  SMetaReader mr = {0};
-  int32_t     ret;
-
-  // validate req
-  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
-  if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
-    if (pReq->type == TSDB_CHILD_TABLE && pReq->ctb.suid != mr.me.ctbEntry.suid) {
-      metaReaderClear(&mr);
-      return terrno = TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+  // check request
+  code = metaCheckCreateNormalTableReq(pMeta, version, pReq);
+  if (code) {
+    if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST != code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+                __FILE__, __LINE__, tstrerror(code), version, pReq->name);
     }
-    pReq->uid = mr.me.uid;
-    if (pReq->type == TSDB_CHILD_TABLE) {
-      pReq->ctb.suid = mr.me.ctbEntry.suid;
-    }
-    metaReaderClear(&mr);
-    return terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
-  } else if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-    terrno = TSDB_CODE_SUCCESS;
-  }
-  metaReaderClear(&mr);
-
-  bool sysTbl = (pReq->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1);
-
-  if (!sysTbl && ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0)) goto _err;
-
-  // build SMetaEntry
-  SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-  me.version = version;
-  me.type = pReq->type;
-  me.uid = pReq->uid;
-  me.name = pReq->name;
-  me.ntbEntry.btime = pReq->btime;
-  me.ntbEntry.ttlDays = pReq->ttl;
-  me.ntbEntry.commentLen = pReq->commentLen;
-  me.ntbEntry.comment = pReq->comment;
-  me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
-  me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
-  me.colCmpr = pReq->colCmpr;
-  TABLE_SET_COL_COMPRESSED(me.flags);
-
-  ++pStats->numOfNTables;
-  pStats->numOfNTimeSeries += me.ntbEntry.schemaRow.nCols - 1;
-
-  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
-    ret = tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
-    if (ret < 0) {
-      metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pReq->name, tstrerror(ret));
-      goto _err;
-    }
+    TAOS_RETURN(code);
   }
 
-  if (metaHandleEntry(pMeta, &me) < 0) goto _err;
+  // handle entry
+  SMetaEntry entry = {
+      .version = version,
+      .type = TSDB_NORMAL_TABLE,
+      .uid = pReq->uid,
+      .name = pReq->name,
+      .ntbEntry.btime = pReq->btime,
+      .ntbEntry.ttlDays = pReq->ttl,
+      .ntbEntry.commentLen = pReq->commentLen,
+      .ntbEntry.comment = pReq->comment,
+      .ntbEntry.schemaRow = pReq->ntb.schemaRow,
+      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+      .colCmpr = pReq->colCmpr,
+  };
+  TABLE_SET_COL_COMPRESSED(entry.flags);
 
-  metaTimeSeriesNotifyCheck(pMeta);
-
-  if (pMetaRsp) {
-    *pMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-
-    if (*pMetaRsp) {
-      ret = metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
-      if (ret < 0) {
-        metaError("vgId:%d, failed to update meta rsp:%s since %s", TD_VID(pMeta->pVnode), pReq->name, tstrerror(ret));
-      }
-      for (int32_t i = 0; i < pReq->colCmpr.nCols; i++) {
-        SColCmpr *p = &pReq->colCmpr.pColCmpr[i];
-        (*pMetaRsp)->pSchemaExt[i].colId = p->id;
-        (*pMetaRsp)->pSchemaExt[i].compress = p->alg;
-      }
-    }
+  // build response
+  code = metaBuildCreateNormalTableRsp(pMeta, &entry, ppRsp);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
   }
 
-  pMeta->changed = true;
-  metaDebug("vgId:%d, table:%s uid %" PRId64 " is created, type:%" PRId8, TD_VID(pMeta->pVnode), pReq->name, pReq->uid,
-            pReq->type);
-  return 0;
-
-_err:
-  metaError("vgId:%d, failed to create table:%s type:%s since %s", TD_VID(pMeta->pVnode), pReq->name,
-            pReq->type == TSDB_CHILD_TABLE ? "child table" : "normal table", tstrerror(terrno));
-  return TSDB_CODE_FAILED;
-#endif
-  return code;
+  code = metaHandleEntry2(pMeta, &entry);
+  if (TSDB_CODE_SUCCESS == code) {
+    metaInfo("vgId:%d, normal table:%s uid %" PRId64 " is created, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+             pReq->uid, version);
+  } else {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
+  }
+  TAOS_RETURN(code);
 }
 
 // Drop Normal Table
@@ -333,11 +409,12 @@ _err:
 int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (TSDB_CHILD_TABLE == pReq->type) {
-    code = metaCreateChildTable(pMeta, version, pReq, ppRsp);
+    // TODO
+    code = metaCreateTable(pMeta, version, pReq, ppRsp);
   } else if (TSDB_NORMAL_TABLE == pReq->type) {
     code = metaCreateNormalTable(pMeta, version, pReq, ppRsp);
   } else {
     code = TSDB_CODE_INVALID_MSG;
   }
-  return code;
+  TAOS_RETURN(code);
 }
