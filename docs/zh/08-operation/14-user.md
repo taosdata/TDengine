@@ -12,7 +12,7 @@ TDengine 默认仅配置了一个 root 用户，该用户拥有最高权限。TD
 
 创建用户的操作只能由 root 用户进行，语法如下。
 ```sql
-create user user_name pass'password' [sysinfo {1|0}] {createdb {1|0}}
+create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
 ```
 
 相关参数说明如下。
@@ -56,7 +56,7 @@ alter_user_clause: {
 - pass：修改用户密码。
 - enable：是否启用用户。1 表示启用此用户，0 表示禁用此用户。
 - sysinfo ：用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息
-- createdb: 用户是否可创建数据库。1 表示可以创建数据库，0 表示不可以创建数据库。// 从 TDengine 企业版 3.3.2.0 开始支持
+- createdb：用户是否可创建数据库。1 表示可以创建数据库，0 表示不可以创建数据库。// 从 TDengine 企业版 3.3.2.0 开始支持
 
 如下 SQL 禁用 test 用户。
 ```sql

@@ -19,8 +19,6 @@ The password can be up to 31 bytes long. The password can include letters, numbe
 
 `CREATEDB` indicates whether the user can create databases. `1` means they can create databases, `0` means they have no permission to create databases. The default value is `0`. // Supported starting from TDengine Enterprise version 3.3.2.0
 
-
-
 In the example below, we create a user with the password `123456` who can view system information.
 
 ```sql
