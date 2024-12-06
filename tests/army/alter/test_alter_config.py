@@ -634,6 +634,7 @@ class TDTestCase:
         sc.dnodeStart(1)
         sc.dnodeStart(2)
         sc.dnodeStart(3)
+        sleep(10)
 
         for key in self.configration_dic:
             if "cli" == key:
