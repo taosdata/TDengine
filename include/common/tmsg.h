@@ -220,10 +220,11 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_UD_COL(f)     ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f)      (((f)&TSDB_COL_NULL) != 0)
 
-#define TD_SUPER_TABLE  TSDB_SUPER_TABLE
-#define TD_CHILD_TABLE  TSDB_CHILD_TABLE
-#define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
-#define TD_VIRTUAL_TABLE TSDB_VIRTUAL_TABLE
+#define TD_SUPER_TABLE         TSDB_SUPER_TABLE
+#define TD_CHILD_TABLE         TSDB_CHILD_TABLE
+#define TD_NORMAL_TABLE        TSDB_NORMAL_TABLE
+#define TD_VIRTUAL_TABLE       TSDB_VIRTUAL_TABLE
+#define TD_VIRTUAL_CHILD_TABLE TSDB_VIRTUAL_CHILD_TABLE
 
 typedef enum ENodeType {
   // Syntax nodes are used in parser and planner module, and some are also used in executor module, such as COLUMN,
@@ -729,6 +730,9 @@ static FORCE_INLINE int32_t tInitDefaultSColRefWrapperByCols(SColRefWrapper* pRe
     return terrno;
   }
   pRef->nCols = nCols;
+  for (int32_t i = 0; i < nCols; i++) {
+    pRef->pColRef[i].hasRef = false;
+  }
   return 0;
 }
 

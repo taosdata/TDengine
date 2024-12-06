@@ -9994,9 +9994,9 @@ int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper) 
   TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pWrapper->version));
   for (int32_t i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
-    TAOS_CHECK_EXIT(tEncodeI16v(pCoder, p->id));
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->hasRef));
     if (p->hasRef) {
+      TAOS_CHECK_EXIT(tEncodeI16v(pCoder, p->id));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refColName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refTableName));
     }
@@ -10020,9 +10020,9 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
 
   for (int i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
-    TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
     if (p->hasRef) {
+      TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &p->refColName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &p->refTableName));
     }
@@ -10183,7 +10183,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (pReq->type == TSDB_SUPER_TABLE || pReq->type == TSDB_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
   }
-  if (pReq->type == TSDB_VIRTUAL_TABLE) {
+  if (pReq->type == TSDB_VIRTUAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColRefWrapper(pCoder, &pReq->colRef));
   }
 
@@ -10213,7 +10213,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(pCoder, pReq->comment));
   }
 
-  if (pReq->type == TSDB_CHILD_TABLE) {
+  if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pReq->ctb.stbName));
     TAOS_CHECK_EXIT(tDecodeU8(pCoder, &pReq->ctb.tagNum));
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->ctb.suid));
@@ -10249,7 +10249,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       if (!tDecodeIsEnd(pCoder)) {
         TAOS_CHECK_EXIT(tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr));
       }
-    } else if (pReq->type == TSDB_VIRTUAL_TABLE) {
+    } else if (pReq->type == TSDB_VIRTUAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       if (!tDecodeIsEnd(pCoder)) {
         TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(pCoder, &pReq->colRef));
       }
