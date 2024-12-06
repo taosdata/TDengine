@@ -2950,7 +2950,7 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
-      pVal->pz = taosMemoryMalloc(pVal->nLen + 1);
+      pVal->pz = taosMemoryCalloc(1, pVal->nLen + 1);
       if (pVal->pz) {
         memcpy(pVal->pz, pNode->datum.p, varDataTLen(pNode->datum.p));
       } else {
@@ -2959,9 +2959,9 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
       break;
     case TSDB_DATA_TYPE_JSON:
       pVal->nLen = getJsonValueLen(pNode->datum.p);
-      pVal->pz = taosMemoryMalloc(pVal->nLen);
+      pVal->pz = taosMemoryCalloc(1, pVal->nLen);
       if (pVal->pz) {
-        memcpy(pVal->pz, pNode->datum.p, varDataTLen(pNode->datum.p));
+        memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
       } else {
         code = terrno;
       }
