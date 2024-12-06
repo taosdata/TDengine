@@ -60,6 +60,7 @@ void execQuery(TAOS* pConn, const char *sql){
 }
 
 void execQueryFail(TAOS* pConn, const char *sql){
+  printf("execQueryFail: %s\n", sql);
   TAOS_RES* pRes = taos_query(pConn, sql);
 #ifndef WINDOWS
   ASSERT(taos_errno(pRes) != TSDB_CODE_SUCCESS);
@@ -68,6 +69,7 @@ void execQueryFail(TAOS* pConn, const char *sql){
 }
 
 void checkRows(TAOS* pConn, const char *sql, int32_t expectedRows){
+  printf("checkRows sql:%s,rows:%d\n", sql, expectedRows);
   TAOS_RES* pRes = taos_query(pConn, sql);
   ASSERT(taos_errno(pRes) == TSDB_CODE_SUCCESS);
   TAOS_ROW    pRow = NULL;
@@ -114,6 +116,7 @@ int64_t get_sql_result(TAOS* pConn, const char *sql){
 }
 
 void check_sql_result(TAOS* pConn, const char *sql, const char* result){
+  printf("check_sql_result sql:%s,result:%s\n", sql, result);
   TAOS_RES *pRes = taos_query(pConn, sql);
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
@@ -126,6 +129,7 @@ void check_sql_result(TAOS* pConn, const char *sql, const char* result){
 }
 
 void check_sql_result_integer(TAOS* pConn, const char *sql, int64_t result){
+  printf("check_sql_result_integer sql:%s,result:%ld\n", sql, result);
   TAOS_RES *pRes = taos_query(pConn, sql);
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
