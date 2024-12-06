@@ -620,15 +620,13 @@
         @close="closeDialog"
         :close-on-click-modal="false"
       >
-        <CreateSTB ref="createstb" :columnsArr="columnsArr"></CreateSTB>
-        <div class="buttons">
-          <el-button type="primary" size="small" @click="createST">
-            {{ $t("create") }}
-          </el-button>
-          <el-button size="small" @click="closeDialog">
-            {{ $t("cancel") }}
-          </el-button>
-        </div>
+        <CreateSTB ref="createstb" 
+          :isTemplateCreate="$store.state.app.supportTopicBody"
+          @close="closeDialog"
+          @create="createST"
+          @preview="previewStable"
+          :key="componentKey"
+        ></CreateSTB>
       </el-dialog>
       <!-- <el-dialog
         :title="$t('datasource.transformer.udtTip')"
@@ -676,7 +674,7 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getParser, checkParseData, getSampleDataMsgbody, listParserPlugins } from "@/api/explorer/datain";
+import { getParser, checkParseData, getSampleDataMsgbody, listParserPlugins, getStabelParser } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
@@ -759,6 +757,7 @@ export default {
       mappingcolumns: [],
       msgForm: {
         msgbody: "",
+        topicbody: []
       },
       params_columns: [],
       params_tags: [],
@@ -836,7 +835,8 @@ export default {
       dialogVisible: false,
       checkedProperties: [],
       requesting: false,
-      refreshKey: 0
+      refreshKey: 0,
+      componentKey: 0
     };
   },
   computed: {
@@ -1020,6 +1020,8 @@ export default {
         }
         result.input.map(item => {
           this.msgForm.msgbody += item.payload + "\n";
+          const { payload, ...rest } = item; 
+          this.msgForm.topicbody.push(rest)
         })
       } else {
         this.msgForm.msgbody = JSON.stringify(result);
@@ -1549,7 +1551,8 @@ export default {
         }
         this.sruleForm.s_name = value.parser.model.using;
         // this.subrule.subname = value.parser.model.name;
-        await this.getSTbaleList(true);
+        // !!value.parser.s_model 为了判断是不是用模版创建的
+        await this.getSTbaleList(true,!!value.parser.s_model);
         await this.echoFetchMap();
         if (this.$store.state.app.currentDBType !== 'csv' && !this.$store.state.app.supportSQL) {
           await this.selectJson();
@@ -1802,6 +1805,11 @@ export default {
         },
       };
 
+      // mqtt 用模版的方式创建超级表增加的参数
+      if (JSON.stringify(this.$store.state.app.s_model) !== '{}') {
+        parserData.parser['s_model'] = this.$store.state.app.s_model
+      }
+
       // 至少必须配置一个tag和一个column 
       if (tags.length == 0 || commonColumns.length == 0) {
         Message.closeAll();
@@ -1865,6 +1873,10 @@ export default {
           currentPage: this.currentPage,
         },
       };
+
+      if (JSON.stringify(this.$store.state.app.s_model) !== '{}') {
+        parserData.parser['s_model'] = this.$store.state.app.s_model
+      }
     
       this.$store.commit("app/SET_TRANS_FULL_PARAMS", parserData);
       // this.$emit("getTransformerParams", parserData);
@@ -1916,7 +1928,10 @@ export default {
         
         // 预览映射结果table数据
         let resultTableData = outputTBData.map(item => {
-          item.SubTableName = item['__tbname__'];
+          item.SuperTableNmae = item['__using__']
+          if (this.$store.state.app.currentDBType == 'mqtt') {
+           item.SubTableName = item['__tbname__'];
+          }
           const { __using__, __tbname__, ...rest } = item;
           return rest;
         });
@@ -1961,6 +1976,8 @@ export default {
                     ? "" //parsinginZone(new Date())
                     : item.name;
               }
+                // inputobj['tp1'] = 'tp1' 有很多列需要插入锦进来
+
             } else if (this.$store.state.app.currentDBType == "kafka") {
               if (item.name == "value") {
                 inputobj["value"] = msg;
@@ -1984,6 +2001,13 @@ export default {
         });
         return inputobj;
       });
+
+      // mqtt 有主题解析时需要加上字段
+      inputList = inputList.map((item, index) => {
+        const newItem = this.msgForm.topicbody[index];
+        return { ...item, ...newItem };
+      });
+    
       return inputList.filter(v => JSON.stringify(v) !== '{}');
     },
     submitSuper(data) {
@@ -2092,6 +2116,73 @@ export default {
         }
       });
     },
+    async previewStable() {
+      this.$refs.createstb.$refs.form.validate(async (valid) => {
+        if (!valid) return false;
+        if (valid) {
+          const { name, columns, tags } = this.$refs.createstb.stable_form;
+          const newColumns = columns.map(col => {
+            return {
+              name: col.field,
+              type: col.type,
+              length: col.length
+              // type: col.type + (col.length ? `(${col.length})` : ''),
+            }
+          })
+          const newTags = tags.map(col => {
+            return {
+              name: col.field,
+              type: col.type,
+              length: col.length
+              // type: col.type + (col.length ? `(${col.length})` : ''),
+            }
+          })
+          const s_model = {
+            name,
+            columns: newColumns,
+            tags: newTags
+          }
+          const parserData = {
+          parser: {
+            parse: this.$store.state.app.topParse.parser.parse,
+            s_model: s_model,
+            mutate: [].concat(this.$store.state.app.transformExtractParseData),
+          },
+
+          input: this.$store.state.app.topParse.input
+        }
+
+        const result = await getStabelParser(parserData)
+        if (result && Object.hasOwnProperty.call(result,'code')) {
+          this.$error(result.message || result.desc)
+          return
+        }
+        this.$store.state.app.s_model = s_model
+        this.sruleForm.s_name = name;
+        this.getSTbaleList(false,true);
+        this.closeDialog()
+      }
+    })
+    },
+    // 将模版解析的结果转换成和用sql查询返回的数据结构一致
+    convert(data){
+      return [].concat(data).flatMap(item => {
+        // 提取 tags 中所有字段名
+        const tags = item.tags.map(tag => tag.name);
+        const allData = item.columns.concat(item.tags)
+        return allData.map(col => {
+          const name = col.name.replace(/`/g, ''); // 去除反引号
+          const type = col.type;
+          const length = col.length !== null ? col.length : ''; 
+          const isTag = tags.includes(name) ? 'TAG' : ''; 
+
+          // 返回字段数据，带 TAG 的字段加上 TAG，其他字段正常返回
+          return length === '' 
+            ? [name, type, length] 
+            : [name, type, length, isTag].filter(Boolean); // 去除空值
+        });
+      });
+    },
     //获取初始化的stables
     async getInitStables() {
       try {
@@ -2121,6 +2212,7 @@ export default {
       }
 
       this.showCreateDialog = true;
+      this.componentKey ++
     },
     //回显数据调用mapping接口
     echoFetchMap() {
@@ -2169,18 +2261,24 @@ export default {
         this.caculateMappingResult();
       }
     },
-    async getSTbaleList(isEcho) {
+    async getSTbaleList(isEcho, isTemplateCreate) {
       try {
         this.currentPage = 1;
-        let res = await sendSQLReq(
-          `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
-        );
-        let precision = await sendSQLReq(`
-        select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
-        `);
-        if (res.desc) {
-          this.$error(res.desc);
-          return;
+        let res = {}
+        let precision = {}
+        if (isTemplateCreate) {
+          res.data = this.convert(this.$store.state.app.s_model);
+        } else {
+          res = await sendSQLReq(
+            `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
+          );
+          precision = await sendSQLReq(`
+          select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
+          `);
+          if (res.desc) {
+            this.$error(res.desc);
+            return;
+          }
         }
   
         if (this.$store.state.app.transformerMapCloumns) {
@@ -2242,7 +2340,7 @@ export default {
           );
 
           tableRow.Type =
-              val[1] == "TIMESTAMP"
+              (val[1] == "TIMESTAMP" && !isTemplateCreate)
                 ? val[1] + "(" + precision.data[0][0] + ")"
                 : val[1];
           tableRow.maptype =
@@ -2688,14 +2786,6 @@ export default {
     .el-button {
       width: 100%;
     }
-  }
-}
-.buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  .el-button {
-    width: 60px;
   }
 }
 .transdescription {

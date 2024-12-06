@@ -134,7 +134,7 @@ export default {
       extractParseData: {},
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
-      extractTypes: ["split", "regex", "join"],
+      extractTypes: ["split", "regex", "join", "convert"],
       ruleForm: {
         col_name: "",
         filter_name: "",
@@ -457,17 +457,17 @@ export default {
         this.indentifiedColumns
           .filter((val) => !hiddenCols.includes(val.name))
           .forEach((item) => {
-                        if (this.$store.state.app.currentDBType == "mqtt") {
+            if (this.$store.state.app.currentDBType == "mqtt") {
               if (item.name == "payload") {
-                                inputobj["payload"] = isall
+                inputobj["payload"] = isall
                   ? msg
                   : this.isJson
                     ? JSON.stringify({
                         [`${this.itemData.columnname}`]:
-                          JSON.parse(msg)[this.itemData.columnname],
+                          JSON.parse(msg)[this.itemData.columnname]
                       })
                     : msg;
-                                } else {
+              } else {
                 inputobj[item.name] =
                   item.type == "timestamp"
                     ? parsinginZone(new Date())
@@ -509,6 +509,27 @@ export default {
           });
         return inputobj;
       });
+
+      // 如果手动增加了编辑了输入框中值，可能导致顺序发生变化
+      if (this.$store.state.app.currentDBType == "mqtt") {
+        inputList = inputList.map((msg) => {
+          let inputobj = {...msg};
+          this.$parent.msgForm.topicbody
+            .forEach((item) => {
+              if (item[this.itemData.columnname]) {
+                inputobj[this.itemData.columnname] = item[this.itemData.columnname]  
+              }
+              if (isall) {
+                inputobj = {...item}
+              }
+              if (inputobj.payload === '{}') {
+                delete inputobj.payload
+              }
+            });
+          return inputobj;
+        });
+      }
+
       this.extractParseData = {
         extract: {},
       };
@@ -520,28 +541,32 @@ export default {
       }
       deepClone(this.$parent.extractArr)
         .map((item) => {
-          let splitobj = null;
-          if (item.type == "split") {
-            splitobj = Object.fromEntries(
-              Object.entries(item?.splitParams).filter(([key, value]) => {
-                return value !== null && value != undefined && value != "";
-              })
+          let value;
+
+          if (item.type === "regex" || item.type === "join") {
+            value = item.expression;
+          } else if (item.type === "split") {
+            // 处理split类型
+            const splitobj = Object.fromEntries(
+              Object.entries(item.splitParams).filter(([key, value]) => value != null && value !== "")
             );
-            splitobj["n"] = Number(splitobj["n"]);
+            splitobj.n = Number(splitobj.n);
             Object.hasOwnProperty.call(splitobj, "names")
               ? (splitobj["names"] = splitobj["names"].split(","))
               : splitobj;
+            value = splitobj;
+          } else if(item.type === 'convert') {
+            value = JSON.parse(item.expression);
+          } else {
+            // 处理其他类型
+            value = item.expression
+              ? item.expression.split(";").map((str) => str.trim())
+              : item.expression;
           }
+
           return {
             [`${item.columnname}`]: {
-              [`${item.type}`]:
-                item.type == "regex" || item.type == "join"
-                  ? item.expression
-                  : item.type == "split"
-                  ? splitobj
-                  : item.expression
-                  ? item.expression.split(";").map((item) => item.trim())
-                  : item.expression,
+              [`${item.type}`]: value,
             },
           };
         })

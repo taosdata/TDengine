@@ -380,6 +380,23 @@ export function getParser(data, messagebox) {
     })
 }
 
+// 用模版的方式创建超级表的预览api
+export function getStabelParser(data, messagebox) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/transform/sample/flat/s_model/preview?tz=${getLocalTimezone()}`,
+        method: 'post',
+        transformResponse: [function (data) {
+            try {
+              return JSONbig.parse(data);
+            } catch (error) {
+              return data;
+            }
+          }],
+        data
+    })
+}
+
 // export function listParserPlugins() {
 //     return [{
 //         "id": "hebeipower.dll",
