@@ -23,9 +23,9 @@ int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
 
   for (int32_t i = 0; i < pw->nCols; i++) {
     SColRef *p = &pw->pColRef[i];
-    TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
     TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->hasRef));
     if (p->hasRef) {
+      TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
       TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refTableName));
       TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
     }
@@ -49,9 +49,9 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
 
   for (int i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
-    TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
     TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
     if (p->hasRef) {
+      TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
       TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &p->refTableName));
       TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &p->refColName));
     }
@@ -167,11 +167,15 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   } else if (pME->type == TSDB_VIRTUAL_TABLE) {
     TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ntbEntry.ncid));
     TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schemaRow));
+  } else if (pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.btime));
+    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.suid));
+    TAOS_CHECK_RETURN(tEncodeTag(pCoder, (const STag *)pME->ctbEntry.pTags));
   } else {
     metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
     return TSDB_CODE_INVALID_PARA;
   }
-  if (pME->type == TSDB_VIRTUAL_TABLE) {
+  if (pME->type == TSDB_VIRTUAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_RETURN(meteEncodeColRefEntry(pCoder, pME));
   } else {
     TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
@@ -222,6 +226,10 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   } else if (pME->type == TSDB_VIRTUAL_TABLE) {
     TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ntbEntry.ncid));
     TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schemaRow));
+  } else if (pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.btime));
+    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.suid));
+    TAOS_CHECK_RETURN(tDecodeTag(pCoder, (STag **)&pME->ctbEntry.pTags));
   } else {
     metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
     return TSDB_CODE_INVALID_PARA;
@@ -249,11 +257,11 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow));
     }
     TABLE_SET_COL_COMPRESSED(pME->flags);
-  } else if (pME->type == TSDB_VIRTUAL_TABLE) {
+  } else if (pME->type == TSDB_VIRTUAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
       uDebug("set type: %d, tableName:%s", pME->type, pME->name);
       TAOS_CHECK_RETURN(meteDecodeColRefEntry(pCoder, pME));
-      if (pME->colCmpr.nCols == 0) {
+      if (pME->colRef.nCols == 0 && pME->type == TSDB_VIRTUAL_TABLE) {
         TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
       }
     } else {

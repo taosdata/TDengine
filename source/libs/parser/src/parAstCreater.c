@@ -2312,6 +2312,29 @@ _err:
   return NULL;
 }
 
+SNode* createColumnRefNode(SAstCreateContext* pCxt, SToken* pColName, SToken* pRefTableName, SToken* pRefColName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pColName));
+  CHECK_NAME(checkColumnName(pCxt, pRefColName));
+  CHECK_NAME(checkTableName(pCxt, pRefTableName));
+
+  SColumnRefNode* pCol = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
+  CHECK_MAKE_NODE(pCol);
+  if (pColName) {
+    COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
+  }
+  if (!pRefTableName || !pRefColName) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+  COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, pRefTableName);
+  COPY_STRING_FORM_ID_TOKEN(pCol->refColName, pRefColName);
+  return (SNode*)pCol;
+_err:
+  return NULL;
+}
+
 SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
@@ -2355,11 +2378,39 @@ SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   pStmt->ignoreExists = ignoreExists;
   pStmt->pCols = pCols;
   nodesDestroyNode(pRealTable);
-  SNode *pCol = NULL;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pRealTable);
   nodesDestroyList(pCols);
+  return NULL;
+}
+
+SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                 SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
+                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateVSubTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VSUBTABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
+  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pSpecificTags = pSpecificTags;
+  pStmt->pValsOfTags = pValsOfTags;
+  pStmt->pSpecificColRefs = pSpecificColRefs;
+  pStmt->pColRefs = pColRefs;
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  nodesDestroyList(pSpecificTags);
+  nodesDestroyList(pValsOfTags);
+  nodesDestroyList(pSpecificColRefs);
+  nodesDestroyList(pColRefs);
   return NULL;
 }
 
