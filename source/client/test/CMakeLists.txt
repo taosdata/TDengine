@@ -58,6 +58,10 @@ IF(${TD_LINUX})
                 NAME clientTest
                 COMMAND clientTest
         )
+        add_test(
+                NAME connectOptionsTest
+                COMMAND connectOptionsTest
+        )
 ENDIF ()
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -93,7 +97,3 @@ add_test(
         COMMAND userOperTest
 )
 
-add_test(
-        NAME connectOptionsTest
-        COMMAND connectOptionsTest
-)
