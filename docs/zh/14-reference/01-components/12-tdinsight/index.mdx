@@ -148,12 +148,12 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 ### 预配置告警规则自动导入
 
 涛思总结用户使用经验，整理出14个常用的告警规则（alert rule），能够对集群关键指标进行监测并及时上报指标异常、超限等告警信息。  
-从TDengine-server 3.3.4.3版本（tdengine-datasource 3.6.3）开始，TDengine Datasource 支持预配置告警规则自动导入功能，用户可将14个告警规则一键导入Grafana（11.x版本），直接使用。  
-预配置告警规则导入方法如下图所示，在tdengine-datasource setting界面，打开 “Load Tengine Alert” 开关，点击 “Save & test” 按钮后，插件会自动加载上述告警规则, 规则会放入以数据源名称 + “-alert” 的 grafana 告警目录中。如不需要，关闭Load TDengine Alert开关。点击 “Clear TDengine Alert” 旁边的按钮则会清除此数据源已导入的所有告警规则。 
+从 TDengine-server 3.3.4.3版本（tdengine-datasource 3.6.3）开始，TDengine Datasource 支持预配置告警规则自动导入功能，用户可将14个告警规则一键导入 Grafana（11及以上版本），直接使用。  
+预配置告警规则导入方法如下图所示，在 tdengine-datasource setting 界面，打开 “Load Tengine Alert” 开关，点击 “Save & test” 按钮后，插件会自动加载上述告警规则, 规则会放入以数据源名称 + “-alert” 的 grafana 告警目录中。如不需要，关闭 “Load TDengine Alert” 开关，点击 “Clear TDengine Alert” 旁边的按钮则会清除此数据源已导入的所有告警规则。 
 
 ![TDengine Alert](./assets/TDengine-Alert.webp)  
 
-导入后，点击Grafana左侧Alert rules，可查看当前所有告警规则。 
+导入后，点击 Grafana 左侧 “Alert rules” ，可查看当前所有告警规则。 
 用户只需配置联络点（Contact points），即可获取告警通知。联络点配置方法见[告警配置](https://docs.taosdata.com/third-party/visual/grafana/#%E5%91%8A%E8%AD%A6%E9%85%8D%E7%BD%AE)。
 
 ![Alert-rules](./assets/Alert-rules.webp) 
@@ -178,7 +178,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 |dnode 重启 |max(update_time) > last(update_time)|触发告警|90秒|0秒|`select now(),  dnode_id, max(uptime) - last(uptime) as dnode_restart  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now  partition by dnode_id`|
 
 用户可参考上述告警规则，根据自己业务需求进行修改与完善。  
-Grafana7.5及以下版本，Dashboards与Alert rules功能合在一起，而之后的新版本两个功能是分开的。为兼容Grafana7.5及以下版本，TDinsight面板中增加了Alert Used Only面板，仅Grafana7.5及以下版本需要使用。
+Grafana7.5 及以下版本，Dashboards 与 Alert rules 功能合在一起，而之后的新版本两个功能是分开的。为兼容 Grafana7.5及以下版本，TDinsight 面板中增加了 Alert Used Only 面板，仅 Grafana7.5及以下版本需要使用。
 
 ![Alert Used Only](./assets/Alert-Used-Only.webp)
 
