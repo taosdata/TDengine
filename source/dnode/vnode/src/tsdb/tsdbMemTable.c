@@ -335,7 +335,7 @@ int32_t tsdbMemTableSaveToCache(SMemTable *pMemTable, void *func) {
     STbData *pTbData = pMemTable->aBucket[i];
     while (pTbData) {
       code = (*cb)(pMemTable, pTbData->suid, pTbData->uid);
-      if (!code) {
+      if (code) {
         TAOS_RETURN(code);
       }
 

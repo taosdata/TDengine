@@ -626,7 +626,7 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
   // tsdbBuildDeleteSkyline
   size_t delSize = TARRAY_SIZE(pMemDelData);
   if (delSize > 0) {
-    TAOS_CHECK_GOTO(tsdbBuildDeleteSkyline(pTombData, 0, (int32_t)(delSize - 1), pSkyline), &lino, _exit);
+    TAOS_CHECK_EXIT(tsdbBuildDeleteSkyline(pTombData, 0, (int32_t)(delSize - 1), pSkyline));
     iSkyline = taosArrayGetSize(pSkyline) - 1;
   }
 
@@ -686,6 +686,9 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
 
     STsdbRowKey tsdbRowKey = {0};
     tsdbRowGetKey(pMemRow, &tsdbRowKey);
+
+    STSDBRowIter iter = {0};
+    TAOS_CHECK_EXIT(tsdbRowIterOpen(&iter, pMemRow, pTSchema));
 
     int32_t iCol = 0;
     for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal && iCol < nCol; pColVal = tsdbRowIterNext(&iter), iCol++) {
@@ -2485,11 +2488,15 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
   TAOS_CHECK_EXIT(tsdbRowIterOpen(&rowIter, pRow, pTSchema));
 
   int32_t iCol = 0, jCol = 0, jnCol = TARRAY_SIZE(pLastArray);
-  for (SColVal *pColVal = tsdbRowIterNext(&rowIter); pColVal && iCol < nCol && jCol < jnCol;
-       pColVal = tsdbRowIterNext(&rowIter), ++iCol) {
+  for (SColVal *pColVal = tsdbRowIterNext(&rowIter); pColVal && iCol < nCol && jCol < jnCol;) {
     SLastCol *pTargetCol = &((SLastCol *)TARRAY_DATA(pLastArray))[jCol];
     if (pColVal->cid < pTargetCol->colVal.cid) {
+      pColVal = tsdbRowIterNext(&rowIter), ++iCol;
+
       continue;
+    }
+    if (pColVal->cid > pTargetCol->colVal.cid) {
+      break;
     }
 
     int32_t cmp_res = tRowKeyCompare(&pTargetCol->rowKey, &rowKey.key);
@@ -2505,7 +2512,7 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
       if (COL_VAL_IS_VALUE(pColVal)) {
         if (cmp_res <= 0) {
           SLastCol lastCol = {
-              .rowKey = rowKey.key, .colVal = pTargetCol->colVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
+              .rowKey = rowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
           TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&lastCol, NULL), &lino, _exit);
 
           tsdbCacheFreeSLastColItem(pTargetCol);
@@ -2526,6 +2533,10 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
     }
 
     ++jCol;
+
+    if (jCol < jnCol && ((SLastCol *)TARRAY_DATA(pLastArray))[jCol].colVal.cid > pColVal->cid) {
+      pColVal = tsdbRowIterNext(&rowIter), ++iCol;
+    }
   }
   tsdbRowClose(&rowIter);
 
@@ -2554,12 +2565,12 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
          pColVal = tsdbRowIterNext(&rowIter), iCol++) {
       int32_t *pjCol = tSimpleHashGet(iColHash, &pColVal->cid, sizeof(pColVal->cid));
       if (pjCol && COL_VAL_IS_VALUE(pColVal)) {
-        SLastCol *pTargetCol = &((SLastCol *)TARRAY_DATA(pLastArray))[jCol];
-        int32_t   cmp_res = tRowKeyCompare(&pTargetCol->rowKey, &rowKey.key);
+        SLastCol *pTargetCol = &((SLastCol *)TARRAY_DATA(pLastArray))[*pjCol];
+        int32_t   cmp_res = tRowKeyCompare(&pTargetCol->rowKey, &tsdbRowKey.key);
 
         if (cmp_res <= 0) {
           SLastCol lastCol = {
-              .rowKey = rowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
+              .rowKey = tsdbRowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
           TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&lastCol, NULL), &lino, _exit);
 
           tsdbCacheFreeSLastColItem(pTargetCol);
