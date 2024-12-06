@@ -530,7 +530,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       TAOS_RETURN(code);
     } else {
-      tstrncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif

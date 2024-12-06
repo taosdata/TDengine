@@ -1884,7 +1884,7 @@ static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t optLen, int32
     if (strlen(pMCfgReq->value) != 0) goto _err;
     code = taosStr2int32(pMCfgReq->config + optLen + 1, pOutValue);
     if (code != 0) {
-      mError("dnode:%d, failed to get cfg since code: %s", pMCfgReq->dnodeId, tstrerror(code));
+      mError("dnode:%d, failed to get cfg since %s", pMCfgReq->dnodeId, tstrerror(code));
       goto _err;
     }
   } else {
@@ -1892,7 +1892,7 @@ static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t optLen, int32
     if (strlen(pMCfgReq->value) == 0) goto _err;
     code = taosStr2int32(pMCfgReq->value, pOutValue);
     if (code != 0) {
-      mError("dnode:%d, failed to get cfg since code: %s", pMCfgReq->dnodeId, tstrerror(code));
+      mError("dnode:%d, failed to get cfg since %s", pMCfgReq->dnodeId, tstrerror(code));
       goto _err;
     }
   }

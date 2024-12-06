@@ -283,30 +283,25 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   tstrncpy(cfg.dir, pItem->str, sizeof(cfg.dir));
 
   code = taosStr2int32(level, &cfg.level);
-  if (code != 0) {
-    cfg.level = 0;
-  }
+  TAOS_CHECK_GOTO(code, NULL, _err);
   code = taosStr2int32(primary, &cfg.primary);
-  if (code != 0) {
-    cfg.primary = 1;
-  }
-
+  TAOS_CHECK_GOTO(code, NULL, _err);
   code = taosStr2int8(disable, &cfg.disable);
-  if (code != 0) {
-    cfg.disable = 0;
-  }
+  TAOS_CHECK_GOTO(code, NULL, _err);
 
   void *ret = taosArrayPush(pItem->array, &cfg);
   if (ret == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
-
-    TAOS_RETURN(terrno);
+    code = terrno;
+    TAOS_CHECK_GOTO(code, NULL, _err);
   }
 
   pItem->stype = stype;
   (void)taosThreadMutexUnlock(&pCfg->lock);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
+_err:
+  (void)taosThreadMutexUnlock(&pCfg->lock);
+  TAOS_RETURN(code);
 }
 
 static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool resetArray) {
