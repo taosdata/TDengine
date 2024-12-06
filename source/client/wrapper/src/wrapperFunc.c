@@ -506,12 +506,16 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
 }
 
 const char *taos_errstr(TAOS_RES *res) {
-  CHECK_PTR(fp_taos_errstr);
+  if (fp_taos_errstr == NULL) {
+    return tstrerror(terrno);
+  }
   return (*fp_taos_errstr)(res);
 }
 
 int taos_errno(TAOS_RES *res) {
-  CHECK_INT(fp_taos_errno);
+  if (fp_taos_errno == NULL) {
+    return terrno;
+  }
   return (*fp_taos_errno)(res);
 }
 

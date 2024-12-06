@@ -96,8 +96,12 @@ void* taosLoadDll(const char* fileName) {
   void* handle = dlopen(fileName, RTLD_LAZY);
 #endif
 
-  if (handle == NULL && errno != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_NOT_LOAD;
+    }
   }
 
   return handle;
@@ -121,6 +125,14 @@ void* taosLoadDllFunc(void* handle, const char* funcName) {
 #else
   void *fptr = dlsym(handle, funcName);
 #endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
+    }
+  }
 
   return fptr;
 }

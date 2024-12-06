@@ -80,12 +80,12 @@ int main(int argc, char *argv[]) {
 
   const char *driverType = shell.args.is_internal ? "internal" : "websocket";
   if (taos_options(TSDB_OPTION_DRIVER, driverType) != 0) {
-    fprintf(stderr, "failed to load driver since %s [0x%08X]\r\n", terrstr(), terrno);
+    fprintf(stderr, "failed to load driver since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
   }
 
   if (taos_init() != 0) {
-    fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", terrstr(), terrno);
+    fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
   }
 
