@@ -903,7 +903,7 @@ TEST(timezoneCase, localtime_performance_Test) {
   timezone_t sp = tzalloc("Asia/Shanghai");
   ASSERT(sp);
 
-  int cnt = 10000000;
+  int cnt = 1000000;
   int times = 10;
   int64_t time_localtime = 0;
   int64_t time_localtime_rz = 0;

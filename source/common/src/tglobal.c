@@ -2077,8 +2077,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  if (strcasecmp("locale", name) == 0 || strcasecmp("charset", name) == 0
-      || strcasecmp("timezone", name) == 0) {
+  if (strcasecmp("charset", name) == 0 || strcasecmp("timezone", name) == 0) {
      goto _out;
   }
   cfgLock(pCfg);
@@ -2165,6 +2164,22 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false), &lino, _out);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
+        matched = true;
+      }
+      break;
+    }
+    case 'l': {
+      if (strcasecmp("locale", name) == 0) {
+        SConfigItem *pLocaleItem = cfgGetItem(pCfg, "locale");
+        if (pLocaleItem == NULL) {
+          uError("failed to get locale from cfg");
+          code = TSDB_CODE_CFG_NOT_FOUND;
+          goto _out;
+        }
+
+        const char *locale = pLocaleItem->str;
+        TAOS_CHECK_GOTO(taosSetSystemLocale(locale), &lino, _out);
+        uInfo("locale set to '%s'", locale);
         matched = true;
       }
       break;

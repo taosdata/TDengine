@@ -661,9 +661,10 @@ ELSEIF(TD_DARWIN)
     SET(TZ_OUTPUT_PATH /var/db/timezone/zoneinfo)
 ENDIF()
 
-MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
 
 if(NOT ${TD_WINDOWS})
+    MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
+
     execute_process(
             COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ tzdir.h
             WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"

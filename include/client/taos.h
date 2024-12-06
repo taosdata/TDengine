@@ -181,31 +181,14 @@ typedef struct TAOS_STMT_OPTIONS {
   bool    singleTableBindOnce;
 } TAOS_STMT_OPTIONS;
 
-
-/*
- description:
-    taos_options_connection use to set extra connect options and affect behavior for a connection.
-    This function may be called multiple times to set several options.
-    Call taos_options_connection() after taos_connect() or taos_connect_auth().
-    The option argument is the option that you want to set; the arg argument is the value for the option.
-    If you want to reset the option, set arg to NULL.
- input:
-    taos:   returned by taos_connect
-    option: option name
-    arg:    option value
- output:
-    0:      success
-    others: fail, error msg can be got by taos_errstr(NULL)
-*/
-DLL_EXPORT int        taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
-
 DLL_EXPORT void       taos_cleanup(void);
 DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT int        taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 DLL_EXPORT setConfRet taos_set_config(const char *config);
 DLL_EXPORT int        taos_init(void);
 DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
-DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
-DLL_EXPORT void  taos_close(TAOS *taos);
+DLL_EXPORT TAOS      *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT void       taos_close(TAOS *taos);
 
 DLL_EXPORT const char *taos_data_type(int type);
 
