@@ -78,7 +78,7 @@ alter_user_clause: {
 - PASS: Change the password, followed by the new password
 - ENABLE: Enable or disable the user, `1` means enable, `0` means disable
 - SYSINFO: Allow or prohibit viewing system information, `1` means allow, `0` means prohibit
-- CREATEDB: Allow or prohibit creating databases, `1` means allow, `0` means prohibit
+- CREATEDB: Allow or prohibit creating databases, `1` means allow, `0` means prohibit. // Supported starting from TDengine Enterprise version 3.3.2.0
 
 The following example disables the user named `test`:
 

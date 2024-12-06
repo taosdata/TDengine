@@ -61,7 +61,7 @@ The parameters are explained as follows.
 - pass: Modify the user's password.
 - enable: Whether to enable the user. 1 means to enable this user, 0 means to disable this user.
 - sysinfo: Whether the user can view system information. 1 means they can view system information, 0 means they cannot.
-- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot.  // Supported starting from TDengine Enterprise version 3.3.2.0
+- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. // Supported starting from TDengine Enterprise version 3.3.2.0
 
 The following SQL disables the user test.
 
