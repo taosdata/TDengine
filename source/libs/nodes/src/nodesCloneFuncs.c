@@ -26,9 +26,9 @@
     (pDst)->fldname = (pSrc)->fldname; \
   } while (0)
 
-#define COPY_CHAR_ARRAY_FIELD(fldname)        \
-  do {                                        \
-    strcpy((pDst)->fldname, (pSrc)->fldname); \
+#define COPY_CHAR_ARRAY_FIELD(fldname)                                   \
+  do {                                                                   \
+    tstrncpy((pDst)->fldname, (pSrc)->fldname, sizeof((pDst)->fldname)); \
   } while (0)
 
 #define COPY_OBJECT_FIELD(fldname, size)                  \
@@ -684,6 +684,8 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
   COPY_OBJECT_FIELD(streamNodeOption, sizeof(SStreamNodeOption));
+  COPY_SCALAR_FIELD(rangeInterval);
+  COPY_SCALAR_FIELD(rangeIntervalUnit);
   return TSDB_CODE_SUCCESS;
 }
 

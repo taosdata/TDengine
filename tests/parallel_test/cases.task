@@ -156,6 +156,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -204,6 +209,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5712.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 3
@@ -1582,6 +1588,7 @@
 ,,y,script,./test.sh -f tsim/tag/tinyint.sim
 ,,y,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
+,,y,script,./test.sh -f tsim/tag/change_multi_tag.sim
 ,,y,script,./test.sh -f tmp/monitor.sim
 ,,y,script,./test.sh -f tsim/tagindex/add_index.sim
 ,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim

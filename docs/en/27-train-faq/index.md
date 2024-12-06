@@ -1,89 +1,126 @@
 ---
 title: Frequently Asked Questions
-description: A compilation of solutions to common problems
 slug: /frequently-asked-questions
 ---
 
 ## Issue Feedback
 
-If the information in the FAQ does not help you and you need technical support and assistance from the TDengine technical team, please package the contents of the following two directories:
+If the information in the FAQ does not help you, and you need technical support and assistance from the TDengine technical team, please package the contents of the following two directories:
 
-1. /var/log/taos (if you haven't modified the default path)
-2. /etc/taos (if you haven't specified other configuration file paths)
+1. `/var/log/taos` (if the default path has not been modified)
+2. `/etc/taos` (if no other configuration file path has been specified)
 
-Include a necessary description of the problem, including the version information of TDengine you are using, platform environment information, the operations that led to the issue, the symptoms of the problem, and the approximate time, and submit an issue on [GitHub](https://github.com/taosdata/TDengine).
+Attach the necessary problem description, including the version information of TDengine used, platform environment information, the operations performed when the problem occurred, the manifestation of the problem, and the approximate time, and submit an issue on [GitHub](https://github.com/taosdata/TDengine).
 
-To ensure there is enough debug information, if the problem can be reproduced, please modify the /etc/taos/taos.cfg file, adding a line "debugFlag 135" (without the quotes at all) at the end, then restart taosd, reproduce the problem, and then submit it. You can also temporarily set the log level of taosd with the following SQL statement.
+To ensure there is enough debug information, if the problem can be reproduced, please modify the /etc/taos/taos.cfg file, add a line at the end "debugFlag 135" (without the quotes themselves), then restart taosd, reproduce the problem, and then submit it. You can also temporarily set the log level of taosd using the following SQL statement.
 
 ```sql
 alter dnode <dnode_id> 'debugFlag' '135';
 ```
 
-Where dnode_id can be obtained from the output of the show dnodes; command.
+Get the dnode_id from the output of the show dnodes; command.
 
-However, when the system is running normally, please make sure to set debugFlag to 131; otherwise, it will generate a large amount of log information and reduce system efficiency.
+However, when the system is running normally, be sure to set the debugFlag to 131, otherwise, it will generate a large amount of log information and reduce system efficiency.
 
-## Common Issues List
+## List of Common Questions
 
-### 1. What should I pay attention to when upgrading from versions prior to TDengine 3.0 to 3.0 and above?
+### 1. What should I pay attention to when upgrading from versions before TDengine3.0 to version 3.0 and above?
 
-Version 3.0 is a complete rewrite based on previous versions, and configuration files and data files are not compatible. Be sure to perform the following operations before upgrading:
+Version 3.0 is a complete reconstruction based on previous versions, and the configuration files and data files are not compatible. Be sure to perform the following operations before upgrading:
 
-1. Delete the configuration file by executing `sudo rm -rf /etc/taos/taos.cfg`
-2. Delete log files by executing `sudo rm -rf /var/log/taos/`
-3. Ensure that the data is no longer needed before deleting the data files by executing `sudo rm -rf /var/lib/taos/`
+1. Delete the configuration file, execute `sudo rm -rf /etc/taos/taos.cfg`
+2. Delete the log files, execute `sudo rm -rf /var/log/taos/`
+3. Under the premise that the data is no longer needed, delete the data files, execute `sudo rm -rf /var/lib/taos/`
 4. Install the latest stable version of TDengine 3.0
-5. If you need to migrate data or if the data files are damaged, please contact the official technical support team of Taos Data for assistance.
+5. If data migration is needed or data files are damaged, please contact the official technical support team of Taos Data for assistance
 
-### 2. What should I do if I encounter the error "Unable to establish connection"?
+### 4. What should I do if I encounter the error "Unable to establish connection"?
 
-When the client encounters a connection failure, please check the following steps:
+If the client encounters a connection failure, please follow the steps below to check:
 
 1. Check the network environment
-   - Cloud server: Check whether the security group of the cloud server opens access to TCP/UDP ports 6030/6041.
-   - Local virtual machine: Check whether the network can ping, and try to avoid using `localhost` as the hostname.
-   - Company server: If it is a NAT network environment, please ensure that the server can return messages to the client.
-2. Ensure that the client and server version numbers are completely consistent; the open-source community version and the enterprise version cannot be mixed.
-3. On the server, execute `systemctl status taosd` to check the `taosd` running status. If it is not running, start `taosd`.
-4. Confirm that the correct server FQDN (Fully Qualified Domain Name - can be obtained by executing the Linux/macOS command hostname -f on the server) is specified when connecting the client.
-5. Ping the server FQDN; if there is no response, please check your network, DNS settings, or the system hosts file on the client machine. If deploying a TDengine cluster, the client needs to be able to ping all cluster nodes' FQDN.
-6. Check firewall settings (use ufw status for Ubuntu, firewall-cmd --list-port for CentOS) to ensure that all hosts in the cluster can communicate via TCP/UDP protocol on ports 6030/6041.
-7. For JDBC connections on Linux, macOS (similar for ODBC, Python, Go interfaces), ensure *libtaos.so* is in the directory `/usr/local/taos/driver`, and that `/usr/local/taos/driver` is in the system library search path `LD_LIBRARY_PATH`.
-8. For JDBC connections on macOS, ensure `libtaos.dylib` is in the directory `/usr/local/lib`, and that `/usr/local/lib` is in the system library search path `LD_LIBRARY_PATH`.
-9. For JDBC connections on Windows (ODBC, Python, Go, etc.), ensure `C:\TDengine\driver\taos.dll` is in your system library search directory (it is recommended to place `taos.dll` in the directory `C:\Windows\System32`).
-10. If the connection fault cannot be ruled out
-    - On Linux/macOS, use the command-line tool nc to determine whether TCP and UDP connections to the specified port are smooth. Check whether the UDP port connection works: `nc -vuz {hostIP} {port}`. Check whether the server-side TCP port connection works: `nc -l {port}`. Check whether the client-side TCP port connection works: `nc {hostIP} {port}`.
-    - On Windows, use the PowerShell command Test-NetConnection -ComputerName \{fqdn} -Port \{port} to check if the service port is accessible.
-11. You can also use the network connectivity detection feature built into the taos program to verify whether the specified port connection between the server and client is smooth: [Operations and Maintenance](../operations-and-maintenance/).
 
-### 3. What should I do if I encounter the error "Unable to resolve FQDN"?
+- Cloud server: Check if the security group of the cloud server has opened access permissions for TCP/UDP ports 6030/6041
+- Local virtual machine: Check if the network can ping through, try to avoid using `localhost` as the hostname
+- Company server: If it is a NAT network environment, be sure to check if the server can return messages to the client
 
-This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For TAOS Shell or client applications, please check the following:
+2. Ensure that the client and server version numbers are exactly the same, open source community edition and enterprise edition cannot be mixed
 
-1. Check whether the FQDN of the server you are connecting to is correct.
-2. If the network configuration has a DNS server, check whether it is functioning properly.
-3. If the network does not have a DNS server, check the hosts file on the client machine to see whether the FQDN is configured and whether it has the correct IP address.
-4. If the network configuration is OK, from the client machine, you should be able to ping the FQDN of the connection; otherwise, the client cannot connect to the server.
-5. If the server has previously used TDengine and the hostname has been changed, it is advisable to check whether the dnode.json in the data directory conforms to the currently configured EP, with the default path being /var/lib/taos/dnode. Under normal circumstances, it is recommended to replace the data directory with a new one or back it up and delete the previous data directory to avoid this issue.
-6. Check whether /etc/hosts and /etc/hostname are the pre-configured FQDN.
+3. On the server, execute `systemctl status taosd` to check the *taosd* running status. If it is not running, start *taosd*
 
-### 4. What is the most effective method for writing data?
+4. Confirm that the correct server FQDN (Fully Qualified Domain Name —— can be obtained by executing the Linux/macOS command hostname -f on the server) was specified when the client connected.
 
-Batch insertion. Each write statement can insert multiple records into a single table at the same time, or it can insert multiple records into multiple tables simultaneously.
+5. Ping the server FQDN, if there is no response, please check your network, DNS settings, or the system hosts file of the client's computer. If a TDengine cluster is deployed, the client needs to be able to ping all cluster node FQDNs.
 
-### 5. The table name is displayed incompletely
+6. Check the firewall settings (use ufw status on Ubuntu, use firewall-cmd --list-port on CentOS), ensure that all hosts in the cluster can communicate on ports 6030/6041 for TCP/UDP protocols.
 
-Due to the limited width of the TDengine CLI in the terminal, longer table names may not display fully. If operations are performed based on the truncated table name, a "Table does not exist" error may occur. To resolve this, you can modify the `maxBinaryDisplayWidth` setting in the `taos.cfg` file, or directly input the command `set max_binary_display_width 100`. Alternatively, you can use the `\G` parameter at the end of the command to adjust the display format.
+7. For Linux JDBC (ODBC, Python, Go, and similar interfaces) connections, ensure that `libtaos.so` is in the directory `/usr/local/taos/driver`, and that `/usr/local/taos/driver` is in the system library search path `LD_LIBRARY_PATH`
 
-### 6. How to perform data migration?
+8. For JDBC connections on macOS (similar for ODBC, Python, Go, etc.), ensure that `libtaos.dylib` is in the directory `/usr/local/lib`, and that `/usr/local/lib` is included in the system library search path `LD_LIBRARY_PATH`.
 
-TDengine uniquely identifies a machine based on its hostname. When moving data files from machine A to machine B for version 3.0, you need to reconfigure the hostname of machine B to that of machine A.
+9. For JDBC, ODBC, Python, Go, etc., connections on Windows, ensure that `C:\TDengine\driver\taos.dll` is in your system library search directory (it is recommended to place `taos.dll` in the directory `C:\Windows\System32`).
 
-Note: The storage structure of version 3.x is incompatible with the earlier 1.x and 2.x versions, requiring the use of migration tools or custom-developed applications to export and import data.
+10. If you still cannot eliminate connection issues:
 
-### 7. How to temporarily adjust the log level in the command-line program `taos`?
+    - On Linux/macOS, use the command line tool nc to separately check if the TCP and UDP connections on the specified port are clear:
+      - Check if the UDP port connection is working: `nc -vuz {hostIP} {port}`
+      - Check if the server-side TCP port connection is working: `nc -l {port}`
+      - Check if the client-side TCP port connection is working: `nc {hostIP} {port}`
 
-For debugging convenience, the command-line program `taos` has added commands related to logging:
+    - On Windows, use the PowerShell command `Test-NetConnection -ComputerName {fqdn} -Port {port}` to check if the server-side port is accessible.
+
+11. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../operations-and-maintenance/).
+
+### 5. What to do if you encounter the error "Unable to resolve FQDN"?
+
+This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For the TAOS Shell or client applications, please check the following:
+
+1. Check if the FQDN of the server you are connecting to is correct.
+2. If there is a DNS server in the network configuration, check if it is working properly
+3. If there is no DNS server configured in the network, check the hosts file on the client machine to see if the FQDN is configured and has the correct IP address
+4. If the network configuration is OK, you need to be able to ping the FQDN from the client machine, otherwise the client cannot connect to the server
+5. If the server has previously used TDengine and changed the hostname, it is recommended to check if the dnode.json in the data directory matches the currently configured EP, typically located at /var/lib/taos/dnode. Normally, it is advisable to change to a new data directory or backup and delete the previous data directory to avoid this issue.
+6. Check /etc/hosts and /etc/hostname for the pre-configured FQDN
+
+### 6. What is the most effective method for data insertion?
+
+Batch insertion. Each insert statement can insert multiple records into one table at the same time, or multiple records into multiple tables simultaneously.
+
+### 7. How to solve the issue of Chinese characters in nchar type data being parsed as garbled text on Windows systems?
+
+When inserting nchar type data containing Chinese characters on Windows, first ensure that the system's regional settings are set to China (this can be set in the Control Panel). At this point, the `taos` client in cmd should already be working properly; if developing a Java application in an IDE, such as Eclipse or IntelliJ, ensure that the file encoding in the IDE is set to GBK (which is the default encoding type for Java), then initialize the client configuration when creating the Connection, as follows:
+
+```JAVA
+Class.forName("com.taosdata.jdbc.TSDBDriver");
+Properties properties = new Properties();
+properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
+Connection = DriverManager.getConnection(url, properties);
+```
+
+### 8. How to display Chinese characters correctly on Windows client systems?
+
+In Windows systems, Chinese characters are generally stored using GBK/GB18030 encoding, while the default character set for TDengine is UTF-8. When using the TDengine client on Windows, the client driver will convert characters to UTF-8 encoding before sending them to the server for storage. Therefore, during application development, it is essential to correctly configure the current Chinese character set.
+
+When running the TDengine client command line tool taos on Windows 10, if you cannot properly input or display Chinese characters, you can configure the client taos.cfg as follows:
+
+```text
+locale C
+charset UTF-8
+```
+
+### 9. Table Name Not Displaying Fully
+
+Due to the limited display width in the TDengine CLI terminal, longer table names may not be displayed fully. If operations are performed using these incomplete table names, a "Table does not exist" error may occur. This can be resolved by modifying the `maxBinaryDisplayWidth` setting in the taos.cfg file, or by directly entering the command `set max_binary_display_width 100`. Alternatively, use the `\G` parameter at the end of the command to adjust the display format of the results.
+
+### 10. How to Migrate Data?
+
+TDengine uniquely identifies a machine by its hostname. For version 3.0, when moving data files from Machine A to Machine B, it is necessary to reconfigure the hostname of Machine B to that of Machine A.
+
+Note: The storage structures of versions 3.x and earlier versions 1.x, 2.x are not compatible. It is necessary to use migration tools or develop applications to export and import data.
+
+### 11. How to Temporarily Adjust Log Levels in the Command Line Program `taos`
+
+For debugging convenience, the command line program `taos` has added instructions related to log recording:
 
 ```sql
 ALTER LOCAL local_option
@@ -98,64 +135,68 @@ local_option: {
 }
 ```
 
-The meaning is to clear all log files generated by the client on this machine (resetLog) or modify the log level of a specific module (only effective for the current command-line program; if the `taos` command-line program is restarted, it needs to be set again):
+This means that in the current command line program, you can clear all log files generated by local clients (`resetLog`), or modify the log recording level of a specific module (only effective for the current command line program; if the `taos` command line program is restarted, the settings need to be reapplied):
 
-- The value can be: 131 (outputs error and warning logs), 135 (outputs error, warning, and debug logs), 143 (outputs error, warning, debug, and trace logs).
+- The value can be: 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs).
 
-### 8. How to solve compilation failures when writing components in Go?
+### 12. How to Resolve Compilation Failures of Components Written in Go?
 
-TDengine version 3.0 includes a standalone component `taosAdapter` developed in Go, which needs to be run separately, providing RESTful access and supporting data integration with various other software (Prometheus, Telegraf, collectd, StatsD, etc.).
-To compile the latest code in the develop branch, you need to first run `git submodule update --init --recursive` to download the `taosAdapter` repository code before compiling.
+Version 3.0 of TDengine includes a standalone component developed in Go called `taosAdapter`, which needs to be run separately to provide RESTful access and support data access from various other software (Prometheus, Telegraf, collectd, StatsD, etc.). To compile using the latest develop branch code, first run `git submodule update --init --recursive` to download the `taosAdapter` repository code before compiling.
 
-Go version 1.14 or above is required.
+The Go language version requirement is 1.14 or higher. If there are Go compilation errors, often due to issues accessing Go mod in China, they can be resolved by setting Go environment variables:
 
-### 9. How to query the size of storage space occupied by data?
+```sh
+go env -w GO111MODULE=on
+go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+### 13. How to Check the Storage Space Used by Data?
 
 By default, TDengine's data files are stored in `/var/lib/taos`, and log files are stored in `/var/log/taos`.
 
-To view the specific size occupied by all data files, you can execute the shell command: `du -sh /var/lib/taos/vnode --exclude='wal'`. Here, the WAL directory is excluded because, during continuous writing, its size is nearly fixed, and it will be cleared every time TDengine is normally shut down to let the data persist.
+To view the specific size occupied by all data files, execute the Shell command: `du -sh /var/lib/taos/vnode --exclude='wal'`. This excludes the WAL directory because its size is almost constant under continuous writing, and the WAL directory is cleared each time TDengine is normally shut down to let data settle.
 
-To check the size occupied by a single database, specify the database you want to check in the `taos` command-line program and execute `show vgroups;`. Then, you can check the folder size in `/var/lib/taos/vnode` corresponding to the obtained VGroup id.
+To view the size occupied by a single database, specify the database in the command line program `taos` and execute `show vgroups;`. Then, check the size of the folders contained in `/var/lib/taos/vnode` using the obtained VGroup id.
 
-### 10. How is the timezone information of timestamps handled?
+### 15. How is Time Zone Information Handled for Timestamps?
 
-In TDengine, the timezone of timestamps is always handled by the client, independent of the server. Specifically, the client converts timestamps in SQL statements to UTC timezone (i.e., Unix timestamp) before sending them to the server for writing and querying; when reading data, the server also provides raw data in UTC, and the client converts the timestamps to the local timezone required by the local system for display.
+In TDengine, the time zone of timestamps is always handled by the client, independent of the server. Specifically, the client converts timestamps in SQL statements to the UTC time zone (i.e., Unix Timestamp) before sending them to the server for writing and querying; when reading data, the server also provides the original data in the UTC time zone, and the client then converts the timestamps to the local time zone required by the local system for display.
 
-When handling timestamp strings, the client follows this logic:
+The client handles timestamp strings with the following logic:
 
-1. By default, the client uses the timezone setting of the operating system where it is located unless specified otherwise.
-2. If the timezone parameter is set in `taos.cfg`, the client will follow the setting in this configuration file.
-3. If a specific timezone is explicitly specified when establishing a database connection in the C/C++/Java/Python and various programming language Connector Drivers, that timezone setting will prevail. For example, there is a timezone parameter in the JDBC URL of the Java Connector.
-4. When writing SQL statements, you can also directly use Unix timestamps (e.g., `1554984068000`) or timestamps in string format with time zones, namely in RFC 3339 format (e.g., `2013-04-12T15:52:01.123+08:00`) or ISO-8601 format (e.g., `2013-04-12T15:52:01.123+0800`). In this case, the value of these timestamps will not be affected by other timezone settings.
+1. By default, without special settings, the client uses the time zone settings of the operating system it is running on.
+2. If the `timezone` parameter is set in taos.cfg, the client will follow the settings in this configuration file.
+3. If the timezone is explicitly specified when establishing a database connection in Connector Drivers for various programming languages such as C/C++/Java/Python, that specified time zone setting will be used. For example, the Java Connector's JDBC URL includes a timezone parameter.
+4. When writing SQL statements, you can also directly use Unix timestamps (e.g., `1554984068000`) or timestamps with time zone strings, either in RFC 3339 format (e.g., `2013-04-12T15:52:01.123+08:00`) or ISO-8601 format (e.g., `2013-04-12T15:52:01.123+0800`). In these cases, the values of these timestamps are not affected by other time zone settings.
 
-### 11. What network ports does TDengine 3.0 use?
+### 16. What network ports are used by TDengine 3.0?
 
-Please refer to the document for the network ports used: [Operations and Maintenance](../operations-and-maintenance/).
+For the network ports used, please refer to the document: [Operation Guide](../operations-and-maintenance/)
 
-It is important to note that the port numbers listed in the document are based on the default port 6030. If the settings in the configuration file are modified, the listed ports will also change accordingly, and the administrator can refer to the above information to adjust the firewall settings.
+Note that the listed port numbers are based on the default port 6030. If the settings in the configuration file are modified, the listed ports will change accordingly. Administrators can refer to the above information to adjust firewall settings.
 
-### 12. Why is there no response from the RESTful interface, Grafana cannot add TDengine as a data source, and TDengineGUI cannot connect successfully even when port 6041 is selected?
+### 17. Why is there no response from the RESTful interface, Grafana cannot add TDengine as a data source, or TDengineGUI cannot connect even using port 6041?
 
-This phenomenon may be caused by `taosAdapter` not being started correctly. You need to execute the command: `systemctl start taosadapter` to start the `taosAdapter` service.
+This phenomenon may be caused by taosAdapter not being started correctly. You need to execute: ```systemctl start taosadapter``` to start the taosAdapter service.
 
-It should be noted that the log path of `taosAdapter` needs to be configured separately; the default path is `/var/log/taos`. The log level (`logLevel`) has 8 levels, with the default level being `info`. Configuring it to `panic` can turn off log output. Please pay attention to the size of the `/` directory in the operating system, and you can modify the configuration via command-line parameters, environment variables, or configuration files. The default configuration file is `/etc/taos/taosadapter.toml`.
+It should be noted that the log path for taosAdapter needs to be configured separately, the default path is /var/log/taos; there are 8 levels of logLevel, the default level is info, setting it to panic can disable log output. Be aware of the space size of the operating system's / directory, which can be modified through command line parameters, environment variables, or configuration files. The default configuration file is /etc/taos/taosadapter.toml.
 
-For detailed information about the `taosAdapter` component, please refer to the document: [taosAdapter](../tdengine-reference/components/taosadapter/).
+For a detailed introduction to the taosAdapter component, please see the document: [taosAdapter](../tdengine-reference/components/taosadapter/)
 
-### 13. What should I do if I encounter OOM?
+### 18. What to do if OOM occurs?
 
-OOM is a protective mechanism of the operating system. When the operating system's memory (including SWAP) is insufficient, it kills some processes to ensure stable operation. Typically, memory shortages are caused by one of the following two reasons: either the remaining memory is less than `vm.min_free_kbytes`, or the memory requested by the program exceeds the remaining memory. Another situation is when memory is sufficient, but the program occupies special memory addresses, which can also trigger OOM.
+OOM is a protection mechanism of the operating system. When the memory (including SWAP) of the operating system is insufficient, it will kill some processes to ensure the stable operation of the operating system. Usually, insufficient memory is mainly caused by two reasons: one is that the remaining memory is less than vm.min_free_kbytes; the other is that the memory requested by the program is greater than the remaining memory. Another situation is that there is sufficient memory, but the program occupies a special memory address, which can also trigger OOM.
 
-TDengine pre-allocates memory for each VNode. The number of VNodes for each database is influenced by the `vgroups` parameter during database creation, and the amount of memory occupied by each VNode is affected by the `buffer` parameter. To prevent OOM, it is necessary to plan memory reasonably at the beginning of the project and set SWAP appropriately. In addition, querying excessive amounts of data may also lead to memory surges, depending on the specific query statement. The TDengine Enterprise Edition has optimized memory management and uses a new memory allocator. Users with higher stability requirements may consider choosing the Enterprise Edition.
+TDengine pre-allocates memory for each VNode, the number of VNodes per Database is affected by the vgroups parameter set during database creation, and the memory size occupied by each VNode is affected by the buffer parameter. To prevent OOM, it is necessary to plan memory reasonably at the beginning of the project and set SWAP appropriately. In addition, querying excessive data can also cause a surge in memory, depending on the specific query statement. TDengine Enterprise Edition has optimized memory management with a new memory allocator, which is recommended for users with higher stability requirements.
 
-### 14. What should I do if I encounter "Too many open files" on macOS?
+### 19. What to do if encountering "Too many open files" on macOS?
 
-If the `taosd` log file reports "Too many open files," it is because `taosd` has exceeded the system's open file limit.
-The solution is as follows:
+The error "Too many open files" in taosd log files is due to taosd opening more files than the system's limit.
+Here are the solutions:
 
-1. Create a file at /Library/LaunchDaemons/limit.maxfiles.plist and write the following content (the following example sets limit and maxfiles to 100,000; you can modify it as needed):
+1. Create a file /Library/LaunchDaemons/limit.maxfiles.plist, write the following content (the example changes limit and maxfiles to 100,000, modify as needed):
 
-```xml
+```plist
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -179,62 +220,70 @@ The solution is as follows:
 </plist>
 ```
 
-2. Modify the file permissions
+2. Modify file permissions
 
 ```shell
 sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
 sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 
-3. Load the plist file (or restart the system for it to take effect. `launchd` will automatically load the plist in this directory upon startup)
+3. Load the plist file (or it will take effect after restarting the system. launchd will automatically load the plist in this directory at startup)
 
 ```shell
 sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 
-4. Confirm the updated limit
+4. Confirm the changed limit
 
 ```shell
 launchctl limit maxfiles
 ```
 
-### 15. What to do when you see "Out of dnodes" when creating a database or "Vnodes exhausted" when creating a table?
+### 20. Prompted with "Out of dnodes" when creating a database or "Vnodes exhausted" when creating a table
 
-This prompt indicates that the number of VNodes required to create the database is insufficient, and the required VNodes cannot exceed the upper limit of VNodes in the dnode. By default, there are twice the number of VNodes in a dnode as there are CPU cores, which can be controlled by the `supportVnodes` parameter in the configuration file.
-You can normally increase the `supportVnodes` parameter in the `taos.cfg` file.
+This prompt indicates that the number of vnodes required for creating the db is not enough, exceeding the upper limit of vnodes in the dnode. By default, a dnode contains twice the number of CPU cores worth of vnodes, which can also be controlled by the supportVnodes parameter in the configuration file.
+Normally, increase the supportVnodes parameter in taos.cfg.
 
-### 16. Why can I query data for a specified time period using `taos-CLI` on the server but not on the client machine?
+### 21 Why can data from a specified time period be queried using taos-CLI on the server, but not on the client machine?
 
-This situation is caused by the client and server having inconsistent timezone settings, which can be resolved by adjusting the client and server to use the same timezone.
+This issue is due to the client and server having different time zone settings. Adjusting the client's time zone to match the server's will resolve the issue.
 
-### 17. The table name is confirmed to exist, but I receive an error saying the table does not exist when writing or querying. What is the reason?
+### 22 The table name is confirmed to exist, but returns "table name does not exist" when writing or querying, why?
 
-All names in TDengine, including database names and table names, are case-sensitive. If these names are not enclosed in backticks (\`) when used in a program or `taos-CLI`, even if you input them in uppercase, the engine will convert them to lowercase. If you add backticks around the names, the engine will not convert them to lowercase and will retain the original casing.
+In TDengine, all names, including database names and table names, are case-sensitive. If these names are not enclosed in backticks (\`) in the program or taos-CLI, even if you input them in uppercase, the engine will convert them to lowercase for use. If the names are enclosed in backticks, the engine will not convert them to lowercase and will use them as is.
 
-### 18. In `taos-CLI`, if the field content does not display fully, what should I do?
+### 23 How to fully display field content in taos-CLI queries?
 
-You can use the `\G` parameter to display vertically, such as `show databases\G;` (to facilitate input, you can press TAB after the backslash to auto-complete the subsequent content).
+You can use the \G parameter for vertical display, such as `show databases\G\;` (for ease of input, press TAB after "\" to automatically complete the content).
 
-### 19. Why is data written using the `taosBenchmark` testing tool queried quickly, but the data I write is very slow to query?
+### 24 Why is querying very fast when using the taosBenchmark testing tool to write data, but very slow when I write data?
 
-If there is a serious out-of-order writing issue when writing data to TDengine, it can severely affect query performance, so it is necessary to resolve the out-of-order issue before writing. If the business is consuming data from Kafka for writing, please design the consumers reasonably, ensuring that data from one subtable is consumed and written by a single consumer to avoid design-induced disorder.
+When TDengine writes data, severe disorder in the write sequence can significantly affect query performance. Therefore, it is necessary to resolve the disorder before writing. If the business writes from Kafka consumption, please design the consumer reasonably, try to have one consumer consume and write the data of one subtable to avoid disorder caused by design.
 
-### 20. I want to calculate the time difference between two written records. How can I do that?
+### 25 How can I calculate the time difference between two consecutive write records?
 
-You can use the `DIFF` function to view the difference between the time column or numerical column of the two previous records, which is very convenient. For detailed descriptions, refer to the SQL manual -> Functions -> DIFF.
+Use the DIFF function, which allows you to view the difference between two consecutive records in a time or numeric column, very conveniently. See SQL Manual -> Functions -> DIFF for details.
 
-### 21. What does the error "DND ERROR Version not compatible, cliver: 3000700, server version: 3020300" mean?
+### 26 Encountering error "DND ERROR Version not compatible, cliver: 3000700 swr wer: 3020300"
 
-This indicates that the client and server versions are incompatible. Here, the client version is 3.0.7.0 and the server version is 3.2.3.0. Currently, the compatibility strategy requires that the first three numbers match for the client and server to be compatible.
+This indicates that the client and server versions are incompatible. Here, the cliver version is 3.0.7.0, and the server version is 3.2.3.0. The current compatibility strategy is that the first three digits must match for the client and server to be compatible.
 
-### 22. After changing the root password for the database, I encountered the error "failed to connect to server, reason: Authentication failure" when starting `taos`
+### 27 After changing the root password of the database, starting taos encounters the error "failed to connect to server, reason: Authentication failure"
 
-By default, the `taos` service will attempt to connect to `taosd` using the system's default username (root) and password. After changing the root password, you need to specify the username and password when using `taos`, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, and then enter the new password to connect.
+By default, starting the taos service will use the system's default username (root) and password to attempt to connect to taosd. After changing the root password, starting a taos connection will require specifying the username and password, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, then enter the new password to connect.
 
-### 23 After changing the root password for the database, the Grafana monitoring plugin TDinsight does not display any data
+### 28 After changing the root password of the database, the Grafana monitoring plugin TDinsight shows no data
 
-The data displayed by the TDinsight plugin is collected and stored in the TD log library through the `taosKeeper` and `taosAdapter` services. After changing the root password, you need to synchronize the corresponding password information in the `taosKeeper` and `taosAdapter` configuration files, then restart the `taosKeeper` and `taosAdapter` services (Note: if it is a cluster, you need to restart the corresponding service on each node).
+The data displayed in the TDinsight plugin is collected and stored in TD's log database through the taosKeeper and taosAdapter services. After changing the root password, it is necessary to update the corresponding password information in the configuration files of taosKeeper and taosAdapter, and then restart the taosKeeper and taosAdapter services (Note: if it is a cluster, restart the corresponding services on each node).
 
-### 24 What should I do if I encounter the error "some vnode/qnode/mnode(s) out of service"?
+### 29 Encountering error "some vnode/qnode/mnode(s) out of service", what to do?
 
-The client has not configured the FQDN resolution for all server nodes. For example, if there are 3 nodes on the server, and the client has only configured the FQDN resolution for 1 node.
+The client has not configured the FQDN resolution for all server nodes. For example, if there are 3 nodes on the server, the client has only configured the FQDN resolution for 1 node.
+
+### 30 Why does the open-source version of TDengine's main process establish a connection with the public network?
+
+This connection only reports the most basic information that does not involve any user data, used by the official to understand the global distribution of the product, thereby optimizing the product and enhancing user experience. The specific collection items include: cluster name, operating system version, CPU information, etc.
+This feature is an optional configuration item, which is enabled by default in the open-source version. The specific parameter is telemetryReporting, as explained in the [official documentation](../tdengine-reference/components/taosd/).
+You can disable this parameter at any time by modifying telemetryReporting to 0 in taos.cfg, then restarting the database service.
+Code located at: [https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c](https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c).
+Additionally, for the highly secure enterprise version, TDengine Enterprise, this parameter will not be operational.

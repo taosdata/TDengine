@@ -1,55 +1,55 @@
 ---
-title: Manage Views
+title: Views
 slug: /tdengine-reference/sql-manual/manage-views
 ---
 
-Starting from TDengine version 3.2.1.0, TDengine Enterprise Edition provides view functionality to simplify operations and enhance sharing capabilities among users.
+Starting from TDengine 3.2.1.0, TDengine Enterprise Edition provides the functionality of views, which simplifies operations and enhances sharing capabilities among users.
 
-A view is essentially a stored query statement in the database. A view (non-materialized view) does not contain data by itself; it dynamically executes the specified query statement only when data is read from the view. When creating a view, we specify a name, and it can be queried just like a table. The following rules apply to the use of views:
+A view (View) is essentially a query statement stored in the database. Views (non-materialized views) do not contain data themselves; the specified query statement is dynamically executed only when data is read from the view. When creating a view, we specify a name for it, and then it can be queried and operated on like a regular table. The use of views must follow these rules:
 
-- Views can be nested and are bound to the specified or current database at creation time.
-- Within the same database, view names cannot be duplicated, and it is recommended that view names are not the same as table names (though it is not mandatory). If a view and a table share the same name, operations such as writing, querying, granting, and revoking permissions will prioritize the table with the same name.
+- Views can be nested in definitions and usage, and are bound to the database specified at creation time or the current database.
+- Within the same database, view names must not be duplicated, and it is recommended that view names do not duplicate table names (not enforced). When a view and a table have the same name, operations such as writing, querying, granting, and revoking permissions prioritize the table with the same name.
 
 ## Syntax
 
-### Create (Update) a View
+### Creating (Updating) a View
 
 ```sql
 CREATE [ OR REPLACE ] VIEW [db_name.]view_name AS query
 ```
 
-**Explanation:**
+Explanation:
 
-- When creating a view, you can specify the database name (`db_name`) to which the view is bound; if not specified, the current connection's database is used by default.
-- In the query statement (`query`), it is recommended to specify the database name. Cross-database views are supported, and if not specified, it defaults to the database bound to the view (which may not be the current connection's database).
+- When creating a view, you can specify the database name (db_name) to which the view is bound. If not specified, it defaults to the database bound to the current connection;
+- It is recommended to specify the database name in the query statement (query), supporting cross-database views. If not specified, it defaults to the database bound to the view (which may not be the database specified by the current connection);
 
-### View a View
+### Viewing Views
 
-1. View all views under a specific database:
+1. View all views under a certain database
 
-   ```sql
-   SHOW [db_name.]VIEWS;
-   ```
+  ```sql
+  SHOW [db_name.]VIEWS;
+  ```
 
-2. View the creation statement of a view:
+2. View the creation statement of a view
 
-   ```sql
-   SHOW CREATE VIEW [db_name.]view_name;
-   ```
+  ```sql
+  SHOW CREATE VIEW [db_name.]view_name;
+  ```
 
-3. View column information of a view:
+3. View column information of a view
 
-   ```sql
-   DESCRIBE [db_name.]view_name;
-   ```
+  ```sql
+  DESCRIBE [db_name.]view_name;
+  ```
 
-4. View all view information:
+4. View all views information
 
-   ```sql
-   SELECT ... FROM information_schema.ins_views;
-   ```
+  ```sql
+  SELECT ... FROM information_schema.ins_views;
+  ```
 
-### Drop a View
+### Deleting a View
 
 ```sql
 DROP VIEW [IF EXISTS] [db_name.]view_name;
@@ -59,34 +59,34 @@ DROP VIEW [IF EXISTS] [db_name.]view_name;
 
 ### Explanation
 
-Permissions for views are divided into three types: READ, WRITE, and ALTER. A query operation requires READ permission, a write operation requires WRITE permission, and delete or modify operations on the view itself require ALTER permission.
+View permissions are divided into READ, WRITE, and ALTER. Query operations require READ permission, write operations require WRITE permission, and modification or deletion of the view itself requires ALTER permission.
 
 ### Rules
 
-- The creator of the view and the root user have all permissions by default.
-- Permissions can be granted and revoked to other users through the GRANT and REVOKE statements, which can only be performed by the root user.
-- View permissions must be granted and revoked separately; authorizations using `db.*` do not include view permissions.
-- Views can be defined and used in a nested manner, and permission checks for views are performed recursively.
-- To facilitate sharing and usage of views, the concept of an effective user for the view (i.e., the user who created the view) is introduced. Authorized users can use the effective user's permissions on the database, tables, and nested views. Note: The effective user will also be updated if the view is REPLACED.
+- The creator of the view and root users have all permissions by default.
+- Granting and revoking permissions to other users can be done through the GRANT and REVOKE statements, which can only be performed by root users.
+- View permissions must be granted and revoked separately; granting and revoking through db.* does not include view permissions.
+- Views can be nested in definitions and usage, and similarly, the verification of view permissions is done recursively.
+- To facilitate the sharing and use of views, the concept of an effective user of the view (i.e., the creator of the view) is introduced. Authorized users can use the effective user's database, tables, and nested views' read and write permissions. Note: The effective user is also updated when the view is REPLACEd.
 
-The specific details of related permission controls are shown in the following table:
+The specific rules for permission control are shown in the table below:
 
-| No. | Operation                                  | Permission Requirements                                                                                                                                                            |
-| ---- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | CREATE VIEW <br/>(Create a new view)     | User must have WRITE permission on the database to which the view belongs <br/> and <br/> User must have query permissions on the target database, tables, and views of the view; if the queried object is a view, it must meet rule 8 in the current table.                             |
-| 2    | CREATE OR REPLACE VIEW <br/>(Overwrite an old view) | User must have WRITE permission on the database to which the view belongs and ALTER permission on the old view <br/> and <br/> User must have query permissions on the target database, tables, and views of the view; if the queried object is a view, it must meet rule 8 in the current table. |
-| 3    | DROP VIEW                                 | User must have ALTER permission on the view                                                                                                                                       |
-| 4    | SHOW VIEWS                                | None                                                                                                                                                                               |
-| 5    | SHOW CREATE VIEW                          | None                                                                                                                                                                               |
-| 6    | DESCRIBE VIEW                             | None                                                                                                                                                                               |
-| 7    | System Table Queries                      | None                                                                                                                                                                               |
-| 8    | SELECT FROM VIEW                          | The operation user must have READ permission on the view and either the operation user or the effective user of the view must have READ permission on the target database, tables, and views of the view.   |
-| 9    | INSERT INTO VIEW                          | The operation user must have WRITE permission on the view and either the operation user or the effective user of the view must have WRITE permission on the target database, tables, and views of the view.   |
-| 10   | GRANT/REVOKE                              | Only the root user has permission                                                                                                                                                  |
+| No. | Operation                                    | Permission Requirements                                                                                                                                                    |
+| ---- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | CREATE VIEW <br/>(create new view)            | User has WRITE permission on the database to which the view belongs<br/>and<br/> User has query permissions on the target database, table, or view of the view, if the object in the query is a view, it must satisfy rule 8 in this table                             |
+| 2    | CREATE OR REPLACE VIEW <br/>(overwrite old view) | User has WRITE permission on the database to which the view belongs and has ALTER permission on the old view <br/>and<br/> User has query permissions on the target database, table, or view of the view, if the object in the query is a view, it must satisfy rule 8 in this table |
+| 3    | DROP VIEW                               | User has ALTER permission on the view                                                                                                                                     |
+| 4    | SHOW VIEWS                              | None                                                                                                                                                          |
+| 5    | SHOW CREATE VIEW                        | None                                                                                                                                                          |
+| 6    | DESCRIBE VIEW                           | None                                                                                                                                                          |
+| 7    | System table query                              | None                                                                                                                                                          |
+| 8    | SELECT FROM VIEW                        | Operating user has READ permission on the view and the operating user or the effective user of the view has READ permission on the target database, table, or view                                                                   |
+| 9    | INSERT INTO VIEW                        | Operating user has WRITE permission on the view and the operating user or the effective user of the view has WRITE permission on the target database, table, or view                                                                 |
+| 10   | GRANT/REVOKE                            | Only root users have permission                                                                                                                                        |
 
 ### Syntax
 
-#### Granting Permissions
+#### Authorization
 
 ```sql
 GRANT privileges ON [db_name.]view_name TO user_name
@@ -101,7 +101,7 @@ priv_type: {
 }
 ```
 
-#### Revoking Permissions
+#### Revoke Permissions
 
 ```sql
 REVOKE privileges ON [db_name.]view_name FROM user_name
@@ -118,13 +118,13 @@ priv_type: {
 
 ## Use Cases
 
-| SQL Query | SQL Write | STMT Query | STMT Write | Subscription | Stream Calculation |
-| --------- | --------- | ---------- | ---------- | ------------ | ------------------ |
+| SQL Query | SQL Write | STMT Query | STMT Write | Subscription | Stream Computing |
+| --------- | --------- | ---------- | ---------- | ------------ | ---------------- |
 | Supported | Not supported | Not supported | Not supported | Supported | Not supported |
 
 ## Examples
 
-- Create a View
+- Create View
   
   ```sql
   CREATE VIEW view1 AS SELECT _wstart, count(*) FROM table1 INTERVAL(1d);
@@ -138,7 +138,7 @@ priv_type: {
   SELECT * from view1;
   ```
 
-- Drop a View
+- Delete View
   
   ```sql
   DROP VIEW view1;
