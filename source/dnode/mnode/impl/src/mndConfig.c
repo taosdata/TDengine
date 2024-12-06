@@ -39,6 +39,8 @@ static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndInitWriteCfg(SMnode *pMnode);
 static int32_t mndInitReadCfg(SMnode *pMnode);
+static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array);
+static void    cfgArrayCleanUp(SArray *array);
 
 int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigObj *obj);
 
@@ -224,6 +226,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SConfigReq configReq = {0};
   SDnodeObj *pDnode = NULL;
   int32_t    code = -1;
+  SArray    *array = NULL;
 
   code = tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
   if (code != 0) {
@@ -237,24 +240,24 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  SArray    *diffArray = taosArrayInit(16, sizeof(SConfigItem));
+  array = taosArrayInit(16, sizeof(SConfigItem));
   SConfigRsp configRsp = {0};
   configRsp.forceReadConfig = configReq.forceReadConfig;
 
   configRsp.cver = vObj->i32;
   if (configRsp.forceReadConfig) {
     // compare config array from configReq with current config array
-    if (compareSConfigItemArrays(taosGetGlobalCfg(tsCfg), configReq.array, diffArray)) {
-      configRsp.array = diffArray;
+    if (compareSConfigItemArrays(taosGetGlobalCfg(tsCfg), configReq.array, array)) {
+      configRsp.array = array;
     } else {
       configRsp.isConifgVerified = 1;
     }
   } else {
-    configRsp.array = taosGetGlobalCfg(tsCfg);
     if (configReq.cver == vObj->i32) {
       configRsp.isVersionVerified = 1;
     } else {
-      configRsp.array = taosGetGlobalCfg(tsCfg);
+      initConfigArrayFromSdb(pMnode, array);
+      configRsp.array = array;
     }
   }
 
@@ -273,7 +276,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   pReq->info.rsp = pHead;
 
 _OVER:
-  taosArrayDestroy(diffArray);
+  cfgArrayCleanUp(array);
   mndReleaseDnode(pMnode, pDnode);
   return TSDB_CODE_SUCCESS;
 }
@@ -623,4 +626,74 @@ _OVER:
   }
   mndTransDrop(pTrans);
   return code;
+}
+
+static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  while (1) {
+    SConfigObj *obj = NULL;
+    pIter = sdbFetch(pSdb, SDB_CFG, pIter, (void **)&obj);
+    if (pIter == NULL) break;
+    if (obj == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
+    if (strcasecmp(obj->name, "tsmmConfigVersion") == 0) {
+      continue;
+    }
+    SConfigItem item = {0};
+    item.dtype = obj->dtype;
+    item.name = taosStrdup(obj->name);
+    switch (obj->dtype) {
+      case CFG_DTYPE_NONE:
+        break;
+      case CFG_DTYPE_BOOL:
+        item.bval = obj->bval;
+        break;
+      case CFG_DTYPE_INT32:
+        item.i32 = obj->i32;
+        break;
+      case CFG_DTYPE_INT64:
+        item.i64 = obj->i64;
+        break;
+      case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
+        item.fval = obj->fval;
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        item.str = taosStrdup(obj->str);
+        break;
+    }
+    if (taosArrayPush(array, &item) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      sdbRelease(pSdb, obj);
+      break;
+    }
+    sdbRelease(pSdb, obj);
+  }
+  return code;
+}
+
+static void cfgArrayCleanUp(SArray *array) {
+  if (array == NULL) {
+    return;
+  }
+
+  int32_t sz = taosArrayGetSize(array);
+  for (int32_t i = 0; i < sz; ++i) {
+    SConfigItem *item = taosArrayGet(array, i);
+    if (item->dtype == CFG_DTYPE_STRING || item->dtype == CFG_DTYPE_DIR || item->dtype == CFG_DTYPE_LOCALE ||
+        item->dtype == CFG_DTYPE_CHARSET || item->dtype == CFG_DTYPE_TIMEZONE) {
+      taosMemoryFreeClear(item->str);
+    }
+    taosMemoryFreeClear(item->name);
+  }
+
+  taosArrayDestroy(array);
 }
