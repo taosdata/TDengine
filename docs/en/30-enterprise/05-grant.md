@@ -16,7 +16,7 @@ You can create and delete users, view their information, and grant and revoke pe
 To create a user, log in to TDengine as the root user and run the following SQL statement:
 
 ```sql
-CREATE USER user_name PASS 'password' [SYSINFO {1|0}];
+CREATE USER user_name PASS 'password' [SYSINFO {1|0}][CREATEDB {1|0}];
 ```
 
 Notes:
@@ -24,6 +24,7 @@ Notes:
 - user_name: Enter a maximum of 23 characters.
 - password: Enter a maximum of 128 characters, including letters, digits, and special characters. Passwords cannot contain single quotation marks ('), double quotation marks ("), backticks (`), backslashes (\), or spaces. Passwords cannot be empty.
 - SYSINFO: Specify whether the user can view system information. Enter 1 to allow to user to view system information or 0 to prevent the user from viewing system information. System information includes server configuration, node information, and storage information. The default value is 1.
+- CREATEDB: Specify whether the user can create databases. Enter 1 to allow the user to create databases or 0 to prevent the user to create databases. The default value is 0. // Supported starting from TDengine Enterprise version 3.3.2.0
 
 Example: The following SQL statement creates a user named `test` with password `123456` who can view system information:
 
@@ -74,7 +75,7 @@ Notes:
 - PASS: Modify the user's password.
 - ENABLE: Specify whether the user is enabled or disabled. Enter 1 to enable the user or 0 to disable the user.
 - SYSINFO: Specify whether the user can view system information. Enter 1 to allow the user to view system information or 0 to prevent the user from viewing system information.
-- CREATEDB: Specify whether the user can create databases. Enter 1 to allow the user to create databases or 0 to prevent the user from creating databases.
+- CREATEDB: Specify whether the user can create databases. Enter 1 to allow the user to create databases or 0 to prevent the user from creating databases. // Supported starting from TDengine Enterprise version 3.3.2.0
 
 Example; The following SQL statement disables the `test` user:
 
