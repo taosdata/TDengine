@@ -503,6 +503,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80003103 | Invalid tsma state            | The vgroup of the stream computing result is inconsistent with the vgroup that created the TSMA index | Check error logs, contact development for handling |
 | 0x80003104 | Invalid tsma pointer          | Processing the results issued by stream computing, the message body is a null pointer. | Check error logs, contact development for handling |
 | 0x80003105 | Invalid tsma parameters       | Processing the results issued by stream computing, the result count is 0. | Check error logs, contact development for handling |
+| 0x80003113 | Tsma optimization cannot be applied with INTERVAL AUTO offset. | Tsma optimization cannot be enabled with INTERVAL AUTO OFFSET under the current query conditions. | Use SKIP_TSMA Hint or specify a manual INTERVAL OFFSET. |
 | 0x80003150 | Invalid rsma env              | Rsma execution environment is abnormal.                      | Check error logs, contact development for handling |
 | 0x80003151 | Invalid rsma state            | Rsma execution state is abnormal.                            | Check error logs, contact development for handling |
 | 0x80003152 | Rsma qtaskinfo creation error | Creating stream computing environment failed.                | Check error logs, contact development for handling |
