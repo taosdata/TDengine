@@ -412,7 +412,7 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
     // TODO
     code = metaCreateTable(pMeta, version, pReq, ppRsp);
   } else if (TSDB_NORMAL_TABLE == pReq->type) {
-    code = metaCreateNormalTable(pMeta, version, pReq, ppRsp);
+    code = metaCreateTable(pMeta, version, pReq, ppRsp);
   } else {
     code = TSDB_CODE_INVALID_MSG;
   }

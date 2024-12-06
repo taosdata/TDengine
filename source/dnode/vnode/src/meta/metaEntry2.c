@@ -297,7 +297,7 @@ static int32_t (*metaTableOpFn[META_TABLE_MAX][META_TABLE_OP_MAX])(SMeta *pMeta,
     [META_SCHEMA_TABLE] =
         {
             [META_TABLE_OP_INSERT] = metaSchemaTableInsert,
-            [META_TABLE_OP_UPDATA] = NULL,
+            [META_TABLE_OP_UPDATA] = metaSchemaTableUpdate,
             [META_TABLE_OP_DELETE] = NULL,
         },
     [META_UID_IDX] =
