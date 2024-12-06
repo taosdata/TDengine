@@ -1614,6 +1614,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       pVal->value.nData = pToken->n;
       break;
     }
+    case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_VARBINARY: {
       int32_t code = parseVarbinary(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
       if (code != TSDB_CODE_SUCCESS) {
