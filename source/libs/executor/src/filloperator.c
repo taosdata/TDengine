@@ -182,9 +182,17 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   int32_t            lino = 0;
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  if (pInfo == NULL || pTaskInfo == NULL) {
+    qError("%s failed at line %d since pInfo or pTaskInfo is NULL.", __func__, __LINE__);
+    return NULL;
+  }
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
   SSDataBlock* pResBlock = pInfo->pFinalRes;
+  if (pResBlock == NULL) {
+    qError("%s failed at line %d since pResBlock is NULL.", __func__, __LINE__);
+    return NULL;
+  }
 
   blockDataCleanup(pResBlock);
 

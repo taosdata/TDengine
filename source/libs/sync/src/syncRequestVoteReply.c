@@ -58,7 +58,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (pMsg->term > currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "error term");
-    syncNodeStepDown(ths, pMsg->term);
+    syncNodeStepDown(ths, pMsg->term, pMsg->destId);
 
     TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }

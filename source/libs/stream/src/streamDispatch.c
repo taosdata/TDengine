@@ -845,7 +845,15 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     streamMutexUnlock(&pTask->msgInfo.lock);
 
     code = doBuildDispatchMsg(pTask, pBlock);
+
+    int64_t chkptId = 0;
     if (code == 0) {
+      if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+        SSDataBlock* p = taosArrayGet(pBlock->blocks, 0);
+        if (pBlock != NULL) {
+          chkptId = p->info.version;
+        }
+      }
       destroyStreamDataBlock(pBlock);
     } else {  // todo handle build dispatch msg failed
     }
@@ -862,7 +870,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
         continue;
       }
 
-      code = streamTaskInitTriggerDispatchInfo(pTask);
+      code = streamTaskInitTriggerDispatchInfo(pTask, chkptId);
       if (code != TSDB_CODE_SUCCESS) {  // todo handle error
       }
     }
@@ -1170,6 +1178,7 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
   if (taosArrayGetSize(pTask->upstreamInfo.pList) != num) {
     stError("s-task:%s invalid number of sent readyMsg:%d to upstream:%d", id, num,
             (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList));
+    streamMutexUnlock(&pActiveInfo->lock);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
@@ -1412,6 +1421,7 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
   if (size > 0) {
     STaskCheckpointReadyInfo* pReady = taosArrayGet(pActiveInfo->pReadyMsgList, 0);
     if (pReady == NULL) {
+      streamMutexUnlock(&pActiveInfo->lock);
       return terrno;
     }
 

@@ -90,19 +90,21 @@ int32_t saveTimeSliceWinResult(SWinKey* pKey, SSHashObj* pUpdatedMap);
 int winPosCmprImpl(const void* pKey1, const void* pKey2);
 
 void             reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
-SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index);
+SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index, int32_t* pCellOffsetInfo);
 int32_t          getDownstreamRes(struct SOperatorInfo* downstream, SSDataBlock** ppRes, SColumnInfo** ppPkCol);
 void             destroyFlusedppPos(void* ppRes);
 void             doBuildStreamIntervalResult(struct SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock,
                                              SGroupResInfo* pGroupResInfo);
 void             transBlockToSliceResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SSliceRowData* pRowVal,
-                                            int32_t rowSize, void* pPkData, SColumnInfoData* pPkCol);
+                                            int32_t rowSize, void* pPkData, SColumnInfoData* pPkCol, int32_t* pCellOffsetInfo);
 int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* tsCols, int32_t rowId, bool ignoreNull);
 
 int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                               SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
                                               struct SOperatorInfo** ppOptInfo);
-int32_t buildAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SArray* pUpdated);
+int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
+int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
+TSKEY   compareTs(void* pKey);
 
 #ifdef __cplusplus
 }

@@ -61,6 +61,10 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
 
       break;
     case JOB_TASK_STATUS_SUCC:
+    if (newStatus == JOB_TASK_STATUS_PART_SUCC) {
+        QW_TASK_DLOG("task status update from %s to %s", jobTaskStatusStr(oriStatus), jobTaskStatusStr(newStatus));
+        return TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS;
+      }
       if (newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_FAIL) {
         QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }

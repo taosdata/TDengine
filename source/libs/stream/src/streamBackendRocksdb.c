@@ -4130,7 +4130,7 @@ SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const 
 
 SStreamStateCur* streamStateFillSeekToLast_rocksdb(SStreamState* pState) {
   SWinKey key = {.groupId = UINT64_MAX, .ts = INT64_MAX};
-  return streamStateFillSeekKeyNext_rocksdb(pState, &key);
+  return streamStateFillSeekKeyPrev_rocksdb(pState, &key);
 }
 
 #ifdef BUILD_NO_CALL

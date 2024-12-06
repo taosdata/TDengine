@@ -385,6 +385,10 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     }
   }
 
+#if 0
+  taosMsleep(20*1000);
+#endif
+
   if (taskLevel == TASK_LEVEL__SOURCE) {
     int8_t type = pTask->outputInfo.type;
     pActiveInfo->allUpstreamTriggerRecv = 1;
@@ -998,7 +1002,7 @@ static int32_t doFindNotSendUpstream(SStreamTask* pTask, SArray* pList, SArray**
   return 0;
 }
 
-static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray* pNotSendList) {
+static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList) {
   const char*            id = pTask->id.idStr;
   SArray*                pList = pTask->upstreamInfo.pList;  // send msg to retrieve checkpoint trigger msg
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
@@ -1010,7 +1014,7 @@ static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SA
     return code;
   }
 
-  code = doFindNotSendUpstream(pTask, pList, &pNotSendList);
+  code = doFindNotSendUpstream(pTask, pList, ppNotSendList);
   if (code) {
     streamCleanBeforeQuitTmr(pTmrInfo, param);
     stDebug("s-task:%s failed to find not send upstream, code:%s, out of tmr", id, tstrerror(code));
@@ -1018,7 +1022,7 @@ static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SA
   }
 
   // do send retrieve checkpoint trigger msg to upstream
-  code = doSendRetrieveTriggerMsg(pTask, pNotSendList);
+  code = doSendRetrieveTriggerMsg(pTask, *ppNotSendList);
   if (code) {
     stError("s-task:%s vgId:%d failed to retrieve trigger msg, code:%s", pTask->id.idStr, vgId, tstrerror(code));
     code = 0;
@@ -1090,7 +1094,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   }
 
   streamMutexLock(&pActiveInfo->lock);
-  code = chkptTriggerRecvMonitorHelper(pTask, param, pNotSendList);
+  code = chkptTriggerRecvMonitorHelper(pTask, param, &pNotSendList);
   streamMutexUnlock(&pActiveInfo->lock);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -1254,34 +1258,37 @@ void streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_
 
 // record the dispatch checkpoint trigger info in the list
 // memory insufficient may cause the stream computing stopped
-int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
+int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask, int64_t sendingChkptId) {
   SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
   int64_t                now = taosGetTimestampMs();
   int32_t                code = 0;
 
   streamMutexLock(&pInfo->lock);
 
-  pInfo->dispatchTrigger = true;
-  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    STaskDispatcherFixed* pDispatch = &pTask->outputInfo.fixedDispatcher;
+  if (sendingChkptId > pInfo->failedId) {
+    pInfo->dispatchTrigger = true;
+    if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+      STaskDispatcherFixed* pDispatch = &pTask->outputInfo.fixedDispatcher;
 
-    STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pDispatch->nodeId, .taskId = pDispatch->taskId};
-    void*                px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
-    if (px == NULL) {  // pause the stream task, if memory not enough
-      code = terrno;
-    }
-  } else {
-    for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
-      SVgroupInfo* pVgInfo = taosArrayGet(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos, i);
-      if (pVgInfo == NULL) {
-        continue;
-      }
-
-      STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pVgInfo->vgId, .taskId = pVgInfo->taskId};
-      void*                px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
+      STaskTriggerSendInfo p = {
+          .sendTs = now, .recved = false, .nodeId = pDispatch->nodeId, .taskId = pDispatch->taskId};
+      void* px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
       if (px == NULL) {  // pause the stream task, if memory not enough
         code = terrno;
-        break;
+      }
+    } else {
+      for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
+        SVgroupInfo* pVgInfo = taosArrayGet(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos, i);
+        if (pVgInfo == NULL) {
+          continue;
+        }
+
+        STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pVgInfo->vgId, .taskId = pVgInfo->taskId};
+        void*                px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
+        if (px == NULL) {  // pause the stream task, if memory not enough
+          code = terrno;
+          break;
+        }
       }
     }
   }

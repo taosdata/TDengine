@@ -620,7 +620,10 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   cJSON* type = cJSON_CreateString("alter");
   RAW_NULL_CHECK(type);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
-  cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ? "child" : "normal");
+  cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+                                                vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL
+                                            ? "child"
+                                            : "normal");
   RAW_NULL_CHECK(tableType);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableType", tableType));
   cJSON* tableName = cJSON_CreateString(vAlterTbReq.tbName);
@@ -752,9 +755,9 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         }
 
         cJSON* colValue = cJSON_CreateString(buf);
+        taosMemoryFree(buf);
         RAW_NULL_CHECK(colValue);
         RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colValue", colValue));
-        taosMemoryFree(buf);
       }
 
       cJSON* isNullCJson = cJSON_CreateBool(isNull);
@@ -762,6 +765,58 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colValueNull", isNullCJson));
       break;
     }
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
+      int32_t nTags = taosArrayGetSize(vAlterTbReq.pMultiTag);
+      if (nTags <= 0) {
+        uError("processAlterTable parse multi tags error");
+        goto end;
+      }
+
+      cJSON* tags = cJSON_CreateArray();
+      RAW_NULL_CHECK(tags);
+      for (int32_t i = 0; i < nTags; i++) {
+        cJSON* member = cJSON_CreateObject();
+        RAW_NULL_CHECK(member);
+
+        SMultiTagUpateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
+        cJSON*             tagName = cJSON_CreateString(pTagVal->tagName);
+        RAW_NULL_CHECK(tagName);
+        RAW_FALSE_CHECK(cJSON_AddItemToObject(member, "colName", tagName));
+
+        if (pTagVal->tagType == TSDB_DATA_TYPE_JSON) {
+          uError("processAlterTable isJson false");
+          goto end;
+        }
+        bool isNull = pTagVal->isNull;
+        if (!isNull) {
+          char*   buf = NULL;
+          int64_t bufSize = 0;
+          if (pTagVal->tagType == TSDB_DATA_TYPE_VARBINARY) {
+            bufSize = pTagVal->nTagVal * 2 + 2 + 3;
+          } else {
+            bufSize = pTagVal->nTagVal + 3;
+          }
+          buf = taosMemoryCalloc(bufSize, 1);
+          RAW_NULL_CHECK(buf);
+          if (dataConverToStr(buf, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL) !=
+              TSDB_CODE_SUCCESS) {
+            taosMemoryFree(buf);
+            goto end;
+          }
+          cJSON* colValue = cJSON_CreateString(buf);
+          taosMemoryFree(buf);
+          RAW_NULL_CHECK(colValue);
+          RAW_FALSE_CHECK(cJSON_AddItemToObject(member, "colValue", colValue));
+        }
+        cJSON* isNullCJson = cJSON_CreateBool(isNull);
+        RAW_NULL_CHECK(isNullCJson);
+        RAW_FALSE_CHECK(cJSON_AddItemToObject(member, "colValueNull", isNullCJson));
+        RAW_FALSE_CHECK(cJSON_AddItemToArray(tags, member));
+      }
+      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tags", tags));
+      break;
+    }
+
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       RAW_NULL_CHECK(colName);
@@ -775,6 +830,9 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
 end:
   uDebug("alter table return");
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    taosArrayDestroy(vAlterTbReq.pMultiTag);
+  }
   tDecoderClear(&decoder);
   *pJson = json;
 }
@@ -1855,19 +1913,19 @@ end:
 typedef int32_t _raw_decode_func_(SDecoder* pDecoder, SMqDataRsp* pRsp);
 static int32_t  decodeRawData(SDecoder* decoder, void* data, int32_t dataLen, _raw_decode_func_ func,
                               SMqRspObj* rspObj) {
-  int8_t dataVersion = *(int8_t*)data;
-  if (dataVersion >= MQ_DATA_RSP_VERSION) {
-    data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
-    dataLen -= sizeof(int8_t) + sizeof(int32_t);
+   int8_t dataVersion = *(int8_t*)data;
+   if (dataVersion >= MQ_DATA_RSP_VERSION) {
+     data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
+     dataLen -= sizeof(int8_t) + sizeof(int32_t);
   }
 
-  rspObj->resIter = -1;
-  tDecoderInit(decoder, data, dataLen);
-  int32_t code = func(decoder, &rspObj->dataRsp);
-  if (code != 0) {
-    SET_ERROR_MSG("decode mq taosx data rsp failed");
+   rspObj->resIter = -1;
+   tDecoderInit(decoder, data, dataLen);
+   int32_t code = func(decoder, &rspObj->dataRsp);
+   if (code != 0) {
+     SET_ERROR_MSG("decode mq taosx data rsp failed");
   }
-  return code;
+   return code;
 }
 
 static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj* pMetaHash,
@@ -2195,44 +2253,44 @@ static int32_t getOffSetLen(const SMqDataRsp* pRsp) {
 
 typedef int32_t __encode_func__(SEncoder* pEncoder, const SMqDataRsp* pRsp);
 static int32_t  encodeMqDataRsp(__encode_func__* encodeFunc, SMqDataRsp* rspObj, tmq_raw_data* raw) {
-  int32_t  len = 0;
-  int32_t  code = 0;
-  SEncoder encoder = {0};
-  void*    buf = NULL;
-  tEncodeSize(encodeFunc, rspObj, len, code);
-  if (code < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   int32_t  len = 0;
+   int32_t  code = 0;
+   SEncoder encoder = {0};
+   void*    buf = NULL;
+   tEncodeSize(encodeFunc, rspObj, len, code);
+   if (code < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  len += sizeof(int8_t) + sizeof(int32_t);
-  buf = taosMemoryCalloc(1, len);
-  if (buf == NULL) {
-    code = terrno;
-    goto FAILED;
+   len += sizeof(int8_t) + sizeof(int32_t);
+   buf = taosMemoryCalloc(1, len);
+   if (buf == NULL) {
+     code = terrno;
+     goto FAILED;
   }
-  tEncoderInit(&encoder, buf, len);
-  if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   tEncoderInit(&encoder, buf, len);
+   if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  int32_t offsetLen = getOffSetLen(rspObj);
-  if (offsetLen <= 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   int32_t offsetLen = getOffSetLen(rspObj);
+   if (offsetLen <= 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  if (tEncodeI32(&encoder, offsetLen) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   if (tEncodeI32(&encoder, offsetLen) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  if (encodeFunc(&encoder, rspObj) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   if (encodeFunc(&encoder, rspObj) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  tEncoderClear(&encoder);
+   tEncoderClear(&encoder);
 
-  raw->raw = buf;
-  raw->raw_len = len;
-  return code;
+   raw->raw = buf;
+   raw->raw_len = len;
+   return code;
 FAILED:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);

@@ -552,8 +552,10 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
         int32_t code = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
         if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)) {
           pResInfo->initialized = false;
+          qError("failed to initialize udf, funcId:%d error:%s", pCtx[i].functionId, tstrerror(code));
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
         } else if (code != TSDB_CODE_SUCCESS) {
+          qError("failed to initialize function context, funcId:%d error:%s", pCtx[i].functionId, tstrerror(code));
           return code;
         }
       } else {
