@@ -238,12 +238,26 @@ typedef struct {
       case TSDB_DATA_TYPE_UBIGINT:                                                     \
         snprintf(_output, (int32_t)(_outputBytes), "%" PRIu64, *(uint64_t *)(_input)); \
         break;                                                                         \
-      case TSDB_DATA_TYPE_FLOAT:                                                       \
-        snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));          \
+      case TSDB_DATA_TYPE_FLOAT: {                                                     \
+        int32_t n = snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));     \
+        if (n >= (_outputBytes)) {                                                     \
+          n = snprintf(_output, (int32_t)(_outputBytes), "%.7e", *(float *)(_input));  \
+          if (n >= (_outputBytes)) {                                                   \
+            snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));      \
+          }                                                                            \
+        }                                                                              \
         break;                                                                         \
-      case TSDB_DATA_TYPE_DOUBLE:                                                      \
-        snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));         \
+      }                                                                                \
+      case TSDB_DATA_TYPE_DOUBLE: {                                                    \
+        int32_t n = snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));   \
+        if (n >= (_outputBytes)) {                                                     \
+          snprintf(_output, (int32_t)(_outputBytes), "%.15e", *(double *)(_input));    \
+          if (n >= (_outputBytes)) {                                                   \
+            snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));     \
+          }                                                                            \
+        }                                                                              \
         break;                                                                         \
+      }                                                                                \
       case TSDB_DATA_TYPE_UINT:                                                        \
         snprintf(_output, (int32_t)(_outputBytes), "%u", *(uint32_t *)(_input));       \
         break;                                                                         \
@@ -284,6 +298,7 @@ typedef struct {
 #define IS_VALID_UINT64(_t)    ((_t) >= 0 && (_t) <= UINT64_MAX)
 #define IS_VALID_FLOAT(_t)     ((_t) >= -FLT_MAX && (_t) <= FLT_MAX)
 #define IS_VALID_DOUBLE(_t)    ((_t) >= -DBL_MAX && (_t) <= DBL_MAX)
+#define IS_INVALID_TYPE(_t)    ((_t) < TSDB_DATA_TYPE_NULL || (_t) >= TSDB_DATA_TYPE_MAX)
 
 #define IS_CONVERT_AS_SIGNED(_t) \
   (IS_SIGNED_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))

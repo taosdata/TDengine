@@ -20,11 +20,11 @@
 extern "C" {
 #endif
 
-extern char version[];
-extern char compatible_version[];
-extern char gitinfo[];
-extern char gitinfoOfInternal[];
-extern char buildinfo[];
+extern char td_version[];
+extern char td_compatible_version[];
+extern char td_gitinfo[];
+extern char td_gitinfoOfInternal[];
+extern char td_buildinfo[];
 
 #ifdef __cplusplus
 }

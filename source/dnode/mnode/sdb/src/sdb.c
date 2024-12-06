@@ -168,11 +168,10 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
 }
 
 void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
-#if 1
-  mTrace("mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
-         " term:%" PRId64 " config:%" PRId64,
-         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
-#endif
+  mInfo("vgId:1, mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
+        " term:%" PRId64 " config:%" PRId64,
+        pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
+
   pSdb->applyIndex = index;
   pSdb->applyTerm = term;
   pSdb->applyConfig = config;

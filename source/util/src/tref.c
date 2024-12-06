@@ -19,7 +19,7 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define TSDB_REF_OBJECTS        50
+#define TSDB_REF_OBJECTS        100
 #define TSDB_REF_STATE_EMPTY    0
 #define TSDB_REF_STATE_ACTIVE   1
 #define TSDB_REF_STATE_DELETED  2
@@ -56,7 +56,7 @@ static void    taosLockList(int64_t *lockedBy);
 static void    taosUnlockList(int64_t *lockedBy);
 static void    taosIncRsetCount(SRefSet *pSet);
 static void    taosDecRsetCount(SRefSet *pSet);
-static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t* isReleased);
+static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t *isReleased);
 
 int32_t taosOpenRef(int32_t max, RefFp fp) {
   SRefNode **nodeList;
@@ -254,7 +254,9 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
 }
 
 int32_t taosReleaseRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 0, NULL); }
-int32_t taosReleaseRefEx(int32_t rsetId, int64_t rid, int32_t* isReleased) { return taosDecRefCount(rsetId, rid, 0, isReleased); }
+int32_t taosReleaseRefEx(int32_t rsetId, int64_t rid, int32_t *isReleased) {
+  return taosDecRefCount(rsetId, rid, 0, isReleased);
+}
 
 // if rid is 0, return the first p in hash list, otherwise, return the next after current rid
 void *taosIterateRef(int32_t rsetId, int64_t rid) {
@@ -387,7 +389,7 @@ int32_t taosListRef() {
   return num;
 }
 
-static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t* isReleased) {
+static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t *isReleased) {
   int32_t   hash;
   SRefSet  *pSet;
   SRefNode *pNode;

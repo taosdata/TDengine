@@ -65,7 +65,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
     snprintf(path, sizeof(path), "%s%s%s", tsDataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = taosStrdup(path);
     if (pWrapper->path == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
 
@@ -214,10 +214,12 @@ int32_t dmInitVars(SDnode *pDnode) {
   }
 
   (void)taosThreadRwlockInit(&pData->lock, NULL);
+  (void)taosThreadMutexInit(&pData->statusInfolock, NULL);
   (void)taosThreadMutexInit(&pDnode->mutex, NULL);
   return 0;
 }
 
+extern SMonVloadInfo tsVinfo;
 void dmClearVars(SDnode *pDnode) {
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
@@ -253,6 +255,25 @@ void dmClearVars(SDnode *pDnode) {
   (void)taosThreadRwlockUnlock(&pData->lock);
 
   (void)taosThreadRwlockDestroy(&pData->lock);
+
+  dDebug("begin to lock status info when thread exit");
+  if (taosThreadMutexLock(&pData->statusInfolock) != 0) {
+    dError("failed to lock status info lock");
+    return;
+  }
+  if (tsVinfo.pVloads != NULL) {
+    taosArrayDestroy(tsVinfo.pVloads);
+    tsVinfo.pVloads = NULL;
+  }
+  if (taosThreadMutexUnlock(&pData->statusInfolock) != 0) {
+    dError("failed to unlock status info lock");
+    return;
+  }
+  if (taosThreadMutexDestroy(&pData->statusInfolock) != 0) {
+    dError("failed to destroy status info lock");
+  }
+  memset(&pData->statusInfolock, 0, sizeof(pData->statusInfolock));
+
   (void)taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
 }

@@ -41,17 +41,17 @@ public class TimeStampUtil {
         if (start == 0)
             start = now - size * timeGap;
 
-        // 如果size小于1异常
+        // If size is less than 1, throw an exception
         if (size < 1)
             throw new IllegalArgumentException("size less than 1.");
-        // 如果timeGap为1，已经超长，需要前移start
+        // If timeGap is 1 and it exceeds the limit, move start forward
         if (start + size > now) {
             start = now - size;
             return new TimeTuple(start, now, 1);
         }
         long end = start + (long) (timeGap * size);
         if (end > now) {
-            //压缩timeGap
+            // Compress timeGap
             end = now;
             double gap = (end - start) / (size * 1.0f);
             if (gap < 1.0f) {

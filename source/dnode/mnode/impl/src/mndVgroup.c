@@ -717,9 +717,26 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   SDnodeObj *pDnode = pObj;
   SArray    *pArray = p1;
   int32_t    exceptDnodeId = *(int32_t *)p2;
+  SArray    *dnodeList = p3;
 
   if (exceptDnodeId == pDnode->id) {
     return true;
+  }
+
+  if (dnodeList != NULL) {
+    int32_t dnodeListSize = taosArrayGetSize(dnodeList);
+    if (dnodeListSize > 0) {
+      bool inDnodeList = false;
+      for (int32_t index = 0; index < dnodeListSize; ++index) {
+        int32_t dnodeId = *(int32_t *)taosArrayGet(dnodeList, index);
+        if (pDnode->id == dnodeId) {
+          inDnodeList = true;
+        }
+      }
+      if (!inDnodeList) {
+        return true;
+      }
+    }
   }
 
   int64_t curMs = taosGetTimestampMs();
@@ -741,7 +758,7 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   return true;
 }
 
-SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId) {
+SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId, SArray *dnodeList) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfDnodes = mndGetDnodeSize(pMnode);
 
@@ -752,7 +769,7 @@ SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId) {
   }
 
   sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
-  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, NULL);
+  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, dnodeList);
 
   mDebug("build %d dnodes array", (int32_t)taosArrayGetSize(pArray));
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pArray); ++i) {
@@ -845,7 +862,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
 
 int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup) {
   int32_t code = 0;
-  SArray *pArray = mndBuildDnodesArray(pMnode, 0);
+  SArray *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
   if (pArray == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -868,7 +885,7 @@ int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup) {
   return 0;
 }
 
-int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
+int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups, SArray *dnodeList) {
   int32_t code = -1;
   SArray *pArray = NULL;
   SVgObj *pVgroups = NULL;
@@ -879,7 +896,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     goto _OVER;
   }
 
-  pArray = mndBuildDnodesArray(pMnode, 0);
+  pArray = mndBuildDnodesArray(pMnode, 0, dnodeList);
   if (pArray == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -1178,10 +1195,15 @@ int64_t mndGetVgroupMemory(SMnode *pMnode, SDbObj *pDbInput, SVgObj *pVgroup) {
 
   int64_t vgroupMemroy = 0;
   if (pDb != NULL) {
-    vgroupMemroy = (int64_t)pDb->cfg.buffer * 1024 * 1024 + (int64_t)pDb->cfg.pages * pDb->cfg.pageSize * 1024;
+    int64_t buffer = (int64_t)pDb->cfg.buffer * 1024 * 1024;
+    int64_t cache = (int64_t)pDb->cfg.pages * pDb->cfg.pageSize * 1024;
+    vgroupMemroy = buffer + cache;
+    int64_t cacheLast = (int64_t)pDb->cfg.cacheLastSize * 1024 * 1024;
     if (pDb->cfg.cacheLast > 0) {
-      vgroupMemroy += (int64_t)pDb->cfg.cacheLastSize * 1024 * 1024;
+      vgroupMemroy += cacheLast;
     }
+    mDebug("db:%s, vgroup:%d, buffer:%" PRId64 " cache:%" PRId64 " cacheLast:%" PRId64, pDb->name, pVgroup->vgId,
+           buffer, cache, cacheLast);
   }
 
   if (pDbInput == NULL) {
@@ -2062,7 +2084,7 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
 
 int32_t mndSetMoveVgroupsInfoToTrans(SMnode *pMnode, STrans *pTrans, int32_t delDnodeId, bool force, bool unsafe) {
   int32_t code = 0;
-  SArray *pArray = mndBuildDnodesArray(pMnode, delDnodeId);
+  SArray *pArray = mndBuildDnodesArray(pMnode, delDnodeId, NULL);
   if (pArray == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -2695,20 +2717,29 @@ static int32_t mndCheckDnodeMemory(SMnode *pMnode, SDbObj *pOldDb, SDbObj *pNewD
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
     bool       inVgroup = false;
+    int64_t    oldMemUsed = 0;
+    int64_t    newMemUsed = 0;
+    mDebug("db:%s, vgId:%d, check dnode:%d, avail:%" PRId64 " used:%" PRId64, pNewVgroup->dbName, pNewVgroup->vgId,
+           pDnode->id, pDnode->memAvail, pDnode->memUsed);
     for (int32_t j = 0; j < pOldVgroup->replica; ++j) {
-      SVnodeGid *pVgId = &pOldVgroup->vnodeGid[i];
+      SVnodeGid *pVgId = &pOldVgroup->vnodeGid[j];
       if (pDnode->id == pVgId->dnodeId) {
-        pDnode->memUsed -= mndGetVgroupMemory(pMnode, pOldDb, pOldVgroup);
+        oldMemUsed = mndGetVgroupMemory(pMnode, pOldDb, pOldVgroup);
         inVgroup = true;
       }
     }
     for (int32_t j = 0; j < pNewVgroup->replica; ++j) {
-      SVnodeGid *pVgId = &pNewVgroup->vnodeGid[i];
+      SVnodeGid *pVgId = &pNewVgroup->vnodeGid[j];
       if (pDnode->id == pVgId->dnodeId) {
-        pDnode->memUsed += mndGetVgroupMemory(pMnode, pNewDb, pNewVgroup);
+        newMemUsed = mndGetVgroupMemory(pMnode, pNewDb, pNewVgroup);
         inVgroup = true;
       }
     }
+
+    mDebug("db:%s, vgId:%d, memory in dnode:%d, oldUsed:%" PRId64 ", newUsed:%" PRId64, pNewVgroup->dbName,
+           pNewVgroup->vgId, pDnode->id, oldMemUsed, newMemUsed);
+
+    pDnode->memUsed = pDnode->memUsed - oldMemUsed + newMemUsed;
     if (pDnode->memAvail - pDnode->memUsed <= 0) {
       mError("db:%s, vgId:%d, no enough memory in dnode:%d, avail:%" PRId64 " used:%" PRId64, pNewVgroup->dbName,
              pNewVgroup->vgId, pDnode->id, pDnode->memAvail, pDnode->memUsed);
@@ -3140,7 +3171,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   int32_t code = -1;
   STrans *pTrans = NULL;
   SDbObj  dbObj = {0};
-  SArray *pArray = mndBuildDnodesArray(pMnode, 0);
+  SArray *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
 
   int32_t numOfStreams = 0;
   if ((code = mndGetNumOfStreams(pMnode, pDb->name, &numOfStreams)) != 0) {
@@ -3176,6 +3207,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   mInfo("trans:%d, used to split vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
 
   mndTransSetDbName(pTrans, pDb->name, NULL);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
 
   SVgObj newVg1 = {0};
   memcpy(&newVg1, pVgroup, sizeof(SVgObj));
@@ -3424,6 +3456,8 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
   }
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to balance vgroup", pTrans->id);
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
 
   while (1) {
     taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
@@ -3506,7 +3540,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pDnode);
   }
 
-  pArray = mndBuildDnodesArray(pMnode, 0);
+  pArray = mndBuildDnodesArray(pMnode, 0, NULL);
   if (pArray == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;

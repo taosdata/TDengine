@@ -203,6 +203,10 @@ void schtBuildQueryDag(SQueryPlan *dag) {
     return;
   }
   scanPlan->msgType = TDMT_SCH_QUERY;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&scanPlan->pDataSink);
+  if (NULL == scanPlan->pDataSink) {
+    return;
+  }
 
   mergePlan->id.queryId = qId;
   mergePlan->id.groupId = schtMergeTemplateId;
@@ -223,6 +227,10 @@ void schtBuildQueryDag(SQueryPlan *dag) {
     return;
   }
   mergePlan->msgType = TDMT_SCH_QUERY;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&mergePlan->pDataSink);
+  if (NULL == mergePlan->pDataSink) {
+    return;
+  }
 
   merge->pNodeList = NULL;
   code = nodesMakeList(&merge->pNodeList);
@@ -234,6 +242,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   if (NULL == scan->pNodeList) {
     return;
   }
+
 
   (void)nodesListAppend(merge->pNodeList, (SNode *)mergePlan);
   (void)nodesListAppend(scan->pNodeList, (SNode *)scanPlan);
@@ -250,7 +259,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   int32_t  scanPlanNum = 20;
 
   dag->queryId = qId;
-  dag->numOfSubplans = 2;
+  dag->numOfSubplans = scanPlanNum + 1;
   dag->pSubplans = NULL;
   int32_t code = nodesMakeList(&dag->pSubplans);
   if (NULL == dag->pSubplans) {
@@ -289,6 +298,10 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   if (NULL == mergePlan->pChildren) {
     return;
   }
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&mergePlan->pDataSink);
+  if (NULL == mergePlan->pDataSink) {
+    return;
+  }
 
   for (int32_t i = 0; i < scanPlanNum; ++i) {
     SSubplan *scanPlan = NULL;
@@ -322,6 +335,10 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
       return;
     }
     scanPlan->msgType = TDMT_SCH_QUERY;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&scanPlan->pDataSink);
+    if (NULL == scanPlan->pDataSink) {
+      return;
+    }
 
     (void)nodesListAppend(scanPlan->pParents, (SNode *)mergePlan);
     (void)nodesListAppend(mergePlan->pChildren, (SNode *)scanPlan);

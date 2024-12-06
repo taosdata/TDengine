@@ -24,7 +24,6 @@ extern "C" {
 
 #define TIMER_MAX_MS       0x7FFFFFFF
 #define PING_TIMER_MS      5000
-#define HEARTBEAT_TICK_NUM 20
 
 typedef struct SSyncEnv {
   uint8_t isStart;

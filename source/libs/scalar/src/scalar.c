@@ -628,8 +628,8 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
        cell = cell->pNext) {
     pWhenThen = (SWhenThenNode *)node;
 
-    SCL_ERR_RET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
-    SCL_ERR_RET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
+    SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
+    SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
 
     SCL_ERR_JRET(vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
 
@@ -646,6 +646,10 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
 
       goto _return;
     }
+    sclFreeParam(pWhen);
+    sclFreeParam(pThen);
+    taosMemoryFreeClear(pWhen);
+    taosMemoryFreeClear(pThen);
   }
 
   if (pElse) {
@@ -672,8 +676,8 @@ _return:
 
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
-  taosMemoryFree(pWhen);
-  taosMemoryFree(pThen);
+  taosMemoryFreeClear(pWhen);
+  taosMemoryFreeClear(pThen);
 
   SCL_RET(code);
 }
@@ -1207,7 +1211,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  (void)strcpy(res->node.aliasName, node->node.aliasName);
+  tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType.type = output.columnData->info.type;
   res->node.resType.bytes = output.columnData->info.bytes;
   res->node.resType.scale = output.columnData->info.scale;
@@ -1282,7 +1286,7 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   res->node.resType = node->node.resType;
   res->translate = true;
 
-  (void)strcpy(res->node.aliasName, node->node.aliasName);
+  tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   int32_t type = output.columnData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
     res->datum.p = output.columnData->pData;
@@ -1352,7 +1356,7 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  (void)strcpy(res->node.aliasName, node->node.aliasName);
+  tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
@@ -1415,7 +1419,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  (void)strcpy(res->node.aliasName, node->node.aliasName);
+  tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;

@@ -254,7 +254,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     if (mer1.me.ctbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ctbEntry.comment);
       if (NULL == cfgRsp.pComment) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -273,7 +273,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
       if (NULL == cfgRsp.pComment) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -399,7 +399,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   for (int32_t i = 0; i < msgNum; ++i) {
     req = taosArrayGet(batchReq.pMsgs, i);
     if (req == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _exit;
     }
 
@@ -702,7 +702,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
 }
 
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0);
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0, NULL);
   if (pSW) {
     *num = pSW->nCols;
     tDeleteSchemaWrapper(pSW);
@@ -868,6 +868,41 @@ void *vnodeGetIvtIdx(void *pVnode) {
 
 int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
   return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
+}
+
+int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
+  SVnode *pVnodeObj = pVnode;
+  if (pVnodeObj == NULL) {
+    return TSDB_CODE_VND_NOT_EXIST;
+  }
+  int32_t code = 0;
+  char    path[TSDB_FILENAME_LEN] = {0};
+
+  char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
+  int64_t dirSize[4];
+
+  vnodeGetPrimaryDir(pVnodeObj->path, pVnodeObj->diskPrimary, pVnodeObj->pTfs, path, TSDB_FILENAME_LEN);
+  int32_t offset = strlen(path);
+
+  for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
+    int64_t size = {0};
+    (void)snprintf(path + offset, TSDB_FILENAME_LEN, "%s%s", TD_DIRSEP, dirName[i]);
+    code = taosGetDirSize(path, &size);
+    if (code != 0) {
+      return code;
+    }
+    path[offset] = 0;
+    dirSize[i] = size;
+  }
+
+  pInfo->l1Size = dirSize[0] - dirSize[3];
+  pInfo->walSize = dirSize[1];
+  pInfo->metaSize = dirSize[2];
+  pInfo->cacheSize = dirSize[3];
+
+  code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
+
+  return code;
 }
 
 int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {

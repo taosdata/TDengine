@@ -45,9 +45,10 @@
 extern "C" {
 #endif
 
+
 #ifndef TD_ACORE
-void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
-void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 
 void taosCloseServer(void* arg);
 void taosCloseClient(void* arg);
@@ -84,12 +85,16 @@ typedef struct {
   int32_t       connLimitNum;
   int8_t        connLimitLock;  // 0: no lock. 1. lock
   int8_t        supportBatch;   // 0: no batch, 1: support batch
-  int32_t       batchSize;
+  int32_t       shareConnLimit;
+  int8_t        optBatchFetch;
   int32_t       timeToGetConn;
   int           index;
   void*         parent;
   void*         tcphandle;  // returned handle from TCP initialization
   int64_t       refId;
+  int8_t        shareConn;
+  int8_t        startReadTimer;
+  int64_t       readTimeout;
   TdThreadMutex mutex;
   int16_t       type;
 

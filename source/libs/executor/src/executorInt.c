@@ -552,8 +552,10 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
         int32_t code = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
         if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)) {
           pResInfo->initialized = false;
+          qError("failed to initialize udf, funcId:%d error:%s", pCtx[i].functionId, tstrerror(code));
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
         } else if (code != TSDB_CODE_SUCCESS) {
+          qError("failed to initialize function context, funcId:%d error:%s", pCtx[i].functionId, tstrerror(code));
           return code;
         }
       } else {
@@ -616,11 +618,12 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
       }
     }
   }
-  code = TSDB_CODE_SUCCESS;
-
+  code = blockDataCheck(pBlock);
+  QUERY_CHECK_CODE(code, lino, _err);
 _err:
-  blockDataCheck(pBlock, true);
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   colDataDestroy(p);
   taosMemoryFree(p);
   return code;
@@ -701,7 +704,7 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
       for (int32_t k = 0; k < pRow->numOfRows; ++k) {
-        code = colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+        code = colDataSetValOrCover(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -1082,18 +1085,13 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
 
 bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
-  if (LIST_LENGTH(pGroupList) == 1) {
-    SNode* p = nodesListGetNode(pGroupList, 0);
-    if (!p) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return false;
-    }
-    if (p->type == QUERY_NODE_FUNCTION) {
-      // partition by tbname/group by tbname
-      bytbname = (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0);
+  SNode*pNode = NULL;
+  FOREACH(pNode, pGroupList) {
+    if (pNode->type == QUERY_NODE_FUNCTION) {
+      bytbname = (strcmp(((struct SFunctionNode*)pNode)->functionName, "tbname") == 0);
+      break;
     }
   }
-
   return bytbname;
 }
 
@@ -1301,10 +1299,17 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
       freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
       pOperator->pDownstreamGetParams[idx] = NULL;
     }
+
+    if (code) {
+      qError("failed to get next data block from upstream at %s, line:%d code:%s", __func__, __LINE__, tstrerror(code));
+    }
     return code;
   }
 
   code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+  if (code) {
+    qError("failed to get next data block from upstream at %s, %d code:%s", __func__, __LINE__, tstrerror(code));
+  }
   return code;
 }
 

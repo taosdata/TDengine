@@ -102,9 +102,8 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
           ts.tv_sec = tv.tv_sec;
         }
 
-        int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
-        if (rc && rc != ETIMEDOUT) {
-          code = TAOS_SYSTEM_ERROR(rc);
+        code = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
+        if (code && code != TSDB_CODE_TIMEOUT_ERROR) {
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
@@ -258,6 +257,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   code = vnodeDecodeInfo(pData, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  pInfo->config.walCfg.committed = pInfo->state.committed;
 _exit:
   if (code) {
     if (pFile) {
@@ -409,7 +409,12 @@ int32_t vnodeSyncCommit(SVnode *pVnode) {
   vnodeAWait(&pVnode->commitTask);
 
 _exit:
-  vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  if (code) {
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, sync commit end", TD_VID(pVnode));
+  }
+
   return code;
 }
 

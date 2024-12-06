@@ -37,7 +37,6 @@ float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
-char tsSIMDEnable = 0;
 char tsAVX512Enable = 0;
 char tsSSE42Supported = 0;
 char tsAVXSupported = 0;
@@ -77,21 +76,21 @@ int32_t osDefaultInit() {
     tmpDir = getenv("temp");
   }
   if (tmpDir != NULL) {
-    (void)strcpy(tsTempDir, tmpDir);
+    tstrncpy(tsTempDir, tmpDir, sizeof(tsTempDir));
   }
-  (void)strcpy(tsOsName, "Windows");
+  tstrncpy(tsOsName, "Windows", sizeof(tsOsName));
 #elif defined(_TD_DARWIN_64)
-  (void)strcpy(tsOsName, "Darwin");
+  tstrncpy(tsOsName, "Darwin", sizeof(tsOsName));
 #else
-  (void)strcpy(tsOsName, "Linux");
+  tstrncpy(tsOsName, "Linux", sizeof(tsOsName));
 #endif
   if (configDir[0] == 0) {
-    (void)strcpy(configDir, TD_CFG_DIR_PATH);
+    tstrncpy(configDir, TD_CFG_DIR_PATH, sizeof(configDir));
   }
-  (void)strcpy(tsDataDir, TD_DATA_DIR_PATH);
-  (void)strcpy(tsLogDir, TD_LOG_DIR_PATH);
-  if(strlen(tsTempDir) == 0){
-    (void)strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  tstrncpy(tsDataDir, TD_DATA_DIR_PATH, sizeof(tsDataDir));
+  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, sizeof(tsLogDir));
+  if (strlen(tsTempDir) == 0) {
+    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, sizeof(tsTempDir));
   }
 
   return code;
@@ -128,8 +127,13 @@ bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reser
 int32_t osSetTimezone(const char *tz) { return taosSetSystemTimezone(tz, tsTimezoneStr, &tsDaylight, &tsTimezone); }
 
 void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
-  (void)memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
-  (void)memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
+  if (inLocale) (void)memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
+  if (inCharSet) (void)memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
 }
 
-void osSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }
+void osSetProcPath(int32_t argc, char **argv) {
+  if (argv == NULL || argc < 1) {
+    return;  // no command line arguments
+  }
+  tsProcPath = argv[0];
+}

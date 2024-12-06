@@ -9,7 +9,7 @@ import java.util.List;
 
 public class TagValueGenerator {
 
-    // 创建标签值：使用tagMetas
+    // Create tag values using tagMetas
     public static List<TagValue> generate(List<TagMeta> tagMetas) {
         List<TagValue> tagValues = new ArrayList<>();
         for (int i = 0; i < tagMetas.size(); i++) {

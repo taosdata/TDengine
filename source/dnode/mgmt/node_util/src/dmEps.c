@@ -461,12 +461,12 @@ void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
 
 void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
   int32_t n = 0;
-  n += snprintf(buf + n, len - n, "%s", "{");
+  n += tsnprintf(buf + n, len - n, "%s", "{");
   for (int i = 0; i < epSet->numOfEps; i++) {
-    n += snprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
+    n += tsnprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
                   (i + 1 < epSet->numOfEps ? ", " : ""));
   }
-  n += snprintf(buf + n, len - n, "%s", "}");
+  n += tsnprintf(buf + n, len - n, "%s", "}");
 }
 
 static FORCE_INLINE void dmSwapEps(SEp *epLhs, SEp *epRhs) {

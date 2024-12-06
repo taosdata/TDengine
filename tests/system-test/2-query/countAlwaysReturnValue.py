@@ -18,7 +18,7 @@ class TDTestCase:
 
     def prepare_data(self, dbname="db"):
         tdSql.execute(
-            f"create database if not exists {dbname} keep 3650 duration 1000")
+            f"create database if not exists {dbname} keep 3650 duration 100")
         tdSql.execute(f"use {dbname} ")
         tdSql.execute(
             f"create table {dbname}.tb (ts timestamp, c0 int)"

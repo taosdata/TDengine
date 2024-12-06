@@ -76,7 +76,7 @@ window_clause: {
 FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
 
 1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1, 若查询列表中有多列需要FILL, 则需要给每一个FILL列指定VALUE, 如`SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。
+2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1, 若查询列表中有多列需要 FILL, 则需要给每一个 FILL 列指定 VALUE, 如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`, 注意, SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE, 如 `_wstart`, `_wstart+1a`, `now`, `1+1` 以及使用 partition by 时的 partition key (如 tbname)都不需要指定 VALUE, 如 `timediff(last(ts), _wstart)` 则需要指定VALUE。
 3. PREV 填充：使用前一个非 NULL 值填充数据。例如：FILL(PREV)。
 4. NULL 填充：使用 NULL 填充数据。例如：FILL(NULL)。
 5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。
@@ -120,11 +120,25 @@ SLIDING 的向前滑动的时间不能超过一个窗口的时间范围。以下
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
+INTERVAL 子句允许使用 AUTO 关键字来指定窗口偏移量，此时如果 WHERE 条件给定了明确可应用的起始时间限制，则会自动计算所需偏移量，使得从该时间点切分时间窗口；否则不生效，即：仍以 0 作为偏移量。以下是简单示例说明：
+
+```sql
+-- 有起始时间限制，从 '2018-10-03 14:38:05' 切分时间窗口
+SELECT COUNT(*) FROM meters WHERE _rowts >= '2018-10-03 14:38:05' INTERVAL (1m， AUTO);
+
+-- 无起始时间限制，不生效，仍以 0 为偏移量
+SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, AUTO);
+
+-- 起始时间限制不明确，不生效，仍以 0 为偏移量
+SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
+```
+
 使用时间窗口需要注意：
 
 - 聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。
 - 使用 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 taos.cfg 配置文件中的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
 - 返回的结果中时间序列严格单调递增。
+- 使用 AUTO 作为窗口偏移量时，如果窗口宽度的单位是 d (天), n (月), w (周), y (年)，比如: INTERVAL(1d, AUTO), INTERVAL(3w, AUTO)，此时 TSMA 优化无法生效。如果目标表上手动创建了TSMA，语句会报错退出；这种情况下，可以显式指定 Hint SKIP_TSMA 或者不使用 AUTO 作为窗口偏移量。
 
 ### 状态窗口
 

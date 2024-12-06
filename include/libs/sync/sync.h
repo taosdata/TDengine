@@ -47,7 +47,7 @@ extern "C" {
 #define SYNC_HEARTBEAT_SLOW_MS       1500
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
 #define SYNC_SNAP_RESEND_MS          1000 * 60
-#define SYNC_SNAP_TIMEOUT_MS         1000 * 300
+#define SYNC_SNAP_TIMEOUT_MS         1000 * 180
 
 #define SYNC_VND_COMMIT_MIN_MS 3000
 

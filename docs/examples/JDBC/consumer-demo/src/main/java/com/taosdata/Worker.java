@@ -35,17 +35,18 @@ public class Worker implements Runnable {
     public void run() {
         while (!Thread.interrupted()) {
             try {
-                // 控制请求频率
+                // Control request rate
                 if (semaphore.tryAcquire()) {
                     ConsumerRecords<Bean> records = consumer.poll(Duration.ofMillis(sleepTime));
                     pool.submit(() -> {
                         RateLimiter limiter = RateLimiter.create(rate);
                         try {
                             for (ConsumerRecord<Bean> record : records) {
-                                // 流量控制
+                                // Traffic control
                                 limiter.acquire();
-                                // 业务处理数据
-                                System.out.println("[" + LocalDateTime.now() + "] Thread id:" + Thread.currentThread().getId() + " -> " + record.value());
+                                // Business data processing
+                                System.out.println("[" + LocalDateTime.now() + "] Thread id:"
+                                        + Thread.currentThread().getId() + " -> " + record.value());
                             }
                         } finally {
                             semaphore.release();

@@ -3,7 +3,6 @@ const taos = require("@tdengine/websocket");
 
 let dsn = 'ws://localhost:6041';
 async function createConnect() {
-
     try {
         let conf = new taos.WSConfig(dsn);
         conf.setUser('root');

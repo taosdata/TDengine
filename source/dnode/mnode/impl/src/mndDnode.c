@@ -86,6 +86,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
+static int32_t mndProcessAuditReq(SRpcMsg *pReq);
 static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq);
 static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pRsp);
 static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp);
@@ -125,6 +126,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_AUDIT, mndProcessAuditReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
@@ -480,7 +482,6 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
   CHECK_MONITOR_PARA(tsMonitorInterval, DND_REASON_STATUS_MONITOR_INTERVAL_NOT_MATCH);
   CHECK_MONITOR_PARA(tsSlowLogThreshold, DND_REASON_STATUS_MONITOR_SLOW_LOG_THRESHOLD_NOT_MATCH);
-  CHECK_MONITOR_PARA(tsSlowLogThresholdTest, DND_REASON_STATUS_MONITOR_NOT_MATCH);
   CHECK_MONITOR_PARA(tsSlowLogMaxLen, DND_REASON_STATUS_MONITOR_SLOW_LOG_SQL_MAX_LEN_NOT_MATCH);
   CHECK_MONITOR_PARA(tsSlowLogScope, DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH);
 
@@ -604,6 +605,24 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   return 0;
 }
 
+static int32_t mndProcessAuditReq(SRpcMsg *pReq) {
+  mTrace("process audit req:%p", pReq);
+  if (tsEnableAudit && tsEnableAuditDelete) {
+    SMnode   *pMnode = pReq->info.node;
+    SAuditReq auditReq = {0};
+
+    TAOS_CHECK_RETURN(tDeserializeSAuditReq(pReq->pCont, pReq->contLen, &auditReq));
+
+    mDebug("received audit req:%s, %s, %s, %s", auditReq.operation, auditReq.db, auditReq.table, auditReq.pSql);
+
+    auditAddRecord(pReq, pMnode->clusterId, auditReq.operation, auditReq.db, auditReq.table, auditReq.pSql,
+                   auditReq.sqlLen);
+
+    tFreeSAuditReq(&auditReq);
+  }
+  return 0;
+}
+
 static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
   int32_t       code = 0, lino = 0;
   SDnodeInfoReq infoReq = {0};
@@ -693,7 +712,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   int64_t clusterid = mndGetClusterId(pMnode);
   if (statusReq.clusterId != 0 && statusReq.clusterId != clusterid) {
     code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
-    mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 ", code:0x%x",
+    mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current clusterid:%" PRId64 ", code:0x%x",
           statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, code);
     goto _OVER;
   }
@@ -730,6 +749,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   pMnode->ipWhiteVer = mndGetIpWhiteVer(pMnode);
 
+  int64_t analVer = sdbGetTableVer(pMnode->pSdb, SDB_ANODE);
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pDnode, curMs);
@@ -738,9 +758,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
   bool    encryptKeyChanged = pDnode->encryptionKeyChksum != statusReq.clusterCfg.encryptionKeyChksum;
   bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
-  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
+  bool    analVerChanged = (analVer != statusReq.analVer);
+  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged;
-
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
           pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
@@ -863,6 +883,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     SStatusRsp statusRsp = {0};
     statusRsp.statusSeq++;
+    statusRsp.analVer = analVer;
     statusRsp.dnodeVer = dnodeVer;
     statusRsp.dnodeCfg.dnodeId = pDnode->id;
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
@@ -1066,7 +1087,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
   int32_t           code = -1;
 
-  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIBALES) != 0) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIABLES) != 0) {
     goto _OVER;
   }
 
@@ -1082,6 +1103,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)strcpy(info.name, "statusInterval");
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
   (void)strcpy(info.scope, "server");
+  // fill info.info
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;

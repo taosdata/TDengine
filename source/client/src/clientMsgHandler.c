@@ -80,8 +80,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
-  if ((code = taosCheckVersionCompatibleFromStr(version, connectRsp.sVer, 3)) != 0) {
-    tscError("version not compatible. client version: %s, server version: %s", version, connectRsp.sVer);
+  if ((code = taosCheckVersionCompatibleFromStr(td_version, connectRsp.sVer, 3)) != 0) {
+    tscError("version not compatible. client version: %s, server version: %s", td_version, connectRsp.sVer);
     goto End;
   }
 
@@ -135,7 +135,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
-  pTscObj->pAppInfo->monitorParas = connectRsp.monitorParas;
+  pTscObj->pAppInfo->serverCfg.monitorParas = connectRsp.monitorParas;
+  pTscObj->pAppInfo->serverCfg.enableAuditDelete = connectRsp.enableAuditDelete;
   tscDebug("[monitor] paras from connect rsp, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
            connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold, connectRsp.monitorParas.tsSlowLogScope);
   lastClusterId = connectRsp.clusterId;
@@ -540,6 +541,10 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD3_LEN;
   TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD4_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
   int32_t numOfCfg = taosArrayGetSize(pVars);
   code = blockDataEnsureCapacity(pBlock, numOfCfg);
   TSDB_CHECK_CODE(code, line, END);
@@ -568,6 +573,13 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
     TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, scope, false);
     TSDB_CHECK_CODE(code, line, END);
+
+    char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(info, pInfo->info, TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
+    code = colDataSetVal(pColInfo, i, info, false);
+    TSDB_CHECK_CODE(code, line, END);
   }
 
   pBlock->info.rows = numOfCfg;
@@ -588,7 +600,8 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
     return code;
   }
 
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
     code = terrno;
@@ -603,7 +616,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, SHOW_VARIABLES_RESULT_COLS);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, SHOW_VARIABLES_RESULT_COLS);
   if(len < 0) {
     uError("buildShowVariablesRsp error, len:%d", len);
     code = terrno;
@@ -741,7 +754,8 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
     return code;
   }
 
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
     code = terrno;
@@ -757,7 +771,7 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(COMPACT_DB_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, COMPACT_DB_RESULT_COLS);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, COMPACT_DB_RESULT_COLS);
   if(len < 0) {
     uError("buildRetriveTableRspForCompactDb error, len:%d", len);
     code = terrno;
@@ -822,7 +836,7 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to post semaphore");
     }
   }
-  return code;  
+  return code;
 }
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
@@ -842,7 +856,7 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
     case TDMT_MND_SHOW_VARIABLES:
       return processShowVariablesRsp;
     case TDMT_MND_COMPACT_DB:
-      return processCompactDbRsp;  
+      return processCompactDbRsp;
     default:
       return genericRspCallback;
   }

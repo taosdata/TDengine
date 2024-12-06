@@ -273,10 +273,18 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
 int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
                           void* pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
+  if (pParam == NULL) {
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+    qError("invalid input param in creating data deleter, code%s", tstrerror(code));
+    goto _end;
+  }
+
+  SDeleterParam* pDeleterParam = (SDeleterParam*)pParam;
 
   SDataDeleterHandle* deleter = taosMemoryCalloc(1, sizeof(SDataDeleterHandle));
   if (NULL == deleter) {
     code = terrno;
+    taosArrayDestroy(pDeleterParam->pUidList);
     taosMemoryFree(pParam);
     goto _end;
   }
@@ -291,12 +299,6 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   deleter->pManager = pManager;
   deleter->pDeleter = pDeleterNode;
   deleter->pSchema = pDataSink->pInputDataBlockDesc;
-
-  if (pParam == NULL) {
-    code = TSDB_CODE_QRY_INVALID_INPUT;
-    qError("invalid input param in creating data deleter, code%s", tstrerror(code));
-    goto _end;
-  }
 
   deleter->pParam = pParam;
   deleter->status = DS_BUF_EMPTY;

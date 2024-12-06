@@ -140,7 +140,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   char     connStr[255] = {0};
-  int32_t  len = snprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
+  int32_t  len = tsnprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
   uint32_t connId = mndGenerateUid(connStr, len);
   if (startTime == 0) startTime = taosGetTimestampMs();
 
@@ -239,8 +239,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
-    mGError("version not compatible. client version: %s, server version: %s", connReq.sVer, version);
+  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, td_version, 3)) != 0) {
+    mGError("version not compatible. client version: %s, server version: %s", connReq.sVer, td_version);
     goto _OVER;
   }
 
@@ -304,13 +304,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
   connectRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   connectRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  connectRsp.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
+  connectRsp.enableAuditDelete = tsEnableAuditDelete;
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
 
-  (void)strcpy(connectRsp.sVer, version);
-  (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version,
-                 buildinfo, gitinfo);
+  tstrncpy(connectRsp.sVer, td_version, sizeof(connectRsp.sVer));
+  (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", td_version,
+                 td_buildinfo, td_gitinfo);
   mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
 
   int32_t contLen = tSerializeSConnectRsp(NULL, 0, &connectRsp);
@@ -705,10 +705,10 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   batchRsp.monitorParas.tsEnableMonitor = tsEnableMonitor;
   batchRsp.monitorParas.tsMonitorInterval = tsMonitorInterval;
   batchRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  batchRsp.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
   tstrncpy(batchRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   batchRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   batchRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
+  batchRsp.enableAuditDelete = tsEnableAuditDelete;
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);
   for (int i = 0; i < sz; i++) {
@@ -813,7 +813,7 @@ static int32_t mndProcessSvrVerReq(SRpcMsg *pReq) {
   int32_t       code = 0;
   int32_t       lino = 0;
   SServerVerRsp rsp = {0};
-  tstrncpy(rsp.ver, version, sizeof(rsp.ver));
+  tstrncpy(rsp.ver, td_version, sizeof(rsp.ver));
 
   int32_t contLen = tSerializeSServerVerRsp(NULL, 0, &rsp);
   if (contLen < 0) {

@@ -81,16 +81,21 @@ typedef struct SCommitInfo        SCommitInfo;
 typedef struct SCompactInfo       SCompactInfo;
 typedef struct SQueryNode         SQueryNode;
 
-#define VNODE_META_DIR  "meta"
-#define VNODE_TSDB_DIR  "tsdb"
-#define VNODE_TQ_DIR    "tq"
-#define VNODE_WAL_DIR   "wal"
-#define VNODE_TSMA_DIR  "tsma"
-#define VNODE_RSMA_DIR  "rsma"
-#define VNODE_RSMA0_DIR "tsdb"
-#define VNODE_RSMA1_DIR "rsma1"
-#define VNODE_RSMA2_DIR "rsma2"
-#define VNODE_TQ_STREAM "stream"
+#define VNODE_META_TMP_DIR    "meta.tmp"
+#define VNODE_META_BACKUP_DIR "meta.backup"
+
+#define VNODE_META_DIR       "meta"
+#define VNODE_TSDB_DIR       "tsdb"
+#define VNODE_TQ_DIR         "tq"
+#define VNODE_WAL_DIR        "wal"
+#define VNODE_TSMA_DIR       "tsma"
+#define VNODE_RSMA_DIR       "rsma"
+#define VNODE_RSMA0_DIR      "tsdb"
+#define VNODE_RSMA1_DIR      "rsma1"
+#define VNODE_RSMA2_DIR      "rsma2"
+#define VNODE_TQ_STREAM      "stream"
+#define VNODE_CACHE_DIR      "cache.rdb"
+#define VNODE_TSDB_CACHE_DIR VNODE_TSDB_DIR TD_DIRSEP VNODE_CACHE_DIR
 
 #if SUSPEND_RESUME_TEST  // only for test purpose
 #define VNODE_BUFPOOL_SEGMENTS 1
@@ -160,7 +165,7 @@ int32_t         metaDropTables(SMeta* pMeta, SArray* tbUids);
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
-SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
+SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, int64_t* createTime);
 int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
@@ -219,6 +224,7 @@ int32_t tsdbCacheNewSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t
 int32_t tsdbCacheDropSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, bool hasPrimayKey);
 int32_t tsdbCacheNewNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
 int32_t tsdbCacheDropNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, bool hasPrimayKey);
+void    tsdbCacheInvalidateSchema(STsdb* pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t sver);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);

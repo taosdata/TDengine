@@ -43,6 +43,8 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   int32_t                 code = 0;
   SyncAppendEntriesReply* pMsg = (SyncAppendEntriesReply*)pRpcMsg->pCont;
   int32_t ret = 0;
+  const STraceId*         trace = &pRpcMsg->info.traceId;
+  char                    tbuf[40] = {0};
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
@@ -59,12 +61,12 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     if (pMsg->term != raftStoreGetTerm(ths)) {
       syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
-      syncNodeStepDown(ths, pMsg->term);
+      syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
       return TSDB_CODE_SYN_WRONG_TERM;
     }
 
-    sTrace("vgId:%d, received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
-           pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
+    sGTrace("vgId:%d, received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
+            pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
 
     if (pMsg->success) {
       SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
@@ -77,7 +79,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
-          syncNodeStepDown(ths, pMsg->term);
+          syncNodeStepDown(ths, pMsg->term, pMsg->destId);
         }
       } else {
         TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex));

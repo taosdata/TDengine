@@ -1083,14 +1083,14 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_stmtErrorMsgIm
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
     jniError("jobj:%p, connection already closed", jobj);
-    (void)sprintf(errMsg, "jobj:%p, connection already closed", jobj);
+    (void)snprintf(errMsg, sizeof(errMsg), "jobj:%p, connection already closed", jobj);
     return (*env)->NewStringUTF(env, errMsg);
   }
 
   TAOS_STMT *pStmt = (TAOS_STMT *)stmt;
   if (pStmt == NULL) {
     jniError("jobj:%p, conn:%p, invalid stmt", jobj, tscon);
-    (void)sprintf(errMsg, "jobj:%p, conn:%p, invalid stmt", jobj, tscon);
+    (void)snprintf(errMsg, sizeof(errMsg), "jobj:%p, conn:%p, invalid stmt", jobj, tscon);
     return (*env)->NewStringUTF(env, errMsg);
   }
 

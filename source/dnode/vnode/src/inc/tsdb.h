@@ -342,6 +342,10 @@ typedef struct {
   rocksdb_writeoptions_t              *writeoptions;
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
+  TdThreadMutex                        writeBatchMutex;
+  int32_t                              sver;
+  tb_uid_t                             suid;
+  tb_uid_t                             uid;
   STSchema                            *pTSchema;
 } SRocksCache;
 
@@ -954,6 +958,8 @@ void    tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
+
+int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {

@@ -594,7 +594,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
     if (name == NULL) {
       sdbRelease(pSdb, pUser);
       sdbCancelFetch(pSdb, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     if (taosArrayPush(pUserNames, &name) == NULL) {
       taosMemoryFree(name);
@@ -617,7 +617,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
   if (found == false) {
     char *name = taosStrdup(TSDB_DEFAULT_USER);
     if (name == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     if (taosArrayPush(pUserNames, &name) == NULL) {
       taosMemoryFree(name);

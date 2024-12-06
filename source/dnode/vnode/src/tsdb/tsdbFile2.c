@@ -14,7 +14,7 @@
  */
 
 #include "tsdbFile2.h"
-#include "cos.h"
+#include "tcs.h"
 #include "vnd.h"
 
 // to_json
@@ -318,7 +318,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
     }
     *(dot + 1) = 0;
 
-    s3DeleteObjectsByPrefix(object_name_prefix);
+    tcsDeleteObjectsByPrefix(object_name_prefix);
 
     // remove local last chunk file
     dot = strrchr(lc_path, '.');

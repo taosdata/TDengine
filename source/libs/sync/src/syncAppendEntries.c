@@ -95,11 +95,18 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool               accepted = false;
   SSyncRaftEntry*    pEntry = NULL;
   bool               resetElect = false;
+  const STraceId*    trace = &pRpcMsg->info.traceId;
+  char               tbuf[40] = {0};
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvAppendEntries(ths, pMsg, "not in my config");
     goto _IGNORE;
+  }
+
+  int32_t nRef = atomic_add_fetch_32(&ths->recvCount, 1);
+  if (nRef <= 0) {
+    sError("vgId:%d, recv count is %d", ths->vgId, nRef);
   }
 
   int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
@@ -127,7 +134,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   if(ths->raftCfg.cfg.nodeInfo[ths->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER){
-    syncNodeStepDown(ths, pMsg->term);
+    syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
     resetElect = true;
   }
 
@@ -150,10 +157,10 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  sTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
-         ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
-         pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
-         pEntry->term);
+  sGTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
+          ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
+          pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
+          pEntry->term);
 
   if (ths->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
     pReply->fsmState = ths->fsmState;
@@ -179,6 +186,11 @@ _SEND_RESPONSE:
     sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
   }
 
+  TRACE_SET_MSGID(&(rpcRsp.info.traceId), tGenIdPI64());
+  trace = &(rpcRsp.info.traceId);
+  sGTrace("vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
+          " to dest: 0x%016" PRIx64,
+          ths->vgId, pReply->matchIndex, pReply->term, pReply->lastSendIndex, pReply->destId.addr);
   // ack, i.e. send response
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp));
 

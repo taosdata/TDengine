@@ -80,6 +80,7 @@ typedef struct TdFile {
 #endif
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
+  if (inputTmpDir == NULL || fileNamePrefix == NULL) return;
 #ifdef WINDOWS
 
   char tmpPath[PATH_MAX];
@@ -91,11 +92,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '\\';
   }
 
-  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    strcat(tmpPath, fileNamePrefix);
-    strcat(tmpPath, "-%d-%s");
-  }
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
 
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
@@ -112,15 +109,11 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '/';
   }
 
-  (void)strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    (void)strcat(tmpPath, fileNamePrefix);
-    (void)strcat(tmpPath, "-%d-%s");
-  }
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
 
   char rand[32] = {0};
 
-  (void)sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+  (void)snprintf(rand, sizeof(rand), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
   (void)snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 
@@ -128,6 +121,10 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 }
 
 int64_t taosCopyFile(const char *from, const char *to) {
+  if (from == NULL || to == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
 #ifdef WINDOWS
   if (CopyFile(from, to, 0)) {
     return 1;
@@ -141,15 +138,15 @@ int64_t taosCopyFile(const char *from, const char *to) {
   int64_t bytes;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // fidfrom = open(from, O_RDONLY);
-  TdFilePtr pFileFrom = taosOpenFile(from, TD_FILE_READ);
+  TdFilePtr pFileFrom = NULL;
+  TdFilePtr pFileTo = NULL;
+  pFileFrom = taosOpenFile(from, TD_FILE_READ);
   if (pFileFrom == NULL) {
     code = terrno;
     goto _err;
   }
 
-  // fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
-  TdFilePtr pFileTo = taosOpenFile(to, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_EXCL);
+  pFileTo = taosOpenFile(to, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_EXCL);
   if (pFileTo == NULL) {
     code = terrno;
     goto _err;
@@ -201,6 +198,10 @@ _err:
 }
 
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
+  if(path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   TdFilePtr fp = taosOpenFile(path, tdFileOptions);
   if (!fp) {
     if (terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
@@ -221,6 +222,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
 }
 
 int32_t taosRemoveFile(const char *path) {
+  OS_PARAM_CHECK(path);
   int32_t code = remove(path);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -230,6 +232,8 @@ int32_t taosRemoveFile(const char *path) {
 }
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
+  OS_PARAM_CHECK(oldName);
+  OS_PARAM_CHECK(newName);
 #ifdef WINDOWS
   bool finished = false;
 
@@ -269,7 +273,8 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 #endif
 }
 
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *atime) {
+int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime) {
+  OS_PARAM_CHECK(path);
 #ifdef WINDOWS
   struct _stati64 fileStat;
   int32_t         code = _stati64(path, &fileStat);
@@ -343,6 +348,10 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 }
 
 FILE *taosOpenFileForStream(const char *path, int32_t tdFileOptions) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   char *mode = NULL;
   if (tdFileOptions & TD_FILE_APPEND) {
     mode = (tdFileOptions & TD_FILE_TEXT) ? "at+" : "ab+";
@@ -366,6 +375,10 @@ FILE *taosOpenFileForStream(const char *path, int32_t tdFileOptions) {
 
 #ifdef WINDOWS
 HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return INVALID_HANDLE_VALUE;
+  }
   DWORD openMode = 0;
   DWORD access = 0;
   DWORD fileFlag = FILE_ATTRIBUTE_NORMAL;
@@ -403,10 +416,11 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
     SetFilePointer(h, 0, NULL, FILE_END);
   }
   if (h == INVALID_HANDLE_VALUE) {
-    DWORD  dwError = GetLastError();
+    DWORD dwError = GetLastError();
     terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
     // LPVOID lpMsgBuf;
-    // FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError, 0, (LPTSTR)&lpMsgBuf, 0,
+    // FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError, 0, (LPTSTR)&lpMsgBuf,
+    // 0,
     //               NULL);
     // printf("CreateFile failed with error %d: %s", dwError, (char *)lpMsgBuf);
     // LocalFree(lpMsgBuf);
@@ -415,6 +429,10 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
+  if (pFile == NULL  ||  buf == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
@@ -427,7 +445,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   }
 
   int64_t res = 0;
-  DWORD bytesRead;
+  DWORD   bytesRead;
   if (!ReadFile(pFile->hFile, buf, count, &bytesRead, NULL)) {
     DWORD errCode = GetLastError();
     terrno = TAOS_SYSTEM_WINAPI_ERROR(errCode);
@@ -442,7 +460,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
-  if (pFile == NULL || pFile->hFile == NULL) {
+  if (pFile == NULL || pFile->hFile == NULL || buf == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -464,7 +482,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 }
 
 int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t offset) {
-  if (pFile == NULL) {
+  if (pFile == NULL || buf == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -526,7 +544,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   return liOffset.QuadPart;
 }
 
-int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime) {
   if (pFile == NULL || pFile->hFile == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -553,7 +571,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
     ULARGE_INTEGER ull;
     ull.LowPart = lastWriteTime.dwLowDateTime;
     ull.HighPart = lastWriteTime.dwHighDateTime;
-    *mtime = (int32_t)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
+    *mtime = (int64_t)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
   }
   return 0;
 }
@@ -726,6 +744,10 @@ bool lastErrorIsFileNotExist() {
 
 #else
 int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
   int access = O_BINARY;
   access |= (tdFileOptions & TD_FILE_CREATE) ? O_CREAT : 0;
   if ((tdFileOptions & TD_FILE_WRITE) && (tdFileOptions & TD_FILE_READ)) {
@@ -749,6 +771,10 @@ int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
+  if (pFile == NULL || buf == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
   STUB_RAND_IO_ERR(terrno)
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockRdlock(&(pFile->rwlock));
@@ -804,7 +830,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   STUB_RAND_IO_ERR(terrno)
-  if (pFile == NULL) {
+  if (pFile == NULL || buf == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -850,7 +876,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 
 int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t offset) {
   STUB_RAND_IO_ERR(terrno)
-  if (pFile == NULL) {
+  if (pFile == NULL || buf == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -911,7 +937,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   return ret;
 }
 
-int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime) {
   if (pFile == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -923,7 +949,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   }
 
   struct stat fileStat;
-  int32_t code = fstat(pFile->fd, &fileStat);
+  int32_t     code = fstat(pFile->fd, &fileStat);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
@@ -991,7 +1017,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   }
 
 #ifdef _TD_DARWIN_64
-  if(lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
+  if (lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -1023,7 +1049,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   }
   return writeLen;
 
-#else // for linux
+#else  // for linux
 
   int64_t leftbytes = size;
   int64_t sentbytes;
@@ -1057,6 +1083,10 @@ bool lastErrorIsFileNotExist() { return terrno == TAOS_SYSTEM_ERROR(ENOENT); }
 #endif  // WINDOWS
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   STUB_RAND_IO_ERR(NULL)
   FILE *fp = NULL;
 #ifdef WINDOWS
@@ -1134,7 +1164,7 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
   if ((*ppFile)->hFile != NULL) {
     // FlushFileBuffers((*ppFile)->hFile);
     if (!CloseHandle((*ppFile)->hFile)) {
-      terrno  = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
       code = -1;
     }
     (*ppFile)->hFile = NULL;
@@ -1406,6 +1436,10 @@ int32_t taosEOFFile(TdFilePtr pFile) {
 }
 
 bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
+  if (pathname == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return false;  // invalid parameter
+  }
   int flags = 0;
 
   if (tdFileAccessOptions & TD_FILE_ACCESS_EXIST_OK) {
@@ -1429,6 +1463,8 @@ bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
 bool taosCheckExistFile(const char *pathname) { return taosCheckAccessFile(pathname, TD_FILE_ACCESS_EXIST_OK); };
 
 int32_t taosCompressFile(char *srcFileName, char *destFileName) {
+  OS_PARAM_CHECK(srcFileName);
+  OS_PARAM_CHECK(destFileName);
   int32_t   compressSize = 163840;
   int32_t   ret = 0;
   int32_t   len = 0;
@@ -1477,7 +1513,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   while (!feof(pSrcFile->fp)) {
     len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
     if (len > 0) {
-      if(gzwrite(dstFp, data, len) == 0) {
+      if (gzwrite(dstFp, data, len) == 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         ret = terrno;
         goto cmp_end;
@@ -1523,6 +1559,10 @@ int32_t taosLinkFile(char *src, char *dst) {
 }
 
 FILE *taosOpenCFile(const char *filename, const char *mode) {
+  if (filename == NULL || mode == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   STUB_RAND_IO_ERR(NULL)
   FILE *f = fopen(filename, mode);
   if (NULL == f) {
@@ -1532,6 +1572,10 @@ FILE *taosOpenCFile(const char *filename, const char *mode) {
 }
 
 int taosSeekCFile(FILE *file, int64_t offset, int whence) {
+  if(NULL == file) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
 #ifdef WINDOWS
   return _fseeki64(file, offset, whence);
 #else
@@ -1545,6 +1589,10 @@ int taosSeekCFile(FILE *file, int64_t offset, int whence) {
 }
 
 size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream) {
+  if (buffer == NULL || stream == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return 0;
+  }
   STUB_RAND_IO_ERR(terrno)
   return fread(buffer, size, count, stream);
 }

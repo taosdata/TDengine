@@ -56,6 +56,7 @@ typedef struct SStreamTransMgmt {
 typedef struct SStreamTaskResetMsg {
   int64_t streamId;
   int32_t transId;
+  int64_t checkpointId;
 } SStreamTaskResetMsg;
 
 typedef struct SChkptReportInfo {
@@ -133,6 +134,7 @@ int32_t  mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgr
 
 int32_t mndGetStreamObj(SMnode *pMnode, int64_t streamId, SStreamObj** pStream);
 bool    mndStreamNodeIsUpdated(SMnode *pMnode);
+int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);
 
 int32_t extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);
 int32_t mndProcessStreamHb(SRpcMsg *pReq);
@@ -141,9 +143,9 @@ int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pSt
 int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
-int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream, int64_t chkptId);
 int32_t mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
-int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream);
+int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int64_t chkptId);
 int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* pTask, int64_t checkpointId, int64_t ts);
 int32_t mndStreamSetRestartAction(SMnode* pMnode, STrans *pTrans, SStreamObj* pStream);
 int32_t mndStreamSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t checkpointId,
@@ -177,7 +179,7 @@ int64_t mndClearChkptReportInfo(SHashObj* pHash, int64_t streamId);
 int32_t mndResetChkptReportInfo(SHashObj* pHash, int64_t streamId);
 
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
-int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows);
+int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t nRows, int32_t p);
 
 int32_t mndProcessResetStatusReq(SRpcMsg *pReq);
 

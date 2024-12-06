@@ -206,10 +206,17 @@ function clean_log() {
 }
 
 function clean_service_on_launchctl() {
-  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
-  ${csudo}rm /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
-  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${clientName2}adapter.plist > /dev/null 2>&1 || :
-  ${csudo}rm /Library/LaunchDaemons/com.taosdata.${clientName2}adapter.plist > /dev/null 2>&1 || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist  || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}adapter.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}keeper.plist  || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}-explorer.plist || :
+
+  ${csudo}launchctl remove com.tdengine.taosd || :
+  ${csudo}launchctl remove com.tdengine.${PREFIX}adapter || :
+  ${csudo}launchctl remove com.tdengine.${PREFIX}keeper || :
+  ${csudo}launchctl remove com.tdengine.${PREFIX}-explorer || :
+
+  ${csudo}rm /Library/LaunchDaemons/com.taosdata.* > /dev/null 2>&1 || :
 }
 
 function remove_data_and_config() {
@@ -250,6 +257,12 @@ if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
   fi
 fi
 
+
+if [ "$osType" = "Darwin" ]; then
+  clean_service_on_launchctl
+  ${csudo}rm -rf /Applications/TDengine.app
+fi
+
 remove_bin
 clean_header
 # Remove lib file
@@ -282,10 +295,7 @@ elif echo $osinfo | grep -qwi "centos"; then
   #  echo "this is centos system"
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
-if [ "$osType" = "Darwin" ]; then
-  clean_service_on_launchctl
-  ${csudo}rm -rf /Applications/TDengine.app
-fi
+
 
 command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 
 echo 

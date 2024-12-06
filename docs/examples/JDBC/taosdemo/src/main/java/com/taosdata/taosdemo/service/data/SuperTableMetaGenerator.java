@@ -10,10 +10,11 @@ import java.util.List;
 
 public class SuperTableMetaGenerator {
 
-    // 创建超级表，使用指定SQL语句
+    // Create super table using the specified SQL statement
     public static SuperTableMeta generate(String superTableSQL) {
         SuperTableMeta tableMeta = new SuperTableMeta();
-        // for example : create table superTable (ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int)
+        // for example : create table superTable (ts timestamp, temperature float,
+        // humidity int) tags(location nchar(64), groupId int)
         superTableSQL = superTableSQL.trim().toLowerCase();
         if (!superTableSQL.startsWith("create"))
             throw new RuntimeException("invalid create super table SQL");
@@ -54,8 +55,9 @@ public class SuperTableMetaGenerator {
         return tableMeta;
     }
 
-    // 创建超级表,指定field和tag的个数
-    public static SuperTableMeta generate(String database, String name, int fieldSize, String fieldPrefix, int tagSize, String tagPrefix) {
+    // Create super table with specified number of fields and tags
+    public static SuperTableMeta generate(String database, String name, int fieldSize, String fieldPrefix, int tagSize,
+            String tagPrefix) {
         if (fieldSize < 2 || tagSize < 1) {
             throw new RuntimeException("create super table but fieldSize less than 2 or tagSize less than 1");
         }
@@ -66,7 +68,8 @@ public class SuperTableMetaGenerator {
         List<FieldMeta> fields = new ArrayList<>();
         fields.add(new FieldMeta("ts", "timestamp"));
         for (int i = 1; i <= fieldSize; i++) {
-            fields.add(new FieldMeta(fieldPrefix + "" + i, TaosConstants.DATA_TYPES[i % TaosConstants.DATA_TYPES.length]));
+            fields.add(
+                    new FieldMeta(fieldPrefix + "" + i, TaosConstants.DATA_TYPES[i % TaosConstants.DATA_TYPES.length]));
         }
         tableMetadata.setFields(fields);
         // tags

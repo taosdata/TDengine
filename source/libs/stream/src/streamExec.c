@@ -154,7 +154,7 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
 
     if ((code = qExecTask(pExecutor, &output, &ts)) < 0) {
       if (code == TSDB_CODE_QRY_IN_EXEC) {
-        resetTaskInfo(pExecutor);
+        qResetTaskInfoCode(pExecutor);
       }
 
       if (code == TSDB_CODE_OUT_OF_MEMORY || code == TSDB_CODE_INVALID_PARA || code == TSDB_CODE_FILE_CORRUPTED) {
@@ -188,14 +188,12 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
       continue;  // checkpoint block not dispatch to downstream tasks
     }
 
-    SSDataBlock block = {0};
+    SSDataBlock block = {.info.childId = pTask->info.selfChildId};
     code = assignOneDataBlock(&block, output);
     if (code) {
       stError("s-task:%s failed to build result block due to out of memory", pTask->id.idStr);
       continue;
     }
-
-    block.info.childId = pTask->info.selfChildId;
 
     size += blockDataGetSize(output) + sizeof(SSDataBlock) + sizeof(SColumnInfoData) * blockDataGetNumOfCols(&block);
     numOfBlocks += 1;
@@ -794,7 +792,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-      int32_t code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
+      code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
       if (code != 0) {
         stError("s-task:%s failed to process checkpoint-trigger block, code:%s", pTask->id.idStr, tstrerror(code));
       }

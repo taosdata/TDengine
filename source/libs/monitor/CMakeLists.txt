@@ -9,5 +9,5 @@ target_include_directories(
 target_link_libraries(monitor os util common qcom transport monitorfw)
 
 if(${BUILD_TEST})
-    add_subdirectory(test)
+  add_subdirectory(test)
 endif(${BUILD_TEST})

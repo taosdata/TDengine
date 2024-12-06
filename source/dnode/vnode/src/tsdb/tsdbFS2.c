@@ -433,6 +433,21 @@ static int32_t tsdbFSCreateFileObjHash(STFileSystem *fs, STFileHash *hash) {
       if (fset->farr[i] != NULL) {
         code = tsdbFSAddEntryToFileObjHash(hash, fset->farr[i]->fname);
         TSDB_CHECK_CODE(code, lino, _exit);
+
+        if (TSDB_FTYPE_DATA == i && fset->farr[i]->f->lcn > 0) {
+          STFileObj *fobj = fset->farr[i];
+          int32_t    lcn = fobj->f->lcn;
+          char       lcn_name[TSDB_FILENAME_LEN];
+
+          snprintf(lcn_name, TSDB_FQDN_LEN, "%s", fobj->fname);
+          char *dot = strrchr(lcn_name, '.');
+          if (dot) {
+            snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lcn_name), "%d.data", lcn);
+
+            code = tsdbFSAddEntryToFileObjHash(hash, lcn_name);
+            TSDB_CHECK_CODE(code, lino, _exit);
+          }
+        }
       }
     }
 
@@ -535,9 +550,7 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
     for (const STfsFile *file = NULL; (file = tfsReaddir(dir)) != NULL;) {
       if (taosIsDir(file->aname)) continue;
 
-      if (tsdbFSGetFileObjHashEntry(&fobjHash, file->aname) == NULL &&
-          strncmp(file->aname + strlen(file->aname) - 3, ".cp", 3) &&
-          strncmp(file->aname + strlen(file->aname) - 5, ".data", 5)) {
+      if (tsdbFSGetFileObjHashEntry(&fobjHash, file->aname) == NULL) {
         tsdbRemoveFile(file->aname);
       }
     }

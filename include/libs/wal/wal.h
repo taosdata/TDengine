@@ -50,6 +50,7 @@ typedef struct {
   int32_t  rollPeriod;       // secs
   int64_t  retentionSize;
   int64_t  segSize;
+  int64_t  committed;
   EWalType level;  // wal level
   int32_t  encryptAlgorithm;
   char     encryptKey[ENCRYPT_KEY_LEN + 1];
@@ -137,6 +138,7 @@ typedef struct {
   int8_t scanMeta;
   int8_t deleteMsg;
   int8_t enableRef;
+  int8_t scanDropCtb;
 } SWalFilterCond;
 
 // todo hide this struct

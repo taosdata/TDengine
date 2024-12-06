@@ -36,6 +36,9 @@ extern "C" {
 #define TIME_UNIT_MONTH       'n'
 #define TIME_UNIT_YEAR        'y'
 
+#define AUTO_DURATION_LITERAL "auto"
+#define AUTO_DURATION_VALUE   -1
+
 /*
  * @return timestamp decided by global conf variable, tsTimePrecision
  * if precision == TSDB_TIME_PRECISION_MICRO, it returns timestamp in microsecond.
@@ -62,9 +65,10 @@ static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
   int64_t   factor = (precision == TSDB_TIME_PRECISION_MILLI)   ? 1000
                      : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000000
                                                                 : 1000000000;
-  time_t    t = taosTime(NULL);
+  time_t    t;
+  (void) taosTime(&t);
   struct tm tm;
-  (void) taosLocalTime(&t, &tm, NULL);
+  (void) taosLocalTime(&t, &tm, NULL, 0);
   tm.tm_hour = 0;
   tm.tm_min = 0;
   tm.tm_sec = 0;
@@ -77,6 +81,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval);
 int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
 int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision, int32_t order);
+void    calcIntervalAutoOffset(SInterval* interval);
 
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision, bool negativeAllow);

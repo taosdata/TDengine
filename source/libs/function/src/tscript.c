@@ -92,7 +92,7 @@ void taosValueToLuaType(lua_State *lua, int32_t type, char *val) {
 int taosLoadScriptInit(void* pInit) {
   ScriptCtx *pCtx = pInit;   
   char funcName[MAX_FUNC_NAME] = {0};
-  sprintf(funcName, "%s_init", pCtx->funcName);
+  snprintf(funcName, MAX_FUNC_NAME, "%s_init", pCtx->funcName);
 
   lua_State* lua = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
@@ -106,7 +106,7 @@ void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iByt
     int64_t *ptsList, int64_t key, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes) { 
   ScriptCtx* pCtx = pInit;
   char funcName[MAX_FUNC_NAME] = {0};
-  sprintf(funcName, "%s_add", pCtx->funcName);
+  snprintf(funcName, MAX_FUNC_NAME, "%s_add", pCtx->funcName);
 
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
@@ -143,7 +143,7 @@ void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iByt
 void taosLoadScriptMerge(void *pInit, char* data, int32_t numOfRows, char* pOutput, int32_t* numOfOutput) {
   ScriptCtx *pCtx = pInit;
   char funcName[MAX_FUNC_NAME] = {0};
-  sprintf(funcName, "%s_merge", pCtx->funcName);
+  snprintf(funcName, MAX_FUNC_NAME, "%s_merge", pCtx->funcName);
 
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
@@ -167,7 +167,7 @@ void taosLoadScriptMerge(void *pInit, char* data, int32_t numOfRows, char* pOutp
 void taosLoadScriptFinalize(void *pInit,int64_t key, char *pOutput, int32_t* numOfOutput) {
   ScriptCtx *pCtx = pInit;
   char funcName[MAX_FUNC_NAME] = {0};
-  sprintf(funcName, "%s_finalize", pCtx->funcName);
+  snprintf(funcName, MAX_FUNC_NAME, "%s_finalize", pCtx->funcName);
   
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);

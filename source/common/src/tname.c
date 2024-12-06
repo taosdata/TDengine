@@ -33,7 +33,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
     }
     struct tm tm;
     time_t t = (time_t)start;
-    taosLocalTime(&t, &tm);
+    taosLocalTime(&t, &tm, NULL, 0);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -103,7 +103,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t len = snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  int32_t len = tsnprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {

@@ -364,6 +364,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **max** : 数据类型的 列/标签 的最大值。生成的值将小于最小值。
 
+- **scalingFactor** : 浮点数精度增强因子，仅当数据类型是 float/double 时生效，有效值范围为 1 至 1000000 的正整数。用于增强生成浮点数的精度，特别是在 min 或 max 值较小的情况下。此属性按 10 的幂次增强小数点后的精度：scalingFactor 为 10 表示增强 1 位小数精度，100 表示增强 2 位，依此类推。
+
 - **fun** : 此列数据以函数填充，目前只支持 sin 和 cos 两函数，输入参数为时间戳换算成角度值，换算公式： 角度 x = 输入的时间列ts值 % 360。同时支持系数调节，随机波动因子调节，以固定格式的表达式展现，如 fun=“10\*sin(x)+100\*random(5)” , x 表示角度，取值 0 ~ 360度，增长步长与时间列步长一致。10 表示乘的系数，100 表示加或减的系数，5 表示波动幅度在 5% 的随机范围内。目前支持的数据类型为 int, bigint, float, double 四种数据类型。注意：表达式为固定模式，不可前后颠倒。
 
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
@@ -477,7 +479,9 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 | 13  |  BOOL              |    bool
 | 14  |  NCHAR             |    nchar
 | 15  |  VARCHAR           |    varchar
-| 15  |  JSON              |    json
+| 16  |  VARBINARY         |    varbinary
+| 17  |  GEOMETRY          |    geometry
+| 18  |  JSON              |    json
 
 注意：taosBenchmark 配置文件中数据类型必须小写方可识别
 

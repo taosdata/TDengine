@@ -28,6 +28,9 @@ extern void dmStopDaemon();
 
 SDaemonObj daemonObj = {0};
 #endif
+
+SShellObj shell = {0};
+
 typedef struct {
   const char *sql;
   bool        vertical;
@@ -50,7 +53,7 @@ static int32_t shellRunSingleCommand(char *command);
 static void    shellRecordCommandToHistory(char *command);
 static int32_t shellRunCommand(char *command, bool recordHistory);
 static void    shellRunSingleCommandImp(char *command);
-static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
+static char   *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision);
 static int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
 static void    shellPrintGeometry(const unsigned char *str, int32_t length, int32_t width);
@@ -62,7 +65,7 @@ static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static bool    shellGetGrantInfo(char *buf);
+static bool    shellGetGrantInfo(char* buf);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -310,7 +313,7 @@ void shellRunSingleCommandImp(char *command) {
   printf("\r\n");
 }
 
-char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
+char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision) {
   if (shell.args.is_raw_time) {
     sprintf(buf, "%" PRId64, val);
     return buf;
@@ -341,7 +344,7 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
   }
 
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize) == NULL) {
     return buf;
   }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
@@ -411,7 +414,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       if (tsEnableScience) {
         taosFprintfFile(pFile, "%*.7e", width, GET_FLOAT_VAL(val));
       } else {
-        n = snprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
+        n = tsnprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
         if (n > SHELL_FLOAT_WIDTH) {
           taosFprintfFile(pFile, "%*.7e", width, GET_FLOAT_VAL(val));
         } else {
@@ -425,7 +428,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
         snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         taosFprintfFile(pFile, "%s", buf);
       } else {
-        n = snprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
+        n = tsnprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
         if (n > SHELL_DOUBLE_WIDTH) {
           taosFprintfFile(pFile, "%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
@@ -471,7 +474,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, *(int64_t *)val, precision);
+      shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
       taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     default:
@@ -676,7 +679,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       if (tsEnableScience) {
         printf("%*.7e", width, GET_FLOAT_VAL(val));
       } else {
-        n = snprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
+        n = tsnprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
         if (n > SHELL_FLOAT_WIDTH) {
           printf("%*.7e", width, GET_FLOAT_VAL(val));
         } else {
@@ -689,7 +692,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         printf("%s", buf);
       } else {
-        n = snprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
+        n = tsnprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
         if (n > SHELL_DOUBLE_WIDTH) {
           printf("%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
@@ -716,7 +719,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       shellPrintGeometry(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, *(int64_t *)val, precision);
+      shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
       printf("%s", buf);
       break;
     default:
@@ -732,6 +735,10 @@ bool shellIsShowWhole(const char *sql) {
   }
   // describe
   if (taosStrCaseStr(sql, "describe ") != NULL) {
+    return true;
+  }
+  // desc
+  if (taosStrCaseStr(sql, "desc ") != NULL) {
     return true;
   }
   // show
@@ -1095,7 +1102,7 @@ void shellCleanupHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\r\nDB error: %s (%.6fs)\r\n", taos_errstr(tres), (et - st) / 1E6);
+  fprintf(stderr, "\r\nDB error: %s[0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -1407,7 +1414,11 @@ int32_t shellExecute(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
-    TAOS_CHECK_GOTO((shell_conn_ws_server(1)), &lino, _exit_half);
+    if (shell_conn_ws_server(1)) {
+      printf("failed to connect to server, reason: %s[0x%08X]\n%s", ws_errstr(NULL), ws_errno(NULL), ERROR_CODE_DETAIL);
+      fflush(stdout);
+      TAOS_CHECK_GOTO(-1, &lino, _exit_half);
+    }
   } else {
 #endif
     if (shell.args.auth == NULL) {
@@ -1417,7 +1428,7 @@ int32_t shellExecute(int argc, char *argv[]) {
     }
 
     if (shell.conn == NULL) {
-      printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
+      printf("failed to connect to server, reason: %s[0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL), ERROR_CODE_DETAIL);
       fflush(stdout);
       code = terrno == 0 ? TSDB_CODE_INTERNAL_ERROR : terrno;
       TAOS_CHECK_GOTO(code, &lino, _exit_half);

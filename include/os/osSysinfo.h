@@ -52,7 +52,8 @@ int32_t taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
 void    taosSetDefaultCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
 
 void    taosKillSystem();
-int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
+int32_t taosGetSystemUUIDLimit36(char *uid, int32_t uidlen);
+int32_t taosGetSystemUUIDLen(char *uid, int32_t uidlen);
 char   *taosGetCmdlineByPID(int32_t pid);
 void    taosSetCoreDump(bool enable);
 

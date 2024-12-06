@@ -65,12 +65,12 @@ static void msg_process(TAOS_RES* msg) {
       if (g_fp && strcmp(result, "") != 0) {
         // RES_TYPE__TMQ_BATCH_META
         if ((*(int8_t*)msg) == 5) {
-          cJSON* pJson = cJSON_Parse(result);
-          cJSON* pJsonArray = cJSON_GetObjectItem(pJson, "metas");
+          cJSON*  pJson = cJSON_Parse(result);
+          cJSON*  pJsonArray = cJSON_GetObjectItem(pJson, "metas");
           int32_t num = cJSON_GetArraySize(pJsonArray);
           for (int32_t i = 0; i < num; i++) {
             cJSON* pJsonItem = cJSON_GetArrayItem(pJsonArray, i);
-            char* itemStr = cJSON_PrintUnformatted(pJsonItem);
+            char*  itemStr = cJSON_PrintUnformatted(pJsonItem);
             taosFprintfFile(g_fp, itemStr);
             tmq_free_json_meta(itemStr);
             taosFprintfFile(g_fp, "\n");
@@ -79,6 +79,7 @@ static void msg_process(TAOS_RES* msg) {
         } else {
           taosFprintfFile(g_fp, result);
           taosFprintfFile(g_fp, "\n");
+          taosFsyncFile(g_fp);
         }
       }
     }
@@ -132,7 +133,7 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
 
   pRes = taos_query(pConn, "create table if not exists ct0 using st1 tags(1000, \"ttt\", true)");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu1, reason:%s\n", taos_errstr(pRes));
+    printf("failed to create child table ct0, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
@@ -175,7 +176,7 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   pRes = taos_query(
       pConn,
       "insert into ct3 values(1626006833600, 5, 6, 'c') ct1 values(1626006833601, 2, 3, 'sds') (1626006833602, 4, 5, "
-      "'ddd') ct0 values(1626006833603, 4, 3, 'hwj') ct1 values(now+5s, 23, 32, 's21ds')");
+      "'ddd') ct0 values(1626006833603, 4, 3, 'hwj') ct1 values(1626006833703, 23, 32, 's21ds')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -185,6 +186,41 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   pRes = taos_query(pConn, "alter table st1 add column c4 bigint");
   if (taos_errno(pRes) != 0) {
     printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct1 values(1736006813600, -32222, 43, 'ewb', 99)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table st1 drop column c4");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct1 values(1736006833600, -4223, 344, 'bfs')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table st1 add column c4 bigint");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct1 values(1766006833600, -4432, 4433, 'e23wb', 9349)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
@@ -453,10 +489,11 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 #else
-  pRes = taos_query(pConn,
-                    "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 fill_history 1 into meters_summary as select "
-                    "_wstart, max(current) as current, "
-                    "groupid, location from meters partition by groupid, location interval(10m)");
+  pRes = taos_query(
+      pConn,
+      "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 fill_history 1 into meters_summary as select "
+      "_wstart, max(current) as current, "
+      "groupid, location from meters partition by groupid, location interval(10m)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -596,7 +633,8 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.consume.excluded", "1");
-//  tmq_conf_set(conf, "max.poll.interval.ms", "20000");
+  //  tmq_conf_set(conf, "session.timeout.ms", "1000000");
+  //  tmq_conf_set(conf, "max.poll.interval.ms", "20000");
 
   if (g_conf.snapShot) {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
@@ -636,6 +674,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 5000);
     if (tmqmessage) {
       cnt++;
+      printf("cnt:%d\n", cnt);
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
     } else {
@@ -684,7 +723,7 @@ void initLogFile() {
           "\"level\":\"medium\"},{"
           "\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
           "\"level\":\"medium\"},{\"name\":"
-          "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\","
+          "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"zstd\","
           "\"level\":\"medium\"}],\"tags\":[{\"name\":\"group_id\","
           "\"type\":14}"
           "]}",
@@ -712,7 +751,7 @@ void initLogFile() {
           "\"level\":\"medium\"}"
           ",{"
           "\"name\":\"c3\",\"type\":8,\"length\":64,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
-          "\"lz4\",\"level\":\"medium\"},{"
+          "\"zstd\",\"level\":\"medium\"},{"
           "\"name\":\"c4\",\"type\":5,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
           "\"medium\"}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":"
           "\"t3\","
@@ -734,7 +773,7 @@ void initLogFile() {
           "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\","
           "\"type\":9,"
           "\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c2\","
-          "\"type\":10,\"length\":8,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+          "\"type\":10,\"length\":8,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"zstd\",\"level\":"
           "\"medium\"},{\"name\":\"cc3\",\"type\":5,"
           "\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
           "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\","
@@ -756,7 +795,7 @@ void initLogFile() {
           "\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
           "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
           "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
-          "\"lz4\",\"level\":\"medium\"}],"
+          "\"zstd\",\"level\":\"medium\"}],"
           "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
           "\"type\":"
           "1}]}",
@@ -768,7 +807,7 @@ void initLogFile() {
           "\"name\":\"c2\",\"type\":6,"
           "\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
           "\"c3\","
-          "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+          "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"zstd\",\"level\":"
           "\"medium\"}],"
           "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
           "\"type\":"
@@ -825,7 +864,7 @@ void initLogFile() {
             "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false,\"encode\":\"delta-d\","
             "\"compress\":\"lz4\",\"level\":\"medium\"},{"
             "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
-            "\"lz4\",\"level\":\"medium\"}],"
+            "\"zstd\",\"level\":\"medium\"}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
             "\"type\":"
             "1}]}",
@@ -844,6 +883,9 @@ void initLogFile() {
             "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
             "\"colType\":5}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":6,\"colName\":\"c4\"}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
+            "\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":7,\"colName\":\"c3\","
             "\"colType\":8,\"colLength\":64}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
@@ -856,7 +898,7 @@ void initLogFile() {
             "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
             "\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
             "\"medium\"},{\"name\":\"c2\",\"type\":10,\"length\":4,"
-            "\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
+            "\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"zstd\",\"level\":\"medium\"}],\"tags\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
             "\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
@@ -881,7 +923,7 @@ void initLogFile() {
             "{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
             "\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
             "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c3\",\"type\":8,"
-            "\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":\"medium\"}],"
+            "\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"zstd\",\"level\":\"medium\"}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
             "\"type\":1}]}",
             "{\"type\":\"drop\",\"tableType\":\"super\",\"tableName\":\"st1\"}",
@@ -891,7 +933,7 @@ void initLogFile() {
             "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
             "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
             "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
-            "\"lz4\",\"level\":\"medium\"}],"
+            "\"zstd\",\"level\":\"medium\"}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
             "\"type\":"
             "1}]}",
@@ -901,7 +943,7 @@ void initLogFile() {
             "\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
             "\"medium\"},{\"name\":\"c2\",\"type\":6,"
             "\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c3\","
-            "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+            "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"zstd\",\"level\":"
             "\"medium\"}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
             "\"type\":"
@@ -945,7 +987,8 @@ void initLogFile() {
             "\"lz4\",\"level\":\"medium\"},{"
             "\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
             "\"level\":\"medium\"},{\"name\":"
-            "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\","
+            "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
+            "\"zstd\","
             "\"level\":\"medium\"}],\"tags\":[{\"name\":\"group_id\","
             "\"type\":"
             "14}]}",
@@ -972,7 +1015,7 @@ void initLogFile() {
             "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
             "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
             "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
-            "\"lz4\",\"level\":\"medium\"}],"
+            "\"zstd\",\"level\":\"medium\"}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
             "\"type\":"
             "1}]}",
@@ -991,6 +1034,9 @@ void initLogFile() {
             "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
             "\"colType\":5}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":6,\"colName\":\"c4\"}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
+            "\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":7,\"colName\":\"c3\","
             "\"colType\":8,\"colLength\":64}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
@@ -1002,7 +1048,7 @@ void initLogFile() {
             "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
             ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
             "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":10,\"length\":4,"
-            "\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
+            "\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"zstd\",\"level\":\"medium\"}],\"tags\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
             "\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
@@ -1027,7 +1073,7 @@ void initLogFile() {
             "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
             "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
             "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
-            "\"lz4\",\"level\":\"medium\"}],"
+            "\"zstd\",\"level\":\"medium\"}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
             "\"type\":"
             "1}]}",
@@ -1037,7 +1083,7 @@ void initLogFile() {
             "\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
             "\"medium\"},{\"name\":\"c2\",\"type\":6,"
             "\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c3\","
-            "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+            "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"zstd\",\"level\":"
             "\"medium\"}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
             "\"type\":"

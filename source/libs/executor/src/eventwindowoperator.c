@@ -44,22 +44,6 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 static void    destroyEWindowOperatorInfo(void* param);
 static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 
-// todo : move to  util
-static void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
-                                     uint64_t groupId) {
-  pRowSup->startRowIndex = rowIndex;
-  pRowSup->numOfRows = 0;
-  pRowSup->win.skey = tsList[rowIndex];
-  pRowSup->groupId = groupId;
-}
-
-static void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
-  pRowSup->win.ekey = ts;
-  pRowSup->prevTs = ts;
-  pRowSup->numOfRows += 1;
-  pRowSup->groupId = groupId;
-}
-
 int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
                                              SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);

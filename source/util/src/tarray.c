@@ -200,6 +200,7 @@ void* taosArrayPop(SArray* pArray) {
 void* taosArrayGet(const SArray* pArray, size_t index) {
   if (NULL == pArray) {
     terrno = TSDB_CODE_INVALID_PARA;
+    uError("failed to return value from array of null ptr");
     return NULL;
   }
 

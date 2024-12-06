@@ -1,13 +1,13 @@
-# 使用说明
+# Instructions
 
-## 创建使用db
+## Create and use the database
 ```shell
 $ taos
 
 > create database mp_test
 ```
 
-## 执行测试用例
+## Execute test cases
 
 ```shell
 $ mvn clean test

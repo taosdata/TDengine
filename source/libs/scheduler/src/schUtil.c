@@ -63,10 +63,10 @@ int32_t schDumpEpSet(SEpSet *pEpSet, char** ppRes) {
   }
 
   int32_t n = 0;
-  n += snprintf(str + n, maxSize - n, "numOfEps:%d, inUse:%d eps:", pEpSet->numOfEps, pEpSet->inUse);
+  n += tsnprintf(str + n, maxSize - n, "numOfEps:%d, inUse:%d eps:", pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     SEp *pEp = &pEpSet->eps[i];
-    n += snprintf(str + n, maxSize - n, "[%s:%d]", pEp->fqdn, pEp->port);
+    n += tsnprintf(str + n, maxSize - n, "[%s:%d]", pEp->fqdn, pEp->port);
   }
 
   *ppRes = str;
@@ -293,20 +293,29 @@ void schCloseJobRef(void) {
   }
 }
 
+int32_t initClientId(void) {
+  int32_t code = taosGetSystemUUIDU64(&schMgmt.clientId);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to generate clientId since %s", tstrerror(code));
+    SCH_ERR_RET(code);
+  }
+  qInfo("initialize");
+  return TSDB_CODE_SUCCESS;
+}
+
+uint64_t getClientId(void) { return schMgmt.clientId; }
+
 uint64_t schGenTaskId(void) { return atomic_add_fetch_64(&schMgmt.taskId, 1); }
 
 #ifdef BUILD_NO_CALL
 uint64_t schGenUUID(void) {
-  static uint64_t hashId = 0;
+  static uint32_t hashId = 0;
   static int32_t  requestSerialId = 0;
 
   if (hashId == 0) {
-    char    uid[64] = {0};
-    int32_t code = taosGetSystemUUID(uid, tListLen(uid) - 1);
+    int32_t code = taosGetSystemUUID32(&hashId);
     if (code != TSDB_CODE_SUCCESS) {
       qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
-    } else {
-      hashId = MurmurHash3_32(uid, strlen(uid));
     }
   }
 
@@ -314,7 +323,7 @@ uint64_t schGenUUID(void) {
   uint64_t pid = taosGetPId();
   int32_t  val = atomic_add_fetch_32(&requestSerialId, 1);
 
-  uint64_t id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
+  uint64_t id = ((uint64_t)((hashId & 0x0FFF)) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
   return id;
 }
 #endif
@@ -363,3 +372,50 @@ void schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) 
 
   *pTask = *task;
 }
+
+int32_t schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int32_t idx, int32_t taskNum) {
+  if (NULL == pSubplan) {
+    SCH_JOB_ELOG("fail to get the %dth subplan, taskNum: %d, level: %d", idx, taskNum, level);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  
+  if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pSubplan)) {
+    SCH_JOB_ELOG("invalid subplan type, level:%d, subplanNodeType:%d", level, nodeType(pSubplan));
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  
+  if (pSubplan->subplanType < SUBPLAN_TYPE_MERGE || pSubplan->subplanType > SUBPLAN_TYPE_COMPUTE) {
+    SCH_JOB_ELOG("invalid subplanType %d, level:%d, subplan idx:%d", pSubplan->subplanType, level, idx);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  if (pSubplan->level != level) {
+    SCH_JOB_ELOG("plan level %d mis-match with current level %d", pSubplan->level, level);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  if (SCH_IS_DATA_BIND_PLAN(pSubplan)) {
+    if (pSubplan->execNode.epSet.numOfEps <= 0) {
+      SCH_JOB_ELOG("no execNode specifed for data src plan %d, numOfEps:%d", pSubplan->subplanType, pSubplan->execNode.epSet.numOfEps);
+      SCH_ERR_RET(TSDB_CODE_SCH_DATA_SRC_EP_MISS);
+    }
+    if (pSubplan->execNode.epSet.inUse >= pSubplan->execNode.epSet.numOfEps) {
+      SCH_JOB_ELOG("invalid epset inUse %d for data src plan %d, numOfEps:%d", pSubplan->execNode.epSet.inUse, pSubplan->subplanType, pSubplan->execNode.epSet.numOfEps);
+      SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+  }
+  
+  if (NULL == pSubplan->pNode && pSubplan->subplanType != SUBPLAN_TYPE_MODIFY) {
+    SCH_JOB_ELOG("empty plan root node, level:%d, subplan idx:%d, subplanType:%d", level, idx, pSubplan->subplanType);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  if (NULL == pSubplan->pDataSink) {
+    SCH_JOB_ELOG("empty plan dataSink, level:%d, subplan idx:%d", level, idx);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+

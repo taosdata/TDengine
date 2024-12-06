@@ -233,6 +233,8 @@ int32_t taosBlockSIGPIPE() {
 }
 
 int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
+  OS_PARAM_CHECK(fqdn);
+  OS_PARAM_CHECK(ip);
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
@@ -309,6 +311,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
 }
 
 int32_t taosGetFqdn(char *fqdn) {
+  OS_PARAM_CHECK(fqdn);
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
@@ -332,8 +335,8 @@ int32_t taosGetFqdn(char *fqdn) {
   // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
   // immediately
   // hints.ai_family = AF_INET;
-  strcpy(fqdn, hostname);
-  strcpy(fqdn + strlen(hostname), ".local");
+  tstrncpy(fqdn, hostname, TD_FQDN_LEN);
+  tstrncpy(fqdn + strlen(hostname), ".local", TD_FQDN_LEN - strlen(hostname));
 #else  // linux
 
 #endif  // linux
@@ -361,7 +364,7 @@ int32_t taosGetFqdn(char *fqdn) {
     break;
   }
 
-  (void)strcpy(fqdn, result->ai_canonname);
+  tstrncpy(fqdn, result->ai_canonname, TD_FQDN_LEN);
 
   freeaddrinfo(result);
 
@@ -375,7 +378,7 @@ int32_t taosGetFqdn(char *fqdn) {
     // fprintf(stderr, "failed to get fqdn, code:%d, hostname:%s, reason:%s\n", ret, hostname, gai_strerror(ret));
     return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
   }
-  strcpy(fqdn, result->ai_canonname);
+  tstrncpy(fqdn, result->ai_canonname, TD_FQDN_LEN);
   freeaddrinfo(result);
 
 #endif
@@ -384,7 +387,10 @@ int32_t taosGetFqdn(char *fqdn) {
 }
 
 void tinet_ntoa(char *ipstr, uint32_t ip) {
-  (void)sprintf(ipstr, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
+  if (ipstr == NULL) {
+    return;
+  }
+  (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
 }
 
 int32_t taosIgnSIGPIPE() {
@@ -481,4 +487,19 @@ uint64_t taosNtoh64(uint64_t val) {
     return val;
   }
 #endif
+}
+
+int32_t taosSetSockOpt2(int32_t fd) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return 0;
+#else
+  int32_t ret = setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  } else {
+    return 0;
+  }
+#endif
+  return 0;
 }

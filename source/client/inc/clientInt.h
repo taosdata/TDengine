@@ -47,16 +47,19 @@ enum {
   RES_TYPE__TMQ_BATCH_META,
 };
 
-#define SHOW_VARIABLES_RESULT_COLS       3
+#define SHOW_VARIABLES_RESULT_COLS       4
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
 
 #define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
 #define TD_RES_TMQ_META(res)       (*(int8_t*)(res) == RES_TYPE__TMQ_META)
 #define TD_RES_TMQ_METADATA(res)   (*(int8_t*)(res) == RES_TYPE__TMQ_METADATA)
 #define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)(res) == RES_TYPE__TMQ_BATCH_META)
+
+#define TSC_MAX_SUBPLAN_CAPACITY_NUM 1000
 
 typedef struct SAppInstInfo SAppInstInfo;
 
@@ -106,6 +109,10 @@ typedef struct SQueryExecMetric {
   int64_t execCostUs;
 } SQueryExecMetric;
 
+typedef struct {
+  SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
+} SAppInstServerCFG;
 struct SAppInstInfo {
   int64_t            numOfConns;
   SCorEpSet          mgmtEp;
@@ -119,7 +126,7 @@ struct SAppInstInfo {
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
-  SMonitorParas      monitorParas;
+  SAppInstServerCFG  serverCfg;
 };
 
 typedef struct SAppInfo {
@@ -226,30 +233,16 @@ typedef struct {
   SSchemaWrapper schema;
   int32_t        resIter;
   SReqResultInfo resInfo;
-} SMqRspObjCommon;
-
-typedef struct {
-  SMqRspObjCommon common;
-  SMqDataRsp      rsp;
+  union{
+    struct{
+      SMqRspHead   head;
+      STqOffsetVal rspOffset;
+    };
+    SMqDataRsp      dataRsp;
+    SMqMetaRsp      metaRsp;
+    SMqBatchMetaRsp batchMetaRsp;
+  };
 } SMqRspObj;
-
-typedef struct {
-  int8_t     resType;
-  char       topic[TSDB_TOPIC_FNAME_LEN];
-  char       db[TSDB_DB_FNAME_LEN];
-  int32_t    vgId;
-  SMqMetaRsp metaRsp;
-} SMqMetaRspObj;
-
-typedef struct {
-  SMqRspObjCommon common;
-  STaosxRsp       rsp;
-} SMqTaosxRspObj;
-
-typedef struct {
-  SMqRspObjCommon common;
-  SMqBatchMetaRsp rsp;
-} SMqBatchMetaRspObj;
 
 typedef struct SReqRelInfo {
   uint64_t userRefId;
@@ -309,8 +302,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
-int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
-                         bool convertUcs4);
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4);
 int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
@@ -332,7 +324,7 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;
-  return (SReqResultInfo*)&msg->common.resInfo;
+  return (SReqResultInfo*)&msg->resInfo;
 }
 
 int32_t                             tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pResInfo);

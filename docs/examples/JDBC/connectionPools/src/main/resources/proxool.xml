@@ -1,27 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <something-else-entirely>
     <proxool>
+        <!-- Alias for the data source -->
         <alias>ds</alias>
-        <!--数据源的别名-->
+         <!-- URL connection string -->
         <driver-url>jdbc:TAOS-RS://127.0.0.1:6041/log</driver-url>
-        <!--url连接串-->
+        <!-- Driver class -->
         <driver-class>com.taosdata.jdbc.rs.RestfulDriver</driver-class>
-        <!--驱动类-->
+        
         <driver-properties>
             <property name="user" value="root"/>
             <property name="password" value="taosdata"/>
         </driver-properties>
-        <!--最大连接数(默认5个),超过了这个连接数,再有请求时,就排在队列中等候,最大的等待请求数由maximum-new-connections决定 -->
+         <!-- Maximum connection count (default is 5). If this number is exceeded, new requests will be queued. The maximum number of queued requests is determined by maximum-new-connections -->
         <maximum-connection-count>100</maximum-connection-count>
-        <!-- 定义连接池中的最大连接数 -->
+         <!-- Defines the maximum number of connections in the connection pool -->
         <maximum-active-time>100</maximum-active-time>
-        <!--最少保持的空闲连接数(默认2个)-->
+        <!-- Minimum number of idle connections to maintain (default is 2) -->
         <prototype-count>1</prototype-count>
-        <!--最小连接数(默认2个)-->
+        <!-- Minimum connection count (default is 2) -->
         <minimum-connection-count>5</minimum-connection-count>
-        <!--proxool自动侦察各个连接状态的时间间隔(毫秒),侦察到空闲的连接就马上回收,超时的销毁 默认30秒-->
+         <!-- Interval (in milliseconds) for Proxool to automatically check the status of each connection. Idle connections are immediately reclaimed, and timed-out connections are destroyed. Default is 30 seconds -->
         <house-keeping-sleep-time>30000</house-keeping-sleep-time>
-        <!--用于保持连接的测试语句 -->
+        <!-- Test statement used to maintain the connection -->
         <house-keeping-test-sql>select server_version()</house-keeping-test-sql>
     </proxool>
 </something-else-entirely>

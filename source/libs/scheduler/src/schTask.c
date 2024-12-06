@@ -66,6 +66,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   pTask->execId = -1;
   pTask->failedExecId = -2;
   pTask->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
+  pTask->clientId = getClientId();
   pTask->taskId = schGenTaskId();
 
   schInitTaskRetryTimes(pJob, pTask, pLevel);
@@ -288,7 +289,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   /*
     if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCH_MAX_CANDIDATE_EP_NUM) {
-      strncpy(job->dataSrcEps.fqdn[job->dataSrcEps.numOfEps], task->execAddr.fqdn, sizeof(task->execAddr.fqdn));
+      tstrncpy(job->dataSrcEps.fqdn[job->dataSrcEps.numOfEps], task->execAddr.fqdn, sizeof(task->execAddr.fqdn));
       job->dataSrcEps.port[job->dataSrcEps.numOfEps] = task->execAddr.port;
 
       ++job->dataSrcEps.numOfEps;
@@ -305,6 +306,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SCH_LOCK(SCH_WRITE, &parent->planLock);
     SDownstreamSourceNode source = {
         .type = QUERY_NODE_DOWNSTREAM_SOURCE,
+        .clientId = pTask->clientId,
         .taskId = pTask->taskId,
         .schedId = schMgmt.sId,
         .execId = pTask->execId,
@@ -831,7 +833,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
 
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     SCH_TASK_ELOG("no execNode specifed for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
-    SCH_ERR_RET(TSDB_CODE_MND_INVALID_SCHEMA_VER);
+    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
   SCH_ERR_RET(schSetAddrsFromNodeList(pJob, pTask));
@@ -840,7 +842,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
 
   /*
     for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
-      strncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
+      tstrncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
       epSet->port[epSet->numOfEps] = job->dataSrcEps.port[i];
 
       ++epSet->numOfEps;
@@ -996,8 +998,8 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
 
     int32_t code = 0;
 
-    qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d task status in server: %s", pStatus->queryId, pStatus->taskId,
-           pStatus->execId, jobTaskStatusStr(pStatus->status));
+    qDebug("QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d task status in server: %s", pStatus->queryId,
+           pStatus->clientId, pStatus->taskId, pStatus->execId, jobTaskStatusStr(pStatus->status));
 
     if (schProcessOnCbBegin(&pJob, &pTask, pStatus->queryId, pStatus->refId, pStatus->taskId)) {
       continue;
@@ -1043,13 +1045,14 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
       continue;
     }
 
-    qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ", begin to handle LOCAL explain rsp msg", localRsp->qId, localRsp->tId);
+    qDebug("QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ", begin to handle LOCAL explain rsp msg",
+           localRsp->qId, localRsp->cId, localRsp->tId);
 
     pJob = NULL;
     (void)schAcquireJob(localRsp->rId, &pJob);
     if (NULL == pJob) {
-      qWarn("qid:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, localRsp->qId,
-            localRsp->tId, localRsp->rId);
+      qWarn("QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64,
+            localRsp->qId, localRsp->cId, localRsp->tId, localRsp->rId);
       SCH_ERR_JRET(TSDB_CODE_QRY_JOB_NOT_EXIST);
     }
 
@@ -1068,8 +1071,8 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
 
     (void)schReleaseJob(pJob->refId);
 
-    qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg, code:%x", localRsp->qId,
-           localRsp->tId, code);
+    qDebug("QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg, code:%x",
+           localRsp->qId, localRsp->cId, localRsp->tId, code);
 
     SCH_ERR_JRET(code);
 
@@ -1147,8 +1150,8 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
     }
   }
 
-  SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
-                                        pTask->execId, &qwMsg, explainRes));
+  SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->clientId, pTask->taskId,
+                                        pJob->refId, pTask->execId, &qwMsg, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_RET(schHandleExplainRes(explainRes));
@@ -1407,8 +1410,8 @@ int32_t schExecLocalFetch(SSchJob *pJob, SSchTask *pTask) {
     }
   }
 
-  SCH_ERR_JRET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
-                                        pTask->execId, &pRsp, explainRes));
+  SCH_ERR_JRET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->clientId, pTask->taskId,
+                                        pJob->refId, pTask->execId, &pRsp, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_RET(schHandleExplainRes(explainRes));

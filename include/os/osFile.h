@@ -82,9 +82,9 @@ int32_t taosUnLockFile(TdFilePtr pFile);
 
 int32_t taosUmaskFile(int32_t maskVal);
 
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *atime);
+int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno);
-int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime);
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime);
 bool    taosCheckExistFile(const char *pathname);
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence);
@@ -130,14 +130,15 @@ int    taosSetAutoDelFile(char *path);
 bool lastErrorIsFileNotExist();
 
 #ifdef BUILD_WITH_RAND_ERR
-#define STUB_RAND_NETWORK_ERR(status)                             \
-  do {                                                            \
-    if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_NETWORK)) { \
-      uint32_t r = taosRand() % tsRandErrDivisor;                 \
-      if ((r + 1) <= tsRandErrChance) {                           \
-        status = TSDB_CODE_RPC_NETWORK_UNAVAIL;                   \
-      }                                                           \
-    }                                                             \
+#define STUB_RAND_NETWORK_ERR(ret)                                        \
+  do {                                                                    \
+    if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_NETWORK)) {         \
+      uint32_t r = taosRand() % tsRandErrDivisor;                         \
+      if ((r + 1) <= tsRandErrChance) {                                   \
+        ret = TSDB_CODE_RPC_NETWORK_UNAVAIL;                              \
+        uError("random network error: %s, %s", tstrerror(ret), __func__); \
+      }                                                                   \
+    }                                                                     \
     while (0)
 #else
 #define STUB_RAND_NETWORK_ERR(status)

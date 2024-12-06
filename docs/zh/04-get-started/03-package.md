@@ -14,7 +14,9 @@ TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）�
 
 为方便使用，标准的服务端安装包包含了 taosd、taosAdapter、taosc、taos、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 Lite 版本的安装包。
 
-在 Linux 系统上，TDengine 社区版提供 Deb 和 RPM 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 Deb 支持 Debian/Ubuntu 及其衍生系统，RPM 支持 CentOS/RHEL/SUSE 及其衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包，也支持通过 `apt-get` 工具从线上进行安装。需要注意的是，RPM 和 Deb 包不含 `taosdump` 和 TDinsight 安装脚本，这些工具需要通过安装 taosTools 包获得。TDengine 也提供 Windows x64 平台和 macOS x64/m1 平台的安装包。
+在 Linux 系统上，TDengine 社区版提供 Deb 和 RPM 格式安装包，其中 Deb 支持 Debian/Ubuntu 及其衍生系统，RPM 支持 CentOS/RHEL/SUSE 及其衍生系统，用户可以根据自己的运行环境自行选择。同时我们也提供了 tar.gz 格式安装包，以及 `apt-get` 工具从线上进行安装。
+
+此外，TDengine 也提供 macOS x64/m1 平台的 pkg 安装包。
 
 ## 运行环境要求
 在linux系统中，运行环境最低要求如下:
@@ -317,4 +319,4 @@ SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 1
 SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
 ```
 
-在上面的查询中，使用系统提供的伪列_wstart 来给出每个窗口的开始时间。
+在上面的查询中，使用系统提供的伪列 _wstart 来给出每个窗口的开始时间。

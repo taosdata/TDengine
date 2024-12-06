@@ -500,10 +500,13 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   STaskStateTrans* pTrans = pSM->pActiveTrans;
   if (pTrans == NULL) {
     ETaskStatus s = pSM->current.state;
-
-    if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__PAUSE && s != TASK_STATUS__STOP &&
-           s != TASK_STATUS__UNINIT && s != TASK_STATUS__READY) {
-      stError("s-task:%s invalid task status:%s on handling event:%s success", id, pSM->current.name, GET_EVT_NAME(pSM->prev.evt));
+    // when trying to finish current event successfully, another event with high priorities, such as dropping/stop, has
+    // interrupted this procedure, and changed the status after freeing the activeTrans, resulting in the failure of
+    // processing of current event.
+    if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__PAUSE && s != TASK_STATUS__STOP && s != TASK_STATUS__UNINIT &&
+        s != TASK_STATUS__READY) {
+      stError("s-task:%s invalid task status:%s on handling event:%s success", id, pSM->current.name,
+              GET_EVT_NAME(pSM->prev.evt));
     }
 
     // the pSM->prev.evt may be 0, so print string is not appropriate.
@@ -521,11 +524,15 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
-  keepPrevInfo(pSM);
+  // repeat pause will not overwrite the previous pause state
+  if (pSM->current.state != TASK_STATUS__PAUSE || pTrans->next.state != TASK_STATUS__PAUSE) {
+    keepPrevInfo(pSM);
+    pSM->current = pTrans->next;
+  } else {
+    stDebug("s-task:%s repeat pause evt recv, not update prev status", id);
+  }
 
-  pSM->current = pTrans->next;
   pSM->pActiveTrans = NULL;
-
   // todo remove it
   // todo: handle the error code
   // on success callback, add into lock if necessary, or maybe we should add an option for this?

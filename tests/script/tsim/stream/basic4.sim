@@ -189,10 +189,10 @@ $loop_count = 0
 
 loop4:
 
-sleep 200
+sleep 500
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 20 then
   return -1
 endi
 
@@ -324,5 +324,197 @@ if $data[29][1] != 2 then
   goto loop7
 endi
 
+print step4====
+
+sql create database test4 vgroups 1;
+sql use test4;
+
+sql create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(2,2,2);
+sql create table t4 using st tags(2,2,2);
+sql create table t5 using st tags(2,2,2);
+sql create table t6 using st tags(2,2,2);
+
+sql create stream streams4 trigger window_close IGNORE EXPIRED 0 into  streamt as select _wstart, count(*), now  from st partition by tbname interval(1s);
+sql create stream streams5 trigger window_close IGNORE EXPIRED 0 into  streamt1 as select _wstart, count(*), now  from st partition by b interval(1s);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791211000,1,1,1,1.1)  t2 values (1648791211000,2,2,2,2.1)  t3 values(1648791211000,3,3,3,3.1) t4 values(1648791211000,4,4,4,4.1)  t5 values (1648791211000,5,5,5,5.1)  t6 values(1648791211000,6,6,6,6.1);
+
+sql insert into t1 values(now,1,1,1,1.1)  t2 values (now,2,2,2,2.1)  t3 values(now,3,3,3,3.1) t4 values(now,4,4,4,4.1)  t5 values (now,5,5,5,5.1)  t6 values(now,6,6,6,6.1);
+
+
+$loop_count = 0
+
+loop8:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print sql select * from streamt;
+sql select * from streamt;
+
+if $rows != 6 then
+  print ======rows=$rows
+  goto loop8
+endi
+
+if $data01 != 1 then
+  print ======data01=$data01
+  return -1
+endi
+
+if $data11 != 1 then
+  print ======data11=$data11
+  return -1
+endi
+
+if $data21 != 1 then
+  print ======data21=$data21
+  return -1
+endi
+
+$loop_count = 0
+
+loop8_1:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print sql select * from streamt1;
+sql select * from streamt1;
+
+if $rows != 6 then
+  print ======rows=$rows
+  goto loop8_1
+endi
+
+if $data01 != 1 then
+  print ======data01=$data01
+  return -1
+endi
+
+if $data11 != 1 then
+  print ======data11=$data11
+  return -1
+endi
+
+if $data21 != 1 then
+  print ======data21=$data21
+  return -1
+endi
+
+sleep 2000
+
+sql insert into t1 values(now,1,1,1,1.1)  t2 values (now,2,2,2,2.1)  t3 values(now,3,3,3,3.1) t4 values(now,4,4,4,4.1)  t5 values (now,5,5,5,5.1)  t6 values(now,6,6,6,6.1);
+
+sleep 2000
+
+sql insert into t1 values(now,1,1,1,1.1)  t2 values (now,2,2,2,2.1)  t3 values(now,3,3,3,3.1) t4 values(now,4,4,4,4.1)  t5 values (now,5,5,5,5.1)  t6 values(now,6,6,6,6.1);
+
+$loop_count = 0
+
+loop8_1:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print sql select * from streamt order by 1 desc;
+sql select * from streamt order by 1 desc;
+
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop8_1
+endi
+
+print sql select * from streamt1 order by 1 desc;
+sql select * from streamt1 order by 1 desc;
+
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop8_1
+endi
+
+sleep 2000
+
+sql insert into t1 values(now,1,1,1,1.1)
+sql insert into t2 values(now,2,2,2,2.1);
+sql insert into t3 values(now,3,3,3,3.1);
+sql insert into t4 values(now,4,4,4,4.1);
+sql insert into t5 values(now,5,5,5,5.1);
+sql insert into t6 values(now,6,6,6,6.1);
+
+$loop_count = 0
+
+loop9:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print sql select * from streamt order by 1 desc;
+sql select * from streamt order by 1 desc;
+
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop9
+endi
+
+if $data11 != 1 then
+  print ======data11=$data11
+  goto loop9
+endi
+
+if $data21 != 1 then
+  print ======data21=$data21
+  goto loop9
+endi
+
+$loop_count = 0
+
+loop10:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print sql select * from streamt1 order by 1 desc;
+sql select * from streamt1 order by 1 desc;
+
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop10
+endi
+
+if $data11 != 1 then
+  print ======data11=$data11
+  goto loop10
+endi
+
+if $data21 != 1 then
+  print ======data21=$data21
+  goto loop10
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

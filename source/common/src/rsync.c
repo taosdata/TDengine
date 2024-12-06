@@ -94,7 +94,7 @@ static int32_t generateConfigFile(char* confDir) {
 #endif
   );
   uDebug("[rsync] conf:%s", confContent);
-  if (taosWriteFile(pFile, confContent, strlen(confContent)) != TSDB_CODE_SUCCESS) {
+  if (taosWriteFile(pFile, confContent, strlen(confContent)) <= 0) {
     uError("[rsync] write conf file error," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
     (void)taosCloseFile(&pFile);
     code = terrno;
@@ -119,11 +119,21 @@ static int32_t execCommand(char* command) {
 }
 
 void stopRsync() {
-  int32_t code =
+  int32_t pid = 0;
+  int32_t code = 0;
+  char    buf[128] = {0};
+
 #ifdef WINDOWS
-      system("taskkill /f /im rsync.exe");
+  code = system("taskkill /f /im rsync.exe");
 #else
-      system("pkill rsync");
+  code = taosGetPIdByName("rsync", &pid);
+  if (code == 0) {
+    int32_t ret = tsnprintf(buf, tListLen(buf), "kill -9 %d", pid);
+    if (ret > 0) {
+      uInfo("kill rsync program pid:%d", pid);
+      code = system(buf);
+    }
+  }
 #endif
 
   if (code != 0) {
@@ -160,7 +170,11 @@ int32_t startRsync() {
   code = system(cmd);
   if (code != 0) {
     uError("[rsync] cmd:%s start server failed, code:%d," ERRNO_ERR_FORMAT, cmd, code, ERRNO_ERR_DATA);
-    code = TAOS_SYSTEM_ERROR(errno);
+    if (errno == 0) {
+      return 0;
+    } else {
+      code = TAOS_SYSTEM_ERROR(errno);
+    }
   } else {
     uInfo("[rsync] cmd:%s start server successful", cmd);
   }

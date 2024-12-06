@@ -1,6 +1,6 @@
 ## TDengine SpringBoot + Mybatis Demo
 
-## 需要提前创建 test 数据库
+## Need to create a test database in advance
 
 ```
 $ taos -s 'create database if not exists test'
@@ -8,7 +8,7 @@ $ taos -s 'create database if not exists test'
 $ curl http://localhost:8080/weather/init
 ```
 
-### 配置 application.properties
+### Configure application.properties
 ```properties
 # datasource config
 spring.datasource.driver-class-name=com.taosdata.jdbc.TSDBDriver
@@ -38,9 +38,9 @@ mybatis.mapper-locations=classpath:mapper/*.xml
 logging.level.com.taosdata.jdbc.springbootdemo.dao=debug
 ```
 
-### 主要功能
+### Main functions
 
-* 创建数据库和表
+* Create databases and tables
 ```xml
 <!-- weatherMapper.xml -->
  <update id="createDB" >
@@ -52,14 +52,14 @@ logging.level.com.taosdata.jdbc.springbootdemo.dao=debug
     </update>
 ```
 
-* 插入单条记录
+* Insert a single record
 ```xml
 <!-- weatherMapper.xml -->
     <insert id="insert" parameterType="Weather" >
         insert into test.weather (ts, temperature, humidity) values (now, #{temperature,jdbcType=INTEGER}, #{humidity,jdbcType=FLOAT})
     </insert>
 ```
-* 插入多条记录
+* Insert multiple records
 ```xml
 <!-- weatherMapper.xml -->
 <insert id="batchInsert" parameterType="java.util.List" >
@@ -69,7 +69,7 @@ logging.level.com.taosdata.jdbc.springbootdemo.dao=debug
     </foreach>
 </insert>
 ```
-* 分页查询
+* Pagination query
 ```xml
 <!-- weatherMapper.xml -->
 <?xml version="1.0" encoding="UTF-8"?>

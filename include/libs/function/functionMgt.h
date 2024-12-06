@@ -26,6 +26,8 @@ extern "C" {
 #define FUNC_AGGREGATE_UDF_ID 5001
 #define FUNC_SCALAR_UDF_ID    5002
 
+extern const int32_t funcMgtBuiltinsNum;
+
 typedef enum EFunctionType {
   // aggregate function
   FUNCTION_TYPE_APERCENTILE = 1,
@@ -62,6 +64,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_UNIQUE,
   FUNCTION_TYPE_STATE_COUNT,
   FUNCTION_TYPE_STATE_DURATION,
+  FUNCTION_TYPE_FORECAST,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -149,6 +152,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TBUID,
   FUNCTION_TYPE_VGID,
   FUNCTION_TYPE_VGVER,
+  FUNCTION_TYPE_FORECAST_LOW,
+  FUNCTION_TYPE_FORECAST_HIGH,
+  FUNCTION_TYPE_FORECAST_ROWTS,
+  FUNCTION_TYPE_IROWTS_ORIGIN,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -212,6 +219,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_CONTAINS,
   FUNCTION_TYPE_CONTAINS_PROPERLY,
 
+  FUNCTION_TYPE_DB_USAGE = 4300,
+  FUNCTION_TYPE_DB_USAGE_INFO,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
@@ -263,6 +273,7 @@ bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsForecastFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);
@@ -272,6 +283,7 @@ bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+bool fmIsForecastPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 bool fmIsIgnoreNullFunc(int32_t funcId);
@@ -281,11 +293,15 @@ bool fmIsPrimaryKeyFunc(int32_t funcId);
 bool fmIsProcessByRowFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
+bool fmIsDBUsageFunc(int32_t funcId);
+bool fmIsRowTsOriginFunc(int32_t funcId);
 
-void getLastCacheDataType(SDataType* pType, int32_t pkBytes);
+void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
+int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** pFunc);
 
-int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
+                        SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,
@@ -308,7 +324,7 @@ int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 bool    fmIsInvertible(int32_t funcId);
 #endif
 
-char*   fmGetFuncName(int32_t funcId);
+char* fmGetFuncName(int32_t funcId);
 
 bool    fmIsTSMASupportedFunc(func_id_t funcId);
 int32_t fmCreateStateFuncs(SNodeList* pFuncs);
