@@ -2339,7 +2339,7 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
         return NULL;
       }
 
-      sprintf(buf, "%s", pNode->datum.b ? "true" : "false");
+      snprintf(buf, MAX_NUM_STR_SIZE, "%s", pNode->datum.b ? "true" : "false");
       return buf;
     }
     case TSDB_DATA_TYPE_TINYINT:
@@ -2352,7 +2352,7 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
         return NULL;
       }
 
-      sprintf(buf, "%" PRId64, pNode->datum.i);
+      snprintf(buf, MAX_NUM_STR_SIZE, "%" PRId64, pNode->datum.i);
       return buf;
     }
     case TSDB_DATA_TYPE_UTINYINT:
@@ -2364,7 +2364,7 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
         return NULL;
       }
 
-      sprintf(buf, "%" PRIu64, pNode->datum.u);
+      snprintf(buf, MAX_NUM_STR_SIZE, "%" PRIu64, pNode->datum.u);
       return buf;
     }
     case TSDB_DATA_TYPE_FLOAT:
@@ -2374,7 +2374,7 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
         return NULL;
       }
 
-      sprintf(buf, "%e", pNode->datum.d);
+      snprintf(buf, MAX_NUM_STR_SIZE, "%e", pNode->datum.d);
       return buf;
     }
     case TSDB_DATA_TYPE_NCHAR:
@@ -2530,7 +2530,7 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   }
   if (pCol->projRefIdx > 0) {
     len = taosHashBinary(name, strlen(name));
-    len += sprintf(name + len, "_%d", pCol->projRefIdx);
+    len += tsnprintf(name + len, TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN - len, "_%d", pCol->projRefIdx);
   }
   SNode** pNodeFound = taosHashGet(pCxt->pColHash, name, len);
   if (pNodeFound == NULL) {
