@@ -822,7 +822,7 @@ SConfigObj *mndInitConfigVersion() {
   }
   strncpy(pObj->name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
   pObj->dtype = CFG_DTYPE_INT32;
-  pObj->i32 = ++tsmmConfigVersion;
+  pObj->i32 = 0;
   return pObj;
 }
 

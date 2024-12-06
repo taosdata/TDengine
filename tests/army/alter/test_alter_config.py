@@ -37,6 +37,107 @@ class TDTestCase:
 
         self.configration_dic = {
             "cli": [
+                {
+                    "name": "asyncLog",
+                    "value": 0,
+                    "category": "local",
+                },
+                {
+                    "name": "enableQueryHb",
+                    "value": 0,
+                    "category": "local",
+                },
+                {
+                    "name": "keepColumnName",
+                    "value": 1,
+                    "category": "local",
+                },
+                {
+                    "name": "logKeepDays",
+                    "value": 30,
+                    "category": "local",
+                },
+                {
+                    "name": "maxInsertBatchRows",
+                    "value": 2000000,
+                    "category": "local",
+                },
+                {
+                    "name": "minSlidingTime",
+                    "value": 10000,
+                    "category": "local",
+                },
+                {
+                    "name": "minIntervalTime",
+                    "value": 2,
+                    "category": "local",
+                },
+                {
+                    "name": "numOfLogLines",
+                    "value": 20000000,
+                    "category": "local",
+
+                },
+                {
+                    "name": "querySmaOptimize",
+                    "value": 1,
+                    "category": "local",
+                },
+                {
+                    "name": "queryPolicy",
+                    "value": 3,
+                    "category": "local",
+                },
+                {
+                    "name": "queryTableNotExistAsEmpty",
+                    "value": 1,
+                    "category": "local",
+                },
+                {
+                    "name": "queryPlannerTrace",
+                    "value": 1,
+                    "category": "local",
+                },
+                {
+                    "name": "queryNodeChunkSize",
+                    "value": 16 * 1024,
+                    "category": "local",
+                },
+                {
+                    "name": "queryUseNodeAllocator",
+                    "value": 0,
+                    "category": "local",
+                },
+                {
+                    "name": "smlDot2Underline",
+                    "value": 0,
+                    "category": "local",
+                },
+                {
+                    "name": "useAdapter",
+                    "value": 1,
+                    "category": "local",
+                },
+                # {
+                #     "name": "multiResultFunctionStarReturnTags",
+                #     "value": 1,
+                #     "category": "local",
+                # },
+                {
+                    "name": "maxTsmaCalcDelay",
+                    "value": 1200,
+                    "category": "local",
+                },
+                {
+                    "name": "tsmaDataDeleteMark",
+                    "value": 1000 * 60 * 60 * 12,
+                    "category": "local",
+                },
+                {
+                    "name": "bypassFlag",
+                    "value": 4,
+                    "category": "local",
+                }
             ],
             "svr": [
                 {
@@ -528,18 +629,17 @@ class TDTestCase:
         tdLog.info("success to alter all configurations")
 
         tdLog.info("stop and restart taosd")
-        time.sleep(3)
+
         sc.dnodeStopAll()
         sc.dnodeStart(1)
         sc.dnodeStart(2)
         sc.dnodeStart(3)
-        time.sleep(10)
 
         for key in self.configration_dic:
             if "cli" == key:
                 for item in self.configration_dic[key]:
                     actVal = self.cli_get_param_value(item["name"])
-                    assert str(actVal) == str(item["oldVal"]), f"item name: {item['name']}, Expected value: {item['value']}, actual value: {actVal}"
+                    assert str(actVal) == str(item["value"]), f"item name: {item['name']}, Expected value: {item['value']}, actual value: {actVal}"
             elif "svr" == key:
                 for item in self.configration_dic[key]:
                     actVal = self.svr_get_param_value(item["name"])

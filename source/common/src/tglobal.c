@@ -46,7 +46,6 @@ uint16_t      tsServerPort = 6030;
 int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
-int32_t       tsmmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
 int32_t       tsStatusInterval = 1;  // second
 int32_t       tsNumOfSupportVnodes = 256;
@@ -2630,7 +2629,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"keepColumnName", &tsKeepColumnName},
                                          {"logKeepDays", &tsLogKeepDays},
                                          {"maxInsertBatchRows", &tsMaxInsertBatchRows},
-                                         {"maxRetryWaitTime", &tsMaxRetryWaitTime},
                                          {"minSlidingTime", &tsMinSlidingTime},
                                          {"minIntervalTime", &tsMinIntervalTime},
                                          {"numOfLogLines", &tsNumOfLogLines},
@@ -2641,13 +2639,10 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"queryNodeChunkSize", &tsQueryNodeChunkSize},
                                          {"queryUseNodeAllocator", &tsQueryUseNodeAllocator},
                                          {"smlDot2Underline", &tsSmlDot2Underline},
-                                         {"shellActivityTimer", &tsShellActivityTimer},
                                          {"useAdapter", &tsUseAdapter},
-                                         {"experimental", &tsExperimental},
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
                                          {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
                                          {"tsmaDataDeleteMark", &tsmaDataDeleteMark},
-                                         {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"bypassFlag", &tsBypassFlag}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {

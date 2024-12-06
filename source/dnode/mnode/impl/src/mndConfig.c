@@ -32,7 +32,8 @@ enum CfgAlterType {
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj);
-static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype);
+static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype,
+                                    int32_t tsmmConfigVersion);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
@@ -229,10 +230,18 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
     mError("failed to deserialize config req, since %s", terrstr());
     goto _OVER;
   }
+
+  SConfigObj *vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
+  if (vObj == NULL) {
+    mInfo("failed to acquire mnd config version, since %s", terrstr());
+    goto _OVER;
+  }
+
   SArray    *diffArray = taosArrayInit(16, sizeof(SConfigItem));
   SConfigRsp configRsp = {0};
   configRsp.forceReadConfig = configReq.forceReadConfig;
-  configRsp.cver = tsmmConfigVersion;
+
+  configRsp.cver = vObj->i32;
   if (configRsp.forceReadConfig) {
     // compare config array from configReq with current config array
     if (compareSConfigItemArrays(taosGetGlobalCfg(tsCfg), configReq.array, diffArray)) {
@@ -242,7 +251,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
     }
   } else {
     configRsp.array = taosGetGlobalCfg(tsCfg);
-    if (configReq.cver == tsmmConfigVersion) {
+    if (configReq.cver == vObj->i32) {
       configRsp.isVersionVerified = 1;
     } else {
       configRsp.array = taosGetGlobalCfg(tsCfg);
@@ -316,11 +325,12 @@ int32_t mndInitReadCfg(SMnode *pMnode) {
   }
   SConfigObj *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (obj == NULL) {
-    mInfo("failed to acquire mnd config version, since %s", terrstr());
+    code = mndInitWriteCfg(pMnode);
+    if (code != 0) {
+      mError("failed to init write cfg, since %s", terrstr());
+    }
+    mInfo("failed to acquire mnd config version, try to rebuild it , since %s", terrstr());
     goto _OVER;
-  } else {
-    tsmmConfigVersion = obj->i32;
-    sdbRelease(pMnode->pSdb, obj);
   }
 
   sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
@@ -469,6 +479,11 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   int32_t       lino = -1;
   SMnode       *pMnode = pReq->info.node;
   SMCfgDnodeReq cfgReq = {0};
+  SConfigObj   *vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
+  if (vObj == NULL) {
+    mInfo("failed to acquire mnd config version, since %s", terrstr());
+    TAOS_RETURN(terrno);
+  }
   TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
   int8_t updateIpWhiteList = 0;
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
@@ -521,21 +536,22 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     code = TSDB_CODE_CFG_NOT_FOUND;
     goto _err_out;
   }
+
+_send_req:
   if (pItem->category == CFG_CATEGORY_GLOBAL) {
-    TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, dcfgReq.config, dcfgReq.value, pItem->dtype), &lino, _err_out);
+    TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, dcfgReq.config, dcfgReq.value, pItem->dtype, ++vObj->i32), &lino,
+                    _err_out);
   }
-_send_req :
+  {  // audit
+    char obj[50] = {0};
+    (void)sprintf(obj, "%d", cfgReq.dnodeId);
 
-{  // audit
-  char obj[50] = {0};
-  (void)sprintf(obj, "%d", cfgReq.dnodeId);
-
-  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
-}
+    auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
+  }
 
   tFreeSMCfgDnodeReq(&cfgReq);
 
-  dcfgReq.version = tsmmConfigVersion;
+  dcfgReq.version = vObj->i32;
   code = mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
 
   // dont care suss or succ;
@@ -577,25 +593,15 @@ _err:
   TAOS_RETURN(code);
 }
 
-static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype) {
-  int32_t code = -1;
-  int32_t lino = -1;
-  // SConfigObj *pVersion = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
-  // if (pVersion == NULL) {
-  //   mError("failed to acquire tsmmConfigVersion while update config, since %s", terrstr());
-  //   code = terrno;
-  //   goto _OVER;
-  // }
-  // pVersion->i32 = ++tsmmConfigVersion;
-  // SConfigObj *pObj = sdbAcquire(pMnode->pSdb, SDB_CFG, name);
-  // if (pObj == NULL) {
-  //   mError("failed to acquire mnd config:%s while update config, since %s", name, terrstr());
-  //   code = terrno;
-  //   goto _OVER;
-  // }
+static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype,
+                                    int32_t tsmmConfigVersion) {
+  int32_t    code = -1;
+  int32_t    lino = -1;
   SConfigObj pVersion = {0}, pObj = {0};
-  pVersion.i32 = ++tsmmConfigVersion;
+
   strncpy(pVersion.name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
+  pVersion.i32 = tsmmConfigVersion;
+  pVersion.dtype = CFG_DTYPE_INT32;
 
   pObj.dtype = dtype;
   strncpy(pObj.name, name, CFG_NAME_MAX_LEN);
@@ -613,7 +619,6 @@ static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pVal
   code = 0;
 _OVER:
   if (code != 0) {
-    --tsmmConfigVersion;
     mError("failed to update config:%s to value:%s, since %s", name, pValue, tstrerror(code));
   }
   mndTransDrop(pTrans);
