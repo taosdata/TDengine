@@ -36,7 +36,6 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
   void   *pIter = NULL;
   SArray *pList = taosArrayInit(4, sizeof(SKeyInfo));
   int32_t numOfChkpt = 0;
-  int32_t numOfTaskUpdate = 0;
 
   if (pNumOfActiveChkpt != NULL) {
     *pNumOfActiveChkpt = 0;
@@ -84,7 +83,7 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
   }
 
   mDebug("clear %d finished stream-trans, active trans:%d, active checkpoint trans:%d, update trans:%d", size,
-         taosHashGetSize(execInfo.transMgmt.pDBTrans), numOfChkpt, numOfTaskUpdate);
+         taosHashGetSize(execInfo.transMgmt.pDBTrans), numOfChkpt);
 
   taosArrayDestroy(pList);
 
