@@ -56,8 +56,10 @@ taosws://root:taosdata@localhost:6041
 6. 在中间SQL编辑器中可以输入符合 TDengine 语法的任意 SQL 语句执行并显示结果  
 
 ## 示例效果
-我们选择了 SuperSet Chart 模板中较流程的两个做效果展示，数据以智能电表数据为例：
-第一个为 Aggregate 类型，展示在第 4 组中指定时间段内每分钟采集电压值(voltage) 最大值
+我们选择 SuperSet Chart 模板中较流程的两个模板做效果展示，数据以智能电表数据为例：  
+
+第一个为 Aggregate 类型，展示在第 4 组中指定时间段内每分钟采集电压值(voltage) 最大值  
 ![superset-demo1](./superset-demo1.jpeg)
-第二个为 RAW RECORDS 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值
-![superset-demo2](./superset-demo2.jpeg)
+
+第二个为 RAW RECORDS 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值  
+![superset-demo2](./superset-demo2.jpeg)  
