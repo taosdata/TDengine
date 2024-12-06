@@ -225,7 +225,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SConfigReq configReq = {0};
   SDnodeObj *pDnode = NULL;
-  int32_t    code = -1;
+  int32_t    code = TSDB_CODE_SUCCESS;
   SArray    *array = NULL;
 
   code = tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
@@ -256,7 +256,11 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
     if (configReq.cver == vObj->i32) {
       configRsp.isVersionVerified = 1;
     } else {
-      initConfigArrayFromSdb(pMnode, array);
+      code = initConfigArrayFromSdb(pMnode, array);
+      if (code != 0) {
+        mError("failed to init config array from sdb, since %s", terrstr());
+        goto _OVER;
+      }
       configRsp.array = array;
     }
   }
