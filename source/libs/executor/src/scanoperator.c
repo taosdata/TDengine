@@ -2538,6 +2538,7 @@ static int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
   blockDataCleanup(pInfo->pCreateTbRes);
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
+    pInfo->stateStore.streamStateSetParNameInvalid(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState);
   } else {
     code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
                                 &pInfo->tagCalSup, pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes,

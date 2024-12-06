@@ -56,6 +56,8 @@ void              streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuf
 
 int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                              int32_t* pWinCode);
+int32_t createRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
+
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                    int32_t* pWinCode);
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
@@ -145,7 +147,7 @@ SSHashObj* getGroupIdCache(SStreamFileState* pFileState);
 int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos);
 int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
                            int32_t* pVLen, int32_t* pWinCode);
-int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SWinKey* pKey);
+int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SWinKey* pKey, bool* pIsEnd);
 
 //twa
 void setFillInfo(SStreamFileState* pFileState);

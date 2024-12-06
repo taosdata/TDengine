@@ -338,6 +338,7 @@ typedef struct SStateStore {
   int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache,
                                    int32_t* pWinCode);
   int32_t (*streamStateDeleteParName)(SStreamState* pState, int64_t groupId);
+  void (*streamStateSetParNameInvalid)(SStreamState* pState);
 
   int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
                                       int32_t* pWinCode);
