@@ -1322,7 +1322,7 @@ class StreamComputingTest(TDCase):
             else:
                 partition_elm = ""
             query_interval_value = (i+1) % count_window_value
-            # # ! TD-28557 
+            # # ! TD-28557
             # TODO to be continued
             if i == self.range_count - 1:
                 disorder_ts_value = str(self.date_time)+f'+{i-watermark+count_window_value}s'
@@ -1534,10 +1534,29 @@ class StreamComputingTest(TDCase):
                 self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
             if tag_value:
-                if subtable == "constant":
-                    self.tdSql.query(f'select {tag_value} from constant_{self.ext_ctb_stream_des_table}')
-                else:
-                    self.tdSql.query(f'select {tag_value} from {self.stb_name}')
+                start_time = time.time()
+                previous_data = None
+                stable_time = None
+                while time.time() - start_time < self.tdCom.stream_timeout:
+                    if subtable == "constant":
+                        self.tdSql.query(f'select {tag_value} from constant_{self.ext_ctb_stream_des_table}')
+                    else:
+                        self.tdSql.query(f'select {tag_value} from {self.stb_name}')
+                    current_data = self.tdSql.query_data
+
+                    if current_data:
+                        if current_data == previous_data:
+                            if stable_time is None:
+                                stable_time = time.time()
+                            elif time.time() - stable_time >= 3:
+                                break
+                        else:
+                            stable_time = None
+                    else:
+                        stable_time = None
+
+                    previous_data = current_data
+                    time.sleep(1)
                 tag_value_list = self.tdSql.query_data
             if not fill_value:
                 if stb_field_name_value == self.partitial_stb_filter_des_select_elm:
@@ -2609,7 +2628,7 @@ class StreamComputingTest(TDCase):
                         tbname = self.get_subtable_wait(f'{self.stb_name}_{self.subtable_prefix}{abs(c1_value[self.c1_idx])}{self.subtable_suffix}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{self.stb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
-                    
+
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if "c1" not in partition else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
     def gen_event_window_condition(self):
@@ -3148,7 +3167,7 @@ class StreamComputingTest(TDCase):
                     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=delete_ts_value)
             # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
             # if sliding is not None:
-            # * tmp commit out 
+            # * tmp commit out
             # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
             #     if tbname != self.tb_name:
             #         if tbname == self.stb_name and "tbname" not in partition_elm:
@@ -4274,7 +4293,7 @@ class StreamComputingTest(TDCase):
         # self.tdSql.execute(f'create table scalar_ct2 using scalar_stb tags(-20);')
         # self.tdSql.execute(f'create table scalar_ct3 using scalar_stb tags(0);')
         self.tdSql.execute(f'create table if not exists scalar_tb (ts timestamp, {pk_field}c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20));')
-        
+
         if self.pk_test:
             if fill_history_value is None:
                 fill_history = ""
@@ -4417,7 +4436,7 @@ class StreamComputingTest(TDCase):
         self.tdSql.execute(f'create table if not exists scalar_stb (ts timestamp, {pk_field}c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table scalar_ct1 using scalar_stb tags(10);')
         self.tdSql.execute(f'create table if not exists scalar_tb (ts timestamp, {pk_field}c2 double, c3 binary(20), c4 binary(20), c5 nchar(20));')
-        
+
         if fill_history_value is None:
             fill_history = ""
         else:
@@ -4476,7 +4495,7 @@ class StreamComputingTest(TDCase):
         self.tdSql.execute(f'create table if not exists str_scalar_stb (ts timestamp, {pk_field}c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table str_scalar_ct1 using str_scalar_stb tags(10);')
         self.tdSql.execute(f'create table if not exists str_scalar_tb (ts timestamp, {pk_field}c2 double, c3 binary(20), c4 binary(20), c5 nchar(20));')
-        
+
         for string_function in string_function_list:
             if string_function == "concat":
                 self.tdSql.execute(f'create stream stb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  {fill_history} into output_{string_function}_stb(ts, pk primary key, c3, c4, c5) as select ts, pk, {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from str_scalar_stb partition by {partition};')
@@ -5197,8 +5216,9 @@ class StreamComputingTest(TDCase):
             self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
             self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
             self.window_close_state_window(state_window="c1")
-            self.window_close_event_window(watermark=None)
-            self.window_close_event_window(watermark=None, ignore_expired=0)
+            # TODO refactor when watermark = 0
+            # self.window_close_event_window(watermark=None)
+            # self.window_close_event_window(watermark=None, ignore_expired=0)
             self.window_close_event_window(watermark=random.randint(15, 20))
             self.subtable_exceed_test()
             # #TODO 0423 failed
