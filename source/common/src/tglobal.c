@@ -145,9 +145,9 @@ bool tsEnableCrashReport = false;
 #else
 bool    tsEnableCrashReport = true;
 #endif
-char  *tsClientCrashReportUri = "/ccrashreport";
-char  *tsSvrCrashReportUri = "/dcrashreport";
-int8_t tsSafetyCheckLevel = TSDB_SAFETY_CHECK_LEVELL_NORMAL;
+char   *tsClientCrashReportUri = "/ccrashreport";
+char   *tsSvrCrashReportUri = "/dcrashreport";
+int32_t tsSafetyCheckLevel = TSDB_SAFETY_CHECK_LEVELL_NORMAL;
 
 // schemaless
 bool tsSmlDot2Underline = true;

@@ -536,18 +536,18 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     code = TSDB_CODE_CFG_NOT_FOUND;
     goto _err_out;
   }
-
-_send_req:
   if (pItem->category == CFG_CATEGORY_GLOBAL) {
     TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, dcfgReq.config, dcfgReq.value, pItem->dtype, ++vObj->i32), &lino,
                     _err_out);
   }
-  {  // audit
-    char obj[50] = {0};
-    (void)sprintf(obj, "%d", cfgReq.dnodeId);
+_send_req :
 
-    auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
-  }
+{  // audit
+  char obj[50] = {0};
+  (void)sprintf(obj, "%d", cfgReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
+}
 
   tFreeSMCfgDnodeReq(&cfgReq);
 
