@@ -541,8 +541,6 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
-  QW_SET_PHASE(ctx, phase);
-
   if (ctx->pJobInfo && (atomic_load_8(&ctx->pJobInfo->retired) || atomic_load_32(&ctx->pJobInfo->errCode))) {
     QW_TASK_ELOG("job already failed, error:%s", tstrerror(ctx->pJobInfo->errCode));
     QW_ERR_JRET(ctx->pJobInfo->errCode);
@@ -626,6 +624,8 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
     QW_ERR_JRET(ctx->rspCode);
   }
 
+  QW_SET_PHASE(ctx, phase);
+
 _return:
 
   if (ctx) {
@@ -635,7 +635,7 @@ _return:
     qwReleaseTaskCtx(mgmt, ctx);
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_QRY_TASK_CTX_NOT_EXIST) {
     QW_TASK_ELOG("end to handle event at phase %s, code:%s", qwPhaseStr(phase), tstrerror(code));
   } else {
     QW_TASK_DLOG("end to handle event at phase %s, code:%s", qwPhaseStr(phase), tstrerror(code));
@@ -800,7 +800,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
-  atomic_add_fetch_64(&gQueryMgmt.stat.taskInitNum, 1);
+  atomic_add_fetch_64(&gQueryMgmt.stat.taskRunNum, 1);
 
   uint64_t flags = 0;
   dsGetSinkFlags(sinkHandle, &flags);
@@ -1648,9 +1648,11 @@ void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode) {
 }
 
 void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
-  qDebug("need to retire jobs in batch, targetRetireSize:%" PRId64 ", remainJobNum:%d, task initNum:%" PRId64 ", task destroyNum:%" PRId64 " - %" PRId64, 
-      retireSize, taosHashGetSize(gQueryMgmt.pJobInfo), atomic_load_64(&gQueryMgmt.stat.taskInitNum), 
-      atomic_load_64(&gQueryMgmt.stat.taskExecDestroyNum), atomic_load_64(&gQueryMgmt.stat.taskSinkDestroyNum));
+  qDebug("need to retire jobs in batch, targetRetireSize:%" PRId64 ", remainJobNum:%d, task initNum:%" PRId64 " - %" PRId64 
+      ", task destroyNum:%" PRId64 " - %" PRId64 " - %" PRId64, 
+      retireSize, taosHashGetSize(gQueryMgmt.pJobInfo), atomic_load_64(&gQueryMgmt.stat.taskInitNum), atomic_load_64(&gQueryMgmt.stat.taskRunNum), 
+      atomic_load_64(&gQueryMgmt.stat.taskExecDestroyNum), atomic_load_64(&gQueryMgmt.stat.taskSinkDestroyNum),
+      atomic_load_64(&gQueryMgmt.stat.taskDestroyNum));
 
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
   int32_t jobNum = 0;
@@ -1683,8 +1685,9 @@ void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
   taosHashCancelIterate(gQueryMgmt.pJobInfo, pJob);
 
   qDebug("job retire in batch done, [prev:%d, curr:%d, total:%d] jobs, direct retiredSize:%" PRId64 " targetRetireSize:%" PRId64 
-      ", task initNum:%" PRId64 ", task destroyNum:%" PRId64 " - %" PRId64, 
+      ", task initNum:%" PRId64 " - %" PRId64 ", task destroyNum:%" PRId64 " - %" PRId64 " - %" PRId64, 
       alreadyJobNum, jobNum, taosHashGetSize(gQueryMgmt.pJobInfo), retiredSize, retireSize, 
-      atomic_load_64(&gQueryMgmt.stat.taskInitNum), 
-      atomic_load_64(&gQueryMgmt.stat.taskExecDestroyNum), atomic_load_64(&gQueryMgmt.stat.taskSinkDestroyNum));
+      atomic_load_64(&gQueryMgmt.stat.taskInitNum), atomic_load_64(&gQueryMgmt.stat.taskRunNum), 
+      atomic_load_64(&gQueryMgmt.stat.taskExecDestroyNum), atomic_load_64(&gQueryMgmt.stat.taskSinkDestroyNum),
+      atomic_load_64(&gQueryMgmt.stat.taskDestroyNum));
 }

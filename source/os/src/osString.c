@@ -118,7 +118,7 @@ char *taosStrndupi(const char *s, int64_t size) {
 
 char *tstrndup(const char *str, int64_t size) {
 #ifdef WINDOWS
-  return strndup(str, size);
+  return taosStrndupi(str, size);
 #else
   char* p = strndup(str, size);
   if (str != NULL && NULL == p) {

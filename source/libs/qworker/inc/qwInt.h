@@ -47,7 +47,7 @@ extern "C" {
 
 #define QW_RETIRE_JOB_BATCH_NUM        5
 
-#define QW_DEFAULT_TIMEOUT_INTERVAL_SECS 3600
+#define QW_DEFAULT_TIMEOUT_INTERVAL_SECS 600
 
 enum {
   QW_CONC_TASK_LEVEL_LOW = 1,
@@ -266,8 +266,10 @@ typedef struct SQWRetireCtx {
 
 typedef struct SQueryExecStat {
   int64_t taskInitNum;
+  int64_t taskRunNum;
   int64_t taskExecDestroyNum;
   int64_t taskSinkDestroyNum;
+  int64_t taskDestroyNum;
 } SQueryExecStat;
 
 typedef struct SQueryMgmt {

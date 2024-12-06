@@ -258,6 +258,8 @@ int32_t qwAddTaskCtxImpl(QW_FPARAMS_DEF, bool acquire, SQWTaskCtx **ctx) {
     }
   }
 
+  atomic_add_fetch_64(&gQueryMgmt.stat.taskInitNum, 1);
+
   if (acquire && ctx) {
     QW_RET(qwAcquireTaskCtx(QW_FPARAMS(), ctx));
   } else if (ctx) {
@@ -425,6 +427,8 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   ctx->tbInfo = NULL;
 
   QW_TASK_DLOG_E("task ctx dropped");
+  
+  atomic_add_fetch_64(&gQueryMgmt.stat.taskDestroyNum, 1);
 
   return code;
 }
@@ -756,7 +760,7 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
   
   QW_TASK_DLOG("start to stop task, forceStop:%d, error:%s", forceStop, tstrerror(errCode));
   
-  if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+  if ((!forceStop) && (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP))) {
     QW_TASK_WLOG_E("task already dropping");
     QW_UNLOCK(QW_WRITE, &ctx->lock);
   
@@ -867,7 +871,7 @@ void qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs) {
   void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
-    if ((ctx->lastAckTs <= 0) || (currTs - ctx->lastAckTs) < tsQueryNoFetchTimeoutSec) {
+    if (((ctx->lastAckTs <= 0) || (currTs - ctx->lastAckTs) < tsQueryNoFetchTimeoutSec) && (!QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP))) {
       pIter = taosHashIterate(mgmt->ctxHash, pIter);
       continue;
     }
