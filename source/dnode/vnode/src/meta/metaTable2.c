@@ -66,19 +66,6 @@ static int32_t metaCheckCreateSuperTableReq(SMeta *pMeta, int64_t version, SVCre
     return TSDB_CODE_INVALID_MSG;
   }
 
-  // other fields
-  if (pReq->schemaRow.nCols <= 0) {
-    metaError("vgId:%d, %s failed at %s:%d since invalid row schema, version:%" PRId64, vgId, __func__, __FILE__,
-              __LINE__, version);
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  if (pReq->schemaTag.nCols <= 0) {
-    metaError("vgId:%d, %s failed at %s:%d since invalid tag schema, version:%" PRId64, vgId, __func__, __FILE__,
-              __LINE__, version);
-    return TSDB_CODE_INVALID_MSG;
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 

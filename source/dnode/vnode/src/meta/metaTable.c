@@ -437,6 +437,7 @@ _drop_super_table:
               tstrerror(terrno));
   }
 
+  metaCacheDrop(pMeta, pReq->suid);
   ret = tdbTbDelete(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), pMeta->txn);
   if (ret < 0) {
     metaError("vgId:%d, failed to drop stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name, pReq->suid,

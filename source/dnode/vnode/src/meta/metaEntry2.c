@@ -343,7 +343,7 @@ static int32_t metaHandleSuperTableCreateImpl(SMeta *pMeta, const SMetaEntry *pE
 
   SMetaTableOp ops[] = {
       {META_ENTRY_TABLE, META_TABLE_OP_INSERT},   //
-      {META_SCHEMA_TABLE, META_TABLE_OP_INSERT},  //
+      {META_SCHEMA_TABLE, META_TABLE_OP_UPDATA},  // TODO: here should be insert
       {META_UID_IDX, META_TABLE_OP_INSERT},       //
       {META_NAME_IDX, META_TABLE_OP_INSERT},      //
       {META_SUID_IDX, META_TABLE_OP_INSERT},      //
