@@ -1387,7 +1387,16 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   }
 
   char    tbFName[TSDB_TABLE_FNAME_LEN];
-  int32_t code = tNameExtractFullName(&pStmt->targetTableName, tbFName);
+  int32_t code = 0;
+  if (pCxt->preCtbname) {
+    tstrncpy(pStmt->targetTableName.tname, pStmt->usingTableName.tname, sizeof(pStmt->targetTableName.tname));
+    tstrncpy(pStmt->targetTableName.dbname, pStmt->usingTableName.dbname, sizeof(pStmt->targetTableName.dbname));
+    pStmt->targetTableName.type = TSDB_SUPER_TABLE;
+    pStmt->pTableMeta->tableType = TSDB_SUPER_TABLE;
+  }
+
+  code = tNameExtractFullName(&pStmt->targetTableName, tbFName);
+
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -1812,8 +1821,10 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
   SArray* pTagVals = pStbRowsCxt->aTagVals;
   bool    canParseTagsAfter = !pStbRowsCxt->pTagCond && !pStbRowsCxt->hasTimestampTag;
   int32_t numOfCols = getNumOfColumns(pStbRowsCxt->pStbMeta);
+  int32_t numOfTags = getNumOfTags(pStbRowsCxt->pStbMeta);
   int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
   uint8_t precision = getTableInfo(pStbRowsCxt->pStbMeta).precision;
+  int     idx = 0;
   for (int i = 0; i < pCols->numOfBound && (code) == TSDB_CODE_SUCCESS; ++i) {
     const char* pTmpSql = *ppSql;
     bool        ignoreComma = false;
@@ -1846,10 +1857,22 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         }
       } else if (pCols->pColIndex[i] < numOfCols) {
         // bind column
-      } else {
+      } else if (pCols->pColIndex[i] < tbnameIdx) {
+        if (pCxt->tags.pColIndex == NULL) {
+          pCxt->tags.pColIndex = taosMemoryCalloc(numOfTags, sizeof(int16_t));
+          if (NULL == pCxt->tags.pColIndex) {
+            return terrno;
+          }
+        }
+        if (!(idx < numOfTags)) {
+          return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfTags");
+        }
+        pCxt->tags.pColIndex[idx++] = pCols->pColIndex[i] - numOfCols;
         pCxt->tags.mixTagsCols = true;
         pCxt->tags.numOfBound++;
         pCxt->tags.numOfCols++;
+      } else {
+        return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfBound");
       }
     } else {
       if (pCols->pColIndex[i] < numOfCols) {
@@ -1895,15 +1918,6 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     }
   }
 
-  if (pCxt->isStmtBind && pCxt->tags.mixTagsCols) {
-    taosMemoryFreeClear(pCxt->tags.pColIndex);
-    pCxt->tags.pColIndex = taosMemoryCalloc(pStbRowsCxt->boundColsInfo.numOfBound, sizeof(int16_t));
-    if (NULL == pCxt->tags.pColIndex) {
-      return terrno;
-    }
-    (void)memcpy(pCxt->tags.pColIndex, pStbRowsCxt->boundColsInfo.pColIndex,
-                 sizeof(int16_t) * pStbRowsCxt->boundColsInfo.numOfBound);
-  }
   return code;
 }
 

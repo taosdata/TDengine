@@ -503,14 +503,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     goto end;
   }
 
-  SSchema* pSchema;
-  int      start = 0;
-  if (!tags->mixTagsCols) {
-    pSchema = getTableTagSchema(pDataBlock->pMeta);
-  } else {
-    pSchema = getTableColumnSchema(pDataBlock->pMeta);
-    start = pDataBlock->pMeta->tableInfo.numOfColumns;
-  }
+  SSchema* pSchema = getTableTagSchema(pDataBlock->pMeta);
 
   bool  isJson = false;
   STag* pTag = NULL;
@@ -520,7 +513,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       continue;
     }
 
-    SSchema* pTagSchema = &pSchema[tags->pColIndex[start + c]];
+    SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
     int32_t  colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
       if (!bind[c].length) {
