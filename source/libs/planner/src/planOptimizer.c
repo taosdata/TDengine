@@ -6732,6 +6732,20 @@ static bool tsmaOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       }
     }
 
+    if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+      SWindowLogicNode* pWindow = (SWindowLogicNode*)pParent;
+      if (pWindow->winType == WINDOW_TYPE_INTERVAL && pWindow->offset == AUTO_DURATION_VALUE) {
+        SLogicNode* pRootNode = getLogicNodeRootNode(pParent);
+        // When using interval auto offset, tsma optimization cannot take effect.
+        // Unless the user explicitly specifies not to use tsma, an error should be reported.
+        if (!getOptHint(pRootNode->pHint, HINT_SKIP_TSMA)) {
+          planError("%s failed since tsma optimization cannot be applied with interval auto offset", __func__);
+          *(int32_t*)pCtx = TSDB_CODE_TSMA_INVALID_AUTO_OFFSET;
+          return false;
+        }
+      }
+    }
+
     return true;
   }
   return false;
@@ -7506,7 +7520,7 @@ static bool tsmaOptIsUsingTsmas(STSMAOptCtx* pCtx) {
 static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   int32_t         code = 0;
   STSMAOptCtx     tsmaOptCtx = {0};
-  SScanLogicNode* pScan = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tsmaOptMayBeOptimized, NULL);
+  SScanLogicNode* pScan = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tsmaOptMayBeOptimized, &code);
   if (!pScan) return code;
 
   SLogicNode* pRootNode = getLogicNodeRootNode((SLogicNode*)pScan);

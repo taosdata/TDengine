@@ -18,6 +18,8 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_percentile.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval_diff_tz.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
@@ -53,6 +55,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
 ,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
 ,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py
+,,n,army,python3 ./test.py -f whole/checkErrorCode.py
 
 #
 # system test
@@ -354,6 +357,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
+,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
 ,,n,system-test,python3 ./test.py -f 0-others/udfTest.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_create.py

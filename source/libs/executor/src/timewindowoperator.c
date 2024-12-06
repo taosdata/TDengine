@@ -1401,7 +1401,9 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
                         .intervalUnit = pPhyNode->intervalUnit,
                         .slidingUnit = pPhyNode->slidingUnit,
                         .offset = pPhyNode->offset,
-                        .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision};
+                        .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision,
+                        .timeRange = pPhyNode->timeRange};
+  calcIntervalAutoOffset(&interval);
 
   STimeWindowAggSupp as = {
       .waterMark = pPhyNode->window.watermark,
@@ -2122,7 +2124,9 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
                         .intervalUnit = pNode->intervalUnit,
                         .slidingUnit = pNode->slidingUnit,
                         .offset = pNode->offset,
-                        .precision = ((SColumnNode*)pNode->window.pTspk)->node.resType.precision};
+                        .precision = ((SColumnNode*)pNode->window.pTspk)->node.resType.precision,
+                        .timeRange = pNode->timeRange};
+  calcIntervalAutoOffset(&interval);
 
   SIntervalAggOperatorInfo* iaInfo = miaInfo->intervalAggOperatorInfo;
   SExprSupp*                pSup = &pOperator->exprSupp;
@@ -2462,7 +2466,9 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
                         .intervalUnit = pIntervalPhyNode->intervalUnit,
                         .slidingUnit = pIntervalPhyNode->slidingUnit,
                         .offset = pIntervalPhyNode->offset,
-                        .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
+                        .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
+                        .timeRange = pIntervalPhyNode->timeRange};
+  calcIntervalAutoOffset(&interval);
 
   pMergeIntervalInfo->groupIntervals = tdListNew(sizeof(SGroupTimeWindow));
 
