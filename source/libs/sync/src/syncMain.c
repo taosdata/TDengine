@@ -1464,7 +1464,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
 
   // if (endIndex != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
   pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
-  sInfo("vgId:%d, start to restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
+  sInfo("vgId:%d, restore began, and keep syncing until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
   if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
       (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex)) < 0) {
