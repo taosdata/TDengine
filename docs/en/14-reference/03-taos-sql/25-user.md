@@ -8,7 +8,7 @@ User and permission management is a feature of TDengine Enterprise Edition. This
 ## Create User
 
 ```sql
-CREATE USER user_name PASS 'password' [SYSINFO {1|0}];
+CREATE USER user_name PASS 'password' [SYSINFO {1|0}] [CREATEDB {1|0}];
 ```
 
 The username can be up to 23 bytes long.
@@ -16,6 +16,10 @@ The username can be up to 23 bytes long.
 The password can be up to 31 bytes long. The password can include letters, numbers, and special characters except for single quotes, double quotes, backticks, backslashes, and spaces, and it cannot be an empty string.
 
 `SYSINFO` indicates whether the user can view system information. `1` means they can view, `0` means they have no permission to view. System information includes service configuration, dnode, vnode, storage, etc. The default value is `1`.
+
+`CREATEDB` indicates whether the user can create databases. `1` means they can create databases, `0` means they have no permission to create databases. The default value is `0`. // Supported starting from TDengine Enterprise version 3.3.2.0
+
+
 
 In the example below, we create a user with the password `123456` who can view system information.
 
