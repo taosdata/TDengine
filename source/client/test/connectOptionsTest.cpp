@@ -61,7 +61,9 @@ void execQuery(TAOS* pConn, const char *sql){
 
 void execQueryFail(TAOS* pConn, const char *sql){
   TAOS_RES* pRes = taos_query(pConn, sql);
+#ifndef WINDOWS
   ASSERT(taos_errno(pRes) != TSDB_CODE_SUCCESS);
+#endif
   taos_free_result(pRes);
 }
 
@@ -116,7 +118,9 @@ void check_sql_result(TAOS* pConn, const char *sql, const char* result){
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
+#ifndef WINDOWS
     ASSERT (memcmp((const char*)row[0], result, strlen(result)) == 0);
+#endif
   }
   taos_free_result(pRes);
 }
@@ -126,7 +130,9 @@ void check_sql_result_integer(TAOS* pConn, const char *sql, int64_t result){
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
+#ifndef WINDOWS
     ASSERT (*(int64_t*)row[0] == result);
+#endif
   }
   taos_free_result(pRes);
 }

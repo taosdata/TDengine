@@ -527,13 +527,14 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
       return NULL;
     }
   }
+  return result;
 #else
   res = tz != NULL ? localtime_rz(tz, timep, result): localtime_r(timep, result);
   if (res == NULL && buf != NULL) {
     (void)snprintf(buf, bufSize, "NaN");
   }
-#endif
   return res;
+#endif
 }
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
