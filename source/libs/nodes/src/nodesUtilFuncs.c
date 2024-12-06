@@ -505,6 +505,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_VTABLE_STMT:
       code = makeNode(type, sizeof(SCreateVTableStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_VSUBTABLE_STMT:
+      code = makeNode(type, sizeof(SCreateVSubTableStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
       code = makeNode(type, sizeof(SCreateSubTableFromFileClause), &pNode);
       break;
@@ -1353,6 +1356,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_VTABLE_STMT: {
       SCreateVTableStmt* pStmt = (SCreateVTableStmt*)pNode;
       nodesDestroyList(pStmt->pCols);
+      break;
+    }
+    case QUERY_NODE_CREATE_VSUBTABLE_STMT: {
+      SCreateVSubTableStmt* pStmt = (SCreateVSubTableStmt*)pNode;
+      nodesDestroyList(pStmt->pSpecificColRefs);
+      nodesDestroyList(pStmt->pColRefs);
+      nodesDestroyList(pStmt->pSpecificTags);
+      nodesDestroyList(pStmt->pValsOfTags);
       break;
     }
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {

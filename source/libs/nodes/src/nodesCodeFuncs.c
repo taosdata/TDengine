@@ -123,6 +123,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateSubtableClause";
     case QUERY_NODE_CREATE_VTABLE_STMT:
       return "CreateVtableStmt";
+    case QUERY_NODE_CREATE_VSUBTABLE_STMT:
+      return "CreateVsubtableStmt";
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return "CreateMultiTableStmt";
     case QUERY_NODE_DROP_TABLE_CLAUSE:
@@ -6370,6 +6372,15 @@ static int32_t jsonToCreateVTableStmt(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createVSubTableStmtToJson(const void* pObj, SJson* pJson) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  return code;
+}
+
+static int32_t jsonToCreateVSubTableStmt(const SJson* pJson, void* pObj) {
+  return TSDB_CODE_SUCCESS;
+}
+
 static const char* jkDropTableClauseDbName = "DbName";
 static const char* jkDropTableClauseTableName = "TableName";
 static const char* jkDropTableClauseIgnoreNotExists = "IgnoreNotExists";
@@ -7993,6 +8004,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createSubTableClauseToJson(pObj, pJson);
     case QUERY_NODE_CREATE_VTABLE_STMT:
       return createVTableStmtToJson(pObj, pJson);
+    case QUERY_NODE_CREATE_VSUBTABLE_STMT:
+      return createVSubTableStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return createMultiTablesStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_TABLE_CLAUSE:
@@ -8366,6 +8379,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToCreateSubTableClause(pJson, pObj);
     case QUERY_NODE_CREATE_VTABLE_STMT:
       return jsonToCreateVTableStmt(pJson, pObj);
+    case QUERY_NODE_CREATE_VSUBTABLE_STMT:
+      return jsonToCreateVSubTableStmt(pJson, pObj);
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return jsonToCreateMultiTablesStmt(pJson, pObj);
     case QUERY_NODE_DROP_TABLE_CLAUSE:

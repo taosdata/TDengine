@@ -14143,7 +14143,7 @@ static int32_t buildVirtualTableBatchReq(int32_t acctId, const SCreateVTableStmt
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
     SSchema*        pSchema = req.ntb.schemaRow.pSchema + index;
     toSchema(pColDef, index + 1, pSchema);
-    if (pColDef->pOptions) {
+    if (pColDef->pOptions && ((SColumnOptions*)pColDef->pOptions)->hasRef) {
       req.colRef.pColRef[index].id = index + 1;
       req.colRef.pColRef[index].hasRef = true;
       req.colRef.pColRef[index].refColName = taosStrdup(((SColumnOptions*)pColDef->pOptions)->refColumn);

@@ -253,7 +253,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (!tDecodeIsEnd(pCoder)) {
       uDebug("set type: %d, tableName:%s", pME->type, pME->name);
       TAOS_CHECK_RETURN(meteDecodeColRefEntry(pCoder, pME));
-      if (pME->colCmpr.nCols == 0) {
+      if (pME->colRef.nCols == 0) {
         TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
       }
     } else {

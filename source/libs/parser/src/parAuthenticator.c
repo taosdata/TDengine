@@ -296,6 +296,21 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
   return code;
 }
 
+static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SNode     *pNode = NULL;
+  SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL));
+  FOREACH(pNode, pTmpList) {
+    SColumnRefNode *pColRef = (SColumnRefNode*)pNode;
+    if (NULL == pColRef) {
+      PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
+    }
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pColRef->refTableName, AUTH_TYPE_READ, NULL));
+  }
+  return code;
+}
+
 static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
@@ -376,6 +391,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateTable(pCxt, (SCreateTableStmt*)pStmt);
     case QUERY_NODE_CREATE_VTABLE_STMT:
       return authCreateVTable(pCxt, (SCreateVTableStmt*)pStmt);
+    case QUERY_NODE_CREATE_VSUBTABLE_STMT:
+      return authCreateVSubTable(pCxt, (SCreateVSubTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return authCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
     case QUERY_NODE_DROP_TABLE_STMT:
