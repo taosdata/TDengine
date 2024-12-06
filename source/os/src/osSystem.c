@@ -91,7 +91,8 @@ typedef struct FILE TdCmd;
 
 void* taosLoadDll(const char* fileName) {
 #if defined(WINDOWS)
-  return NULL;
+  HMODULE hModule = LoadLibraryA(fileName);
+  return (void*)hModule;
 #else
   void* handle = dlopen(fileName, RTLD_LAZY);
   if (handle == NULL && errno != 0) {
@@ -106,7 +107,8 @@ void taosCloseDll(void* handle) {
   if (handle == NULL) return;
 
 #if defined(WINDOWS)
-  return;
+  HMODULE hModule = (HMODULE) handle;
+  FreeLibrary(hModule);
 #else
   dlclose(handle);
 #endif
@@ -114,11 +116,10 @@ void taosCloseDll(void* handle) {
 
 void* taosLoadDllFunc(void* handle, const char* funcName) {
   if (handle == NULL) return NULL;
-
   void* fptr = NULL;
 
 #if defined(WINDOWS)
-  return NULL;
+  fpt = GetProcAddress((HMODULE)handle, funcName);
 #else
   fptr = dlsym(handle, funcName);
 #endif
