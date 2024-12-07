@@ -4,59 +4,59 @@ sidebar_label: taosBenchmark
 toc_max_heading_level: 4
 ---
 
-taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具。taosBenchmark 可以测试 TDengine 的插入、查询和订阅等功能的性能，它可以模拟由大量设备产生的大量数据，还可以灵活地控制数据库、超级表、标签列的数量和类型、数据列的数量和类型、子表的数量、每张子表的数据量、插入数据的时间间隔、taosBenchmark 的工作线程数量、是否以及如何插入乱序数据等。为了兼容过往用户的使用习惯，安装包提供 了 taosdemo 作为 taosBenchmark 的软链接。
+taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品的写入、查询及订阅性能测试，输出性能指标。
 
 ## 安装
 
-taosBenchmark 有两种安装方式:
+taosBenchmark 提供两种安装方式:
 
-- 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](../../../get-started/)。
+- taosBenchmark 是 TDengine 安装包中默认安装组件，TDengine 安装包可参考[ TDengine 安装](../../../get-started/)。
 
-- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+- 单独编译 taos-tools 并安装, 参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
 ## 运行
 
-### 配置和运行方式
+### 运行方式
 
-taosBenchmark 需要在操作系统的终端执行,该工具支持两种配置方式：[命令行参数](#命令行参数详解) 和 [JSON 配置文件](#配置文件参数详解)。这两种方式是互斥的，在使用配置文件时只能使用一个命令行参数 `-f <json file>` 指定配置文件。在使用命令行参数运行 taosBenchmark 并控制其行为时则不能使用 `-f` 参数而要用其它参数来进行配置。除此之外，taosBenchmark 还提供了一种特殊的运行方式，即无参数运行。
+taosBenchmark 支持三种运行模式:  
+- 无参数模式
+- 命令行模式
+- JSON 配置文件模式
+命令行方式是 JSON 配置文件的功能子集，当即使用了命令行，又使用了配置文件，命令行指定的参数优先。  
 
-taosBenchmark 支持对 TDengine 做完备的性能测试，其所支持的 TDengine 功能分为三大类：写入、查询和订阅。这三种功能之间是互斥的，每次运行 taosBenchmark 只能选择其中之一。值得注意的是，所要测试的功能类型在使用命令行配置方式时是不可配置的，命令行配置方式只能测试写入性能。若要测试 TDengine 的查询和订阅性能，必须使用配置文件的方式，通过配置文件中的参数 `filetype` 指定所要测试的功能类型。
 
 **在运行 taosBenchmark 之前要确保 TDengine 集群已经在正确运行。**
 
 ### 无命令行参数运行
 
-执行下列命令即可快速体验 taosBenchmark 对 TDengine 进行基于默认配置的写入性能测试。
-
 ```bash
 taosBenchmark
 ```
 
-在无参数运行时，taosBenchmark 默认连接 `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建一个名为 test 的数据库，test 数据库下创建名为 meters 的一张超级表，超级表下创建 10000 张表，每张表中写入 10000 条记录。注意，如果已有 test 数据库，这个命令会先删除该数据库后建立一个全新的 test 数据库。
+在无参数运行时，taosBenchmark 默认连接 `/etc/taos/taos.cfg` 中指定连接的 TDengine 集群。  
+连接成功后，会创建智能电表示例数据库 test，超级表 meters, 子表创建 1 万，每子表 1 万条记录，如果 test 库已存在，会先删除再新建。  
 
-### 使用命令行配置参数运行
+### 使用命令行参数运行
 
-在使用命令行参数运行 taosBenchmark 并控制其行为时，`-f <json file>` 参数不能使用。所有配置参数都必须通过命令行指定。以下是使用命令行方式测试 taosBenchmark 写入性能的一个示例。
-
+命令行支持的参数为写入功能中使用较为频繁的参数，查询与订阅功能不支持命令行方式  
+示例：
 ```bash
-taosBenchmark -I stmt -n 200 -t 100
+taosBenchmark -d db -t 100 -n 1000 -T 4 -I stmt -y
 ```
 
-上面的命令 `taosBenchmark` 将创建一个名为`test`的数据库，在其中建立一张超级表`meters`，在该超级表中建立 100 张子表并使用参数绑定的方式为每张子表插入 200 条记录。
+此命令表示使用 `taosBenchmark` 将创建一个名为 `db` 的数据库，并建立默认超级表 `meters`，子表 100 ，并使用参数绑定(stmt)方式为每张子表插入 1000 条记录。
 
 ### 使用配置文件运行
 
-taosBenchmark 安装包中提供了配置文件的示例，位于 `<install_directory>/examples/taosbenchmark-json` 下
-
-使用如下命令行即可运行 taosBenchmark 并通过配置文件控制其行为。
+配置文件方式运行提供了全部功能，所以参数都可以配置在配置文件中运行
 
 ```bash
 taosBenchmark -f <json file>
 ```
 
-**下面是几个配置文件的示例：**
+**下面为支持的写入、查询、订阅三大功能的配置文件示例：**
 
-#### 插入场景 JSON 配置文件示例
+#### 写入场景 JSON 配置文件示例
 
 <details>
 <summary>insert.json</summary>
@@ -89,130 +89,62 @@ taosBenchmark -f <json file>
 
 </details>
 
+查看更多 json 配置文件示例可 [点击这里]（https://github.com/taosdata/taos-tools/tree/main/example）
+
 ## 命令行参数详解
-
-- **-f/--file \<json file>** :
-  要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值。
-
-- **-c/--config-dir \<dir>** :
-  TDengine 集群配置文件所在的目录，默认路径是 /etc/taos 。
-
-- **-h/--host \<host>** :
-  指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost 。
-
-- **-P/--port \<port>** :
-  要连接的 TDengine 服务器的端口号，默认值为 6030 。
-
-- **-I/--interface \<insertMode>** :
-  插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
-
-- **-u/--user \<user>** :
-  用于连接 TDengine 服务端的用户名，默认为 root 。
-
-- **-U/--supplement-insert ** :
-  写入数据而不提前建数据库和表，默认关闭。
-
-- **-p/--password \<passwd>** :
-  用于连接 TDengine 服务端的密码，默认值为 taosdata。
-
-- **-o/--output \<file>** :
-  结果输出文件的路径，默认值为 ./output.txt。
-
-- **-T/--thread \<threadNum>** :
-  插入数据的线程数量，默认为 8 。
-
-- **-B/--interlace-rows \<rowNum>** :
-  启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
-
-- **-i/--insert-interval \<timeInterval>** :
-  指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
-
-- **-r/--rec-per-req \<rowNum>** :
-  每次向 TDengine 请求写入的数据行数，默认值为 30000 。
-
-- **-t/--tables \<tableNum>** :
-  指定子表的数量，默认为 10000 。
-
-- **-S/--timestampstep \<stepLength>** :
-  每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1。
-
-- **-n/--records \<recordNum>** :
-  每个子表插入的记录数，默认值为 10000 。
-
-- **-d/--database \<dbName>** :
-  所使用的数据库的名称，默认值为 test 。
-
-- **-b/--data-type \<colType>** :
-  超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT 。
-
-- **-l/--columns \<colNum>** :
-  超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT` 。
-
-- **-L/--partial-col-num \<colNum> **：
-  指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据。
-
-- **-A/--tag-type \<tagType>** :
-  超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
+| 命令行                        |    功能                                         |
+| ---------------------------- | ----------------------------------------------- |
+| -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
+| -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
+| -h/--host \<host>            | 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost  |
+| -P/--port \<port>            | 要连接的 TDengine 服务器的端口号，默认值为 6030 | 
+| -I/--interface \<insertMode> | 插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc |
+| -u/--user \<user>            | 用于连接 TDengine 服务端的用户名，默认为 root  |
+| -U/--supplement-insert       | 写入数据而不提前建数据库和表，默认关闭 |
+| -p/--password \<passwd>      | 用于连接 TDengine 服务端的密码，默认值为 taosdata |
+| -o/--output \<file>          | 结果输出文件的路径，默认值为 ./output.txt |
+| -T/--thread \<threadNum>     | 插入数据的线程数量，默认为 8  |
+| -B/--interlace-rows \<rowNum>        |启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入 |
+| -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用 |意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
+| -r/--rec-per-req \<rowNum>           | 每次向 TDengine 请求写入的数据行数，默认值为 30000  |
+| -t/--tables \<tableNum>              | 指定子表的数量，默认为 10000  |
+| -S/--timestampstep \<stepLength>     | 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1 |
+| -n/--records \<recordNum>            | 每个子表插入的记录数，默认值为 10000  |
+| -d/--database \<dbName>              | 所使用的数据库的名称，默认值为 test  |
+| -b/--data-type \<colType>            | 超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT  |
+| -l/--columns \<colNum>               | 超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`  |
+| -L/--partial-col-num \<colNum>       | 指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据 |
+| -A/--tag-type \<tagType>             | 超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
 
 ```
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
 ```
 
-如果没有设置标签类型，默认是两个标签，其类型分别为 INT 和 BINARY(16)。
+如果没有设置标签类型，默认是两个标签，其类型分别为 INT 和 BINARY(16) 
 注意：在有的 shell 比如 bash 命令里面 “()” 需要转义，则上述指令应为：
 
 ```
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ```
+|
+| -w/--binwidth \<length>          | nchar 和 binary 类型的默认长度，默认值为 64 |
+| -m/--table-prefix \<tablePrefix> | 子表名称的前缀，默认值为 "d" |
+| -E/--escape-character            | 开关参数，指定在超级表和子表名称中是否使用转义字符。默认值为不使用 |
+| -C/--chinese                     | 开关参数，指定 nchar 和 binary 是否使用 Unicode 中文字符。默认值为不使用 |
+| -N/--normal-table                | 开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc, stmt, rest 模式下可以使用 |
+| -M/--random                      | 开关参数，插入数据为生成的随机值。默认值为 false。若配置此参数，则随机生成要插入的数据。对于数值类型的 标签列/数据列，其值为该类型取值范围内的随机值。对于 NCHAR 和 BINARY 类型的 标签列/数据列，其值为指定长度范围内的随机字符串 |
+| -x/--aggr-func                   | 开关参数，指示插入后查询聚合函数。默认值为 false |
+| -y/--answer-yes                  | 开关参数，要求用户在提示后确认才能继续 |默认值为 false 。
+| -O/--disorder \<Percentage>      | 指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据 |
+| -R/--disorder-range \<timeRange> | 指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效|
+| -F/--prepare_rand \<Num>         | 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 |
+| -a/--replica \<replicaNum>       | 创建数据库时指定其副本数，默认值为 1 |
+|  -k/--keep-trying \<NUMBER>      | 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本|
+|  -z/--trying-interval \<NUMBER>  | 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本 |
+| -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效|
+| -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
+| -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
 
-- **-w/--binwidth \<length>**:
-  nchar 和 binary 类型的默认长度，默认值为 64。
-
-- **-m/--table-prefix \<tablePrefix>** :
-  子表名称的前缀，默认值为 "d"。
-
-- **-E/--escape-character** :
-  开关参数，指定在超级表和子表名称中是否使用转义字符。默认值为不使用。
-
-- **-C/--chinese** :
-  开关参数，指定 nchar 和 binary 是否使用 Unicode 中文字符。默认值为不使用。
-
-- **-N/--normal-table** :
-  开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc, stmt, rest 模式下可以使用。
-
-- **-M/--random** :
-  开关参数，插入数据为生成的随机值。默认值为 false。若配置此参数，则随机生成要插入的数据。对于数值类型的 标签列/数据列，其值为该类型取值范围内的随机值。对于 NCHAR 和 BINARY 类型的 标签列/数据列，其值为指定长度范围内的随机字符串。
-
-- **-x/--aggr-func** :
-  开关参数，指示插入后查询聚合函数。默认值为 false。
-
-- **-y/--answer-yes** :
-  开关参数，要求用户在提示后确认才能继续。默认值为 false 。
-
-- **-O/--disorder \<Percentage>** :
-  指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
-
-- **-R/--disorder-range \<timeRange>** :
-  指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效。
-
-- **-F/--prepare_rand \<Num>** :
-  生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
-
-- **-a/--replica \<replicaNum>** :
-  创建数据库时指定其副本数，默认值为 1 。
-
-- ** -k/--keep-trying \<NUMBER>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
-
-- ** -z/--trying-interval \<NUMBER>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
-
-- **-v/--vgroups \<NUMBER>** :
-  创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效。
-
-- **-V/--version** :
-  显示版本信息并退出。不能与其它参数混用。
-
-- **-?/--help** :
-  显示帮助信息并退出。不能与其它参数混用。
 
 ## 配置文件参数详解
 
@@ -331,21 +263,6 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **repeat_ts_max** : 数值类型，复合主键开启情况下指定生成相同时间戳记录的最大个数
 - **sqls** : 字符串数组类型，指定超级表创建成功后要执行的 sql 数组，sql 中指定表名前面要带数据库名，否则会报未指定数据库错误
 
-#### tsma配置参数
-
-指定tsma的配置参数在 `super_tables` 中的 `tsmas` 中，具体参数如下。
-
-- **name** : 指定 tsma 的名字，必选项。
-
-- **function** : 指定 tsma 的函数，必选项。
-
-- **interval** : 指定 tsma 的时间间隔，必选项。
-
-- **sliding** : 指定 tsma 的窗口时间位移，必选项。
-
-- **custom** : 指定 tsma 的创建语句结尾追加的自定义配置，可选项。
-
-- **start_when_inserted** : 指定当插入多少行时创建 tsma，可选项，默认为 0。
 
 #### 标签列与数据列配置参数
 
