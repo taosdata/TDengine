@@ -58,7 +58,7 @@ int wordexp(char *words, wordexp_t *pwordexp, int flags) {
 void wordfree(wordexp_t *pwordexp) {}
 
 #elif defined(DARWIN)
-
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -77,6 +77,7 @@ typedef struct TdDir {
 
 #else
 
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -645,4 +646,53 @@ int32_t taosGetDirSize(const char *path, int64_t *size) {
   *size = totalSize;
   TAOS_UNUSED(taosCloseDir(&pDir));
   return 0;
+}
+
+
+void* taosLoadDll(const char* fileName) {
+#if defined(WINDOWS)
+  void* handle = LoadLibraryA(fileName);
+#else
+  void* handle = dlopen(fileName, RTLD_LAZY);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_NOT_LOAD;
+    }
+  }
+
+  return handle;
+}
+
+void taosCloseDll(void* handle) {
+  if (handle == NULL) return;
+
+#if defined(WINDOWS)
+  FreeLibrary((HMODULE)handle);
+#else
+  dlclose(handle);
+#endif
+}
+
+void* taosLoadDllFunc(void* handle, const char* funcName) {
+  if (handle == NULL) return NULL;
+
+#if defined(WINDOWS)
+  void *fptr = GetProcAddress((HMODULE)handle, funcName);
+#else
+  void *fptr = dlsym(handle, funcName);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
+    }
+  }
+
+  return fptr;
 }

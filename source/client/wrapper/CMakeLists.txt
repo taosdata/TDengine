@@ -18,7 +18,7 @@ target_include_directories(
 
 target_link_libraries(
     ${TAOS_LIB}
-    PUBLIC os util
+    PUBLIC os_for_wrapper
 )
 
 set_target_properties(
@@ -33,6 +33,23 @@ set_target_properties(
     PROPERTIES
     VERSION ${TD_VER_NUMBER}
     SOVERSION 1
+)
+
+add_library(${TAOS_LIB_STATIC} STATIC ${WRAPPER_SRC})
+
+if(${TD_DARWIN})
+    target_compile_options(${TAOS_LIB_STATIC} PRIVATE -Wno-error=deprecated-non-prototype)
+endif()
+
+target_include_directories(
+    ${TAOS_LIB_STATIC}
+    PUBLIC "${TD_SOURCE_DIR}/include/client"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)
+
+target_link_libraries(
+    ${TAOS_LIB_STATIC}
+    PUBLIC os_for_wrapper
 )
 
 # if(${BUILD_TEST})

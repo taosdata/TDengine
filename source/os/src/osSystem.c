@@ -75,8 +75,6 @@ void stratWindowsService(MainWindows mainWindows) {
   StartServiceCtrlDispatcher(ServiceTable);
 }
 
-#elif defined(_TD_DARWIN_64)
-#include <dlfcn.h>
 #else
 #include <dlfcn.h>
 #include <termios.h>
@@ -88,54 +86,6 @@ struct termios oldtio;
 #endif
 
 typedef struct FILE TdCmd;
-
-void* taosLoadDll(const char* fileName) {
-#if defined(WINDOWS)
-  void* handle = LoadLibraryA(fileName);
-#else
-  void* handle = dlopen(fileName, RTLD_LAZY);
-#endif
-
-  if (handle == NULL) {
-    if (errno != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-    } else {
-      terrno = TSDB_CODE_DLL_NOT_LOAD;
-    }
-  }
-
-  return handle;
-}
-
-void taosCloseDll(void* handle) {
-  if (handle == NULL) return;
-
-#if defined(WINDOWS)
-  FreeLibrary((HMODULE)handle);
-#else
-  dlclose(handle);
-#endif
-}
-
-void* taosLoadDllFunc(void* handle, const char* funcName) {
-  if (handle == NULL) return NULL;
-
-#if defined(WINDOWS)
-  void *fptr = GetProcAddress((HMODULE)handle, funcName);
-#else
-  void *fptr = dlsym(handle, funcName);
-#endif
-
-  if (handle == NULL) {
-    if (errno != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-    } else {
-      terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
-    }
-  }
-
-  return fptr;
-}
 
 int32_t taosSetConsoleEcho(bool on) {
 #if defined(WINDOWS)
