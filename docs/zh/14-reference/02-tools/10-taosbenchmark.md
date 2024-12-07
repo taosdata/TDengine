@@ -94,7 +94,7 @@ taosBenchmark -f <json file>
 ## 命令行参数详解
 | 命令行                                        |    功能                                         |
 | -------------------------------------------- | ----------------------------------------------- |
-| -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
+| -f/--file \                                             <json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
 | -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
 | -h/--host \<host>            | 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost  |
 | -P/--port \<port>            | 要连接的 TDengine 服务器的端口号，默认值为 6030 | 
@@ -114,7 +114,7 @@ taosBenchmark -f <json file>
 | -b/--data-type \<colType>            | 超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT  |
 | -l/--columns \<colNum>               | 超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`  |
 | -L/--partial-col-num \<colNum>       | 指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据 |
-| -A/--tag-type \<tagType>             | 超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:<br>taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)<br>如果没有设置标签类型，默认是两个标签，其类型分别为 INT 和 BINARY(16) 注意：在有的 shell 比如 bash 命令里面 “()” 需要转义，则上述指令应为：<br>taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)<br> |
+| -A/--tag-type \<tagType>             | 超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如: <br> ```json taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)<br> ```  如果没有设置标签类型，默认是两个标签，其类型分别为 INT 和 BINARY(16) 注意：在有的 shell 比如 bash 命令里面 “()” 需要转义，则上述指令应为：<br>taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)<br> |
 | -w/--binwidth \<length>          | nchar 和 binary 类型的默认长度，默认值为 64 |
 | -m/--table-prefix \<tablePrefix> | 子表名称的前缀，默认值为 "d" |
 | -E/--escape-character            | 开关参数，指定在超级表和子表名称中是否使用转义字符。默认值为不使用 |
