@@ -92,8 +92,8 @@ taosBenchmark -f <json file>
 查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/taos-tools/tree/main/example)
 
 ## 命令行参数详解
-|  命令行 <img width=2000/> | 功能      |
-| -------------------------------------------- | ----------------------------------------------- |
+| <div width=1500/> 命令行 </div>  |        功能      |
+| ---------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
 | -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
 | -h/--host \<host>            | 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost  |
