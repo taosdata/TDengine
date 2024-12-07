@@ -82,7 +82,7 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
     }
   }
 
-  mDebug("clear %d finished stream-trans, active trans:%d, active checkpoint trans:%d, update trans:%d", size,
+  mDebug("clear %d finished stream-trans, active trans:%d, active checkpoint trans:%d", size,
          taosHashGetSize(execInfo.transMgmt.pDBTrans), numOfChkpt);
 
   taosArrayDestroy(pList);
