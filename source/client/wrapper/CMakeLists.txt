@@ -18,7 +18,7 @@ target_include_directories(
 
 target_link_libraries(
     ${TAOS_LIB}
-    PUBLIC os_for_wrapper
+    PUBLIC os util
 )
 
 set_target_properties(
@@ -49,7 +49,7 @@ target_include_directories(
 
 target_link_libraries(
     ${TAOS_LIB_STATIC}
-    PUBLIC os_for_wrapper
+    PUBLIC os util
 )
 
 # if(${BUILD_TEST})
