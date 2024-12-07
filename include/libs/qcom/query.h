@@ -194,6 +194,7 @@ typedef struct SBoundColInfo {
   int32_t  numOfCols;
   int32_t  numOfBound;
   bool     hasBoundCols;
+  bool     mixTagsCols;
 } SBoundColInfo;
 
 typedef struct STableColsData {
