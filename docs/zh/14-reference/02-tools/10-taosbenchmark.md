@@ -10,7 +10,7 @@ taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine �
 
 taosBenchmark 提供两种安装方式:
 
-- taosBenchmark 是 TDengine 安装包中默认安装组件，TDengine 安装包可参考[ TDengine 安装](../../../get-started/)。
+- taosBenchmark 是 TDengine 安装包中默认安装组件， 安装 TDengine 安装包后即可使用，安装 TDengine 可参考[TDengine 安装](../../../get-started/)。
 
 - 单独编译 taos-tools 并安装, 参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
@@ -89,11 +89,11 @@ taosBenchmark -f <json file>
 
 </details>
 
-查看更多 json 配置文件示例可 [点击这里]（https://github.com/taosdata/taos-tools/tree/main/example）
+查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/taos-tools/tree/main/example)
 
 ## 命令行参数详解
-| 命令行                        |    功能                                         |
-| ---------------------------- | ----------------------------------------------- |
+| 命令行                                        |    功能                                         |
+| -------------------------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
 | -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
 | -h/--host \<host>            | 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost  |
@@ -116,16 +116,16 @@ taosBenchmark -f <json file>
 | -L/--partial-col-num \<colNum>       | 指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据 |
 | -A/--tag-type \<tagType>             | 超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
 
-```
+<br>
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
-```
+<br>
 
 如果没有设置标签类型，默认是两个标签，其类型分别为 INT 和 BINARY(16) 
 注意：在有的 shell 比如 bash 命令里面 “()” 需要转义，则上述指令应为：
 
-```
+<br>
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
-```
+<br>
 |
 | -w/--binwidth \<length>          | nchar 和 binary 类型的默认长度，默认值为 64 |
 | -m/--table-prefix \<tablePrefix> | 子表名称的前缀，默认值为 "d" |
