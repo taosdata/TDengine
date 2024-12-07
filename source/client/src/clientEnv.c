@@ -686,7 +686,7 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("begin to destroy request 0x%" PRIx64 " p:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
@@ -728,7 +728,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 

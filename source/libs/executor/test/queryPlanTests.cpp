@@ -1647,7 +1647,7 @@ SNode* qptMakeDownstreamSrcNode(SNode** ppNode) {
   pDs->addr.nodeId = qptCtx.param.vnode.vgId;
   memcpy(&pDs->addr.epSet, &qptCtx.param.vnode.epSet, sizeof(pDs->addr.epSet));
   pDs->taskId = (QPT_CORRECT_HIGH_PROB() && qptCtx.buildCtx.pCurrTask) ? qptCtx.buildCtx.pCurrTask->id.taskId : taosRand();
-  pDs->schedId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.schedulerId : taosRand();
+  pDs->sId = QPT_CORRECT_HIGH_PROB() ? 0 : taosRand();
   pDs->execId = taosRand();
   pDs->fetchMsgType = QPT_CORRECT_HIGH_PROB() ? (QPT_RAND_BOOL_V ? TDMT_SCH_FETCH : TDMT_SCH_MERGE_FETCH) : taosRand();
   pDs->localExec = QPT_RAND_BOOL_V;
@@ -3133,7 +3133,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       DataSinkHandle handle = NULL;
-      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode*)pNode, &handle, NULL, NULL);
+      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode**)&pNode, &handle, NULL, NULL);
       dsDestroyDataSinker(handle);
       break;
     }

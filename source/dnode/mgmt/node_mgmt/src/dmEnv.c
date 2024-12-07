@@ -220,6 +220,7 @@ void dmCleanup() {
 
   dInfo("dnode env is cleaned up");
 
+  taosMemPoolClose(gMemPoolHandle);
   taosCleanupCfg();
   taosCloseLog();
 }

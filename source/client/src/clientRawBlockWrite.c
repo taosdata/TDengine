@@ -1335,7 +1335,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
-  taosArrayDestroyP(pTagList, taosMemoryFree);
+  taosArrayDestroyP(pTagList, NULL);
   return code;
 }
 

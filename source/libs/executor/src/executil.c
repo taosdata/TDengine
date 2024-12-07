@@ -1705,6 +1705,7 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
 
   nodesDestroyList(groupNew);
   pAPI->metaReaderFn.clearReader(&mr);
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3098,3 +3099,4 @@ _end:
   }
   return code;
 }
+

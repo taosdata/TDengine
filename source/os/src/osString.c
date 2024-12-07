@@ -75,7 +75,7 @@ char *strsep(char **stringp, const char *delim) {
   /* NOTREACHED */
 }
 /* Duplicate a string, up to at most size characters */
-char *taosStrndup(const char *s, int size) {
+char *taosStrndupi(const char *s, int64_t size) {
   if (s == NULL) return NULL;
   size_t l;
   char  *s2;
@@ -104,7 +104,7 @@ char *stpncpy(char *dest, const char *src, int n) {
   return memset(dest, '\0', n - size);
 }
 #else
-char *taosStrndup(const char *s, int size) {
+char *taosStrndupi(const char *s, int64_t size) {
   if (s == NULL) {
     return NULL;
   }
@@ -115,6 +115,20 @@ char *taosStrndup(const char *s, int size) {
   return p;
 }
 #endif
+
+char *tstrndup(const char *str, int64_t size) {
+#ifdef WINDOWS
+  return taosStrndupi(str, size);
+#else
+  char* p = strndup(str, size);
+  if (str != NULL && NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
+  
+#endif
+}
+
 
 int32_t taosStr2int64(const char *str, int64_t *val) {
   if (str == NULL || val == NULL) {

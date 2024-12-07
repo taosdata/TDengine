@@ -595,6 +595,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
+
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
@@ -1369,7 +1370,7 @@ static void *hbThreadFunc(void *param) {
         break;
       }
       *(int32_t *)pInfo->param = i;
-      pInfo->paramFreeFp = taosMemoryFree;
+      pInfo->paramFreeFp = taosAutoMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
 

@@ -640,16 +640,16 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   if (pSource->localExec) {
     SDataBuf pBuf = {0};
-    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->schedId, pTaskInfo->id.queryId,
+    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
                                                pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
                                                pTaskInfo->localFetch.explainRes);
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
-    QUERY_CHECK_CODE(code, lino, _end);
     taosMemoryFree(pWrapper);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
-    req.sId = pSource->schedId;
+    req.sId = pSource->sId;
     req.clientId = pSource->clientId;
     req.taskId = pSource->taskId;
     req.queryId = pTaskInfo->id.queryId;
@@ -708,13 +708,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     }
 
     pMsgSendInfo->param = pWrapper;
-    pMsgSendInfo->paramFreeFp = taosMemoryFree;
+    pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
     pMsgSendInfo->msgInfo.pData = msg;
     pMsgSendInfo->msgInfo.len = msgSize;
     pMsgSendInfo->msgType = pSource->fetchMsgType;
     pMsgSendInfo->fp = loadRemoteDataCallback;
 
     int64_t transporterId = 0;
+    void* poolHandle = NULL;
     code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, sourceIndex);
