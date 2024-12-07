@@ -225,7 +225,8 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
     }
 
     pTask->status.latestForceWindow = w;
-    if (w.ekey + pTask->info.watermark + pTask->info.interval.interval > now) {
+    if ((w.ekey + pTask->info.watermark + pTask->info.interval.interval > now) ||
+        streamQueueIsFull(pTask->inputq.queue)) {
       int64_t prev = convertTimePrecision(*pNextTrigger, precision, TSDB_TIME_PRECISION_MILLI);
 
       *pNextTrigger = w.ekey + pTask->info.watermark + pTask->info.interval.interval - now;
