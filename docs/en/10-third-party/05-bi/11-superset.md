@@ -1,24 +1,23 @@
 ---
 sidebar_label: SuperSet
-title: 与 SuperSet 的集成
+title: Integration With SuperSet
 toc_max_heading_level: 4
 ---
 Apache Superset is a modern enterprise level business intelligence (BI) web application primarily used for data exploration and visualization.
 It is supported by the Apache Software Foundation and is an open source project with an active community and rich ecosystem.
-Apache Superset provides an intuitive user interface that makes creating, sharing, and visualizing data simple, while supporting multiple data sources and rich visualization options.
+Apache Superset provides an intuitive user interface that makes creating, sharing, and visualizing data simple, while supporting multiple data sources and rich visualization options.  
 
-Through the Python connector of TDengine, Superset can support TDengine data sources and provide functions such as data presentation and analysis
+Through the Python connector of TDengine, Superset can support TDengine data sources and provide functions such as data presentation and analysis  
 
 ## Install Apache Superset
-Ensure that Apache SuperSet v2.1.0 or above is installed. If not, please visit [official website]（https://superset.apache.org/）to install
-
+Ensure that Apache SuperSet v2.1.0 or above is installed. If not, please visit [official website]（https://superset.apache.org/）to install  
 
 ## Install TDengine
-Both TDengine Enterprise Edition and Community Edition are supported, with version requirements of 3.0 or higher
+Both TDengine Enterprise Edition and Community Edition are supported, with version requirements of 3.0 or higher  
 
 ## Install TDengine Python Connector
-The Python connector of TDengine comes with a connection driver that supports SuperSet in versions 2.1.17 and later, which will be automatically installed in the SuperSet directory and provide data source services
-The connection uses the WebSocket protocol, so it is necessary to install the taos ws py component of TDengine separately. The complete installation script is as follows:
+The Python connector of TDengine comes with a connection driver that supports SuperSet in versions 2.1.17 and later, which will be automatically installed in the SuperSet directory and provide data source services  
+The connection uses the WebSocket protocol, so it is necessary to install the taos ws py component of TDengine separately. The complete installation script is as follows:  
 ```bash
 pip3 install taospy
 pip3 install taos-ws-py
@@ -40,14 +39,13 @@ Step 4: The SQLALCHEMY URL * field is a key connection information string, and i
 |password: | Password for logging into TDengine database
 |host: | Name of the host where the TDengine database is located
 |port: | The port that provides WebSocket services, default is 6041
-         
 
-Example:
+Example:  
 The TDengine database installed on this machine provides WebSocket service port 6041, using the default username and password, and the connection string is:  
 ```bash
 taosws://root:taosdata@localhost:6041  
 ```
-Step 5, configure the connection string, click "TEST CONNECTION" to test if the connection can be successful. After passing the test, click the CONNECT button to complete the connection
+Step 5, configure the connection string, click "TEST CONNECTION" to test if the connection can be successful. After passing the test, click the CONNECT button to complete the connection  
        
 
 ## Start
