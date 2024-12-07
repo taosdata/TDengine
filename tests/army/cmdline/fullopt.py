@@ -57,10 +57,8 @@ class TDTestCase(TBase):
         # local command
         options = [
                      "DebugFlag 143",
-                     "enableCoreFile 1",
                      "fqdn 127.0.0.1",
                      "firstEp 127.0.0.1",
-                     "locale en_US.UTF-8",
                      "metaCacheMaxSize 10000",
                      "minimalTmpDirGB 5",
                      "minimalLogDirGB 1",
@@ -70,7 +68,6 @@ class TDTestCase(TBase):
                      "smlTagName tagname",
                      "smlTsDefaultName tsdef",
                      "serverPort 6030",
-                     "timezone tz",
                   ]
         # exec
         for option in options:

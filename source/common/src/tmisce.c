@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tmisce.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tjson.h"
+#include "tmisce.h"
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
@@ -282,7 +282,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
   locked = 1;
 
   while ((pItem = cfgNextIter(pIter)) != NULL) {
-_start:
+  _start:
     col = startCol;
 
     // GRANT_CFG_SKIP;
@@ -297,11 +297,11 @@ _start:
 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, name, false), NULL, _exit);
 
-    char    value[TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE] = {0};
-    int32_t valueLen = 0;
+    char      value[TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE] = {0};
+    int32_t   valueLen = 0;
     SDiskCfg* pDiskCfg = NULL;
     if (strcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
-      char*     buf = &value[VARSTR_HEADER_SIZE];
+      char* buf = &value[VARSTR_HEADER_SIZE];
       pDiskCfg = taosArrayGet(pItem->array, index);
       valueLen = tsnprintf(buf, TSDB_CONFIG_PATH_LEN, "%s", pDiskCfg->dir);
       index++;
@@ -330,11 +330,23 @@ _start:
     }
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);
 
+    char category[TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE] = {0};
+    TAOS_CHECK_GOTO(cfgDumpItemCategory(pItem, &category[VARSTR_HEADER_SIZE], TSDB_CONFIG_CATEGORY_LEN, &valueLen),
+                    NULL, _exit);
+    varDataSetLen(category, valueLen);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    if (pColInfo == NULL) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, category, false), NULL, _exit);
+
     char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
     if (strcasecmp(pItem->name, "dataDir") == 0 && pDiskCfg) {
       char* buf = &info[VARSTR_HEADER_SIZE];
       valueLen = tsnprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
-                              pDiskCfg->primary, pDiskCfg->disable);
+                           pDiskCfg->primary, pDiskCfg->disable);
     } else {
       valueLen = 0;
     }
@@ -351,7 +363,7 @@ _start:
     if (index > 0 && index <= exSize) {
       goto _start;
     }
-}
+  }
   pBlock->info.rows = numOfRows;
 _exit:
   if (locked) cfgUnLock(pConf);

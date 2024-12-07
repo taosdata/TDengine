@@ -173,6 +173,10 @@ class TDTestCase(TBase):
             self.checkRows("select * from stb0", 2, 1)
             time.sleep(1)
 
+    def alter_err_case(self):
+        tdSql.error(f"alter local 'audit 0'",expectErrInfo="Config not found")
+        tdSql.error(f"alter dnode 1 'audit 1'",expectErrInfo="Invalid config option")
+        
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -185,6 +189,8 @@ class TDTestCase(TBase):
         self.alterCachemodel()
         # TD-32907
         self.alterBypassFlag()
+        # TS-5007
+        self.alter_err_case()
 
         tdLog.success(f"{__file__} successfully executed")
 
