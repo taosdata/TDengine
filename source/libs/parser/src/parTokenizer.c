@@ -311,6 +311,7 @@ static SKeyword keywordTable[] = {
     {"VIEWS",                TK_VIEWS},
     {"VNODE",                TK_VNODE},
     {"VNODES",               TK_VNODES},
+    {"VTABLE",               TK_VTABLE},
     {"WAL_FSYNC_PERIOD",     TK_WAL_FSYNC_PERIOD},
     {"WAL_LEVEL",            TK_WAL_LEVEL},
     {"WAL_RETENTION_PERIOD", TK_WAL_RETENTION_PERIOD},
