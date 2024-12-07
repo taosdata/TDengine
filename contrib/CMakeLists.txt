@@ -666,11 +666,12 @@ if(NOT ${TD_WINDOWS})
     MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
 
     execute_process(
-            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ tzdir.h
+            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
             WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
     )
 
     set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+    file(REMOVE_RECURSE ${TZ_SRC_DIR})
     file(MAKE_DIRECTORY ${TZ_SRC_DIR})
     file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
             ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
