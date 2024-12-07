@@ -52,6 +52,7 @@ else
     installDir="/usr/local/taos"
   fi
 fi
+
 install_main_dir=${installDir}
 bin_dir="${installDir}/bin"
 cfg_dir="${installDir}/cfg"

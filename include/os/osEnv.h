@@ -25,10 +25,9 @@ extern "C" {
 
 extern char            tsOsName[];
 extern char            tsTimezoneStr[];
-extern enum TdTimezone tsTimezone;
 extern char            tsCharset[];
+extern void           *tsCharsetCxt;
 extern char            tsLocale[];
-extern int8_t          tsDaylight;
 extern bool            tsEnableCoreFile;
 extern int64_t         tsPageSizeKB;
 extern int64_t         tsOpenMax;
@@ -67,8 +66,7 @@ bool osDataSpaceSufficient();
 bool osTempSpaceSufficient();
 
 int32_t osSetTimezone(const char *timezone);
-void osSetSystemLocale(const char *inLocale, const char *inCharSet);
-void osSetProcPath(int32_t argc, char **argv);
+void    osSetProcPath(int32_t argc, char **argv);
 
 #ifdef __cplusplus
 }

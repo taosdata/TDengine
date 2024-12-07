@@ -358,7 +358,7 @@ static int32_t closeStreamIntervalWindow(SSHashObj* pHashMap, STimeWindowAggSupp
     void*       chIds = taosHashGet(pPullDataMap, pWinKey, sizeof(SWinKey));
     STimeWindow win = {
         .skey = pWinKey->ts,
-        .ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1,
+        .ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1,
     };
     if (isCloseWindow(&win, pTwSup)) {
       if (chIds && pPullDataMap) {
@@ -391,7 +391,7 @@ _end:
 
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval) {
   STimeWindow w = {.skey = ts, .ekey = INT64_MAX};
-  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
   return w;
 }
 
@@ -851,7 +851,7 @@ static int32_t processPullOver(SSDataBlock* pBlock, SHashObj* pMap, SHashObj* pF
           }
         }
       }
-      winTs = taosTimeAdd(winTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+      winTs = taosTimeAdd(winTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
     }
   }
   if (pBeOver) {

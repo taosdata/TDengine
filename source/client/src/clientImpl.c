@@ -300,7 +300,9 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .svrVer = pTscObj->sVer,
                        .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                        .isStmtBind = pRequest->isStmtBind,
-                       .setQueryFp = setQueryRequest};
+                       .setQueryFp = setQueryRequest,
+                       .timezone = pTscObj->optionInfo.timezone,
+                       .charsetCxt = pTscObj->optionInfo.charsetCxt,};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -2086,7 +2088,7 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
 
 static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
   int32_t idx = -1;
-  iconv_t conv = taosAcquireConv(&idx, C2M);
+  iconv_t conv = taosAcquireConv(&idx, C2M, pResultInfo->charsetCxt);
   if (conv == (iconv_t)-1) return TSDB_CODE_TSC_INTERNAL_ERROR;
 
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
@@ -2096,7 +2098,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
     if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0) {
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
       if (p == NULL) {
-        taosReleaseConv(idx, conv, C2M);
+        taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
         return terrno;
       }
 
@@ -2113,7 +2115,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
                 "doConvertUCS4 error, invalid data. len:%d, bytes:%d, (p + len):%p, (pResultInfo->convertBuf[i] + "
                 "colLength[i]):%p",
                 len, bytes, (p + len), (pResultInfo->convertBuf[i] + colLength[i]));
-            taosReleaseConv(idx, conv, C2M);
+            taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
             return TSDB_CODE_TSC_INTERNAL_ERROR;
           }
 
@@ -2127,7 +2129,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
       pResultInfo->row[i] = pResultInfo->pCol[i].pData;
     }
   }
-  taosReleaseConv(idx, conv, C2M);
+  taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2292,7 +2294,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (tTagIsJson(data)) {
           char* jsonString = NULL;
-          parseTagDatatoJson(data, &jsonString);
+          parseTagDatatoJson(data, &jsonString, pResultInfo->charsetCxt);
           if (jsonString == NULL) {
             tscError("doConvertJson error: parseTagDatatoJson failed");
             return terrno;
@@ -2302,9 +2304,10 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
           *(char*)varDataVal(dst) = '\"';
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
-                                         varDataVal(dst) + CHAR_BYTES);
+                                         varDataVal(dst) + CHAR_BYTES, pResultInfo->charsetCxt);
           if (length <= 0) {
-            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset);
+            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
+              pResultInfo->charsetCxt != NULL ? ((SConvInfo *)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
           varDataSetLen(dst, length + CHAR_BYTES * 2);

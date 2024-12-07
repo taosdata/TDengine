@@ -597,7 +597,7 @@ void printParaIntoFile() {
 
   time_t    tTime = taosGetTimestampSec();
   struct tm tm;
-  taosLocalTime(&tTime, &tm, NULL, 0);
+  taosLocalTime(&tTime, &tm, NULL, 0, NULL);
 
   taosFprintfFile(pFile, "###################################################################\n");
   taosFprintfFile(pFile, "# configDir:                %s\n", configDir);

@@ -224,7 +224,7 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
     return TSDB_CODE_RPC_FQDN_ERROR;
   }
   char buf[TD_IP_LEN] = {0};
-  tinet_ntoa(buf, ip);
+  taosInetNtoa(buf, ip);
   int ret = uv_ip4_addr(buf, port, dest);
   if (ret != 0) {
     tError("http-report failed to get addr, reason:%s", uv_err_name(ret));

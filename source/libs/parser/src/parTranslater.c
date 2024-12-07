@@ -1967,7 +1967,7 @@ static int32_t parseTimeFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
     return TSDB_CODE_SUCCESS;
   } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_TIMESTAMP == pVal->node.resType.type) {
     if (TSDB_CODE_SUCCESS == taosParseTime(pVal->literal, &pVal->datum.i, pVal->node.resType.bytes,
-                                           pVal->node.resType.precision, tsDaylight)) {
+                                           pVal->node.resType.precision, pVal->tz)) {
       return TSDB_CODE_SUCCESS;
     }
     char* pEnd = NULL;
@@ -2169,7 +2169,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
 
       int32_t len = 0;
       if (!taosMbsToUcs4(pVal->literal, strlen(pVal->literal), (TdUcs4*)varDataVal(pVal->datum.p),
-                         targetDt.bytes - VARSTR_HEADER_SIZE, &len)) {
+                         targetDt.bytes - VARSTR_HEADER_SIZE, &len, pCxt->pParseCxt->charsetCxt)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       varDataSetLen(pVal->datum.p, len);
@@ -12022,7 +12022,7 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, SSDa
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
       pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit,
-                                        interval.precision);
+                                        interval.precision, NULL);
     } else {
       pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
@@ -12922,7 +12922,7 @@ int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSData
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
       pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit,
-                                        interval.precision);
+                                        interval.precision, NULL);
     } else {
       pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
@@ -14433,7 +14433,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       if (pSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag);
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -14494,7 +14494,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag);
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -14690,7 +14690,7 @@ static int32_t fillVgroupInfo(SParseContext* pParseCxt, const SName* pName, SVgr
   return code;
 }
 
-static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt) {
+static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, timezone_t tz, void *charsetCxt) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int      sz = taosArrayGetSize(pParFileCxt->aTagIndexs);
   int32_t  numOfTags = getNumOfTags(pParFileCxt->pStbMeta);
@@ -14722,7 +14722,7 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt) 
       if (TSDB_CODE_SUCCESS == code) {
         SArray* aTagNames = pParFileCxt->tagNameFilled ? NULL : pParFileCxt->aTagNames;
         code = parseTagValue(pMsgBuf, &pParFileCxt->pSql, precision, (SSchema*)pTagSchema, &token, aTagNames,
-                             pParFileCxt->aTagVals, &pParFileCxt->pTag);
+                             pParFileCxt->aTagVals, &pParFileCxt->pTag, tz, charsetCxt);
       }
     } else {
       // parse tbname
@@ -14788,7 +14788,7 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
     (void)strtolower(pLine, pLine);
     pParFileCxt->pSql = pLine;
 
-    code = parseOneStbRow(pMsgBuf, pParFileCxt);
+    code = parseOneStbRow(pMsgBuf, pParFileCxt, pParseCxt->timezone, pParseCxt->charsetCxt);
 
     if (TSDB_CODE_SUCCESS == code) {
       code = fillVgroupInfo(pParseCxt, &pParFileCxt->ctbName, &pParFileCxt->vg);
@@ -15481,7 +15481,7 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
 
   if (TSDB_CODE_SUCCESS == code) {
     code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
-                         pReq->pTagArray, &pTag);
+                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
       pReq->tagFree = true;
     }
@@ -15553,7 +15553,7 @@ static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt
 
   if (TSDB_CODE_SUCCESS == code) {
     code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
-                         pReq->pTagArray, &pTag);
+                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
       pReq->tagFree = true;
     }

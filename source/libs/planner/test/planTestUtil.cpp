@@ -377,7 +377,7 @@ class PlannerTestBaseImpl {
   }
 
   void doBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
-    DO_WITH_THROW(qStmtBindParams, pQuery, pParams, colIdx);
+    DO_WITH_THROW(qStmtBindParams, pQuery, pParams, colIdx, NULL);
     if (colIdx < 0 || pQuery->placeholderNum == colIdx + 1) {
       res_.boundAst_ = toString(pQuery->pRoot);
     }

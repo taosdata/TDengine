@@ -1328,7 +1328,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
           TAOS_CHECK_GOTO(terrno, NULL, END);
         }
 
-        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize)) {
+        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize, NULL)) {
           TAOS_CHECK_GOTO(terrno, NULL, END);
         }
 
