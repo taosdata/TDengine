@@ -1241,7 +1241,6 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
         ctx->code = TSDB_CODE_OUT_OF_MEMORY;
         return DEAL_RES_ERROR;
       }
-      res->node.resType.bytes = varDataTLen(output.columnData->pData);
       (void)memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
