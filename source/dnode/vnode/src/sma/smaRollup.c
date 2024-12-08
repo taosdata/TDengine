@@ -254,11 +254,12 @@ static void tdRSmaTaskInit(SStreamMeta *pMeta, SRSmaInfoItem *pItem, SStreamTask
 }
 
 static void tdRSmaTaskRemove(SStreamMeta *pMeta, int64_t streamId, int32_t taskId) {
+  streamMetaWLock(pMeta);
+
   int32_t code = streamMetaUnregisterTask(pMeta, streamId, taskId);
   if (code != 0) {
     smaError("vgId:%d, rsma task:%" PRIi64 ",%d drop failed since %s", pMeta->vgId, streamId, taskId, tstrerror(code));
   }
-  streamMetaWLock(pMeta);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
