@@ -13,17 +13,20 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+td_is_update = True
+no_upload_arm = "no_upload_arm"
 
 def init_build_info():
     parser = argparse.ArgumentParser(description="build docs script")
     # all parameters
-    parser.add_argument('-b', '--branch_name',  help='Branch name of the TDengine repository')
+    parser.add_argument('-b', '--branch_name', default="main", help='Branch name of the TDengine repository')
     # parser.add_argument('-ee', '--build_enterprise_en', action='store_true', help='Build the build_enterprise en zip packagea')
     # parser.add_argument('-ez', '--build_enterprise_zh', action='store_true', help='Build the build_enterprise zh zip packagea')
-    parser.add_argument('-ea', '--build_enterprise_all', action='store_true', help='Build the build_enterprise zh and en zip package')
+    parser.add_argument('-sb', '--skip_build', action='store_true', help='Skip build docs')
+    parser.add_argument('-ez', '--build_enterprise_zip', action='store_true', help='Build the build_enterprise zh and en zip package')
     parser.add_argument('-ezf', '--build_enterprise_pdf', action='store_true', help='Build the build_enterprise zh zip and pdf package')
     parser.add_argument('-oz', '--build_oem_zh', action='store_true', help='Build the build_enterprise zh zip')
-    parser.add_argument('-ozf', '--build_oem_zh_pdf', help='Build the build_enterprise zh zip packagea and pdf')
+    parser.add_argument('-ozf', '--build_oem_zh_pdf', action='store_true', help='Build the build_enterprise zh zip packagea and pdf')
     parser.add_argument('-cn', '--cus_name', help='customized name')   
     parser.add_argument('-cp', '--cus_prompt', help='customized prompt')
 
@@ -33,20 +36,8 @@ def init_build_info():
     if unknown_args:
         print(f"Unknown args: {unknown_args}")
         sys.exit(1)
-
+    logger.info(f"args: {args}")
     return args
-
-# # 参数校验
-# if len(sys.argv) < 2:
-#     print("Usage: python3 build_doc.py <branchname>")
-#     sys.exit(1)
-
-# if len(sys.argv) == 3 and sys.argv[2] == "no_upload_arm":
-#     no_upload_arm = "no_upload_arm"
-# else:
-#     no_upload_arm = ""
-
-
 
 class EnvironmentPreparer:
 
@@ -78,6 +69,13 @@ class EnvironmentPreparer:
         os.environ["PATH"] += os.pathsep + node_path
         logger.info(f"Updated PATH: {os.environ['PATH']}")
 
+    def install_required_packages(self):
+        logger.info("Installing required packages...")
+        # install zh fonts and zip 
+        self.executeCommand("apt install -y fonts-noto-cjk zip")
+        # install required libraries for chrome-package
+        libraries = "libatspi2.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libdrm2 libexpat1 libgbm1 libglib2.0-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libudev1 libuuid1 libx11-6 libx11-xcb1 libxcb-dri3-0 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxkbcommon0 libxrandr2 libxrender1 libxshmfence1 libxss1 libxtst6"
+        self.executeCommand(f"apt install -y {libraries}")
     
     def prepare_build_doc_env(self):
         logger.info("Preparing build docs environment. Only supports Linux and macOS.")
@@ -91,11 +89,7 @@ class EnvironmentPreparer:
             else:
                 logger.info("Node is not installed.")
                 self.install_node_nvm()
-            if self.is_command_exist("zip"):
-                logger.info("zip is already installed.")
-            else:
-                logger.info("zip is not installed.")
-                self.executeCommand("apt install zip  -y ")
+            self.install_required_packages()
 
 class CloneProgress(RemoteProgress):
     def update(self, op_code, cur_count, max_count=None, message=''):
@@ -243,6 +237,7 @@ def update_repo(repo_path, branch_name):
     """
     Update the repository at the specified path
     """
+    global td_is_update
     try:
         # Open the repository
         repo = git.Repo(repo_path)
@@ -250,9 +245,9 @@ def update_repo(repo_path, branch_name):
 
         # Checkout the specified branch
         repo.git.checkout(branch_name)
-        repo.git.pull()   # 拉取最新代码
-
-        logger.info(f"Checked out branch {branch_name}")
+        output = repo.git.pull()   # 拉取最新代码
+        td_is_update = "Already up to date." not in output
+        logger.info(f"Checked out branch {branch_name} and td_is_update is {td_is_update}")
     except Exception as e:
         logger.error(f"Error: {e}")
 
@@ -260,23 +255,22 @@ def prepare_repo(repo_url, repo_path, branch_name):
     """
     Prepare the repository by cloning it if it doesn't exist, or updating it if it does
     """
+    
     if os.path.exists(repo_path):
         if repo_url == "https://github.com/taosdata/tdengine.com.git" :
         # If the repository already exists, update it
             update_repo(repo_path, branch_name)
     else:
         # If the repository doesn't exist, clone it
-        clone_repo(repo_url, repo_path)
-    
+        clone_repo(repo_url, repo_path)    
 
 def main():
     args = init_build_info()
-    global no_upload_arm
-    if args.no_upload_arm:
-        no_upload_arm = "no_upload_arm"
-    else:
-        no_upload_arm = ""
 
+    global no_upload_arm, td_is_update
+    no_upload_arm = "no_upload_arm" if args.no_upload_arm else ""
+
+    logger.info(f"Building the documentation.... is upload to arm:{no_upload_arm}")
     # Prepare the environment for building the documentation
     preparer = EnvironmentPreparer()
     preparer.prepare_build_doc_env()
@@ -295,7 +289,7 @@ def main():
     doc_zh_repo = "https://github.com/taosdata/docs.taosdata.com.git"
     doc_en_repo_path = f"{workdir}/docs.tdengine.com/"
     doc_en_repo = "https://github.com/taosdata/docs.tdengine.com.git"
-    TDengine_branch_name = sys.argv[1]
+    TDengine_branch_name = args.branch_name
     TDengine_repo = "https://github.com/taosdata/tdengine.com.git"
     TDengine_repo_path = f"{workdir}/TDengine/"
     taos_tools_repo = "https://github.com/taosdata/taos-tools.git"
@@ -311,29 +305,61 @@ def main():
     # # 切换到 TDengine_repo 仓库并切换到指定分支
     # checkout_branch(TDengine_repo_path, TDengine_branch_name)
 
-    
-    # # change to doc_zh_repo and build the documentation
-    # build_doc(doc_zh_repo_path)
+    if td_is_update == True :
+        # change to doc_zh/en_repo and build the documentation
+        build_doc(doc_zh_repo_path)
+        build_doc(doc_en_repo_path)
 
-    # # Change to doc_en_repo and build the documentation
-    # build_doc(doc_en_repo_path)
+        # generate zh/en zip docs for enterprise
+        build_doc_zip(enterprise_doc_repo_path)
+        build_doc_pdf(enterprise_doc_repo_path)
 
-    # generate zip docs for enterprise
-    build_doc_zip(enterprise_doc_repo_path)
-     
+        # generate oem zip docs for TDengine
+        for cus_name, cus_prompt in [["ProDB", "prodb"], ["", ""]]:
+            build_oem_zip(enterprise_doc_repo_path, cus_name, cus_prompt)
+        build_oem_zip(enterprise_doc_repo_path, args.cus_name, args.cus_prompt)
+
+
+    if args.build_enterprise_zip:
+        if args.skip_build:
+            logger.info("Skip build docs")
+        else: 
+            build_doc(doc_zh_repo_path)
+            build_doc(doc_en_repo_path)        
+        # generate zh/en zip docs for enterprise
+        build_doc_zip(enterprise_doc_repo_path)
+
     if args.build_enterprise_pdf:
+        if args.skip_build:
+            logger.info("Skip build docs")
+        else: 
+            build_doc(doc_zh_repo_path)
+            build_doc(doc_en_repo_path)
+        build_doc_zip(enterprise_doc_repo_path)
         # generate pdf docs for enterprise
         build_doc_pdf(enterprise_doc_repo_path)
     
     if args.build_oem_zh:
+        if args.skip_build:
+            logger.info("Skip build docs")
+        else: 
+            build_doc(doc_zh_repo_path)
+            build_doc(doc_en_repo_path)
         # generate oem zip docs for TDengine
-        build_oem_zip(enterprise_doc_repo, args.cus_name, args.cus_prompt)
+        build_oem_zip(enterprise_doc_repo_path, args.cus_name, args.cus_prompt)
     
     
     if args.build_oem_zh_pdf:
+        if args.skip_build:
+            logger.info("Skip build docs")
+        else: 
+            build_doc(doc_zh_repo_path)
+            build_doc(doc_en_repo_path)
+        # generate oem zip docs for TDengine
+        build_oem_zip(enterprise_doc_repo_path, args.cus_name, args.cus_prompt)
+
         # generate oem pdf docs for TDengine
-        # build_oem_zip(enterprise_doc_repo, args.cus_name, args.cus_prompt)
-        build_oem_pdf(enterprise_doc_repo)
+        build_oem_pdf(enterprise_doc_repo_path)
     
 
 
