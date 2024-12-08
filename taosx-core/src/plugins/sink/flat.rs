@@ -1541,6 +1541,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     };
     // let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
     let workers = parser.global().concurrent_limit();
+    tracing::info!("flat stream concurrent workers count: {:?}", workers);
 
     let (msg_tx, msg_rx) = flume::bounded(workers);
     let (ack_tx, ack_rx) = flume::bounded(workers);

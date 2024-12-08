@@ -1381,7 +1381,12 @@ impl ConsumerContext for CustomContext {
             let commits = self
                 .commits
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            tracing::warn!(commits, "{:?} Commit timeout, commit seq", tpl);
+            tracing::warn!(
+                commits,
+                "{:?} Commit timeout, commit error:{:#}",
+                tpl,
+                result.unwrap_err()
+            );
         } else if let Err(err) = result {
             error!(
                 commits = self.commits.load(std::sync::atomic::Ordering::SeqCst),

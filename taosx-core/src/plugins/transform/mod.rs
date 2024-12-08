@@ -10,9 +10,10 @@
 
 use std::{
     borrow::{Borrow, Cow},
+    hash::{Hash, Hasher},
     ops::Range,
     str::FromStr,
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use arrow::{
@@ -44,6 +45,7 @@ pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
+use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::plugins::transform::parse::ArrayForTaos;
 
 use super::expr;
@@ -1548,6 +1550,8 @@ impl FromStr for NullValues {
     }
 }
 
+static TABLE_TAG_CACHE: OnceLock<scc::HashMap<String, (usize, u64)>> = OnceLock::new();
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TableOptions {
     // TODO: support case insensitive identifier, including table name and column name.
@@ -1658,6 +1662,12 @@ impl TableOptions {
             (false, false) => Cow::Borrowed(name),
         }
     }
+}
+
+fn hash_string(s: &str) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
 }
 
 trait ArrowFieldExt {
@@ -1948,6 +1958,28 @@ impl MessageArrowRecords {
                         .iter()
                         .map(|c| c.taos_value(0).to_sql_value())
                         .join(",");
+
+                    if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } {
+                        let tag_map = TABLE_TAG_CACHE.get_or_init(|| {
+                            tracing::info!("Init tag cache with capacity: {}", unsafe {
+                                SQL_TAG_CACHE_CAPACITY
+                            });
+                            scc::HashMap::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
+                        });
+                        let tag_key = format!("{}.{}", using, tbname);
+                        let tag_value = format!("({})tags({})", names, tag_values);
+                        let tag_to_cache = (tag_value.len(), hash_string(&tag_value));
+                        let cached_value = tag_map.get(&tag_key);
+                        if let Some(cached_value) = cached_value {
+                            if cached_value.0 == tag_to_cache.0 && cached_value.1 == tag_to_cache.1
+                            {
+                                return (format!("`{}` {}", tbname, col_values), rows);
+                            } else {
+                                tracing::info!("Tag value changed to: {:?}", tag_value);
+                            }
+                        }
+                        let _ = tag_map.insert(tag_key, tag_to_cache);
+                    }
 
                     (
                         format!(

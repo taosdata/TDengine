@@ -198,6 +198,9 @@ struct Global {
 
     #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN", global = true, hide = true)]
     dry_run: Option<bool>,
+
+    #[clap(long, env = "SQL_TAG_CACHE_CAPACITY", global = true, hide = true)]
+    sql_tag_cache_capacity: Option<usize>,
 }
 
 #[serde_as]
@@ -923,6 +926,11 @@ fn main() -> Result<()> {
     if args.global.dry_run.unwrap_or(false) {
         tracing::info!("dry run mode enabled");
         unsafe { taosx_core::global::DRY_RUN = true };
+    }
+
+    let sql_tag_cache_capacity = args.global.sql_tag_cache_capacity.unwrap_or(0);
+    if sql_tag_cache_capacity > 0 {
+        unsafe { taosx_core::global::SQL_TAG_CACHE_CAPACITY = sql_tag_cache_capacity };
     }
 
     print_effective_config(&level_filter, &args);
