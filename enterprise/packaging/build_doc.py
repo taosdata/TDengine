@@ -22,6 +22,7 @@ def init_build_info():
     parser.add_argument('-b', '--branch_name', default="main", help='Branch name of the TDengine repository')
     # parser.add_argument('-ee', '--build_enterprise_en', action='store_true', help='Build the build_enterprise en zip packagea')
     # parser.add_argument('-ez', '--build_enterprise_zh', action='store_true', help='Build the build_enterprise zh zip packagea')
+    parser.add_argument('-sp', '--skip_prepare_en', action='store_true', help='Skip prepare env of docs build')
     parser.add_argument('-sb', '--skip_build', action='store_true', help='Skip build docs')
     parser.add_argument('-ez', '--build_enterprise_zip', action='store_true', help='Build the build_enterprise zh and en zip package')
     parser.add_argument('-ezf', '--build_enterprise_pdf', action='store_true', help='Build the build_enterprise zh zip and pdf package')
@@ -29,7 +30,6 @@ def init_build_info():
     parser.add_argument('-ozf', '--build_oem_zh_pdf', action='store_true', help='Build the build_enterprise zh zip packagea and pdf')
     parser.add_argument('-cn', '--cus_name', help='customized name')   
     parser.add_argument('-cp', '--cus_prompt', help='customized prompt')
-
     parser.add_argument('-nu', '--no_upload_arm', action='store_true', help='build taosexplorer with docs zip')
     args, unknown_args = parser.parse_known_args()
 
@@ -84,12 +84,15 @@ class EnvironmentPreparer:
             logger.info("Only supports Linux and macOS.")
             sys.exit(1)
         else:
-            if self.is_command_exist("node"):
-                logger.info("Node is already installed.")
+            if self.args.skip_prepare_en:
+                logger.info("Skip prepare env of docs build")
             else:
-                logger.info("Node is not installed.")
-                self.install_node_nvm()
-            self.install_required_packages()
+                if self.is_command_exist("node"):
+                    logger.info("Node is already installed.")
+                else:
+                    logger.info("Node is not installed.")
+                    self.install_node_nvm()
+                self.install_required_packages()
 
 class CloneProgress(RemoteProgress):
     def update(self, op_code, cur_count, max_count=None, message=''):
