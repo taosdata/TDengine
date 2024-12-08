@@ -185,6 +185,8 @@ def init_build_info():
     parser.add_argument('-ua', '--upload_agent', help='upload taosx-agent to taosdata.com')
     parser.add_argument('-ba', '--build_agent', help='build taosx-agent')
     parser.add_argument('-bw', '--build_without_docs', action='store_true', help='build taosexplorer with docs zip')
+    parser.add_argument('-bh', '--build_with_selfhost', action='store_true', help='build taosexplorer with docs zip')
+
     args, unknown_args = parser.parse_known_args()
 
     if unknown_args:
@@ -192,6 +194,8 @@ def init_build_info():
         sys.exit()
     if args.build_without_docs:
         release_info.build_without_docs = True
+    if args.build_with_selfhost:
+        release_info.build_with_selfhost = True
     release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(os.path.join(script_dir, "..", "release"))
     release_info.CpuType = GetCpuType()
@@ -565,13 +569,18 @@ def unzip_docs(doc_zip_path, doc_public_path):
 def update_docs_zip_file(explorer_path):
     try:
         remote_doc_zip_path = "/root/enterprise_build_zip_work/enterprise-docs"
+        local_doc_zip_path = os.path.join(explorer_path, "../../../../packaging/")
         print("update docs zip file")
         doc_zip_path = os.path.join(explorer_path, "..")
         if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
             subprocess.run(f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-{release_info.CustomPrompt}.zip {doc_zip_path}", shell=True)
         else:
-            cmd1 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-en.zip {doc_zip_path}"
-            cmd2 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-zh.zip {doc_zip_path}"
+            if release_info.build_with_selfhost:
+                cmd1 = f"cp {local_doc_zip_path}/docs-en.zip {doc_zip_path}"
+                cmd2 = f"cp {local_doc_zip_path}/docs-zh.zip {doc_zip_path}"
+            else:
+                cmd1 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-en.zip {doc_zip_path}"
+                cmd2 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-zh.zip {doc_zip_path}"
             subprocess.run(cmd1, shell=True)
             subprocess.run(cmd2, shell=True)
     except Exception as e:
