@@ -305,6 +305,12 @@ def main():
     # # 切换到 TDengine_repo 仓库并切换到指定分支
     # checkout_branch(TDengine_repo_path, TDengine_branch_name)
 
+    # define oem dict
+    oem_dict = {
+        "ProDB": "prodb",
+        # 可以在这里添加更多的键值对
+    }
+
     if td_is_update == True :
         # change to doc_zh/en_repo and build the documentation
         build_doc(doc_zh_repo_path)
@@ -315,9 +321,9 @@ def main():
         build_doc_pdf(enterprise_doc_repo_path)
 
         # generate oem zip docs for TDengine
-        for cus_name, cus_prompt in [["ProDB", "prodb"], ["", ""]]:
+        
+        for cus_name, cus_prompt in oem_dict.items():
             build_oem_zip(enterprise_doc_repo_path, cus_name, cus_prompt)
-        build_oem_zip(enterprise_doc_repo_path, args.cus_name, args.cus_prompt)
 
 
     if args.build_enterprise_zip:
