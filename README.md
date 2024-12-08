@@ -248,6 +248,12 @@ After the packaging is complete, you can see the following files
 ```bash
 ll /root/TDinternal/community/release
 ```
+Using the following script to package doc zip if you want to build docs zip
+```bash
+cd /root/TDinternal/enterprise/packaging
+pip3 install GitPython
+python3 build.py -b 'main' -ez -nu 
+```
 
 # Testing
 
