@@ -252,7 +252,7 @@ ll /root/TDinternal/community/release
 Using the following script to package doc zip if you want to build docs zip
 ```bash
 cd /root/TDinternal/enterprise/packaging
-pip3 install GitPython
+pip3 install GitPython argparse
 python3 build_doc.py -ez -nu 
 ```
 
