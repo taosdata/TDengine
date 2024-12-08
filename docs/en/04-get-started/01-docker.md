@@ -28,7 +28,7 @@ To install TDengine on your local machine instead of in a container, see [Get St
    ```bash
    docker pull tdengine/tdengine:3.3.0.0
    ```
-   
+
    :::
 
 2. Start a container with the following command:
@@ -42,7 +42,7 @@ To install TDengine on your local machine instead of in a container, see [Get St
    ```bash
    docker run -d -v <local-data-directory>:/var/lib/taos -v <local-log-directory>:/var/log/taos -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
    ```
-   
+
 3. Verify that the container is running properly:
 
    ```bash
@@ -88,7 +88,6 @@ When the ingestion process is finished, taosBenchmark outputs the time taken to 
 ### Test Data Querying
 
 After inserting data with taosBenchmark as described above, you can use the TDengine CLI to test TDengine's query performance in your container:
-
 
 1. Start the TDengine CLI:
 

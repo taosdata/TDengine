@@ -1,4 +1,4 @@
-#### Accessing Unified Interface via Database
+#### Using a Unified Interface for Database Access
 
 ```go title="Native Connection"
 {{#include docs/examples/go/connect/cgoexample/main.go}}
@@ -8,10 +8,10 @@
 {{#include docs/examples/go/connect/restexample/main.go}}
 ```
 
-#### Using High-level Encapsulation
+#### Using Advanced Wrappers
 
-You can also establish a connection using the af package of driver-go. This module encapsulates TDengine's advanced features, such as parameter binding, subscription, etc.
+You can also use the `af` package from driver-go to establish connections. This module encapsulates advanced features of TDengine, such as parameter binding, subscription, etc.
 
-```go title="Establishing Native Connection with af Package"
+```go title="Establishing Native Connection Using af Package"
 {{#include docs/examples/go/connect/afconn/main.go}}
 ```

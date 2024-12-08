@@ -53,7 +53,7 @@ It is not necessary to configure your cluster specifically for active-active mod
    - The sink endpoint is the FQDN of TDengine on the secondary node.
    - You can use the native connection (port 6030) or WebSocket connection (port 6041).
    - You can specify one or more databases to replicate only the data contained in those databases. If you do not specify a database, all databases on the node are replicated except for `information_schema`, `performance_schema`, `log`, and `audit`.
-   
+
    When the command is successful, the replica ID is displayed. You can use this ID to add other databases to the replication task if necessary.
 
 4. Run the same command on the secondary node, specifying the FQDN of TDengine on the secondary node as the source endpoint and the FQDN of TDengine on the primary node as the sink endpoint.

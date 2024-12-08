@@ -192,8 +192,9 @@ void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList);
 
-void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
-void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
+TSKEY       getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order);
+void        getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
+void        getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key);
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);

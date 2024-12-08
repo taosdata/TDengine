@@ -1,10 +1,9 @@
 ---
 title: Operations and Maintenance
-description: 'TDengine Operation and Maintenance Guide'
 slug: /operations-and-maintenance
 ---
 
-This chapter mainly introduces how to plan, deploy, maintain, and monitor TDengine clusters.
+This chapter mainly introduces how to plan, deploy, maintain, and monitor the TDengine cluster.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

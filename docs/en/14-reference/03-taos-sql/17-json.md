@@ -1,12 +1,11 @@
 ---
 title: JSON Data Type
-description: Detailed explanation of how to use JSON types
 slug: /tdengine-reference/sql-manual/json-data-type
 ---
 
 ## Syntax Explanation
 
-1. Create a JSON type tag
+1. Create a json type tag
 
    ```sql
    create stable s1 (ts timestamp, v1 int) tags (info json)
@@ -14,7 +13,7 @@ slug: /tdengine-reference/sql-manual/json-data-type
    create table s1_1 using s1 tags ('{"k1": "v1"}')
    ```
 
-2. JSON value operator `->`
+2. json value operator ->
 
    ```sql
    select * from s1 where info->'k1' = 'v1'
@@ -22,7 +21,7 @@ slug: /tdengine-reference/sql-manual/json-data-type
    select info->'k1' from s1
    ```
 
-3. JSON key existence operator `contains`
+3. json key existence operator contains
 
    ```sql
    select * from s1 where info contains 'k2'
@@ -32,7 +31,7 @@ slug: /tdengine-reference/sql-manual/json-data-type
 
 ## Supported Operations
 
-1. In the `WHERE` condition, supports functions like `match`, `nmatch`, `between and`, `like`, `and`, `or`, `is null`, `is not null`, but does not support `in`.
+1. In where conditions, supports functions match/nmatch/between and/like/and/or/is null/is not null, does not support in
 
    ```sql
    select * from s1 where info->'k1' match 'v*';
@@ -44,47 +43,47 @@ slug: /tdengine-reference/sql-manual/json-data-type
    select * from s1 where info->'k1' is not null
    ```
 
-2. Supports using JSON tags in `GROUP BY`, `ORDER BY`, `JOIN` clauses, `UNION ALL`, and subqueries, such as `group by json->'key'`.
+2. Supports json tag in group by, order by, join clauses, union all, and subqueries, e.g., group by json->'key'
 
-3. Supports `DISTINCT` operation.
+3. Supports distinct operation.
 
    ```sql
    select distinct info->'k1' from s1
    ```
 
-4. Tag Operations
+4. Tag operations
 
-   Supports modifying JSON tag values (full overwrite).
+   Supports modifying json tag values (full coverage)
 
-   Supports modifying JSON tag names.
+   Supports changing json tag names
 
-   Does not support adding JSON tags, deleting JSON tags, or modifying the width of JSON tag columns.
+   Does not support adding json tags, deleting json tags, or modifying json tag column width
 
 ## Other Constraints
 
-1. Only tag columns can use JSON types; if using JSON tags, there can only be one tag column.
+1. Only label columns can use json type, if using json tags, there can only be one label column.
 
-2. Length Limitations: The length of keys in JSON cannot exceed 256, and keys must be printable ASCII characters; the total length of the JSON string cannot exceed 4096 bytes.
+2. Length limit: json key length cannot exceed 256, and keys must be printable ASCII characters; total json string length cannot exceed 4096 bytes.
 
-3. JSON Format Restrictions:
+3. json format restrictions:
 
-   1. The input string for JSON can be empty (`""`, `"\t"`, `" "`, or `null`) or an object, but cannot be a non-empty string, boolean, or array.
-   2. An object can be `{}`; if the object is `{}`, the entire JSON string is considered empty. Keys can be `""`; if a key is `""`, that k-v pair is ignored in the JSON string.
-   3. Values can be numbers (int/double), strings, booleans, or null; arrays are currently not allowed. Nested structures are not permitted.
-   4. If the JSON string contains two identical keys, the first one takes effect.
-   5. JSON strings currently do not support escaping.
+   1. json input string can be empty ("", "\t", " " or null) or object, cannot be a non-empty string, boolean, and array.
+   2. object can be {}, if object is {}, then the entire json string is considered empty. key can be "", if key is "", then the k-v pair is ignored in the json string.
+   3. value can be a number (int/double) or string or bool or null, currently cannot be an array. No nesting allowed.
+   4. If a json string contains two identical keys, the first one is effective.
+   5. json strings currently do not support escape characters.
 
-4. When querying a key that does not exist in JSON, NULL is returned.
+4. When querying a non-existent key in json, returns NULL
 
-5. When a JSON tag is used as a subquery result, the upper query can no longer parse the JSON string within the subquery.
+5. When a json tag is used as a subquery result, the upper-level query no longer supports further parsing queries on the json string from the subquery.
 
-   For example, this is not supported:
+   For example, not supported
 
    ```sql
    select jtag->'key' from (select jtag from stable)
    ```
 
-   This is also not supported:
+   Not supported
 
    ```sql
    select jtag->'key' from (select jtag from stable) where jtag->'key'>0

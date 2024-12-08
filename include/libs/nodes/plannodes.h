@@ -319,6 +319,7 @@ typedef struct SWindowLogicNode {
   int64_t          sliding;
   int8_t           intervalUnit;
   int8_t           slidingUnit;
+  STimeWindow      timeRange;
   int64_t          sessionGap;
   SNode*           pTspk;
   SNode*           pTsEnd;
@@ -682,6 +683,7 @@ typedef struct SIntervalPhysiNode {
   int64_t          sliding;
   int8_t           intervalUnit;
   int8_t           slidingUnit;
+  STimeWindow      timeRange;
 } SIntervalPhysiNode;
 
 typedef SIntervalPhysiNode SMergeIntervalPhysiNode;

@@ -326,7 +326,7 @@ static int32_t walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
     }
 
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
-    int32_t mtime = 0;
+    int64_t mtime = 0;
     if (taosStatFile(fnameStr, NULL, &mtime, NULL) < 0) {
       wError("vgId:%d, failed to stat file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
 

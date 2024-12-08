@@ -13,19 +13,19 @@ import imgStep06 from '../../assets/postgresql-06.png';
 import imgStep07 from '../../assets/postgresql-07.png';
 import imgStep08 from '../../assets/postgresql-08.png';
 
-This section explains how to create data migration tasks through the Explorer interface to migrate data from PostgreSQL to the current TDengine cluster.
+This section describes how to create a data migration task through the Explorer interface to migrate data from PostgreSql to the current TDengine cluster.
 
-## Function Overview
+## Feature Overview
 
-PostgreSQL is a powerful open-source client/server relational database management system that has many features found in large commercial RDBMSs, including transactions, subqueries, triggers, views, foreign key referential integrity, and complex locking capabilities.
+PostgreSQL is a very powerful, open-source client/server relational database management system with many features found in large commercial RDBMSs, including transactions, subselects, triggers, views, foreign key referential integrity, and sophisticated locking capabilities.
 
-TDengine can efficiently read data from PostgreSQL and write it to TDengine for historical data migration or real-time data synchronization.
+TDengine can efficiently read data from PostgreSQL and write it to TDengine, enabling historical data migration or real-time data synchronization.
 
 ## Creating a Task
 
 ### 1. Add a Data Source
 
-Click the **+Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
+Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
 
 <figure>
 <Image img={imgStep01} alt=""/>
@@ -33,13 +33,13 @@ Click the **+Add Data Source** button in the upper left corner of the data writi
 
 ### 2. Configure Basic Information
 
-In the **Name** field, enter a task name, such as *`test_postgres_01`*.
+Enter the task name in the **Name** field, for example *`test_postgres_01`*.
 
-Select *`PostgreSQL`* from the **Type** dropdown list, as shown below (the fields on the page will change after selection).
+Select *`PostgreSQL`* from the **Type** dropdown menu, as shown below (the fields on the page will change after selection).
 
-The **Agent** field is optional; if needed, you can select a specified agent from the dropdown or click the **+Create New Agent** button on the right to create a new agent.
+**Proxy** is optional. If needed, you can select a specific proxy from the dropdown menu or click the **+ Create New Proxy** button on the right to create a new proxy.
 
-The **Target Database** field is required; you can first click the **+Create Database** button on the right to create a new database.
+**Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
 
 <figure>
 <Image img={imgStep02} alt=""/>
@@ -47,7 +47,7 @@ The **Target Database** field is required; you can first click the **+Create Dat
 
 ### 3. Configure Connection Information
 
-In the **Connection Configuration** area, fill in the *`source PostgreSQL database connection information`*, as shown below:
+Fill in the *`connection information for the source PostgreSQL database`* in the **Connection Configuration** area, as shown below:
 
 <figure>
 <Image img={imgStep03} alt=""/>
@@ -55,9 +55,9 @@ In the **Connection Configuration** area, fill in the *`source PostgreSQL databa
 
 ### 4. Configure Authentication Information
 
-In the **User** field, enter the user for the source PostgreSQL database; this user must have read permissions in the organization.
+**User** Enter the user of the source PostgreSQL database, who must have read permissions in the organization.
 
-In the **Password** field, enter the login password for the user in the source PostgreSQL database.
+**Password** Enter the login password for the user mentioned above in the source PostgreSQL database.
 
 <figure>
 <Image img={imgStep04} alt=""/>
@@ -65,43 +65,41 @@ In the **Password** field, enter the login password for the user in the source P
 
 ### 5. Configure Connection Options
 
-In the **Application Name** field, set the application name to identify the connecting application.
+**Application Name** Set the application name to identify the connected application.
 
-In the **SSL Mode** field, set whether to negotiate a secure SSL TCP/IP connection with the server or prioritize how to negotiate it. The default value is PREFER. Optional values include DISABLE, ALLOW, PREFER, and REQUIRE.
+**SSL Mode** Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority of such negotiation. The default value is PREFER. Options include DISABLE, ALLOW, PREFER, REQUIRE.
 
 <figure>
 <Image img={imgStep05} alt=""/>
 </figure>
 
-Then click the **Check Connectivity** button; users can click this button to check if the information filled in above can successfully retrieve data from the source PostgreSQL database.
+Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally fetch data from the source PostgreSQL database.
 
 ### 6. Configure SQL Query
 
-The **Subtable Fields** are used to split the subtable fields. It is a `select distinct` SQL statement that queries unique combinations of specified fields, typically corresponding to tags in the transform section:
+**Subtable Field** Used to split subtables, it is a select distinct SQL statement querying non-repeated items of specified field combinations, usually corresponding to the tag in transform:
+> This configuration is mainly to solve the data migration disorder problem, and it needs to be used in conjunction with **SQL Template**, otherwise, it cannot achieve the expected effect, usage examples are as follows:
+>
+> 1. Fill in the subtable field statement `select distinct col_name1, col_name2 from table`, which means using the fields col_name1 and col_name2 in the source table to split the subtables of the target supertable
+> 2. Add subtable field placeholders in the **SQL Template**, for example, the `${col_name1} and ${col_name2}` part in `select * from table where ts >= ${start} and ts < ${end} and ${col_name1} and ${col_name2}`
+> 3. Configure `col_name1` and `col_name2` two tag mappings in **transform**
 
-This configuration is primarily aimed at solving the problem of data migration disorder and needs to be used in conjunction with the **SQL Template**; otherwise, the expected effect cannot be achieved. Here are usage examples:
+**SQL Template** Used for the SQL statement template for querying, the SQL statement must include time range conditions, and the start and end times must appear in pairs. The time range defined in the SQL statement template consists of a column representing time in the source database and the placeholders defined below.
+> Different placeholders represent different time format requirements in SQL, specifically including the following placeholder formats:
+>
+> 1. `${start}`, `${end}`: Represents RFC3339 format timestamps, e.g.: 2024-03-14T08:00:00+0800
+> 2. `${start_no_tz}`, `${end_no_tz}`: Represents RFC3339 strings without timezone: 2024-03-14T08:00:00
+> 3. `${start_date}`, `${end_date}`: Represents date only, e.g.: 2024-03-14
+>
+> To solve the problem of data migration disorder, sorting conditions should be added to the query statement, such as `order by ts asc`.
 
-1. Fill in the subtable fields with the statement `select distinct col_name1, col_name2 from table`, indicating that the fields col_name1 and col_name2 from the source table will be used to split the subtables of the target supertable.
-2. In the **SQL Template**, add placeholders for the subtable fields, such as `${col_name1} and ${col_name2}` in `select * from table where ts >= ${start} and ts < ${end} and ${col_name1} and ${col_name2}`.
-3. In the **transform** section, configure the tag mappings for `col_name1` and `col_name2`.
+**Start Time** The start time for migrating data, this field is required.
 
-The **SQL Template** is an SQL statement template used for querying. The SQL statement must include time range conditions, and the start and end times must appear in pairs. The time range defined in the SQL statement template consists of a column representing time from the source database and the placeholders defined below.
+**End Time** The end time for migrating data, which can be left blank. If set, the migration task will stop automatically after reaching the end time; if left blank, it will continuously synchronize real-time data and the task will not stop automatically.
 
-SQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:
+**Query Interval** The time interval for querying data in segments, default is 1 day. To avoid querying a large amount of data at once, a data synchronization subtask will use the query interval to segment the data retrieval.
 
-1. `${start}` and `${end}`: Represent RFC3339 formatted timestamps, e.g., 2024-03-14T08:00:00+0800
-2. `${start_no_tz}` and `${end_no_tz}`: Represent RFC3339 strings without timezone: 2024-03-14T08:00:00
-3. `${start_date}` and `${end_date}`: Represent only the date, e.g., 2024-03-14
-
-To solve the problem of migration data disorder, sorting conditions should be added to the query statement, such as `order by ts asc`.
-
-**Start Time** is the starting time for migrating data; this is a required field.
-
-**End Time** is the end time for migrating data and can be left blank. If set, the migration task will complete automatically when it reaches the end time; if left blank, it will continuously synchronize real-time data, and the task will not automatically stop.
-
-**Query Interval** is the time interval for segmenting queries. The default is 1 day. To avoid querying an excessive amount of data, a sub-task for data synchronization will query data by time segments according to the query interval.
-
-**Delay Duration** is an integer range from 1 to 30; to avoid the loss of delayed written data in real-time synchronization scenarios, each synchronization task will read data before the specified delay duration.
+**Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
 <figure>
 <Image img={imgStep06} alt=""/>
@@ -109,17 +107,17 @@ To solve the problem of migration data disorder, sorting conditions should be ad
 
 ### 7. Configure Data Mapping
 
-In the **Data Mapping** area, fill in the parameters related to data mapping.
+In the **Data Mapping** area, fill in the configuration parameters related to data mapping.
 
-Click the **Retrieve from Server** button to get sample data from the PostgreSQL server.
+Click the **Retrieve from Server** button to fetch sample data from the PostgreSQL server.
 
-In the **Extract or Split from Columns** section, fill in the fields to extract or split from the message body. For example, split the `vValue` field into `vValue_0` and `vValue_1` using the split extractor, specifying `,` as the separator and `2` for the number.
+In **Extract or Split from Column**, fill in the fields to extract or split from the message body, for example: split the `vValue` field into `vValue_0` and `vValue_1`, select the split extractor, fill in the separator `,`, and number `2`.
 
-In the **Filtering** section, enter filtering conditions; for example, entering `Value > 0` means that only data where Value is greater than 0 will be written to TDengine.
+In **Filter**, fill in the filtering conditions, for example: write `Value > 0`, then only data where Value is greater than 0 will be written to TDengine.
 
-In the **Mapping** section, select the supertable to map to TDengine and specify the columns to map to the supertable.
+In **Mapping**, select the supertable in TDengine to map to, and the columns to map to the supertable.
 
-Click **Preview** to view the mapping results.
+Click **Preview** to view the results of the mapping.
 
 <figure>
 <Image img={imgStep07} alt=""/>
@@ -127,11 +125,11 @@ Click **Preview** to view the mapping results.
 
 ### 8. Configure Advanced Options
 
-The **Advanced Options** area is folded by default; click the `>` button on the right to expand, as shown below:
+The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
-**Maximum Read Concurrency** limits the number of connections to the data source or the number of reading threads. Modify this parameter when the default parameters do not meet your needs or when you need to adjust resource usage.
+**Maximum Read Concurrency** Limit on the number of data source connections or read threads. Modify this parameter when the default parameters do not meet the needs or when adjusting resource usage.
 
-**Batch Size** is the maximum number of messages or rows sent at one time. The default is 10,000.
+**Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
 <figure>
 <Image img={imgStep08} alt=""/>
@@ -139,4 +137,4 @@ The **Advanced Options** area is folded by default; click the `>` button on the 
 
 ### 9. Completion
 
-Click the **Submit** button to complete the creation of the data synchronization task from PostgreSQL to TDengine. Return to the **Data Source List** page to view the task execution status.
+Click the **Submit** button to complete the creation of the data synchronization task from PostgreSQL to TDengine. Return to the **Data Source List** page to view the status of the task execution.

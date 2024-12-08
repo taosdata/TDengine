@@ -24,24 +24,27 @@ The dynamic library of the TDengine client driver is located at:
 
 ## Supported Platforms
 
-- Windows, Linux, macOS
+- Windows, Linux, MacOS
+
 - PHP >= 7.4
+
 - TDengine >= 2.0
+
 - Swoole >= 4.8 (optional)
 
 ## Supported Versions
 
-The version number of the TDengine client driver has a strong correspondence with the version number of the TDengine server. It is recommended to use a client driver that is exactly the same as the TDengine server. Although lower version client drivers can be compatible with higher version servers if the first three segments of the version number match (only the fourth segment differs), this is not recommended. It is strongly advised not to use a higher version client driver to access a lower version server.
+The version number of the TDengine client driver is strongly correlated with the version number of the TDengine server. It is recommended to use the client driver that is exactly the same as the TDengine server. Although a lower version of the client driver can be compatible with a higher version of the server if the first three segments of the version number match (only the fourth segment is different), this is not recommended. It is strongly discouraged to use a higher version of the client driver to access a lower version of the server.
 
 ## Installation Steps
 
 ### Install TDengine Client Driver
 
-For installation of the TDengine client driver, please refer to the [Installation Guide](../#installing-client-drivers).
+Please refer to the [Installation Guide](../#installation-steps) for the installation of the TDengine client driver.
 
-### Compile and Install php-tdengine
+### Compile and install php-tdengine
 
-**Download the code and unzip it:**
+**Download and unzip the code:**
 
 ```shell
 curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
@@ -49,40 +52,40 @@ curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive
 && tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
 ```
 
-Version `v1.0.2` can be replaced with any newer version, which can be found in the [TDengine PHP Connector Release History](https://github.com/Yurunsoft/php-tdengine/releases).
+> Version `v1.0.2` can be replaced with any newer version, available at [TDengine PHP Connector Release History](https://github.com/Yurunsoft/php-tdengine/releases).
 
-**Non-Swoole Environment:**
+**Non-Swoole environment:**
 
 ```shell
 phpize && ./configure && make -j && make install
 ```
 
-**Manually Specify the TDengine Directory:**
+**Manually specify the tdengine directory:**
 
 ```shell
 phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
 ```
 
-Follow `--with-tdengine-dir=` with the TDengine directory.
-This is applicable for situations where the default cannot be found or for macOS users.
+> Follow `--with-tdengine-dir=` with the tdengine directory.
+> Suitable for cases where it cannot be found by default, or for MacOS users.
 
-**Swoole Environment:**
+**Swoole environment:**
 
 ```shell
 phpize && ./configure --enable-swoole && make -j && make install
 ```
 
-**Enable the Extension:**
+**Enable the extension:**
 
-Method 1: Add `extension=tdengine` to `php.ini`
+Method one: Add `extension=tdengine` in `php.ini`
 
-Method 2: Run with the parameter `php -dextension=tdengine test.php`
+Method two: Run with the parameter `php -dextension=tdengine test.php`
 
-## Example Programs
+## Example Program
 
-This section shows example code for common access methods to access the TDengine cluster using the client driver.
+This section shows example code for common ways to access the TDengine cluster using the client driver.
 
-All errors will throw exceptions: `TDengine\Exception\TDengineException`
+> All errors will throw an exception: `TDengine\Exception\TDengineException`
 
 ### Establish Connection
 

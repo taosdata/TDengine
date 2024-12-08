@@ -1,61 +1,63 @@
 ---
 sidebar_label: Data Ingestion
-title: Ingest, Update, and Delete Data
+title: Data Ingestion
 slug: /basic-features/data-ingestion
 ---
 
-This document describes how to insert, update, and delete data using SQL. The databases and tables used as examples in this document are defined in [Sample Data](../data-model/#sample-data).
+This chapter uses the data model of smart meters as an example to introduce how to write, update, and delete time-series data in TDengine using SQL.
 
-TDengine can also ingest data from various data collection tools. For more information, see [Integrate with Data Collection Tools](../../third-party-tools/data-collection/).
+## Writing
 
-## Ingest Data
+In TDengine, you can write time-series data using the SQL insert statement.
 
-You use the `INSERT` statement to ingest data into TDengine. You can ingest one or more records into one or more tables.
+### Writing One Record at a Time
 
-### Insert a Record
+Assume that the smart meter with device ID d1001 collected data on October 3, 2018, at 14:38:05: current 10.3A, voltage 219V, phase 0.31. We have already created a subtable d1001 belonging to the supertable meters in the TDengine's power database. Next, you can write time-series data into the subtable d1001 using the following insert statement.
 
-The following SQL statement inserts one record into the `d1001` subtable:
-
-```sql
-INSERT INTO d1001 (ts, current, voltage, phase) VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
-```
-
-In this example, a smart meter with device ID `d1001` collected data on October 3, 2018 at 14:38:05. The data collected indicated a current of 10.3 A, voltage of 219 V, and phase of 0.31. The SQL statement provided inserts data into the `ts`, `current`, `voltage`, and `phase` columns of subtable `d1001` with the values `2018-10-03 14:38:05`, `10.3`, `219`, and `0.31`, respectively.
-
-Note that when inserting data into every column of a subtable at once, you can omit the column list. The following SQL statement therefore achieves the same result:
+1. You can write time-series data into the subtable d1001 using the following INSERT statement.
 
 ```sql
-INSERT INTO d1001 VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
+insert into d1001 (ts, current, voltage, phase) values ( "2018-10-03 14:38:05", 10.3, 219, 0.31)
 ```
 
-Also note that timestamps can be inserted in Unix time if desired:
+The above SQL writes `2018-10-03 14:38:05`, `10.3`, `219`, `0.31` into the columns `ts`, `current`, `voltage`, `phase` of the subtable `d1001`.
+
+2. When the `VALUES` part of the `INSERT` statement includes all columns of the table, the list of fields before `VALUES` can be omitted, as shown in the following SQL statement, which has the same effect as the previous INSERT statement specifying columns.
+
+```sql
+insert into d1001 values("2018-10-03 14:38:05", 10.3, 219, 0.31)
+```
+
+3. For the table's timestamp column (the first column), you can also directly use the timestamp of the database precision.
 
 ```sql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
 
-### Insert Multiple Records
+The effects of the above three SQL statements are exactly the same.
 
-The following SQL statement inserts multiple records into the `d1001` subtable:
+### Writing Multiple Records at Once
+
+Assume that the smart meter with device ID d1001 collects data every 10s and reports data every 30s, i.e., it needs to write 3 records every 30s. Users can write multiple records in one insert statement. The following SQL writes a total of 3 records.
 
 ```sql
-INSERT INTO d1001 VALUES
-("2018-10-03 14:38:05", 10.2, 220, 0.23),
-("2018-10-03 14:38:15", 12.6, 218, 0.33),
-("2018-10-03 14:38:25", 12.3, 221, 0.31);
+insert into d1001 values
+ ( "2018-10-03 14:38:05", 10.2, 220, 0.23),
+ ( "2018-10-03 14:38:15", 12.6, 218, 0.33),
+ ( "2018-10-03 14:38:25", 12.3, 221, 0.31)
 ```
 
-This method can be useful in scenarios where a data collection point (DCP) collects data faster than it reports data. In this example, the smart meter with device ID `d1001` collects data every 10 seconds but reports data every 30 seconds, meaning that three records need to be inserted every 30 seconds.
+The above SQL writes a total of three records.
 
-### Insert into Multiple Tables
+### Writing to Multiple Tables at Once
 
-The following SQL statement inserts three records each into the `d1001`, `d1002`, and `d1003` subtables:
+Assume that the smart meters with device IDs d1001, d1002, and d1003, all need to write 3 records every 30 seconds. For such cases, TDengine supports writing multiple records to multiple tables at once.
 
 ```sql
 INSERT INTO d1001 VALUES 
     ("2018-10-03 14:38:05", 10.2, 220, 0.23),
     ("2018-10-03 14:38:15", 12.6, 218, 0.33),
-    ("2018-10-03 14:38:25", 12.3, 221, 0.31)
+    ("2018-10-03 14:38:25", 12.3, 221, 0.31) 
 d1002 VALUES 
     ("2018-10-03 14:38:04", 10.2, 220, 0.23),
     ("2018-10-03 14:38:14", 10.3, 218, 0.25),
@@ -63,65 +65,74 @@ d1002 VALUES
 d1003 VALUES
     ("2018-10-03 14:38:06", 11.5, 221, 0.35),
     ("2018-10-03 14:38:16", 10.4, 220, 0.36),
-    ("2018-10-03 14:38:26", 10.3, 220, 0.33);
+    ("2018-10-03 14:38:26", 10.3, 220, 0.33)
+;
 ```
 
-### Insert into Specific Columns
+The above SQL writes a total of nine records.
 
-The following SQL statement inserts a record containing only the `ts`, `voltage`, and `phase` columns into the `d1004`subtable:
+### Specifying Columns for Writing
+
+You can write data to specific columns of a table by specifying columns. Columns not appearing in the SQL will be automatically filled with NULL values. Note that the timestamp column must be present, and its value cannot be NULL. The following SQL writes one record to the subtable d1004. This record only includes voltage and phase, with the current value being NULL.
 
 ```sql
-INSERT INTO d1004 (ts, voltage, phase) VALUES ("2018-10-04 14:38:06", 223, 0.29);
+insert into d1004 (ts, voltage, phase) values("2018-10-04 14:38:06", 223, 0.29)
 ```
 
-A `NULL` value is written to any columns not included in the `INSERT` statement. Note that the timestamp column cannot be omitted and cannot be null.
+### Automatic Table Creation on Insert
 
-### Create Subtable on Insert
-
-It is not necessary to create subtables in advance. You can use the `INSERT` statement with the `USING` keyword to create subtables automatically:
+Users can perform inserts using the `using` keyword for automatic table creation. If the subtable does not exist, it triggers automatic table creation before data insertion; if the subtable already exists, it directly inserts the data. An insert statement with automatic table creation can also specify only some tag columns for insertion, leaving the unspecified tag columns as NULL values. The following SQL inserts a record. If the subtable d1005 does not exist, it first creates the table automatically with the tag `group_id` value as NULL, then inserts the data.
 
 ```sql
-INSERT INTO d1002 USING meters TAGS ("California.SanFrancisco", 2) VALUES (now, 10.2, 219, 0.32);
+insert into d1005
+using meters (location)
+tags ( "beijing.chaoyang")
+values ( "2018-10-04 14:38:07", 10.15, 217, 0.33)
 ```
 
-If the subtable `d1002` already exists, the specified metrics are inserted into the subtable. If the subtable does not exist, it is created using the `meters` subtable with the specified tag values, and the specified metrics are then inserted into it. This can be useful when creating subtables programatically for new DCPs.
-
-### Insert via Supertable
-
-The following statement inserts a record into the `d1001` subtable via the `meters` supertable.
+The insert statement with automatic table creation also supports inserting data into multiple tables in one statement. The following SQL uses an automatic table creation insert statement to insert 9 records.
 
 ```sql
-INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES ("d1001", "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisco", 2);
+INSERT INTO d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES 
+    ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+    ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+    ("2018-10-03 14:38:25", 12.3, 221, 0.31) 
+d1002 USING meters TAGS ("California.SanFrancisco", 3) VALUES 
+    ("2018-10-03 14:38:04", 10.2, 220, 0.23),
+    ("2018-10-03 14:38:14", 10.3, 218, 0.25),
+    ("2018-10-03 14:38:24", 10.1, 220, 0.22)
+d1003 USING meters TAGS ("California.LosAngeles", 2) VALUES
+    ("2018-10-03 14:38:06", 11.5, 221, 0.35),
+    ("2018-10-03 14:38:16", 10.4, 220, 0.36),
+    ("2018-10-03 14:38:26", 10.3, 220, 0.33)
+;
 ```
 
-Note that the data is not stored in the supertable itself, but in the subtable specified as the value of the `tbname` column.
+### Inserting Through Supertables
 
-## Update Data
+TDengine also supports direct data insertion into supertables. It is important to note that a supertable is a template and does not store data itself; the data is stored in the corresponding subtables. The following SQL inserts a record into the subtable d1001 by specifying the tbname column.
 
-You can update existing metric data by writing a new record with the same timestamp as the record that you want to replace:
+```sql
+insert into meters (tbname, ts, current, voltage, phase, location, group_id)
+values( "d1001, "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisco", 2)
+```
+
+### Zero-Code Insertion
+
+To facilitate easy data insertion for users, TDengine has seamlessly integrated with many well-known third-party tools, including Telegraf, Prometheus, EMQX, StatsD, collectd, and HiveMQ. Users only need to perform simple configurations on these tools to easily import data into TDengine. Additionally, TDengine Enterprise offers a variety of connectors, such as MQTT, OPC, AVEVA PI System, Wonderware, Kafka, MySQL, Oracle, etc. By configuring the corresponding connection information on the TDengine side, users can efficiently write data from different data sources into TDengine without writing any code.
+
+## Update
+
+Data in time-series can be updated by inserting a record with a duplicate timestamp; the newly inserted data will replace the old values. The following SQL, by specifying columns, inserts 1 row of data into the subtable `d1001`; when there is already data with the datetime `2018-10-03 14:38:05` in subtable `d1001`, the new `current` (current) value 22 will replace the old value.
 
 ```sql
 INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
 ```
 
-This SQL statement updates the value of the `current` column at the specified time to `22`.
+## Delete
 
-## Delete Data
-
-TDengine automatically deletes expired data based on the retention period configured for your database. However, if necessary, you can manually delete data from a table.
-
-:::warning
-
-Deleted data cannot be recovered. Exercise caution when deleting data.
-
-Before deleting data, run a `SELECT` statement with the same `WHERE` condition to query the data that you want to delete. Confirm that you want to delete all data returned by the `SELECT` statement, and only then run the `DELETE` statement.
-
-:::
-
-The following SQL statement deletes all data from supertable `meters` whose timestamp is earlier than 2021-10-01 10:40:00.100.
+To facilitate the cleanup of abnormal data caused by equipment failures and other reasons, TDengine supports deleting time-series data based on timestamps. The following SQL deletes all data in the supertable `meters` with timestamps earlier than `2021-10-01 10:40:00.100`. Data deletion is irreversible, so use it with caution. To ensure that the data being deleted is indeed what you want to delete, it is recommended to first use a select statement with the deletion condition in the where clause to view the data to be deleted, and confirm it is correct before executing delete.
 
 ```sql
-DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100';
+delete from meters where ts < '2021-10-01 10:40:00.100' ;
 ```
-
-Note that when deleting data, you can filter only on the timestamp column. Other filtering conditions are not supported.

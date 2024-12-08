@@ -1,22 +1,21 @@
 ---
 title: SQL Manual
-description: 'Syntax rules supported by TDengine SQL, main query functions, supported SQL query functions, and common tips.'
 slug: /tdengine-reference/sql-manual
 ---
 
-This document explains the syntax rules supported by TDengine SQL, main query functionalities, supported SQL query functions, and common tips. Readers are expected to have a basic understanding of SQL language. TDengine version 3.0 has made significant improvements and optimizations compared to version 2.x, especially with a complete overhaul of the query engine, leading to many changes in SQL syntax. For detailed changes, please refer to the [Syntax Changes in TDengine 3.0](syntax-changes-in-tdengine-3/) section.
+This document explains the syntax rules, main query functions, supported SQL query functions, and common techniques supported by TDengine SQL. Readers are expected to have a basic understanding of SQL language. TDengine version 3.0 has made significant improvements and optimizations compared to version 2.x, especially with a complete overhaul of the query engine, thus there are many changes in SQL syntax compared to version 2.x. For detailed changes, please see the [3.0 Syntax Changes](./syntax-changes/) section.
 
-TDengine SQL is the primary tool for users to write and query data in TDengine. It provides standard SQL syntax and has optimized and added many syntaxes and features tailored for time-series data and business characteristics. The maximum length for TDengine SQL statements is 1M. TDengine SQL does not support abbreviations for keywords; for example, DELETE cannot be abbreviated to DEL.
+TDengine SQL is the primary tool for users to write data and perform queries on TDengine. TDengine SQL provides standard SQL syntax and has optimized and added many syntax features and functions specific to time-series data and business needs. The maximum length of a TDengine SQL statement is 1M. TDengine SQL does not support abbreviations of keywords, for example, DELETE cannot be abbreviated as DEL.
 
-The following conventions are used in this chapter for SQL syntax:
+This section follows the conventions below for SQL syntax:
 
-- Keywords are represented in uppercase, but SQL itself does not distinguish between the case of keywords and identifiers.
-- User-input content is represented in lowercase letters.
-- \[ \] indicates that the content is optional but should not include the brackets themselves when inputting.
-- | indicates a choice among multiple options, and one can choose one of them, but the pipe character should not be included in the input.
-- … indicates that the preceding item can be repeated multiple times.
+- Keywords are represented in uppercase letters, but SQL itself does not distinguish between the case of keywords and identifiers
+- Lowercase letters indicate content that needs to be entered by the user
+- \[ \] indicates optional content, but you cannot enter [] itself
+- | indicates a choice among multiple options, choose one, but you cannot enter | itself
+- … indicates that the previous item can be repeated multiple times
 
-To better illustrate the rules and characteristics of SQL syntax, this document assumes the existence of a dataset. Using smart meters (meters) as an example, each smart meter collects three measurements: current, voltage, and phase. The modeling is as follows:
+To better illustrate the rules and characteristics of SQL syntax, this document assumes the existence of a dataset. Taking smart meters as an example, assume each smart meter collects three quantities: current, voltage, and phase. Its modeling is as follows:
 
 ```text
 taos> DESCRIBE meters;
@@ -26,11 +25,11 @@ taos> DESCRIBE meters;
  current                        | FLOAT              |           4 |            |
  voltage                        | INT                |           4 |            |
  phase                          | FLOAT              |           4 |            |
- location                       | BINARY             |          64 | TAG        |
- groupid                        | INT                |           4 | TAG        |
+ location                       | BINARY             |          64 | tag        |
+ groupid                        | INT                |           4 | tag        |
 ```
 
-The dataset contains data from 4 smart meters, corresponding to 4 subtables according to TDengine's modeling rules, with names d1001, d1002, d1003, and d1004 respectively.
+The dataset includes data from 4 smart meters, according to TDengine's modeling rules, corresponding to 4 subtables, named d1001, d1002, d1003, d1004.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

@@ -1,22 +1,21 @@
 ---
 title: TCollector
-description: Writing to TDengine Using TCollector
 slug: /third-party-tools/data-collection/tcollector
 ---
 
 import TCollector from "./_tcollector.mdx"
 
-TCollector is a part of openTSDB that collects client logs and sends them to the database.
+TCollector is part of openTSDB, used for collecting client logs and sending them to the database.
 
-By simply modifying the TCollector configuration to point to the server domain name (or IP address) running taosAdapter and the corresponding port, the data collected by TCollector can be stored in TDengine, fully utilizing TDengine's efficient storage and query performance for time-series data as well as its cluster processing capabilities.
+Simply modify the TCollector configuration to point to the server domain name (or IP address) and corresponding port where taosAdapter is running to store the data collected by TCollector into TDengine, fully utilizing TDengine's efficient storage and query performance and cluster processing capabilities for time-series data.
 
 ## Prerequisites
 
-To write TCollector data into TDengine, several preparations are needed:
+To write TCollector data into TDengine, the following preparations are needed:
 
-- The TDengine cluster has been deployed and is running normally.
-- The taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter User Manual](../../../tdengine-reference/components/taosadapter/).
-- TCollector has been installed. For installation instructions, please refer to the [official documentation](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector).
+- TDengine cluster is deployed and running normally
+- taosAdapter is installed and running normally. For details, please refer to [taosAdapter user manual](../../../tdengine-reference/components/taosadapter)
+- TCollector is installed. For TCollector installation, please refer to the [official documentation](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
 
 ## Configuration Steps
 
@@ -24,15 +23,15 @@ To write TCollector data into TDengine, several preparations are needed:
 
 ## Verification Method
 
-Restart the taosAdapter:
+Restart taosAdapter:
 
 ```shell
 sudo systemctl restart taosadapter
 ```
 
-Manually execute `sudo ./tcollector.py`.
+Manually execute `sudo ./tcollector.py`
 
-After waiting a few seconds, use the TDengine CLI to query TDengine to verify if the corresponding database has been created and if data has been written.
+After waiting a few seconds, use the TDengine CLI to query whether TDengine has created the corresponding database and written data.
 
 ```text
 taos> show databases;
@@ -42,6 +41,7 @@ taos> show databases;
  performance_schema             |
  tcollector                     |
 Query OK, 3 rows in database (0.001647s)
+
 
 taos> use tcollector;
 Database changed.
@@ -72,6 +72,6 @@ taos> show stables;
 
 :::note
 
-TDengine will automatically create unique IDs for subtable names by the rule.
+- TDengine by default generates subtable names based on a rule-generated unique ID value.
 
 :::

@@ -1,10 +1,9 @@
 ---
-title: Manage Users
-description: This section discusses basic user management functions.
+title: Users
 slug: /tdengine-reference/sql-manual/manage-users
 ---
 
-User and permission management is a feature of the TDengine enterprise edition. This section covers only the basic user management part. For comprehensive permission management functions, please contact the TDengine sales team.
+User and permission management is a feature of TDengine Enterprise Edition. This section only discusses the basic user management part. To learn about and obtain comprehensive permission management features, please contact the TDengine sales team.
 
 ## Create User
 
@@ -14,11 +13,11 @@ CREATE USER user_name PASS 'password' [SYSINFO {1|0}];
 
 The username can be up to 23 bytes long.
 
-The password can be up to 31 bytes long. It can include letters, numbers, and special characters except for single quotes, double quotes, backticks, backslashes, and spaces. The password cannot be an empty string.
+The password can be up to 31 bytes long. The password can include letters, numbers, and special characters except for single quotes, double quotes, backticks, backslashes, and spaces, and it cannot be an empty string.
 
-`SYSINFO` indicates whether the user can view system information. `1` means they can view it, while `0` means they do not have permission. System information includes service configurations, dnodes, vn, storage, etc. The default value is `1`.
+`SYSINFO` indicates whether the user can view system information. `1` means they can view, `0` means they have no permission to view. System information includes service configuration, dnode, vnode, storage, etc. The default value is `1`.
 
-In the following example, we create a user with the password `123456` who can view system information.
+In the example below, we create a user with the password `123456` who can view system information.
 
 ```sql
 taos> create user test pass '123456' sysinfo 1;
@@ -27,7 +26,7 @@ Query OK, 0 of 0 rows affected (0.001254s)
 
 ## View Users
 
-You can use the following command to view users in the system.
+You can use the following command to view the users in the system.
 
 ```sql
 SHOW USERS;
@@ -74,12 +73,12 @@ alter_user_clause: {
 }
 ```
 
-- PASS: Modifies the password, followed by the new password.
-- ENABLE: Enables or disables the user, where `1` means enabled and `0` means disabled.
-- SYSINFO: Allows or prohibits viewing system information, where `1` means allowed and `0` means prohibited.
-- CREATEDB: Allows or prohibits database creation, where `1` means allowed and `0` means prohibited.
+- PASS: Change the password, followed by the new password
+- ENABLE: Enable or disable the user, `1` means enable, `0` means disable
+- SYSINFO: Allow or prohibit viewing system information, `1` means allow, `0` means prohibit
+- CREATEDB: Allow or prohibit creating databases, `1` means allow, `0` means prohibit
 
-In the following example, we disable the user named `test`:
+The following example disables the user named `test`:
 
 ```sql
 taos> alter user test enable 0;
@@ -88,4 +87,4 @@ Query OK, 0 of 0 rows affected (0.001160s)
 
 ## Authorization Management
 
-Authorization management is only available in the TDengine enterprise edition; please contact the TDengine sales team.
+Authorization management is only available in the TDengine Enterprise Edition, please contact the TDengine sales team.

@@ -1,11 +1,9 @@
 ---
-sidebar_label: SHOW Commands
 title: SHOW Commands
-description: Complete list of SHOW commands
 slug: /tdengine-reference/sql-manual/show-commands
 ---
 
-The SHOW command can be used to obtain brief system information. For detailed various metadata, system information, and status in the system, please use the SELECT statement to query tables in the INFORMATION_SCHEMA database.
+SHOW commands can be used to obtain brief system information. To get detailed metadata, system information, and status within the system, use the select statement to query tables in the INFORMATION_SCHEMA database.
 
 ## SHOW APPS
 
@@ -13,7 +11,7 @@ The SHOW command can be used to obtain brief system information. For detailed va
 SHOW APPS;
 ```
 
-Displays information about applications (clients) accessing the cluster.
+Displays information about applications (clients) connected to the cluster.
 
 ## SHOW CLUSTER
 
@@ -29,15 +27,15 @@ Displays information about the current cluster.
 SHOW CLUSTER ALIVE;
 ```
 
-Queries whether the current cluster is available, returning: 0: unavailable, 1: fully available, 2: partially available (some nodes in the cluster are offline, but other nodes can still function normally).
+Queries whether the current cluster is available, return values: 0: unavailable, 1: fully available, 2: partially available (some nodes in the cluster are offline, but other nodes can still be used normally).
 
 ## SHOW CLUSTER MACHINES
 
 ```sql
-SHOW CLUSTER MACHINES; // Supported from TDengine version 3.2.3.0
+SHOW CLUSTER MACHINES; // Supported starting from TDengine version 3.2.3.0
 ```
 
-Displays information such as machine codes in the cluster.
+Displays information about the cluster's machine codes.
 
 Note: Exclusive to the enterprise edition.
 
@@ -47,7 +45,7 @@ Note: Exclusive to the enterprise edition.
 SHOW CONNECTIONS;
 ```
 
-Displays information about the existing connections in the current system.
+Displays information about the connections that exist in the current system.
 
 ## SHOW CONSUMERS
 
@@ -63,7 +61,7 @@ Displays information about all consumers in the current database.
 SHOW CREATE DATABASE db_name;
 ```
 
-Displays the creation statement of the database specified by db_name.
+Displays the creation statement for the database specified by db_name.
 
 ## SHOW CREATE STABLE
 
@@ -71,15 +69,15 @@ Displays the creation statement of the database specified by db_name.
 SHOW CREATE STABLE [db_name.]stb_name;
 ```
 
-Displays the creation statement of the supertable specified by stb_name.
+Displays the creation statement for the supertable specified by stb_name.
 
 ## SHOW CREATE TABLE
 
 ```sql
-SHOW CREATE TABLE [db_name.]tb_name;
+SHOW CREATE TABLE [db_name.]tb_name
 ```
 
-Displays the creation statement of the table specified by tb_name. Supports basic tables, supertables, and subtables.
+Displays the creation statement for the table specified by tb_name. Supports basic tables, supertables, and subtables.
 
 ## SHOW DATABASES
 
@@ -95,7 +93,7 @@ Displays all defined databases. SYSTEM specifies to only show system databases. 
 SHOW DNODES;
 ```
 
-Displays information about the DNODEs in the current system.
+Displays information about DNODEs in the current system.
 
 ## SHOW FUNCTIONS
 
@@ -110,10 +108,10 @@ Displays user-defined custom functions.
 ```sql
 SHOW LICENCES;
 SHOW GRANTS;
-SHOW GRANTS FULL; // Supported from TDengine version 3.2.3.0
+SHOW GRANTS FULL; // Supported starting from TDengine version 3.2.3.0
 ```
 
-Displays information about enterprise edition license authorization.
+Displays information about enterprise edition license authorizations.
 
 Note: Exclusive to the enterprise edition.
 
@@ -124,7 +122,7 @@ SHOW INDEXES FROM tbl_name [FROM db_name];
 SHOW INDEXES FROM [db_name.]tbl_name;
 ```
 
-Displays the indexes that have been created.
+Displays created indexes.
 
 ## SHOW LOCAL VARIABLES
 
@@ -132,7 +130,7 @@ Displays the indexes that have been created.
 SHOW LOCAL VARIABLES;
 ```
 
-Displays the running values of the current client configuration parameters.
+Displays the runtime values of configuration parameters for the current client.
 
 ## SHOW MNODES
 
@@ -140,7 +138,7 @@ Displays the running values of the current client configuration parameters.
 SHOW MNODES;
 ```
 
-Displays information about the MNODEs in the current system.
+Displays information about MNODEs in the current system.
 
 ## SHOW QNODES
 
@@ -148,7 +146,7 @@ Displays information about the MNODEs in the current system.
 SHOW QNODES;
 ```
 
-Displays information about the QNODEs (query nodes) in the current system.
+Displays information about QNODEs (query nodes) in the current system.
 
 ## SHOW QUERIES
 
@@ -156,7 +154,7 @@ Displays information about the QNODEs (query nodes) in the current system.
 SHOW QUERIES;
 ```
 
-Displays the current queries being executed in the system.
+Displays ongoing queries in the current system.
 
 ## SHOW SCORES
 
@@ -164,7 +162,7 @@ Displays the current queries being executed in the system.
 SHOW SCORES;
 ```
 
-Displays information about the capacity authorized to the system.
+Displays information about the capacity authorized by the license.
 
 Note: Exclusive to the enterprise edition.
 
@@ -174,7 +172,7 @@ Note: Exclusive to the enterprise edition.
 SHOW [db_name.]STABLES [LIKE 'pattern'];
 ```
 
-Displays information about all supertables in the current database. You can use LIKE for fuzzy matching on table names.
+Displays information about all supertables in the current database. You can use LIKE for fuzzy matching of table names.
 
 ## SHOW STREAMS
 
@@ -182,7 +180,7 @@ Displays information about all supertables in the current database. You can use 
 SHOW STREAMS;
 ```
 
-Displays information about all stream calculations in the current system.
+Displays information about all stream computations in the current system.
 
 ## SHOW SUBSCRIPTIONS
 
@@ -198,7 +196,7 @@ Displays all subscription relationships in the current system.
 SHOW [NORMAL | CHILD] [db_name.]TABLES [LIKE 'pattern'];
 ```
 
-Displays information about all basic tables and subtables in the current database. You can use LIKE for fuzzy matching on table names. NORMAL specifies to show only basic table information, CHILD specifies to show only subtable information.
+Displays information about all normal and child tables in the current database. You can use LIKE for fuzzy matching of table names. NORMAL specifies to display only basic table information, CHILD specifies to display only child table information.
 
 ## SHOW TABLE DISTRIBUTED
 
@@ -206,62 +204,59 @@ Displays information about all basic tables and subtables in the current databas
 SHOW TABLE DISTRIBUTED table_name;
 ```
 
-Displays data distribution information for the table.
+Displays the data distribution information of the table.
 
 Example explanation:
 
-Statement: show table distributed d0\G;   Displays the block distribution of table d0 in a vertical format.
+Statement: show table distributed d0\G;   Displays the BLOCK distribution of table d0 vertically
 
 <details>
-<summary>Display Example</summary>
+ <summary>Display example</summary>
 
 ```text
 *************************** 1.row ***************************
 
 _block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Compression_Ratio=[23.98 %]
 
-Total_Blocks:  The number of blocks occupied by table d0 is 5.
+Total_Blocks:  The number of blocks occupied by table d0 is 5
 
-Total_Size:    The size of all blocks occupied by table d0 in files is 93.65 KB.
+Total_Size:    The total size occupied by all blocks of table d0 in the file is 93.65 KB
 
-Average_size:  The average space occupied by each block in files is 18.73 KB.
+Average_size:  The average space occupied by each block in the file is 18.73 KB
 
-Compression_Ratio: Data compression ratio 23.98%.
-
+Compression_Ratio: Data compression ratio 23.98%
 
 *************************** 2.row ***************************
 
 _block_dist: Total_Rows=[20000] Inmem_Rows=[0] MinRows=[3616] MaxRows=[4096] Average_Rows=[4000]
 
-Total_Rows:  The number of rows stored on disk for table d0 is 20000 (this value is for reference only and is not an accurate count. To get an accurate count, the count function should be used).
+Total_Rows:  Counts the number of rows stored on disk for table d0, 20000 rows (this number is for reference only, not an exact count. To get an exact count, use the count function)
 
-Inmem_Rows: The number of data rows stored in write cache (not yet on disk), 0 rows indicates that there is no data in the memory cache.
+Inmem_Rows:  Number of data rows stored in the write cache (not written to disk), 0 rows indicate there is no data in the memory cache
 
-MinRows:    The minimum number of rows in a BLOCK is 3616.
+MinRows:    The minimum number of rows in a BLOCK, which is 3616 rows
 
-MaxRows:    The maximum number of rows in a BLOCK is 4096.
+MaxRows:    The maximum number of rows in a BLOCK, which is 4096 rows
 
-Average_Rows: The average number of rows in each BLOCK at this time is 4000.
-
+Average_Rows: The average number of rows per BLOCK, currently 4000 rows
 
 *************************** 3.row ***************************
 
 _block_dist: Total_Tables=[1] Total_Files=[2] Total_Vgroups=[1]
 
-Total_Tables:   The number of sub-tables, which is 1 here.
+Total_Tables:   Number of subtables, here is 1
 
-Total_Files: The number of data files where the table's data is stored separately, here it is 2 files.
+Total_Files:   Number of data files in which table data is saved, here are 2 files
 
-Total_Vgroups: The number of virtual nodes (vnodes) that distribute the table's data.
-
+Total_Vgroups: Number of virtual nodes (vnode) the table data is distributed across
 
 *************************** 5.row ***************************
 
-_block_dist: 0100 | 
+_block_dist: 0100 |
 
 *************************** 6.row ***************************
 
-_block_dist: 0299 | 
+_block_dist: 0299 |
 
 ......
 
@@ -271,20 +266,22 @@ _block_dist: 3483 |||||||||||||||||  1 (20.00%)
 
 *************************** 23.row ***************************
 
-_block_dist: 3682 | 
+_block_dist: 3682 |
 
 *************************** 24.row ***************************
 
 _block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)
 
+
 Query OK, 24 row(s) in set (0.002444s)
 ```
 
+
 </details>
 
-The above shows the distribution of blocks containing the number of data rows. Here, 0100 0299 0498 … indicates the number of data rows in each block. The meaning above is that among the 5 blocks of this table, the block that distributes between 3483 and 3681 has 1 block, occupying 20% of the total blocks, and the blocks that distribute between 3881 and 4096 (the maximum number of rows) is 4 blocks, occupying 80% of the total blocks, while the number of blocks distributed in other areas is 0.
+The above is a diagram showing the distribution of data rows in blocks. The numbers 0100, 0299, 0498, etc., represent the number of data rows in each block. It means that among the 5 blocks of this table, there is 1 block distributed between 3483 and 3681 rows, accounting for 20% of the total blocks, and 4 blocks are distributed between 3881 and 4096 (maximum number of rows), accounting for 80% of the total blocks, with 0 blocks in other areas.
 
-It is important to note that only the data block information in the data files will be displayed here; information in the stt files will not be displayed.
+Note that this will only display information about data blocks in the data file; information about data in the stt file will not be shown.
 
 ## SHOW TAGS
 
@@ -293,7 +290,7 @@ SHOW TAGS FROM child_table_name [FROM db_name];
 SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
-Displays tag information of the subtable.
+Displays tag information for the child table.
 
 ## SHOW TOPICS
 
@@ -309,7 +306,7 @@ Displays information about all topics in the current database.
 SHOW TRANSACTIONS;
 ```
 
-Displays information about the transactions currently being executed in the system (this transaction only pertains to metadata level, not basic tables).
+Displays information about transactions currently being executed in the system (these transactions are only for metadata level, not for regular tables).
 
 ## SHOW USERS
 
@@ -326,7 +323,7 @@ SHOW CLUSTER VARIABLES;
 SHOW DNODE dnode_id VARIABLES;
 ```
 
-Displays the running values of configuration parameters that need to be the same across nodes in the current system, and you can specify DNODE to view its configuration parameters.
+Displays the runtime values of configuration parameters that need to be the same across nodes in the current system, or you can specify a DNODE to view its configuration parameters.
 
 ## SHOW VGROUPS
 
@@ -342,4 +339,4 @@ Displays information about all VGROUPs in the current database.
 SHOW VNODES [ON DNODE dnode_id];
 ```
 
-Displays information about all VNODES in the current system or the VNODES on a specific DNODE.
+Displays information about all VNODEs or the VNODEs of a specific DNODE in the current system.

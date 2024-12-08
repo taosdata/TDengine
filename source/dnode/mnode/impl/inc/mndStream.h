@@ -179,7 +179,7 @@ int64_t mndClearChkptReportInfo(SHashObj* pHash, int64_t streamId);
 int32_t mndResetChkptReportInfo(SHashObj* pHash, int64_t streamId);
 
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
-int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows);
+int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t nRows, int32_t p);
 
 int32_t mndProcessResetStatusReq(SRpcMsg *pReq);
 

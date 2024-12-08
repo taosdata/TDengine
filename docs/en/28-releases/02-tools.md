@@ -1,13 +1,12 @@
 ---
 sidebar_label: taosTools
 title: taosTools Release History and Download Links
-description: Release history, Release Notes, and download links for taosTools
 slug: /release-history/taostools
 ---
 
-The download links for installation packages of various versions of taosTools are as follows:
+Download links for various versions of taosTools are as follows:
 
-For other historical versions of the installation packages, please visit [here](https://tdengine.com/downloads/historical/).
+For other historical versions, please visit [here](https://tdengine.com/downloads/historical)
 
 import Release from "/components/ReleaseV3";
 

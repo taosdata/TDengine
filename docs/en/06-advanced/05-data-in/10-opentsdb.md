@@ -13,19 +13,19 @@ import imgStep06 from '../../assets/opentsdb-06.png';
 import imgStep07 from '../../assets/opentsdb-07.png';
 import imgStep08 from '../../assets/opentsdb-08.png';
 
-This section explains how to create a data migration task through the Explorer interface to migrate data from OpenTSDB to the current TDengine cluster.
+This section describes how to create a data migration task through the Explorer interface to migrate data from OpenTSDB to the current TDengine cluster.
 
-## Function Overview
+## Overview
 
-OpenTSDB is a real-time monitoring information collection and display platform built on top of the HBase system. TDengine can efficiently read data from OpenTSDB via the OpenTSDB connector and write it into TDengine to achieve historical data migration or real-time data synchronization.
+OpenTSDB is a real-time monitoring information collection and display platform built on the HBase system. TDengine can efficiently read data from OpenTSDB through the OpenTSDB connector and write it into TDengine, achieving historical data migration or real-time data synchronization.
 
-During task execution, progress information is saved to disk, so if the task is paused and restarted, or it recovers automatically from an error, the task will not start from the beginning. More options can be found by reading the descriptions of each form field on the task creation page.
+During the operation, the task will save progress information to the disk, so if the task is paused and restarted, or automatically recovers from an anomaly, it will not start over. For more options, it is recommended to read the explanations of each form field on the task creation page in detail.
 
 ## Creating a Task
 
 ### 1. Add a Data Source
 
-Click the **+Add Data Source** button in the top left of the data writing page to enter the Add Data Source page, as shown below:
+Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
 
 <figure>
 <Image img={imgStep01} alt=""/>
@@ -33,13 +33,13 @@ Click the **+Add Data Source** button in the top left of the data writing page t
 
 ### 2. Configure Basic Information
 
-In the **Name** field, enter a task name, such as *`test_opentsdb_01`*.
+Enter the task name in the **Name** field, for example *`test_opentsdb_01`*.
 
-Select *`OpenTSDB`* from the **Type** dropdown box, as shown below (the fields on the page will change after selection).
+Select *`OpenTSDB`* from the **Type** dropdown menu, as shown below (the fields on the page will change after selection).
 
-The **Agent** field is optional. If needed, you can select a specified agent from the dropdown box, or click the **+Create New Agent** button on the right to create a new agent.
+**Proxy** is optional. If needed, you can select a specific proxy from the dropdown menu, or click the **+ Create New Proxy** button on the right.
 
-The **Target Database** is required. Since OpenTSDB stores data with a time precision of milliseconds, you need to select a *`millisecond-precision database`*. You can also click the **+Create Database** button on the right to create a new database.
+**Target Database** is required. Since OpenTSDB stores data with millisecond precision, you need to select a *`millisecond precision database`*, or click the **+ Create Database** button on the right.
 
 <figure>
 <Image img={imgStep02} alt=""/>
@@ -47,41 +47,44 @@ The **Target Database** is required. Since OpenTSDB stores data with a time prec
 
 ### 3. Configure Connection Information
 
-In the **Connection Configuration** area, fill in the *`connection information of the source OpenTSDB database`*, as shown below:
+Fill in the *`connection information for the source OpenTSDB database`* in the **Connection Configuration** area, as shown below:
 
 <figure>
 <Image img={imgStep03} alt=""/>
 </figure>
 
-Below the **Connection Configuration** area, there is a **Connectivity Check** button. Users can click this button to check whether the information entered above can correctly retrieve data from the source OpenTSDB database. The check results are shown below:  
-  **Failure**  
+Below the **Connection Configuration** area, there is a **Connectivity Check** button. Users can click this button to check whether the information filled in above can normally access the data from the source OpenTSDB database. The check results are shown below:  
+  **Failed**  
+  
   <figure>
   <Image img={imgStep04} alt=""/>
   </figure>
-  **Success**  
+  
+  **Successful**
+
   <figure>
   <Image img={imgStep05} alt=""/>
   </figure>
 
 ### 4. Configure Task Information
 
-**Metrics**: These are the physical quantities stored in the OpenTSDB database. Users can specify multiple metrics to synchronize; if not specified, all data in the database will be synchronized. If users specify metrics, they need to click the **Get Metrics** button on the right to fetch all metric information from the current source OpenTSDB database and then select from the dropdown box, as shown below:
+**Metrics** are the physical quantities in which data is stored in the OpenTSDB database. Users can specify multiple metrics to synchronize, or synchronize all data in the database if none are specified. If users specify metrics, they need to first click the **Get Metrics** button on the right to obtain all the metric information from the current source OpenTSDB database, and then select from the dropdown menu, as shown below:
 
 <figure>
 <Image img={imgStep06} alt=""/>
 </figure>
 
-**Start Time**: This refers to the start time of the data in the source OpenTSDB database. The time zone of the start time uses the time zone selected in the explorer. This field is required.
+**Start Time** refers to the start time of the data in the source OpenTSDB database, using the timezone selected in explorer, and this field is required.
 
-**End Time**: This refers to the end time of the data in the source OpenTSDB database. If the end time is not specified, synchronization of the latest data will continue; if the end time is specified, synchronization will only occur up to that point. The time zone of the end time uses the time zone selected in the explorer. This field is optional.
+**End Time** refers to the end time of the data in the source OpenTSDB database. If no end time is specified, the synchronization of the latest data will continue; if an end time is specified, synchronization will only continue up to this end time, using the timezone selected in explorer, and this field is optional.
 
-**Time Range per Read (minutes)**: This defines the maximum time range for a single read from the source OpenTSDB database. This is an important parameter that users need to decide based on server performance and data storage density. If the range is too small, the synchronization task will execute slowly. If the range is too large, it may cause system failures in the OpenTSDB database due to high memory usage.
+**Time Range per Read (minutes)** is the maximum time range for the connector to read data from the source OpenTSDB database in a single operation. This is a very important parameter, and users need to decide based on server performance and data storage density. If the range is too small, the execution speed of the synchronization task will be very slow; if the range is too large, it may cause the OpenTSDB database system to fail due to excessive memory usage.
 
-**Delay (seconds)**: This is an integer between 1 and 30. To eliminate the impact of out-of-order data, TDengine always waits for the time specified here before reading the data.
+**Delay (seconds)** is an integer ranging from 1 to 30. To eliminate the impact of out-of-order data, TDengine always waits for the duration specified here before reading the data.
 
 ### 5. Configure Advanced Options
 
-The **Advanced Options** section is collapsed by default. Click the `>` on the right to expand it, as shown below:
+The **Advanced Options** area is collapsed by default. Click the `>` on the right to expand it, as shown in the following images:
 
 <figure>
 <Image img={imgStep07} alt=""/>
@@ -91,6 +94,6 @@ The **Advanced Options** section is collapsed by default. Click the `>` on the r
 <Image img={imgStep08} alt=""/>
 </figure>
 
-### 6. Completion
+### 6. Completion of Creation
 
-Click the **Submit** button to complete the creation of the OpenTSDB to TDengine data synchronization task. Go back to the **Data Sources List** page to view the execution status of the task.
+Click the **Submit** button to complete the creation of the OpenTSDB to TDengine data synchronization task. Return to the **Data Source List** page to view the status of the task.

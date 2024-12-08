@@ -13,17 +13,17 @@ import imgStep06 from '../../assets/mongodb-06.png';
 import imgStep07 from '../../assets/mongodb-07.png';
 import imgStep08 from '../../assets/mongodb-08.png';
 
-This section explains how to create data migration tasks through the Explorer interface to migrate data from MongoDB to the current TDengine cluster.
+This section describes how to create data migration tasks through the Explorer interface, migrating data from MongoDB to the current TDengine cluster.
 
-## Function Overview
+## Feature Overview
 
-MongoDB is a product that sits between relational and non-relational databases and is widely used in various fields such as content management systems, mobile applications, and the Internet of Things. Starting from TDengine Enterprise Edition 3.3.3.0, TDengine can efficiently read data from MongoDB and write it to TDengine for historical data migration or real-time data synchronization, addressing the technical challenges faced by businesses.
+MongoDB is a product that lies between relational and non-relational databases, widely used in content management systems, mobile applications, and the Internet of Things, among other fields. Starting from TDengine Enterprise Edition 3.3.3.0, TDengine can efficiently read data from MongoDB and write it into TDengine, achieving historical data migration or real-time data synchronization, and addressing technical pain points faced by businesses.
 
 ## Creating a Task
 
 ### 1. Add a Data Source
 
-Click the **+Add Data Source** button in the upper right corner of the data writing page to enter the Add Data Source page, as shown below:
+Click the **+ Add Data Source** button in the top right corner of the data writing page to enter the Add Data Source page, as shown below:
 
 <figure>
 <Image img={imgStep01} alt=""/>
@@ -31,13 +31,13 @@ Click the **+Add Data Source** button in the upper right corner of the data writ
 
 ### 2. Configure Basic Information
 
-In the **Name** field, enter a task name, such as `test_mongodb_01`.
+Enter the task name in the **Name** field, for example `test_mongodb_01`.
 
-Select `MongoDB` from the **Type** dropdown list, as shown below (the fields on the page will change after selection).
+Select `MongoDB` from the **Type** dropdown menu, as shown below (the fields on the page will change after selection).
 
-The **Agent** field is optional; if needed, you can select a specified agent from the dropdown or click the **+Create New Agent** button on the right to create a new agent.
+**Proxy** is optional. If needed, you can select a specific proxy from the dropdown menu, or click the **+ Create New Proxy** button on the right to create a new proxy.
 
-The **Target Database** field is required; you can select a specified database from the dropdown or click the **+Create Database** button on the right to create a new database.
+**Target Database** is mandatory. You can select a specific database from the dropdown menu, or click the **+ Create Database** button on the right to create a new database.
 
 <figure>
 <Image img={imgStep02} alt=""/>
@@ -45,7 +45,7 @@ The **Target Database** field is required; you can select a specified database f
 
 ### 3. Configure Connection Information
 
-In the **Connection Configuration** area, fill in the *`source MongoDB database connection information`*, as shown below:
+Fill in the *connection information for the source MongoDB database* in the **Connection Configuration** area, as shown below:
 
 <figure>
 <Image img={imgStep03} alt=""/>
@@ -53,11 +53,11 @@ In the **Connection Configuration** area, fill in the *`source MongoDB database 
 
 ### 4. Configure Authentication Information
 
-In the **User** field, enter the user for the source MongoDB database; this user must have read permissions in the MongoDB system.
+**User** Enter the user of the source MongoDB database, who must have read permissions in the MongoDB system.
 
-In the **Password** field, enter the login password for the user in the source MongoDB database.
+**Password** Enter the login password for the user mentioned above in the source MongoDB database.
 
-In the **Authentication Database** field, enter the database in MongoDB that stores user information, which defaults to admin.
+**Authentication Database** The database in MongoDB where user information is stored, default is admin.
 
 <figure>
 <Image img={imgStep04} alt=""/>
@@ -65,64 +65,65 @@ In the **Authentication Database** field, enter the database in MongoDB that sto
 
 ### 5. Configure Connection Options
 
-In the **Application Name** field, set the application name used to identify the connecting application.
+**Application Name** Set the application name to identify the connected application.
 
-In the **SSL Certificate** field, set whether to use an encrypted connection, which is off by default. If enabled, you need to upload the following two files:
+**SSL Certificate** Set whether to use an encrypted connection, which is off by default. If enabled, you need to upload the following two files:
 
-1. **CA File**: Upload the SSL encrypted certificate authorization file.
-2. **Certificate File**: Upload the SSL encrypted certificate file.
+&emsp; 1. **CA File** Upload the SSL encryption certificate authority file.
+
+&emsp; 2. **Certificate File** Upload the SSL encryption certificate file.
 
 <figure>
 <Image img={imgStep05} alt=""/>
 </figure>
 
-Then click the **Check Connectivity** button; users can click this button to check if the information filled in above can successfully retrieve data from the source MongoDB database.
+Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally retrieve data from the source MongoDB database.
 
 ### 6. Configure Data Query
 
-In the **Database** field, specify the source database in MongoDB, and you can use placeholders for dynamic configuration, such as `database_${Y}`. See the table below for the available placeholders.
+**Database** The source database in MongoDB, which can be dynamically configured using placeholders, such as `database_${Y}`. See the table below for a list of available placeholders.
 
-In the **Collection** field, specify the collection in MongoDB, and you can also use placeholders for dynamic configuration, such as `collection_${md}`. See the table below for the available placeholders.
+**Collection** The collection in MongoDB, which can be dynamically configured using placeholders, such as `collection_${md}`. See the table below for a list of available placeholders.
 
-| Placeholder |                         Description                          | Example Data |
-| :---------: | :----------------------------------------------------------: | :----------: |
-|      Y      | Complete year in Gregorian calendar, zero-padded 4-digit integer |     2024     |
-|      y      | Year in Gregorian calendar divided by 100, zero-padded 2-digit integer |      24      |
-|      M      |                    Integer month (1 - 12)                    |      1       |
-|      m      |                   Integer month (01 - 12)                    |      01      |
-|      B      |              Full name of the month in English               |   January    |
-|      b      |       Abbreviation of the month in English (3 letters)       |     Jan      |
-|      D      |         Numeric representation of the date (1 - 31)          |      1       |
-|      d      |         Numeric representation of the date (01 - 31)         |      01      |
-|      J      |                  Day of the year (1 - 366)                   |      1       |
-|      j      |                 Day of the year (001 - 366)                  |     001      |
-|      F      |                Equivalent to `${Y}-${m}-${d}`                |  2024-01-01  |
+|Placeholder|Description|Example Data|
+| :-----: | :------------: |:--------:|
+|Y|Complete Gregorian year, zero-padded 4-digit integer|2024|
+|y|Gregorian year divided by 100, zero-padded 2-digit integer|24|
+|M|Integer month (1 - 12)|1|
+|m|Integer month (01 - 12)|01|
+|B|Full English spelling of the month|January|
+|b|Abbreviation of the month in English (3 letters)|Jan|
+|D|Numeric representation of the date (1 - 31)|1|
+|d|Numeric representation of the date (01 - 31)|01|
+|J|Day of the year (1 - 366)|1|
+|j|Day of the year (001 - 366)|001|
+|F|Equivalent to `${Y}-${m}-${d}`|2024-01-01|
 
-The **Subtable Fields** are used to split the subtable fields, which typically correspond to tags in the transform section. Multiple fields are separated by commas, e.g., `col_name1,col_name2`.
-This configuration is primarily aimed at solving the problem of data migration disorder and needs to be used in conjunction with the **Query Template**; otherwise, the expected effect cannot be achieved. Usage examples:
+**Subtable Fields** Fields used to split subtables, usually corresponding to tags in transform, separated by commas, such as col_name1,col_name2.
+This configuration is mainly to solve the problem of data migration disorder, and needs to be used in conjunction with **Query Template**, otherwise it cannot achieve the expected effect. Usage examples are as follows:
 
-1. Configure two subtable fields `col_name1,col_name2`.
-2. In the **Query Template**, add placeholders for the subtable fields, for example, `{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}, ${col_name1}, ${col_name2}}` where `${col_name1}` and `${col_name2}` are the placeholders.
-3. In the **transform** section, configure the tag mappings for `col_name1` and `col_name2`.
+1. Configure two subtable fields `col_name1,col_name2`
+2. Add subtable field placeholders in the **Query Template**, such as the `${col_name1}, ${col_name2}` part in `{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}, ${col_name1}, ${col_name2}}`
+3. Configure `col_name1` and `col_name2` two tag mappings in **transform**
 
-The **Query Template** is used for querying data. It must be in JSON format and must include time range conditions, with start and end times appearing in pairs. The defined time range in the template is composed of a column representing time from the source database and the placeholders defined below.
-Using different placeholders represents different time format requirements, specifically the following placeholder formats:
+**Query Template** is used for querying data with a JSON format query statement, which must include a time range condition, and the start and end times must appear in pairs. The time range defined in the template consists of a time-representing column from the source database and the placeholders defined below.
+Different placeholders represent different time format requirements, specifically the following placeholder formats:
 
-1. `${start_datetime}` and `${end_datetime}`: Correspond to filtering based on backend datetime type fields, e.g., `{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}}` will be converted to `{"ddate":{"$gte":{"$date":"2024-06-01T00:00:00+00:00"},"$lt":{"$date":"2024-07-01T00:00:00"}}}`
-2. `${start_timestamp}` and `${end_timestamp}`: Correspond to filtering based on backend timestamp type fields, e.g., `{"ttime":{"$gte":${start_timestamp},"$lt":${end_timestamp}}}` will be converted to `{"ttime":{"$gte":{"$timestamp":{"t":123,"i":456}},"$lt":{"$timestamp":{"t":123,"i":456}}}}`
+1. `${start_datetime}`, `${end_datetime}`: Corresponds to filtering by the backend datetime type field, e.g., `{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}}` will be converted to `{"ddate":{"$gte":{"$date":"2024-06-01T00:00:00+00:00"},"$lt":{"$date":"2024-07-01T00:00:00+00:00"}}}`
+2. `${start_timestamp}`, `${end_timestamp}`: Corresponds to filtering by the backend timestamp type field, e.g., `{"ttime":{"$gte":${start_timestamp},"$lt":${end_timestamp}}}` will be converted to `{"ttime":{"$gte":{"$timestamp":{"t":123,"i":456}},"$lt":{"$timestamp":{"t":123,"i":456}}}}`
 
-In the **Query Sorting** field, specify sorting conditions for executing the query in JSON format. It must comply with MongoDB's sorting condition format. Example usages:
+**Query Sorting** Sorting conditions during query execution, in JSON format, must comply with MongoDB's sorting condition format specifications, with usage examples as follows:
 
-1. `{"createtime":1}`: Returns MongoDB query results sorted by `createtime` in ascending order.
-2. `{"createdate":1, "createtime":1}`: Returns MongoDB query results sorted by `createdate` in ascending order, followed by `createtime` in ascending order.
+1. `{"createtime":1}`: MongoDB query results are returned in ascending order by createtime.
+2. `{"createdate":1, "createtime":1}`: MongoDB query results are returned in ascending order by createdate and createtime.
 
-**Start Time** is the starting time for migrating data; this is a required field.
+**Start Time** The start time for migrating data, this field is mandatory.
 
-**End Time** is the end time for migrating data and can be left blank. If set, the migration task will complete automatically when it reaches the end time; if left blank, it will continuously synchronize real-time data, and the task will not automatically stop.
+**End Time** The end time for migrating data, can be left blank. If set, the migration task will stop automatically after reaching the end time; if left blank, it will continuously synchronize real-time data, and the task will not stop automatically.
 
-**Query Interval** is the time interval for segmenting queries. The default is 1 day. To avoid querying an excessive amount of data, a sub-task for data synchronization will query data by time segments according to the query interval.
+**Query Interval** The time interval for segmenting data queries, default is 1 day. To avoid querying too much data at once, a data synchronization subtask will use the query interval to segment the data.
 
-**Delay Duration** is an integer range from 1 to 30; to avoid the loss of delayed written data in real-time synchronization scenarios, each synchronization task will read data before the specified delay duration.
+**Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
 <figure>
 <Image img={imgStep06} alt=""/>
@@ -130,17 +131,17 @@ In the **Query Sorting** field, specify sorting conditions for executing the que
 
 ### 7. Configure Data Mapping
 
-In the **Payload Transformation** area, fill in the parameters related to data mapping.
+Fill in the data mapping related configuration parameters in the **Payload Transformation** area.
 
-Click the **Retrieve from Server** button to get sample data from the MongoDB server.
+Click the **Retrieve from Server** button to fetch sample data from the MongoDB server.
 
-In the **Parsing** section, choose from JSON/Regex/UDT parsing rules for the raw message body; after configuration, click the **Preview** button on the right to view the parsing results.
+In **Parsing**, choose from JSON/Regex/UDT to parse the original message body, and click the **Preview** button on the right to view the parsing results after configuration.
 
-In the **Extract or Split from Columns** section, fill in the fields to extract or split from the message body. For example, split the `vValue` field into `vValue_0` and `vValue_1` using the split extractor, specifying `,` as the separator and `2` for the number. After configuration, click the **Preview** button on the right to view the transformation results.
+In **Extract or Split from Column**, fill in the fields to extract or split from the message body, for example: split the `vValue` field into `vValue_0` and `vValue_1`, select the split extractor, fill in the separator as `,`, number as 2, and click the **Preview** button on the right to view the transformation results after configuration.
 
-In the **Filtering** section, enter filtering conditions; for example, entering `Value > 0` means that only data where Value is greater than 0 will be written to TDengine. After configuration, click the **Preview** button on the right to view the filtering results.
+In **Filter**, fill in the filtering conditions, for example: write `Value > 0`, then only data where Value is greater than 0 will be written to TDengine, and click the **Preview** button on the right to view the filtering results after configuration.
 
-In the **Mapping** section, select the supertable to map to TDengine and specify the columns to map to the supertable. After configuration, click the **Preview** button on the right to view the mapping results.
+In **Mapping**, select the supertable in TDengine to which the data will be mapped, as well as the columns to map to the supertable, and click the **Preview** button on the right to view the mapping results after configuration.
 
 <figure>
 <Image img={imgStep07} alt=""/>
@@ -148,11 +149,11 @@ In the **Mapping** section, select the supertable to map to TDengine and specify
 
 ### 8. Configure Advanced Options
 
-The **Advanced Options** area is folded by default; click the `>` button on the right to expand, as shown below:
+The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
-**Maximum Read Concurrency** limits the number of connections to the data source or the number of reading threads. Modify this parameter when the default parameters do not meet your needs or when you need to adjust resource usage.
+**Maximum Read Concurrency** Limit on the number of data source connections or reading threads, modify this parameter when default parameters do not meet the needs or when adjusting resource usage.
 
-**Batch Size** is the maximum number of messages or rows sent at one time. The default is 10,000.
+**Batch Size** The maximum number of messages or rows sent at once. Default is 10000.
 
 <figure>
 <Image img={imgStep08} alt=""/>
@@ -160,4 +161,4 @@ The **Advanced Options** area is folded by default; click the `>` button on the 
 
 ### 9. Completion
 
-Click the **Submit** button to complete the creation of the data synchronization task from MongoDB to TDengine. Return to the **Data Source List** page to view the task execution status.
+Click the **Submit** button to complete the creation of the data synchronization task from MongoDB to TDengine, and return to the **Data Source List** page to view the task execution status.

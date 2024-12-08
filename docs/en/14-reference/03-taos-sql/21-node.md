@@ -1,10 +1,9 @@
 ---
 title: Manage Nodes
-description: Detailed analysis of SQL commands for managing cluster nodes
 slug: /tdengine-reference/sql-manual/manage-nodes
 ---
 
-The physical entities that make up a TDengine cluster are called dnodes (short for data nodes), which are processes running on the operating system. Within a dnode, virtual nodes (vnodes) can be created to handle time-series data storage. In a multi-node cluster environment, when a database has a replica of 3, each vgroup in that database consists of 3 vnodes. When a database has a replica of 1, each vgroup consists of 1 vnode. To configure a database for multiple replicas, the number of dnodes in the cluster must be at least 3. A dnode can also create management nodes (mnodes), with a maximum of three mnodes per cluster. In TDengine version 3.0.0.0, a new logical node type called qnode (query node) was introduced to support the separation of computing and storage. Qnodes and vnodes can coexist in the same dnode or be completely separated onto different dnodes.
+The physical entities that make up a TDengine cluster are dnodes (short for data nodes), which are processes running on top of the operating system. Within a dnode, vnodes (virtual nodes) can be established for storing time-series data. In a multi-node cluster environment, when the replica of a database is 3, each vgroup in that database consists of 3 vnodes; when the replica is 1, each vgroup consists of 1 vnode. To configure a database with multiple replicas, there must be at least 3 dnodes in the cluster. In a dnode, an mnode (management node) can also be created, with a maximum of three mnodes in a single cluster. In TDengine 3.0.0.0, to support separation of storage and computation, a new logical node called qnode (query node) was introduced, which can either coexist with a vnode in the same dnode or be completely separated on different dnodes.
 
 ## Create Data Node
 
@@ -12,9 +11,9 @@ The physical entities that make up a TDengine cluster are called dnodes (short f
 CREATE DNODE {dnode_endpoint | dnode_host_name PORT port_val}
 ```
 
-Here, `dnode_endpoint` is in the format of `hostname:port`, and you can also specify the hostname and port separately.
+Where `dnode_endpoint` is in the format `hostname:port`. You can also specify hostname and port separately.
 
-In practice, it is recommended to create the dnode first and then start the corresponding dnode process so that it can immediately join the cluster based on the firstEP in its configuration file. Each dnode is assigned an ID after successfully joining.
+In practice, it is recommended to first create a dnode and then start the corresponding dnode process, so that the dnode can immediately join the cluster according to the firstEP in its configuration file. Each dnode is assigned an ID upon successful joining.
 
 ## View Data Nodes
 
@@ -22,15 +21,19 @@ In practice, it is recommended to create the dnode first and then start the corr
 SHOW DNODES;
 ```
 
-This command lists all the data nodes in the cluster, including fields such as the dnode ID, endpoint, and status.
+This lists all the data nodes in the cluster, with fields including the dnode's ID, endpoint, and status.
 
 ## Delete Data Node
 
 ```sql
-DROP DNODE dnode_id
+DROP DNODE dnode_id [force] [unsafe]
 ```
 
-Note that deleting a dnode does not stop the corresponding process. It is recommended to delete a dnode before stopping its associated process.
+Note that deleting a dnode does not stop the corresponding process. It is recommended to stop the process after deleting a dnode.
+
+Only online nodes can be deleted. To forcibly delete an offline node, you need to perform a forced deletion operation, i.e., specify the force option.
+
+If there is a single replica on the node and the node is offline, to forcibly delete the node, you need to perform an unsafe deletion, i.e., specify unsafe, and the data cannot be recovered.
 
 ## Modify Data Node Configuration
 
@@ -63,9 +66,9 @@ dnode_option: {
 }
 ```
 
-The above syntax allows modifying these configuration items in a way similar to how they are configured in the dnode configuration file, with the difference being that the modifications take effect immediately and do not require restarting the dnode.
+The modifiable configuration items in the syntax above are configured in the same way as in the dnode configuration file, the difference being that modifications are dynamic, take immediate effect, and do not require restarting the dnode.
 
-The value is the parameter value, which should be in character format. For example, to modify the log output level of dnode 1 to debug:
+`value` is the value of the parameter, which needs to be in string format. For example, to change the log output level of dnode 1 to debug:
 
 ```sql
 ALTER DNODE 1 'debugFlag' '143';
@@ -77,7 +80,7 @@ ALTER DNODE 1 'debugFlag' '143';
 CREATE MNODE ON DNODE dnode_id
 ```
 
-By default, a MNODE is created on the firstEP node when the system starts. Users can use this command to create additional MNODEs to improve system availability. A maximum of three MNODEs can exist in a cluster, and only one MNODE can be created on each DNODE.
+The system by default creates an MNODE on the firstEP node upon startup. Users can use this statement to create more MNODEs to improve system availability. A cluster can have a maximum of three MNODEs, and only one MNODE can be created on a DNODE.
 
 ## View Management Nodes
 
@@ -85,7 +88,7 @@ By default, a MNODE is created on the firstEP node when the system starts. Users
 SHOW MNODES;
 ```
 
-This command lists all the management nodes in the cluster, including their ID, the DNODE they are on, and their status.
+List all management nodes in the cluster, including their ID, the DNODE they are on, and their status.
 
 ## Delete Management Node
 
@@ -93,7 +96,7 @@ This command lists all the management nodes in the cluster, including their ID, 
 DROP MNODE ON DNODE dnode_id;
 ```
 
-This command deletes the MNODE on the specified DNODE.
+Delete the MNODE on the DNODE specified by dnode_id.
 
 ## Create Query Node
 
@@ -101,7 +104,7 @@ This command deletes the MNODE on the specified DNODE.
 CREATE QNODE ON DNODE dnode_id;
 ```
 
-By default, there are no QNODEs in the system, and users can create QNODEs to achieve separation of computing and storage. Only one QNODE can be created on each DNODE. If the `supportVnodes` parameter of a DNODE is not 0, and a QNODE is created on it, that DNODE will have both vnodes for storage management and qnodes for query computation. Additionally, if an MNODE is created on the same DNODE, all three types of logical nodes can coexist. However, through configuration, these nodes can also be completely separated. Setting the `supportVnodes` parameter of a DNODE to 0 allows for the creation of either an MNODE or a QNODE, achieving a physical separation of the three logical nodes.
+By default, there are no QNODEs when the system starts. Users can create QNODEs to achieve separation of computation and storage. Only one QNODE can be created on a DNODE. If a DNODE's `supportVnodes` parameter is not 0 and a QNODE is also created on it, then the dnode will have both a vnode responsible for storage management and a qnode responsible for query computation. If an mnode is also created on that dnode, then up to three types of logical nodes can exist on one dnode. However, through configuration, they can also be completely separated. Setting a dnode's `supportVnodes` to 0 allows choosing to create either an mnode or a qnode on it, thus achieving complete physical separation of the three types of logical nodes.
 
 ## View Query Nodes
 
@@ -109,7 +112,7 @@ By default, there are no QNODEs in the system, and users can create QNODEs to ac
 SHOW QNODES;
 ```
 
-This command lists all the query nodes in the cluster, including their ID and the DNODE they are on.
+List all query nodes in the cluster, including their ID and the DNODE they are on.
 
 ## Delete Query Node
 
@@ -117,7 +120,7 @@ This command lists all the query nodes in the cluster, including their ID and th
 DROP QNODE ON DNODE dnode_id;
 ```
 
-This command deletes the QNODE on the specified DNODE, but it does not affect the status of that DNODE.
+Delete the QNODE on the DNODE with ID dnode_id, but this does not affect the status of that dnode.
 
 ## Query Cluster Status
 
@@ -125,11 +128,11 @@ This command deletes the QNODE on the specified DNODE, but it does not affect th
 SHOW CLUSTER ALIVE;
 ```
 
-This command checks whether the current cluster is available, returning values: 0 for unavailable, 1 for fully available, and 2 for partially available (some nodes in the cluster are offline, but others can still operate normally).
+Query whether the current cluster status is available, return values: 0: Not available 1: Fully available 2: Partially available (some nodes in the cluster are offline, but other nodes can still be used normally)
 
 ## Modify Client Configuration
 
-If the client is viewed as part of the broader cluster, you can dynamically modify client configuration parameters with the following command.
+If the client is also considered as part of the cluster in a broader sense, the following command can be used to dynamically modify client configuration parameters.
 
 ```sql
 ALTER LOCAL local_option
@@ -144,7 +147,7 @@ local_option: {
 }
 ```
 
-The parameters in the above syntax are the same as those configured in the client configuration file, but they take effect immediately without restarting the client.
+The parameters in the syntax above are used in the same way as in the configuration file for the client, but do not require a restart of the client, and the changes take effect immediately.
 
 ## View Client Configuration
 

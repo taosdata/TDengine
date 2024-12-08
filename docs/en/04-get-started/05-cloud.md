@@ -23,7 +23,7 @@ You can register for a TDengine Cloud account for free and automatically obtain 
 2. Determine whether you want to use any public databases and click **Next**.
 
    The TDengine DB Mart includes several public databases that you can use for testing purposes. To enable access to a public database in your account, select the toggle. You can modify these settings after the account creation process is finished.
-   
+
 3. Create an organization.
    1. Enter a name for your organization in TDengine Cloud. This name must be unique.
    2. Specify whether to enable single sign-on (SSO).

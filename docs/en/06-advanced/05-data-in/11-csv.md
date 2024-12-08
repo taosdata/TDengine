@@ -14,17 +14,17 @@ import imgStep07 from '../../assets/csv-file-07.png';
 import imgStep10 from '../../assets/csv-file-10.png';
 import imgStep11 from '../../assets/csv-file-11.png';
 
-This section explains how to create a data migration task through the Explorer interface to migrate data from CSV to the current TDengine cluster.
+This section describes how to create data migration tasks through the Explorer interface, migrating data from CSV to the current TDengine cluster.
 
-## Function Overview
+## Feature Overview
 
-Import one or more CSV files into TDengine.
+Import data from one or more CSV files into TDengine.
 
-## Creating a Task
+## Create Task
 
-### 1. Add a Data Source
+### 1. Add Data Source
 
-Click the **+Add Data Source** button on the data writing page to enter the Add Data Source page.
+On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
 <figure>
 <Image img={imgStep01} alt=""/>
@@ -32,11 +32,11 @@ Click the **+Add Data Source** button on the data writing page to enter the Add 
 
 ### 2. Configure Basic Information
 
-In the **Name** field, enter a task name, such as: "test_csv";
+Enter the task name in **Name**, such as: "test_csv";
 
 Select **CSV** from the **Type** dropdown list.
 
-In the **Target Database** dropdown list, select a target database, or click the **+Create Database** button on the right.
+Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
 <figure>
 <Image img={imgStep02} alt=""/>
@@ -44,27 +44,27 @@ In the **Target Database** dropdown list, select a target database, or click the
 
 ### 3. Configure CSV Options
 
-In the **Contains Header** section, toggle to enable or disable; if it contains a header, the first row will be treated as column information.
+Click to enable or disable in the **Include Header** area, if enabled, the first line will be treated as column information.
 
-In the **Ignore First N Rows** section, enter N to ignore the first N rows of the CSV file.
+In the **Ignore First N Rows** area, fill in N, indicating to ignore the first N rows of the CSV file.
 
-In the **Field Separator** section, select the separator between CSV fields; the default is ",".
+Select in the **Field Separator** area, the separator between CSV fields, default is ",".
 
-In the **Field Quotation Character** section, select the character used to surround field content when the CSV field contains separators or newline characters to ensure the entire field is correctly identified; the default is `" "`.
+Select in the **Field Enclosure** area, used to surround field content when CSV fields contain separators or newline characters, ensuring the entire field is correctly recognized, default is "\"".
 
-In the **Comment Prefix Character** section, select the character; if any line in the CSV file begins with this character, that line will be ignored; the default is "#".
+Select in the **Comment Prefix** area, if a line in the CSV file starts with the character specified here, that line will be ignored, default is "#".
 
 <figure>
 <Image img={imgStep03} alt=""/>
 </figure>
 
-### 4. Configure CSV File Parsing
+### 4. Configure Parsing CSV File
 
-Upload the CSV file locally, for example: test-json.csv; this sample CSV file will then be used to configure extraction and filtering conditions.
+Upload a CSV file locally, for example: test-json.csv, this example csv file will be used later to configure extraction and filtering conditions.
 
 #### 4.1 Parsing
 
-After clicking **Select File**, choose test-json.csv, then click **Parse** to preview the identified columns.
+Click **Select File**, choose test-json.csv, then click **Parse** to preview the recognized columns.
 
 <figure>
 <Image img={imgStep04} alt=""/>
@@ -78,10 +78,8 @@ After clicking **Select File**, choose test-json.csv, then click **Parse** to pr
 
 #### 4.2 Field Splitting
 
-In the **Extract or Split from Columns** section, enter the fields to extract or split from the message body. For example, split the message field into `text_0` and `text_1` using the split extractor; enter `-` as the separator and `2` for the number.
-
+In **Extract or Split from Column**, fill in the fields to extract or split from the message body, for example: split the message field into `text_0` and `text_1`, select the split extractor, fill in the separator as -, and number as 2.
 Click **Delete** to remove the current extraction rule.
-
 Click **Add** to add more extraction rules.
 
 <figure>
@@ -94,23 +92,31 @@ Click the **Magnifying Glass Icon** to preview the extraction or splitting resul
 <Image img={imgStep07} alt=""/>
 </figure>
 
-<!-- In the **Filtering** section, enter filtering conditions, such as: `id != 1`, so that only data where id is not 1 will be written to TDengine.
+<!-- In **Filter**, fill in the filtering conditions, for example: fill in `id != 1`, then only data with id not equal to 1 will be written into TDengine.
 Click **Delete** to remove the current filtering rule.
 
-![csv-08.png](../../assets/csv-file-08.png)
+![csv-08.png](./csv-08.png)
 
-Click the **Magnifying Glass Icon** to preview the filtering results.
+Click the **Magnifying Glass Icon** to view the preview filtering results.
 
-![csv-09.png](../../assets/csv-file-09.png) -->
+![csv-09.png](./csv-09.png) -->
 
 #### 4.3 Table Mapping
 
-In the **Target Supertable** dropdown list, select a target supertable, or click the **Create Supertable** button on the right.
+Select a target supertable from the **Target Supertable** dropdown list, or click the **Create Supertable** button on the right.
 
-In the **Mapping** section, fill in the subtable name in the target supertable, for example: `t_${groupid}`.
+In **Mapping**, fill in the subtable name of the target supertable, for example: `t_${groupid}`.
 
-Click **Preview** to see the mapping results.
+<figure>
+<Image img={imgStep10} alt=""/>
+</figure>
+
+Click **Preview** to preview the mapping results.
+
+<figure>
+<Image img={imgStep11} alt=""/>
+</figure>
 
 ### 5. Completion
 
-Click the **Submit** button to complete the creation of the CSV to TDengine data synchronization task. Go back to the **Data Sources List** page to view the execution status of the task.
+Click the **Submit** button to complete the creation of the CSV to TDengine data synchronization task, return to the **Data Source List** page to view the status of the task execution.

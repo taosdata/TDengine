@@ -21,7 +21,6 @@
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTrans.h"
-#include "mndVgroup.h"
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
@@ -1610,6 +1609,13 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
+    int32_t precision = TSDB_TIME_PRECISION_MILLI;
+    SDbObj *pSourceDb = mndAcquireDb(pMnode, pStream->sourceDb);
+    if (pSourceDb != NULL) {
+      precision = pSourceDb->cfg.precision;
+      mndReleaseDb(pMnode, pSourceDb);
+    }
+
     // add row for each task
     SStreamTaskIter *pIter = NULL;
     code = createStreamTaskIter(pStream, &pIter);
@@ -1628,7 +1634,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         break;
       }
 
-      code = setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows);
+      code = setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows, precision);
       if (code == TSDB_CODE_SUCCESS) {
         numOfRows++;
       }

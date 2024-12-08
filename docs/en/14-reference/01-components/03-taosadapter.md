@@ -12,18 +12,18 @@ import StatsD from "../../10-third-party/01-collection/_statsd.mdx"
 import Icinga2 from "../../10-third-party/01-collection/_icinga2.mdx"
 import TCollector from "../../10-third-party/01-collection/_tcollector.mdx"
 
-taosAdapter is a supporting tool for TDengine, acting as a bridge and adapter between the TDengine cluster and applications. It provides an easy-to-use and efficient way to ingest data directly from data collection agents such as Telegraf, StatsD, collectd, etc. It also offers InfluxDB/OpenTSDB-compatible data ingestion interfaces, allowing InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine.
+taosAdapter is a companion tool for TDengine, serving as a bridge and adapter between the TDengine cluster and applications. It provides an easy and efficient way to ingest data directly from data collection agents (such as Telegraf, StatsD, collectd, etc.). It also offers InfluxDB/OpenTSDB compatible data ingestion interfaces, allowing InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine.
 
 taosAdapter offers the following features:
 
 - RESTful interface
-- InfluxDB v1 write interface compatibility
-- OpenTSDB JSON and telnet format writing compatibility
+- Compatible with InfluxDB v1 write interface
+- Compatible with OpenTSDB JSON and telnet format writing
 - Seamless connection to Telegraf
 - Seamless connection to collectd
 - Seamless connection to StatsD
-- Support for Prometheus remote_read and remote_write
-- Retrieve the VGroup ID of the table's virtual node group (VGroup)
+- Supports Prometheus remote_read and remote_write
+- Retrieves the VGroup ID of the virtual node group (VGroup) where the table is located
 
 ## taosAdapter Architecture Diagram
 
@@ -32,31 +32,32 @@ taosAdapter offers the following features:
 <figcaption>Figure 1. taosAdapter architecture</figcaption>
 </figure>
 
-## taosAdapter Deployment Method
+## Deployment Methods for taosAdapter
 
 ### Installing taosAdapter
 
-taosAdapter is part of the TDengine server software. If you are using the TDengine server, no additional steps are needed to install taosAdapter. If you need to deploy taosAdapter separately on a server outside the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to compile taosAdapter from the source code, you can refer to the documentation on [Building taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md).
+taosAdapter is part of the TDengine server software. If you are using TDengine server, you do not need any additional steps to install taosAdapter. If you need to deploy taosAdapter separately from the TDengine server, you should install the complete TDengine on that server to install taosAdapter. If you need to compile taosAdapter from source code, you can refer to the [Build taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md) document.
 
 ### Starting/Stopping taosAdapter
 
-On Linux systems, the taosAdapter service is managed by systemd by default. Use the command `systemctl start taosadapter` to start the taosAdapter service. Use the command `systemctl stop taosadapter` to stop the taosAdapter service.
+On Linux systems, the taosAdapter service is managed by default by systemd. Use the command `systemctl start taosadapter` to start the taosAdapter service. Use the command `systemctl stop taosadapter` to stop the taosAdapter service.
 
 ### Removing taosAdapter
 
-Use the command `rmtaos` to remove the TDengine server software, including taosAdapter.
+Use the command rmtaos to remove the TDengine server software, including taosAdapter.
 
 ### Upgrading taosAdapter
 
-taosAdapter and the TDengine server need to be the same version. Please upgrade taosAdapter by upgrading the TDengine server. The taosAdapter deployed separately from taosd must be upgraded by upgrading the TDengine server it is installed on.
+taosAdapter and TDengine server need to use the same version. Please upgrade taosAdapter by upgrading the TDengine server.
+taosAdapter deployed separately from taosd must be upgraded by upgrading the TDengine server on its server.
 
 ## taosAdapter Parameter List
 
 taosAdapter supports configuration through command-line parameters, environment variables, and configuration files. The default configuration file is `/etc/taos/taosadapter.toml`.
 
-Command-line parameters take precedence over environment variables, which take precedence over configuration files. The command-line usage is `arg=val`, for example, `taosadapter -p=30000 --debug=true`. The detailed list is as follows:
+Command-line parameters take precedence over environment variables, which take precedence over configuration files. The command-line usage is arg=val, such as taosadapter -p=30000 --debug=true, detailed list as follows:
 
-```text
+```shell
 Usage of taosAdapter:
       --collectd.db string                           collectd db name. Env "TAOS_ADAPTER_COLLECTD_DB" (default "collectd")
       --collectd.enable                              enable collectd. Env "TAOS_ADAPTER_COLLECTD_ENABLE" (default true)
@@ -117,7 +118,7 @@ Usage of taosAdapter:
       --opentsdb_telnet.flushInterval duration       opentsdb_telnet flush interval (0s means not valid) . Env "TAOS_ADAPTER_OPENTSDB_TELNET_FLUSH_INTERVAL"
       --opentsdb_telnet.maxTCPConnections int        max tcp connections. Env "TAOS_ADAPTER_OPENTSDB_TELNET_MAX_TCP_CONNECTIONS" (default 250)
       --opentsdb_telnet.password string              opentsdb_telnet password. Env "TAOS_ADAPTER_OPENTSDB_TELNET_PASSWORD" (default "taosdata")
-      --opentsdb_telnet.ports ints                   opentsdb telnet tcp port. Env "TAOS_ADAPTER_OPENTSDB_TELNET_PORTS" (default [6046,6047,6048,6049])
+      --opentsdb_telnet.ports ints                   opentsdb_telnet tcp port. Env "TAOS_ADAPTER_OPENTSDB_TELNET_PORTS" (default [6046,6047,6048,6049])
       --opentsdb_telnet.tcpKeepAlive                 enable tcp keep alive. Env "TAOS_ADAPTER_OPENTSDB_TELNET_TCP_KEEP_ALIVE"
       --opentsdb_telnet.ttl int                      opentsdb_telnet data ttl. Env "TAOS_ADAPTER_OPENTSDB_TELNET_TTL"
       --opentsdb_telnet.user string                  opentsdb_telnet user. Env "TAOS_ADAPTER_OPENTSDB_TELNET_USER" (default "root")
@@ -156,8 +157,8 @@ Usage of taosAdapter:
   -V, --version                                      Print the version and exit
 ```
 
-:::note
-When making interface calls using a browser, please set the following CORS parameters according to your actual situation:
+Note:
+When using a browser to make API calls, please set the following Cross-Origin Resource Sharing (CORS) parameters according to the actual situation:
 
 ```text
 AllowAllOrigins
@@ -168,76 +169,69 @@ AllowCredentials
 AllowWebSockets
 ```
 
-If you are not making interface calls through a browser, there is no need to worry about these configurations.
+If you are not making API calls through a browser, you do not need to worry about these configurations.
 
-For details on the CORS protocol, please refer to: [https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) or [https://developer.mozilla.org/docs/Web/HTTP/CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS).
+For details about the CORS protocol, please refer to: [https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) or [https://developer.mozilla.org/docs/Web/HTTP/CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS).
 
-:::
+See the example configuration file at [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/3.0/example/config/taosadapter.toml).
 
-An example configuration file can be found at [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/3.0/example/config/taosadapter.toml).
+### Connection Pool Parameters Description
 
-### Connection Pool Parameter Explanation
+When using the RESTful API, the system will manage TDengine connections through a connection pool. The connection pool can be configured with the following parameters:
 
-When using the RESTful interface for requests, the system will manage TDengine connections through a connection pool. The connection pool can be configured using the following parameters:
-
-- **`pool.maxConnect`**: The maximum number of connections allowed in the connection pool; default value is twice the number of CPU cores. It is recommended to keep the default setting.
-- **`pool.maxIdle`**: The maximum number of idle connections allowed in the connection pool; defaults to the same as `pool.maxConnect`. It is recommended to keep the default setting.
-- **`pool.idleTimeout`**: The idle timeout for connections; defaults to never timing out. It is recommended to keep the default setting.
-- **`pool.waitTimeout`**: The timeout for obtaining connections from the connection pool; defaults to 60 seconds. If a connection cannot be obtained within the timeout period, an HTTP status code of 503 will be returned. This parameter has been available since version 3.3.3.0.
-- **`pool.maxWait`**: The upper limit on the number of requests waiting to obtain connections in the connection pool; default value is 0, indicating no limit. When the number of queued requests exceeds this value, new requests will return an HTTP status code of 503. This parameter has been available since version 3.3.3.0.
+- **`pool.maxConnect`**: The maximum number of connections allowed in the pool, default is twice the number of CPU cores. It is recommended to keep the default setting.
+- **`pool.maxIdle`**: The maximum number of idle connections in the pool, default is the same as `pool.maxConnect`. It is recommended to keep the default setting.
+- **`pool.idleTimeout`**: Connection idle timeout, default is never timeout. It is recommended to keep the default setting.
+- **`pool.waitTimeout`**: Timeout for obtaining a connection from the pool, default is set to 60 seconds. If a connection is not obtained within the timeout period, HTTP status code 503 will be returned. This parameter is available starting from version 3.3.3.0.
+- **`pool.maxWait`**: The maximum number of requests waiting to get a connection in the pool, default is 0, which means no limit. When the number of queued requests exceeds this value, new requests will return HTTP status code 503. This parameter is available starting from version 3.3.3.0.
 
 ## Feature List
 
-- RESTful interface
+- RESTful API
   [RESTful API](../../client-libraries/rest-api/)
-- InfluxDB v1 write interface compatibility
+- Compatible with InfluxDB v1 write interface
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
-- OpenTSDB JSON and telnet format writing compatibility
+- Compatible with OpenTSDB JSON and telnet format writing
   - [http://opentsdb.net/docs/build/html/api_http/put.html](http://opentsdb.net/docs/build/html/api_http/put.html)
   - [http://opentsdb.net/docs/build/html/api_telnet/put.html](http://opentsdb.net/docs/build/html/api_telnet/put.html)
-- Seamless connection to collectd.
-  collectd is a system statistics collection daemon; visit [https://collectd.org/](https://collectd.org/) for more information.
-- Seamless connection to StatsD.
-  StatsD is a simple yet powerful statistics aggregator daemon. Visit [https://github.com/statsd/statsd](https://github.com/statsd/statsd) for more information.
-- Seamless connection to icinga2.
-  icinga2 is software for collecting check results metrics and performance data. Visit [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) for more information.
-- Seamless connection to tcollector.
+- Seamless connection with collectd.
+  collectd is a system statistics collection daemon, visit [https://collectd.org/](https://collectd.org/) for more information.
+- Seamless connection with StatsD.
+  StatsD is a simple yet powerful daemon for gathering statistics. Visit [https://github.com/statsd/statsd](https://github.com/statsd/statsd) for more information.
+- Seamless connection with icinga2.
+  icinga2 is a software for collecting check results metrics and performance data. Visit [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) for more information.
+- Seamless connection with tcollector.
   TCollector is a client process that collects data from local collectors and pushes it to OpenTSDB. Visit [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) for more information.
-- Seamless connection to node_exporter.
-  node_exporter is an exporter for machine metrics exposed by the *NIX kernel. Visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
-- Support for Prometheus remote_read and remote_write.
-  remote_read and remote_write are cluster solutions for separating data read and write in Prometheus. Visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
-- Retrieve the VGroup ID of the table's virtual node group (VGroup).
+- Seamless connection with node_exporter.
+  node_exporter is an exporter of machine metrics. Visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
+- Supports Prometheus remote_read and remote_write.
+  remote_read and remote_write are Prometheus's data read-write separation cluster solutions. Visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
+- Get the VGroup ID of the virtual node group (VGroup) where the table is located.
 
-## Interfaces
+## Interface
 
 ### TDengine RESTful Interface
 
-You can use any client that supports the HTTP protocol to write data to TDengine or query data from TDengine by accessing the RESTful interface address `http://<fqdn>:6041/rest/sql`. For details, please refer to the [REST API documentation](../../client-libraries/rest-api/).
+You can use any client that supports the HTTP protocol to write data to TDengine or query data from TDengine by accessing the RESTful interface URL `http://<fqdn>:6041/rest/sql`. For details, please refer to the [REST API documentation](../../client-libraries/rest-api/).
 
 ### InfluxDB
 
-You can use any client that supports the HTTP protocol to access the RESTful interface address `http://<fqdn>:6041/influxdb/v1/write` to write InfluxDB-compatible format data to TDengine.
+You can use any client that supports the HTTP protocol to write data in InfluxDB compatible format to TDengine by accessing the Restful interface URL `http://<fqdn>:6041/influxdb/v1/write`.
 
-The following InfluxDB parameters are supported:
+Supported InfluxDB parameters are as follows:
 
 - `db` specifies the database name used by TDengine
-- `precision` is the time precision used by TDengine
-- `u` is the username for TDengine
-- `p` is the password for TDengine
-- `ttl` is the lifecycle of the automatically created subtable, based on the TTL parameter of the first data in the subtable and cannot be updated. For more information, please refer to the [Create Table Documentation](../../sql-manual/manage-tables/) for the TTL parameter.
+- `precision` the time precision used by TDengine
+- `u` TDengine username
+- `p` TDengine password
+- `ttl` the lifespan of automatically created subtables, determined by the TTL parameter of the first data entry in the subtable, which cannot be updated. For more information, please refer to the TTL parameter in the [table creation document](../../sql-manual/manage-tables/).
 
-:::note
-
-Currently, the token authentication method of InfluxDB is not supported; only Basic authentication and query parameter authentication are supported.
-
-Example: `curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"`
-
-:::
+Note: Currently, InfluxDB's token authentication method is not supported, only Basic authentication and query parameter verification are supported.
+Example: curl --request POST `http://127.0.0.1:6041/influxdb/v1/write?db=test` --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
 
 ### OpenTSDB
 
-You can use any client that supports the HTTP protocol to access the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>` to write OpenTSDB-compatible format data to TDengine. The endpoints are as follows:
+You can use any client that supports the HTTP protocol to write data in OpenTSDB compatible format to TDengine by accessing the Restful interface URL `http://<fqdn>:6041/<APIEndPoint>`. EndPoint as follows:
 
 ```text
 /opentsdb/v1/put/json/<db>
@@ -262,121 +256,121 @@ You can use any client that supports the HTTP protocol to access the RESTful int
 
 ### node_exporter
 
-Prometheus uses an exporter for machine metrics exposed by the \*NIX kernel.
+An exporter used by Prometheus that exposes hardware and operating system metrics from \*NIX kernels
 
-- Enable taosAdapter's configuration `node_exporter.enable`
-- Set relevant configurations for `node_exporter`
+- Enable configuration of taosAdapter node_exporter.enable
+- Set the relevant configuration for node_exporter
 - Restart taosAdapter
 
 ### prometheus
 
 <Prometheus />
 
-### Retrieve the VGroup ID of a Table
+### Getting the VGroup ID of a table
 
-You can access the HTTP interface `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get the VGroup ID of the table.
+You can access the HTTP interface `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get the VGroup ID of a table.
 
 ## Memory Usage Optimization Methods
 
-taosAdapter monitors its memory usage during runtime and adjusts based on two thresholds. The valid range is integers from -1 to 100, representing the percentage of the system's physical memory.
+taosAdapter will monitor its memory usage during operation and adjust it through two thresholds. Valid values range from -1 to 100 as a percentage of system physical memory.
 
 - pauseQueryMemoryThreshold
 - pauseAllMemoryThreshold
 
-When the pauseQueryMemoryThreshold is exceeded, processing of query requests will stop.
+When the pauseQueryMemoryThreshold threshold is exceeded, it stops processing query requests.
 
-HTTP returns:
+HTTP return content:
 
 - code 503
 - body "query memory exceeds threshold"
 
-When the pauseAllMemoryThreshold is exceeded, processing of all write and query requests will stop.
+When the pauseAllMemoryThreshold threshold is exceeded, it stops processing all write and query requests.
 
-HTTP returns:
+HTTP return content:
 
 - code 503
 - body "memory exceeds threshold"
 
-When memory falls below the thresholds, the corresponding functionalities will resume.
+When memory falls below the threshold, the corresponding functions are resumed.
 
 Status check interface `http://<fqdn>:6041/-/ping`
 
-- Returns `code 200` when normal
-- No parameters; if memory exceeds pauseAllMemoryThreshold, it will return `code 503`
-- Request parameter `action=query`; if memory exceeds pauseQueryMemoryThreshold or pauseAllMemoryThreshold, it will return `code 503`
+- Normally returns `code 200`
+- No parameters If memory exceeds pauseAllMemoryThreshold, it will return `code 503`
+- Request parameter `action=query` If memory exceeds either pauseQueryMemoryThreshold or pauseAllMemoryThreshold, it will return `code 503`
 
-Corresponding configuration parameters:
+Corresponding configuration parameters
 
 ```text
   monitor.collectDuration              Monitoring interval                                    Environment variable "TAOS_MONITOR_COLLECT_DURATION" (default value 3s)
-  monitor.incgroup                     Whether running in cgroup (set to true if running in a container)      Environment variable "TAOS_MONITOR_INCGROUP"
-  monitor.pauseAllMemoryThreshold      Memory threshold for pausing inserts and queries                   Environment variable "TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD" (default value 80)
-  monitor.pauseQueryMemoryThreshold    Memory threshold for pausing queries                        Environment variable "TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD" (default value 70)
+  monitor.incgroup                     Whether it is running in cgroup (set to true in containers)      Environment variable "TAOS_MONITOR_INCGROUP"
+  monitor.pauseAllMemoryThreshold      Memory threshold for stopping inserts and queries                   Environment variable "TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD" (default value 80)
+  monitor.pauseQueryMemoryThreshold    Memory threshold for stopping queries                        Environment variable "TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD" (default value 70)
 ```
 
-You can make corresponding adjustments based on specific project application scenarios and operational strategies, and it is recommended to use operational monitoring software to monitor the system's memory status in a timely manner. Load balancers can also use this interface to check the running status of taosAdapter.
+You can adjust according to the specific project application scenario and operational strategy, and it is recommended to use operational monitoring software to monitor the system memory status in real time. Load balancers can also check the running status of taosAdapter through this interface.
 
 ## taosAdapter Monitoring Metrics
 
-taosAdapter collects monitoring metrics related to REST/Websocket requests. It reports these metrics to taosKeeper, which writes them into the monitoring database, which is by default the `log` database, and can be modified in the taoskeeper configuration file. The following is a detailed introduction to these monitoring metrics.
+taosAdapter collects monitoring metrics related to REST/WebSocket requests. These monitoring metrics are reported to taosKeeper, which writes them into the monitoring database, by default the `log` database, which can be modified in the taoskeeper configuration file. Below is a detailed introduction to these monitoring metrics.
 
-### adapter_requests Table
+### adapter_requests table
 
 `adapter_requests` records taosadapter monitoring data.
 
-| field              | type         | is\_tag | comment                                   |
-| :----------------- | :----------- | :------ | :---------------------------------------- |
-| ts                 | TIMESTAMP    |         | timestamp                                 |
-| total              | INT UNSIGNED |         | Total number of requests                  |
-| query              | INT UNSIGNED |         | Number of query requests                  |
-| write              | INT UNSIGNED |         | Number of write requests                  |
-| other              | INT UNSIGNED |         | Number of other requests                  |
-| in\_process        | INT UNSIGNED |         | Number of requests in process             |
-| success            | INT UNSIGNED |         | Number of successful requests             |
-| fail               | INT UNSIGNED |         | Number of failed requests                 |
-| query\_success     | INT UNSIGNED |         | Number of successful query requests       |
-| query\_fail        | INT UNSIGNED |         | Number of failed query requests           |
-| write\_success     | INT UNSIGNED |         | Number of successful write requests       |
-| write\_fail        | INT UNSIGNED |         | Number of failed write requests           |
-| other\_success     | INT UNSIGNED |         | Number of other successful requests       |
-| other\_fail        | INT UNSIGNED |         | Number of other failed requests           |
-| query\_in\_process | INT UNSIGNED |         | Number of queries in process              |
-| write\_in\_process | INT UNSIGNED |         | Number of writes in process               |
-| endpoint           | VARCHAR      |         | Request endpoint                          |
-| req\_type          | NCHAR        | TAG     | Request type: 0 for REST, 1 for Websocket |
+| field            | type         | is_tag | comment                                   |
+| :--------------- | :----------- | :----- | :---------------------------------------- |
+| ts               | TIMESTAMP    |        | timestamp                                 |
+| total            | INT UNSIGNED |        | total number of requests                  |
+| query            | INT UNSIGNED |        | number of query requests                  |
+| write            | INT UNSIGNED |        | number of write requests                  |
+| other            | INT UNSIGNED |        | number of other requests                  |
+| in_process       | INT UNSIGNED |        | number of requests in process             |
+| success          | INT UNSIGNED |        | number of successful requests             |
+| fail             | INT UNSIGNED |        | number of failed requests                 |
+| query_success    | INT UNSIGNED |        | number of successful query requests       |
+| query_fail       | INT UNSIGNED |        | number of failed query requests           |
+| write_success    | INT UNSIGNED |        | number of successful write requests       |
+| write_fail       | INT UNSIGNED |        | number of failed write requests           |
+| other_success    | INT UNSIGNED |        | number of successful other requests       |
+| other_fail       | INT UNSIGNED |        | number of failed other requests           |
+| query_in_process | INT UNSIGNED |        | number of query requests in process       |
+| write_in_process | INT UNSIGNED |        | number of write requests in process       |
+| endpoint         | VARCHAR      |        | request endpoint                          |
+| req_type         | NCHAR        | tag    | request type: 0 for REST, 1 for WebSocket |
 
-## Result Return Count Limit
+## Result Return Limit
 
-taosAdapter controls the number of rows returned by the parameter `restfulRowLimit`, where -1 indicates no limit, and the default is unlimited.
+taosAdapter controls the number of results returned through the parameter `restfulRowLimit`, -1 represents no limit, default is no limit.
 
-This parameter controls the return of the following interfaces:
+This parameter controls the return of the following interfaces
 
 - `http://<fqdn>:6041/rest/sql`
 - `http://<fqdn>:6041/prometheus/v1/remote_read/:db`
 
-## HTTP Return Code Configuration
+## Configure HTTP Return Codes
 
-taosAdapter uses the parameter `httpCodeServerError` to set whether to return a non-200 HTTP status code when the C interface returns an error. When set to true, it will return different HTTP status codes based on the C return error code. For specifics, see [HTTP Response Codes](../../client-libraries/rest-api/#http-response-codes).
+taosAdapter uses the parameter `httpCodeServerError` to set whether to return a non-200 HTTP status code when the C interface returns an error. When set to true, it will return different HTTP status codes based on the error code returned by C. See [HTTP Response Codes](../../client-libraries/rest-api/) for details.
 
-## Configuration for Automatic DB Creation on Schemaless Writes
+## Configure Automatic DB Creation for Schemaless Writes
 
-Starting from version 3.0.4.0, taosAdapter provides the parameter `smlAutoCreateDB` to control whether to automatically create a DB when writing using the schemaless protocol. The default value is false, meaning the DB must be manually created by the user before performing schemaless writes.
+Starting from version 3.0.4.0, taosAdapter provides the parameter `smlAutoCreateDB` to control whether to automatically create a DB when writing via the schemaless protocol. The default value is false, which does not automatically create a DB, and requires the user to manually create a DB before performing schemaless writes.
 
 ## Troubleshooting
 
-You can check the running status of taosAdapter by using the command `systemctl status taosadapter`.
+You can check the running status of taosAdapter with the command `systemctl status taosadapter`.
 
-You can also adjust the verbosity of taosAdapter's log output by setting the `--logLevel` parameter or the environment variable `TAOS_ADAPTER_LOG_LEVEL`. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
+You can also adjust the detail level of taosAdapter log output by setting the --logLevel parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
 
-## How to Migrate from Old Versions of TDengine to taosAdapter
+## How to Migrate from Older Versions of TDengine to taosAdapter
 
-In TDengine server version 2.2.x.x or earlier, the taosd process contained an embedded HTTP service. As mentioned earlier, taosAdapter is an independent software managed by systemd, with its own process. There are some configuration parameters and behaviors that differ between the two, as shown in the table below:
+In TDengine server version 2.2.x.x or earlier, the taosd process included an embedded HTTP service. As mentioned earlier, taosAdapter is a standalone software managed by systemd, having its own process. Moreover, there are some differences in configuration parameters and behaviors between the two, as shown in the table below:
 
-| **#** | **embedded httpd**  | **taosAdapter**                                        | **comment**                                                  |
-| ----- | ------------------- | ------------------------------------------------------ | ------------------------------------------------------------ |
-| 1     | httpEnableRecordSql | --logLevel=debug                                       |                                                              |
-| 2     | httpMaxThreads      | n/a                                                    | taosAdapter automatically manages the thread pool; this parameter is not needed. |
-| 3     | telegrafUseFieldNum | Refer to the taosAdapter telegraf configuration method |                                                              |
-| 4     | restfulRowLimit     | restfulRowLimit                                        | The embedded httpd defaults to output 10,240 rows of data, with a maximum allowable value of 102,400. taosAdapter also provides restfulRowLimit but defaults to no limit. You can configure it according to your actual scenario needs. |
-| 5     | httpDebugFlag       | Not applicable                                         | httpdDebugFlag does not apply to taosAdapter.                |
-| 6     | httpDBNameMandatory | Not applicable                                         | taosAdapter requires the database name to be specified in the URL. |
+| **#** | **embedded httpd**  | **taosAdapter**                                            | **comment**                                                  |
+| ----- | ------------------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| 1     | httpEnableRecordSql | --logLevel=debug                                           |                                                              |
+| 2     | httpMaxThreads      | n/a                                                        | taosAdapter automatically manages the thread pool, this parameter is not needed |
+| 3     | telegrafUseFieldNum | Please refer to taosAdapter telegraf configuration methods |                                                              |
+| 4     | restfulRowLimit     | restfulRowLimit                                            | The embedded httpd defaults to outputting 10240 rows of data, with a maximum allowable value of 102400. taosAdapter also provides restfulRowLimit but does not impose a limit by default. You can configure it according to actual scenario needs. |
+| 5     | httpDebugFlag       | Not applicable                                             | httpdDebugFlag does not affect taosAdapter                   |
+| 6     | httpDBNameMandatory | Not applicable                                             | taosAdapter requires the database name to be specified in the URL |

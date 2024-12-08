@@ -1,10 +1,9 @@
 ---
 title: Basic Features
-description: 'TDengine Basic Features'
 slug: /basic-features
 ---
 
-This section describes the basic features of TDengine, including how to manage databases and tables, how to ingest data, and how to query data stored in TDengine.
+This chapter mainly introduces the data model of TDengine as well as its write and query functions.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

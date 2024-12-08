@@ -1,12 +1,11 @@
 ---
-title: Manage Tables
-description: Various management operations on tables
+title: Tables
 slug: /tdengine-reference/sql-manual/manage-tables
 ---
 
 ## Create Table
 
-The `CREATE TABLE` statement is used to create basic tables and subtables based on supertables as templates.
+The `CREATE TABLE` statement is used to create basic tables and subtables using a supertable as a template.
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
@@ -36,23 +35,24 @@ table_option: {
   | SMA(col_name [, col_name] ...)
   | TTL value
 }
+
 ```
 
-**Usage Instructions**
+**Usage Notes**
 
-1. The naming rules for table (column) names refer to [Naming Rules](../names/).
-2. The maximum length of a table name is 192.
-3. The first field of a table must be TIMESTAMP, which is automatically set as the primary key by the system.
-4. In addition to the timestamp primary key column, a second column can also be designated as an additional primary key using the PRIMARY KEY keyword. The second column designated as the primary key must be of integer or string type (varchar).
-5. The length of each row in a table cannot exceed 48KB (64KB starting from version 3.0.5.0); (Note: Each BINARY/NCHAR/GEOMETRY type column will also occupy an additional 2 bytes of storage space).
-6. For the data types BINARY/NCHAR/GEOMETRY, the maximum byte size must be specified, such as BINARY(20), indicating 20 bytes.
-7. For the usage of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/).
+1. For table (column) naming conventions, see [Naming Rules](../names/).
+2. The maximum length for table names is 192 characters.
+3. The first field of the table must be TIMESTAMP, and the system automatically sets it as the primary key.
+4. In addition to the timestamp primary key column, a second column can be designated as an additional primary key column using the PRIMARY KEY keyword. The second column designated as a primary key must be of integer or string type (VARCHAR).
+5. The maximum row length of a table cannot exceed 48KB (from version 3.0.5.0 onwards, 64KB); (Note: Each VARCHAR/NCHAR/GEOMETRY type column will also occupy an additional 2 bytes of storage space).
+6. When using data types VARCHAR/NCHAR/GEOMETRY, specify the maximum number of bytes, e.g., VARCHAR(20) indicates 20 bytes.
+7. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/)
 
 **Parameter Description**
 
-1. COMMENT: Table comment. Applicable to supertables, subtables, and basic tables. The maximum length is 1024 bytes.
-2. SMA: Small Materialized Aggregates, provides a custom pre-computation feature based on data blocks. The pre-computation types include MAX, MIN, and SUM. Applicable to supertables/basic tables.
-3. TTL: Time to Live, is a parameter used to specify the lifecycle of the table. If this parameter is specified when creating the table, TDengine will automatically delete the table after its existence exceeds the specified TTL. This TTL time is approximate, and the system does not guarantee deletion at the specified time, but it ensures that such a mechanism exists and that it will eventually be deleted. TTL is measured in days, with a range of [0, 2147483647], defaulting to 0, which means no limit; the expiration time is the table creation time plus the TTL time. TTL is not related to the KEEP parameter of the database; if KEEP is smaller than TTL, the data may be deleted before the table is deleted.
+1. COMMENT: Table comment. Can be used for supertables, subtables, and basic tables. The maximum length is 1024 bytes.
+2. SMA: Small Materialized Aggregates, provides custom pre-computation based on data blocks. Pre-computation types include MAX, MIN, and SUM. Available for supertables/basic tables.
+3. TTL: Time to Live, a parameter used by users to specify the lifespan of a table. If this parameter is specified when creating a table, TDengine automatically deletes the table after its existence exceeds the specified TTL time. This TTL time is approximate, the system does not guarantee deletion at the exact time but ensures that such a mechanism exists and will eventually delete it. TTL is measured in days, with a range of [0, 2147483647], defaulting to 0, meaning no limit, with the expiration time being the table creation time plus TTL time. TTL is not associated with the database KEEP parameter; if KEEP is smaller than TTL, data may be deleted before the table is removed.
 
 ## Create Subtable
 
@@ -68,17 +68,17 @@ CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
 ```
 
-This creates a data table using the specified supertable as a template and can also specify values for some tag columns (unspecified tag columns will be set to NULL).
+Using the specified supertable as a template, you can also create tables by specifying some of the TAGS column values (TAGS columns that are not specified will be set to null values).
 
-### Batch Create Subtables
+### Batch creation of subtables
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF NOT EXISTS] tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
 ```
 
-The batch table creation method requires that the data tables be based on a supertable as a template. Within the limits of SQL statement length, it is recommended to control the number of tables in a single statement to be between 1000 and 3000 to achieve optimal table creation speed.
+The batch table creation method requires that the tables must use a supertable as a template. Under the premise of not exceeding the SQL statement length limit, it is recommended to control the number of tables created in a single statement between 1000 and 3000 to achieve an ideal table creation speed.
 
-### Use CSV to Batch Create Subtables
+### Using CSV to batch create subtables
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (field1_name [, field2_name] ....) FILE csv_file_path;
@@ -86,11 +86,11 @@ CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (field1_name [, field2_nam
 
 **Parameter Description**
 
-1. The FILE syntax indicates that the data comes from a CSV file (comma-separated, with each value enclosed in single quotes). The CSV file does not require a header. The CSV file should contain only the table name and tag values. For inserting data, please refer to the data writing chapter.
-2. The specified stb_name must already exist for creating the subtable.
-3. The order of the field_name list must match the order of the columns in the CSV file. The list cannot contain duplicates and must include `tbname`, which can include zero or more of the already defined tag columns in the supertable. Tag values not included in the list will be set to NULL.
+1. FILE syntax indicates that the data comes from a CSV file (separated by English commas, each value enclosed in English single quotes), and the CSV file does not need a header. The CSV file should only contain the table name and tag values. If you need to insert data, please refer to the 'Data Writing' section.
+2. Create subtables for the specified stb_name, which must already exist.
+3. The order of the field_name list must be consistent with the order of the columns in the CSV file. The list must not contain duplicates and must include `tbname`, and it may contain zero or more tag columns already defined in the supertable. Tag values not included in the list will be set to NULL.
 
-## Modify Basic Table
+## Modify basic tables
 
 ```sql
 ALTER TABLE [db_name.]tb_name alter_table_clause
@@ -110,47 +110,48 @@ alter_table_option: {
     TTL value
   | COMMENT 'string_value'
 }
+
 ```
 
 **Usage Instructions**
-The following modifications can be performed on basic tables:
+The following modifications can be made to basic tables:
 
 1. ADD COLUMN: Add a column.
 2. DROP COLUMN: Delete a column.
-3. MODIFY COLUMN: Modify the column definition. If the data column type is variable-length, this command can be used to modify its width, but it can only be increased, not decreased.
+3. MODIFY COLUMN: Modify the column definition. If the data column type is variable length, this command can be used to increase its width, but not decrease it.
 4. RENAME COLUMN: Change the column name.
-5. The primary key column of a basic table cannot be modified, nor can primary key columns be added or deleted using ADD/DROP COLUMN.
+5. The primary key columns of basic tables cannot be modified, nor can they be added or removed through ADD/DROP COLUMN.
 
 **Parameter Description**
 
-1. COMMENT: Table comment. Applicable to supertables, subtables, and basic tables. The maximum length is 1024 bytes.
-2. TTL: Time to Live, is a parameter used to specify the lifecycle of the table. If this parameter is specified when creating the table, TDengine will automatically delete the table after its existence exceeds the specified TTL. This TTL time is approximate, and the system does not guarantee deletion at the specified time, but it ensures that such a mechanism exists and that it will eventually be deleted. TTL is measured in days, with a range of [0, 2147483647], defaulting to 0, which means no limit; the expiration time is the table creation time plus the TTL time. TTL is not related to the KEEP parameter of the database; if KEEP is smaller than TTL, the data may be deleted before the table is deleted.
+1. COMMENT: Table comment. Can be used for supertables, subtables, and basic tables. The maximum length is 1024 bytes.
+2. TTL: Time to Live, a parameter used by users to specify the lifespan of a table. If this parameter is specified when creating a table, TDengine automatically deletes the table after its existence exceeds the specified TTL time. This TTL time is approximate, and the system does not guarantee that it will definitely delete the table at that time, but only ensures that there is such a mechanism and it will eventually be deleted. The TTL unit is days, with a range of [0, 2147483647], defaulting to 0, meaning no limit, and the expiration time is the table creation time plus the TTL time. TTL is not related to the database KEEP parameter. If KEEP is smaller than TTL, data may already be deleted before the table is deleted.
 
-### Add Column
+### Add column
 
 ```sql
 ALTER TABLE tb_name ADD COLUMN field_name data_type;
 ```
 
-### Drop Column
+### Delete column
 
 ```sql
 ALTER TABLE tb_name DROP COLUMN field_name;
 ```
 
-### Modify Column Width
+### Modify column width
 
 ```sql
 ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ```
 
-### Rename Column
+### Change column name
 
 ```sql
 ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
 ```
 
-### Modify Table Lifecycle
+### Modify table lifespan
 
 ```sql
 ALTER TABLE tb_name TTL value
@@ -169,7 +170,7 @@ ALTER TABLE [db_name.]tb_name alter_table_clause
 
 alter_table_clause: {
     alter_table_options
-  | SET TAG tag_name = new_tag_value,tag_name2=new_tag2_value...
+  | SET tag tag_name = new_tag_value,tag_name2=new_tag2_value...
 }
 
 alter_table_options:
@@ -181,22 +182,22 @@ alter_table_option: {
 }
 ```
 
-**Usage Instructions**
+**Usage Notes**
 
-1. For modifications to subtable columns and tags, except for changing tag values, all modifications must be made through the supertable.
+1. Modifications to columns and tags of subtables, except for changing tag values, must be done through the supertable.
 
 **Parameter Description**
 
-1. COMMENT: Table comment. Applicable to supertables, subtables, and basic tables. The maximum length is 1024 bytes.
-2. TTL: Time to Live, is a parameter used to specify the lifecycle of the table. If this parameter is specified when creating the table, TDengine will automatically delete the table after its existence exceeds the specified TTL. This TTL time is approximate, and the system does not guarantee deletion at the specified time, but it ensures that such a mechanism exists and that it will eventually be deleted. TTL is measured in days, with a range of [0, 2147483647], defaulting to 0, which means no limit; the expiration time is the table creation time plus the TTL time. TTL is not related to the KEEP parameter of the database; if KEEP is smaller than TTL, the data may be deleted before the table is deleted.
+1. COMMENT: Table comment. Can be used for supertables, subtables, and regular tables. The maximum length is 1024 bytes.
+2. TTL: Time to Live, a parameter used by users to specify the lifespan of a table. If this parameter is specified when creating a table, TDengine automatically deletes the table after its existence exceeds the time specified by TTL. This TTL time is approximate; the system does not guarantee that it will delete the table exactly at that time, but it ensures that there is such a mechanism and it will eventually delete the table. TTL is measured in days, with a range of [0, 2147483647], default is 0, meaning no limit, and the expiration time is the table creation time plus TTL time. TTL is not related to the database KEEP parameter; if KEEP is smaller than TTL, data might be deleted before the table is.
 
 ### Modify Subtable Tag Value
 
 ```sql
-ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+ALTER TABLE tb_name SET tag tag_name=new_tag_value;
 ```
 
-### Modify Table Lifecycle
+### Modify Table Lifespan
 
 ```sql
 ALTER TABLE tb_name TTL value
@@ -208,24 +209,24 @@ ALTER TABLE tb_name TTL value
 ALTER TABLE tb_name COMMENT 'string_value'
 ```
 
-## Drop Table
+## Delete Table
 
-You can drop one or more basic tables or subtables in a single SQL statement.
+You can delete one or more regular tables or subtables in a single SQL statement.
 
 ```sql
 DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
 ```
 
-**Note**: Dropping a table does not immediately free the disk space occupied by that table; instead, it marks the data of that table as deleted, and these data will not appear in queries. However, the release of disk space will be delayed until the system automatically or manually performs data compaction.
+**Note**: Deleting a table does not immediately free up the disk space occupied by the table. Instead, the table's data is marked as deleted. This data will not appear in queries, but freeing up disk space is delayed until the system automatically or the user manually reorganizes the data.
 
 ## View Table Information
 
 ### Show All Tables
 
-The following SQL statement can list all table names in the current database.
+The following SQL statement can list all the table names in the current database.
 
 ```sql
-SHOW TABLES [LIKE tb_name_wildchar];
+SHOW TABLES [LIKE tb_name_wildcard];
 ```
 
 ### Show Table Creation Statement
@@ -234,7 +235,7 @@ SHOW TABLES [LIKE tb_name_wildchar];
 SHOW CREATE TABLE tb_name;
 ```
 
-Commonly used for database migration. For an existing table, it returns its creation statement; executing this statement in another cluster will create a table with the same structure.
+Commonly used for database migration. For an existing table, it returns its creation statement; executing this statement in another cluster will produce a table with the exact same structure.
 
 ### Get Table Structure Information
 

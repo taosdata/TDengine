@@ -1399,6 +1399,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pOffset = pOffset;
   interval->pSliding = pSliding;
   interval->pFill = pFill;
+  interval->timeRange = TSWINDOW_INITIALIZER;
   return (SNode*)interval;
 _err:
   nodesDestroyNode((SNode*)interval);

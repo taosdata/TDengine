@@ -4,25 +4,25 @@ sidebar_label: taosX Agent
 slug: /tdengine-reference/components/taosx-agent
 ---
 
-This section explains how to deploy the `Agent` (for `taosX`). Before using it, you need to install the TDengine Enterprise installation package. The taosX-Agent is used in certain data access scenarios, such as Pi, OPC UA, and OPC DA, where access to the data source is restricted or the network environment is special. It can be deployed close to the data source or even on the same server as the data source, with the taosX-Agent responsible for reading data from the source and sending it to taosX.
+This section discusses how to deploy `Agent` (for `taosX`). Before using it, you need to install the TDengine Enterprise package. taosX-Agent is used in some data access scenarios, such as Pi, OPC UA, OPC DA, etc., where there are certain restrictions on accessing data sources or the network environment is special. In such cases, taosX-Agent can be deployed close to the data source or even on the same server as the data source, and it is responsible for reading data from the data source and sending it to taosX.
 
 ## Configuration
 
-The default configuration file for the `Agent` is located at `/etc/taos/agent.toml`, which contains the following configuration items:
+The default configuration file for `Agent` is located at `/etc/taos/agent.toml`, and includes the following configuration items:
 
 - `endpoint`: Required, the GRPC service address of `taosX`.
-- `token`: Required, the token generated when creating the `Agent` on `Explorer`.
-- `instanceId`: The instance ID of the current taosx-agent service. If multiple taosx-agent instances are started on the same machine, the instance IDs must be unique.
-- `compression`: Optional, can be set to `true` or `false`, defaulting to `false`. When set to `true`, it enables data compression for communication between the `Agent` and `taosX`.
-- `log_level`: Optional, the log level, defaulting to `info`, supporting `error`, `warn`, `info`, `debug`, and `trace`. Deprecated; please use `log.level` instead.
-- `log_keep_days`: Optional, the number of days to keep logs, defaulting to `30` days. Deprecated; please use `log.keepDays` instead.
-- `log.path`: Directory where log files are stored.
-- `log.level`: Log level, with optional values of "error", "warn", "info", "debug", and "trace".
-- `log.compress`: Whether to compress the files after rolling the logs.
-- `log.rotationCount`: The maximum number of files to retain in the log file directory; older files beyond this limit are deleted.
-- `log.rotationSize`: The file size (in bytes) that triggers the log file to roll; a new file is created when the log exceeds this size, and new logs will be written to the new file.
-- `log.reservedDiskSize`: The threshold (in bytes) for stopping log writing when the remaining disk space reaches this size.
-- `log.keepDays`: The number of days log files are retained; old log files exceeding this number will be deleted.
+- `token`: Required, the Token generated when creating `Agent` in `Explorer`.
+- `instanceId`: The instance ID of the current taosx-agent service. If multiple taosx-agent instances are started on the same machine, it is necessary to ensure that the instance IDs of each instance are unique.
+- `compression`: Optional, can be configured as `true` or `false`, default is `false`. If set to `true`, it enables data compression in communication between `Agent` and `taosX`.
+- `log_level`: Optional, log level, default is `info`. Like `taosX`, it supports five levels: `error`, `warn`, `info`, `debug`, `trace`. Deprecated, please use `log.level` instead.
+- `log_keep_days`: Optional, the number of days to keep logs, default is `30` days. Deprecated, please use `log.keepDays` instead.
+- `log.path`: The directory where log files are stored.
+- `log.level`: Log level, options are "error", "warn", "info", "debug", "trace".
+- `log.compress`: Whether to compress the log files after rolling.
+- `log.rotationCount`: The maximum number of log files to keep in the directory, older files are deleted when this number is exceeded.
+- `log.rotationSize`: The file size that triggers log rolling (in bytes), a new file is created when the log file exceeds this size, and new logs are written to the new file.
+- `log.reservedDiskSize`: The threshold of remaining disk space to stop writing logs (in bytes), logging stops when the disk space reaches this size.
+- `log.keepDays`: The number of days to keep log files, older log files are deleted after this period.
 
 As shown below:
 
@@ -77,23 +77,23 @@ As shown below:
 #keepDays = 30
 ```
 
-You don't need to be confused about how to set the configuration file; read and follow the prompts in `Explorer` when creating the `Agent`, and you can view, modify, and check the configuration file.
+You don't need to be confused about how to set up the configuration file. Read and follow the prompts in `Explorer` to create an `Agent`, where you can view, modify, and check the configuration file.
 
 ## Start
 
-On Linux, the `Agent` can be started with the Systemd command:
+On Linux systems, the `Agent` can be started with the Systemd command:
 
 ```bash
 systemctl start taosx-agent
 ```
 
-On Windows, find the taosx-agent service in the system management tool "Services" and start it.
+On Windows systems, find the taosx-agent service through the system management tool "Services", and then start it.
 
 ## Troubleshooting
 
-You can view log files or use the `journalctl` command to check the logs of the `Agent`.
+You can view the log files or use the `journalctl` command to view the logs of the `Agent`.
 
-On Linux, the command to view logs with `journalctl` is as follows:
+The command to view logs with `journalctl` on Linux is as follows:
 
 ```bash
 journalctl -u taosx-agent [-f]

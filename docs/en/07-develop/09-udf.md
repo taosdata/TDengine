@@ -6,46 +6,46 @@ slug: /developer-guide/user-defined-functions
 
 ## Introduction to UDF
 
-In certain application scenarios, the query functions required by the application logic cannot be directly implemented using built-in functions. TDengine allows the writing of User-Defined Functions (UDF) to address the specific needs in such scenarios. Once the UDF is successfully registered in the cluster, it can be called in SQL just like system-built-in functions, with no difference in usage. UDFs are divided into scalar functions and aggregate functions. Scalar functions output a value for each row of data, such as calculating the absolute value (abs), sine function (sin), string concatenation function (concat), etc. Aggregate functions output a value for multiple rows of data, such as calculating the average (avg) or maximum value (max).
+In some application scenarios, the query functionality required by the application logic cannot be directly implemented using built-in functions. TDengine allows the writing of user-defined functions (UDFs) to address the needs of special application scenarios. Once successfully registered in the cluster, UDFs can be called in SQL just like system built-in functions, with no difference in usage. UDFs are divided into scalar functions and aggregate functions. Scalar functions output a value for each row of data, such as absolute value (abs), sine function (sin), string concatenation function (concat), etc. Aggregate functions output a value for multiple rows of data, such as average (avg), maximum value (max), etc.
 
-TDengine supports writing UDFs in both C and Python programming languages. UDFs written in C have performance almost identical to built-in functions, while those written in Python can leverage the rich Python computation libraries. To prevent exceptions during UDF execution from affecting database services, TDengine uses process separation technology to execute UDFs in another process. Even if a user-defined UDF crashes, it will not affect the normal operation of TDengine.
+TDengine supports writing UDFs in two programming languages: C and Python. UDFs written in C have performance nearly identical to built-in functions, while those written in Python can utilize the rich Python computation libraries. To prevent exceptions during UDF execution from affecting the database service, TDengine uses process isolation technology, executing UDFs in a separate process. Even if a user-written UDF crashes, it will not affect the normal operation of TDengine.
 
-## Developing UDFs in C
+## Developing UDFs in C Language
 
-When implementing UDFs in C, it is necessary to implement the specified interface functions:
+When implementing UDFs in C language, you need to implement the specified interface functions:
 
-- Scalar functions need to implement the scalar interface function `scalarfn`.
+- Scalar functions need to implement the scalar interface function scalarfn.
 - Aggregate functions need to implement the aggregate interface functions `aggfn_start`, `aggfn`, `aggfn_finish`.
-- If initialization is required, implement `udf_init`.
-- If cleanup is required, implement `udf_destroy`.
+- If initialization is needed, implement `udf_init`.
+- If cleanup is needed, implement `udf_destroy`.
 
 ### Interface Definition
 
-The name of the interface function is the UDF name or a combination of the UDF name and specific suffixes (\_start, \_finish, \_init, \_destroy). The function names described later, such as `scalarfn` and `aggfn`, need to be replaced with the UDF name.
+The interface function names are the UDF name, or the UDF name connected with specific suffixes (`_start`,`_finish`, `_init`,`_destroy`). Function names described later in the content, such as `scalarfn`, `aggfn`, should be replaced with the UDF name.
 
 #### Scalar Function Interface
 
-A scalar function is a function that converts input data to output data, typically used for calculations and transformations on a single data value. The prototype for the scalar function interface is as follows.
+A scalar function is a function that converts input data into output data, typically used for calculating and transforming a single data value. The prototype of the scalar function interface is as follows.
 
 ```c
 int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn);
 ```
 
-The main parameter descriptions are as follows:
+Key parameter descriptions are as follows:
 
-- `inputDataBlock`: The input data block.
-- `resultColumn`: The output column.
+- inputDataBlock: The input data block.
+- resultColumn: The output column.
 
 #### Aggregate Function Interface
 
-An aggregate function is a special function used to group and calculate data to generate summary information. The workings of an aggregate function are as follows:
+An aggregate function is a special type of function used for grouping and calculating data to generate summary information. The working principle of aggregate functions is as follows:
 
-- Initialize the result buffer: First, call the `aggfn_start` function to generate a result buffer (result buffer) for storing intermediate results.
-- Group data: Relevant data will be divided into multiple row data blocks, each containing a set of data with the same grouping key.
-- Update intermediate results: For each data block, call the `aggfn` function to update the intermediate results. The `aggfn` function will compute the data according to the type of aggregate function (such as sum, avg, count, etc.) and store the calculation results in the result buffer.
-- Generate final results: After updating the intermediate results of all data blocks, call the `aggfn_finish` function to extract the final result from the result buffer. The final result will contain either 0 or 1 piece of data, depending on the type of aggregate function and the input data.
+- Initialize the result buffer: First, the `aggfn_start` function is called to generate a result buffer for storing intermediate results.
+- Group data: Related data is divided into multiple row data blocks, each containing a group of data with the same grouping key.
+- Update intermediate results: For each data block, the `aggfn` function is called to update the intermediate results. The `aggfn` function performs calculations according to the type of aggregate function (such as sum, avg, count, etc.) and stores the results in the result buffer.
+- Generate the final result: After updating the intermediate results of all data blocks, the `aggfn_finish` function is called to extract the final result from the result buffer. The final result contains either 0 or 1 data row, depending on the type of aggregate function and the input data.
 
-The prototype for the aggregate function interface is as follows.
+The prototype of the aggregate function interface is as follows.
 
 ```c
 int32_t aggfn_start(SUdfInterBuf *interBuf);
@@ -53,29 +53,27 @@ int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *n
 int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result);
 ```
 
-Where `aggfn` is a placeholder for the function name. First, call `aggfn_start` to generate the result buffer, then the relevant data will be divided into multiple row data blocks, and the `aggfn` function will be called for each data block to update the intermediate results. Finally, call `aggfn_finish` to produce the final result from the intermediate results, which can only contain 0 or 1 result data.
+Key parameter descriptions are as follows:
 
-The main parameter descriptions are as follows:
-
-- `interBuf`: The intermediate result buffer.
+- `interBuf`: Intermediate result buffer.
 - `inputBlock`: The input data block.
-- `newInterBuf`: The new intermediate result buffer.
+- `newInterBuf`: New intermediate result buffer.
 - `result`: The final result.
 
-#### Initialization and Destruction Interfaces
+#### Initialization and Destruction Interface
 
-The initialization and destruction interfaces are shared by both scalar and aggregate functions, with the relevant APIs as follows.
+The initialization and destruction interfaces are common interfaces used by both scalar and aggregate functions, with the following APIs.
 
 ```c
 int32_t udf_init()
 int32_t udf_destroy()
 ```
 
-The `udf_init` function performs initialization, while the `udf_destroy` function handles cleanup. If there is no initialization work, there is no need to define the `udf_init` function; if there is no cleanup work, there is no need to define the `udf_destroy` function.
+Among them, the `udf_init` function completes the initialization work, and the `udf_destroy` function completes the cleanup work. If there is no initialization work, there is no need to define the `udf_init` function; if there is no cleanup work, there is no need to define the `udf_destroy` function.
 
 ### Scalar Function Template
 
-The template for developing scalar functions in C is as follows.
+The template for developing scalar functions in C language is as follows.
 
 ```c
 #include "taos.h"
@@ -112,7 +110,7 @@ int32_t scalarfn_destroy() {
 
 ### Aggregate Function Template
 
-The template for developing aggregate functions in C is as follows.
+The template for developing aggregate functions in C language is as follows.
 
 ```c
 #include "taos.h"
@@ -172,13 +170,14 @@ int32_t aggfn_destroy() {
 
 ### Compilation
 
-In TDengine, to implement UDFs, you need to write C source code and compile it into a dynamic link library file according to TDengine's specifications. Following the previously described rules, prepare the source code for the UDF `bit_and.c`. For the Linux operating system, execute the following command to compile and obtain the dynamic link library file.
+In TDengine, to implement UDF, you need to write C language source code and compile it into a dynamic link library file according to TDengine's specifications.
+Prepare the UDF source code `bit_and.c` as described earlier. For example, on a Linux operating system, execute the following command to compile into a dynamic link library file.
 
 ```shell
 gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 ```
 
-To ensure reliable operation, it is recommended to use GCC version 7.5 or above.
+It is recommended to use GCC version 7.5 or above to ensure reliable operation.
 
 ### C UDF Data Structures
 
@@ -230,21 +229,21 @@ typedef struct SUdfInterBuf {
 } SUdfInterBuf;
 ```
 
-The structure descriptions are as follows:
+The data structures are described as follows:
 
-- `SUdfDataBlock` contains the number of rows `numOfRows` and the number of columns `numCols`. `udfCols[i]` (0 \<= i \<= `numCols`-1) represents each column of data, of type `SUdfColumn*`.
-- `SUdfColumn` contains the data type definition `colMeta` and the data `colData`.
-- The members of `SUdfColumnMeta` are defined similarly to the data type definitions in `taos.h`.
-- `SUdfColumnData` can be of variable length, with `varLenCol` defining variable length data and `fixLenCol` defining fixed length data.
-- `SUdfInterBuf` defines the intermediate structure buffer and the number of results in the buffer `numOfResult`.
+- `SUdfDataBlock` contains the number of rows `numOfRows` and the number of columns `numOfCols`. `udfCols[i]` (0 \<= i \<= numCols-1) represents each column's data, type `SUdfColumn*`.
+- `SUdfColumn` includes the column's data type definition `colMeta` and the column's data `colData`.
+- `SUdfColumnMeta` members are defined similarly to data type definitions in `taos.h`.
+- `SUdfColumnData` can be variable-length, `varLenCol` defines variable-length data, and `fixLenCol` defines fixed-length data.
+- `SUdfInterBuf` defines an intermediate structure buffer and the number of results in the buffer `numOfResult`
 
-To better operate on the above data structures, some utility functions are provided, defined in `taosudf.h`.
+To better operate the above data structures, some convenience functions are provided, defined in `taosudf.h`.
 
 ### C UDF Example Code
 
 #### Scalar Function Example [bit_and](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/bit_and.c)
 
-`bit_add` implements the bitwise AND function for multiple columns. If there is only one column, it returns that column. `bit_add` ignores null values.
+`bit_and` implements the bitwise AND function for multiple columns. If there is only one column, it returns that column. `bit_and` ignores null values.
 
 <details>
 <summary>bit_and.c</summary>
@@ -255,9 +254,9 @@ To better operate on the above data structures, some utility functions are provi
 
 </details>
 
-#### Aggregate Function Example 1 Return Value as Numeric Type [l2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/l2norm.c)
+#### Aggregate Function Example 1 Returning Numeric Type [l2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/l2norm.c)
 
-`l2norm` implements the second-order norm of all data in the input column, which means squaring each data point, summing them, and then taking the square root.
+`l2norm` implements the second-order norm of all data in the input columns, i.e., squaring each data point, then summing them up, and finally taking the square root.
 
 <details>
 <summary>l2norm.c</summary>
@@ -268,9 +267,9 @@ To better operate on the above data structures, some utility functions are provi
 
 </details>
 
-#### Aggregate Function Example 2 Return Value as String Type [max_vol](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/max_vol.c)
+#### Aggregate Function Example 2 Returning String Type [max_vol](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/max_vol.c)
 
-`max_vol` finds the maximum voltage from multiple input voltage columns and returns a combined string value composed of device ID + the location (row, column) of the maximum voltage + the maximum voltage value.
+`max_vol` implements finding the maximum voltage from multiple input voltage columns, returning a composite string value consisting of the device ID + the position (row, column) of the maximum voltage + the maximum voltage value.
 
 Create table:
 
@@ -299,37 +298,37 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 
 </details>
 
-## Developing UDFs in Python
+## Developing UDFs in Python Language
 
-### Preparing the Environment
+### Environment Setup
 
 The specific steps to prepare the environment are as follows:
 
-- Step 1: Prepare the Python runtime environment.
-- Step 2: Install the Python package `taospyudf`. The command is as follows.
+- Step 1, prepare the Python runtime environment.
+- Step 2, install the Python package taospyudf. The command is as follows.
 
     ```shell
     pip3 install taospyudf
     ```
 
-- Step 3: Execute the command `ldconfig`.
-- Step 4: Start the `taosd` service.
+- Step 3, execute the command ldconfig.
+- Step 4, start the taosd service.
 
-During installation, C++ source code will be compiled, so the system must have `cmake` and `gcc`. The compiled file `libtaospyudf.so` will be automatically copied to the `/usr/local/lib/` directory, so if you are a non-root user, you need to add `sudo` during installation. After installation, you can check if this file exists in the directory:
+The installation process will compile C++ source code, so cmake and gcc must be present on the system. The compiled libtaospyudf.so file will automatically be copied to the /usr/local/lib/ directory, so if you are not a root user, you need to add sudo during installation. After installation, you can check if this file is in the directory:
 
 ```shell
-root@slave11 ~/udf $ ls -l /usr/local/lib/libtaos*
+root@server11 ~/udf $ ls -l /usr/local/lib/libtaos*
 -rw-r--r-- 1 root root 671344 May 24 22:54 /usr/local/lib/libtaospyudf.so
 ```
 
 ### Interface Definition
 
-When developing UDFs using Python, you need to implement the specified interface functions. The specific requirements are as follows.
+When developing UDFs in Python, you need to implement the specified interface functions. The specific requirements are as follows.
 
-- Scalar functions need to implement the scalar interface function `process`.
-- Aggregate functions need to implement the aggregate interface functions `start`, `reduce`, and `finish`.
-- If initialization is required, implement the `init` function.
-- If cleanup is required, implement the `destroy` function.
+- Scalar functions need to implement the scalar interface function process.
+- Aggregate functions need to implement the aggregate interface functions start, reduce, finish.
+- If initialization is needed, the init function should be implemented.
+- If cleanup work is needed, implement the destroy function.
 
 #### Scalar Function Interface
 
@@ -339,10 +338,10 @@ The interface for scalar functions is as follows.
 def process(input: datablock) -> tuple[output_type]:
 ```
 
-The main parameter description is as follows:
+The main parameters are as follows:
 
-- `input`: `datablock` similar to a two-dimensional matrix, which reads the Python object located at row `row` and column `col` through the member method `data(row, col)`.
-- The return value is a tuple of Python objects, with each element of the output type.
+- input: datablock is similar to a two-dimensional matrix, read the python object located at row and col through the member method data(row, col)
+- The return value is a tuple of Python objects, each element type as the output type.
 
 #### Aggregate Function Interface
 
@@ -354,33 +353,29 @@ def reduce(inputs: datablock, buf: bytes) -> bytes
 def finish(buf: bytes) -> output_type:
 ```
 
-The above code defines three functions used to implement a custom aggregate function. The specific process is as follows.
+The above code defines 3 functions, each used to implement a custom aggregate function. The specific process is as follows.
 
-First, call the `start` function to generate the initial result buffer. This result buffer is used to store the internal state of the aggregate function and will be continuously updated as the input data is processed.
+First, the start function is called to generate the initial result buffer. This result buffer is used to store the internal state of the aggregate function, which is continuously updated as input data is processed.
 
-Then, the input data will be divided into multiple row data blocks. For each row data block, the `reduce` function will be called, passing the current row data block (`inputs`) and the current intermediate result (`buf`) as parameters. The `reduce` function will update the internal state of the aggregate function based on the input data and current state, returning the new intermediate result.
+Then, the input data is divided into multiple row data blocks. For each row data block, the reduce function is called, and the current row data block (inputs) and the current intermediate result (buf) are passed as parameters. The reduce function updates the internal state of the aggregate function based on the input data and current state, and returns a new intermediate result.
 
-Finally, when all row data blocks are processed, the `finish` function will be called. This function receives the final intermediate result (`buf`) as a parameter and generates the final output from it. Due to the nature of aggregate functions, the final output can only contain 0 or 1 piece of data. This output result will be returned to the caller as the computation result of the aggregate function.
+Finally, when all row data blocks have been processed, the finish function is called. This function takes the final intermediate result (buf) as a parameter and generates the final output from it. Due to the nature of aggregate functions, the final output can only contain 0 or 1 data entries. This output result is returned to the caller as the result of the aggregate function calculation.
 
-#### Initialization and Destruction Interfaces
+#### Initialization and Destruction Interface
 
-The initialization and destruction interfaces are as follows.
+The interfaces for initialization and destruction are as follows.
 
 ```Python
 def init()
 def destroy()
 ```
 
-Parameter descriptions:
+Parameter description:
 
-- `init`: Completes initialization work.
-- `destroy`: Completes cleanup work.
+- `init` completes the initialization work
+- `destroy` completes the cleanup work
 
-:::note
-
-When developing UDFs in Python, it is necessary to define the `init` and `destroy` functions.
-
-:::
+**Note** When developing UDFs in Python, you must define both `init` and `destroy` functions
 
 ### Scalar Function Template
 
@@ -417,7 +412,7 @@ def finish(buf: bytes) -> output_type:
 
 ### Data Type Mapping
 
-The following table describes the mapping between TDengine SQL data types and Python data types. Any type of NULL value is mapped to Python's `None` value.
+The table below describes the mapping between TDengine SQL data types and Python data types. Any type of NULL value is mapped to Python's None value.
 
 |  **TDengine SQL Data Type**   | **Python Data Type** |
 | :-----------------------: | ------------ |
@@ -431,18 +426,14 @@ The following table describes the mapping between TDengine SQL data types and Py
 
 ### Development Examples
 
-This article contains five example programs, progressing from simple to complex, and also includes a wealth of practical debugging tips.
+This article includes 5 example programs, ranging from basic to advanced, and also contains numerous practical debugging tips.
 
-:::note
-
-Logging cannot be output through the `print` function within UDFs; you need to write to files yourself or use Python's built-in logging library to write to files.
-
-:::
+Note: **Within UDF, logging cannot be done using the print function; you must write to a file or use Python's built-in logging library.**
 
 #### Example One
 
-Write a UDF function that only accepts a single integer: input `n`, output `ln(n^2 + 1)`.
-First, write a Python file located in a certain system directory, such as `/root/udf/myfun.py`, with the following content.
+Write a UDF function that only accepts a single integer: Input n, output ln(n^2 + 1).
+First, write a Python file, located in a system directory, such as `/root/udf/myfun.py` with the following content.
 
 ```python
 from math import log
@@ -458,27 +449,25 @@ def process(block):
     return [log(block.data(i, 0) ** 2 + 1) for i in range(rows)]
 ```
 
-This file contains three functions: `init` and `destroy` are both empty functions; they are the lifecycle functions of the UDF and need to be defined even if they do nothing. The key function is `process`, which accepts a data block; this data block object has two methods.
+This file contains 3 functions, `init` and `destroy` are empty functions, they are the lifecycle functions of UDF, even if they do nothing, they must be defined. The most crucial is the `process` function, which accepts a data block. This data block object has two methods.
 
-1. `shape()` returns the number of rows and columns in the data block.
-2. `data(i, j)` returns the data located at row `i` and column `j`.
+1. `shape()` returns the number of rows and columns of the data block
+2. `data(i, j)` returns the data at row i, column j
 
-The `process` method of the scalar function needs to return as many rows of data as the number of rows in the input data block. The above code ignores the number of columns because it only needs to calculate the first column of each row.
+The scalar function's `process` method must return as many rows of data as there are in the data block. The above code ignores the number of columns, as it only needs to compute each row's first column.
 
-Next, create the corresponding UDF function by executing the following statement in the TDengine CLI.
+Next, create the corresponding UDF function, execute the following statement in the TDengine CLI.
 
 ```sql
 create function myfun as '/root/udf/myfun.py' outputtype double language 'Python'
 ```
-
-The output is as follows.
 
 ```shell
 taos> create function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
 Create OK, 0 row(s) affected (0.005202s)
 ```
 
-It seems to go smoothly. Next, check all custom functions in the system to confirm that the creation was successful.
+It looks smooth, next let's check all the custom functions in the system to confirm it was created successfully.
 
 ```text
 taos> show functions;
@@ -488,7 +477,7 @@ taos> show functions;
 Query OK, 1 row(s) in set (0.005767s)
 ```
 
-Generate test data by executing the following commands in the TDengine CLI.
+Generate test data, you can execute the following commands in the TDengine CLI.
 
 ```sql
 create database test;
@@ -498,7 +487,7 @@ insert into t values('2023-05-03 08:09:10', 2, 3, 4);
 insert into t values('2023-05-10 07:06:05', 3, 4, 5);
 ```
 
-Test the `myfun` function.
+Test the myfun function.
 
 ```sql
 taos> select myfun(v1, v2) from t;
@@ -506,22 +495,22 @@ taos> select myfun(v1, v2) from t;
 DB error: udf function execution failure (0.011088s)
 ```
 
-Unfortunately, the execution failed. What is the reason? Check the logs of the `udfd` process.
+Unfortunately, the execution failed. What could be the reason? Check the udfd process logs.
 
 ```shell
 tail -10 /var/log/taos/udfd.log
 ```
 
-The following error message is found.
+Found the following error messages.
 
 ```text
 05/24 22:46:28.733545 01665799 UDF ERROR can not load library libtaospyudf.so. error: operation not permitted
 05/24 22:46:28.733561 01665799 UDF ERROR can not load python plugin. lib path libtaospyudf.so
 ```
 
-The error is clear: the Python plugin `libtaospyudf.so` could not be loaded. If you encounter this error, please refer to the preparation environment section above.
+The error is clear: the Python plugin `libtaospyudf.so` was not loaded. If you encounter this error, please refer to the previous section on setting up the environment.
 
-After fixing the environment error, execute the command again as follows.
+After fixing the environment error, execute again as follows.
 
 ```sql
 taos> select myfun(v1) from t;
@@ -532,13 +521,13 @@ taos> select myfun(v1) from t;
                2.302585093 |
 ```
 
-Thus, we have completed the first UDF and learned some simple debugging methods.
+With this, we have completed our first UDF 😊, and learned some basic debugging methods.
 
-#### Example Two
+#### Example 2
 
-Although the above `myfun` passed the test, it has two shortcomings.
+Although the myfun function passed the test, it has two drawbacks.
 
-1. This scalar function only accepts one column of data as input; if the user passes in multiple columns, it will not raise an exception.
+1. This scalar function only accepts 1 column of data as input, and it will not throw an exception if multiple columns are passed.
 
 ```sql
 taos> select myfun(v1, v2) from t;
@@ -549,7 +538,7 @@ taos> select myfun(v1, v2) from t;
                2.302585093 |
 ```
 
-2. It does not handle null values. We expect that if there are null values in the input, it will raise an exception and terminate execution. Therefore, the `process` function is improved as follows.
+2. It does not handle null values. We expect that if the input contains null, it will throw an exception and terminate execution. Therefore, the process function is improved as follows.
 
 ```python
 def process(block):
@@ -565,7 +554,7 @@ Execute the following statement to update the existing UDF.
 create or replace function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
 ```
 
-Passing two parameters to `myfun` will now cause it to fail.
+Passing two arguments to myfun will result in a failure.
 
 ```sql
 taos> select myfun(v1, v2) from t;
@@ -573,23 +562,24 @@ taos> select myfun(v1, v2) from t;
 DB error: udf function execution failure (0.014643s)
 ```
 
-The custom exception message is printed in the plugin's log file `/var/log/taos/taospyudf.log`.
+Custom exception messages are logged in the plugin log file `/var/log/taos/taospyudf.log`.
 
 ```text
 2023-05-24 23:21:06.790 ERROR [1666188] [doPyUdfScalarProc@507] call pyUdfScalar proc function. context 0x7faade26d180. error: Exception: require 1 parameter but given 2
 
 At:
   /var/lib/taos//.udf/myfun_3_1884e1281d9.py(12): process
+
 ```
 
-Thus, we have learned how to update the UDF and check the error logs produced by the UDF.
-(Note: If the UDF does not take effect after being updated, in versions of TDengine prior to 3.0.5.0, it is necessary to restart `taosd`; in versions 3.0.5.0 and later, there is no need to restart `taosd` for it to take effect.)
+Thus, we have learned how to update UDFs and view the error logs output by UDFs.
+(Note: If the UDF does not take effect after an update, in versions prior to TDengine 3.0.5.0 (not inclusive), it is necessary to restart taosd, while in version 3.0.5.0 and later, restarting taosd is not required for the update to take effect.)
 
 #### Example Three
 
-Input (x1, x2, ..., xn), output the sum of each value multiplied by its index: `1 *  x1 + 2 * x2 + ... + n * xn`. If x1 to xn contains null, the result is null.
+Input (x1, x2, ..., xn), output the sum of each value and its index multiplied: `1 *x1 + 2* x2 + ... + n * xn`. If x1 to xn contain null, the result is null.
 
-The difference from Example One is that this can accept any number of columns as input and needs to process the values of each column. Write the UDF file `/root/udf/nsum.py`.
+This example differs from Example One in that it can accept any number of columns as input and needs to process each column's value. Write the UDF file /root/udf/nsum.py.
 
 ```python
 def init():
@@ -637,13 +627,14 @@ Query OK, 4 row(s) in set (0.010653s)
 
 #### Example Four
 
-Write a UDF that takes a timestamp as input and outputs the next Sunday closest to that time. For example, if today is 2023-05-25, the next Sunday would be 2023-05-28. This function will use the third-party library `moment`. First, install this library.
+Write a UDF that takes a timestamp as input and outputs the next closest Sunday. For example, if today is 2023-05-25, then the next Sunday is 2023-05-28.
+To complete this function, you need to use the third-party library moment. First, install this library.
 
 ```shell
 pip3 install moment
 ```
 
-Then, write the UDF file `/root/udf/nextsunday.py`.
+Then write the UDF file `/root/udf/nextsunday.py`.
 
 ```python
 import moment
@@ -653,7 +644,6 @@ def init():
 
 def destroy():
     pass
-
 
 def process(block):
     rows, cols = block.shape()
@@ -665,13 +655,13 @@ def process(block):
             for i in range(rows)]
 ```
 
-The UDF framework will map TDengine's timestamp type to Python's int type, so this function only accepts an integer representing milliseconds. The `process` method first performs parameter checks, then uses the `moment` package to replace the weekday of the time with Sunday, and finally formats the output. The output string has a fixed length of 10 characters, so the UDF function can be created as follows.
+The UDF framework maps TDengine's timestamp type to Python's int type, so this function only accepts an integer representing milliseconds. The process method first checks the parameters, then uses the moment package to replace the day of the week with Sunday, and finally formats the output. The output string length is fixed at 10 characters long, so you can create the UDF function like this.
 
 ```sql
 create function nextsunday as '/root/udf/nextsunday.py' outputtype binary(10) language 'Python';
 ```
 
-At this point, test the function; if you started `taosd` using `systemctl`, you will definitely encounter an error.
+At this point, test the function. If you started taosd with systemctl, you will definitely encounter an error.
 
 ```sql
 taos> select ts, nextsunday(ts) from t;
@@ -684,20 +674,20 @@ tail -20 taospyudf.log
 2023-05-25 11:42:34.541 ERROR [1679419] [PyUdf::PyUdf@217] py udf load module failure. error ModuleNotFoundError: No module named 'moment'
 ```
 
-This is because the location of "moment" is not in the default library search path of the Python UDF plugin. How can we confirm this? By searching `taospyudf.log` with the following command.
+This is because the location of "moment" is not in the default library search path of the python udf plugin. How to confirm this? Search `taospyudf.log` with the following command.
 
 ```shell
 grep 'sys path' taospyudf.log  | tail -1
 ```
 
-The output is as follows:
+The output is as follows
 
 ```text
 2023-05-25 10:58:48.554 INFO  [1679419] [doPyOpen@592] python sys path: ['', '/lib/python38.zip', '/lib/python3.8', '/lib/python3.8/lib-dynload', '/lib/python3/dist-packages', '/var/lib/taos//.udf']
 ```
 
-It shows that the default search path for third-party libraries in the Python UDF plugin is: `/lib/python3/dist-packages`, while `moment` is installed by default in `/usr/local/lib/python3.8/dist-packages`. Now, we will modify the default library search path for the Python UDF plugin.
-First, open the Python 3 command line and check the current `sys.path`.
+It is found that the default third-party library installation path searched by the python udf plugin is: `/lib/python3/dist-packages`, while moment is installed by default in `/usr/local/lib/python3.8/dist-packages`. Next, we modify the default library search path of the python udf plugin.
+First, open the python3 command line and check the current sys.path.
 
 ```python
 >>> import sys
@@ -705,13 +695,13 @@ First, open the Python 3 command line and check the current `sys.path`.
 '/usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages'
 ```
 
-Copy the output string from the above script, then edit `/var/taos/taos.cfg` to add the following configuration.
+Copy the output string from the script above, then edit `/var/taos/taos.cfg` and add the following configuration.
 
 ```shell
 UdfdLdLibPath /usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages
 ```
 
-After saving, execute `systemctl restart taosd`, and then test again without errors.
+After saving, execute `systemctl restart taosd`, then test again and there will be no errors.
 
 ```sql
 taos> select ts, nextsunday(ts) from t;
@@ -726,9 +716,8 @@ Query OK, 4 row(s) in set (1.011474s)
 
 #### Example Five
 
-Write an aggregate function to calculate the difference between the maximum and minimum values of a certain column.
-
-The difference between aggregate functions and scalar functions is that scalar functions correspond to multiple outputs for multiple rows of input, while aggregate functions correspond to a single output for multiple rows of input. The execution process of aggregate functions is somewhat like the execution process of the classic map-reduce framework, which divides the data into several blocks, with each mapper processing one block, and the reducer aggregating the results from the mappers. The difference is that in TDengine's Python UDF, the `reduce` function has both map and reduce functionalities. The `reduce` function takes two parameters: one is the data to be processed, and the other is the result of the reduce function executed by another task. The following example demonstrates this in `/root/udf/myspread.py`.
+Write an aggregate function to calculate the difference between the maximum and minimum values of a column.
+The difference between aggregate functions and scalar functions is: scalar functions have multiple outputs corresponding to multiple rows of input, whereas aggregate functions have a single output corresponding to multiple rows of input. The execution process of an aggregate function is somewhat similar to the classic map-reduce framework, where the framework divides the data into several chunks, each mapper handles a chunk, and the reducer aggregates the results of the mappers. The difference is that, in the TDengine Python UDF, the reduce function has both map and reduce capabilities. The reduce function takes two parameters: one is the data it needs to process, and the other is the result of other tasks executing the reduce function. See the following example `/root/udf/myspread.py`.
 
 ```python
 import io
@@ -771,12 +760,12 @@ def finish(buf):
     return max_number - min_number
 ```
 
-In this example, we not only define an aggregate function but also add logging functionality to record execution logs.
+In this example, we not only defined an aggregate function but also added the functionality to record execution logs.
 
 1. The `init` function opens a file for logging.
-2. The `log` function records logs, automatically converting the passed object to a string and adding a newline character.
+2. The `log` function records logs, automatically converting the incoming object into a string and appending a newline.
 3. The `destroy` function closes the log file after execution.
-4. The `start` function returns the initial buffer for storing intermediate results of the aggregate function, initializing the maximum value to negative infinity and the minimum value to positive infinity.
+4. The `start` function returns the initial buffer to store intermediate results of the aggregate function, initializing the maximum value as negative infinity and the minimum value as positive infinity.
 5. The `reduce` function processes each data block and aggregates the results.
 6. The `finish` function converts the buffer into the final output.
 
@@ -786,17 +775,17 @@ Execute the following SQL statement to create the corresponding UDF.
 create or replace aggregate function myspread as '/root/udf/myspread.py' outputtype double bufsize 128 language 'Python';
 ```
 
-This SQL statement has two important differences from the SQL statement for creating scalar functions.
+This SQL statement has two important differences from the SQL statement used to create scalar functions.
 
-1. The `aggregate` keyword has been added.
-2. The `bufsize` keyword has been added to specify the memory size for storing intermediate results, in bytes. This value can be greater than the actual size used. In this case, the intermediate result consists of a tuple of two floating-point numbers, and after serialization, it occupies only 32 bytes. However, the specified `bufsize` is 128, which can be printed using Python to show the actual number of bytes used.
+1. Added the `aggregate` keyword.
+2. Added the `bufsize` keyword, which is used to specify the memory size for storing intermediate results. This value can be larger than the actual usage. In this example, the intermediate result is a tuple consisting of two floating-point arrays, which actually occupies only 32 bytes when serialized, but the specified `bufsize` is 128. You can use the Python command line to print the actual number of bytes used.
 
 ```python
 >>> len(pickle.dumps((12345.6789, 23456789.9877)))
 32
 ```
 
-Test this function, and you will see that the output of `myspread` is consistent with the output of the built-in `spread` function.
+To test this function, you can see that the output of `myspread` is consistent with that of the built-in `spread` function.
 
 ```sql
 taos> select myspread(v1) from t;
@@ -812,10 +801,10 @@ taos> select spread(v1) from t;
 Query OK, 1 row(s) in set (0.005501s)
 ```
 
-Finally, check the execution log, and you will see that the `reduce` function was executed three times, with the `max` value being updated four times and the `min` value being updated once.
+Finally, by checking the execution log, you can see that the reduce function was executed 3 times, during which the max value was updated 4 times, and the min value was updated only once.
 
 ```shell
-root@slave11 /var/log/taos $ cat spread.log
+root@server11 /var/log/taos $ cat spread.log
 init function myspead success
 initial max_number=-inf, min_number=inf
 max_number=1
@@ -847,7 +836,7 @@ Through this example, we learned how to define aggregate functions and print cus
 
 #### Aggregate Function Example [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pyl2norm.py)
 
-`pyl2norm` implements the second-order norm of all data in the input column, which means squaring each data point, summing them, and then taking the square root.
+`pyl2norm` calculates the second-order norm of all data in the input column, i.e., squares each data point, then sums them up, and finally takes the square root.
 
 <details>
 <summary>pyl2norm.py</summary>
@@ -860,7 +849,7 @@ Through this example, we learned how to define aggregate functions and print cus
 
 #### Aggregate Function Example [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pycumsum.py)
 
-`pycumsum` calculates the cumulative sum of all data in the input column using `numpy`.
+`pycumsum` uses numpy to calculate the cumulative sum of all data in the input column.
 <details>
 <summary>pycumsum.py</summary>
 
@@ -872,11 +861,11 @@ Through this example, we learned how to define aggregate functions and print cus
 
 ## Managing UDFs
 
-The process of managing UDFs in the cluster involves creating, using, and maintaining these functions. Users can create and manage UDFs in the cluster via SQL, and once created, all users in the cluster can use these functions in SQL. Since UDFs are stored on the mnode of the cluster, they remain available even after the cluster is restarted.
+The process of managing UDFs in a cluster involves creating, using, and maintaining these functions. Users can create and manage UDFs in the cluster through SQL. Once created, all users in the cluster can use these functions in SQL. Since UDFs are stored on the cluster's mnode, they remain available even after the cluster is restarted.
 
-When creating UDFs, it is necessary to distinguish between scalar functions and aggregate functions. Scalar functions accept zero or more input parameters and return a single value. Aggregate functions accept a set of input values and return a single value through some computation (such as summation, counting, etc.). If the wrong function type is declared during creation, an error will occur when calling the function via SQL.
+When creating UDFs, it is necessary to distinguish between scalar functions and aggregate functions. Scalar functions accept zero or more input parameters and return a single value. Aggregate functions accept a set of input values and return a single value by performing some calculation (such as summing, counting, etc.) on these values. If the wrong function category is declared during creation, an error will be reported when the function is called through SQL.
 
-Additionally, users need to ensure that the input data types match the UDF program, and that the UDF output data types match the `outputtype`. This means that when creating a UDF, the correct data types must be specified for both input parameters and output values. This helps ensure that when calling the UDF, the input data can be correctly passed to the UDF, and that the UDF's output value matches the expected data type.
+Additionally, users need to ensure that the input data type matches the UDF program, and the output data type of the UDF matches the `outputtype`. This means that when creating a UDF, you need to specify the correct data types for input parameters and output values. This helps ensure that when the UDF is called, the input data is correctly passed to the UDF, and the output values match the expected data types.
 
 ### Creating Scalar Functions
 
@@ -886,13 +875,13 @@ The SQL syntax for creating scalar functions is as follows.
 CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_type LANGUAGE 'Python';
 ```
 
-Parameter descriptions are as follows:
+The parameters are explained as follows.
 
-- `or replace`: If the function already exists, it will modify the existing function properties.
-- `function_name`: The name of the scalar function when called in SQL.
-- `language`: Supports C language and Python language (version 3.7 and above), defaulting to C.
-- `library_path`: If the programming language is C, the path is the absolute path to the dynamic link library containing the UDF implementation, usually pointing to a `.so` file. If the programming language is Python, the path is the file path containing the UDF implementation in Python. The path needs to be enclosed in single or double quotes.
-- `output_type`: The data type name of the function's computation result.
+- or replace: If the function already exists, it modifies the existing function properties.
+- function_name: The name of the scalar function when called in SQL.
+- language: Supports C and Python languages (version 3.7 and above), default is C.
+- library_path: If the programming language is C, the path is the absolute path to the library file containing the UDF implementation dynamic link library, usually pointing to a .so file. If the programming language is Python, the path is the path to the Python file containing the UDF implementation. The path needs to be enclosed in single or double quotes in English.
+- output_type: The data type name of the function computation result.
 
 ### Creating Aggregate Functions
 
@@ -902,7 +891,7 @@ The SQL syntax for creating aggregate functions is as follows.
 CREATE [OR REPLACE] AGGREGATE FUNCTION function_name library_path OUTPUTTYPE output_type BUFSIZE buffer_size LANGUAGE 'Python';
 ```
 
-Where `buffer_size` indicates the buffer size for intermediate calculation results, measured in bytes. The meanings of other parameters are the same as for scalar functions.
+Here, `buffer_size` represents the size of the buffer for intermediate calculation results, in bytes. The meanings of other parameters are the same as those for scalar functions.
 
 The following SQL creates a UDF named `l2norm`.
 
@@ -912,7 +901,7 @@ CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUT
 
 ### Deleting UDFs
 
-The SQL syntax for deleting a UDF with the specified name is as follows.
+The SQL syntax for deleting a UDF with a specified name is as follows.
 
 ```sql
 DROP FUNCTION function_name;
@@ -928,7 +917,7 @@ show functions;
 
 ### Viewing Function Information
 
-The version number of the UDF increases by 1 each time it is updated.
+Each update of a UDF with the same name increases the version number by 1.
 
 ```sql
 select * from ins_functions \G;     

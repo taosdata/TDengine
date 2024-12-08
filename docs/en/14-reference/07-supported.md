@@ -1,55 +1,49 @@
 ---
 title: Supported Platforms
-description: "List of supported platforms for TDengine server, client, and connectors"
 slug: /tdengine-reference/supported-platforms
 ---
 
-## Supported Platforms for TDengine Server
+## List of Platforms Supported by TDengine Server
 
-|              | **Windows Server 2016/2019** | **Windows 10/11** | **CentOS 7.9/8** | **Ubuntu 18+** | **UnionTech UOS** | **Galaxy/NeoKylin** | **Ningsi V60/V80** | **macOS** |
-| ------------ | ---------------------------- | ----------------- | ---------------- | -------------- | ---------------- | ------------------ | ----------------- | --------- |
-| X64          | ●/E                          | ●/E               | ●                | ●              | ●/E              | ●/E                | ●/E               | ●         |
-| Raspberry Pi ARM64 |                        |                   | ●                |                |                  |                    |                   |           |
-| Huawei Cloud ARM64 |                        |                   |                  | ●              |                  |                    |                   |           |
-| M1           |                              |                   |                  |                |                  |                    |                   | ●         |
+|                       | **Version**        | **X64 64bit** | **ARM64** |
+| ----------------------|----------------| ------------- | --------- |
+| **CentOS**            | **7.9 and above**    | ●             | ●         |
+| **Ubuntu**            | **18 and above**     | ●             | ●         |
+| **RedHat**            | **RHEL 7 and above** | ●             | ●         |
+| **Debian**            | **6.0 and above**    | ●             | ●         |
+| **FreeBSD**           | **12 and above**     | ●             | ●         |
+| **OpenSUSE**          | **All versions**     | ●             | ●         |
+| **SUSE Linux**        | **11 and above**     | ●             | ●         |
+| **Fedora**            | **21 and above**     | ●             | ●         |
+| **Windows Server**    | **2016 and above**  | ●/E           |           |
+| **Windows**           | **10/11**      | ●/E           |           |
+| **Galaxy Kirin**      | **V10 and above**     | ●/E           | ●/E      |
+| **NeoKylin**          | **V7.0 and above**    | ●/E           | ●/E      |
+| **UnionTech UOS**     | **V20 and above**     | ●/E           |           |
+| **Inspur K-UX**       | **V8.0 and above**    | ●/E           |           |
+| **Huawei Euler openEuler** | **V20.03 and above**  | ●/E           |           |
+| **Anolis OS**         | **V8.6 and above**   | ●/E           |           |
+| **macOS**             | **11.0 and above**   |                | ●         |
 
-:::note
+Note: 1) ● indicates officially tested and verified, ○ indicates unofficially tested, E indicates only supported by the enterprise edition.
+   2) The community edition only supports newer versions of mainstream operating systems, including Ubuntu 18+/CentOS 7+/CentOS Stream/RedHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS, etc. For other operating systems and versions, please contact enterprise support.
 
-1. ● indicates official testing and verification, ○ indicates unofficial testing, and E indicates support for enterprise edition only.  
-2. The community edition supports only recent versions of mainstream operating systems, such as Ubuntu 18+/CentOS 7+/RedHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS, among others. For other operating systems or versions, please contact enterprise support.
+## List of Platforms Supported by TDengine Client and Connectors
 
-:::
-
-For Linux systems, the minimum environment requirements are as follows:
-
-- Linux kernel version: 3.10.0-1160.83.1.el7.x86_64
-- glibc version: 2.17
-
-If building from source code, you also need:
-
-- cmake version: 3.26.4 or higher
-- gcc version: 9.3.1 or higher
-
-## Supported Platforms for TDengine Client and Connectors
-
-TDengine connectors support a wide range of platforms, including X64/X86/ARM64/ARM32/MIPS/LoongArch64 hardware platforms, and development environments such as Linux/Win64/Win32/macOS.
+Currently, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/LoongArch64, and development environments such as Linux/Win64/Win32/macOS.
 
 The compatibility matrix is as follows:
 
-| **CPU**     | **X64 64bit** | **X64 64bit** | **ARM64** | **X64 64bit** | **ARM64** |
-| ----------- | ------------- | ------------- | --------- | ------------- | --------- |
-| **OS**      | **Linux**     | **Win64**     | **Linux** | **macOS**     | **macOS** |
-| **C/C++**   | ●             | ●             | ●         | ●             | ●         |
-| **JDBC**    | ●             | ●             | ●         | ○             | ○         |
-| **Python**  | ●             | ●             | ●         | ●             | ●         |
-| **Go**      | ●             | ●             | ●         | ●             | ●         |
-| **NodeJs**  | ●             | ●             | ●         | ○             | ○         |
-| **C#**      | ●             | ●             | ○         | ○             | ○         |
-| **Rust**    | ●             | ●             | ○         | ●             | ●         |
-| **RESTful** | ●             | ●             | ●         | ●             | ●         |
+| **CPU**     | **X64 64bit** | **X64 64bit** | **X64 64bit** | **ARM64** | **ARM64** |
+| ----------- | ------------- | ------------- | ------------- | --------- | --------- |
+| **OS**      | **Linux**     | **Win64**     | **macOS**     | **Linux** | **macOS** |
+| **C/C++**   | ●             | ●             | ●             | ●         | ●         |
+| **JDBC**    | ●             | ●             | ●             | ●         | ●         |
+| **Python**  | ●             | ●             | ●             | ●         | ●         |
+| **Go**      | ●             | ●             | ●             | ●         | ●         |
+| **NodeJs**  | ●             | ●             | ●             | ●         | ●         |
+| **C#**      | ●             | ●             | ○             | ●         | ○         |
+| **Rust**    | ●             | ●             | ●             | ○         | ●         |
+| **RESTful** | ●             | ●             | ●             | ●         | ●         |
 
-:::note
-
-● indicates official testing and verification, ○ indicates unofficial testing, and -- indicates untested.
-
-:::
+Note: ● indicates official testing and verification passed, ○ indicates non-official testing and verification passed, -- indicates not verified.

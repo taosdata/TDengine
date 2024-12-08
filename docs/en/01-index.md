@@ -14,6 +14,6 @@ This website contains the user documentation for TDengine:
 - Software developers can consult the [Developer's Guide](developer-guide/) for information about creating applications that interoperate with TDengine and writing user-defined functions that run within TDengine.
 - Database administrators will find valuable information in [Operations and Maintenance](operations-and-maintenance/) and [TDengine Reference](tdengine-reference/) to assist in managing, maintaining, and monitoring their TDengine deployments.
 
-TDengine, including this documentation, is an open-source project, and we welcome contributions from the community. If you find any errors or unclear descriptions, click **Edit this document** at the bottom of the page to submit your corrections. To view the source code, visit our [GitHub repository](https://github.com/taosdata/tdengine).
+TDengine, including this documentation, is an open-source project, and we welcome contributions from the community. If you find any errors or unclear descriptions, click **Edit this page** at the bottom of the page to submit your corrections. To view the source code, visit our [GitHub repository](https://github.com/taosdata/tdengine).
 
 Together, we make a difference!

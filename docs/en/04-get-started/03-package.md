@@ -48,7 +48,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
       ```bash
       sudo rpm -ivh TDengine-server-<version>-Linux-x64.rpm
       ```
-   
+
       Replace `<version>` with the version of the package that you downloaded.
 
    </TabItem>
@@ -62,7 +62,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
       ```bash
       tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
       ```
-   
+
       Replace `<version>` with the version of the package that you downloaded.
    3. In the directory where you decompressed the package, run the following command to install TDengine:
 
@@ -71,9 +71,9 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
       ```
 
       :::note
-   
+
       The `install.sh` script requires you to enter configuration information in the terminal. For a non-interactive installation, run `./install.sh -e no`. You can run `./install.sh -h` for detailed information about all parameters.
-      
+
       :::
 
    </TabItem>
@@ -118,9 +118,9 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    2. Run the installation package to install TDengine.
 
       :::note
-   
+
       If the installation is blocked, right-click on the package and choose **Open**.
-   
+
       :::
 
    </TabItem>
@@ -138,9 +138,9 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    ```bash
    sudo start-all.sh 
    ```
-   
+
    Alternatively, you can manage specific TDengine services through systemd:
-   
+
    ```bash
    sudo systemctl start taosd
    sudo systemctl start taosadapter
@@ -157,7 +157,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    </TabItem>
 
    <TabItem label="macOS" value="macos">
-   
+
    Run the following command to start all TDengine services:
 
    ```bash
@@ -175,7 +175,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
 
    </TabItem>
    </Tabs>
-   
+
    You can now work with TDengine on your local machine. For example, you can run the `taos` command to open the TDengine command-line interface.
 
 ## What to Do Next

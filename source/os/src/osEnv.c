@@ -89,7 +89,7 @@ int32_t osDefaultInit() {
   }
   tstrncpy(tsDataDir, TD_DATA_DIR_PATH, sizeof(tsDataDir));
   tstrncpy(tsLogDir, TD_LOG_DIR_PATH, sizeof(tsLogDir));
-  if (strlen(tsTempDir) == 0){
+  if (strlen(tsTempDir) == 0) {
     tstrncpy(tsTempDir, TD_TMP_DIR_PATH, sizeof(tsTempDir));
   }
 

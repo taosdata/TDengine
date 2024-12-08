@@ -1,7 +1,6 @@
 ---
 sidebar_label: Kafka Connect
 title: Kafka Connect
-description: A Detailed Guide on Using TDengine Kafka Connector
 slug: /third-party-tools/data-collection/kafka-connect
 ---
 
@@ -9,18 +8,18 @@ import Image from '@theme/IdealImage';
 import imgKafkaConnect from '../../assets/kafka-connect-01.png';
 import imgKafkaIntegration from '../../assets/kafka-connect-02.png';
 
-The TDengine Kafka Connector includes two plugins: the TDengine Source Connector and the TDengine Sink Connector. Users can simply provide a configuration file to synchronize data from a specified topic in Kafka (either in batches or in real-time) to TDengine, or to synchronize data from a specified database in TDengine (either in batches or in real-time) to Kafka.
+The TDengine Kafka Connector includes two plugins: TDengine Source Connector and TDengine Sink Connector. Users only need to provide a simple configuration file to synchronize data from a specified topic in Kafka to TDengine, or synchronize data from a specified database in TDengine to Kafka, either in batches or in real-time.
 
 ## What is Kafka Connect?
 
-Kafka Connect is a component of [Apache Kafka](https://kafka.apache.org/) that makes it easy to connect other systems, such as databases, cloud services, and file systems, to Kafka. Data can flow into Kafka from other systems via Kafka Connect, and vice versa. The plugins that read data from other systems are called Source Connectors, while those that write data to other systems are called Sink Connectors. Source and Sink Connectors do not connect directly to Kafka Brokers; instead, the Source Connector hands off the data to Kafka Connect, while the Sink Connector receives data from Kafka Connect.
+Kafka Connect is a component of [Apache Kafka](https://kafka.apache.org/) that facilitates easy connections to Kafka from other systems, such as databases, cloud services, and file systems. Data can flow from these systems to Kafka and from Kafka to these systems through Kafka Connect. Plugins that read data from other systems are called Source Connectors, and plugins that write data to other systems are called Sink Connectors. Neither Source Connectors nor Sink Connectors connect directly to Kafka Brokers; instead, Source Connectors pass data to Kafka Connect, and Sink Connectors receive data from Kafka Connect.
 
 <figure>
 <Image img={imgKafkaConnect} alt="Kafka Connect structure"/>
 <figcaption>Figure 1. Kafka Connect structure</figcaption>
 </figure>
 
-The TDengine Source Connector is used to read data in real-time from TDengine and send it to Kafka Connect. The TDengine Sink Connector is used to receive data from Kafka Connect and write it to TDengine.
+The TDengine Source Connector is used to read data in real-time from TDengine and send it to Kafka Connect. The TDengine Sink Connector receives data from Kafka Connect and writes it to TDengine.
 
 <figure>
 <Image img={imgKafkaIntegration} alt="Streaming integration with Kafka Connect"/>
@@ -29,16 +28,16 @@ The TDengine Source Connector is used to read data in real-time from TDengine an
 
 ## Prerequisites
 
-Here are the prerequisites to run the examples in this tutorial:
+Prerequisites for running the examples in this tutorial.
 
 1. Linux operating system
 2. Java 8 and Maven installed
-3. Git, curl, and vi installed
-4. TDengine installed and running. For installation details, refer to [Installation and Uninstallation](../../../get-started/)
+3. Git, curl, vi installed
+4. TDengine installed and running. If not yet installed, refer to [Installation and Uninstallation](../../../get-started/)
 
-## Install Kafka
+## Installing Kafka
 
-- Execute the following commands in any directory:
+- Execute in any directory:
 
     ```shell
     curl -O https://downloads.apache.org/kafka/3.4.0/kafka_2.13-3.4.0.tgz
@@ -46,18 +45,18 @@ Here are the prerequisites to run the examples in this tutorial:
     ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
     ```
 
-- Then, add the `$KAFKA_HOME/bin` directory to your PATH.
+- Then, add the `$KAFKA_HOME/bin` directory to PATH.
 
     ```title=".profile"
     export KAFKA_HOME=/opt/kafka
     export PATH=$PATH:$KAFKA_HOME/bin
     ```
 
-    You can append the above script to the profile file of the current user (either `~/.profile` or `~/.bash_profile`).
+    The above script can be appended to the current user's profile file (~/.profile or ~/.bash_profile)
 
-## Install TDengine Connector Plugin
+## Installing TDengine Connector Plugin
 
-### Compile the Plugin
+### Compiling the Plugin
 
 ```shell
 git clone --branch 3.0 https://github.com/taosdata/kafka-connect-tdengine.git
@@ -66,9 +65,9 @@ mvn clean package -Dmaven.test.skip=true
 unzip -d $KAFKA_HOME/components/ target/components/packages/taosdata-kafka-connect-tdengine-*.zip
 ```
 
-The above script first clones the project source code and then compiles and packages it using Maven. After the packaging is complete, a zip file of the plugin is generated in the `target/components/packages/` directory. Unzip this zip file to the installation path for the plugin. The example above uses the built-in plugin installation path: `$KAFKA_HOME/components/`.
+The above script first clones the project source code, then compiles and packages it using Maven. After packaging, a zip file of the plugin is generated in the `target/components/packages/` directory. Unzip this package to the installation path for the plugin. The example above uses the built-in plugin installation path: `$KAFKA_HOME/components/`.
 
-### Configure the Plugin
+### Configuring the Plugin
 
 Add the kafka-connect-tdengine plugin to the `plugin.path` in the `$KAFKA_HOME/config/connect-distributed.properties` configuration file.
 
@@ -76,15 +75,17 @@ Add the kafka-connect-tdengine plugin to the `plugin.path` in the `$KAFKA_HOME/c
 plugin.path=/usr/share/java,/opt/kafka/components
 ```
 
-## Start Kafka
+## Starting Kafka
 
 ```shell
 zookeeper-server-start.sh -daemon $KAFKA_HOME/config/zookeeper.properties
+
 kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
+
 connect-distributed.sh -daemon $KAFKA_HOME/config/connect-distributed.properties
 ```
 
-### Verify Kafka Connect is Successfully Started
+### Verifying if Kafka Connect Has Started Successfully
 
 Enter the command:
 
@@ -92,21 +93,21 @@ Enter the command:
 curl http://localhost:8083/connectors
 ```
 
-If all components have started successfully, you will see the following output:
+If all components have started successfully, the following output will be displayed:
 
 ```txt
 []
 ```
 
-## Using TDengine Sink Connector
+## Using the TDengine Sink Connector
 
-The TDengine Sink Connector is used to synchronize data from a specified topic to TDengine. Users do not need to create databases and supertables in advance. You can manually specify the name of the target database (see the configuration parameter `connection.database`), or it can be generated according to certain rules (see the configuration parameter `connection.database.prefix`).
+The TDengine Sink Connector is used to synchronize data from a specified topic to TDengine. Users do not need to create the database and supertables in advance. You can manually specify the name of the target database (see configuration parameter `connection.database`), or generate it according to certain rules (see configuration parameter `connection.database.prefix`).
 
-The TDengine Sink Connector internally uses the TDengine [schemaless write interface](../../../developer-guide/schemaless-ingestion/) to write data to TDengine and currently supports three data formats: InfluxDB line protocol format, OpenTSDB Telnet protocol format, and OpenTSDB JSON protocol format.
+The TDengine Sink Connector internally uses TDengine's [schemaless write interface](../../../developer-guide/schemaless-ingestion/) to write data to TDengine, currently supporting three data formats: InfluxDB Line Protocol format, OpenTSDB Telnet Protocol format, and OpenTSDB JSON Protocol format.
 
-The following example synchronizes data from the `meters` topic to the target database `power`. The data format is InfluxDB Line protocol format.
+The following example synchronizes data from the topic `meters` to the target database `power`. The data format is InfluxDB Line Protocol format.
 
-### Add Sink Connector Configuration File
+### Adding a Sink Connector Configuration File
 
 ```shell
 mkdir ~/test
@@ -114,7 +115,7 @@ cd ~/test
 vi sink-demo.json
 ```
 
-The contents of `sink-demo.json` are as follows:
+Contents of `sink-demo.json`:
 
 ```json title="sink-demo.json"
 {
@@ -140,16 +141,16 @@ The contents of `sink-demo.json` are as follows:
 
 Key configuration explanations:
 
-1. `"topics": "meters"` and `"connection.database": "power"` indicate that data from the `meters` topic will be subscribed and written into the `power` database.
-2. `"db.schemaless": "line"` indicates that InfluxDB line protocol format will be used for the data.
+1. `"topics": "meters"` and `"connection.database": "power"`, indicate subscribing to the data of the topic `meters` and writing it to the database `power`.
+2. `"db.schemaless": "line"`, indicates using data in the InfluxDB Line Protocol format.
 
-### Create Sink Connector Instance
+### Creating a Sink Connector Instance
 
 ```shell
 curl -X POST -d @sink-demo.json http://localhost:8083/connectors -H "Content-Type: application/json"
 ```
 
-If the above command executes successfully, you will see the following output:
+If the above command is executed successfully, the following output will be displayed:
 
 ```json
 {
@@ -169,16 +170,16 @@ If the above command executes successfully, you will see the following output:
     "name": "TDengineSinkConnector",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "dead_letter_topic",
-    "errors.deadletterqueue.topic.replication.factor": "1"
+    "errors.deadletterqueue.topic.replication.factor": "1",    
   },
   "tasks": [],
   "type": "sink"
 }
 ```
 
-### Write Test Data
+### Writing Test Data
 
-Prepare a text file with test data as follows:
+Prepare a text file with test data, content as follows:
 
 ```txt title="test-data.txt"
 meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=0.28 1648432611249000000
@@ -187,21 +188,19 @@ meters,location=California.LosAngeles,groupid=3 current=10.8,voltage=223,phase=0
 meters,location=California.LosAngeles,groupid=3 current=11.3,voltage=221,phase=0.35 1648432611250000000
 ```
 
-Use `kafka-console-producer` to add test data to the `meters` topic.
+Use kafka-console-producer to add test data to the topic meters.
 
 ```shell
 cat test-data.txt | kafka-console-producer.sh --broker-list localhost:9092 --topic meters
 ```
 
 :::note
-
-If the target database `power` does not exist, the TDengine Sink Connector will automatically create the database. The automatic database creation uses a time precision of nanoseconds, which requires that the timestamp of the written data is also in nanoseconds. If the timestamp precision of the written data is not in nanoseconds, an exception will be thrown.
-
+If the target database power does not exist, the TDengine Sink Connector will automatically create the database. The database is created with nanosecond precision, which requires that the timestamp precision of the data being written is also in nanoseconds. If the timestamp precision of the data written is not in nanoseconds, an exception will be thrown.
 :::
 
 ### Verify Synchronization Success
 
-Use the TDengine CLI to verify whether the synchronization was successful.
+Use TDengine CLI to verify if synchronization was successful.
 
 ```sql
 taos> use power;
@@ -209,7 +208,7 @@ Database changed.
 
 taos> select * from meters;
               _ts               |          current          |          voltage          |           phase           | groupid |            location            |
-=============================================================================================================================================================== 
+===============================================================================================================================================================
  2022-03-28 09:56:51.249000000 |              11.800000000 |             221.000000000 |               0.280000000 | 2       | California.LosAngeles          |
  2022-03-28 09:56:51.250000000 |              13.400000000 |             223.000000000 |               0.290000000 | 2       | California.LosAngeles          |
  2022-03-28 09:56:51.249000000 |              10.800000000 |             223.000000000 |               0.290000000 | 3       | California.LosAngeles          |
@@ -217,23 +216,23 @@ taos> select * from meters;
 Query OK, 4 row(s) in set (0.004208s)
 ```
 
-If you see the above data, it indicates that the synchronization was successful. If not, please check the Kafka Connect logs. For detailed parameter descriptions, refer to [Configuration Reference](#configuration-reference).
+If you see the data above, it means the synchronization is successful. If not, please check the Kafka Connect logs. For a detailed explanation of the configuration parameters, see [Configuration Reference](#configuration-reference).
 
 ## Using TDengine Source Connector
 
-The TDengine Source Connector is used to push data from a specific TDengine database to Kafka for any time after a certain point. The implementation principle of the TDengine Source Connector is to first pull historical data in batches and then synchronize incremental data using a timed query strategy. It also monitors changes to tables and can automatically synchronize newly added tables. If Kafka Connect is restarted, it will continue synchronizing from the last interrupted position.
+The TDengine Source Connector is used to push all data from a TDengine database after a certain moment to Kafka. The implementation principle of the TDengine Source Connector is to first pull historical data in batches, then synchronize incremental data using a timed query strategy. It also monitors changes to tables and can automatically synchronize newly added tables. If Kafka Connect is restarted, it will continue to synchronize from the last interrupted position.
 
-The TDengine Source Connector converts data from TDengine tables into InfluxDB line protocol format or OpenTSDB JSON format and then writes it to Kafka.
+The TDengine Source Connector converts data from TDengine tables into InfluxDB Line protocol format or OpenTSDB JSON protocol format before writing it to Kafka.
 
-The following example program synchronizes data from the `test` database to the `tdengine-test-meters` topic.
+The example program below synchronizes data from the database test to the topic tdengine-test-meters.
 
-### Add Source Connector Configuration File
+### Adding Source Connector Configuration File
 
 ```shell
 vi source-demo.json
 ```
 
-Input the following content:
+Enter the following content:
 
 ```json title="source-demo.json"
 {
@@ -262,9 +261,9 @@ Input the following content:
 }
 ```
 
-### Prepare Test Data
+### Preparing Test Data
 
-Prepare a SQL file to generate test data.
+Prepare the SQL file to generate test data.
 
 ```sql title="prepare-source-data.sql"
 DROP DATABASE IF EXISTS test;
@@ -282,7 +281,7 @@ INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-1
             d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
 ```
 
-Use the TDengine CLI to execute the SQL file.
+Using TDengine CLI, execute the SQL file.
 
 ```shell
 taos -f prepare-source-data.sql
@@ -294,9 +293,9 @@ taos -f prepare-source-data.sql
 curl -X POST -d @source-demo.json http://localhost:8083/connectors -H "Content-Type: application/json"
 ```
 
-### View Topic Data
+### View topic data
 
-Use the `kafka-console-consumer` command-line tool to monitor the data in the `tdengine-test-meters` topic. Initially, it will output all historical data, and after inserting two new data points into TDengine, the `kafka-console-consumer` will immediately output the newly added data. The output data will be in InfluxDB line protocol format.
+Use the kafka-console-consumer command line tool to monitor the data in the topic tdengine-test-meters. Initially, it will output all historical data. After inserting two new data into TDengine, kafka-console-consumer also immediately outputs the added two data. The output data is in the format of InfluxDB line protocol.
 
 ```shell
 kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic tdengine-test-meters
@@ -311,7 +310,7 @@ meters,location="California.SanFrancisco",groupid=2i32 current=12.6f32,voltage=2
 ......
 ```
 
-At this point, all historical data will be displayed. Switch to the TDengine CLI and insert two new data points:
+At this point, all historical data will be displayed. Switch to TDengine CLI, insert two new data:
 
 ```sql
 USE test;
@@ -319,19 +318,19 @@ INSERT INTO d1001 VALUES (now, 13.3, 229, 0.38);
 INSERT INTO d1002 VALUES (now, 16.3, 233, 0.22);
 ```
 
-Then switch back to `kafka-console-consumer`, and the command-line window should now display the two newly inserted data points.
+Switch back to kafka-console-consumer, and the command line window has already printed the 2 newly inserted data.
 
-### Unload Plugin
+### Unload plugin
 
 After testing, use the unload command to stop the loaded connector.
 
-To view the currently active connectors:
+View the currently active connectors:
 
 ```shell
 curl http://localhost:8083/connectors
 ```
 
-If the previous operations were followed correctly, there should be two active connectors. Use the following commands to unload them:
+If you follow the previous operations, there should be two active connectors at this time. Use the following command to unload:
 
 ```shell
 curl -X DELETE http://localhost:8083/connectors/TDengineSinkConnector
@@ -340,74 +339,73 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 ### Performance Tuning
 
-If you find the performance of synchronizing data from TDengine to Kafka does not meet expectations, you can try to improve Kafka's write throughput using the following parameters:
+If you find that the performance is not up to expectations during the process of synchronizing data from TDengine to Kafka, you can try using the following parameters to improve Kafka's write throughput.
 
-1. Open the `KAFKA_HOME/config/producer.properties` configuration file.
-2. Parameter explanations and configuration suggestions are as follows:
-
-| **Parameter**         | **Description**                                              | **Recommended Setting** |
-| --------------------- | ------------------------------------------------------------ | ----------------------- |
-| producer.type         | This parameter sets the message sending method. The default value is `sync`, which means synchronous sending, while `async` means asynchronous sending. Using asynchronous sending can improve message throughput. | async                   |
-| request.required.acks | This parameter configures the number of acknowledgments the producer must wait for after sending a message. Setting it to 1 means that the producer will receive confirmation as long as the leader replica successfully writes the message, without waiting for others. | 1                       |
-| max.request.size      | This parameter determines the maximum amount of data the producer can send in one request. Its default value is 1048576, which is 1M. If set too small, it may lead to frequent network requests and reduced throughput. If set too large, it may cause high memory usage. | 104857600               |
-| batch.size            | This parameter sets the batch size. The default value is 16384 (16KB). During the message sending process, the messages sent to the Kafka buffer are divided into batches. Therefore, reducing batch size helps to lower message latency while increasing batch size improves throughput. | 524288                  |
-| buffer.memory         | This parameter sets the total memory for buffering messages waiting to be sent. A larger buffer allows the producer to accumulate more messages for batch sending, improving throughput, but it may also increase latency and memory usage. | 1073741824              |
+1. Open the KAFKA_HOME/config/producer.properties configuration file.
+2. Parameter description and configuration suggestions are as follows:
+    | **Parameter**         | **Description**                                                                                                                                                                                                                                                                                               | **Suggested Setting** |
+    | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+    | producer.type         | This parameter is used to set the message sending mode, the default value is `sync` which means synchronous sending, `async` means asynchronous sending. Using asynchronous sending can improve the throughput of message sending.                                                                               | async                 |
+    | request.required.acks | This parameter is used to configure the number of acknowledgments that the producer needs to wait for after sending a message. When set to 1, it means that as long as the leader replica successfully writes the message, it will send an acknowledgment to the producer without waiting for other replicas in the cluster to write successfully. This setting can ensure a certain level of message reliability while also ensuring throughput. Since it is not necessary to wait for all replicas to write successfully, it can reduce the waiting time for producers and improve the efficiency of sending messages. | 1                     |
+    | max.request.size      | This parameter determines the maximum amount of data that the producer can send in one request. Its default value is 1048576, which is 1M. If set too small, it may lead to frequent network requests, reducing throughput. If set too large, it may lead to high memory usage, or increase the probability of request failure in poor network conditions. It is recommended to set it to 100M. | 104857600             |
+    | batch.size            | This parameter is used to set the size of the batch, the default value is 16384, which is 16KB. During the message sending process, the messages sent to the Kafka buffer are divided into batches. Therefore, reducing the batch size helps reduce message latency, while increasing the batch size helps improve throughput. It can be reasonably configured according to the actual data volume size. It is recommended to set it to 512K. | 524288                |
+    | buffer.memory         | This parameter is used to set the total amount of memory for the producer to buffer messages waiting to be sent. A larger buffer can allow the producer to accumulate more messages and send them in batches, improving throughput, but it can also increase latency and memory usage. It can be configured according to machine resources, and it is recommended to set it to 1G. | 1073741824            |
 
 ## Configuration Reference
 
 ### General Configuration
 
-The following configuration items apply to both the TDengine Sink Connector and the TDengine Source Connector:
+The following configuration items apply to both TDengine Sink Connector and TDengine Source Connector.
 
-1. `name`: Connector name.
-2. `connector.class`: Full class name of the connector, such as `com.taosdata.kafka.connect.sink.TDengineSinkConnector`.
-3. `tasks.max`: Maximum number of tasks, default is 1.
-4. `topics`: List of topics to synchronize, separated by commas, such as `topic1,topic2`.
-5. `connection.url`: TDengine JDBC connection string, such as `jdbc:TAOS://127.0.0.1:6030`.
-6. `connection.user`: TDengine username, default is `root`.
-7. `connection.password`: TDengine user password, default is `taosdata`.
-8. `connection.attempts`: Maximum number of connection attempts. Default is 3.
-9. `connection.backoff.ms`: Time interval for retrying to create a connection when it fails, in ms. Default is 5000.
-10. `data.precision`: Time precision used when using InfluxDB line protocol format. Possible values are:
-    - ms: milliseconds
-    - us: microseconds
-    - ns: nanoseconds
+1. `name`: connector name.
+1. `connector.class`: the full class name of the connector, e.g., com.taosdata.kafka.connect.sink.TDengineSinkConnector.
+1. `tasks.max`: maximum number of tasks, default is 1.
+1. `topics`: list of topics to synchronize, separated by commas, e.g., `topic1,topic2`.
+1. `connection.url`: TDengine JDBC connection string, e.g., `jdbc:TAOS://127.0.0.1:6030`.
+1. `connection.user`: TDengine username, default is root.
+1. `connection.password`: TDengine user password, default is taosdata.
+1. `connection.attempts`: maximum number of connection attempts. Default is 3.
+1. `connection.backoff.ms`: retry interval for failed connection attempts, in milliseconds. Default is 5000.
+1. `data.precision`: timestamp precision when using the InfluxDB line protocol format. Options are:
+   1. ms: milliseconds
+   1. us: microseconds
+   1. ns: nanoseconds
 
-### TDengine Sink Connector-Specific Configuration
+### TDengine Sink Connector Specific Configuration
 
-1. `connection.database`: Target database name. If the specified database does not exist, it will be created automatically. The time precision used for automatic database creation is nanoseconds. Default is null. If null, the naming rules for the target database refer to the explanation of the `connection.database.prefix` parameter.
-2. `connection.database.prefix`: When `connection.database` is null, the prefix for the target database. It can include the placeholder `${topic}`. For example, `kafka_${topic}` will write to `kafka_orders` for the topic `orders`. Default is null. When null, the name of the target database is the same as the name of the topic.
-3. `batch.size`: Number of records to write in batches. When the Sink Connector receives more data than this value at once, it will write in batches.
-4. `max.retries`: Maximum number of retries on error. Default is 1.
-5. `retry.backoff.ms`: Time interval for retrying on sending errors. Unit is milliseconds, default is 3000.
-6. `db.schemaless`: Data format, possible values are:
-    - line: InfluxDB line protocol format
-    - json: OpenTSDB JSON format
-    - telnet: OpenTSDB Telnet line protocol format
+1. `connection.database`: target database name. If the specified database does not exist, it will be automatically created with nanosecond precision. Default is null. If null, the naming rule for the target database refers to the `connection.database.prefix` parameter.
+2. `connection.database.prefix`: when `connection.database` is null, the prefix for the target database. Can include the placeholder `${topic}`. For example, `kafka_${topic}`, for the topic 'orders' will write to the database 'kafka_orders'. Default is null. When null, the target database name is the same as the topic name.
+3. `batch.size`: number of records per batch write. When the Sink Connector receives more data than this value, it will write in batches.
+4. `max.retries`: maximum number of retries in case of an error. Default is 1.
+5. `retry.backoff.ms`: retry interval in case of an error, in milliseconds. Default is 3000.
+6. `db.schemaless`: data format, options are:
+   1. line: represents InfluxDB line protocol format
+   2. json: represents OpenTSDB JSON format
+   3. telnet: represents OpenTSDB Telnet line protocol format
 
-### TDengine Source Connector-Specific Configuration
+### TDengine Source Connector Specific Configuration
 
-1. `connection.database`: Source database name, no default value.
-2. `topic.prefix`: Prefix for the topic name used when importing data into Kafka. Default is an empty string "".
-3. `timestamp.initial`: Starting time for data synchronization. Format is 'yyyy-MM-dd HH:mm:ss'. If not specified, it starts from the earliest record in the specified database.
-4. `poll.interval.ms`: Time interval to check for newly created or deleted tables, in ms. Default is 1000.
-5. `fetch.max.rows`: Maximum number of rows to retrieve from the database. Default is 100.
-6. `query.interval.ms`: Time span for reading data from TDengine at one time. It needs to be reasonably configured based on the characteristics of the data in the table to avoid querying too much or too little data. It is recommended to set an optimal value through testing in specific environments. The default value is 0, meaning it retrieves all data at the current latest time.
-7. `out.format`: Output format of the result set. `line` indicates the output format is InfluxDB line protocol format; `json` indicates the output format is JSON. Default is `line`.
-8. `topic.per.stable`: If set to true, it indicates that one supertable corresponds to one Kafka topic. The naming rule for the topic is `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`; if set to false, all data in the specified database goes into one Kafka topic, and the naming rule for the topic is `<topic.prefix><topic.delimiter><connection.database>`.
-9. `topic.ignore.db`: Whether the topic naming rule includes the database name. True indicates the rule is `<topic.prefix><topic.delimiter><stable.name>`, while false indicates the rule is `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`. The default is false. This configuration item does not take effect when `topic.per.stable` is set to false.
-10. `topic.delimiter`: Topic name delimiter, default is `-`.
-11. `read.method`: Method for reading data from TDengine, either `query` or `subscription`. Default is `subscription`.
-12. `subscription.group.id`: Specifies the group id for TDengine data subscription, which is required when `read.method` is `subscription`.
-13. `subscription.from`: Specifies the starting point for TDengine data subscription, either `latest` or `earliest`. Default is `latest`.
+1. `connection.database`: source database name, no default value.
+1. `topic.prefix`: prefix for the topic name when importing data into Kafka. Default is an empty string "".
+1. `timestamp.initial`: start time for data synchronization. Format is 'yyyy-MM-dd HH:mm:ss', if not specified, it starts from the earliest record in the specified DB.
+1. `poll.interval.ms`: interval for checking new or deleted tables, in milliseconds. Default is 1000.
+1. `fetch.max.rows`: maximum number of rows to retrieve from the database. Default is 100.
+1. `query.interval.ms`: time span for reading data from TDengine at once, should be configured based on the data characteristics of the table to avoid too large or too small data volumes per query; it is recommended to set an optimal value through testing in specific environments, default is 0, i.e., to fetch all data up to the current latest time.
+1. `out.format`: output format of the result set. `line` means output format is InfluxDB Line protocol format, `json` means output format is json. Default is line.
+1. `topic.per.stable`: if set to true, indicates that one supertable corresponds to one Kafka topic, the naming rule for the topic is `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`; if set to false, all data in the specified DB goes into one Kafka topic, the naming rule for the topic is `<topic.prefix><topic.delimiter><connection.database>`.
+1. `topic.ignore.db`: whether the topic naming rule includes the database name, true means the rule is `<topic.prefix><topic.delimiter><stable.name>`, false means the rule is `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`, default is false. This configuration item does not take effect when `topic.per.stable` is set to false.
+1. `topic.delimiter`: topic name delimiter, default is `-`.
+1. `read.method`: method of reading data from TDengine, query or subscription. Default is subscription.
+1. `subscription.group.id`: specifies the group id for TDengine data subscription, required when `read.method` is subscription.
+1. `subscription.from`: specifies the starting position for TDengine data subscription, latest or earliest. Default is latest.
 
-## Additional Notes
+## Additional Information
 
-1. For information on how to use the Kafka Connect plugin in an independently installed Kafka environment, please refer to the official documentation: [https://kafka.apache.org/documentation/#connect](https://kafka.apache.org/documentation/#connect).
+1. For how to use the Kafka Connect plugin in a standalone Kafka environment, please refer to the official documentation: [https://kafka.apache.org/documentation/#connect](https://kafka.apache.org/documentation/#connect).
 
 ## Feedback
 
-If you encounter any issues, feel free to report them in the GitHub repository for this project: [https://github.com/taosdata/kafka-connect-tdengine/issues](https://github.com/taosdata/kafka-connect-tdengine/issues).
+If you encounter any issues, feel free to provide feedback in the Github repository of this project: [https://github.com/taosdata/kafka-connect-tdengine/issues](https://github.com/taosdata/kafka-connect-tdengine/issues).
 
 ## References
 

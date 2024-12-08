@@ -4,36 +4,36 @@ description: How to terminate problematic connections, queries, and transactions
 slug: /tdengine-reference/sql-manual/troubleshooting
 ---
 
-In a complex application scenario, connections and query tasks may enter an erroneous state or take an excessively long time to complete. In such cases, it is necessary to have methods to terminate these connections or tasks.
+In a complex application scenario, connections and query tasks may enter an erroneous state or take too long to finish, necessitating methods to terminate these connections or tasks.
 
-## Terminating Connections
+## Terminate Connection
 
 ```sql
 KILL CONNECTION conn_id;
 ```
 
-The `conn_id` can be obtained by using `SHOW CONNECTIONS`.
+conn_id can be obtained through `SHOW CONNECTIONS`.
 
-## Terminating Queries
+## Terminate Query
 
 ```sql
 KILL QUERY 'kill_id';
 ```
 
-The `kill_id` can be obtained by using `SHOW QUERIES`.
+kill_id can be obtained through `SHOW QUERIES`.
 
-## Terminating Transactions
+## Terminate Transaction
 
 ```sql
-KILL TRANSACTION trans_id;
+KILL TRANSACTION trans_id
 ```
 
-The `trans_id` can be obtained by using `SHOW TRANSACTIONS`.
+trans_id can be obtained through `SHOW TRANSACTIONS`.
 
-## Resetting Client Cache
+## Reset Client Cache
 
 ```sql
 RESET QUERY CACHE;
 ```
 
-If there is a metadata desynchronization issue in a multi-client environment, this command can be used to forcefully clear the client cache, after which the client will pull the latest metadata from the server.
+If metadata synchronization issues occur in a multi-client environment, this command can be used to forcibly clear the client cache, after which the client will pull the latest metadata from the server.

@@ -41,6 +41,7 @@ extern bool    tsAsyncLog;
 extern bool    tsAssert;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
+extern char   *tsLogOutput;
 extern LogFp   tsLogFp;
 extern int64_t tsNumOfErrorLogs;
 extern int64_t tsNumOfInfoLogs;
@@ -71,7 +72,7 @@ extern int32_t sndDebugFlag;
 extern int32_t simDebugFlag;
 
 extern int32_t tqClientDebugFlag;
-
+int32_t taosInitLogOutput(const char **ppLogName);
 int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
 void    taosCloseLog();
 void    taosResetLog();

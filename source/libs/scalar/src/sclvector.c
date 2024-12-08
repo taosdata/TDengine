@@ -1377,7 +1377,7 @@ static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
       SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
       SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes));
       *output =
-          taosTimeAdd(leftRes, -rightRes, pRightCol->info.scale, pRightCol->info.precision);
+          taosTimeAdd(leftRes, -rightRes, pRightCol->info.scale, pRightCol->info.precision) * factor;
     }
   }
   SCL_RET(TSDB_CODE_SUCCESS);

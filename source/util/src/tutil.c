@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tutil.h"
 #include "tlog.h"
+#include "regex.h"
 
 void *tmemmem(const char *haystack, int32_t hlen, const char *needle, int32_t nlen) {
   const char *limit;
@@ -519,4 +520,30 @@ int32_t parseCfgReal(const char *str, float *out) {
   }
   *out = val;
   return TSDB_CODE_SUCCESS;
+}
+
+bool tIsValidFileName(const char *fileName, const char *pattern) {
+  const char *fileNamePattern = "^[a-zA-Z0-9_.-]+$";
+
+  regex_t fileNameReg;
+
+  if (pattern) fileNamePattern = pattern;
+
+  if (regcomp(&fileNameReg, fileNamePattern, REG_EXTENDED) != 0) {
+    fprintf(stderr, "failed to compile file name pattern:%s\n", fileNamePattern);
+    return false;
+  }
+
+  int32_t code = regexec(&fileNameReg, fileName, 0, NULL, 0);
+  regfree(&fileNameReg);
+  if (code != 0) {
+    return false;
+  }
+  return true;
+}
+
+bool tIsValidFilePath(const char *filePath, const char *pattern) {
+  const char *filePathPattern = "^[a-zA-Z0-9:/\\_.-]+$";
+
+  return tIsValidFileName(filePath, pattern ? pattern : filePathPattern);
 }
