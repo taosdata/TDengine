@@ -1707,7 +1707,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
   } else {
     // mInfo("pCreate->pass:%s", pCreate->pass)
-    strncpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    tstrncpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
   }
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);

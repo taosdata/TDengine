@@ -41,10 +41,11 @@ void taos_monitor_split_str_metric(char** arr, taos_metric_t* metric, const char
   memset(name, 0, size + 1);
   memcpy(name, metric->name, size);
 
-  char* s = strtok(name, del);
+  char* saveptr;
+  char* s = strtok_r(name, del, &saveptr);
   while (s != NULL) {
     *arr++ = s;
-    s = strtok(NULL, del);
+    s = strtok_r(NULL, del, &saveptr);
   }
 
   *buf = name;

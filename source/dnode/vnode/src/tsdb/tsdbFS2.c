@@ -396,7 +396,7 @@ static int32_t tsdbFSAddEntryToFileObjHash(STFileHash *hash, const char *fname) 
   STFileHashEntry *entry = taosMemoryMalloc(sizeof(*entry));
   if (entry == NULL) return terrno;
 
-  strncpy(entry->fname, fname, TSDB_FILENAME_LEN);
+  tstrncpy(entry->fname, fname, TSDB_FILENAME_LEN);
 
   uint32_t idx = MurmurHash3_32(fname, strlen(fname)) % hash->numBucket;
 

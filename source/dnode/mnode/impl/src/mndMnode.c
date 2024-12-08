@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndMnode.h"
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
-#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
@@ -722,10 +722,13 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   code = mndCreateMnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[40] = {0};
-  sprintf(obj, "%d", createReq.dnodeId);
-
-  auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen);
+  char    obj[40] = {0};
+  int32_t bytes = snprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
+  if ((uint32_t)bytes < sizeof(obj)) {
+    auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen);
+  } else {
+    mError("mnode:%d, failed to audit create req since %s", createReq.dnodeId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

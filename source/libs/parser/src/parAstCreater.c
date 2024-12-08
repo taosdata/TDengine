@@ -2872,13 +2872,16 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
     *slash = '\0';
     struct in_addr addr;
     if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
-      int prefix = atoi(slash + 1);
-      if (prefix < 0 || prefix > 32) {
-        code = TSDB_CODE_PAR_INVALID_IP_RANGE;
-      } else {
-        pIpRange->ip = addr.s_addr;
-        pIpRange->mask = prefix;
-        code = TSDB_CODE_SUCCESS;
+      int32_t prefix = 0;
+      code = taosStr2int32(slash + 1, &prefix);
+      if (code == 0) {
+        if (prefix < 0 || prefix > 32) {
+          code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+        } else {
+          pIpRange->ip = addr.s_addr;
+          pIpRange->mask = prefix;
+          code = TSDB_CODE_SUCCESS;
+        }
       }
     } else {
       code = TSDB_CODE_PAR_INVALID_IP_RANGE;
