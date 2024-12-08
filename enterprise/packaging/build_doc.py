@@ -3,9 +3,8 @@ import sys
 import subprocess
 import logging
 import git  # 导入 GitPython
+import argparse
 from git import RemoteProgress
-
-no_upload_arm = ""
 
 # 配置日志记录
 logging.basicConfig(
@@ -15,15 +14,39 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 参数校验
-if len(sys.argv) < 2:
-    print("Usage: python3 build_doc.py <branchname>")
-    sys.exit(1)
+def init_build_info():
+    parser = argparse.ArgumentParser(description="build docs script")
+    # all parameters
+    parser.add_argument('-b', '--branch_name',  help='Branch name of the TDengine repository')
+    # parser.add_argument('-ee', '--build_enterprise_en', action='store_true', help='Build the build_enterprise en zip packagea')
+    # parser.add_argument('-ez', '--build_enterprise_zh', action='store_true', help='Build the build_enterprise zh zip packagea')
+    parser.add_argument('-ea', '--build_enterprise_all', action='store_true', help='Build the build_enterprise zh and en zip package')
+    parser.add_argument('-ezf', '--build_enterprise_pdf', action='store_true', help='Build the build_enterprise zh zip and pdf package')
+    parser.add_argument('-oz', '--build_oem_zh', action='store_true', help='Build the build_enterprise zh zip')
+    parser.add_argument('-ozf', '--build_oem_zh_pdf', help='Build the build_enterprise zh zip packagea and pdf')
+    parser.add_argument('-cn', '--cus_name', help='customized name')   
+    parser.add_argument('-cp', '--cus_prompt', help='customized prompt')
 
-if len(sys.argv) == 3 and sys.argv[2] == "no_upload_arm":
-    no_upload_arm = "no_upload_arm"
-else:
-    no_upload_arm = ""
+    parser.add_argument('-nu', '--no_upload_arm', action='store_true', help='build taosexplorer with docs zip')
+    args, unknown_args = parser.parse_known_args()
+
+    if unknown_args:
+        print(f"Unknown args: {unknown_args}")
+        sys.exit(1)
+
+    return args
+
+# # 参数校验
+# if len(sys.argv) < 2:
+#     print("Usage: python3 build_doc.py <branchname>")
+#     sys.exit(1)
+
+# if len(sys.argv) == 3 and sys.argv[2] == "no_upload_arm":
+#     no_upload_arm = "no_upload_arm"
+# else:
+#     no_upload_arm = ""
+
+
 
 class EnvironmentPreparer:
 
@@ -98,6 +121,13 @@ def checkout_branch(path, branch_name):
     except Exception as e:
         logger.error(f"Error: {e}")
 
+def yarn_install(doc_reo_path):
+    try:
+        os.chdir(doc_reo_path)
+        subprocess.run("yarn install",shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error: {e}")
+
 
 def build_doc(doc_repo_path):
     """
@@ -129,16 +159,15 @@ def pre_view(doc_repo_path):
         logger.error(f"Error: {e}")
 
 
+
 def build_doc_zip(enterprise_path):
     """
     use doc.taosdata.com build result to generate doc zh zip
     """
     try:
-        os.chdir(f"{enterprise_path}/enterprise-docs-en/")
-        subprocess.run(["yarn", "install"], check=True)
-        os.chdir(f"{enterprise_path}/enterprise-docs-zh/")
-        subprocess.run(["yarn", "install"], check=True)
-
+        yarn_install(f"{enterprise_path}/enterprise-docs-en/")
+        yarn_install(f"{enterprise_path}/enterprise-docs-zh/")
+        
         os.chdir(enterprise_path)
         print(f"Changed directory to {enterprise_path}")          
         # Run the build script
@@ -150,6 +179,7 @@ def build_doc_zip(enterprise_path):
         #     subprocess.run(["./deploy.sh"], check=True)
         # else:
         #     print("没有更新，退出脚本")
+
     except subprocess.CalledProcessError as e:
         logger.error(f"Error: {e}")
 
@@ -158,6 +188,11 @@ def build_doc_pdf(enterprise_path):
     use doc.taosdata.com build result to generate doc zh zip
     """
     try:
+        yarn_install(f"{enterprise_path}/pdf-docs-zh/")
+        yarn_install(f"{enterprise_path}/pdf-docs-en/")
+        yarn_install(f"{enterprise_path}/docs-to-pdf/")
+        
+        subprocess.run("pip3 install pymupdf==1.24.8", shell=True, check=True)
         os.chdir(enterprise_path)
         print(f"Changed directory to {enterprise_path}")
         
@@ -170,6 +205,27 @@ def build_doc_pdf(enterprise_path):
         #     subprocess.run(["./deploy.sh"], check=True)
         # else:
         #     print("没有更新，退出脚本")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error: {e}")
+
+def build_oem_zip(enterprise_path, cus_name, cus_prompt):
+    """
+    use doc.taosdata.com build result to generate doc oem zip
+    """
+    try:
+        os.chdir(enterprise_path)
+        print(f"Changed directory to {enterprise_path}")          
+        # Run the build script
+        subprocess.run(f"python3 build.py oem  {cus_name} {cus_prompt} ", shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error: {e}")
+
+def build_oem_pdf(enterprise_path):
+    try:
+        os.chdir(enterprise_path)
+        print(f"Changed directory to {enterprise_path}")          
+        # Run the build script
+        subprocess.run(f"python3 build.py pdf oem", shell=True, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error: {e}")
 
@@ -212,11 +268,21 @@ def prepare_repo(repo_url, repo_path, branch_name):
         # If the repository doesn't exist, clone it
         clone_repo(repo_url, repo_path)
     
+
 def main():
+    args = init_build_info()
+    global no_upload_arm
+    if args.no_upload_arm:
+        no_upload_arm = "no_upload_arm"
+    else:
+        no_upload_arm = ""
+
     # Prepare the environment for building the documentation
     preparer = EnvironmentPreparer()
     preparer.prepare_build_doc_env()
-    
+
+
+
     # set  workdir 
     script_path = os.path.dirname(__file__)
     script_file = os.path.abspath(__file__)
@@ -245,18 +311,31 @@ def main():
     # # 切换到 TDengine_repo 仓库并切换到指定分支
     # checkout_branch(TDengine_repo_path, TDengine_branch_name)
 
-    # # 切换到 doc_zh_repo 仓库并构建文档
+    
     # # change to doc_zh_repo and build the documentation
     # build_doc(doc_zh_repo_path)
 
     # # Change to doc_en_repo and build the documentation
     # build_doc(doc_en_repo_path)
 
-    # # generate zip docs for enterprise
-    # build_doc_zip(enterprise_doc_repo_path)
+    # generate zip docs for enterprise
+    build_doc_zip(enterprise_doc_repo_path)
      
-    # generate pdf docs for enterprise
-    build_doc_pdf(enterprise_doc_repo_path)
+    if args.build_enterprise_pdf:
+        # generate pdf docs for enterprise
+        build_doc_pdf(enterprise_doc_repo_path)
+    
+    if args.build_oem_zh:
+        # generate oem zip docs for TDengine
+        build_oem_zip(enterprise_doc_repo, args.cus_name, args.cus_prompt)
+    
+    
+    if args.build_oem_zh_pdf:
+        # generate oem pdf docs for TDengine
+        # build_oem_zip(enterprise_doc_repo, args.cus_name, args.cus_prompt)
+        build_oem_pdf(enterprise_doc_repo)
+    
+
 
 if __name__ == "__main__":
     main()
