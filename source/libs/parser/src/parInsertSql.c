@@ -247,8 +247,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   return code;
 }
 
-static int32_t parseTimestampOrInterval(const char** end, SToken* pToken, int16_t timePrec, int64_t* ts, int64_t* interval,
-                                    SMsgBuf* pMsgBuf, bool* isTs) {
+static int32_t parseTimestampOrInterval(const char** end, SToken* pToken, int16_t timePrec, int64_t* ts,
+                                        int64_t* interval, SMsgBuf* pMsgBuf, bool* isTs) {
   if (pToken->type == TK_NOW) {
     *isTs = true;
     *ts = taosGetTimestamp(timePrec);
@@ -1387,7 +1387,16 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   }
 
   char    tbFName[TSDB_TABLE_FNAME_LEN];
-  int32_t code = tNameExtractFullName(&pStmt->targetTableName, tbFName);
+  int32_t code = 0;
+  if (pCxt->preCtbname) {
+    tstrncpy(pStmt->targetTableName.tname, pStmt->usingTableName.tname, sizeof(pStmt->targetTableName.tname));
+    tstrncpy(pStmt->targetTableName.dbname, pStmt->usingTableName.dbname, sizeof(pStmt->targetTableName.dbname));
+    pStmt->targetTableName.type = TSDB_SUPER_TABLE;
+    pStmt->pTableMeta->tableType = TSDB_SUPER_TABLE;
+  }
+
+  code = tNameExtractFullName(&pStmt->targetTableName, tbFName);
+
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -1812,8 +1821,10 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
   SArray* pTagVals = pStbRowsCxt->aTagVals;
   bool    canParseTagsAfter = !pStbRowsCxt->pTagCond && !pStbRowsCxt->hasTimestampTag;
   int32_t numOfCols = getNumOfColumns(pStbRowsCxt->pStbMeta);
+  int32_t numOfTags = getNumOfTags(pStbRowsCxt->pStbMeta);
   int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
   uint8_t precision = getTableInfo(pStbRowsCxt->pStbMeta).precision;
+  int     idx = 0;
   for (int i = 0; i < pCols->numOfBound && (code) == TSDB_CODE_SUCCESS; ++i) {
     const char* pTmpSql = *ppSql;
     bool        ignoreComma = false;
@@ -1831,13 +1842,37 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 
     if (TK_NK_QUESTION == pToken->type) {
       pCxt->isStmtBind = true;
+      pStmt->usingTableProcessing = true;
       if (pCols->pColIndex[i] == tbnameIdx) {
-        pCxt->preCtbname = false;
-        *bFoundTbName = true;
-      }
-      if (NULL == pCxt->pComCxt->pStmtCb) {
-        code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pToken->z);
-        break;
+        char* tbName = NULL;
+        if ((*pCxt->pComCxt->pStmtCb->getTbNameFn)(pCxt->pComCxt->pStmtCb->pStmt, &tbName) == TSDB_CODE_SUCCESS) {
+          tstrncpy(pStbRowsCxt->ctbName.tname, tbName, sizeof(pStbRowsCxt->ctbName.tname));
+          tstrncpy(pStmt->usingTableName.tname, pStmt->targetTableName.tname, sizeof(pStmt->usingTableName.tname));
+          tstrncpy(pStmt->targetTableName.tname, tbName, sizeof(pStmt->targetTableName.tname));
+
+          tstrncpy(pStmt->usingTableName.dbname, pStmt->targetTableName.dbname, sizeof(pStmt->usingTableName.dbname));
+          pStmt->usingTableName.type = 1;
+
+          *bFoundTbName = true;
+        }
+      } else if (pCols->pColIndex[i] < numOfCols) {
+        // bind column
+      } else if (pCols->pColIndex[i] < tbnameIdx) {
+        if (pCxt->tags.pColIndex == NULL) {
+          pCxt->tags.pColIndex = taosMemoryCalloc(numOfTags, sizeof(int16_t));
+          if (NULL == pCxt->tags.pColIndex) {
+            return terrno;
+          }
+        }
+        if (!(idx < numOfTags)) {
+          return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfTags");
+        }
+        pCxt->tags.pColIndex[idx++] = pCols->pColIndex[i] - numOfCols;
+        pCxt->tags.mixTagsCols = true;
+        pCxt->tags.numOfBound++;
+        pCxt->tags.numOfCols++;
+      } else {
+        return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfBound");
       }
     } else {
       if (pCols->pColIndex[i] < numOfCols) {
@@ -1882,6 +1917,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       }
     }
   }
+
   return code;
 }
 
@@ -1901,13 +1937,17 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   code = doGetStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pToken, pCols, pSchemas, tagTokens, tagSchemas,
                            &numOfTagTokens, &bFoundTbName);
 
-  if (code == TSDB_CODE_SUCCESS && !bFoundTbName) {
-    code = buildSyntaxErrMsg(&pCxt->msg, "tbname value expected", pOrigSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  if (code == TSDB_CODE_SUCCESS && pStbRowsCxt->ctbName.tname[0] == '\0') {
-    *pGotRow = true;
-    return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+  if (!bFoundTbName) {
+    if (!pCxt->isStmtBind) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "tbname value expected", pOrigSql);
+    } else {
+      *pGotRow = true;
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+    }
   }
 
   bool ctbFirst = true;
@@ -2050,14 +2090,24 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     code = processCtbAutoCreationAndCtbMeta(pCxt, pStmt, pStbRowsCxt);
   }
   if (code == TSDB_CODE_SUCCESS) {
-    code =
-        insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
-                           pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true);
+    if (pCxt->isStmtBind) {
+      char ctbFName[TSDB_TABLE_FNAME_LEN];
+      code = tNameExtractFullName(&pStbRowsCxt->ctbName, ctbFName);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      code = insGetTableDataCxt(pStmt->pTableBlockHashObj, ctbFName, strlen(ctbFName), pStbRowsCxt->pCtbMeta,
+                                &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, true, true);
+    } else {
+      code =
+          insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
+                             pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true);
+    }
   }
   if (code == TSDB_CODE_SUCCESS) {
     code = initTableColSubmitData(*ppTableDataCxt);
   }
-  if (code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS && !pCxt->isStmtBind) {
     SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
     code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow);
     if (TSDB_CODE_SUCCESS == code) {
