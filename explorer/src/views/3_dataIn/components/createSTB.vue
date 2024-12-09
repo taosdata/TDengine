@@ -331,8 +331,8 @@ export default {
             primaryKey: false 
           }
           this.stable_form.name =''
-          this.stable_form.columns = [].concat(column_item, this.column_item)
-          this.stable_form.tags = [].concat(this.column_item)
+          this.stable_form.columns = [].concat(column_item, deepClone(this.column_item))
+          this.stable_form.tags = [].concat(deepClone(this.column_item))
           
           let arr = this.$store.state.app.stbDefaultColumns;
           arr = arr.map(item => {

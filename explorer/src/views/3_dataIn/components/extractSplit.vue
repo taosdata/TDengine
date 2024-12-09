@@ -515,20 +515,15 @@ export default {
 
       // 如果手动增加了编辑了输入框中值，可能导致顺序发生变化
       if (this.$store.state.app.currentDBType == "mqtt") {
-        inputList = inputList.map((msg) => {
+        inputList = inputList.map((msg, index) => {
           let inputobj = {...msg};
-          this.$parent.msgForm.topicbody
-            .forEach((item) => {
-              if (item[this.itemData.columnname]) {
-                inputobj[this.itemData.columnname] = item[this.itemData.columnname]  
-              }
-              if (isall) {
-                inputobj = {...msg, ...item}
-              }
-              if (inputobj.payload === '{}') {
-                delete inputobj.payload
-              }
-            });
+          inputobj[this.itemData.columnname] = this.$parent.msgForm.topicbody[index][this.itemData.columnname] 
+          if (isall) {
+            inputobj = {...this.$parent.msgForm.topicbody[index], ...inputobj}
+          }
+          if (inputobj.payload === '{}') {
+            delete inputobj.payload
+          }
           return inputobj;
         });
       }

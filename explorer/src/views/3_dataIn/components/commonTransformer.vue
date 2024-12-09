@@ -1036,6 +1036,7 @@ export default {
     },
     clearMsgBody() {
       this.msgForm.msgbody = ''
+      this.msgForm.topicbody = []
     },
     validateSubName() {
       let flag = false;

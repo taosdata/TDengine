@@ -25,11 +25,14 @@ impl Parse for Convert {
             .downcast_ref::<StringArray>()
             .context("convert map array to string array error")?;
 
-        let column = StringArray::from_iter(
-            array
-                .iter()
-                .map(|s| s.map(|k| self.convert.get(k).map_or(k, |v| v.as_str()))),
-        );
+        let default = self.convert.get("__taosx_default").map(|s| s.as_str());
+        let column = StringArray::from_iter(array.iter().map(|s| {
+            s.map(|k| {
+                self.convert
+                    .get(k)
+                    .map_or(default.unwrap_or(k), |v| v.as_str())
+            })
+        }));
 
         Ok((
             RecordBatch::try_new(
@@ -67,6 +70,25 @@ mod tests {
                 Arc::new(StringArray::from(vec![Some("def"), None, Some("123")]));
             RecordBatch::try_from_iter_with_nullable(vec![("name", output, true)])?
         });
+        Ok(())
+    }
+
+    #[test]
+    fn parse_array_default_test() -> anyhow::Result<()> {
+        let map = Convert {
+            convert: HashMap::from_iter([
+                ("abc".to_string(), "def".to_string()),
+                ("__taosx_default".to_string(), "lmn".to_string()),
+            ]),
+        };
+
+        let input: ArrayRef = Arc::new(StringArray::from(vec!["abc", "123"]));
+        let (batch, _) = map.parse_array(&Field::new("name", DataType::Utf8, false), &input)?;
+        assert_eq!(batch, {
+            let output: ArrayRef = Arc::new(StringArray::from(vec!["def", "lmn"]));
+            RecordBatch::try_from_iter(vec![("name", output)])?
+        });
+
         Ok(())
     }
 }

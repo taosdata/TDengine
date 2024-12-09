@@ -160,7 +160,6 @@ impl DsSampleIn {
             return None;
         }
 
-        dbg!(&schema);
         let fields = input[0]
             .iter()
             .map(|(name, value)| {
