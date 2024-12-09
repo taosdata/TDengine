@@ -407,8 +407,23 @@ static int32_t metaBtimeIdxDelete(SMeta *pMeta, const SMetaEntry *pEntry) {
 
 // TTL Index
 static int32_t metaTtlIdxUpsert(SMeta *pMeta, const SMetaEntry *pEntry, EMetaTableOp op) {
-  // TODO
-  return 0;
+  STtlUpdTtlCtx ctx = {
+      .uid = pEntry->uid,
+      .pTxn = pMeta->txn,
+  };
+  if (pEntry->type == TSDB_CHILD_TABLE) {
+    ctx.ttlDays = pEntry->ctbEntry.ttlDays;
+    ctx.changeTimeMs = pEntry->ctbEntry.btime;
+  } else {
+    ctx.ttlDays = pEntry->ntbEntry.ttlDays;
+    ctx.changeTimeMs = pEntry->ntbEntry.btime;
+  }
+
+  int32_t ret = ttlMgrInsertTtl(pMeta->pTtlMgr, &ctx);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to insert ttl, uid: %" PRId64 " %s", TD_VID(pMeta->pVnode), pEntry->uid, tstrerror(ret));
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t metaTtlIdxInsert(SMeta *pMeta, const SMetaEntry *pEntry) {
@@ -533,8 +548,7 @@ static int32_t metaHandleNormalTableCreateImpl(SMeta *pMeta, const SMetaEntry *p
       {META_UID_IDX, META_TABLE_OP_INSERT},       //
       {META_NAME_IDX, META_TABLE_OP_INSERT},      //
       {META_BTIME_IDX, META_TABLE_OP_INSERT},     //
-
-      // {META_TTL_IDX, META_TABLE_OP_INSERT},       //
+      {META_TTL_IDX, META_TABLE_OP_INSERT},       //
   };
 
   for (int i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
