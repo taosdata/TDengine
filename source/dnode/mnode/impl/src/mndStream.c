@@ -21,7 +21,6 @@
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTrans.h"
-#include "mndVgroup.h"
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
@@ -1610,6 +1609,13 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
+    int32_t precision = TSDB_TIME_PRECISION_MILLI;
+    SDbObj *pSourceDb = mndAcquireDb(pMnode, pStream->sourceDb);
+    if (pSourceDb != NULL) {
+      precision = pSourceDb->cfg.precision;
+      mndReleaseDb(pMnode, pSourceDb);
+    }
+
     // add row for each task
     SStreamTaskIter *pIter = NULL;
     code = createStreamTaskIter(pStream, &pIter);
@@ -1628,7 +1634,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         break;
       }
 
-      code = setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows);
+      code = setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows, precision);
       if (code == TSDB_CODE_SUCCESS) {
         numOfRows++;
       }
@@ -1925,11 +1931,6 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
         sdbCancelFetch(pSdb, pIter);
         return terrno = code;
       }
-
-      code = mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_UPDATE_NAME, pStream->uid);
-      if (code) {
-        mError("failed to register trans, transId:%d, and continue", pTrans->id);
-      }
     }
 
     if (!includeAllNodes) {
@@ -1944,6 +1945,12 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
 
     mDebug("stream:0x%" PRIx64 " %s involved node changed, create update trans, transId:%d", pStream->uid,
            pStream->name, pTrans->id);
+
+    // NOTE: for each stream, we register one trans entry for task update
+    code = mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_UPDATE_NAME, pStream->uid);
+    if (code) {
+      mError("failed to register trans, transId:%d, and continue", pTrans->id);
+    }
 
     code = mndStreamSetUpdateEpsetAction(pMnode, pStream, pChangeInfo, pTrans);
 

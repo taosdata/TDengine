@@ -1,8 +1,9 @@
 ---
-title: TDengine Inside
-sidebar_label: TDengine Inside
-description: This document describes the internals of TDengine from an architectural perspective.
+title: Inside TDengine
+slug: /inside-tdengine
 ---
+
+This chapter briefly describes some of the internal designs of TDengine.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
