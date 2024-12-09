@@ -1199,7 +1199,6 @@ int32_t taskDbLoadChkpInfo(STaskDbWrapper* pBackend) {
 
   nBytes = snprintf(pChkpDir, cap, "%s%s%s", pBackend->path, TD_DIRSEP, "checkpoints");
   if (nBytes >= cap) {
-    taosMemoryFree(pChkpDir);
     return TSDB_CODE_OUT_OF_RANGE;
   }
   if (!taosIsDir(pChkpDir)) {
@@ -4294,9 +4293,13 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
   }
 }
 
+<<<<<<< HEAD
 int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal,
                                             int32_t* pVLen) {
   stDebug("streamStateFillGetKVByCur_rocksdb");
+=======
+int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal, int32_t* pVLen) {
+>>>>>>> origin/main
   if (!pCur) {
     return -1;
   }
