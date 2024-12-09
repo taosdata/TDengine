@@ -176,8 +176,6 @@ void    nodesSortList(SNodeList** pList, int32_t (*)(SNode* pNode1, SNode* pNode
 void    destroyFuncParam(void* pFuncStruct);
 int32_t nodesListDeduplicate(SNodeList** pList);
 
-int32_t colsFunctionNodeSplit(const SNode* pSrc, SNode** ppDst, int32_t paraIndex);
-
 #ifdef __cplusplus
 }
 #endif

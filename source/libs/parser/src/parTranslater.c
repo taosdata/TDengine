@@ -14,9 +14,6 @@
  */
 
 #include "parTranslater.h"
-#include <stdint.h>
-#include <strings.h>
-#include "nodes.h"
 #include "parInt.h"
 #include "tdatablock.h"
 
@@ -5162,6 +5159,54 @@ static int32_t createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr, SNo
   return code;
 }
 
+static int32_t createMultiResColsFunc(SFunctionNode* pSrcFunc, SFunctionNode* pSelectFunc, SExprNode* pExpr, SNode** ppNodeOut) {
+  SFunctionNode* pFunc = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  code = nodesMakeList(&pFunc->pParameterList);
+  SNode* pClonedFuncNode = NULL;
+  if (TSDB_CODE_SUCCESS != (code = nodesCloneNode((SNode*)pSelectFunc, &pClonedFuncNode)) ||
+      TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pFunc->pParameterList, pClonedFuncNode))) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+  SNode* pClonedExprNode = NULL;
+  if (TSDB_CODE_SUCCESS != (code = nodesCloneNode((SNode*)pExpr, &pClonedExprNode)) ||
+      TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pFunc->pParameterList, pClonedExprNode))) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+
+  pFunc->node.resType = pExpr->resType;
+  pFunc->funcId = pSrcFunc->funcId;
+  pFunc->funcType = pSrcFunc->funcType;
+  strcpy(pFunc->functionName, pSrcFunc->functionName);
+  char    buf[TSDB_FUNC_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN + 3] = {0};
+  int32_t len = 0;
+  if(pExpr->asAlias) {
+    strncpy(pFunc->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN - 1);
+    strncpy(pFunc->node.userAlias, pExpr->userAlias, TSDB_COL_NAME_LEN - 1);
+    pFunc->node.asAlias = true;
+  } else if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    len = tsnprintf(buf, sizeof(buf) - 1, "%s.%s", pCol->tableAlias, pCol->colName);
+    (void)taosHashBinary(buf, len);
+    strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN - 1);
+    len = tsnprintf(buf, sizeof(buf) - 1, "%s", pCol->colName);
+    strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
+  } else {
+    len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
+    (void)taosHashBinary(buf, len);
+    strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN - 1);
+    len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
+    strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
+  }
+  *ppNodeOut = (SNode*)pFunc;
+  return code;
+}
+
 static int32_t createTableAllCols(STranslateContext* pCxt, SColumnNode* pCol, bool igTags, SNodeList** pOutput) {
   STableNode* pTable = NULL;
   int32_t     code = findTable(pCxt, pCol->tableAlias, &pTable);
@@ -7371,9 +7416,11 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
         SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
         if (isMultiColsFunc(pFunc)) {
           // start from index 1, because the first parameter is select function which needn't to output.
+          SFunctionNode* pSelectFunc = (SFunctionNode*)nodesListGetNode(pFunc->pParameterList, 0);
           for (int i = 1; i < pFunc->pParameterList->length; ++i) {
+            SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
             SNode* pNewFunc = NULL;
-            code = colsFunctionNodeSplit(pTmpNode, &pNewFunc, i);
+            code = createMultiResColsFunc(pFunc, pSelectFunc, (SExprNode*)pExpr, &pNewFunc);
             if (TSDB_CODE_SUCCESS != code) goto _end;
             code = nodesListMakeStrictAppend(&pNewNodeList, pNewFunc);
             if (TSDB_CODE_SUCCESS != code) goto _end;
