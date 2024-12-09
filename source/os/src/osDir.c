@@ -336,18 +336,26 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
   OS_PARAM_CHECK(outname);
-  outname[0] = 0;
+  if (dirname[0] == 0) return 0;
 
   wordexp_t full_path = {0};
   int32_t   code = wordexp(dirname, &full_path, 0);
-  if (code == 0 && full_path.we_wordv[0] != NULL) {
+  switch (code) {
+    case 0:
+      break;
+    case WRDE_NOSPACE:
+      wordfree(&full_path);
+      // FALL THROUGH
+    default:
+      return terrno = TSDB_CODE_INVALID_PARA;
+  }
+
+  if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
     tstrncpy(outname, full_path.we_wordv[0], maxlen);
-    wordfree(&full_path);
-    return 0;
   }
 
   wordfree(&full_path);
-  return terrno = TSDB_CODE_INVALID_PARA;
+  return 0;
 }
 
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {

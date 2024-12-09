@@ -269,7 +269,7 @@ TEST(osDirTests, taosExpandDir) {
   EXPECT_EQ(ret, 0);
 
   ret = taosExpandDir("", fullpath, 1024);
-  EXPECT_NE(ret, 0);
+  EXPECT_EQ(ret, 0);
 
   char dir2[2048] = {0};
   for (int32_t i = 0; i < 2047; ++i) {
