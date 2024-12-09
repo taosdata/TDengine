@@ -32,15 +32,17 @@ enum CfgAlterType {
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj);
-static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype,
-                                    int32_t tsmmConfigVersion);
+static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndInitWriteCfg(SMnode *pMnode);
-static int32_t mndMaybeReBuildCfg(SMnode *pMnode);
+static int32_t mndInitReadCfg(SMnode *pMnode);
 static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array);
 static void    cfgArrayCleanUp(SArray *array);
+
+static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype,
+                                    int32_t tsmmConfigVersion);
 
 int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigObj *obj);
 
@@ -59,6 +61,7 @@ int32_t mndInitConfig(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG, mndProcessConfigReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -219,7 +222,7 @@ static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *pOld, SConfigObj *pNew
 
 static int32_t mndCfgActionDeploy(SMnode *pMnode) { return mndInitWriteCfg(pMnode); }
 
-static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndMaybeReBuildCfg(pMnode); }
+static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndInitReadCfg(pMnode); }
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
@@ -322,7 +325,7 @@ _OVER:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mndMaybeReBuildCfg(SMnode *pMnode) {
+int32_t mndInitReadCfg(SMnode *pMnode) {
   int32_t     code = 0;
   int32_t     sz = -1;
   SConfigObj *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
@@ -679,4 +682,120 @@ static void cfgArrayCleanUp(SArray *array) {
   }
 
   taosArrayDestroy(array);
+}
+
+SArray *initVariablesFromItems(SArray *pItems) {
+  if (pItems == NULL) {
+    return NULL;
+  }
+
+  int32_t sz = taosArrayGetSize(pItems);
+
+  SArray *pInfos = taosArrayInit(sz, sizeof(SVariablesInfo));
+  for (int32_t i = 0; i < sz; ++i) {
+    SConfigItem   *pItem = taosArrayGet(pItems, i);
+    SVariablesInfo info = {0};
+    strcpy(info.name, pItem->name);
+
+    // init info value
+    switch (pItem->dtype) {
+      case CFG_DTYPE_NONE:
+        break;
+      case CFG_DTYPE_BOOL:
+        sprintf(info.value, "%d", pItem->bval);
+        break;
+      case CFG_DTYPE_INT32:
+        sprintf(info.value, "%d", pItem->i32);
+        break;
+      case CFG_DTYPE_INT64:
+        sprintf(info.value, "%" PRId64, pItem->i64);
+        break;
+      case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
+        sprintf(info.value, "%f", pItem->fval);
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        sprintf(info.value, "%s", pItem->str);
+        break;
+    }
+
+    // init info scope
+    switch (pItem->scope) {
+      case CFG_SCOPE_SERVER:
+        strcpy(info.scope, "server");
+        break;
+      case CFG_SCOPE_CLIENT:
+        strcpy(info.scope, "client");
+        break;
+      case CFG_SCOPE_BOTH:
+        strcpy(info.scope, "both");
+        break;
+      default:
+        strcpy(info.scope, "unknown");
+        break;
+    }
+    // init info category
+    switch (pItem->category) {
+      case CFG_CATEGORY_GLOBAL:
+        strcpy(info.category, "global");
+        break;
+      case CFG_CATEGORY_LOCAL:
+        strcpy(info.category, "local");
+        break;
+      default:
+        strcpy(info.category, "unknown");
+        break;
+    }
+    if (NULL == taosArrayPush(pInfos, &info)) {
+      mError("failed to push info to array while init variables from items,since %s", tstrerror(terrno));
+      return NULL;
+    }
+  }
+
+  return pInfos;
+}
+
+static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
+  SShowVariablesRsp rsp = {0};
+  int32_t           code = -1;
+
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIABLES) != 0) {
+    goto _OVER;
+  }
+
+  SVariablesInfo info = {0};
+
+  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg));
+  if (rsp.variables == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
+  void   *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if ((rspLen = tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp)) <= 0) {
+    code = rspLen;
+    goto _OVER;
+  }
+
+  pReq->info.rspLen = rspLen;
+  pReq->info.rsp = pRsp;
+  code = 0;
+
+_OVER:
+
+  if (code != 0) {
+    mError("failed to get show variables info since %s", tstrerror(code));
+  }
+
+  tFreeSShowVariablesRsp(&rsp);
+  TAOS_RETURN(code);
 }

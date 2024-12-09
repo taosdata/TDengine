@@ -77,7 +77,6 @@ static int32_t  mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew);
 static int32_t  mndProcessDnodeListReq(SRpcMsg *pReq);
-static int32_t  mndProcessShowVariablesReq(SRpcMsg *pReq);
 
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
@@ -118,7 +117,6 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_NOTIFY, mndProcessNotifyReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
   mndSetMsgHandle(pMnode, TDMT_MND_AUDIT, mndProcessAuditReq);
@@ -1079,121 +1077,6 @@ static void getSlowLogScopeString(int32_t scope, char *result) {
   }
 }
 
-SArray *initVariablesFromItems(SArray *pItems) {
-  if (pItems == NULL) {
-    return NULL;
-  }
-
-  int32_t sz = taosArrayGetSize(pItems);
-
-  SArray *pInfos = taosArrayInit(sz, sizeof(SVariablesInfo));
-  for (int32_t i = 0; i < sz; ++i) {
-    SConfigItem   *pItem = taosArrayGet(pItems, i);
-    SVariablesInfo info = {0};
-    strcpy(info.name, pItem->name);
-
-    // init info value
-    switch (pItem->dtype) {
-      case CFG_DTYPE_NONE:
-        break;
-      case CFG_DTYPE_BOOL:
-        sprintf(info.value, "%d", pItem->bval);
-        break;
-      case CFG_DTYPE_INT32:
-        sprintf(info.value, "%d", pItem->i32);
-        break;
-      case CFG_DTYPE_INT64:
-        sprintf(info.value, "%" PRId64, pItem->i64);
-        break;
-      case CFG_DTYPE_FLOAT:
-      case CFG_DTYPE_DOUBLE:
-        sprintf(info.value, "%f", pItem->fval);
-        break;
-      case CFG_DTYPE_STRING:
-      case CFG_DTYPE_DIR:
-      case CFG_DTYPE_LOCALE:
-      case CFG_DTYPE_CHARSET:
-      case CFG_DTYPE_TIMEZONE:
-        sprintf(info.value, "%s", pItem->str);
-        break;
-    }
-
-    // init info scope
-    switch (pItem->scope) {
-      case CFG_SCOPE_SERVER:
-        strcpy(info.scope, "server");
-        break;
-      case CFG_SCOPE_CLIENT:
-        strcpy(info.scope, "client");
-        break;
-      case CFG_SCOPE_BOTH:
-        strcpy(info.scope, "both");
-        break;
-      default:
-        strcpy(info.scope, "unknown");
-        break;
-    }
-    // init info category
-    switch (pItem->category) {
-      case CFG_CATEGORY_GLOBAL:
-        strcpy(info.category, "global");
-        break;
-      case CFG_CATEGORY_LOCAL:
-        strcpy(info.category, "local");
-        break;
-      default:
-        strcpy(info.category, "unknown");
-        break;
-    }
-    if (NULL == taosArrayPush(pInfos, &info)) {
-      mError("failed to push info to array while init variables from items,since %s", tstrerror(terrno));
-      return NULL;
-    }
-  }
-
-  return pInfos;
-}
-
-static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
-  SShowVariablesRsp rsp = {0};
-  int32_t           code = -1;
-
-  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIABLES) != 0) {
-    goto _OVER;
-  }
-
-  SVariablesInfo info = {0};
-
-  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg));
-  if (rsp.variables == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-  int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
-  void   *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if ((rspLen = tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp)) <= 0) {
-    code = rspLen;
-    goto _OVER;
-  }
-
-  pReq->info.rspLen = rspLen;
-  pReq->info.rsp = pRsp;
-  code = 0;
-
-_OVER:
-
-  if (code != 0) {
-    mError("failed to get show variables info since %s", tstrerror(code));
-  }
-
-  tFreeSShowVariablesRsp(&rsp);
-  TAOS_RETURN(code);
-}
 
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
