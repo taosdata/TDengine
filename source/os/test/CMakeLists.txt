@@ -78,6 +78,8 @@ add_test(
     COMMAND osAtomicTests
 )
 
+if(TD_LINUX)
+
 add_executable(osDirTests "osDirTests.cpp")
 target_link_libraries(osDirTests os util gtest_main)
 add_test(
@@ -91,6 +93,8 @@ add_test(
     NAME osEnvTests
     COMMAND osEnvTests
 )
+
+endif()
 
 add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
 target_link_libraries(osSemaphoreTests os util gtest_main)
