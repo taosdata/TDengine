@@ -286,6 +286,7 @@ int32_t tsTtlFlushThreshold = 100;   /* maximum number of dirty items in memory.
 int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 
 // internal
+bool    tsDiskIDCheckEnabled = true;
 int32_t tsTransPullupInterval = 2;
 int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
@@ -858,6 +859,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tmqRowSize", tmqRowSize, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxTsmaNum", tsMaxTsmaNum, 0, 3, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "diskIDCheckEnabled", tsDiskIDCheckEnabled,  CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1634,6 +1636,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxTsmaNum");
   tsMaxTsmaNum = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "diskIDCheckEnabled");
+  tsDiskIDCheckEnabled = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "transPullupInterval");
   tsTransPullupInterval = pItem->i32;
 
@@ -1969,6 +1974,9 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
       continue;
     }
     if (strcasecmp(pItem->name, "dataDir") == 0) {
+      if (!tsDiskIDCheckEnabled) {
+        continue;
+      }
       int    sz = cJSON_GetArraySize(pJson);
       cJSON *filed = NULL;
       // check disk id for each dir
