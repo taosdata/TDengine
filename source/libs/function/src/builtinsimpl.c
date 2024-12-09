@@ -7035,3 +7035,9 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
+
+bool getColsFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  pEnv->calcMemSize = pNode->node.resType.bytes;
+  return true;
+}

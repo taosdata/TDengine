@@ -247,6 +247,8 @@ int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t groupConstValueFunction(SqlFunctionCtx* pCtx);
 int32_t groupConstValueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool    getColsFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+
 #ifdef __cplusplus
 }
 #endif

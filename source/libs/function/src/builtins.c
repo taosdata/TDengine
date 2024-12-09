@@ -5614,7 +5614,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
      FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateCols,
     .dynDataRequiredFunc = NULL,
-    .getEnvFunc   = getFirstLastFuncEnv,
+    .getEnvFunc   = getColsFuncEnv,
     .initFunc     = functionSetup,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL

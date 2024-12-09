@@ -7127,6 +7127,27 @@ static int32_t hasInvalidColsFunction(STranslateContext* pCxt, SNodeList* nodeLi
   return TSDB_CODE_SUCCESS;
 }
 
+static bool invalidColsAlias(SFunctionNode* pFunc) {
+  if (strcasecmp(pFunc->functionName, "cols") != 0) {
+    return false;
+  }
+  if (pFunc->node.asAlias) {
+    if (pFunc->pParameterList->length > 2) {
+      return true;
+    } else {
+      SNode* pNode;
+      FOREACH(pNode, pFunc->pParameterList) {
+        SExprNode* pExpr = (SExprNode*)pNode;
+        if (pExpr->asAlias) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList) {
   int32_t code = hasInvalidColsFunction(pCxt, *nodeList);
   if (TSDB_CODE_SUCCESS != code) {
@@ -7137,14 +7158,19 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
   FOREACH(pTmpNode, *nodeList) {
     if (QUERY_NODE_FUNCTION == nodeType(pTmpNode)) {
       SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
+      if(invalidColsAlias(pFunc)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLS_FUNCTION,
+                                       "Invalid using alias for cols function");
+      }
       if (isMultiColsFunc(pFunc)) {
         needRewrite = true;
         break;
       }
     }
   }
+
+  SNodeList* pNewNodeList = NULL;
   if (needRewrite) {
-    SNodeList* pNewNodeList = NULL;
     code = nodesMakeList(&pNewNodeList);
     if (NULL == pNewNodeList) {
       return code;
@@ -7157,29 +7183,29 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
           for (int i = 1; i < pFunc->pParameterList->length; ++i) {
             SNode* pNewFunc = NULL;
             code = colsFunctionNodeSplit(pTmpNode, &pNewFunc, i);
-            if (TSDB_CODE_SUCCESS != code) {
-              nodesDestroyList(pNewNodeList);
-              return code;
-            }
+            if (TSDB_CODE_SUCCESS != code) goto _end;
             code = nodesListMakeStrictAppend(&pNewNodeList, pNewFunc);
-            if (TSDB_CODE_SUCCESS != code) {
-              nodesDestroyList(pNewNodeList);
-              return code;
-            }
+            if (TSDB_CODE_SUCCESS != code) goto _end;
           }
           continue;
         }
       }
-      code = nodesListMakeStrictAppend(&pNewNodeList, pTmpNode);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyList(pNewNodeList);
-        return code;
-      }
+      SNode* pNewNode = NULL;
+      code = nodesCloneNode(pTmpNode, &pNewNode);
+      if (TSDB_CODE_SUCCESS != code) goto _end;
+      code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
+      if (TSDB_CODE_SUCCESS != code) goto _end;
     }
     nodesDestroyList(*nodeList);
     *nodeList = pNewNodeList;
   }
   return TSDB_CODE_SUCCESS;
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pNewNodeList);
+  }
+  return code;
 }
 
 static int32_t translateColsFunction(STranslateContext* pCxt, SSelectStmt* pSelect) {
