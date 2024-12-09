@@ -1994,8 +1994,11 @@ static int32_t parseBoolFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
 }
 
 static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal) {
-  if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                          pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
+  if (strncmp(pVal->literal, AUTO_DURATION_LITERAL, strlen(AUTO_DURATION_LITERAL) + 1) == 0) {
+    pVal->datum.i = AUTO_DURATION_VALUE;
+    pVal->unit = getPrecisionUnit(pVal->node.resType.precision);
+  } else if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
+                                 pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -5844,7 +5847,13 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
 
   if (NULL != pInterval->pOffset) {
     SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
-    if (pOffset->datum.i <= 0) {
+    if (pOffset->datum.i == AUTO_DURATION_VALUE) {
+      if (pOffset->unit != getPrecisionUnit(precision)) {
+        parserError("invalid offset unit %d for auto offset with precision %u", pOffset->unit, precision);
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
+    else if (pOffset->datum.i < 0) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE);
     }
     if (pInter->unit == 'n' && pOffset->unit == 'y') {
@@ -5908,9 +5917,52 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   return TSDB_CODE_SUCCESS;
 }
 
+void tryCalcIntervalAutoOffset(SIntervalWindowNode *pInterval) {
+  SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
+  uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
+  SValueNode* pInter = (SValueNode*)pInterval->pInterval;
+  SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
+
+  if (pOffset == NULL || pOffset->datum.i != AUTO_DURATION_VALUE) {
+    return;
+  }
+
+  // ignore auto offset if not applicable
+  if (pInterval->timeRange.skey == INT64_MIN) {
+    pOffset->datum.i = 0;
+    return;
+  }
+
+  SInterval   interval = {.interval = pInter->datum.i,
+                          .sliding = (pSliding != NULL) ? pSliding->datum.i : pInter->datum.i,
+                          .intervalUnit = pInter->unit,
+                          .slidingUnit = (pSliding != NULL) ? pSliding->unit : pInter->unit,
+                          .offset = pOffset->datum.i,
+                          .precision = precision,
+                          .timeRange = pInterval->timeRange};
+
+  /**
+   * Considering that the client and server may be in different time zones,
+   * these situations need to be deferred to the server for calculation.
+   */
+  if (IS_CALENDAR_TIME_DURATION(interval.intervalUnit) || interval.intervalUnit == 'd' ||
+      interval.intervalUnit == 'w' || IS_CALENDAR_TIME_DURATION(interval.slidingUnit) || interval.slidingUnit == 'd' ||
+      interval.slidingUnit == 'w') {
+    return;
+  }
+
+  calcIntervalAutoOffset(&interval);
+  pOffset->datum.i = interval.offset;
+}
+
 static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
-  int32_t              code = checkIntervalWindow(pCxt, pInterval);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  pInterval->timeRange = pSelect->timeRange;
+  tryCalcIntervalAutoOffset(pInterval);
+
+  code = checkIntervalWindow(pCxt, pInterval);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFill(pCxt, pSelect, pInterval);
   }
@@ -9051,6 +9103,13 @@ static int32_t buildIntervalForSampleAst(SSampleAstInfo* pInfo, SNode** pOutput)
   TSWAP(pInterval->pInterval, pInfo->pInterval);
   TSWAP(pInterval->pOffset, pInfo->pOffset);
   TSWAP(pInterval->pSliding, pInfo->pSliding);
+
+  SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
+  if (pOffset && pOffset->datum.i < 0) {
+    parserError("%s failed for invalid interval offset %" PRId64, __func__, pOffset->datum.i);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   pInterval->pCol = NULL;
   code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pInterval->pCol);
   if (NULL == pInterval->pCol) {
@@ -10062,6 +10121,10 @@ int32_t createIntervalFromCreateSmaIndexStmt(SCreateIndexStmt* pStmt, SInterval*
   pInterval->slidingUnit =
       NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->unit : pInterval->intervalUnit;
   pInterval->precision = pStmt->pOptions->tsPrecision;
+  if (pInterval->offset < 0) {
+    parserError("%s failed for invalid interval offset %" PRId64, __func__, pInterval->offset);
+    return TSDB_CODE_INVALID_PARA;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -11907,6 +11970,7 @@ static int32_t buildIntervalForCreateStream(SCreateStreamStmt* pStmt, SInterval*
   pInterval->slidingUnit =
       (NULL != pWindow->pSliding ? ((SValueNode*)pWindow->pSliding)->unit : pInterval->intervalUnit);
   pInterval->precision = ((SColumnNode*)pWindow->pCol)->node.resType.precision;
+  pInterval->timeRange = pWindow->timeRange;
 
   return code;
 }

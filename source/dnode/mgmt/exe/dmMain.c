@@ -49,6 +49,7 @@
 #define DM_ENV_CMD       "The env cmd variable string to use when configuring the server, such as: -e 'TAOS_FQDN=td1'."
 #define DM_ENV_FILE      "The env variable file path to use when configuring the server, default is './.env', .env text can be 'TAOS_FQDN=td1'."
 #define DM_MACHINE_CODE  "Get machine code."
+#define DM_LOG_OUTPUT    "Specify log output. Options:\n\r\t\t\t   stdout, stderr, /dev/null, <directory>, <directory>/<filename>, <filename>\n\r\t\t\t   * If OUTPUT contains an absolute directory, logs will be stored in that directory instead of logDir.\n\r\t\t\t   * If OUTPUT contains a relative directory, logs will be stored in the directory combined with logDir and the relative directory."
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
@@ -239,6 +240,32 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+#if defined(LINUX)
+    } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--log-output") == 0 ||
+               strncmp(argv[i], "--log-output=", 13) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--log-output=", 13) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 13 ? strlen(argv[++i]) : klen - 13;
+        const char *val = argv[i];
+        if (klen >= 13) val += 13;
+        if (vlen <= 0 || vlen >= PATH_MAX) {
+          printf("failed to set log output since invalid vlen:%d, valid range: [1, %d)\n", vlen, PATH_MAX);
+          return TSDB_CODE_INVALID_CFG;
+        }
+        tsLogOutput = taosMemoryMalloc(PATH_MAX);
+        if (!tsLogOutput) {
+          printf("failed to set log output: '%s' since %s\n", val, tstrerror(terrno));
+          return terrno;
+        }
+        if (taosExpandDir(val, tsLogOutput, PATH_MAX) != 0) {
+          printf("failed to expand log output: '%s' since %s\n", val, tstrerror(terrno));
+          return terrno;
+        }
+      } else {
+        printf("'%s' requires a parameter\n", argv[i]);
+        return TSDB_CODE_INVALID_CFG;
+      }
+#endif
     } else if (strcmp(argv[i], "-y") == 0) {
       global.generateCode = true;
       if (i < argc - 1) {
@@ -316,6 +343,9 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
+#if defined(LINUX)
+  printf("%s%s%s%s\n", indent, "-o, --log-output=OUTPUT", indent, DM_LOG_OUTPUT);
+#endif
   printf("%s%s%s%s\n", indent, "-y,", indent, DM_SET_ENCRYPTKEY);
   printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
@@ -340,8 +370,11 @@ static int32_t dmCheckS3() {
 }
 
 static int32_t dmInitLog() {
-  return taosCreateLog(CUS_PROMPT "dlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs,
-                       0);
+  const char *logName = CUS_PROMPT "dlog";
+
+  TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
+
+  return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
 static void taosCleanupArgs() {

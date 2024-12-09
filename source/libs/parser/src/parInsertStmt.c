@@ -941,8 +941,8 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_STB** fields,
                             STableMeta* pMeta, void* boundTags, bool preCtbname) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
-  int32_t        numOfBound = boundColsInfo.numOfBound + tags->numOfBound + (preCtbname ? 1 : 0);
-  int32_t        idx = 0;
+  int32_t numOfBound = boundColsInfo.numOfBound + (tags->mixTagsCols ? 0 : tags->numOfBound) + (preCtbname ? 1 : 0);
+  int32_t idx = 0;
   if (fields != NULL) {
     *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_STB));
     if (NULL == *fields) {
@@ -957,30 +957,25 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
       idx++;
     }
 
-    if (tags->numOfBound > 0) {
-      SSchema* pSchema = getTableTagSchema(pMeta);
-
-      if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
-        (*fields)[0].precision = pMeta->tableInfo.precision;
-      }
+    if (tags->numOfBound > 0 && !tags->mixTagsCols) {
+      SSchema* tagSchema = getTableTagSchema(pMeta);
 
       for (int32_t i = 0; i < tags->numOfBound; ++i) {
         (*fields)[idx].field_type = TAOS_FIELD_TAG;
 
-        SSchema* schema = &pSchema[tags->pColIndex[i]];
+        SSchema* schema = &tagSchema[tags->pColIndex[i]];
         tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[i].name));
         (*fields)[idx].type = schema->type;
         (*fields)[idx].bytes = schema->bytes;
-
+        if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
+          (*fields)[idx].precision = pMeta->tableInfo.precision;
+        }
         idx++;
       }
     }
 
     if (boundColsInfo.numOfBound > 0) {
       SSchema* schema = &pSchema[boundColsInfo.pColIndex[0]];
-      if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
-        (*fields)[0].precision = pMeta->tableInfo.precision;
-      }
 
       for (int32_t i = 0; i < boundColsInfo.numOfBound; ++i) {
         int16_t idxCol = boundColsInfo.pColIndex[i];
@@ -990,7 +985,8 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
           tstrncpy((*fields)[i].name, "tbname", sizeof((*fields)[idx].name));
           (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
           (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
-           idx++;
+
+          idx++;
           continue;
         } else if (idxCol < pMeta->tableInfo.numOfColumns) {
           (*fields)[idx].field_type = TAOS_FIELD_COL;
@@ -1002,6 +998,9 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
         tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[idx].name));
         (*fields)[idx].type = schema->type;
         (*fields)[idx].bytes = schema->bytes;
+        if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
+          (*fields)[idx].precision = pMeta->tableInfo.precision;
+        }
         idx++;
       }
     }

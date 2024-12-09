@@ -12,16 +12,25 @@ description: TDengine 服务端的错误码列表和详细说明
 ## rpc
 
 | 错误码 | 错误描述 | 可能的出错场景或者可能的原因 | 建议用户采取的措施 |
-| ---------- | -----------------------------| --- | --- |
+| ---------- | -----------------------------| --------- | ------- |
 | 0x8000000B | Unable to establish connection               | 1.网络不通 2.多次重试、依然不能执行请求 | 1.检查网络 2.分析日志，具体原因比较复杂 |
 | 0x80000013 | Client and server's time is not synchronized | 1.客户端和服务端不在同一个时区 2.客户端和服务端在同一个时区，但是两者的时间不同步，相差超过 900 秒 | 1.调整到同一个时区 2.校准客户端和服务端的时间|
 | 0x80000015 | Unable to resolve FQDN                       | 设置了无效的 fqdn | 检查fqdn 的设置 |
 | 0x80000017 | Port already in use                          | 端口已经被某个服务占用的情况下，新启的服务依然尝试绑定该端口 | 1.改动新服务的服务端口 2.杀死之前占用端口的服务 |
 | 0x80000018 | Conn is broken                               | 由于网络抖动或者请求时间过长（超过 900 秒），导致系统主动摘掉连接 | 1.设置系统的最大超时时长 2.检查请求时长 |
-| 0x80000019 | Conn read timeout                            | 未启用 |  |
+| 0x80000019 | Conn read timeout                            | 1.请求是否处理时间过长  2. 服务端处理不过来 3. 服务端已经死锁| 1. 显式配置readTimeout参数，2. 分析taosd上堆栈 |
 | 0x80000020 | some vnode/qnode/mnode(s) out of service     | 多次重试之后，仍然无法连接到集群，可能是所有的节点都宕机了，或者存活的节点不是 Leader 节点 | 1.查看 taosd 的状态、分析 taosd 宕机的原因 2.分析存活的 taosd 为什么无法选取 Leader |
 | 0x80000021 | some vnode/qnode/mnode(s) conn is broken     | 多次重试之后，仍然无法连接到集群，可能是网络异常、请求时间太长、服务端死锁等问题 | 1.检查网络 2.请求的执行时间 |
 | 0x80000022 | rpc open too many session                    | 1.并发太高导致占用链接已经到达上限 2.服务端的 BUG，导致连接一直不释放 | 1.调整配置参数 numOfRpcSessions 2.调整配置参数 timeToGetAvailableConn 3.分析服务端不释放的连接的原因 |
+| 0x80000023 | rpc network error                            |  1. 网络问题，可能是闪断，2. 服务端crash | 1. 检查网络 2. 检查服务端是否重启|
+| 0x80000024 |rpc network bus                               | 1.集群间互相拉数据的时候，没有拿到可用链接，或者链接数目已经到上限  | 1.是否并发太高 2. 检查集群各个节点是否有异常，是否出现了死锁等情况|
+| 0x80000025 |  http-report already quit                    | 1. http上报出现的问题| 内部问题，可以忽略| 
+| 0x80000026 |  rpc module already quit                     | 1.客户端实例已经退出，依然用该实例做查询 | 检查业务代码，是否用错|
+| 0x80000027 | rpc async module already quit                | 1. 引擎错误, 可以忽略, 该错误码不会返回到用户侧| 如果返回到用户侧, 需要引擎侧追查问题|
+| 0x80000028 | rpc async in proces                          | 1. 引擎错误, 可以忽略, 该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题|
+| 0x80000029 |  rpc no state                                | 1. 引擎错误, 可以忽略, 该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题 |
+| 0x8000002A | rpc state already dropped                    | 1. 引擎错误, 可以忽略, 该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题|
+| 0x8000002B | rpc msg exceed limit                         | 1. 单个rpc 消息超过上限,该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题|
 
 
 ## common  
@@ -514,6 +523,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80003103 | Invalid tsma state            | 流计算下发结果的 vgroup 与创建 TSMA index 的 vgroup 不一致 | 检查错误日志，联系开发处理 |
 | 0x80003104 | Invalid tsma pointer          | 在处理写入流计算下发的结果，消息体为空指针。               | 检查错误日志，联系开发处理 |
 | 0x80003105 | Invalid tsma parameters       | 在处理写入流计算下发的结果，结果数量为0。                  | 检查错误日志，联系开发处理 |
+| 0x80003113 | Tsma optimization cannot be applied with INTERVAL AUTO offset. | 当前查询条件下使用 INTERVAL AUTO OFFSET 无法启用 tsma 优化。 | 使用 SKIP_TSMA Hint 或者手动指定 INTERVAL OFFSET。 |
 | 0x80003150 | Invalid rsma env              | Rsma 执行环境异常。                                        | 检查错误日志，联系开发处理 |
 | 0x80003151 | Invalid rsma state            | Rsma 执行状态异常。                                        | 检查错误日志，联系开发处理 |
 | 0x80003152 | Rsma qtaskinfo creation error | 创建流计算环境异常。                                       | 检查错误日志，联系开发处理 |
