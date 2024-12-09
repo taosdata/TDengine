@@ -237,7 +237,9 @@ void taos_cleanup(void) {
     tscWarn("failed to cleanup task queue");
   }
 
+#ifndef WINDOWS
   tzCleanup();
+#endif
   tmqMgmtClose();
 
   int32_t id = clientReqRefPool;

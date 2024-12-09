@@ -976,8 +976,9 @@ void taos_init_imp(void) {
     tscError("failed to init conv");
     return;
   }
+#ifndef WINDOWS
   ENV_ERR_RET(tzInit(), "failed to init timezone");
-
+#endif
   ENV_ERR_RET(monitorInit(), "failed to init monitor");
   ENV_ERR_RET(rpcInit(), "failed to init rpc");
 
