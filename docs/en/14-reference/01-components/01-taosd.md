@@ -71,7 +71,6 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 |------------------------|----------|-|
 |countAlwaysReturnValue  |          |Whether count/hyperloglog functions return a value when input data is empty or NULL; 0: return empty row, 1: return; default value 1; When this parameter is set to 1, if the query contains an INTERVAL clause or the query uses TSMA, and the corresponding group or window has empty or NULL data, the corresponding group or window will not return a query result; Note that this parameter should be consistent between client and server|
 |tagFilterCache          |          |Whether to cache tag filter results|
-|maxNumOfDistinctRes     |          |Maximum number of distinct results allowed to return, default value 100,000, maximum allowed value 100 million|
 |queryBufferSize         |          |Not effective yet|
 |queryRspPolicy          |          |Query response strategy|
 |filterScalarMode        |          |Force scalar filter mode, 0: off; 1: on, default value 0|
