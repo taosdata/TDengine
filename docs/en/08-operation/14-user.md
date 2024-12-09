@@ -1,27 +1,28 @@
 ---
-title: Manage Users and Permissions
+title: Users and Permissions
 slug: /operations-and-maintenance/manage-users-and-permissions
 ---
 
-TDengine is configured by default with only one root user, who has the highest privileges. TDengine supports access control for system resources, databases, tables, views, and topics. The root user can set different access permissions for each user based on different resources. This section introduces user and permission management in TDengine. User and permission management is a feature unique to TDengine Enterprise.
+TDengine is configured by default with only one root user, who has the highest permissions. TDengine supports access control for system resources, databases, tables, views, and topics. The root user can set different access permissions for each user for different resources. This section introduces user and permission management in TDengine. User and permission management is a feature unique to TDengine Enterprise.
 
 ## User Management
 
 ### Creating Users
 
-Only the root user can create users, with the syntax as follows.
+Only the root user can perform the operation of creating users, with the syntax as follows.
 
 ```sql
-create user user_name pass'password' [sysinfo {1|0}]
+create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
 ```
 
-The related parameters are described as follows.
+The parameters are explained as follows.
 
-- user_name: Maximum length is 23 bytes.
-- password: Maximum length is 128 bytes; valid characters include letters, numbers, special characters other than single and double quotes, apostrophes, backslashes, and spaces, and it cannot be empty.
-- sysinfo: Whether the user can view system information. 1 means the user can view it, while 0 means the user cannot view it. System information includes server configuration information, various node information such as dnode and query nodes (qnode), and storage-related information. The default is to allow viewing of system information.
+- user_name: Up to 23 B long.
+- password: Up to 128 B long, valid characters include letters and numbers as well as special characters other than single and double quotes, apostrophes, backslashes, and spaces, and it cannot be empty.
+- sysinfo: Whether the user can view system information. 1 means they can view it, 0 means they cannot. System information includes server configuration information, various node information such as dnode, query node (qnode), etc., as well as storage-related information, etc. The default is to view system information.
+- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. The default value is 0. // Supported starting from TDengine Enterprise version 3.3.2.0
 
-The following SQL creates a user named test with a password of 123456, who can view system information.
+The following SQL can create a user named test with the password 123456 who can view system information.
 
 ```sql
 create user test pass '123456' sysinfo 1
@@ -29,13 +30,13 @@ create user test pass '123456' sysinfo 1
 
 ### Viewing Users
 
-To view user information in the system, you can use the following SQL.
+To view user information in the system, use the following SQL.
 
 ```sql
 show users;
 ```
 
-You can also query user information in the system table `information_schema.ins_users`, as shown below.
+You can also obtain user information in the system by querying the system table information_schema.ins_users, as shown below.
 
 ```sql
 select * from information_schema.ins_users;
@@ -43,7 +44,7 @@ select * from information_schema.ins_users;
 
 ### Modifying User Information
 
-The SQL to modify user information is as follows.
+The SQL for modifying user information is as follows.
 
 ```sql
 alter user user_name alter_user_clause 
@@ -51,16 +52,18 @@ alter_user_clause: {
  pass 'literal' 
  | enable value 
  | sysinfo value
+ | createdb value
 }
 ```
 
-The related parameters are described as follows.
+The parameters are explained as follows.
 
 - pass: Modify the user's password.
 - enable: Whether to enable the user. 1 means to enable this user, 0 means to disable this user.
-- sysinfo: Whether the user can view system information. 1 means the user can view system information, 0 means the user cannot view system information.
+- sysinfo: Whether the user can view system information. 1 means they can view system information, 0 means they cannot.
+- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. // Supported starting from TDengine Enterprise version 3.3.2.0
 
-The following SQL disables the test user.
+The following SQL disables the user test.
 
 ```sql
 alter user test enable 0
@@ -68,7 +71,7 @@ alter user test enable 0
 
 ### Deleting Users
 
-The SQL to delete a user is as follows.
+The SQL for deleting a user is as follows.
 
 ```sql
 drop user user_name
@@ -76,16 +79,16 @@ drop user user_name
 
 ## Permission Management
 
-Only the root user can manage users, nodes, vnodes, qnodes, snodes, and other system information, including querying, adding, deleting, and modifying.
+Only the root user can manage system information such as users, nodes, vnode, qnode, snode, including querying, adding, deleting, and modifying.
 
-### Granting Permissions for Databases and Tables
+### Granting Permissions to Databases and Tables
 
-In TDengine, permissions for databases and tables are divided into read and write. These permissions can be granted individually or simultaneously to users.
+In TDengine, permissions for databases and tables are divided into read (read) and write (write) types. These permissions can be granted individually or together to users.
 
-- Read Permission: A user with read permission can only query data in the database or table but cannot modify or delete it. This permission is suitable for scenarios where access to data is needed but no write operations are required, such as data analysts or report generators.
-- Write Permission: A user with write permission can write data to the database or table. This permission is suitable for scenarios that require writing operations, such as data collectors or processors. If a user has only write permission without read permission, they can only write data but cannot query it.
+- read permission: Users with read permission can only query data in the database or table, but cannot modify or delete data. This type of permission is suitable for scenarios where access to data is needed but no write operations are required, such as data analysts, report generators, etc.
+- write permission: Users with write permission can write data to the database or table. This type of permission is suitable for scenarios where data writing operations are needed, such as data collectors, data processors, etc. If you only have write permission without read permission, you can only write data but cannot query data.
 
-The syntax for granting access to a user for a specific database and table is as follows.
+The syntax for granting a user access to databases and tables is as follows.
 
 ```sql
 grant privileges on resources [with tag_filter] to user_name
@@ -104,46 +107,46 @@ resources: {
 }
 ```
 
-The related parameters are described as follows.
+The parameters are explained as follows.
 
-- resources: The databases or tables that can be accessed. The part before the dot is the database name, and the part after the dot is the table name. `dbname.tbname` means the table `tbname` in the database `dbname` must be a basic table or a supertable. `dbname.*` means all tables in the database `dbname`. `*.*` means all tables in all databases.
-- tag_filter: Filtering conditions for supertables.
+- resources: The databases or tables that can be accessed. The part before the dot is the database name, and the part after the dot is the table name. dbname.tbname means the table named tbname in the database named dbname, which must be a basic table or supertable. dbname.* means all tables in the database named dbname. *.* means all tables in all databases.
+- tag_filter: Filter condition for supertables.
 
-The above SQL can grant access to a single database, all databases, a basic table or supertable under a database, or all subtables of a supertable that meet the filtering conditions using a combination of `dbname.tbname` and the `with` clause.
-The following SQL grants read permission for the database `power` to the user `test`.
+The above SQL can authorize a database, all databases, a regular table or a supertable under a database, and it can also authorize all subtables under a supertable that meet filter conditions through a combination of dbname.tbname and the with clause.
+The following SQL grants read permission on the database power to the user test.
 
 ```sql
 grant read on power to test
 ```
 
-The following SQL grants all permissions on the supertable `meters` in the database `power` to the user `test`.
+The following SQL grants all permissions on the supertable meters under the database power to the user test.
 
 ```sql
 grant all on power.meters to test
 ```
 
-The following SQL grants write permission for the subtable of the supertable `meters` with the label value `groupId` equal to 1 to the user `test`.
+The following SQL grants write permission to the user test for subtables of the supertable meters where the tag value groupId equals 1.
 
 ```sql
 grant all on power.meters with groupId=1 to test
 ```
 
-If a user is granted write permission for a database, they will have both read and write permissions for all tables under that database. However, if a database only has read permission or even no read permission, table permissions will allow the user to read or write to specific tables. Detailed permission combinations can be found in the reference manual.
+If a user is granted write permission to a database, then the user has both read and write permissions for all tables under this database. However, if a database has only read permission or even no read permission, table authorization allows the user to read or write some tables. See the reference manual for detailed authorization combinations.
 
-### Granting Permissions for Views
+### View Authorization
 
-In TDengine, view permissions are divided into read, write, and alter. These permissions determine a user's access and operational authority over the views. The specific rules for using view permissions are as follows:
+In TDengine, view permissions are divided into read, write, and alter. These determine the user's access and operation permissions on the view. Here are the specific rules for view permissions:
 
-- The creator of the view and the root user have all permissions by default. This means the creator of the view and the root user can query, write, and modify the view.
-- Granting and revoking permissions for other users can be done using the `grant` and `revoke` statements. These operations can only be executed by the root user.
-- View permissions need to be granted and revoked separately; granting and revoking using `db.*` does not include view permissions.
-- Views can be defined and used in nested forms, and permission checks for views are performed recursively.
+- The creator of the view and root users have all permissions by default. This means that the creator of the view and root users can query, write to, and modify the view.
+- Granting and revoking permissions to other users can be done through grant and revoke statements. These operations can only be performed by root users.
+- View permissions need to be granted and revoked separately; authorizations and revocations through db.* do not include view permissions.
+- Views can be nested in definition and use, and the verification of view permissions is also done recursively.
 
-To facilitate sharing and usage of views, TDengine introduces the concept of valid users for views (i.e., the user who created the view). Authorized users can use the read and write permissions of the valid user's databases, tables, and nested views. When a view is replaced, the valid user is also updated.
+To facilitate the sharing and use of views, TDengine introduces the concept of effective users of views (i.e., the creator of the view). Authorized users can use the read and write permissions of the effective user's databases, tables, and nested views. When a view is replaced, the effective user is also updated.
 
-For detailed mappings of view operations and permission requirements, please refer to the reference manual.
+For detailed relationships between view operations and permission requirements, see the reference manual.
 
-The syntax for granting view permissions is as follows.
+The syntax for view authorization is as follows.
 
 ```sql
 grant privileges on [db_name.]view_name to user_name
@@ -154,77 +157,77 @@ privileges: {
 priv_type: {
  read
  | write
- | alter
+ alter
 }
 ```
 
-The SQL below grants read permission on the view `view_name` in the database `power` to the user `test`.
+To grant read permission on the view view_name under the database power to the user test, the SQL is as follows.
 
 ```sql
 grant read on power.view_name to test
 ```
 
-The SQL below grants all permissions on the view `view_name` in the database `power` to the user `test`.
+To grant all permissions on the view view_name under the database power to the user test, the SQL is as follows.
 
 ```sql
 grant all on power.view_name to test
 ```
 
-### Granting Permissions for Message Subscriptions
+### Message Subscription Authorization
 
-Message subscription is a unique design in TDengine. To ensure the security of user subscription information, TDengine can grant permissions for message subscriptions. Before using the message subscription permission feature, users need to understand the following special usage rules:
+Message subscription is a unique design of TDengine. To ensure the security of user subscription information, TDengine can authorize message subscriptions. Before using the message subscription authorization feature, users need to understand the following special usage rules:
 
-- Any user with read permission on a database can create topics. The root user has the permission to create topics on any database.
-- Subscription permissions for each topic can be independently granted to any user, regardless of whether they have access to the database.
-- Only the root user or the creator of the topic can delete the topic.
-- Only superusers, the topic creator, or users explicitly granted subscription permissions can subscribe to the topic. These permission settings ensure both the security of the database and flexible operations for users within a limited scope.
+- Any user with read permission on a database can create a topic. Root users have the permission to create topics on any database.
+- Each topic's subscription permission can be independently granted to any user, regardless of whether they have access permission to that database.
+- Only root users or the creator of the topic can perform the deletion of a topic.
+- Only superusers, the creator of the topic, or users explicitly granted subscription permission can subscribe to the topic. These permission settings ensure the security of the database while also allowing users flexibility within a limited range.
 
-The SQL syntax for granting message subscription permissions is as follows.
+The SQL syntax for message subscription authorization is as follows.
 
 ```sql
 grant privileges on priv_level to user_name 
-privileges: { 
+privileges : { 
  all 
  | priv_type [, priv_type] ...
 } 
-priv_type: { 
+priv_type : { 
  subscribe
 } 
-priv_level: { 
+priv_level : { 
  topic_name
 }
 ```
 
-The following SQL grants the topic named `topic_name` to the user `test`.
+To grant subscription permission on the topic named topic_name to the user test, the SQL is as follows.
 
 ```sql
 grant subscribe on topic_name to test
 ```
 
-### Viewing Grants
+### Viewing Authorizations
 
-When a company has multiple database users, you can use the following command to query all grants held by a specific user, as shown in the SQL below.
+When a company has multiple database users, the following command can be used to query all the authorizations a specific user has, the SQL is as follows.
 
 ```sql
 show user privileges
 ```
 
-### Revoking Grants
+### Revoking Authorizations
 
-Due to the different characteristics of database access, data subscriptions, and views, the syntax for revoking specific grants varies slightly. Below are the specific revocation syntax corresponding to different grant objects.
-The SQL for revoking database access grants is as follows.
+Due to the different characteristics of database access, data subscription, and views, the syntax for revoking specific authorizations also varies slightly. Below are the specific revocation authorization syntaxes for different authorization objects.
+The SQL for revoking database access authorization is as follows.
 
 ```sql
 revoke privileges on priv_level [with tag_condition] from user_name
-privileges: {
+privileges : {
  all
  | priv_type [, priv_type] ...
 }
-priv_type: {
+priv_type : {
  read
  | write
 }
-priv_level: {
+priv_level : {
  dbname.tbname
  | dbname.*
  | *.*
@@ -250,31 +253,31 @@ The SQL for revoking data subscription permissions is as follows.
 
 ```sql
 revoke privileges on priv_level from user_name 
-privileges: {
+privileges : {
     all 
  | priv_type [, priv_type] ...
 } 
-priv_type: { 
+priv_type : { 
  subscribe
 } 
-priv_level: { 
+priv_level : { 
  topic_name
 }
 ```
 
-The SQL below revokes all grants for the user `test` on the database `power`.
+The SQL for revoking all permissions of user test on the database power is as follows.
 
 ```sql
 revoke all on power from test
 ```
 
-The SQL below revokes read permission for the user `test` on the view `view_name` in the database `power`.
+The SQL for revoking the read permission of user test on the view view_name of the database power is as follows.
 
 ```sql
 revoke read on power.view_name from test
 ```
 
-The SQL below revokes the subscribe permission for the user `test` on the message subscription `topic_name`.
+The SQL for revoking the subscribe permission of user test on the message subscription topic_name is as follows.
 
 ```sql
 revoke subscribe on topic_name from test

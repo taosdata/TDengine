@@ -63,6 +63,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_MODULE_QUIT,        "rpc async module alre
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_IN_PROCESS,         "rpc async in process")               
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NO_STATE,                 "rpc no state")               
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_STATE_DROPED,             "rpc state already dropped")               
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MSG_EXCCED_LIMIT,          "rpc msg exceed limit")               
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -811,6 +812,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_UNSUPPORTED_FUNC,          "Tsma func not suppo
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_MUST_BE_DROPPED,           "Tsma must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NAME_TOO_LONG,             "Tsma name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_RECURSIVE_INTERVAL,"Invalid recursive tsma interval")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_AUTO_OFFSET,       "Tsma optimization cannot be applied with INTERVAL AUTO offset")
 
 //rsma
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")

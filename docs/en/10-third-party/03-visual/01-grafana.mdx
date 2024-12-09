@@ -20,50 +20,45 @@ import imgStep11 from '../../assets/grafana-11.png';
 
 ## Overview
 
-This document describes how to integrate TDengine as a data source with the open-source data visualization system [Grafana](https://www.grafana.com/) to achieve data visualization and monitoring alarm system construction. With the TDengine plugin, you can easily display the data from TDengine tables on Grafana dashboards without complex development work.
+This document describes how to integrate the TDengine data source with the open-source data visualization system [Grafana](https://www.grafana.com/) to achieve data visualization and build a monitoring and alert system. With the TDengine plugin, you can easily display data from TDengine tables on Grafana dashboards without the need for complex development work.
 
 ## Grafana Version Requirements
 
-Currently, TDengine supports Grafana versions 7.5 and above. It is recommended to use the latest version. Please download and install the corresponding version of Grafana based on your system environment.
+TDengine currently supports Grafana version 7.5 and above. It is recommended to use the latest version. Please download and install the corresponding version of Grafana according to your system environment.
 
 ## Prerequisites
 
-To allow Grafana to properly add TDengine as a data source, the following preparations are required.
+To add the TDengine data source to Grafana normally, the following preparations are needed.
 
-- Grafana service has been deployed and is running normally.
-
-  :::note
-  Ensure that the account running Grafana has write permissions for its installation directory; otherwise, you may be unable to install plugins later.
-  :::
-
+- Grafana service has been deployed and is running normally.  
+    **Note**: Ensure that the account starting Grafana has write permissions to its installation directory, otherwise you may not be able to install plugins later.
 - TDengine cluster has been deployed and is running normally.
-- taosAdapter has been installed and is running normally. For specific details, please refer to the [taosAdapter usage manual](../../../tdengine-reference/components/taosadapter/).
+- taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter/)
 
 Record the following information:
 
-- REST API address of the TDengine cluster, e.g., `http://tdengine.local:6041`.
-- Authentication information for the TDengine cluster, which may include a username and password.
+- TDengine cluster REST API address, such as: `http://tdengine.local:6041`.
+- TDengine cluster authentication information, using username and password.
 
 ## Install Grafana Plugin and Configure Data Source
 
 <Tabs defaultValue="script">
 <TabItem value="gui" label="Graphical Interface Installation">
 
-With the latest version of Grafana (8.5+), you can browse and manage plugins directly in Grafana's UI ([Plugin Management](https://grafana.com/docs/grafana/next/administration/plugin-management/#plugin-catalog)). For version 7.x, please use the **Install Script** or **Manual Installation** methods. In the Grafana management interface, navigate to **Configurations > Plugins**, search for `TDengine`, and follow the prompts to install.
+Using the latest version of Grafana (8.5+), you can [browse and manage plugins](https://grafana.com/docs/grafana/next/administration/plugin-management/#plugin-catalog) in Grafana (for version 7.x, please use **Installation Script** or **Manual Installation** methods). In the Grafana management interface, directly search for `TDengine` on the **Configurations > Plugins** page and follow the prompts to install.
 
-After installation, follow the instructions to **Create a TDengine data source** and enter the relevant TDengine configuration:
+After installation, follow the instructions to **Create a TDengine data source** by adding the data source with the following TDengine configurations:
 
-- Host: IP address and port number providing the REST service in the TDengine cluster, default is `http://localhost:6041`
+- Host: IP address and port number providing REST service in the TDengine cluster, default `http://localhost:6041`
 - User: TDengine username.
 - Password: TDengine user password.
 
-Click `Save & Test` to perform a test. If successful, it will indicate: `TDengine Data source is working`.
+Click `Save & Test` to test, if successful, it will prompt: `TDengine Data source is working`.  
 
 </TabItem>
+<TabItem value="script" label="Installation Script">
 
-<TabItem value="script" label="Install Script">
-
-For users using Grafana 7.x or those configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can automatically install the plugin and add the data source provisioning configuration file using the install script on the Grafana server.
+For users using Grafana version 7.x or configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can use the installation script on the Grafana server to automatically install the plugin and add the data source Provisioning configuration file.
 
 ```sh
 bash -c "$(curl -fsSL \
@@ -73,15 +68,14 @@ bash -c "$(curl -fsSL \
   -p taosdata
 ```
 
-After installation, you will need to restart the Grafana service for the changes to take effect.
+After installation, you need to restart the Grafana service for it to take effect.
 
-Save this script and execute `./install.sh --help` to view detailed help documentation.
+Save the script and execute `./install.sh --help` to view detailed help documentation.
 
 </TabItem>
-
 <TabItem value="manual" label="Manual Installation">
 
-Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) for plugin [installation](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation).
+Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin [installation](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation).
 
 ```bash
 grafana-cli plugins install tdengine-datasource
@@ -89,7 +83,7 @@ grafana-cli plugins install tdengine-datasource
 sudo -u grafana grafana-cli plugins install tdengine-datasource
 ```
 
-Alternatively, download the .zip file from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) to your local machine and extract it to the Grafana plugin directory. Here is a command line download example:
+Alternatively, download the .zip file from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
 
 ```bash
 GF_VERSION=3.5.1
@@ -99,33 +93,32 @@ wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/td
 wget -O tdengine-datasource-$GF_VERSION.zip https://grafana.com/api/plugins/tdengine-datasource/versions/$GF_VERSION/download
 ```
 
-For example, on a CentOS 7.2 operating system, extract the plugin package to the /var/lib/grafana/plugins directory and restart Grafana.
+For CentOS 7.2 operating system, unzip the plugin package into the /var/lib/grafana/plugins directory and restart Grafana.
 
 ```bash
 sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 ```
 
-If Grafana is running in a Docker environment, you can use the following environment variable to automatically install the TDengine data source plugin:
+If Grafana is running in a Docker environment, you can use the following environment variable to set up automatic installation of the TDengine data source plugin:
 
 ```bash
 GF_INSTALL_PLUGINS=tdengine-datasource
 ```
 
-Then, users can access Grafana through [http://localhost:3000](http://localhost:3000) (username/password: admin/admin) and add the data source through the left-side `Configuration -> Data Sources`.
+Afterward, users can directly access the Grafana server at `http://localhost:3000` (username/password: admin/admin), and add a data source through `Configuration -> Data Sources`,
 
-Click `Add data source` to enter the new data source page, type TDengine into the query box, and then click `select` to configure the data source. You will be prompted to modify the relevant configuration as follows:
+Click `Add data source` to enter the new data source page, type TDengine in the search box, then click `select` to choose and you will enter the data source configuration page, modify the configuration according to the default prompts:
 
-- Host: IP address and port number providing the REST service in the TDengine cluster, default is `http://localhost:6041`
+- Host: IP address and port number providing REST service in the TDengine cluster, default `http://localhost:6041`
 - User: TDengine username.
 - Password: TDengine user password.
 
-Click `Save & Test` to perform a test. If successful, it will indicate: `TDengine Data source is working`.
+Click `Save & Test` to test, if successful, it will prompt: `TDengine Data source is working`
 
 </TabItem>
+<TabItem value="container" label="K8s/Docker container">
 
-<TabItem value="container" label="K8s/Docker Container">
-
-Refer to [Grafana Container Installation Instructions](https://grafana.com/docs/grafana/next/setup-grafana/installation/docker/#install-plugins-in-the-docker-container). Use the following command to start a container and automatically install the TDengine plugin:
+Refer to [Grafana containerized installation instructions](https://grafana.com/docs/grafana/next/setup-grafana/installation/docker/#install-plugins-in-the-docker-container). Use the following command to start a container and automatically install the TDengine plugin:
 
 ```bash
 docker run -d \
@@ -135,7 +128,7 @@ docker run -d \
   grafana/grafana
 ```
 
-Using docker-compose, you can configure Grafana Provisioning for automated configuration and experience zero-configuration startup with TDengine + Grafana:
+Using docker-compose, configure Grafana Provisioning for automated setup, and experience a zero-configuration start with TDengine + Grafana:
 
 1. Save this file as `tdengine.yml`.
 
@@ -155,7 +148,7 @@ Using docker-compose, you can configure Grafana Provisioning for automated confi
       editable: true
     ```
 
-2. Save this file as `docker-compose.yml`.
+2. Save the file as `docker-compose.yml`.
 
     ```yml
     version: "3.7"
@@ -185,122 +178,122 @@ Using docker-compose, you can configure Grafana Provisioning for automated confi
       tdengine-data:
     ```
 
-3. Start TDengine + Grafana using the docker-compose command: `docker-compose up -d`.
+3. Use the docker-compose command to start TDengine + Grafana: `docker-compose up -d`.
 
-Open Grafana at [http://localhost:3000](http://localhost:3000), and you can now add dashboards.
+Open Grafana [http://localhost:3000](http://localhost:3000), and now you can add Dashboards.
 
 </TabItem>
 </Tabs>
 
 :::info
 
-The following sections will use Grafana version 11.0.0 as an example. Other versions may have different functionalities. Please refer to the [Grafana Official Documentation](https://grafana.com/docs/grafana/latest/).
+In the following text, we use Grafana v11.0.0 as an example. Other versions may have different features, please refer to [Grafana's official website](https://grafana.com/docs/grafana/latest/).
 
 :::
 
-## Dashboard User Guide
+## Dashboard Usage Guide
 
 This section is organized as follows:
 
-1. Introduces the basics, including Grafana's built-in variables and custom variables, as well as TDengine's support for time series query syntax.
-2. Shows how to create a dashboard using the TDengine data source in Grafana, including the unique syntax for time series queries and how to display data in groups.
-3. Because the configured dashboard queries TDengine periodically to refresh the display, improper SQL writing may lead to significant performance issues. We provide performance optimization suggestions.
-4. Finally, we illustrate how to import the TDinsight dashboard as an example.
+1. Introduce basic knowledge, including Grafana's built-in variables and custom variables, and TDengine's special syntax support for time-series queries.
+2. Explain how to use the TDengine data source in Grafana to create Dashboards, then provide the special syntax for time-series queries and how to group display data.
+3. Since the configured Dashboard will periodically query TDengine to refresh the display, improper SQL writing can cause serious performance issues, so we provide performance optimization suggestions.
+4. Finally, we use the TDengine monitoring panel TDinsight as an example to demonstrate how to import the Dashboards we provide.
 
 ### Grafana Built-in Variables and Custom Variables
 
-The Variable feature in Grafana is powerful and can be used in dashboard queries, panel titles, labels, etc., to create more dynamic and interactive dashboards, improving user experience and efficiency.
+The Variable feature in Grafana is very powerful and can be used in Dashboard queries, panel titles, tags, etc., to create more dynamic and interactive Dashboards, enhancing user experience and efficiency.
 
-The main functions and characteristics of variables include:
+The main functions and features of variables include:
 
-- Dynamic Data Queries: Variables can be used in query statements, allowing users to dynamically change query conditions by selecting different variable values, thereby viewing different data views. This is useful in scenarios where data needs to be dynamically displayed based on user input.
+- Dynamic data querying: Variables can be used in query statements, allowing users to dynamically change query conditions by selecting different variable values, thus viewing different data views. This is very useful for scenarios that require dynamically displaying data based on user input.
 
-- Enhanced Reusability: By defining variables, the same configuration or query logic can be reused in multiple places without repeating the same code. This makes the maintenance and updates of the dashboard simpler and more efficient.
+- Improved reusability: By defining variables, the same configuration or query logic can be reused in multiple places without having to rewrite the same code. This makes maintaining and updating Dashboards simpler and more efficient.
 
-- Flexible Configuration Options: Variables offer various configuration options, such as predefined static value lists, dynamically queried values from data sources, regular expression filtering, etc., making the application of variables more flexible and powerful.
+- Flexible configuration options: Variables offer a variety of configuration options, such as predefined static value lists, dynamically querying values from data sources, regular expression filtering, etc., making the application of variables more flexible and powerful.
 
-Grafana provides built-in variables and custom variables, both of which can be referenced when writing SQL by using `$variableName`, where `variableName` is the name of the variable. For other referencing methods, please refer to [Reference Methods](https://grafana.com/docs/grafana/latest/dashboards/variables/variable-syntax/).
+Grafana provides both built-in and custom variables, which can be referenced when writing SQL as `$variableName`, where `variableName` is the name of the variable. For other referencing methods, please refer to [Referencing Methods](https://grafana.com/docs/grafana/latest/dashboards/variables/variable-syntax/).
 
 #### Built-in Variables
 
-Grafana has built-in variables like `from`, `to`, and `interval`, which are derived from the Grafana plugin panel. Their meanings are as follows:
+Grafana has built-in variables such as `from`, `to`, and `interval`, all derived from the Grafana plugin panel. Their meanings are as follows:
 
-- `from`: Start time of the query range
-- `to`: End time of the query range
-- `interval`: Window slice interval
+- `from` is the start time of the query range
+- `to` is the end time of the query range
+- `interval` is the window split interval
 
-For each query, it is recommended to set the start and end times of the query range, which can effectively reduce the amount of data scanned by the TDengine server. The `interval` is the size of the window slice; in Grafana version 11, its size is calculated based on the time interval and the number of returned points.
+For each query, it is recommended to set the start and end time of the query range, which can effectively reduce the amount of data scanned by the TDengine server during query execution. `interval` is the size of the window split, and in Grafana version 11, it is calculated based on the time interval and the number of returned points.
 
-In addition to these three common variables, Grafana also provides variables like `__timezone`, `__org`, and `__user`. For more details, refer to [Built-in Variables](https://grafana.com/docs/grafana/latest/dashboards/variables/add-template-variables/#global-variables).
+In addition to the three common variables mentioned above, Grafana also provides variables such as `__timezone`, `__org`, `__user`, etc. For more details, please refer to [Built-in Variables](https://grafana.com/docs/grafana/latest/dashboards/variables/add-template-variables/#global-variables).
 
 #### Custom Variables
 
-We can add custom variables to the dashboard. The use of custom variables is no different from built-in variables; they can be referenced in SQL using `$variableName`.
-Custom variables support various types, common types include `Query` (query), `Constant` (constant), `Interval` (interval), `Data source` (data source), etc.
-Custom variables can reference other custom variables; for example, one variable may represent a region, and another can reference the value of that region to query the devices in that area.
+We can add custom variables in the Dashboard. The usage of custom variables is no different from built-in variables; they are referenced in SQL with `$variableName`.
+Custom variables support multiple types, including common types such as `Query` (query), `Constant` (constant), `Interval` (interval), `Data source` (data source), etc.
+Custom variables can reference other custom variables, for example, one variable represents a region, and another variable can reference the value of the region to query devices in that region.
 
-##### Adding Query Type Variables
+##### Adding a Query Type Variable
 
-In the dashboard configuration, select 【Variables】, then click 【New variable】:
+In the Dashboard configuration, select 【Variables】, then click 【New variable】:
 
-1. In the “Name” field, enter your variable name; here we set the variable name as `selected_groups`.
-2. In the 【Select variable type】 dropdown, select “Query”.
-Based on the selected variable type, configure the corresponding options. For example, if you choose “Query” type, you need to specify the data source and the query statement used to obtain the variable value. Here, we will set the query type, select the data source, and configure SQL as `select distinct(groupid) from power.meters where groupid < 3 and ts > $from and ts < $to;`
-3. After clicking the bottom 【Run Query】 button, you can see the variable values generated based on your configuration in the “Preview of values” section.
-4. Other configurations will not be elaborated on; after completing the configuration, click the bottom 【Apply】 button, and then click the upper right 【Save dashboard】 to save.
+1. In the "Name" field, enter your variable name, here we set the variable name as `selected_groups`.
+2. In the 【Select variable type】dropdown menu, select "Query" (query).
+Depending on the selected variable type, configure the corresponding options. For example, if you choose "Query", you need to specify the data source and the query statement to obtain the variable values. Here, we take smart meters as an example, set the query type, select the data source, and configure the SQL as `select distinct(groupid) from power.meters where groupid < 3 and ts > $from and ts < $to;`
+3. After clicking 【Run Query】at the bottom, you can see the variable values generated based on your configuration in the "Preview of values" section.
+4. Other configurations are not detailed here; after completing the configuration, click the 【Apply】button at the bottom of the page, then click 【Save dashboard】in the upper right corner to save.
 
-After completing the above steps, we have successfully added a new custom variable `$selected_groups` to the dashboard. We can reference this variable in the dashboard queries later.
+After completing the above steps, we have successfully added a new custom variable `$selected_groups` in the Dashboard. We can later reference this variable in the Dashboard's queries through `$selected_groups`.
 
-We can also add another custom variable to reference the `selected_groups` variable; for example, we can add a query variable named `tbname_max_current` whose SQL is `select tbname from power.meters where groupid = $selected_groups and ts > $from and ts < $to;`.
+We can also add another custom variable to reference this `selected_groups` variable, such as adding a query variable named `tbname_max_current`, with its SQL as `select tbname from power.meters where groupid = $selected_groups and ts > $from and ts < $to;`
 
-##### Adding Interval Type Variables
+##### Adding an Interval Type Variable
 
 We can customize the time window interval to better fit business needs.
 
-1. In the “Name” field, enter the variable name as `interval`.
-2. In the 【Select variable type】 dropdown, select “Interval”.
-3. In the 【Interval options】 section, enter `1s,2s,5s,10s,15s,30s,1m`.
-4. Other configurations will not be elaborated on; after completing the configuration, click the bottom 【Apply】 button, and then click the upper right 【Save dashboard】 to save.
+1. In the "Name" field, enter the variable name as `interval`.
+2. In the 【Select variable type】dropdown menu, select "Interval" (interval).
+3. In the 【Interval options】enter `1s,2s,5s,10s,15s,30s,1m`.
+4. Other configurations are not detailed here; after completing the configuration, click the 【Apply】button at the bottom of the page, then click 【Save dashboard】in the upper right corner to save.
 
-After completing the above steps, we have successfully added a new custom variable `$interval` to the dashboard. We can reference this variable in the dashboard queries later.
+After completing the above steps, we have successfully added a new custom variable `$interval` in the Dashboard. We can later reference this variable in the Dashboard's queries through `$interval`.
 
 :::note
 
-If a custom variable has the same name as a Grafana built-in variable, the custom variable will be prioritized in references.
+When custom variables and Grafana built-in variables have the same name, custom variables are referenced preferentially.
 
 :::
 
-### TDengine Time Series Query Support
+### TDengine Time-Series Query Support
 
-In addition to supporting standard SQL, TDengine also provides a series of distinctive query syntaxes that meet the needs of time series business scenarios, greatly facilitating the development of applications for time series scenarios.
+On top of supporting standard SQL, TDengine also offers a series of special query syntaxes that meet the needs of time-series business scenarios, greatly facilitating the development of applications for time series scenarios.
 
-- The `partition by` clause can segment data based on certain dimensions and then perform a series of calculations within the segmented data space. In most cases, it can replace `group by`.
-- The `interval` clause is used to generate equal time period windows.
-- The `fill` statement specifies the filling mode in case of data absence in a certain window interval.
-- The timestamp pseudo-columns can be used in the SELECT clause to output the time window information corresponding to the aggregation results: start time of the time window (\_wstart), end time of the time window (\_wend), etc.
+- The `partition by` clause can split data by certain dimensions, then perform a series of calculations within the split data space, often replacing `group by`.
+- The `interval` clause is used to generate windows of equal time periods.
+- The `fill` statement specifies the filling mode for missing data in a window interval.
+- `Timestamp pseudocolumns` If you need to output the time window information corresponding to the aggregation results in the results, you need to use timestamp-related pseudo-columns in the SELECT clause: window start time (_wstart), window end time (_wend), etc.
 
-For a detailed introduction to these features, please refer to [Distinctive Queries](../../../tdengine-reference/sql-manual/time-series-extensions/).
+Detailed introduction to the above features can be found at [Distinguished Queries](../../../tdengine-reference/sql-manual/time-series-extensions/).
 
-### Creating Dashboards
+### Creating a Dashboard
 
-With the foundational knowledge gained earlier, we can configure a dashboard based on the TDengine data source for time series data display.
-In the main Grafana interface, create a dashboard and click 【Add Query】 to enter the panel query page:
+With the foundational knowledge from earlier, we can configure a time-series data display Dashboard based on the TDengine data source.  
+Create a Dashboard on the Grafana main interface, click on 【Add Query】 to enter the panel query page:
 
 <figure>
 <Image img={imgStep01} alt=""/>
 </figure>
 
-As shown in the image above, select the `TDengine` data source in the “Query” section, and you can enter the corresponding SQL for querying in the query box. Continuing with the smart meter example, we will **use virtual data** here to ensure the curve is aesthetically pleasing.
+As shown in the image above, select the `TDengine` data source in "Query", and enter the corresponding SQL in the query box below. Continuing with the example of smart meters, to display a beautiful curve, **virtual data is used here**.
 
-#### Displaying Time Series Data
+#### Time-Series Data Display
 
-Suppose we want to query the average current size over a period of time, using the `$interval` to slice the time window, filling null for missing data in a time window.
+Suppose we want to query the average current size over a period of time, with the time window divided by `$interval`, and fill with null if data is missing in any time window.
 
-- “INPUT SQL”: Enter the SQL query to execute (the result set of this SQL statement should consist of two columns and multiple rows). Here we enter: `select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)`, where from, to, and interval are Grafana built-in variables, and selected_groups is a custom variable.
-- “ALIAS BY”: You can set the current query's alias.
-- “GENERATE SQL”: Clicking this button will automatically replace the relevant variables and generate the final execution statement.
+- “INPUT SQL”: Enter the query statement (the result set of this SQL statement should be two columns and multiple rows), here enter: `select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)`, where from, to, and interval are Grafana built-in variables, and selected_groups is a custom variable.
+- “ALIAS BY”: You can set an alias for the current query.
+- “GENERATE SQL”: Clicking this button will automatically replace the corresponding variables and generate the final execution statement.
 
-In the top custom variable, if we select the value of `selected_groups` as 1, the query for the average current of all devices with `groupid` 1 in the `meters` supertable would change as shown below:
+In the custom variables at the top, if the value of `selected_groups` is set to 1, then querying the average value changes of all devices' current in the `meters` supertable with `groupid` 1 is shown in the following image:
 
 <figure>
 <Image img={imgStep02} alt=""/>
@@ -308,78 +301,78 @@ In the top custom variable, if we select the value of `selected_groups` as 1, th
 
 :::note
 
-Since the REST interface is stateless, you cannot use the `use db` statement to switch databases. In the Grafana plugin, you can specify the database in the SQL statement as `<db_name>.<table_name>`.
+Since the REST interface is stateless, you cannot use the `use db` statement to switch databases. In the Grafana plugin, SQL statements can specify the database using \<db_name>.\<table_name>.
 
 :::
 
-#### Grouping Time Series Data for Display
+#### Time-Series Data Group Display
 
-Suppose we want to query the average current size over a period of time, displayed by `groupid`. We can modify the previous SQL to `select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)`.
+Suppose we want to query the average current size over a period of time and display it grouped by `groupid`, we can modify the previous SQL to `select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)`
 
-- “Group by column(s)”: Enter the `group by` or `partition by` column names separated by **commas**. If it is a `group by` or `partition by` query, set the “Group by” column to display multidimensional data. Here we set the “Group by” column name as `groupid` to display the data grouped by `groupid`.
-- “Group By Format”: In `Group by` or `Partition by` scenarios, you can format the legend name. For the SQL mentioned above, set the “Group By Format” to `groupid-{{groupid}}`, and the legend name will be formatted accordingly.
+- “Group by column(s)”: Comma-separated `group by` or `partition by` column names in **half-width** commas. If it is a `group by` or `partition by` query statement, set the “Group by” column to display multidimensional data. Here, set the “Group by” column name as `groupid` to display data grouped by `groupid`.
+- “Group By Format”: Legend format for multidimensional data in `Group by` or `Partition by` scenarios. For example, in the above INPUT SQL, set the “Group By Format” to `groupid-{{groupid}}`, and the displayed legend name will be the formatted group name.
 
-After completing the settings, the data will be displayed grouped by `groupid`, as shown below:
+After completing the settings, the display grouped by `groupid` is shown in the following image:
 
 <figure>
 <Image img={imgStep03} alt=""/>
 </figure>
 
-For more information on creating monitoring interfaces using Grafana and other related information, please refer to the official [Grafana documentation](https://grafana.com/docs/).
+> For information on how to use Grafana to create corresponding monitoring interfaces and more about using Grafana, please refer to the official [documentation](https://grafana.com/docs/) of Grafana.
 
 ### Performance Optimization Suggestions
 
-- **Always include a time range in all queries**. In time series databases, failing to include a time range will lead to table scans and poor performance. A common SQL statement format is `select column_name from db.table where ts > $from and ts < $to;`.
-- For queries that represent the latest status, it is generally recommended to **enable caching when creating databases** (setting `CACHEMODEL` to last_row or both). A common SQL statement format is `select last(column_name) from db.table where ts > $from and ts < $to;`.
+- **Add a time range to all queries**, in time-series databases, if a time range is not specified in the query, it will lead to table scanning and poor performance. A common SQL syntax is `select column_name from db.table where ts > $from and ts < $to;`
+- For queries of the latest state type, we generally recommend **enabling cache when creating the database** (`CACHEMODEL` set to last_row or both), a common SQL syntax is `select last(column_name) from db.table where ts > $from and ts < $to;`
 
-### Importing Dashboards
+### Import Dashboard
 
-In the data source configuration page, you can import the TDinsight panel as a monitoring visualization tool for your TDengine cluster. If the TDengine server is version 3.0, please select `TDinsight for 3.x` for import. Note that TDinsight for 3.x requires running and configuring taoskeeper.
+On the data source configuration page, you can import the TDinsight panel for this data source, serving as a monitoring visualization tool for the TDengine cluster. If the TDengine server is version 3.0, please select `TDinsight for 3.x` for import. Note that TDinsight for 3.x requires running and configuring taoskeeper.
 
 <figure>
 <Image img={imgStep04} alt=""/>
 </figure>
 
-Dashboards compatible with TDengine 2.* have been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)).
+The Dashboard compatible with TDengine 2.* has been released on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)).
 
-You can search for other panels using TDengine as the data source [here](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource). Here is an incomplete list:
+Other panels using TDengine as a data source can be [searched here](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource). Below is a non-exhaustive list:
 
 - [15146](https://grafana.com/grafana/dashboards/15146): Monitoring multiple TDengine clusters
-- [15155](https://grafana.com/grafana/dashboards/15155): TDengine alarm examples
+- [15155](https://grafana.com/grafana/dashboards/15155): TDengine alert example
 - [15167](https://grafana.com/grafana/dashboards/15167): TDinsight
-- [16388](https://grafana.com/grafana/dashboards/16388): Data display of node information collected by Telegraf
+- [16388](https://grafana.com/grafana/dashboards/16388): Display of node information collected by Telegraf
 
-## Alarm Configuration
+## Alert Configuration
 
-The TDengine Grafana plugin supports alarms. To configure alarms, several steps are required:
+The TDengine Grafana plugin supports alerts. To configure alerts, follow these steps:
 
 1. Configure contact points: Set up notification channels, including DingDing, Email, Slack, WebHook, Prometheus Alertmanager, etc.
-2. Configure notification policies: Define which channel the alarm is sent to, along with the time and frequency of notifications.
-3. Configure alarm rules: Specify detailed alarm rules  
-    3.1 Configure the alarm name  
-    3.2 Configure the query and alarm triggering conditions  
-    3.3 Configure the rule evaluation strategy  
-    3.4 Configure labels and alarm channels  
+2. Configure notification policies: Set up routing of alerts to specific channels, as well as notification timing and repeat frequency
+3. Configure alert rules: Set up detailed alert rules  
+    3.1 Configure alert name  
+    3.2 Configure queries and alert trigger conditions  
+    3.3 Configure rule evaluation strategy  
+    3.4 Configure tags and alert channels  
     3.5 Configure notification content  
 
-### Introduction to Alarm Configuration Interface
+### Alert Configuration Interface Introduction
 
-In Grafana 11, the alarm interface consists of six tabs: “Alert rules,” “Contact points,” “Notification policies,” “Silences,” “Groups,” and “Settings.”
+In Grafana 11, the alert interface has 6 tabs, namely "Alert rules", "Contact points", "Notification policies", "Silences", "Groups", and "Settings".
 
-- “Alert rules” lists and configures the alarm rules.
-- “Contact points” specifies notification channels, including Email, Slack, WebHook, Prometheus Alertmanager, etc.
-- “Notification policies” configures the routing of alarms to specific channels and the timing and frequency of sending notifications.
-- “Silences” configures silence periods for alarms.
-- “Groups” manages alarm groups, which display triggered alarms in grouped format.
-- “Settings” allows modification of alarm configurations via JSON.
+- "Alert rules" displays and configures alert rules
+- "Contact points" includes notification channels such as DingDing, Email, Slack, WebHook, Prometheus Alertmanager, etc.
+- "Notification policies" sets up routing of alerts to specific channels, as well as notification timing and repeat frequency
+- "Silences" configures silent periods for alerts
+- "Groups" displays grouped alerts after they are triggered
+- "Settings" allows modifying alert configurations via JSON
 
-### Configure Contact Points
+### Configuring Contact Points
 
-This section provides an example of configuring contact points for email.
+This section uses email and Lark as examples to configure contact points.
 
-#### Configure Email Contact Point
+#### Configuring Email Contact Points
 
-Add SMTP/Emailing and Alerting modules to the Grafana service configuration file (for Linux systems, this configuration file is generally located at `/etc/grafana/grafana.ini`).
+Add the SMTP/Emailing and Alerting modules to the configuration file of the Grafana service. (For Linux systems, the configuration file is usually located at `/etc/grafana/grafana.ini`)
 
 Add the following content to the configuration file:
 
@@ -387,20 +380,18 @@ Add the following content to the configuration file:
 #################################### SMTP / Emailing ##########################
 [smtp]
 enabled = true
-host = smtp.qq.com:465      # Email server
+host = smtp.qq.com:465      #Email used
 user = receiver@foxmail.com
-password = ***********      # Use email authorization code
+password = ***********      #Use mail authorization code
 skip_verify = true
 from_address = sender@foxmail.com
 ```
 
-Then restart the Grafana service (for Linux systems, execute `systemctl restart grafana-server.service`).
+Then restart the Grafana service (for Linux systems, execute `systemctl restart grafana-server.service`) to complete the addition.
 
-In the Grafana UI, navigate to “Home” -> “Alerting” -> “Contact points” to create a new contact point.
-
-“Name”: Email Contact Point
-
-“Integration”: Select the contact type; here, choose Email and fill in the email address for receiving notifications.  
+On the Grafana page, go to "Home" -> "Alerting" -> "Contact points" and create a new contact point  
+"Name": Email Contact Point  
+"Integration": Select the contact type, here choose Email, fill in the email receiving address, and save the contact point after completion  
 
 <figure>
 <Image img={imgStep05} alt=""/>
@@ -408,13 +399,13 @@ In the Grafana UI, navigate to “Home” -> “Alerting” -> “Contact points
 
 ### Configure Notification Policies
 
-After configuring contact points, you will see an existing Default Policy.
+After configuring the contact points, you can see there is a Default Policy
 
 <figure>
 <Image img={imgStep06} alt=""/>
 </figure>
 
-Click the right “...” -> “Edit” to modify the default notification policy, opening the configuration window:
+Click on the right side "..." -> "Edit", then edit the default notification policy, a configuration window pops up:
 
 <figure>
 <Image img={imgStep07} alt=""/>
@@ -422,59 +413,59 @@ Click the right “...” -> “Edit” to modify the default notification polic
 
 Then configure the following parameters:
 
-- “Group wait”: The waiting time before sending the first alarm.
-- “Group interval”: The waiting time for sending the next batch of new alarms after the first alarm is sent.
-- “Repeat interval”: The waiting time to resend alarms after successfully sending them.
+- "Group wait": The wait time before sending the first alert.
+- "Group interval": The wait time to send the next batch of new alerts for the group after the first alert.
+- "Repeat interval": The wait time to resend the alert after a successful alert.
 
-### Configure Alarm Rules  
+### Configure Alert Rules  
 
-Using the smart meter alarm as an example, configuring alarm rules mainly involves the alarm name, query and alarm triggering conditions, rule evaluation strategy, labels and alarm channels, and notification content.
+Taking the configuration of smart meter alerts as an example, the configuration of alert rules mainly includes alert name, query and alert trigger conditions, rule evaluation strategy, tags, alert channels, and notification copy.
 
-#### Configure Alarm Name
+#### Configure Alert Name
 
-In the panel where you want to configure the alarm, select “Edit” -> “Alert” -> “New alert rule”.
+In the panel where you need to configure the alert, select "Edit" -> "Alert" -> "New alert rule".
 
-“Enter alert rule name”: For the smart meter example, enter `power meters alert`.
+"Enter alert rule name" (input alert rule name): Here, enter `power meters alert` as an example
 
-#### Configure Query and Alarm Triggering Conditions
+#### Configure Query and Alert Trigger Conditions
 
-In the “Define query and alert condition” section, configure the alarm rule.
+In "Define query and alert condition" configure the alert rule.
 
-1. Select data source: `TDengine Datasource`  
+1. Choose data source: `TDengine Datasource`  
 2. Query statement:
 
     ```sql
     select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)
     ```
 
-3. Set “Expression”: `Threshold is above 100`  
-4. Click 【Set as alert condition】.
-5. “Preview”: View the results of the configured rules.
+3. Set "Expression" (expression): `Threshold is above 100`  
+4. Click [Set as alert condition]
+5. "Preview": View the results of the set rules  
 
-After completing the settings, the interface will look like this:
+After setting, you can see the image displayed below:
 
 <figure>
 <Image img={imgStep08} alt=""/>
 </figure>
 
-Grafana’s “Expression” supports various operations and calculations on data. The types include:
+Grafana's "Expression" (expression) supports various operations and calculations on data, which are divided into:
 
-1. “Reduce”: Aggregates time series values within the selected time range into a single value.
-    1.1 “Function” is used to set the aggregation method, supporting Min, Max, Last, Mean, Sum, and Count.  
-    1.2 “Mode” supports the following three options:  
-        - “Strict”: If no data is queried, it will assign NaN to the data.  
-        - “Drop Non-numeric Value”: Removes invalid data results.  
-        - “Replace Non-numeric Value”: If invalid data is present, it replaces it with a fixed value.  
-2. “Threshold”: Checks if the time series data meets threshold conditions. If false, returns 0; if true, returns 1. The supported conditions include:
+1. "Reduce": Aggregates the values of a time-series within a selected time range into a single value  
+    1.1 "Function" is used to set the aggregation method, supporting Min, Max, Last, Mean, Sum, and Count.  
+    1.2 "Mode" supports the following three:  
+        - "Strict": If no data is queried, the data will be assigned as NaN.  
+        - "Drop Non-numeric Value": Remove illegal data results.  
+        - "Replace Non-numeric Value": If it is illegal data, replace it with a fixed value.  
+2. "Threshold": Checks whether the time-series data meets the threshold judgment conditions. Returns 0 when the condition is false, and 1 when true. Supports the following methods:
     - Is above (x > y)
-    - Is below (x < y)
-    - Is within range (x > y1 AND x < y2)
-    - Is outside range (x < y1 AND x > y2)
-3. “Math”: Performs mathematical operations on time series data.
-4. “Resample”: Alters the timestamps in each time series to have consistent time intervals for mathematical operations.
-5. “Classic condition (legacy)”: Allows configuring multiple logical conditions to determine whether to trigger the alarm.
+    - Is below (x \< y)
+    - Is within range (x > y1 AND x \< y2)
+    - Is outside range (x \< y1 AND x > y2)
+3. "Math": Performs mathematical operations on the data of the time-series.
+4. "Resample": Changes the timestamps in each time-series to have a consistent interval, allowing mathematical operations to be performed between them.
+5. "Classic condition (legacy)": Configurable multiple logical conditions to determine whether to trigger an alert.
 
-As shown in the previous screenshot, we set it to trigger an alarm when the maximum value exceeds 100.
+As shown in the screenshot above, here we set the maximum value to trigger an alarm when it exceeds 100.
 
 #### Configure Rule Evaluation Strategy
 
@@ -482,27 +473,27 @@ As shown in the previous screenshot, we set it to trigger an alarm when the maxi
 <Image img={imgStep09} alt=""/>
 </figure>
 
-Configure the following:
+Complete the following configurations:  
 
-- “Folder”: Set the folder for the alarm rule.
-- “Evaluation group”: Set the evaluation group for the alarm rule. The “Evaluation group” can either choose an existing group or create a new one; new groups can have names and evaluation intervals set.
-- “Pending period”: Reasonably set the duration during which the abnormal value persists after the alarm rule threshold is triggered, which helps avoid false positives.
+- "Folder": Set the directory to which the alert rule belongs.
+- "Evaluation group": Set the evaluation group for the alert rule. "Evaluation group" can either select an existing group or create a new one, where you can set the group name and evaluation interval.
+- "Pending period": After the threshold of the alert rule is triggered, how long the abnormal value continues can trigger an alarm, and a reasonable setting can avoid false alarms.
 
-#### Configure Labels and Alarm Channels
+#### Configure Labels and Alert Channels
 
 <figure>
 <Image img={imgStep10} alt=""/>
 </figure>
 
-Complete the configuration:
+Complete the following configurations:  
 
-- “Labels”: Add labels to the rule for searching, silencing, or routing to notification policies.
-- “Contact point”: Select the contact point; when an alarm occurs, notifications will be sent through the configured contact point.
+- "Labels" adds labels to the rule for searching, silencing, or routing to notification policies.
+- "Contact point" selects a contact point to notify through the set contact point when an alert occurs.
 
-#### Configure Notification Content
+#### Configure Notification Text
 
 <figure>
 <Image img={imgStep11} alt=""/>
 </figure>
 
-Set the “Summary” and “Description,” so if the alarm triggers, you will receive an alarm notification.
+Set "Summary" and "Description", and if an alert is triggered, you will receive a notification.

@@ -10,17 +10,18 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 
 ### 连接相关
 |参数名称|支持版本|参数含义|
-|----------------------|----------|-|
-|firstEp               |          |启动时，主动连接的集群中首个 dnode 的 endpoint，缺省值：hostname:6030，若无法获取该服务器的 hostname，则赋值为 localhost|
-|secondEp              |          |启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，没有缺省值|
-|compressMsgSize       |          |是否对 RPC 消息进行压缩；-1：所有消息都不压缩；0：所有消息都压缩；N (N>0)：只有大于 N 个字节的消息才压缩；缺省值 -1|
-|shellActivityTimer    |          |客户端向 mnode 发送心跳的时长，单位为秒，取值范围 1-120，默认值 3|
-|numOfRpcSessions      |          |RPC 支持的最大连接数，取值范围 100-100000，缺省值 30000|
-|numOfRpcThreads       |          |RPC 线程数目，默认值为 CPU 核数的一半|
-|timeToGetAvailableConn|          |获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，缺省值 500000|
+|----------------------|----------|-------------|
+|firstEp               |                  |启动时，主动连接的集群中首个 dnode 的 endpoint，缺省值：hostname:6030，若无法获取该服务器的 hostname，则赋值为 localhost|
+|secondEp              |                  |启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，没有缺省值|
+|compressMsgSize       |                  |是否对 RPC 消息进行压缩；-1：所有消息都不压缩；0：所有消息都压缩；N (N>0)：只有大于 N 个字节的消息才压缩；缺省值 -1|
+|shellActivityTimer    |                  |客户端向 mnode 发送心跳的时长，单位为秒，取值范围 1-120，默认值 3|
+|numOfRpcSessions      |                  |RPC 支持的最大连接数，取值范围 100-100000，缺省值 30000|
+|numOfRpcThreads       |                  |RPC 收发数据线程数目，取值范围1-50,默认值为 CPU 核数的一半|
+|numOfTaskQueueThreads |                  |客户端处理 RPC消息的线程数, 范围4-16,默认值为 CPU 核数的一半|
+|timeToGetAvailableConn| 3.3.4.*之后取消   |获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，缺省值 500000|
 |useAdapter            |          |内部参数，是否使用 taosadapter，影响 CSV 文件导入|
-|shareConnLimit        |3.3.4.3 后|内部参数，一个链接可以共享的查询数目，取值范围 1-256，默认值 10|
-|readTimeout           |3.3.4.3 后|内部参数，最小超时时间，取值范围 64-604800，单位为秒，默认值 900|
+|shareConnLimit        |3.3.4.0 新增|内部参数，一个链接可以共享的查询数目，取值范围 1-256，默认值 10|
+|readTimeout           |3.3.4.0 新增|内部参数，最小超时时间，取值范围 64-604800，单位为秒，默认值 900|
 
 ### 查询相关
 |参数名称|支持版本|参数含义|

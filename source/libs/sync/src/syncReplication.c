@@ -75,8 +75,10 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    if (syncLogReplStart(pMgr, pNode) != 0) {
-      sError("vgId:%d, failed to start log replication to dnode:%d", pNode->vgId, DID(&(pNode->replicasId[i])));
+    int32_t          ret = 0;
+    if ((ret = syncLogReplStart(pMgr, pNode)) != 0) {
+      sWarn("vgId:%d, failed to start log replication to dnode:%d since %s", pNode->vgId, DID(&(pNode->replicasId[i])),
+            tstrerror(ret));
     }
   }
 

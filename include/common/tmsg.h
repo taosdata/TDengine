@@ -161,6 +161,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USER_FULL,
   TSDB_MGMT_TABLE_ANODE,
   TSDB_MGMT_TABLE_ANODE_FULL,
+  TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -188,6 +189,7 @@ typedef enum _mgmt_table {
 #define TSDB_FILL_LINEAR      5
 #define TSDB_FILL_PREV        6
 #define TSDB_FILL_NEXT        7
+#define TSDB_FILL_NEAR        8
 
 #define TSDB_ALTER_USER_PASSWD          0x1
 #define TSDB_ALTER_USER_SUPERUSER       0x2
@@ -264,6 +266,7 @@ typedef enum ENodeType {
   QUERY_NODE_COLUMN_OPTIONS,
   QUERY_NODE_TSMA_OPTIONS,
   QUERY_NODE_ANOMALY_WINDOW,
+  QUERY_NODE_RANGE_AROUND,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -395,6 +398,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TSMAS_STMT,
   QUERY_NODE_SHOW_ANODES_STMT,
   QUERY_NODE_SHOW_ANODES_FULL_STMT,
+  QUERY_NODE_SHOW_USAGE_STMT,
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
@@ -1238,14 +1242,15 @@ typedef struct {
 } STsBufInfo;
 
 typedef struct {
-  int32_t tz;  // query client timezone
-  char    intervalUnit;
-  char    slidingUnit;
-  char    offsetUnit;
-  int8_t  precision;
-  int64_t interval;
-  int64_t sliding;
-  int64_t offset;
+  int32_t     tz;  // query client timezone
+  char        intervalUnit;
+  char        slidingUnit;
+  char        offsetUnit;
+  int8_t      precision;
+  int64_t     interval;
+  int64_t     sliding;
+  int64_t     offset;
+  STimeWindow timeRange;
 } SInterval;
 
 typedef struct STbVerInfo {
@@ -1751,6 +1756,21 @@ typedef struct {
   int32_t numOfCachedTables;
   int32_t learnerProgress;  // use one reservered
 } SVnodeLoad;
+
+typedef struct {
+  int32_t     vgId;
+  int64_t     numOfTables;
+  int64_t     memSize;
+  int64_t     l1Size;
+  int64_t     l2Size;
+  int64_t     l3Size;
+  int64_t     cacheSize;
+  int64_t     walSize;
+  int64_t     metaSize;
+  int64_t     rawDataSize;
+  int64_t     s3Size;
+  const char* dbname;
+} SDbSizeStatisInfo;
 
 typedef struct {
   int32_t vgId;

@@ -4,53 +4,54 @@ sidebar_label: taosdump
 slug: /tdengine-reference/tools/taosdump
 ---
 
-`taosdump` is a tool that supports backing up data from a running TDengine cluster and restoring the backed-up data to the same or another running TDengine cluster.
+taosdump is a tool application that supports backing up data from a running TDengine cluster and restoring the backed-up data to the same or another running TDengine cluster.
 
-`taosdump` can back up data at the logical data unit level, such as databases, supertables, or basic tables, and can also back up data records within specified time periods from databases, supertables, and basic tables. You can specify the directory path for data backups; if no location is specified, `taosdump` will default to backing up data to the current directory.
+taosdump can back up data using databases, supertables, or basic tables as logical data units, and can also back up data records within a specified time period from databases, supertables, and basic tables. You can specify the directory path for data backup; if not specified, taosdump defaults to backing up data to the current directory.
 
-If the specified location already contains data files, `taosdump` will prompt the user and exit immediately to prevent data overwriting. This means that the same path can only be used for one backup. Please proceed with caution if you see relevant prompts.
+If the specified location already has data files, taosdump will prompt the user and exit immediately to avoid data being overwritten. This means the same path can only be used for one backup.
+If you see related prompts, please operate carefully.
 
-`taosdump` is a logical backup tool and should not be used to back up any raw data, environmental settings, hardware information, server configurations, or the topology of the cluster. `taosdump` uses [Apache AVRO](https://avro.apache.org/) as the data file format to store backup data.
+taosdump is a logical backup tool, it should not be used to back up any raw data, environment settings, hardware information, server configuration, or cluster topology. taosdump uses [Apache AVRO](https://avro.apache.org/) as the data file format to store backup data.
 
 ## Installation
 
-There are two installation methods for `taosdump`:
+There are two ways to install taosdump:
 
-- Install TDengine. taosdump is included in the installation package.
-- Compile `taos-tools` separately and install it. For details, please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository.
+- Install the official taosTools package, please find taosTools on the [release history page](../../../release-history/taostools/) and download it for installation.
+
+- Compile taos-tools separately and install, please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
 
 ## Common Use Cases
 
-### Backing Up Data with taosdump
+### taosdump Backup Data
 
-1. Back up all databases: Use the `-A` or `--all-databases` parameter.
-2. Back up multiple specified databases: Use the `-D db1,db2,...` parameter.
-3. Back up certain supertables or basic tables in a specified database: Use the `dbname stbname1 stbname2 tbname1 tbname2 ...` parameter. Note that the first parameter in this input sequence must be the database name, and it only supports one database. The second and subsequent parameters are the names of the supertables or basic tables in that database, separated by spaces.
-4. Back up the system `log` database: The TDengine cluster usually contains a system database named `log`, which holds data for the self-operation of TDengine. By default, `taosdump` will not back up the `log` database. If there is a specific requirement to back up the `log` database, use the `-a` or `--allow-sys` command-line parameter.
-5. "Loose" mode backups: Starting from version 1.4.1, `taosdump` provides the `-n` and `-L` parameters for backing up data without using escape characters and "loose" mode, which can reduce backup time and storage space for backup data when table names, column names, and tag names do not use escape characters. If you are unsure whether the conditions for using `-n` and `-L` are met, please use the default parameters for "strict" mode backups. For details about escape characters, refer to the [official documentation](../../sql-manual/escape-characters/).
-
-:::tip
-
-- After version 1.4.1, `taosdump` provides the `-I` parameter for parsing the AVRO file schema and data. If you specify the `-s` parameter, it will only parse the schema.
-- After version 1.4.2, backups use the batch size specified by the `-B` parameter, with a default value of 16384. If you encounter "Error actual dump .. batch .." due to network speed or disk performance issues, you can try adjusting it to a smaller value using the `-B` parameter.
-- The export process of `taosdump` does not support interrupted recovery. Therefore, if the process unexpectedly terminates, the correct action is to delete all related files that have been exported or generated.
-- The import process of `taosdump` supports interrupted recovery; however, when the process is restarted, you may receive some "table already exists" prompts, which can be ignored.
-
-:::
-
-### Restoring Data with taosdump
-
-To restore data files from a specified path, use the `-i` parameter followed by the path to the data file. As previously mentioned, do not use the same directory to back up different data sets, nor should you back up the same data set multiple times in the same path, as this could lead to overwriting or multiple backups of the data.
+1. Backup all databases: specify the `-A` or `--all-databases` parameter;
+2. Backup multiple specified databases: use the `-D db1,db2,...` parameter;
+3. Backup certain supertables or basic tables in a specified database: use the `dbname stbname1 stbname2 tbname1 tbname2 ...` parameter, note that this input sequence starts with the database name, supports only one database, and the second and subsequent parameters are the names of the supertables or basic tables in that database, separated by spaces;
+4. Backup the system log database: TDengine clusters usually include a system database named `log`, which contains data for TDengine's own operation, taosdump does not back up the log database by default. If there is a specific need to back up the log database, you can use the `-a` or `--allow-sys` command line parameter.
+5. "Tolerant" mode backup: Versions after taosdump 1.4.1 provide the `-n` and `-L` parameters, used for backing up data without using escape characters and in "tolerant" mode, which can reduce backup data time and space occupied when table names, column names, and label names do not use escape characters. If unsure whether to use `-n` and `-L`, use the default parameters for "strict" mode backup. For an explanation of escape characters, please refer to the [official documentation](../../sql-manual/escape-characters/).
 
 :::tip
 
-`taosdump` uses the TDengine statement binding API for writing restored data. To improve restoration performance, a batch size of 16384 is currently used for each write operation. If the backup data contains many columns, you might encounter the "WAL size exceeds limit" error. In this case, try using the `-B` parameter to adjust it to a smaller value.
+- Versions after taosdump 1.4.1 provide the `-I` parameter, used for parsing avro file schema and data, specifying the `-s` parameter will only parse the schema.
+- Backups after taosdump 1.4.2 use the `-B` parameter to specify the number of batches, the default value is 16384. If "Error actual dump .. batch .." occurs due to insufficient network speed or disk performance in some environments, you can try adjusting the `-B` parameter to a smaller value.
+- taosdump's export does not support interruption recovery, so the correct way to handle an unexpected termination of the process is to delete all related files that have been exported or generated.
+- taosdump's import supports interruption recovery, but when the process restarts, you may receive some "table already exists" prompts, which can be ignored.
 
 :::
 
-## Detailed Command-Line Parameters List
+### taosdump Restore Data
 
-Below is the detailed list of command-line parameters for `taosdump`:
+Restore data files from a specified path: use the `-i` parameter along with the data file path. As mentioned earlier, the same directory should not be used to back up different data sets, nor should the same path be used to back up the same data set multiple times, otherwise, the backup data will cause overwriting or multiple backups.
+
+:::tip
+taosdump internally uses the TDengine stmt binding API to write restored data, currently using 16384 as a batch for writing. If there are many columns in the backup data, it may cause a "WAL size exceeds limit" error, in which case you can try adjusting the `-B` parameter to a smaller value.
+
+:::
+
+## Detailed Command Line Parameters List
+
+Below is the detailed command line parameters list for taosdump:
 
 ```text
 Usage: taosdump [OPTION...] dbname [tbname ...]
@@ -73,7 +74,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -a, --allow-sys            Allow to dump system database
   -A, --all-databases        Dump all databases.
   -D, --databases=DATABASES  Dump inputted databases. Use comma to separate
-                             databases' names.
+                             databases' name.
   -e, --escape-character     Use escaped character for database name
   -N, --without-property     Dump database without its properties.
   -s, --schemaonly           Only dump tables' schema.
@@ -96,16 +97,16 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              restore, please adjust the value to a smaller one
                              and try. The workable value is related to the
                              length of the row and type of table schema.
-  -I, --inspect              Inspect avro file content and print on screen
+  -I, --inspect              inspect avro file content and print on screen
   -L, --loose-mode           Using loose mode if the table name and column name
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
   -Q, --dot-replace          Replace dot character with underline character in
                              the table name.(Version 2.5.3)
-  -T, --thread-num=THREAD_NUM   Number of threads for dump in file. Default is
+  -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is
                              8.
-  -C, --cloud=CLOUD_DSN      Specify a DSN to access TDengine cloud service
-  -R, --restful              Use RESTful interface to connect to TDengine
+  -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service
+  -R, --restful              Use RESTful interface to connect TDengine
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
   -g, --debug                Print debug info.
   -?, --help                 Give this help list
