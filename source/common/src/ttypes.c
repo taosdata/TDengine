@@ -64,7 +64,7 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString,
      tsDecompressString},                                                // placeholder, not implemented
     {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
-    {TSDB_DATA_TYPE_BLOB, 4, INT32_MAX, "BLOB", 0, 0, NULL, NULL},
+    {TSDB_DATA_TYPE_BLOB, 4, TSDB_MAX_BLOB_DATA_LEN, "BLOB", 0, 0, NULL, NULL},
     {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString},
 };
