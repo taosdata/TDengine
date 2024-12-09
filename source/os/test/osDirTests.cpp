@@ -411,7 +411,6 @@ TEST(osDirTests, taosReadDir) {
   taosRemoveDir("/tmp/tdengine-test-dir");
 }
 
-
 TEST(osDirTests, taosGetDirSize) {
   TdDirEntryPtr rddir = taosReadDir(NULL);
   EXPECT_EQ(rddir, nullptr);
@@ -448,4 +447,18 @@ TEST(osDirTests, taosGetDirSize) {
   EXPECT_EQ(ret, 0);
 
   taosRemoveDir("/tmp/tdengine-test-dir");
+
+  taosRemoveDir("./tdengine-test-dir/1/2/3/5");
+  taosRemoveDir("./tdengine-test-dir/1/2/3/4");
+  taosRemoveDir("./tdengine-test-dir/1/2/3");
+  taosRemoveDir("./tdengine-test-dir/1/2");
+  taosRemoveDir("./tdengine-test-dir/1");
+  taosRemoveDir("./tdengine-test-dir/");
+  taosRemoveDir("tdengine-test-dir/1/2/3/5");
+  taosRemoveDir("tdengine-test-dir/1/2/3/4");
+  taosRemoveDir("tdengine-test-dir/1/2/3");
+  taosRemoveDir("tdengine-test-dir/1/2");
+  taosRemoveDir("tdengine-test-dir/1");
+  taosRemoveDir("tdengine-test-dir/");
+  taosRemoveDir("tdengine-test-dir/");
 }

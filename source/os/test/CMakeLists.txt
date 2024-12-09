@@ -85,6 +85,13 @@ add_test(
     COMMAND osDirTests
 )
 
+add_executable(osEnvTests "osEnvTests.cpp")
+target_link_libraries(osEnvTests os util gtest_main)
+add_test(
+    NAME osEnvTests
+    COMMAND osEnvTests
+)
+
 add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
 target_link_libraries(osSemaphoreTests os util gtest_main)
 add_test(
