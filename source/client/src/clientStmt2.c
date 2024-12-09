@@ -1094,6 +1094,13 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
   }
 
   STMT_ERR_RET(qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.preCtbname, fieldNum, fields));
+  if (pStmt->bInfo.tbType == TSDB_SUPER_TABLE) {
+    pStmt->bInfo.needParse = true;
+    if (taosHashRemove(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName)) != 0) {
+      tscError("get fileds %s remove exec blockHash fail", pStmt->bInfo.tbFName);
+      STMT_ERR_RET(TSDB_CODE_APP_ERROR);
+    }
+  }
 
   return TSDB_CODE_SUCCESS;
 }

@@ -9,7 +9,7 @@ description: 本节讲述基本的用户管理功能
 ## 创建用户
 
 ```sql
-CREATE USER user_name PASS 'password' [SYSINFO {1|0}];
+CREATE USER user_name PASS 'password' [SYSINFO {1|0}] [CREATEDB {1|0}];
 ```
 
 用户名最长不超过 23 个字节。
@@ -17,6 +17,8 @@ CREATE USER user_name PASS 'password' [SYSINFO {1|0}];
 密码最长不超过 31 个字节。密码可以包含字母、数字以及除单引号、双引号、反引号、反斜杠和空格以外的特殊字符，密码不能为空字符串。
 
 `SYSINFO` 表示该用户是否能够查看系统信息。`1` 表示可以查看，`0` 表示无权查看。系统信息包括服务配置、dnode、vnode、存储等信息。缺省值为 `1`。
+
+`CREATEDB` 表示该用户是否能够创建数据库。`1` 表示可以创建，`0` 表示无权创建。缺省值为 `0`。// 从 TDengine 企业版 3.3.2.0 开始支持
 
 在下面的示例中，我们创建一个密码为 `123456` 且可以查看系统信息的用户。 
 
@@ -77,7 +79,7 @@ alter_user_clause: {
 - PASS: 修改密码，后跟新密码
 - ENABLE: 启用或禁用该用户，`1` 表示启用，`0` 表示禁用
 - SYSINFO: 允许或禁止查看系统信息，`1` 表示允许，`0` 表示禁止
-- CREATEDB: 允许或禁止创建数据库，`1` 表示允许，`0` 表示禁止
+- CREATEDB: 允许或禁止创建数据库，`1` 表示允许，`0` 表示禁止。// 从 TDengine 企业版 3.3.2.0 开始支持
 
 下面的示例禁用了名为 `test` 的用户:
 
