@@ -1199,6 +1199,7 @@ int32_t taskDbLoadChkpInfo(STaskDbWrapper* pBackend) {
 
   nBytes = snprintf(pChkpDir, cap, "%s%s%s", pBackend->path, TD_DIRSEP, "checkpoints");
   if (nBytes >= cap) {
+    taosMemoryFree(pChkpDir);
     return TSDB_CODE_OUT_OF_RANGE;
   }
   if (!taosIsDir(pChkpDir)) {

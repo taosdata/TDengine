@@ -370,7 +370,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
-      tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
 
       count = CBC_Decrypt(&opts);
 

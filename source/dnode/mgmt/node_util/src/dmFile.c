@@ -349,7 +349,7 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
   }
 
   SCryptOpts opts = {0};
-  tstrncpy(opts.key, key, ENCRYPT_KEY_LEN);
+  strncpy(opts.key, key, ENCRYPT_KEY_LEN);
   opts.len = len;
   opts.source = content;
   opts.result = result;
@@ -551,7 +551,7 @@ int32_t dmGetEncryptKey() {
     goto _OVER;
   }
 
-  tstrncpy(tsEncryptKey, encryptKey, ENCRYPT_KEY_LEN);
+  strncpy(tsEncryptKey, encryptKey, ENCRYPT_KEY_LEN + 1);
   taosMemoryFreeClear(encryptKey);
   tsEncryptionKeyChksum = taosCalcChecksum(0, tsEncryptKey, strlen(tsEncryptKey));
   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
