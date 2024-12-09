@@ -4,7 +4,7 @@ sidebar_label: taosBenchmark
 toc_max_heading_level: 4
 ---
 
-taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品的写入、查询及订阅性能测试，输出性能指标。
+taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品的插入、查询及订阅性能测试，输出性能指标。
 
 ## 安装
 
@@ -38,7 +38,7 @@ taosBenchmark
 
 ### 使用命令行参数运行
 
-命令行支持的参数为写入功能中使用较为频繁的参数，查询与订阅功能不支持命令行方式  
+命令行支持的参数为插入功能中使用较为频繁的参数，查询与订阅功能不支持命令行方式  
 示例：
 ```bash
 taosBenchmark -d db -t 100 -n 1000 -T 4 -I stmt -y
@@ -92,7 +92,7 @@ taosBenchmark -f <json file>
 查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/taos-tools/tree/main/example)
 
 ## 命令行参数详解
-|  简写命令行 / 全写命令行 + 命令行参数 |        功能说明      |
+|  命令行 <img width=800>       |        功能说明      |
 | ---------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
 | -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
@@ -134,13 +134,26 @@ taosBenchmark -f <json file>
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
 
 
+## 输出性能指标
+
+#### 写入指标
+ Spent : 耗费的总时间，是开始写入第一个数据开始算起于写入最后一条数据写入结束为至花费的时间，
+ Output : 写入速度，写入的数据总量 / Spent  
+ Output（Real）: 引擎实际写入速度
+
+#### 查询指标 
+
+#### 订阅指标
+
+
+
 ## 配置文件参数详解
 
 ### 通用配置参数
 
 本节所列参数适用于所有功能模式。
 
-- **filetype** : 要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
+- **filetype** : 功能分类，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
 - **cfgdir** : TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
 
 - **host** : 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
