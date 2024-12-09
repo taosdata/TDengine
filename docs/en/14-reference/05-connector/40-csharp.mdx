@@ -10,38 +10,27 @@ import RequestId from "./_request_id.mdx";
 
 `TDengine.Connector` is the C# language connector provided by TDengine. C# developers can use it to develop C# applications that access data in the TDengine cluster.
 
-## Connection Methods
+## .Net Version Compatibility
 
-`TDengine.Connector` provides two types of connectors:
-
-* **Native Connection**, which connects to a TDengine instance natively through the TDengine client driver (taosc), supporting data writing, querying, data subscription, schemaless interfaces, and parameter binding interfaces.
-* **WebSocket Connection**, which connects to a TDengine instance through the WebSocket interface provided by taosAdapter, with a slightly different set of features implemented compared to the native connection. (From v3.0.1 onwards)
-
-For a detailed introduction to connection methods, please refer to: [Connection Methods](../../../developer-guide/connecting-to-tdengine/)
-
-## Compatibility
-
-* `TDengine.Connector` version 3.1.0 has been completely restructured and is no longer compatible with versions 3.0.2 and earlier. For documentation on version 3.0.2, please refer to [nuget](https://www.nuget.org/packages/TDengine.Connector/3.0.2)
-* `TDengine.Connector` 3.x is not compatible with TDengine 2.x. If you need to use the C# connector in an environment running TDengine 2.x, please use version 1.x of TDengine.Connector.
+- Supports .NET Framework 4.6 and above.
+- Supports .NET 5.0 and above.
 
 ## Supported Platforms
 
-The supported platforms are consistent with those supported by the TDengine client driver.
+- Native connection supports the same platforms as the TDengine client driver.
+- WebSocket connection supports all platforms that can run the .NET runtime.
 
-:::warning
-TDengine no longer supports the 32-bit Windows platform.
-:::
+## Version History
 
-## Version Support
+| Connector Version | Major Changes                                     | TDengine Version   |
+|------------------|-------------------------------------------------|-------------------|
+| 3.1.4             | Improved WebSocket query and insert performance. | 3.3.2.0 and higher |
+| 3.1.3             | Supported WebSocket auto-reconnect.              | -                  |
+| 3.1.2             | Fixed schemaless resource release.               | -                  |
+| 3.1.1             | Supported varbinary and geometry types.          | -                  |
+| 3.1.0             | WebSocket uses a native C# implementation.       | 3.2.1.0 and higher |
 
-| **Connector Version** | **TDengine Version** | **Main Features**               |
-|------------------|------------------|----------------------------|
-| 3.1.3            | 3.2.1.0/3.1.1.18 | Supports WebSocket auto-reconnect |
-| 3.1.2            | 3.2.1.0/3.1.1.18 | Fixes schemaless resource release |
-| 3.1.1            | 3.2.1.0/3.1.1.18 | Supports varbinary and geometry types |
-| 3.1.0            | 3.2.1.0/3.1.1.18 | Native implementation of WebSocket  |
-
-## Exception Handling
+## Exceptions and Error Codes
 
 `TDengine.Connector` will throw exceptions, and applications need to handle these exceptions. The taosc exception type `TDengineError` includes an error code and error message, which applications can use to handle the error.
 For error reporting in other TDengine modules, please refer to [Error Codes](../../error-codes/)
