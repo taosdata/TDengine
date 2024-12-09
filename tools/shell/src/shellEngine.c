@@ -874,6 +874,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       } else {
         return TMAX(field->bytes + 2, width);
       }
+    case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_VARBINARY: {
       int32_t bytes = field->bytes * 2 + 2;
       if (bytes > shell.args.displayWidth) {
@@ -882,14 +883,15 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
         return TMAX(bytes + 2, width);
       }
     }
-    case TSDB_DATA_TYPE_BLOB: {
-      int32_t bytes = field->bytes * 2 + 8 + 2; // including 8 bytes data pointer
-      if (bytes > shell.args.displayWidth) {
-        return TMAX(shell.args.displayWidth, width);
-      } else {
-        return TMAX(bytes + 2, width);
-      }
-    }
+    // case TSDB_DATA_TYPE_BLOB: {
+    //   // int32_t bytes = field->bytes * 2 + 8 + 2; // including 8 bytes data pointer
+      
+    //   if (bytes > shell.args.displayWidth) {
+    //     return TMAX(shell.args.displayWidth, width);
+    //   } else {
+    //     return TMAX(bytes + 2, width);
+    //   }
+    // }
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON: {
       uint16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
