@@ -228,16 +228,16 @@ static void metaCloneSchemaFree(SSchemaWrapper *pSchema) {
   }
 }
 
-int32_t metaCloneEntryFree(SMetaEntry **ppEntry) {
+void metaCloneEntryFree(SMetaEntry **ppEntry) {
   if (ppEntry == NULL || *ppEntry == NULL) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   taosMemoryFreeClear((*ppEntry)->name);
 
   if ((*ppEntry)->type < 0) {
     taosMemoryFreeClear(*ppEntry);
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   if (TSDB_SUPER_TABLE == (*ppEntry)->type) {
@@ -250,12 +250,12 @@ int32_t metaCloneEntryFree(SMetaEntry **ppEntry) {
     metaCloneSchemaFree(&(*ppEntry)->ntbEntry.schemaRow);
     taosMemoryFreeClear((*ppEntry)->ntbEntry.comment);
   } else {
-    return TSDB_CODE_INVALID_PARA;
+    return;
   }
   metaCloneColCmprFree(&(*ppEntry)->colCmpr);
 
   taosMemoryFreeClear(*ppEntry);
-  return TSDB_CODE_SUCCESS;
+  return;
 }
 
 int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {

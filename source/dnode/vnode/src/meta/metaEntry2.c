@@ -11,7 +11,7 @@
 #include "meta.h"
 
 int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry);
-int32_t metaCloneEntryFree(SMetaEntry **ppEntry);
+void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 
@@ -128,7 +128,7 @@ static int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry *
   return code;
 }
 
-static int32_t metaFetchEntryFree(SMetaEntry **ppEntry) { return metaCloneEntryFree(ppEntry); }
+static void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
 
 // Entry Table
 static int32_t metaEntryTableUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, EMetaTableOp op) {
