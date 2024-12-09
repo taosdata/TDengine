@@ -221,7 +221,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
 
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
   if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode)) {
-    sprintf(((SExprNode*)pNode)->aliasName, "#%d", *(int32_t*)pContext);
+    snprintf(((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN, "#%d", *(int32_t*)pContext);
     ++(*(int32_t*)pContext);
   }
   return DEAL_RES_CONTINUE;
@@ -528,9 +528,6 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = NULL;
     code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
-    if (NULL == pQuery->pRoot) {
-      code = code;
-    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     rewriteExprAlias(pQuery->pRoot);

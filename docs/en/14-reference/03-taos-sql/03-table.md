@@ -194,7 +194,7 @@ alter_table_option: {
 ### Modify Subtable Tag Value
 
 ```sql
-ALTER TABLE tb_name SET tag tag_name=new_tag_value;
+ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1,tag_name2=new_tag_value2...;
 ```
 
 ### Modify Table Lifespan

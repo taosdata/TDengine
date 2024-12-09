@@ -142,13 +142,13 @@ static int32_t parseEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* p
   (void)strdequote(ep);
   (void)strtrim(ep);
   if (NULL == pPort) {
-    strcpy(pFqdn, ep);
+    tstrncpy(pFqdn, ep, TSDB_FQDN_LEN);
     return TSDB_CODE_SUCCESS;
   }
   char* pColon = strchr(ep, ':');
   if (NULL == pColon) {
     *pPort = tsServerPort;
-    strcpy(pFqdn, ep);
+    tstrncpy(pFqdn, ep, TSDB_FQDN_LEN);
     return TSDB_CODE_SUCCESS;
   }
   strncpy(pFqdn, ep, pColon - ep);
@@ -320,12 +320,12 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   if (nodesIsExprNode(pRealizedExpr)) {
     SExprNode* pExpr = (SExprNode*)pRealizedExpr;
     if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-      strcpy(pExpr->aliasName, ((SColumnNode*)pExpr)->colName);
-      strcpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName);
+      tstrncpy(pExpr->aliasName, ((SColumnNode*)pExpr)->colName, TSDB_COL_NAME_LEN);
+      tstrncpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName, TSDB_COL_NAME_LEN);
     } else if (pRawExpr->isPseudoColumn) {
       // all pseudo column are translate to function with same name
-      strcpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName);
-      strcpy(pExpr->aliasName, ((SFunctionNode*)pExpr)->functionName);
+      tstrncpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
+      tstrncpy(pExpr->aliasName, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
     } else {
       int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
 
@@ -333,9 +333,9 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
       // If aliasName is truncated, hash value of aliasName could be the same.
       uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
-      sprintf(pExpr->aliasName, "%" PRIu64, hashVal);
+      snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN, "%" PRIu64, hashVal);
       strncpy(pExpr->userAlias, pRawExpr->p, len);
-      pExpr->userAlias[len] = '\0';
+      pExpr->userAlias[len] = 0;
     }
   }
   pRawExpr->pNode = NULL;
@@ -946,11 +946,11 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
       goto _err;
     }
     if ('+' == pVal->literal[0]) {
-      sprintf(pNewLiteral, "-%s", pVal->literal + 1);
+      snprintf(pNewLiteral, strlen(pVal->literal) + 2, "-%s", pVal->literal + 1);
     } else if ('-' == pVal->literal[0]) {
-      sprintf(pNewLiteral, "%s", pVal->literal + 1);
+      snprintf(pNewLiteral, strlen(pVal->literal) + 2, "%s", pVal->literal + 1);
     } else {
-      sprintf(pNewLiteral, "-%s", pVal->literal);
+      snprintf(pNewLiteral, strlen(pVal->literal) + 2, "-%s", pVal->literal);
     }
     taosMemoryFree(pVal->literal);
     pVal->literal = pNewLiteral;
@@ -1021,7 +1021,7 @@ static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncNa
   CHECK_MAKE_NODE(pCol);
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   if (NULL == pFuncName) {
-    strcpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME);
+    tstrncpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME, TSDB_COL_NAME_LEN);
   } else {
     strncpy(pCol->colName, pFuncName->z, pFuncName->n);
   }
@@ -1052,7 +1052,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
-  strcpy(func->functionName, "cast");
+  tstrncpy(func->functionName, "cast", TSDB_FUNC_NAME_LEN);
   func->node.resType = dt;
   if (TSDB_DATA_TYPE_VARCHAR == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type || TSDB_DATA_TYPE_VARBINARY == dt.type) {
     func->node.resType.bytes = func->node.resType.bytes + VARSTR_HEADER_SIZE;
@@ -1073,7 +1073,7 @@ SNode* createPositionFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* 
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
-  strcpy(func->functionName, "position");
+  tstrncpy(func->functionName, "position", TSDB_FUNC_NAME_LEN);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
@@ -1091,7 +1091,7 @@ SNode* createTrimFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, ETrimType t
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
-  strcpy(func->functionName, "trim");
+  tstrncpy(func->functionName, "trim", TSDB_FUNC_NAME_LEN);
   func->trimType = type;
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
@@ -1107,7 +1107,7 @@ SNode* createTrimFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode* p
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
-  strcpy(func->functionName, "trim");
+  tstrncpy(func->functionName, "trim", TSDB_FUNC_NAME_LEN);
   func->trimType = type;
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
@@ -1126,7 +1126,7 @@ SNode* createSubstrFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pE
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
-  strcpy(func->functionName, "substr");
+  tstrncpy(func->functionName, "substr", TSDB_FUNC_NAME_LEN);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
@@ -1144,7 +1144,7 @@ SNode* createSubstrFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode*
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
-  strcpy(func->functionName, "substr");
+  tstrncpy(func->functionName, "substr", TSDB_FUNC_NAME_LEN);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
@@ -1228,10 +1228,10 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pT
     taosRandStr(tempTable->table.tableAlias, 8);
   }
   if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
-    strcpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias);
+    tstrncpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
     ((SSelectStmt*)pSubquery)->isSubquery = true;
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
-    strcpy(((SSetOperator*)pSubquery)->stmtName, tempTable->table.tableAlias);
+    tstrncpy(((SSetOperator*)pSubquery)->stmtName, tempTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
   }
   return (SNode*)tempTable;
 _err:
@@ -1434,7 +1434,7 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
   fill->pWStartTs = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&(fill->pWStartTs));
   CHECK_MAKE_NODE(fill->pWStartTs);
-  strcpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart");
+  tstrncpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
   return (SNode*)fill;
 _err:
   nodesDestroyNode((SNode*)fill);
@@ -1764,7 +1764,7 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
   setSubquery(setOp->pLeft);
   setOp->pRight = pRight;
   setSubquery(setOp->pRight);
-  sprintf(setOp->stmtName, "%p", setOp);
+  snprintf(setOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", setOp);
   return (SNode*)setOp;
 _err:
   nodesDestroyNode(pLeft);
@@ -2322,8 +2322,8 @@ SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* 
   SCreateTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pCols = pCols;
   pStmt->pTags = pTags;
@@ -2344,10 +2344,10 @@ SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SN
   SCreateSubTableClause* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_CLAUSE, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
-  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
-  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pSpecificTags = pSpecificTags;
   pStmt->pValsOfTags = pValsOfTags;
@@ -2370,8 +2370,8 @@ SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreEx
   SCreateSubTableFromFileClause* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
-  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  tstrncpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pSpecificTags = pSpecificTags;
   if (TK_NK_STRING == pFilePath->type) {
@@ -2405,8 +2405,8 @@ SNode* createDropTableClause(SAstCreateContext* pCxt, bool ignoreNotExists, SNod
   SDropTableClause* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TABLE_CLAUSE, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreNotExists = ignoreNotExists;
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
@@ -2433,8 +2433,8 @@ SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool withOpt, bool igno
   SDropSuperTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_SUPER_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreNotExists = ignoreNotExists;
   pStmt->withOpt = withOpt;
   nodesDestroyNode(pRealTable);
@@ -2445,8 +2445,8 @@ _err:
 }
 
 static SNode* createAlterTableStmtFinalize(SNode* pRealTable, SAlterTableStmt* pStmt) {
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 }
@@ -2765,8 +2765,8 @@ SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode*
   SShowCreateTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
@@ -2779,8 +2779,8 @@ SNode* createShowCreateViewStmt(SAstCreateContext* pCxt, ENodeType type, SNode* 
   SShowCreateViewStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->viewName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->viewName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
@@ -2793,8 +2793,8 @@ SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable
   SShowTableDistributedStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
@@ -2950,7 +2950,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
-  strcpy(pStmt->password, password);
+  tstrncpy(pStmt->password, password, TSDB_USET_PASSWORD_LEN);
   pStmt->sysinfo = sysinfo;
   pStmt->createDb = createDb;
   pStmt->isImport = is_import;
@@ -2972,7 +2972,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
       char    password[TSDB_USET_PASSWORD_LEN] = {0};
       SToken* pVal = pAlterInfo;
       CHECK_NAME(checkPassword(pCxt, pVal, password));
-      strcpy(pStmt->password, password);
+      tstrncpy(pStmt->password, password, TSDB_USET_PASSWORD_LEN);
       break;
     }
     case TSDB_ALTER_USER_ENABLE: {
@@ -3282,8 +3282,8 @@ SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists,
   pStmt->withMeta = withMeta;
   pStmt->pWhere = pWhere;
 
-  strcpy(pStmt->subDbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->subSTbName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->subDbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->subSTbName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
@@ -3396,8 +3396,8 @@ SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
   SDescribeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DESCRIBE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
@@ -3477,8 +3477,8 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
   }
   pStmt->pQuerySql = tstrdup(pAs->z + i);
   CHECK_OUT_OF_MEM(pStmt->pQuerySql);
-  strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
-  strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName, TSDB_VIEW_NAME_LEN);
   nodesDestroyNode(pView);
   pStmt->orReplace = orReplace;
   pStmt->pQuery = pQuery;
@@ -3496,8 +3496,8 @@ SNode* createDropViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_VIEW_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
-  strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
-  strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName, TSDB_VIEW_NAME_LEN);
   nodesDestroyNode(pView);
   return (SNode*)pStmt;
 _err:
@@ -3582,8 +3582,8 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
-  strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pOptions = (SStreamOptions*)pOptions;
@@ -3837,9 +3837,9 @@ SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols
   pStmt->pCols = pCols;
   pStmt->pQuery = pQuery;
   if (QUERY_NODE_SELECT_STMT == nodeType(pQuery)) {
-    strcpy(((SSelectStmt*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias);
+    tstrncpy(((SSelectStmt*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias, TSDB_TABLE_NAME_LEN);
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
-    strcpy(((SSetOperator*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias);
+    tstrncpy(((SSetOperator*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias, TSDB_TABLE_NAME_LEN);
   }
   return (SNode*)pStmt;
 _err:

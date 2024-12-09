@@ -211,6 +211,7 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
   const char*     id = pTask->id.idStr;
   int8_t          precision = pTask->info.interval.precision;
   SStreamTrigger* pTrigger = NULL;
+  bool            isFull = false;
 
   while (1) {
     code = streamCreateForcewindowTrigger(&pTrigger, pTask->info.delaySchedParam, &pTask->info.interval,
@@ -233,7 +234,6 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
 
     // check whether the time window gaps exist or not
     int64_t now = taosGetTimestamp(precision);
-    int64_t ekey = pTrigger->pBlock->info.window.skey + pTask->info.interval.interval;
 
     // there are gaps, needs to be filled
     STimeWindow w = pTrigger->pBlock->info.window;
@@ -245,13 +245,18 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
     }
 
     pTask->status.latestForceWindow = w;
-    if (ekey + pTask->info.watermark + pTask->info.interval.interval > now) {
-      int64_t prev = convertTimePrecision(*pNextTrigger, precision, TSDB_TIME_PRECISION_MILLI);
+    isFull = streamQueueIsFull(pTask->inputq.queue);
 
-      *pNextTrigger = ekey + pTask->info.watermark + pTask->info.interval.interval - now;
+    if ((w.ekey + pTask->info.watermark + pTask->info.interval.interval > now) || isFull) {
+      int64_t prev = convertTimePrecision(*pNextTrigger, precision, TSDB_TIME_PRECISION_MILLI);
+      if (!isFull) {
+        *pNextTrigger = w.ekey + pTask->info.watermark + pTask->info.interval.interval - now;
+      }
+
       *pNextTrigger = convertTimePrecision(*pNextTrigger, precision, TSDB_TIME_PRECISION_MILLI);
-      stDebug("s-task:%s generate %d time window(s), trigger delay adjust from %" PRId64 " to %d", id, num, prev,
-              *pNextTrigger);
+      pTask->chkInfo.nextProcessVer = w.ekey + pTask->info.interval.interval;
+      stDebug("s-task:%s generate %d time window(s), trigger delay adjust from %" PRId64 " to %d, set ver:%" PRId64, id,
+              num, prev, *pNextTrigger, pTask->chkInfo.nextProcessVer);
       return code;
     } else {
       stDebug("s-task:%s gap exist for force_window_close, current force_window_skey:%" PRId64, id, w.skey);
@@ -308,7 +313,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
   }
 
   if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) {
-    nextTrigger = TRIGGER_RECHECK_INTERVAL;  // retry in 10 seec
+    nextTrigger = TRIGGER_RECHECK_INTERVAL;  // retry in 10 sec
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, TRIGGER_RECHECK_INTERVAL);
   } else {
     if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
