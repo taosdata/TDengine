@@ -465,7 +465,7 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray 
 int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (TSDB_CHILD_TABLE == pReq->type) {
-    code = metaCreateTable(pMeta, version, pReq, ppRsp);
+    code = metaCreateChildTable(pMeta, version, pReq, ppRsp);
   } else if (TSDB_NORMAL_TABLE == pReq->type) {
     code = metaCreateNormalTable(pMeta, version, pReq, ppRsp);
   } else {

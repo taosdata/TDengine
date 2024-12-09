@@ -17,7 +17,8 @@
 
 extern SDmNotifyHandle dmNotifyHdl;
 
-static int  metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+
 static int  metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int  metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -29,7 +30,7 @@ static int  metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int  metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl);
-static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
+void        metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 // opt ins_tables query
 static int metaUpdateBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -110,7 +111,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   return 0;
 }
 
-static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
   int32_t code = 0;
 
 #ifdef USE_INVERTED_INDEX
@@ -3160,7 +3161,7 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
   return 0;
 }
 
-static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey) {
+void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey) {
   if (pTagIdxKey) taosMemoryFree(pTagIdxKey);
 }
 
