@@ -388,6 +388,11 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
+    if (pRaw->type >= SDB_MAX) {
+      mInfo("skip sdb raw type:%d since it is not supported", pRaw->type);
+      continue;
+    }
+
     code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
       mError("failed to read sdb file:%s since %s", file, terrstr());
