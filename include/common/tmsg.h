@@ -1835,7 +1835,7 @@ typedef struct {
 
 int32_t tSerializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
 int32_t tDeserializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
-void    tFreeSStatusReq(SStatusReq* pReq);
+void    tFreeSConfigReq(SConfigReq* pReq);
 
 typedef struct {
   int32_t dnodeId;

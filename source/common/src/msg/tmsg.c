@@ -1644,6 +1644,8 @@ _exit:
   return code;
 }
 
+void tFreeSConfigReq(SConfigReq *pReq) { taosArrayDestroy(pReq->array); }
+
 int32_t tSerializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;

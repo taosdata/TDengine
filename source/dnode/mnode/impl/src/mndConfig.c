@@ -38,7 +38,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndInitWriteCfg(SMnode *pMnode);
-static int32_t mndInitReadCfg(SMnode *pMnode);
+static int32_t mndMaybeReBuildCfg(SMnode *pMnode);
 static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array);
 static void    cfgArrayCleanUp(SArray *array);
 
@@ -219,7 +219,7 @@ static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *pOld, SConfigObj *pNew
 
 static int32_t mndCfgActionDeploy(SMnode *pMnode) { return mndInitWriteCfg(pMnode); }
 
-static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndInitReadCfg(pMnode); }
+static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndMaybeReBuildCfg(pMnode); }
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
@@ -322,14 +322,9 @@ _OVER:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mndInitReadCfg(SMnode *pMnode) {
-  int32_t code = 0;
-  int32_t sz = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "init-read-config");
-  if (pTrans == NULL) {
-    mError("failed to init read cfg in create trans, since %s", terrstr());
-    goto _OVER;
-  }
+int32_t mndMaybeReBuildCfg(SMnode *pMnode) {
+  int32_t     code = 0;
+  int32_t     sz = -1;
   SConfigObj *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (obj == NULL) {
     code = mndInitWriteCfg(pMnode);
@@ -339,24 +334,8 @@ int32_t mndInitReadCfg(SMnode *pMnode) {
     mInfo("failed to acquire mnd config version, try to rebuild it , since %s", terrstr());
     goto _OVER;
   }
-
-  sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
-  for (int i = 0; i < sz; ++i) {
-    SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
-    SConfigObj  *newObj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
-    if (newObj == NULL) {
-      mInfo("failed to acquire mnd config:%s, since %s", item->name, terrstr());
-      continue;
-    }
-    code = cfgUpdateItem(item, newObj);
-    if (code != 0) {
-      mError("failed to update mnd config:%s, since %s", item->name, terrstr());
-    }
-    sdbRelease(pMnode->pSdb, newObj);
-  }
 _OVER:
-  mndTransDrop(pTrans);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigObj *item) {

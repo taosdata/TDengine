@@ -287,6 +287,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   const STraceId *trace = &pRsp->info.traceId;
   int32_t         code = 0;
   SConfigRsp      configRsp = {0};
+  bool            needStop = false;
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
@@ -315,7 +316,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         } else {
           // log the difference configurations
           printConfigNotMatch(configRsp.array);
-          dmStop();
+          needStop = true;
           goto _exit;
         }
       }
@@ -347,6 +348,9 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 _exit:
   tFreeSConfigRsp(&configRsp);
   rpcFreeCont(pRsp->pCont);
+  if (needStop) {
+    dmStop();
+  }
 }
 
 void dmSendConfigReq(SDnodeMgmt *pMgmt) {
