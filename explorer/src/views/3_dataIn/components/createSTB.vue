@@ -184,7 +184,7 @@
             class="columnPrependBtn"
           >
             <el-option
-              v-for="item in tagType"
+              v-for="item in handleTypeList(column.type, 'tagType')"
               :key="item.value"
               v-bind="item"
             ></el-option>
@@ -331,8 +331,7 @@ export default {
             primaryKey: false 
           }
           this.stable_form.name =''
-          this.$set(this.stable_form.columns, 0, deepClone(column_item));
-          this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
+          this.stable_form.columns = [].concat(column_item, this.column_item)
           this.stable_form.tags = [].concat(this.column_item)
           
           let arr = this.$store.state.app.stbDefaultColumns;

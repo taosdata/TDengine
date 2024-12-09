@@ -407,6 +407,7 @@ export default {
         //多json对象
         resultMsgbody = this.$parent.msgForm.msgbody
           .replace(/\}\s*\{/g, "}&${")
+          .trim()
           .split("&$");
         this.isJson = true;
       } else {
@@ -419,6 +420,7 @@ export default {
             .replace(/[\n\s]/g, "*&$*")
             .split("*&$*");
           this.isJson = false;
+          console.log('22222222:');
         } else {
           try {
             if (
@@ -428,6 +430,7 @@ export default {
               //单json对象
               resultMsgbody = [].concat(this.$parent.msgForm.msgbody);
               this.isJson = true;
+              console.log('33333:');
             }
           } catch (error) {
             this.$error(this.$t("datasource.transformer.jsontip"));
@@ -556,7 +559,7 @@ export default {
               : splitobj;
             value = splitobj;
           } else if(item.type === 'convert') {
-            value = JSON.parse(item.expression);
+            value = item.expression ? JSON.parse(item.expression) : {};
           } else {
             // 处理其他类型
             value = item.expression

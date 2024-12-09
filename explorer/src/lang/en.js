@@ -1510,6 +1510,7 @@ export default {
       expre_: "",
       expre_regex: "please input the regex extract expression",
       expre_join: "please input the join char or string",
+      expre_convert: "Please enter a conversion character",
       filter_input: "Please enter the filter expression",
       st_input: "Please enter the super table name",
       create_st: "Create STable",
