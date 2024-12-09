@@ -230,7 +230,7 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
   }
 
   SCryptOpts opts;
-  tstrncpy(opts.key, key, ENCRYPT_KEY_LEN);
+  tstrncpy(opts.key, key, ENCRYPT_KEY_LEN + 1);
   opts.len = len;
   opts.source = DM_KEY_INDICATOR;
   opts.result = result;
@@ -349,7 +349,7 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
   }
 
   SCryptOpts opts = {0};
-  strncpy(opts.key, key, ENCRYPT_KEY_LEN);
+  tstrncpy(opts.key, key, ENCRYPT_KEY_LEN + 1);
   opts.len = len;
   opts.source = content;
   opts.result = result;

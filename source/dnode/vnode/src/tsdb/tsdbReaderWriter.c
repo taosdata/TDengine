@@ -249,7 +249,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
       opts.result = PacketData;
       opts.unitLen = 128;
       // strncpy(opts.key, tsEncryptKey, 16);
-      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
       NewLen = CBC_Decrypt(&opts);
 
