@@ -685,6 +685,8 @@ import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, getExampleList } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
+import { VariableTableColumnType } from "@/const"
+import { convert } from "../utils.js";
 
 const PARSER_BUILDIN = ["json", "regex", "udt"];
 
@@ -1430,7 +1432,13 @@ export default {
             : this.isCSV
             ? csvechoTransData.msgBody
             : value.input.map((item) => item.value).join(" ");
-
+        // 回填解析 topic 的值
+        if (this.$store.state.app.supportTopicBody) {
+          value.input.map(item => {
+            const { payload, ...rest } = item; 
+            this.msgForm.topicbody.push(rest)
+          })
+        }
         let tagKey = "";
         switch (this.$store.state.app.currentDBType) {
           case "mqtt":
@@ -1474,7 +1482,7 @@ export default {
           let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
           let obj = {
             columnname: item[0],
-            expression: Object.values(item[1]).flat(1).join(";"),
+            expression: Object.keys(item[1]).toString() == 'convert'? JSON.stringify(Object.values(item[1])[0]) : Object.values(item[1]).flat(1).join(";"),
             type: Object.keys(item[1]).toString(),
             columns: this.columnsArr,
             key: Math.random(),
@@ -1552,6 +1560,7 @@ export default {
         this.sruleForm.s_name = value.parser.model.using;
         // this.subrule.subname = value.parser.model.name;
         // !!value.parser.s_model 为了判断是不是用模版创建的
+        this.$store.state.app.s_model = value.parser.s_model
         await this.getSTbaleList(true,!!value.parser.s_model);
         await this.echoFetchMap();
         if (this.$store.state.app.currentDBType !== 'csv' && !this.$store.state.app.supportSQL) {
@@ -2124,17 +2133,15 @@ export default {
           const newColumns = columns.map(col => {
             return {
               name: col.field,
-              type: col.type,
-              length: col.length
-              // type: col.type + (col.length ? `(${col.length})` : ''),
+              length: col.length,
+              type: col.type + (VariableTableColumnType.includes(col.type) ? `(${col.length})` : ''),
             }
           })
           const newTags = tags.map(col => {
             return {
               name: col.field,
-              type: col.type,
-              length: col.length
-              // type: col.type + (col.length ? `(${col.length})` : ''),
+              length: col.length,
+              type: col.type + (VariableTableColumnType.includes(col.type) ? `(${col.length})` : ''),
             }
           })
           const s_model = {
@@ -2163,25 +2170,6 @@ export default {
         this.closeDialog()
       }
     })
-    },
-    // 将模版解析的结果转换成和用sql查询返回的数据结构一致
-    convert(data){
-      return [].concat(data).flatMap(item => {
-        // 提取 tags 中所有字段名
-        const tags = item.tags.map(tag => tag.name);
-        const allData = item.columns.concat(item.tags)
-        return allData.map(col => {
-          const name = col.name.replace(/`/g, ''); // 去除反引号
-          const type = col.type;
-          const length = col.length !== null ? col.length : ''; 
-          const isTag = tags.includes(name) ? 'TAG' : ''; 
-
-          // 返回字段数据，带 TAG 的字段加上 TAG，其他字段正常返回
-          return length === '' 
-            ? [name, type, length] 
-            : [name, type, length, isTag].filter(Boolean); // 去除空值
-        });
-      });
     },
     //获取初始化的stables
     async getInitStables() {
@@ -2267,7 +2255,7 @@ export default {
         let res = {}
         let precision = {}
         if (isTemplateCreate) {
-          res.data = this.convert(this.$store.state.app.s_model);
+          res.data = convert(this.$store.state.app.s_model);
         } else {
           res = await sendSQLReq(
             `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``

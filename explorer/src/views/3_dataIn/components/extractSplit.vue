@@ -520,7 +520,7 @@ export default {
                 inputobj[this.itemData.columnname] = item[this.itemData.columnname]  
               }
               if (isall) {
-                inputobj = {...item}
+                inputobj = {...msg, ...item}
               }
               if (inputobj.payload === '{}') {
                 delete inputobj.payload

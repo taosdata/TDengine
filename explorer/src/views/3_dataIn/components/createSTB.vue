@@ -322,6 +322,7 @@ export default {
     activeType: {
       handler(type) {
         if (type == 'templateCreate') {
+          // 模版创建初始值UI
           const column_item = {
             type: "TIMESTAMP", 
             field: "ts", 
@@ -330,9 +331,10 @@ export default {
             primaryKey: false 
           }
           this.stable_form.name =''
-          this.stable_form.columns = [].concat(column_item)
+          this.$set(this.stable_form.columns, 0, deepClone(column_item));
+          this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
           this.stable_form.tags = [].concat(this.column_item)
-
+          
           let arr = this.$store.state.app.stbDefaultColumns;
           arr = arr.map(item => {
             return {
