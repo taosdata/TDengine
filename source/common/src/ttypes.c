@@ -64,7 +64,7 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString,
      tsDecompressString},                                                // placeholder, not implemented
     {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
-    {TSDB_DATA_TYPE_BLOB, 4, TSDB_MAX_BLOB_DATA_LEN, "BLOB", 0, 0, NULL, NULL},
+    {TSDB_DATA_TYPE_BLOB, 4, TSDB_MAX_BLOB_DATA_LEN, "BLOB", 0, 0, tsCompressString, tsDecompressString},
     {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString},
 };
@@ -93,7 +93,7 @@ tDataTypeCompress tDataCompress[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString2,
      tsDecompressString2},                                               // placeholder, not implemented
     {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
-    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
+    {TSDB_DATA_TYPE_BLOB, 4, TSDB_MAX_BLOB_DATA_LEN, "BLOB", 0, 0, tsCompressString2, tsDecompressString2},
     {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString2, tsDecompressString2},
 
