@@ -283,7 +283,7 @@ TEST(osDirTests, taosExpandDir) {
 
 TEST(osDirTests, taosRealPath) {
   int32_t ret = 0;
-  char    testDir[1024] = "/tmp/tdengine-test-dir";
+  char    testDir[PATH_MAX * 2] = "/tmp/tdengine-test-dir";
   ret = taosMkDir(testDir);
   EXPECT_EQ(ret, 0);
 
