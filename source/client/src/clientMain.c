@@ -46,7 +46,6 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
     if (i % 1000 == 0) {
-      tscInfo("haven't acquire lock after spin %d times.", i);
       (void)sched_yield();
     }
   }
@@ -62,32 +61,27 @@ static void freeTz(void *p){
   tzfree(tz);
 }
 
+int32_t tzInit(){
+  pTimezoneMap = taosHashInit(0, MurmurHash3_32, false, HASH_ENTRY_LOCK);
+  if (pTimezoneMap == NULL) {
+    return terrno;
+  }
+  taosHashSetFreeFp(pTimezoneMap, freeTz);
+
+  pTimezoneNameMap = taosHashInit(0, taosIntHash_64, false, HASH_ENTRY_LOCK);
+  if (pTimezoneNameMap == NULL) {
+    return terrno;
+  }
+  return 0;
+}
+
+void tzCleanup(){
+  taosHashCleanup(pTimezoneMap);
+  taosHashCleanup(pTimezoneNameMap);
+}
+
 static timezone_t setConnnectionTz(const char* val){
   timezone_t tz = NULL;
-  static int32_t lock_c = 0;
-
-  for (int i = 1; atomic_val_compare_exchange_32(&lock_c, 0, 1) != 0; ++i) {
-    if (i % 1000 == 0) {
-      tscInfo("haven't acquire lock after spin %d times.", i);
-      (void)sched_yield();
-    }
-  }
-
-  if (pTimezoneMap == NULL){
-    pTimezoneMap = taosHashInit(0, MurmurHash3_32, false, HASH_ENTRY_LOCK);
-    if (pTimezoneMap == NULL) {
-      goto END;
-    }
-    taosHashSetFreeFp(pTimezoneMap, freeTz);
-  }
-
-  if (pTimezoneNameMap == NULL){
-    pTimezoneNameMap = taosHashInit(0, taosIntHash_64, false, HASH_ENTRY_LOCK);
-    if (pTimezoneNameMap == NULL) {
-      goto END;
-    }
-  }
-
   timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
   if (tmp != NULL && *tmp != NULL){
     tz = *tmp;
@@ -107,8 +101,10 @@ static timezone_t setConnnectionTz(const char* val){
   }
   int32_t code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
   if (code != 0){
+    tscError("%s put timezone to tz map error:%d", __func__, code);
     tzfree(tz);
     tz = NULL;
+    goto END;
   }
 
   time_t    tx1 = taosGetTimestampSec();
@@ -120,7 +116,6 @@ static timezone_t setConnnectionTz(const char* val){
   }
 
 END:
-  atomic_store_32(&lock_c, 0);
   return tz;
 }
 #endif
@@ -242,6 +237,7 @@ void taos_cleanup(void) {
     tscWarn("failed to cleanup task queue");
   }
 
+  tzCleanup();
   tmqMgmtClose();
 
   int32_t id = clientReqRefPool;

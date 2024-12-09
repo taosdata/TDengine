@@ -338,6 +338,7 @@ typedef struct SIntervalWindowNode {
   SNode*      pSliding;   // SValueNode
   SNode*      pFill;
   STimeWindow timeRange;
+  void*       timezone;
 } SIntervalWindowNode;
 
 typedef struct SEventWindowNode {

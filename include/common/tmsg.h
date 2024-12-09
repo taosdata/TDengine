@@ -1242,7 +1242,7 @@ typedef struct {
 } STsBufInfo;
 
 typedef struct {
-  int32_t     tz;  // query client timezone
+  void*       timezone;
   char        intervalUnit;
   char        slidingUnit;
   char        offsetUnit;

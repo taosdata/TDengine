@@ -751,7 +751,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
     struct tm  tm;
     time_t     tt = (time_t)start;
-    if (taosLocalTime(&tt, &tm, NULL, 0, NULL) == NULL){
+    if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) == NULL){
       uError("%s failed to convert time to local time, code:%d", __FUNCTION__, errno);
       return ts;
     }
@@ -770,7 +770,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       tm.tm_mon = mon % 12;
     }
 
-    tt = taosMktime(&tm, NULL);
+    tt = taosMktime(&tm, pInterval->timezone);
     if (tt == -1){
       uError("%s failed to convert local time to time, code:%d", __FUNCTION__, errno);
       return ts;
@@ -789,12 +789,12 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       start = news;
       if (news <= ts) {
         int64_t prev = news;
-        int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
+        int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
 
         if (newe < ts) {  // move towards the greater endpoint
           while (newe < ts && news < ts) {
             news += pInterval->sliding;
-            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
+            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
           }
 
           prev = news;
@@ -802,7 +802,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
           while (newe >= ts) {
             prev = news;
             news -= pInterval->sliding;
-            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
+            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
           }
         }
 
@@ -824,8 +824,6 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         // see
         // https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
         int64_t timezone = _timezone;
-        int32_t daylight = _daylight;
-        char**  tzname = _tzname;
 #endif
 
         start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
@@ -835,7 +833,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
       // not enough time range
       if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-        end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
+        end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
         while (end < ts) {  // move forward to the correct time window
           start += pInterval->sliding;
 
@@ -854,15 +852,15 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
   if (pInterval->offset > 0) {
     // try to move current window to the left-hande-side, due to the offset effect.
-    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
+    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
     int64_t slidingStart = start;
     while (newe >= ts) {
       start = slidingStart;
-      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, NULL);
-      int64_t news = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, precision, NULL);
-      newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, NULL) - 1;
+      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
+      int64_t news = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
+      newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
     }
-    start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, NULL);
+    start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
   }
 
   return start;
@@ -870,7 +868,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
 // used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
 int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
-  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, pInterval->timezone) - 1;
 }
 
 void calcIntervalAutoOffset(SInterval* interval) {
@@ -889,7 +887,7 @@ void calcIntervalAutoOffset(SInterval* interval) {
   TSKEY news = start;
   while (news <= skey) {
     start = news;
-    news = taosTimeAdd(start, interval->sliding, interval->slidingUnit, interval->precision, NULL);
+    news = taosTimeAdd(start, interval->sliding, interval->slidingUnit, interval->precision, interval->timezone);
     if (news < start) {
       // overflow happens
       uError("%s failed and skip, skey [%" PRId64 "], inter[%" PRId64 "(%c)], slid[%" PRId64 "(%c)], precision[%d]",

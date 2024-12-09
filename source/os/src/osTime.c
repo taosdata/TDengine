@@ -445,6 +445,7 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
   if (r == (time_t)-1) {
     terrno = TAOS_SYSTEM_ERROR(errno);
   }
+  timezone = -timep->tm_gmtoff;
   return r;
 #endif
 }
@@ -533,6 +534,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
   if (res == NULL && buf != NULL) {
     (void)snprintf(buf, bufSize, "NaN");
   }
+  timezone = -result->tm_gmtoff;
   return res;
 #endif
 }

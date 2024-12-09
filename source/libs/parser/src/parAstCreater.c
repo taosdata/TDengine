@@ -1411,6 +1411,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pSliding = pSliding;
   interval->pFill = pFill;
   interval->timeRange = TSWINDOW_INITIALIZER;
+  interval->timezone = pCxt->pQueryCxt->timezone;
   return (SNode*)interval;
 _err:
   nodesDestroyNode((SNode*)interval);

@@ -447,6 +447,9 @@ void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
 
+int32_t tzInit();
+void    tzCleanup();
+
 #ifdef TD_ENTERPRISE
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser,
                            SParseSqlRes* pRes);

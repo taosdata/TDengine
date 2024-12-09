@@ -333,7 +333,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode);
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode, pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
@@ -371,7 +371,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
-                              atomic_load_8(&pRequest->pTscObj->biMode));
+                              atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
@@ -509,6 +509,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .pUser = pRequest->pTscObj->user,
+                      .timezone = pRequest->pTscObj->optionInfo.timezone,
                       .sysInfo = pRequest->pTscObj->sysInfo};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
@@ -1363,6 +1364,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
                         .sysInfo = pRequest->pTscObj->sysInfo,
+                        .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->allocatorRefId};
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);

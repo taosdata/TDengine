@@ -5935,6 +5935,7 @@ void tryCalcIntervalAutoOffset(SIntervalWindowNode *pInterval) {
                           .slidingUnit = (pSliding != NULL) ? pSliding->unit : pInter->unit,
                           .offset = pOffset->datum.i,
                           .precision = precision,
+                          .timezone  = pInterval->timezone,
                           .timeRange = pInterval->timeRange};
 
   /**
@@ -10108,7 +10109,7 @@ static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt
   return code;
 }
 
-int32_t createIntervalFromCreateSmaIndexStmt(SCreateIndexStmt* pStmt, SInterval* pInterval) {
+int32_t createIntervalFromCreateSmaIndexStmt(SCreateIndexStmt* pStmt, SInterval* pInterval, void* timezone) {
   pInterval->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
   pInterval->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
   pInterval->offset = NULL != pStmt->pOptions->pOffset ? ((SValueNode*)pStmt->pOptions->pOffset)->datum.i : 0;
@@ -10121,6 +10122,7 @@ int32_t createIntervalFromCreateSmaIndexStmt(SCreateIndexStmt* pStmt, SInterval*
     parserError("%s failed for invalid interval offset %" PRId64, __func__, pInterval->offset);
     return TSDB_CODE_INVALID_PARA;
   }
+  pInterval->timezone = timezone;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -10132,7 +10134,7 @@ int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, SS
   STranslateContext pCxt = {0};
   code = initTranslateContext(pParseCxt, NULL, &pCxt);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createIntervalFromCreateSmaIndexStmt(pStmt, &interval);
+    code = createIntervalFromCreateSmaIndexStmt(pStmt, &interval, pParseCxt->timezone);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -11973,6 +11975,7 @@ static int32_t buildIntervalForCreateStream(SCreateStreamStmt* pStmt, SInterval*
       (NULL != pWindow->pSliding ? ((SValueNode*)pWindow->pSliding)->unit : pInterval->intervalUnit);
   pInterval->precision = ((SColumnNode*)pWindow->pCol)->node.resType.precision;
   pInterval->timeRange = pWindow->timeRange;
+  pInterval->timezone = pWindow->timezone;
 
   return code;
 }
@@ -12022,7 +12025,7 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, SSDa
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
       pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit,
-                                        interval.precision, NULL);
+                                        interval.precision, pParseCxt->timezone);
     } else {
       pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
@@ -12893,7 +12896,7 @@ static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pSt
   return code;
 }
 
-static int32_t buildIntervalForCreateTSMA(SCreateTSMAStmt* pStmt, SInterval* pInterval) {
+static int32_t buildIntervalForCreateTSMA(SCreateTSMAStmt* pStmt, SInterval* pInterval, void* timezone) {
   int32_t code = TSDB_CODE_SUCCESS;
   pInterval->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
   pInterval->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
@@ -12901,6 +12904,7 @@ static int32_t buildIntervalForCreateTSMA(SCreateTSMAStmt* pStmt, SInterval* pIn
   pInterval->sliding = pInterval->interval;
   pInterval->slidingUnit = pInterval->intervalUnit;
   pInterval->precision = pStmt->pOptions->tsPrecision;
+  pInterval->timezone  = timezone;
   return code;
 }
 
@@ -12912,7 +12916,7 @@ int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSData
 
   int32_t code = initTranslateContext(pParseCxt, NULL, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildIntervalForCreateTSMA(pStmt, &interval);
+    code = buildIntervalForCreateTSMA(pStmt, &interval, pParseCxt->timezone);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -12922,7 +12926,7 @@ int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSData
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
       pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit,
-                                        interval.precision, NULL);
+                                        interval.precision,  pParseCxt->timezone);
     } else {
       pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
