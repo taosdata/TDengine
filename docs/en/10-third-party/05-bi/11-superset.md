@@ -58,7 +58,7 @@ There is no difference in the use of TDengine data source compared to other data
 6. In the SQL editor area, any SQL statement that conforms to TDengine syntax can be entered for execution  
 
 ## Example
-We have selected two templates from the SuperSet Chart template that are more procedural to demonstrate their effectiveness, using smart meter data as an example:  
+We chose two popular templates from the SuperSet Chart template to showcase their effects, using smart meter data as an example:  
 
 The first type is Aggregate, which displays the maximum voltage value collected per minute during the specified time period in Group 4  
 
