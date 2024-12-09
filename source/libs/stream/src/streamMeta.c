@@ -501,8 +501,6 @@ _err:
 void streamMetaInitBackend(SStreamMeta* pMeta) {
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId);
   if (pMeta->streamBackend == NULL) {
-    streamMetaWUnLock(pMeta);
-
     while (1) {
       streamMetaWLock(pMeta);
       pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId);
@@ -908,8 +906,6 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   int32_t      code = 0;
   STaskId      id = {.streamId = streamId, .taskId = taskId};
 
-  streamMetaWLock(pMeta);
-
   code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
   if (code == 0) {
     // desc the paused task counter
@@ -958,10 +954,8 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     }
 
     streamMetaReleaseTask(pMeta, pTask);
-    streamMetaWUnLock(pMeta);
   } else {
     stDebug("vgId:%d failed to find the task:0x%x, it may have been dropped already", vgId, taskId);
-    streamMetaWUnLock(pMeta);
   }
 
   return 0;
