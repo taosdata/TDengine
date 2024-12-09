@@ -14,18 +14,35 @@ import RequestId from "./_request_id.mdx";
 
 ## 兼容性
 
-支持最低 Go 版本 1.14，建议使用最新 Go 版本
+支持 Go 版本 1.14及以上版本。
 
 ## 支持的平台
 
-原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
-REST 连接支持所有能运行 Go 的平台。
+- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+- WebSocket/REST 连接支持所有能运行 Go 的平台。
 
-## 版本支持
+## 版本历史
 
-请参考[版本支持列表](https://github.com/taosdata/driver-go#remind)
+| driver-go 版本 | 主要变化                                 | TDengine 版本 |
+|:-------------|:-------------------------------------|:------------|
+| v3.5.8       | 修复空指针异常                              | 3.3.2.0     |
+| v3.5.7       | taosWS 和 taosRestful 支持传入 request id | 3.3.2.0     |
+| v3.5.6       | 提升 websocket 查询和写入性能                 | 3.3.2.0     |
+| v3.5.5       | restful 支持跳过 ssl 证书检查                | 3.2.3.0     |
+| v3.5.4       | 兼容 TDengine 3.3.0.0 tmq raw data     | 3.2.3.0     |
+| v3.5.3       | 重构 taosWS                            | 3.2.3.0     |
+| v3.5.2       | websocket 压缩和优化消息订阅性能                | 3.2.3.0     |
+| v3.5.1       | 原生 stmt 查询和 geometry 类型支持            | 3.2.1.0     |
+| v3.5.0       | 获取消费进度及按照指定进度开始消费                    | 3.0.5.0     |
+| v3.3.1       | 基于 websocket 的 schemaless 协议写入       | 3.0.4.1     |
+| v3.1.0       | 提供贴近 kafka 的订阅 api                   | 3.0.2.2     |
+| v3.0.4       | 新增 request id 相关接口                   | 3.0.2.2     |
+| v3.0.3       | 基于 websocket 的 statement 写入          | 3.0.1.5     |
+| v3.0.2       | 基于 websocket 的数据查询和写入                | 3.0.1.5     |
+| v3.0.1       | 基于 websocket 的消息订阅                   | 3.0.0.0     |
+| v3.0.0       | 适配 TDengine 3.0 查询和写入                | 3.0.0.0     |
 
-## 处理异常
+## 异常和错误码
 
 如果是 TDengine 错误可以通过以下方式获取错误码和错误信息。
 
