@@ -340,19 +340,14 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
 
   wordexp_t full_path = {0};
   int32_t   code = wordexp(dirname, &full_path, 0);
-  switch (code) {
-    case 0:
-      tstrncpy(outname, full_path.we_wordv[0], maxlen);
-      break;
-    case WRDE_NOSPACE:
-      wordfree(&full_path);
-      // FALL THROUGH
-    default:
-      return terrno = TSDB_CODE_INVALID_PARA;
+  if (code == 0 && full_path.we_wordv[0] != NULL) {
+    tstrncpy(outname, full_path.we_wordv[0], maxlen);
+    wordfree(&full_path);
+    return 0;
   }
 
   wordfree(&full_path);
-  return 0;
+  return terrno = TSDB_CODE_INVALID_PARA;
 }
 
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
@@ -607,7 +602,7 @@ int32_t taosGetDirSize(const char *path, int64_t *size) {
     }
 
     if (code != 0) goto _OVER;
-
+    
     totalSize += subSize;
     fullPath[0] = 0;
   }
