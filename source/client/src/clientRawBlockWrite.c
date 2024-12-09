@@ -94,9 +94,12 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
 
   cJSON* columns = cJSON_CreateArray();
   RAW_NULL_CHECK(columns);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "columns", columns));
+
   for (int i = 0; i < schemaRow->nCols; i++) {
     cJSON* column = cJSON_CreateObject();
     RAW_NULL_CHECK(column);
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(columns, column));
     SSchema* s = schemaRow->pSchema + i;
     cJSON*   cname = cJSON_CreateString(s->name);
     RAW_NULL_CHECK(cname);
@@ -118,7 +121,6 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
     cJSON* isPk = cJSON_CreateBool(s->flags & COL_IS_KEY);
     RAW_NULL_CHECK(isPk);
     RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "isPrimarykey", isPk));
-    RAW_FALSE_CHECK(tmqAddJsonArrayItem(columns, column));
 
     if (pColCmprRow == NULL) {
       continue;
@@ -150,13 +152,15 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
     RAW_NULL_CHECK(levelJson);
     RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "level", levelJson));
   }
-  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "columns", columns));
 
   cJSON* tags = cJSON_CreateArray();
   RAW_NULL_CHECK(tags);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
+
   for (int i = 0; schemaTag && i < schemaTag->nCols; i++) {
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
     SSchema* s = schemaTag->pSchema + i;
     cJSON*   tname = cJSON_CreateString(s->name);
     RAW_NULL_CHECK(tname);
@@ -175,9 +179,7 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
       RAW_NULL_CHECK(cbytes);
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "length", cbytes));
     }
-    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
   }
-  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
 
 end:
   *pJson = json;
@@ -407,8 +409,9 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   int64_t id = pCreateReq->uid;
   uint8_t tagNum = pCreateReq->ctb.tagNum;
   int32_t code = 0;
-  cJSON*  tags = NULL;
   SArray* pTagVals = NULL;
+  char*   pJson = NULL;
+
   cJSON*  tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
   RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
@@ -419,8 +422,9 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   RAW_NULL_CHECK(tagNumJson);
   RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tagNum", tagNumJson));
 
-  tags = cJSON_CreateArray();
+  cJSON* tags = cJSON_CreateArray();
   RAW_NULL_CHECK(tags);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
   RAW_RETURN_CHECK(tTagToValArray(pTag, &pTagVals));
   if (tTagIsJson(pTag)) {
     STag* p = (STag*)pTag;
@@ -428,14 +432,11 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       uError("p->nTag == 0");
       goto end;
     }
-    char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
-    if (pJson == NULL) {
-      uError("parseTagDatatoJson failed, pJson == NULL");
-      goto end;
-    }
+    RAW_NULL_CHECK(pJson);
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
     STagVal* pTagVal = taosArrayGet(pTagVals, 0);
     RAW_NULL_CHECK(pTagVal);
     char* ptname = taosArrayGet(tagName, 0);
@@ -449,8 +450,6 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     cJSON* tvalue = cJSON_CreateString(pJson);
     RAW_NULL_CHECK(tvalue);
     RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "value", tvalue));
-    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
-    taosMemoryFree(pJson);
     goto end;
   }
 
@@ -459,6 +458,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     RAW_NULL_CHECK(pTagVal);
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
     char* ptname = taosArrayGet(tagName, i);
     RAW_NULL_CHECK(ptname);
     cJSON* tname = cJSON_CreateString(ptname);
@@ -470,25 +470,22 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
 
     cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      char*   buf = NULL;
       int64_t bufSize = 0;
       if (pTagVal->type == TSDB_DATA_TYPE_VARBINARY) {
         bufSize = pTagVal->nData * 2 + 2 + 3;
       } else {
         bufSize = pTagVal->nData + 3;
       }
-      buf = taosMemoryCalloc(bufSize, 1);
-
+      char* buf = taosMemoryCalloc(bufSize, 1);
       RAW_NULL_CHECK(buf);
-      if (!buf) goto end;
       if (dataConverToStr(buf, bufSize, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL) != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
         goto end;
       }
 
       tvalue = cJSON_CreateString(buf);
-      RAW_NULL_CHECK(tvalue);
       taosMemoryFree(buf);
+      RAW_NULL_CHECK(tvalue);
     } else {
       double val = 0;
       GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
@@ -497,11 +494,10 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     }
 
     RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "value", tvalue));
-    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
   }
 
-  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
 end:
+  taosMemoryFree(pJson);
   taosArrayDestroy(pTagVals);
 }
 
@@ -521,13 +517,14 @@ static void buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs, cJSO
   buildChildElement(json, pCreateReq);
   cJSON* createList = cJSON_CreateArray();
   RAW_NULL_CHECK(createList);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "createList", createList));
+
   for (int i = 0; nReqs > 1 && i < nReqs; i++) {
     cJSON* create = cJSON_CreateObject();
     RAW_NULL_CHECK(create);
     buildChildElement(create, pCreateReq + i);
     RAW_FALSE_CHECK(tmqAddJsonArrayItem(createList, create));
   }
-  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "createList", createList));
 
 end:
   *pJson = json;
@@ -789,9 +786,12 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
       cJSON* tags = cJSON_CreateArray();
       RAW_NULL_CHECK(tags);
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
+
       for (int32_t i = 0; i < nTags; i++) {
         cJSON* member = cJSON_CreateObject();
         RAW_NULL_CHECK(member);
+        RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, member));
 
         SMultiTagUpateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
         cJSON*             tagName = cJSON_CreateString(pTagVal->tagName);
@@ -804,14 +804,13 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         }
         bool isNull = pTagVal->isNull;
         if (!isNull) {
-          char*   buf = NULL;
           int64_t bufSize = 0;
           if (pTagVal->tagType == TSDB_DATA_TYPE_VARBINARY) {
             bufSize = pTagVal->nTagVal * 2 + 2 + 3;
           } else {
             bufSize = pTagVal->nTagVal + 3;
           }
-          buf = taosMemoryCalloc(bufSize, 1);
+          char* buf = taosMemoryCalloc(bufSize, 1);
           RAW_NULL_CHECK(buf);
           if (dataConverToStr(buf, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL) !=
               TSDB_CODE_SUCCESS) {
@@ -826,9 +825,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         cJSON* isNullCJson = cJSON_CreateBool(isNull);
         RAW_NULL_CHECK(isNullCJson);
         RAW_FALSE_CHECK(tmqAddJsonObjectItem(member, "colValueNull", isNullCJson));
-        RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, member));
       }
-      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
       break;
     }
 
@@ -946,13 +943,14 @@ static void processDropTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "type", type));
   cJSON* tableNameList = cJSON_CreateArray();
   RAW_NULL_CHECK(tableNameList);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableNameList", tableNameList));
+
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     SVDropTbReq* pDropTbReq = req.pReqs + iReq;
     cJSON*       tableName = cJSON_CreateString(pDropTbReq->name);
     RAW_NULL_CHECK(tableName);
     RAW_FALSE_CHECK(tmqAddJsonArrayItem(tableNameList, tableName));
   }
-  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableNameList", tableNameList));
 
 end:
   uDebug("processDropTable return");
@@ -2198,6 +2196,8 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
   RAW_FALSE_CHECK(cJSON_AddStringToObject(pJson, "tmq_meta_version", TMQ_META_VERSION));
   cJSON* pMetaArr = cJSON_CreateArray();
   RAW_NULL_CHECK(pMetaArr);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(pJson, "metas", pMetaArr));
+
   int32_t num = taosArrayGetSize(rsp.batchMetaReq);
   for (int32_t i = 0; i < num; i++) {
     int32_t* len = taosArrayGet(rsp.batchMetaLen, i);
@@ -2216,7 +2216,6 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     RAW_FALSE_CHECK(tmqAddJsonArrayItem(pMetaArr, pItem));
   }
 
-  RAW_FALSE_CHECK(tmqAddJsonObjectItem(pJson, "metas", pMetaArr));
   tDeleteMqBatchMetaRsp(&rsp);
   char* fullStr = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
