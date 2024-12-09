@@ -693,6 +693,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         }
       }
       break;
+    case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_VARBINARY: {
       void    *data = NULL;
       uint32_t size = 0;
