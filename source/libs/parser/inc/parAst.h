@@ -167,6 +167,7 @@ SNode*     createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SN
 SNode*     createWhenThenNode(SAstCreateContext* pCxt, SNode* pWhen, SNode* pThen);
 SNode*     createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhenThenList, SNode* pElse);
 SNode*     createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* token, SNode* pVal);
+SNode*     createColsFunctionNode(SAstCreateContext* pCxt, SNode* pFunc, SNodeList* pList);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);
@@ -324,6 +325,7 @@ SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* 
 SNode* createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
 SNode* createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type);
+SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pFuncNode, SNodeList* pNodeList, SToken* pAlias);
 
 #ifdef __cplusplus
 }

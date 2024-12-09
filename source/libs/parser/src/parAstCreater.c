@@ -16,6 +16,7 @@
 #include <regex.h>
 #include <uv.h>
 
+#include "nodes.h"
 #include "parAst.h"
 #include "parUtil.h"
 #include "tglobal.h"
@@ -354,6 +355,32 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   SRawExprNode* target = (SRawExprNode*)pNode;
   SToken        t = {.type = 0, .z = target->p, .n = target->n};
   return t;
+}
+
+SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode, SNodeList* pNodeList, SToken* pAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+    if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+  CHECK_PARSER_STATUS(pCxt);
+  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+  SNode*        pFuncNode = pRawExpr->pNode;
+  if(pFuncNode->type != QUERY_NODE_FUNCTION) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+  CHECK_PARSER_STATUS(pCxt);
+  SNodeList* list = NULL;
+  pCxt->errCode = nodesMakeList(&list);
+  CHECK_MAKE_NODE(list);
+  pCxt->errCode = nodesListAppend(list, pFuncNode);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListAppendList(list, pNodeList);
+  return list;
+
+  _err:
+  nodesDestroyNode(pFuncNode);
+  nodesDestroyList(pNodeList);
+  return NULL;
 }
 
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
@@ -1136,6 +1163,24 @@ _err:
   nodesDestroyNode((SNode*)func);
   nodesDestroyNode(pExpr);
   nodesDestroyNode(pExpr2);
+  return NULL;
+}
+
+SNode* createColsFunctionNode(SAstCreateContext* pCxt, SNode* pColFunc, SNodeList* pExpr){
+  SFunctionNode* func = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "cols");
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pColFunc);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeStrictAppendList(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+_err:
+  nodesDestroyNode((SNode*)func);
+  nodesDestroyNode(pColFunc);
+  nodesDestroyList(pExpr);
   return NULL;
 }
 
