@@ -200,8 +200,8 @@ bool tfsIsSameFile(const STfsFile *pFile1, const STfsFile *pFile2) {
   if (pFile1->did.level != pFile2->did.level) return false;
   if (pFile1->did.id != pFile2->did.id) return false;
   char nameBuf1[TMPNAME_LEN], nameBuf2[TMPNAME_LEN];
-  (void)strncpy(nameBuf1, pFile1->rname, TMPNAME_LEN);
-  (void)strncpy(nameBuf2, pFile2->rname, TMPNAME_LEN);
+  tstrncpy(nameBuf1, pFile1->rname, TMPNAME_LEN);
+  tstrncpy(nameBuf2, pFile2->rname, TMPNAME_LEN);
   nameBuf1[TMPNAME_LEN - 1] = 0;
   nameBuf2[TMPNAME_LEN - 1] = 0;
   TAOS_UNUSED(taosRealPath(nameBuf1, NULL, TMPNAME_LEN));
@@ -573,7 +573,7 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
-  strncpy(pCfg->dir, dirName, TSDB_FILENAME_LEN);
+  tstrncpy(pCfg->dir, dirName, TSDB_FILENAME_LEN);
 
   TAOS_RETURN(0);
 }

@@ -1024,7 +1024,7 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
     expiredTb.suid = *uid;
     terrno = metaReaderGetTableEntryByUid(&mr, *uid);
     if (terrno < 0) goto _end;
-    strncpy(buf, mr.me.name, TSDB_TABLE_NAME_LEN);
+    tstrncpy(buf, mr.me.name, TSDB_TABLE_NAME_LEN);
     void *p = taosArrayPush(pNames, buf);
     if (p == NULL) {
       goto _end;
