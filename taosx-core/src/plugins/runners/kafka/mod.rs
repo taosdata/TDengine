@@ -464,21 +464,30 @@ async fn execute(
         // receive ACK from IPC
         consumers.spawn_blocking(move || {
             let _entered = ack_span.entered();
-            let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
-            for ack in ack_reader {
-                ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-
-                if !ack.success() {
-                    tracing::error!(ack.code = %ack.code(), ack.message = ack.message(), ack.context = ack.context(), "Kafka ack found error");
-                    if let Some(message) = ack.message() {
-                        anyhow::bail!("Kafka IPC writer error: {message}");
-                    } else {
-                        anyhow::bail!("Kafka IPC writer error with code: {}", ack.code());
+            if unsafe {crate::global::DRY_RUN} {
+                loop {
+                    if ack_tx.send(LushAck::ok()).is_err() {
+                        break
                     }
+                    ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 }
-                ack_tx.send(ack).unwrap();
+            } else {
+                let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+                for ack in ack_reader {
+                    ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+                    if !ack.success() {
+                        tracing::error!(ack.code = %ack.code(), ack.message = ack.message(), ack.context = ack.context(), "Kafka ack found error");
+                        if let Some(message) = ack.message() {
+                            anyhow::bail!("Kafka IPC writer error: {message}");
+                        } else {
+                            anyhow::bail!("Kafka IPC writer error with code: {}", ack.code());
+                        }
+                    }
+                    ack_tx.send(ack).unwrap();
+                }
+                tracing::info!("Kafka ACK reader finished");
             }
-            tracing::info!("Kafka ACK reader finished");
             Ok(ExitStatus::Finished)
         });
         // IPC Writer
@@ -519,7 +528,9 @@ async fn execute(
                         break;
                     }
                 }
-                writer.write(&batch)?;
+                if !unsafe { crate::global::DRY_RUN } {
+                    writer.write(&batch)?;
+                }
                 row_count += batch.num_rows();
                 tracing::trace!(
                     batches,
@@ -530,7 +541,9 @@ async fn execute(
 
                 batches += 1;
             }
-            writer.finish()?;
+            if !unsafe { crate::global::DRY_RUN } {
+                writer.finish()?;
+            }
             tracing::info!(
                 send.batches = batches,
                 send.records = row_count,
