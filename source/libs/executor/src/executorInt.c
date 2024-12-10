@@ -988,8 +988,7 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* default
   // The default buffer for each operator in query is 10MB.
   // at least four pages need to be in buffer
   // TODO: make this variable to be configurable.
-//  *defaultBufsz = 4096 * 2560;
-  *defaultBufsz = 4096UL * 2560000;
+  *defaultBufsz = 4096 * 2560;
   if ((*defaultBufsz) <= (*defaultPgsz)) {
     (*defaultBufsz) = (*defaultPgsz) * 4;
     if (*defaultBufsz < ((int64_t)(*defaultPgsz)) * 4) {

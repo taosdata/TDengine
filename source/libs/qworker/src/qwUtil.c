@@ -870,7 +870,7 @@ void qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs) {
   void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
-    if (((ctx->lastAckTs <= 0) || (currTs - ctx->lastAckTs) < 60 /*tsQueryNoFetchTimeoutSec*/) && (!QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP))) {
+    if (((ctx->lastAckTs <= 0) || (currTs - ctx->lastAckTs) < tsQueryNoFetchTimeoutSec) && (!QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP))) {
       pIter = taosHashIterate(mgmt->ctxHash, pIter);
       continue;
     }
@@ -880,7 +880,7 @@ void qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs) {
 
     sId = ctx->sId;
 
-    (void)qwStopTask(QW_FPARAMS(), ctx, true, TSDB_CODE_QRY_NO_FETCH_TIMEOUT);
+    (void)qwStopTask(QW_FPARAMS(), ctx, true, (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) ? ctx->rspCode : TSDB_CODE_QRY_NO_FETCH_TIMEOUT);
 
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
   }

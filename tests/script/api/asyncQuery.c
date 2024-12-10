@@ -96,6 +96,8 @@ int main(int argc, char* argv[]) {
 
   printf("************  prepare data  *************\n");
 
+  //create table tbx (ts timestamp, f1 int); insert into tbx values('2024-11-11 00:00:00', 1);
+
   for (int64_t i = 0; i < 1000000000; ++i) {
     verifyQueryAsync(taos);
     printf("%llu queries launched, errTimes:%lld \n", i * 10, errTimes);

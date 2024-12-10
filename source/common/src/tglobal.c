@@ -56,7 +56,7 @@ int32_t tsShellActivityTimer = 3;  // second
 
 // memory pool
 int8_t  tsMemPoolFullFunc = 0;
-int8_t  tsQueryUseMemoryPool = 0;
+int8_t  tsQueryUseMemoryPool = 1;
 int32_t tsQueryBufferPoolSize = 0; //MB
 int32_t tsSingleQueryMaxMemorySize = 0; //MB
 int32_t tsMinReservedMemorySize = 0; //MB
