@@ -220,7 +220,7 @@ TEST(osStringTests, osStr2int32) {
     ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
 
     result = taosStr2int32("123", NULL);
-    ASSERT_NE(result, TSDB_CODE_INVALID_PARA);
+    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
 
     // 测试无效输入
     result = taosStr2int32("abc", &val);
