@@ -77,7 +77,7 @@ static int32_t metaCloneColCmpr(const SColCmprWrapper *pSrc, SColCmprWrapper *pD
 }
 
 static void metaCloneColCmprFree(SColCmprWrapper *pCmpr) {
-  if (pCmpr == NULL) {
+  if (pCmpr) {
     taosMemoryFreeClear(pCmpr->pColCmpr);
   }
 }
