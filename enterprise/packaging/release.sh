@@ -243,7 +243,7 @@ fi
 
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   BUILD_HTTP=internal
-  BUILD_KEEPER=ineternal
+  BUILD_KEEPER=internal
 else
   BUILD_KEEPER=true
 fi
@@ -369,10 +369,18 @@ if [ "$osType" != "Darwin" ]; then
   fi
 
   if [[ "$verMode" == "cluster" && "$skip" == 0 ]]; then
+    echo "====clone taosx repo if taosx dir is empty===="
+    taosx_release_dir="${top_dir}/enterprise/src/plugins/taosx/packaging"
+    if [ ! -d ${taosx_release_dir} ]; then
+      cd ${top_dir}/enterprise/src/plugins
+      git clone https://github.com/taosdata/taosx.git
+    else
+      echo "it has taosx repo, so don't need to clone again"
+    fi
     echo "==== generate taosx package ===="
-    cd ${top_dir}/enterprise/src/plugins/taosx/packaging
+    cd ${taosx_release_dir}
     if [[ "$cusName" == "TDengine" && "${cusPrompt}" == "taos" && "${cusEmail}" == "support@taosdata.com" ]];then
-      python3 release.py -ob -vn ${verNumber}
+      python3 release.py -ob -vn ${verNumber} -bw
     else
       python3 release.py -ob -vn ${verNumber} -cn ${cusName} -cp ${cusPrompt} -ce ${cusEmail}
     fi
