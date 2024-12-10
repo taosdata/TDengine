@@ -426,17 +426,17 @@ static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   }
 
   size_t optLen = p - pMCfgReq->config;
-  tstrncpy(pDCfgReq->config, pMCfgReq->config, optLen);
+  tstrncpy(pDCfgReq->config, pMCfgReq->config, optLen + 1);
   pDCfgReq->config[optLen] = 0;
 
   if (' ' == pMCfgReq->config[optLen]) {
     // 'key value'
     if (strlen(pMCfgReq->value) != 0) goto _err;
-    (void)strcpy(pDCfgReq->value, p + 1);
+    tstrncpy(pDCfgReq->value, p + 1, strlen(p + 1));
   } else {
     // 'key' 'value'
     if (strlen(pMCfgReq->value) == 0) goto _err;
-    (void)strcpy(pDCfgReq->value, pMCfgReq->value);
+    tstrncpy(pDCfgReq->value, pMCfgReq->value, strlen(pMCfgReq->value));
   }
 
   TAOS_RETURN(code);
@@ -591,11 +591,11 @@ static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t optLen, int32
   if (' ' == pMCfgReq->config[optLen]) {
     // 'key value'
     if (strlen(pMCfgReq->value) != 0) goto _err;
-    *pOutValue = taosStr2int32(pMCfgReq->config + optLen + 1);
+    *pOutValue = taosStr2Int32(pMCfgReq->config + optLen + 1, NULL, 10);
   } else {
     // 'key' 'value'
     if (strlen(pMCfgReq->value) == 0) goto _err;
-    *pOutValue = taosStr2int32(pMCfgReq->value);
+    *pOutValue = taosStr2Int32(pMCfgReq->value, NULL, 10);
   }
 
   TAOS_RETURN(code);
