@@ -299,6 +299,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     char      value[TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t   valueLen = 0;
+
     SDiskCfg* pDiskCfg = NULL;
     if (strcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
       char* buf = &value[VARSTR_HEADER_SIZE];

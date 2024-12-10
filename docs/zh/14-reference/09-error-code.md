@@ -524,6 +524,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80003103 | Invalid tsma state            | 流计算下发结果的 vgroup 与创建 TSMA index 的 vgroup 不一致 | 检查错误日志，联系开发处理 |
 | 0x80003104 | Invalid tsma pointer          | 在处理写入流计算下发的结果，消息体为空指针。               | 检查错误日志，联系开发处理 |
 | 0x80003105 | Invalid tsma parameters       | 在处理写入流计算下发的结果，结果数量为0。                  | 检查错误日志，联系开发处理 |
+| 0x80003113 | Tsma optimization cannot be applied with INTERVAL AUTO offset. | 当前查询条件下使用 INTERVAL AUTO OFFSET 无法启用 tsma 优化。 | 使用 SKIP_TSMA Hint 或者手动指定 INTERVAL OFFSET。 |
 | 0x80003150 | Invalid rsma env              | Rsma 执行环境异常。                                        | 检查错误日志，联系开发处理 |
 | 0x80003151 | Invalid rsma state            | Rsma 执行状态异常。                                        | 检查错误日志，联系开发处理 |
 | 0x80003152 | Rsma qtaskinfo creation error | 创建流计算环境异常。                                       | 检查错误日志，联系开发处理 |

@@ -134,8 +134,8 @@ EDealRes rewriteAuthTable(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode*     pCol = (SColumnNode*)pNode;
     SAuthRewriteCxt* pCxt = (SAuthRewriteCxt*)pContext;
-    strcpy(pCol->tableName, pCxt->pTarget->tableName);
-    strcpy(pCol->tableAlias, pCxt->pTarget->tableAlias);
+    tstrncpy(pCol->tableName, pCxt->pTarget->tableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pCol->tableAlias, pCxt->pTarget->tableAlias, TSDB_TABLE_NAME_LEN);
   }
 
   return DEAL_RES_CONTINUE;

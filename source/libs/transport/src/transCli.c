@@ -1861,8 +1861,8 @@ static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
     if (v != NULL) {
       if (addr != *v) {
         char old[TSDB_FQDN_LEN] = {0}, new[TSDB_FQDN_LEN] = {0};
-        tinet_ntoa(old, *v);
-        tinet_ntoa(new, addr);
+        taosInetNtoa(old, *v);
+        taosInetNtoa(new, addr);
         tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
         code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
       }

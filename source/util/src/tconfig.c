@@ -24,6 +24,7 @@
 #include "tlog.h"
 #include "tunit.h"
 #include "tutil.h"
+#include "tconv.h"
 
 #define CFG_NAME_PRINT_LEN 32
 #define CFG_SRC_PRINT_LEN  12
@@ -306,14 +307,63 @@ static int32_t doSetConf(SConfigItem *pItem, const char *value, ECfgSrcType styp
 }
 
 static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
-  if (strlen(value) == 0) {
-    uError("cfg:%s, type:%s src:%s, value:%s, skip to set timezone", pItem->name, cfgDtypeStr(pItem->dtype),
-           cfgStypeStr(stype), value);
-    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0){
+    uError("failed to config timezone, not support");
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
+  if (value == NULL) {
+    uError("cfg:%s, type:%s src:%s, value is null, skip to set timezone", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype));
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
   TAOS_CHECK_RETURN(osSetTimezone(value));
+
+  TAOS_CHECK_RETURN(doSetConf(pItem, tsTimezoneStr, stype));
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+  if (stype == CFG_STYPE_ALTER_SERVER_CMD || stype == CFG_STYPE_ALTER_CLIENT_CMD){
+    uError("failed to config charset, not support");
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+
+  if (value == NULL || strlen(value) == 0) {
+    uError("cfg:%s, type:%s src:%s, value:%s, skip to set charset", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value);
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+
+  if (!taosValidateEncodec(value)) {
+    uError("invalid charset:%s", value);
+    TAOS_RETURN(terrno);
+  }
+
+  if ((tsCharsetCxt = taosConvInit(value)) == NULL) {
+    TAOS_RETURN(terrno);
+  }
+  (void)memcpy(tsCharset, value, strlen(value) + 1);
+  TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+  if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0){
+    uError("failed to config locale, not support");
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+
+  if (value == NULL || strlen(value) == 0 || taosSetSystemLocale(value) != 0) {
+    uError("cfg:%s, type:%s src:%s, value:%s, skip to set locale", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value);
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+
+  TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -467,11 +517,11 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
       break;
     }
     case CFG_DTYPE_CHARSET: {
-      code = doSetConf(pItem, value, stype);
+      code = cfgSetCharset(pItem, value, stype);
       break;
     }
     case CFG_DTYPE_LOCALE: {
-      code = doSetConf(pItem, value, stype);
+      code = cfgSetLocale(pItem, value, stype);
       break;
     }
     case CFG_DTYPE_NONE:
@@ -768,6 +818,10 @@ const char *cfgStypeStr(ECfgSrcType type) {
       return "taos_options";
     case CFG_STYPE_ENV_CMD:
       return "env_cmd";
+    case CFG_STYPE_ALTER_CLIENT_CMD:
+      return "alter_client_cmd";
+    case CFG_STYPE_ALTER_SERVER_CMD:
+      return "alter_server_cmd";
     default:
       return "invalid";
   }
@@ -818,11 +872,19 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
     case CFG_DTYPE_DOUBLE:
       len = tsnprintf(buf, bufSize, "%f", pItem->fval);
       break;
+    case CFG_DTYPE_TIMEZONE:{
+//      char str1[TD_TIMEZONE_LEN] = {0};
+//      time_t    tx1 = taosGetTimestampSec();
+//      if (taosFormatTimezoneStr(tx1, buf, NULL, str1) != 0) {
+//        tstrncpy(str1, "tz error", sizeof(str1));
+//      }
+//      len = tsnprintf(buf, bufSize, "%s", str1);
+//      break;
+    }
     case CFG_DTYPE_STRING:
     case CFG_DTYPE_DIR:
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
-    case CFG_DTYPE_TIMEZONE:
     case CFG_DTYPE_NONE:
       len = tsnprintf(buf, bufSize, "%s", pItem->str);
       break;

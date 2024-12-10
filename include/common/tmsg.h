@@ -1242,7 +1242,7 @@ typedef struct {
 } STsBufInfo;
 
 typedef struct {
-  int32_t     tz;  // query client timezone
+  void*       timezone;
   char        intervalUnit;
   char        slidingUnit;
   char        offsetUnit;
@@ -3476,6 +3476,8 @@ typedef struct {
   SAppHbReq         app;
   SQueryHbReqBasic* query;
   SHashObj*         info;  // hash<Skv.key, Skv>
+  char              userApp[TSDB_APP_NAME_LEN];
+  uint32_t          userIp;
 } SClientHbReq;
 
 typedef struct {
@@ -3897,7 +3899,7 @@ typedef struct {
   int8_t  igExists;
   int8_t  intervalUnit;
   int8_t  slidingUnit;
-  int8_t  timezone;
+  int8_t  timezone;    // int8_t is not enough, timezone is unit of second
   int32_t dstVgId;  // for stream
   int64_t interval;
   int64_t offset;
