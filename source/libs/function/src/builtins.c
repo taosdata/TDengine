@@ -186,16 +186,16 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
   return numOfSpaces;
 }
 
-static int32_t addTimezoneParam(SNodeList* pList) {
-  char    buf[TD_TIME_STR_LEN] = {0};
-  time_t  t;
+static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
+  char      buf[TD_TIME_STR_LEN] = {0};
+  time_t    t;
   int32_t code = taosTime(&t);
   if (code != 0) {
     return code;
   }
   struct tm tmInfo;
-  if (taosLocalTime(&t, &tmInfo, buf, sizeof(buf)) != NULL) {
-    (void)strftime(buf, sizeof(buf), "%z", &tmInfo);
+  if (taosLocalTime(&t, &tmInfo, buf, sizeof(buf), tz) != NULL) {
+    (void)taosStrfTime(buf, sizeof(buf), "%z", &tmInfo);
   }
   int32_t len = (int32_t)strlen(buf);
 
@@ -1445,7 +1445,7 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
     }
   } else {  // add default client timezone
-    int32_t code = addTimezoneParam(pFunc->pParameterList);
+    int32_t code = addTimezoneParam(pFunc->pParameterList, pFunc->tz);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -1500,7 +1500,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
   }
 
   // add client timezone as param
-  code = addTimezoneParam(pFunc->pParameterList);
+  code = addTimezoneParam(pFunc->pParameterList, pFunc->tz);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1657,9 +1657,18 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     case FUNCTION_TYPE_TBNAME:
       bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
       break;
-    case FUNCTION_TYPE_TIMEZONE:
-      bytes = timeZoneStrLen();
+    case FUNCTION_TYPE_TIMEZONE:{
+      if (pFunc->tz == NULL) {
+        bytes = VARSTR_HEADER_SIZE + strlen(tsTimezoneStr);
+      }else{
+        char *tzName  = (char*)taosHashGet(pTimezoneNameMap, &pFunc->tz, sizeof(timezone_t));
+        if (tzName == NULL){
+          tzName = TZ_UNKNOWN;
+        }
+        bytes = strlen(tzName) + VARSTR_HEADER_SIZE;
+      }
       break;
+    }
     case FUNCTION_TYPE_IRATE_PARTIAL:
       bytes = getIrateInfoSize((pFunc->hasPk) ? pFunc->pkBytes : 0) + VARSTR_HEADER_SIZE;
       break;
