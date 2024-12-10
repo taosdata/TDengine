@@ -328,7 +328,7 @@ char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t prec
   }
 
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf, bufSize) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize, NULL) == NULL) {
     return buf;
   }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
