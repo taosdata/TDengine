@@ -138,6 +138,7 @@ static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
   int32_t code = 0;
   int32_t lino;
   int32_t offset;
+  int32_t pathLen = 0;
   char    path[TSDB_FILENAME_LEN] = {0};
   char    indexFullPath[128] = {0};
 
@@ -150,14 +151,15 @@ static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
     taosRemoveDir(path);
   }
 
-  if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + strlen(path) + 1)) == NULL) {
+  pathLen = strlen(path) + 1;
+  if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + pathLen)) == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   metaInitLock(pMeta);
 
   pMeta->path = (char *)&pMeta[1];
-  strcpy(pMeta->path, path);
+  tstrncpy(pMeta->path, path, pathLen);
   int32_t ret = taosRealPath(pMeta->path, NULL, strlen(path) + 1);
 
   pMeta->pVnode = pVnode;
