@@ -508,7 +508,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (cfgReq.version > 0) {
     tsdmConfigVersion = cfgReq.version;
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
