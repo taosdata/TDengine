@@ -547,7 +547,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   }
 
   if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask) {
-    QW_TASK_ELOG_E("query already end");
+    QW_TASK_ELOG("query already end, phase:%d", phase);
     QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
   }
 

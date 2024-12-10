@@ -819,7 +819,7 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
   }
 
   if (0 == line[0]) {
-    return TSDB_CODE_SYSTEM_ERROR;
+    return TSDB_CODE_UNSUPPORT_OS;
   }
   
   char tmp[32];

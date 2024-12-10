@@ -163,6 +163,7 @@ typedef struct SSchCallbackParamHeader {
 typedef struct SSchTaskCallbackParam {
   SSchCallbackParamHeader head;
   uint64_t                queryId;
+  uint64_t                seriousId;
   int64_t                 refId;
   uint64_t                clientId;
   uint64_t                taskId;
@@ -228,6 +229,7 @@ typedef struct SSchTask {
   uint64_t        clientId;        // current client id
   uint64_t        taskId;          // task id
   uint64_t        seriousId;
+  uint64_t        failedSeriousId;
   SRWLatch        lock;            // task reentrant lock
   int32_t         maxExecTimes;    // task max exec times
   int32_t         maxRetryTimes;   // task max retry times
@@ -627,7 +629,7 @@ void     schCloseJobRef(void);
 int32_t  schAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob);
 int32_t  schJobFetchRows(SSchJob *pJob);
 int32_t  schJobFetchRowsA(SSchJob *pJob);
-int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
+int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, uint64_t seriousId, int32_t execId);
 int32_t  schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList);
 int32_t  schDumpEpSet(SEpSet *pEpSet, char **ppRes);
 char    *schGetOpStr(SCH_OP_TYPE type);

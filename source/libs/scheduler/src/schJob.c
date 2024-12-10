@@ -345,7 +345,9 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
 
   pJob->levelNum = levelNum;
   SCH_RESET_JOB_LEVEL_IDX(pJob);
+  
   atomic_add_fetch_64(&pJob->seriousId, 1);
+  SCH_JOB_DLOG("job seriousId set to 0x%" PRIx64, pJob->seriousId);
 
   SSchLevel      level = {0};
   SNodeListNode *plans = NULL;
@@ -1021,6 +1023,8 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
 
   SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
 
+  atomic_add_fetch_64(&pJob->seriousId, 1);
+
   int32_t code = 0;
   int32_t numOfLevels = taosArrayGetSize(pJob->levels);
   for (int32_t i = 0; i < numOfLevels; ++i) {
@@ -1047,17 +1051,17 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
         SCH_UNLOCK_TASK(pTask);
         SCH_RET(code);
       }
+      schResetTaskForRetry(pJob, pTask);
+
       SCH_LOCK(SCH_WRITE, &pTask->planLock);
       qClearSubplanExecutionNode(pTask->plan);
       SCH_UNLOCK(SCH_WRITE, &pTask->planLock);
 
-      schResetTaskForRetry(pJob, pTask);
       SCH_UNLOCK_TASK(pTask);
     }
   }
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
-  atomic_add_fetch_64(&pJob->seriousId, 1);
   
   SCH_JOB_DLOG("update job sId to %" PRId64, pJob->seriousId);
 

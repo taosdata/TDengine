@@ -63,8 +63,10 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
 
   pTask->plan = pPlan;
   pTask->level = pLevel;
+  pTask->seriousId = pJob->seriousId;
   pTask->execId = -1;
   pTask->failedExecId = -2;
+  pTask->failedSeriousId = 0;
   pTask->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
   pTask->clientId = getClientId();
   pTask->taskId = schGenTaskId();
@@ -161,16 +163,18 @@ int32_t schUpdateTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId) {
+int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, uint64_t seriousId, int32_t execId) {
   if (dropExecNode) {
     SCH_RET(schDropTaskExecNode(pJob, pTask, handle, execId));
   }
 
   SCH_ERR_RET(schUpdateTaskExecNode(pJob, pTask, handle, execId));
 
-  if ((execId != pTask->execId || execId <= pTask->failedExecId) || pTask->waitRetry) {  // ignore it
-    SCH_TASK_DLOG("handle not updated since execId %d is already not current execId %d, waitRetry %d", execId,
-                  pTask->execId, pTask->waitRetry);
+  if ((seriousId != pTask->seriousId || seriousId <= pTask->failedSeriousId) || 
+      (execId != pTask->execId || execId <= pTask->failedExecId) || pTask->waitRetry) {  // ignore it
+    SCH_TASK_DLOG("handle not updated since seriousId:0x%" PRIx64 " or execId:%d is not lastest,"
+                  "current seriousId:0x%" PRIx64 " execId %d, failedSeriousId:0x%" PRIx64 " failedExecId:%d, waitRetry %d", 
+                  seriousId, execId, pTask->seriousId, pTask->execId, pTask->failedSeriousId, pTask->failedExecId, pTask->waitRetry);
     SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
@@ -185,6 +189,7 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   }
 
   pTask->failedExecId = pTask->execId;
+  pTask->failedSeriousId = pTask->seriousId;
 
   int8_t jobStatus = 0;
   if (schJobNeedToStop(pJob, &jobStatus)) {
@@ -1109,7 +1114,10 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   int32_t   code = 0;
 
   if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
+    SCH_LOCK(SCH_WRITE, &pTask->planLock);
     code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
+    SCH_UNLOCK(SCH_WRITE, &pTask->planLock);
+
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
@@ -1190,13 +1198,20 @@ int32_t schLaunchTaskImpl(void *param) {
     SCH_LOCK_TASK(pTask);
   }
 
-  int8_t  status = 0;
-  int32_t code = 0;
-
-  (void)atomic_add_fetch_32(&pTask->level->taskLaunchedNum, 1);
   pTask->execId++;
   pTask->retryTimes++;
   pTask->waitRetry = false;
+
+  int8_t  status = 0;
+  int32_t code = 0;
+
+  if (atomic_load_64(&pTask->seriousId) < atomic_load_64(&pJob->seriousId)) {
+    SCH_TASK_DLOG("task seriousId:0x%" PRIx64 " is smaller than job seriousId:0x%" PRIx64 ", skip launch",
+                  pTask->seriousId, pJob->seriousId);
+    goto _return;
+  }
+
+  (void)atomic_add_fetch_32(&pTask->level->taskLaunchedNum, 1);
 
   SCH_TASK_DLOG("start to launch %s task, execId %d, retry %d",
                 SCH_IS_LOCAL_EXEC_TASK(pJob, pTask) ? "LOCAL" : "REMOTE", pTask->execId, pTask->retryTimes);
@@ -1352,6 +1367,8 @@ int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
   for (int32_t i = 0; i < level->taskNum; ++i) {
     SSchTask *pTask = taosArrayGet(level->subTasks, i);
     pTask->seriousId = pJob->seriousId;
+    
+    SCH_TASK_DLOG("task seriousId set to 0x%" PRIx64, pTask->seriousId);
 
     SCH_ERR_RET(schDelayLaunchTask(pJob, pTask));
   }

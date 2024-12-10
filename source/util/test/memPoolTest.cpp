@@ -738,7 +738,7 @@ int32_t mptGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
   int64_t availSize = (totalSize - reserveSize) / 1048576UL * 1048576UL;
   if (availSize < MPT_MIN_MEM_POOL_SIZE) {
     uError("too little available query memory, totalAvailable: %" PRId64 ", reserveSize: %" PRId64, totalSize, reserveSize);
-    return TSDB_CODE_QRY_TOO_FEW_AVAILBLE_MEM;
+    //return TSDB_CODE_QRY_TOO_FEW_AVAILBLE_MEM;
   }
 
   uDebug("new pool maxSize:%" PRId64 ", usedSize:%" PRId64 ", freeSize:%" PRId64, availSize, usedSize, freeSize);
