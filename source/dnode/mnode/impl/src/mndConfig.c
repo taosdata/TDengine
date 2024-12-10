@@ -244,6 +244,10 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   }
 
   array = taosArrayInit(16, sizeof(SConfigItem));
+  if (array == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
   SConfigRsp configRsp = {0};
   configRsp.forceReadConfig = configReq.forceReadConfig;
 
@@ -291,6 +295,7 @@ _OVER:
   if (code != 0) {
     mError("failed to process config req, since %s", tstrerror(code));
   }
+  sdbRelease(pMnode->pSdb, vObj);
   cfgArrayCleanUp(array);
   mndReleaseDnode(pMnode, pDnode);
   return TSDB_CODE_SUCCESS;
@@ -310,7 +315,7 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   // encode mnd config version
   SConfigObj *versionObj = mndInitConfigVersion();
   if ((code = mndSetCreateConfigCommitLogs(pTrans, versionObj)) != 0) {
-    mError("failed to init mnd config version, since %s", terrstr());
+    mError("failed to init mnd config version, since %s", tstrerror(code));
     taosMemoryFree(versionObj->str);
     taosMemoryFree(versionObj);
     goto _OVER;
@@ -327,6 +332,8 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
     }
     if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
       mError("failed to init mnd config:%s, since %s", item->name, tstrerror(code));
+      taosMemoryFree(obj);
+      goto _OVER;
     }
     taosMemoryFree(obj);
   }
@@ -347,7 +354,7 @@ int32_t mndInitReadCfg(SMnode *pMnode) {
   if (obj == NULL) {
     code = mndInitWriteCfg(pMnode);
     if (code != 0) {
-      mError("failed to init write cfg, since %s", terrstr());
+      mError("failed to init write cfg, since %s", tstrerror(code));
     }
     mInfo("failed to acquire mnd config version, try to rebuild it , since %s", terrstr());
     goto _OVER;
@@ -426,17 +433,17 @@ static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   }
 
   size_t optLen = p - pMCfgReq->config;
-  tstrncpy(pDCfgReq->config, pMCfgReq->config, optLen + 1);
+  strncpy(pDCfgReq->config, pMCfgReq->config, optLen);
   pDCfgReq->config[optLen] = 0;
 
   if (' ' == pMCfgReq->config[optLen]) {
     // 'key value'
     if (strlen(pMCfgReq->value) != 0) goto _err;
-    tstrncpy(pDCfgReq->value, p + 1, strlen(p + 1));
+    (void)strcpy(pDCfgReq->value, p + 1);
   } else {
     // 'key' 'value'
     if (strlen(pMCfgReq->value) == 0) goto _err;
-    tstrncpy(pDCfgReq->value, pMCfgReq->value, strlen(pMCfgReq->value));
+    (void)strcpy(pDCfgReq->value, pMCfgReq->value);
   }
 
   TAOS_RETURN(code);
@@ -659,6 +666,7 @@ static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array) {
     if (item.name == NULL) {
       code = terrno;
       sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, obj);
       goto _exit;
     }
     switch (obj->dtype) {
@@ -685,6 +693,7 @@ static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array) {
         item.str = taosStrdup(obj->str);
         if (item.str == NULL) {
           sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, obj);
           code = terrno;
           goto _exit;
         }
@@ -692,6 +701,7 @@ static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array) {
     }
     if (taosArrayPush(array, &item) == NULL) {
       sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, obj);
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
       break;
@@ -731,6 +741,10 @@ SArray *initVariablesFromItems(SArray *pItems) {
   int32_t sz = taosArrayGetSize(pItems);
 
   SArray *pInfos = taosArrayInit(sz, sizeof(SVariablesInfo));
+  if (pInfos == NULL) {
+    mError("failed to init array while init variables from items, since %s", tstrerror(terrno));
+    return NULL;
+  }
   for (int32_t i = 0; i < sz; ++i) {
     SConfigItem   *pItem = taosArrayGet(pItems, i);
     SVariablesInfo info = {0};

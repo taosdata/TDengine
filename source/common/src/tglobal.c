@@ -1425,9 +1425,6 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   tsEnableCoreFile = pItem->bval;
   taosSetCoreDump(tsEnableCoreFile);
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "assert");
-  tsAssert = pItem->bval;
-
   // todo
   tsVersion = 30000000;
 
@@ -1981,7 +1978,11 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
 
         int64_t actDiskID = 0;
         int64_t expDiskID = taosStr2Int64(cJSON_GetStringValue(filed), NULL, 10);
-        if (!taosCheckFileDiskID(dir, &actDiskID, expDiskID)) {
+        if ((code = taosGetFileDiskID(dir, &actDiskID)) != 0) {
+          uError("failed to get disk id for dir:%s, since %s", dir, tstrerror(code));
+          goto _exit;
+        }
+        if (actDiskID != expDiskID) {
           uError("failed to check disk id for dir:%s, actDiskID%" PRId64 ", expDiskID%" PRId64, dir, actDiskID,
                  expDiskID);
           code = TSDB_CODE_INVALID_DISK_ID;
@@ -2006,7 +2007,7 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          pItem->fval = atoll(cJSON_GetStringValue(pJson));
+          pItem->fval = taosStr2Float(cJSON_GetStringValue(pJson), NULL);
           break;
         case CFG_DTYPE_STRING:
         case CFG_DTYPE_DIR:
@@ -2959,7 +2960,7 @@ int32_t taosPersistLocalConfig(const char *path) {
       taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
 
   if (pConfigFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(terrno);
     uError("failed to open file:%s since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -2968,7 +2969,7 @@ int32_t taosPersistLocalConfig(const char *path) {
   TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serialized), &lino, _exit);
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(terrno);
     uError("failed to write file:%s since %s", filename, tstrerror(code));
     goto _exit;
   }

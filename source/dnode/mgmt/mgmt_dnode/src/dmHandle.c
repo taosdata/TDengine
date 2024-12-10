@@ -198,7 +198,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
-  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL) != 0) {
+  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL) !=
+      0) {
     dError("failed to parse time since %s", tstrerror(code));
   }
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -333,6 +334,10 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     }
     if (needUpdate) {
       code = cfgUpdateFromArray(tsCfg, configRsp.array);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to update config since %s", tstrerror(code));
+        goto _exit;
+      }
       code = setAllConfigs(tsCfg);
       if (code != TSDB_CODE_SUCCESS) {
         dError("failed to set all configs since %s", tstrerror(code));
@@ -369,6 +374,10 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   }
 
   void *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    dError("failed to malloc cont since %s", tstrerror(contLen));
+    return;
+  }
   contLen = tSerializeSConfigReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);

@@ -51,7 +51,6 @@ static void *dmConfigThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-config");
-  int32_t upTimeCount = 0;
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped || tsConfigInited) break;

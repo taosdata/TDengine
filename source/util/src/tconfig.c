@@ -17,6 +17,7 @@
 #include "cJSON.h"
 #include "taoserror.h"
 #include "tconfig.h"
+#include "tconv.h"
 #include "tenv.h"
 #include "tglobal.h"
 #include "tgrant.h"
@@ -24,7 +25,6 @@
 #include "tlog.h"
 #include "tunit.h"
 #include "tutil.h"
-#include "tconv.h"
 
 #define CFG_NAME_PRINT_LEN 32
 #define CFG_SRC_PRINT_LEN  12
@@ -129,6 +129,10 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
       case CFG_DTYPE_TIMEZONE:
         taosMemoryFree(pItemOld->str);
         pItemOld->str = taosStrdup(pItemNew->str);
+        if (pItemOld->str == NULL) {
+          (void)taosThreadMutexUnlock(&pCfg->lock);
+          TAOS_RETURN(terrno);
+        }
         break;
       default:
         break;
@@ -307,7 +311,7 @@ static int32_t doSetConf(SConfigItem *pItem, const char *value, ECfgSrcType styp
 }
 
 static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0){
+  if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
     uError("failed to config timezone, not support");
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
@@ -325,7 +329,7 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
 }
 
 static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  if (stype == CFG_STYPE_ALTER_SERVER_CMD || stype == CFG_STYPE_ALTER_CLIENT_CMD){
+  if (stype == CFG_STYPE_ALTER_SERVER_CMD || stype == CFG_STYPE_ALTER_CLIENT_CMD) {
     uError("failed to config charset, not support");
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
@@ -351,7 +355,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
 }
 
 static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0){
+  if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
     uError("failed to config locale, not support");
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
@@ -589,7 +593,11 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     cfgUnLock(pCfg);
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
-  TAOS_CHECK_RETURN(checkItemDyn(pItem, isServer));
+  int32_t code = checkItemDyn(pItem, isServer);
+  if (code != TSDB_CODE_SUCCESS) {
+    cfgUnLock(pCfg);
+    TAOS_RETURN(code);
+  }
   if ((!isUpdateAll) && (pItem->category == CFG_CATEGORY_GLOBAL)) {
     uError("failed to config:%s, not support update global config on only one dnode", name);
     cfgUnLock(pCfg);
@@ -872,14 +880,14 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
     case CFG_DTYPE_DOUBLE:
       len = tsnprintf(buf, bufSize, "%f", pItem->fval);
       break;
-    case CFG_DTYPE_TIMEZONE:{
-//      char str1[TD_TIMEZONE_LEN] = {0};
-//      time_t    tx1 = taosGetTimestampSec();
-//      if (taosFormatTimezoneStr(tx1, buf, NULL, str1) != 0) {
-//        tstrncpy(str1, "tz error", sizeof(str1));
-//      }
-//      len = tsnprintf(buf, bufSize, "%s", str1);
-//      break;
+    case CFG_DTYPE_TIMEZONE: {
+      //      char str1[TD_TIMEZONE_LEN] = {0};
+      //      time_t    tx1 = taosGetTimestampSec();
+      //      if (taosFormatTimezoneStr(tx1, buf, NULL, str1) != 0) {
+      //        tstrncpy(str1, "tz error", sizeof(str1));
+      //      }
+      //      len = tsnprintf(buf, bufSize, "%s", str1);
+      //      break;
     }
     case CFG_DTYPE_STRING:
     case CFG_DTYPE_DIR:
