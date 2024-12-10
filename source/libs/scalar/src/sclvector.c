@@ -128,7 +128,7 @@ int32_t convertBinaryToDouble(const void *inData, void *outData) {
   }
   (void)memcpy(tmp, varDataVal(inData), varDataLen(inData));
   double ret = taosStr2Double(tmp, NULL);
-  taosMemoryFree(tmp);
+  taosMemoryFreeClear(tmp);
   *((double *)outData) = ret;
   SCL_RET(TSDB_CODE_SUCCESS);
 }
@@ -369,14 +369,14 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
     char   *t = taosMemoryCalloc(1, inputLen);
     if (t == NULL) {
       sclError("Out of memory");
-      taosMemoryFree(data);
+      taosMemoryFreeClear(data);
       SCL_ERR_RET(terrno);
     }
     varDataSetLen(t, size);
     (void)memcpy(varDataVal(t), data, size);
     int32_t code = colDataSetVal(pOut->columnData, rowIndex, t, false);
-    taosMemoryFree(t);
-    taosMemoryFree(data);
+    taosMemoryFreeClear(t);
+    taosMemoryFreeClear(data);
     SCL_ERR_RET(code);
   }else{
     int32_t inputLen = varDataTLen(buf);
@@ -387,7 +387,7 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
     }
     (void)memcpy(t, buf, inputLen);
     int32_t code = colDataSetVal(pOut->columnData, rowIndex, t, false);
-    taosMemoryFree(t);
+    taosMemoryFreeClear(t);
     SCL_ERR_RET(code);
   }
   SCL_RET(TSDB_CODE_SUCCESS);
@@ -414,7 +414,7 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
   SCL_ERR_JRET(colDataSetVal(pOut->columnData, rowIndex, t, false));
 
 _return:
-  taosMemoryFree(t);
+  taosMemoryFreeClear(t);
   SCL_RET(code);
 }
 
@@ -435,7 +435,7 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
   SCL_ERR_JRET(colDataSetVal(pOut->columnData, rowIndex, t, false));
 
 _return:
-  taosMemoryFree(t);
+  taosMemoryFreeClear(t);
   SCL_RET(code);
 }
 
@@ -464,13 +464,13 @@ static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t
 
   SCL_ERR_JRET(colDataSetVal(pOut->columnData, rowIndex, output, false));
 
-  taosMemoryFree(output);
+  taosMemoryFreeClear(output);
   geosFreeBuffer(t);
 
   SCL_RET(TSDB_CODE_SUCCESS);
 
 _return:
-  taosMemoryFree(output);
+  taosMemoryFreeClear(output);
   geosFreeBuffer(t);
   t = NULL;
   VarDataLenT dummyHeader = 0;
@@ -605,7 +605,7 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
   if (len < 0) {
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
              (char *)varDataVal(buf));
-    taosMemoryFree(*out);
+    taosMemoryFreeClear(*out);
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
   varDataSetLen(*out, len);
@@ -1243,7 +1243,7 @@ static int32_t vectorConvertVarToDouble(SScalarParam *pInput, int32_t *converted
 static void doReleaseVec(SColumnInfoData *pCol, int32_t type) {
   if (type == VECTOR_DO_CONVERT) {
     colDataDestroy(pCol);
-    taosMemoryFree(pCol);
+    taosMemoryFreeClear(pCol);
   }
 }
 
@@ -2203,7 +2203,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   }
 
 _return:
-  taosMemoryFree(jsonKey);
+  taosMemoryFreeClear(jsonKey);
   SCL_RET(code);
 }
 
@@ -2235,13 +2235,13 @@ int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
     char   *data = isExist ? tTagValToData(&value, true) : NULL;
     code = colDataSetVal(pOutputCol, i, data, data == NULL);
     if (isExist && IS_VAR_DATA_TYPE(value.type) && data) {
-      taosMemoryFree(data);
+      taosMemoryFreeClear(data);
     }
     SCL_ERR_JRET(code);
   }
 
 _return:
-  taosMemoryFree(jsonKey);
+  taosMemoryFreeClear(jsonKey);
   SCL_RET(code);
 }
 

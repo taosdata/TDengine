@@ -522,7 +522,7 @@ int32_t filterInitRangeCtx(int32_t type, int32_t options, SFilterRangeCtx **ctx)
   (*ctx)->options = options;
   (*ctx)->pCompareFunc = getComparFunc(type, 0);
   if ((*ctx)->pCompareFunc == NULL) {
-    taosMemoryFree(*ctx);
+    taosMemoryFreeClear(*ctx);
     return terrno;
   }
 
@@ -939,18 +939,18 @@ int32_t filterFreeRangeCtx(void *h) {
 
   while (r) {
     rn = r->next;
-    taosMemoryFree(r);
+    taosMemoryFreeClear(r);
     r = rn;
   }
 
   r = ctx->rf;
   while (r) {
     rn = r->next;
-    taosMemoryFree(r);
+    taosMemoryFreeClear(r);
     r = rn;
   }
 
-  taosMemoryFree(ctx);
+  taosMemoryFreeClear(ctx);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1358,7 +1358,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
       cell = cell->pNext;
     }
     colDataDestroy(out.columnData);
-    taosMemoryFree(out.columnData);
+    taosMemoryFreeClear(out.columnData);
     FLT_ERR_RET(code);
   } else {
     FLT_ERR_RET(filterAddFieldFromNode(info, node->pRight, &right));
@@ -2244,7 +2244,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       int32_t code = sclConvertValueToSclParam(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         colDataDestroy(out.columnData);
-        taosMemoryFree(out.columnData);
+        taosMemoryFreeClear(out.columnData);
         qError("convert value to type[%d] failed", type);
         return code;
       }
@@ -2260,7 +2260,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       (void)memcpy(fi->data, out.columnData->pData, valBytes);
 
       colDataDestroy(out.columnData);
-      taosMemoryFree(out.columnData);
+      taosMemoryFreeClear(out.columnData);
     }
 
     // match/nmatch for nchar type need convert from ucs4 to mbs
