@@ -319,7 +319,8 @@ typedef enum ELogicConditionType {
 
 // Why needs to minus sizeof(uint16_t) ?
 // Because add 2bytes colid in tRowBuildScanAddValue to make kvPayloadSize not overflow.
-#define TSDB_MAX_BLOB_DATA_LEN (INT32_MAX - sizeof(uint32_t) - sizeof(uint16_t))
+// Minus TSDB_MAX_BYTES_PER_ROW to temporarily avoid int32 overflow when computing rowSize.
+#define TSDB_MAX_BLOB_DATA_LEN (INT32_MAX - sizeof(uint32_t) - sizeof(uint16_t) - TSDB_MAX_BYTES_PER_ROW)
 
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_MIN_LEN  8

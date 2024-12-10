@@ -587,6 +587,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
   for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+    // [TODO] rowSize += exceed the row size limit TSDB_MAX_BYTES_PER_ROW
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
     if (hasPK && (i > 0)) {
       if ((pTableMeta->schema[i].flags & COL_IS_KEY)) {
