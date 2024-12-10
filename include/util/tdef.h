@@ -317,6 +317,8 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_JSON_TAG_LEN 16384
 #define TSDB_MAX_JSON_KEY_LEN 256
 
+// Why needs to minus sizeof(uint16_t) ?
+// Because add 2bytes colid in tRowBuildScanAddValue to make kvPayloadSize not overflow.
 #define TSDB_MAX_BLOB_DATA_LEN (INT32_MAX - sizeof(uint32_t) - sizeof(uint16_t))
 
 #define TSDB_AUTH_LEN          16

@@ -36,7 +36,7 @@ const int32_t TYPE_BYTES[21] = {
     TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
     sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_VARBINARY
     TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
-    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_BLOB: placeholder, not implemented
+    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_BLOB
     TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_MEDIUMBLOB: placeholder, not implemented
     sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_GEOMETRY
 };
