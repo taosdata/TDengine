@@ -1436,7 +1436,7 @@ int sml_td22900_Test() {
 int sml_td24070_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "CREATE user test_db pass 'test'");
+  TAOS_RES *pRes = taos_query(taos, "CREATE user test_db pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
@@ -1491,11 +1491,11 @@ int sml_td24070_Test() {
   // test stable privilege
   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  pRes = taos_query(taos, "CREATE user test_stb_read pass 'test'");
+  pRes = taos_query(taos, "CREATE user test_stb_read pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "CREATE user test_stb_write pass 'test'");
+  pRes = taos_query(taos, "CREATE user test_stb_write pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
@@ -1536,11 +1536,11 @@ int sml_td24070_Test() {
   // test table privilege
   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  pRes = taos_query(taos, "CREATE user test_tb_read pass 'test'");
+  pRes = taos_query(taos, "CREATE user test_tb_read pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "CREATE user test_tb_write pass 'test'");
+  pRes = taos_query(taos, "CREATE user test_tb_write pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 

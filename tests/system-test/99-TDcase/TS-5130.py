@@ -31,7 +31,7 @@ class TDTestCase:
     def run(self):
         self.prepare_user()
         self.test_connect_user('root')
-        self.test_connect_user('test123@#$')
+        self.test_connect_user('test')
     
     def stop(self):
         tdSql.close()

@@ -182,14 +182,14 @@ class TDTestCase:
         for i in range(self.users_count):
             user = User()
             user.name = f"user_test{i}"
-            user.passwd = f"taosdata{i}"
+            user.passwd = f"taosdata@1{i}"
             user.db_set = set()
             self.users.append(user)
         return self.users
 
     @property
     def __passwd_list(self):
-        return  [f"taosdata{i}" for i in range(self.users_count) ]
+        return  [f"taosdata@1{i}" for i in range(self.users_count) ]
 
     @property
     def __privilege(self):
@@ -258,12 +258,12 @@ class TDTestCase:
 
     def alter_pass_err(self):  # sourcery skip: remove-redundant-fstring
         sqls = [
-            f"alter users {self.__user_list[0]} pass 'newpass' " ,
+            f"alter users {self.__user_list[0]} pass 'newpassT1' " ,
             f"alter user {self.__user_list[0]} pass '' " ,
             f"alter user {self.__user_list[0]} pass '  ' " ,
-            f"alter user anyuser pass 'newpass' " ,
+            f"alter user anyuser pass 'newpassT1' " ,
             f"alter user {self.__user_list[0]} pass  " ,
-            f"alter user {self.__user_list[0]} password 'newpass'  " ,
+            f"alter user {self.__user_list[0]} password 'newpassT1'  " ,
         ]
         for sql in sqls:
             tdSql.error(sql)
@@ -649,7 +649,7 @@ class TDTestCase:
             # user = conn
             # 不能创建用户
             tdLog.printNoPrefix("==========step4.1: normal user can not create user")
-            user.error("create use utest1 pass 'utest1pass'")
+            user.error("create use utest1 pass 'utest1Pass'")
             # 可以查看用户
             tdLog.printNoPrefix("==========step4.2: normal user can show user")
             user.query("show users")
