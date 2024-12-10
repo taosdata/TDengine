@@ -2496,12 +2496,12 @@ static int32_t formatTimestamp(char* buf, size_t cap, int64_t val, int precision
     }
   }
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf, cap) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, cap, NULL) == NULL) {
     code =  TSDB_CODE_INTERNAL_ERROR;
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  size_t pos = strftime(buf, cap, "%Y-%m-%d %H:%M:%S", &ptm);
+  size_t pos = taosStrfTime(buf, cap, "%Y-%m-%d %H:%M:%S", &ptm);
   if (pos == 0) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2643,7 +2643,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           char*   pData = colDataGetVarData(pColInfoData, j);
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
           memset(pBuf, 0, sizeof(pBuf));
-          code = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
+          code = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf, NULL);
           if (code < 0) {
             uError("func %s failed to convert to ucs charset since %s", __func__, tstrerror(code));
             lino = __LINE__;

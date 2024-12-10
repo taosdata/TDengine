@@ -1143,7 +1143,11 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
 int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   // SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
   if (NULL == schMgmt.queryMgmt) {
-    SCH_ERR_RET(qWorkerInit(NODE_TYPE_CLIENT, CLIENT_HANDLE, (void **)&schMgmt.queryMgmt, NULL));
+    void* p = NULL;
+    SCH_ERR_RET(qWorkerInit(NODE_TYPE_CLIENT, CLIENT_HANDLE, &p, NULL));
+    if (atomic_val_compare_exchange_ptr(&schMgmt.queryMgmt, NULL, p)) {
+      qWorkerDestroy(&p);
+    }
   }
 
   SArray *explainRes = NULL;

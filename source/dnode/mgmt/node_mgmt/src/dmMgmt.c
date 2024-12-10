@@ -22,6 +22,7 @@
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tstream.h"
+#include "tconv.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);

@@ -26,9 +26,9 @@
     (pDst)->fldname = (pSrc)->fldname; \
   } while (0)
 
-#define COPY_CHAR_ARRAY_FIELD(fldname)        \
-  do {                                        \
-    strcpy((pDst)->fldname, (pSrc)->fldname); \
+#define COPY_CHAR_ARRAY_FIELD(fldname)                                   \
+  do {                                                                   \
+    tstrncpy((pDst)->fldname, (pSrc)->fldname, sizeof((pDst)->fldname)); \
   } while (0)
 
 #define COPY_OBJECT_FIELD(fldname, size)                  \
