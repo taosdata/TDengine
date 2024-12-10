@@ -75,6 +75,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000133 | Invalid operation                 | 无效的或不支持的操作                   | 1. 修改确认当前操作为合法有效支持的操作，检查参数有效性 2. 如果问题还未解决，保留现场和日志，github上报issue                                       |
 | 0x80000134 | Invalid value                     | 无效值                                 | 保留现场和日志，github上报issue                                                                                                                    |
 | 0x80000135 | Invalid fqdn                      | 无效FQDN                               | 检查配置或输入的FQDN值是否正确                                                                                                                     |
+| 0x8000013C | Invalid disk id                   | 不合法的disk id                         | 建议用户检查挂载磁盘是否失效或者使用参数 diskIDCheckEnabled 来跳过磁盘检查                                                                             |
 
 
 

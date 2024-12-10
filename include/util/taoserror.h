@@ -159,6 +159,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_SOCKET_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x0139)
 #define TSDB_CODE_UNSUPPORT_OS                  TAOS_DEF_ERROR_CODE(0, 0x013A)
 #define TSDB_CODE_TIME_ERROR                    TAOS_DEF_ERROR_CODE(0, 0x013B)
+#define TSDB_CODE_INVALID_DISK_ID               TAOS_DEF_ERROR_CODE(0, 0x013C)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)

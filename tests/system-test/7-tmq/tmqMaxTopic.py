@@ -26,22 +26,6 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), True)
 
-    def modifyMaxTopics(self, tmqMaxTopicNum):
-        # single dnode
-        cfgDir = tdDnodes.dnodes[0].cfgDir
-        
-        # cluster dnodes
-        # tdDnodes[1].dataDir
-        # tdDnodes[1].logDir
-        # tdDnodes[1].cfgDir
-        
-        cfgFile = f"%s/taos.cfg"%(cfgDir)
-        shellCmd = 'echo tmqMaxTopicNum    %d >> %s'%(tmqMaxTopicNum, cfgFile)
-        tdLog.info(" shell cmd: %s"%(shellCmd))
-        os.system(shellCmd)       
-        tdDnodes.stoptaosd(1)
-        tdDnodes.starttaosd(1)
-        time.sleep(5)
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -169,8 +153,10 @@ class TDTestCase:
         # tdDnodes.starttaosd(1)
         # time.sleep(5)
         
+        alterSql = "alter all dnodes 'tmqMaxTopicNum' '22'"
+        tdLog.info("alter all dnodes 'tmqMaxTopicNum' '22'")
+        tdSql.execute(alterSql)
         newTmqMaxTopicNum = 22
-        self.modifyMaxTopics(newTmqMaxTopicNum)
 
         sqlString = "create topic %s%s as %s" %(topicNamePrefix, 'x', queryString)
         tdLog.info("create topic sql: %s"%sqlString)
@@ -190,8 +176,10 @@ class TDTestCase:
         if topicNum != newTmqMaxTopicNum:
             tdLog.exit("show topics %d not equal expect num: %d"%(topicNum, newTmqMaxTopicNum))
         
-        newTmqMaxTopicNum = 18
-        self.modifyMaxTopics(newTmqMaxTopicNum)
+        alterSql = "alter all dnodes 'tmqMaxTopicNum' '18'"
+        tdLog.info("alter all dnodes 'tmqMaxTopicNum' '18'")
+        tdSql.execute(alterSql)
+        
         
         i = 0
         sqlString = "drop topic %s%d" %(topicNamePrefix, i)
