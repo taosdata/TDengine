@@ -987,7 +987,14 @@ _end:
 }
 
 void resetStreamFillSup(SStreamFillSupporter* pFillSup) {
-  tSimpleHashClear(pFillSup->pResMap);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  SSHashObj* pNewMap = tSimpleHashInit(16, hashFn);
+  if (pNewMap != NULL) {
+    tSimpleHashCleanup(pFillSup->pResMap);
+    pFillSup->pResMap = pNewMap;
+  } else {
+    tSimpleHashClear(pFillSup->pResMap);
+  }
   pFillSup->hasDelete = false;
 }
 void resetStreamFillInfo(SStreamFillOperatorInfo* pInfo) {
@@ -1406,6 +1413,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     }
 
     pInfo->stateStore.streamStateClearExpiredState(pInfo->pState);
+    resetStreamFillInfo(pInfo);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
     goto _end;
@@ -1477,6 +1485,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
 
   if ((*ppRes) == NULL) {
     pInfo->stateStore.streamStateClearExpiredState(pInfo->pState);
+    resetStreamFillInfo(pInfo);
     setStreamOperatorCompleted(pOperator);
   }
 

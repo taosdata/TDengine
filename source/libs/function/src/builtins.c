@@ -4952,7 +4952,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .paramInfoPattern = 0,
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateSelectValue,
-    .getEnvFunc   = getSelectivityFuncEnv,
+    .getEnvFunc   = getGroupKeyFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = groupConstValueFunction,
     .finalizeFunc = groupConstValueFinalize,

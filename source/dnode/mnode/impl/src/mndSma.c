@@ -797,7 +797,7 @@ static int32_t mndGetStreamNameFromSmaName(char *streamName, char *smaName) {
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  sprintf(streamName, "%d.%s", n.acctId, n.tname);
+  snprintf(streamName, TSDB_TABLE_FNAME_LEN,"%d.%s", n.acctId, n.tname);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1222,7 +1222,7 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
 
   memcpy(rsp->dbFName, pSma->db, sizeof(pSma->db));
   memcpy(rsp->tblFName, pSma->stb, sizeof(pSma->stb));
-  strcpy(rsp->indexType, TSDB_INDEX_TYPE_SMA);
+  tstrncpy(rsp->indexType, TSDB_INDEX_TYPE_SMA, TSDB_INDEX_TYPE_LEN);
 
   SNodeList *pList = NULL;
   int32_t    extOffset = 0;
@@ -1255,8 +1255,8 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
     return TSDB_CODE_SUCCESS;
   }
 
-  strcpy(rsp->dbFName, pStb->db);
-  strcpy(rsp->tbName, pStb->name + strlen(pStb->db) + 1);
+  tstrncpy(rsp->dbFName, pStb->db, TSDB_DB_FNAME_LEN);
+  tstrncpy(rsp->tbName, pStb->name + strlen(pStb->db) + 1, TSDB_TABLE_NAME_LEN);
   rsp->suid = pStb->uid;
   rsp->version = pStb->smaVer;
   mndReleaseStb(pMnode, pStb);
@@ -1632,7 +1632,7 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
       f.bytes = pExprNode->resType.bytes;
       f.type = pExprNode->resType.type;
       f.flags = COL_SMA_ON;
-      strcpy(f.name, pExprNode->userAlias);
+      tstrncpy(f.name, pExprNode->userAlias, TSDB_COL_NAME_LEN);
       if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pCols, &f)) {
         code = terrno;
         break;
@@ -1735,7 +1735,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   }
 
   dropStbReq.igNotExists = true;
-  strncpy(dropStbReq.name, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
+  tstrncpy(dropStbReq.name, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
   dropStbUndoAction.epSet = createStreamRedoAction.epSet;
   dropStbUndoAction.acceptableCode = TSDB_CODE_MND_STB_NOT_EXIST;
   dropStbUndoAction.retryCode = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
@@ -1836,7 +1836,7 @@ static int32_t mndTSMAGenerateOutputName(const char* tsmaName, char* streamName,
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  sprintf(streamName, "%d.%s", smaName.acctId, smaName.tname);
+  snprintf(streamName, TSDB_TABLE_FNAME_LEN, "%d.%s", smaName.acctId, smaName.tname);
   snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s"TSMA_RES_STB_POSTFIX, tsmaName);
   return TSDB_CODE_SUCCESS;
 }
@@ -2486,7 +2486,7 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
       mndReleaseStb(pMnode, pStb);
       TAOS_RETURN(code);
     }
-    sprintf(streamName, "%d.%s", smaName.acctId, smaName.tname);
+    snprintf(streamName, TSDB_TABLE_FNAME_LEN, "%d.%s", smaName.acctId, smaName.tname);
     pStream = NULL;
 
     code = mndAcquireStream(pMnode, streamName, &pStream);
