@@ -84,9 +84,8 @@ TEST(osEnvTests, osSufficient) {
   ret = osTempSpaceSufficient();
   EXPECT_EQ(ret, true);
 
-  osSetSystemLocale(NULL, NULL);
-  osSetSystemLocale(NULL, NULL);
-  osSetSystemLocale("1", "2");
+  taosSetSystemLocale(NULL);
+  taosSetSystemLocale("1");
 
   osSetProcPath(1, NULL);
   osSetProcPath(0, (char **)&ret);
