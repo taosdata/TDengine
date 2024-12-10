@@ -282,13 +282,26 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   SDiskCfg cfg = {0};
   tstrncpy(cfg.dir, pItem->str, sizeof(cfg.dir));
 
-  code = taosStr2int32(level, &cfg.level);
-  TAOS_CHECK_GOTO(code, NULL, _err);
-  code = taosStr2int32(primary, &cfg.primary);
-  TAOS_CHECK_GOTO(code, NULL, _err);
-  code = taosStr2int8(disable, &cfg.disable);
-  TAOS_CHECK_GOTO(code, NULL, _err);
+  if (level == NULL || strlen(level) == 0) {
+    cfg.level = 0;
+  } else {
+    code = taosStr2int32(level, &cfg.level);
+    TAOS_CHECK_GOTO(code, NULL, _err);
+  }
 
+  if (primary == NULL || strlen(primary) == 0) {
+    cfg.primary = 1;
+  } else {
+    code = taosStr2int32(primary, &cfg.primary);
+    TAOS_CHECK_GOTO(code, NULL, _err);
+  }
+
+  if (disable == NULL || strlen(disable) == 0) {
+    cfg.disable = 0;
+  } else {
+    code = taosStr2int8(disable, &cfg.disable);
+    TAOS_CHECK_GOTO(code, NULL, _err);
+  }
   void *ret = taosArrayPush(pItem->array, &cfg);
   if (ret == NULL) {
     code = terrno;
