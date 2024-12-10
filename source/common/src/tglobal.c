@@ -21,9 +21,11 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tgrant.h"
+#include "tjson.h"
 #include "tlog.h"
 #include "tmisce.h"
 #include "tunit.h"
+
 #include "tutil.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
@@ -2042,27 +2044,32 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
   }
   uInfo("start to read config file:%s", filename);
 
-  int64_t fileSize = 0;
-  char   *buf = NULL;
-  if (taosStatFile(filename, &fileSize, NULL, NULL) < 0) {
-    if (terrno != ENOENT) {
-      code = terrno;
-      uError("failed to stat file:%s , since %s", filename, tstrerror(code));
-      TAOS_RETURN(TSDB_CODE_SUCCESS);
-    }
+  if (!taosCheckExistFile(filename)) {
     uInfo("config file:%s does not exist", filename);
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
+  int64_t fileSize = 0;
+  char   *buf = NULL;
+  if (taosStatFile(filename, &fileSize, NULL, NULL) < 0) {
+    code = terrno;
+    uError("failed to stat file:%s , since %s", filename, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
   if (pFile == NULL) {
-    uError("failed to open file:%s , since %s", filename, tstrerror(code));
     code = terrno;
+    uError("failed to open file:%s , since %s", filename, tstrerror(code));
     goto _exit;
   }
   buf = (char *)taosMemoryMalloc(fileSize + 1);
-  if (taosReadFile(pFile, buf, fileSize) != fileSize) {
-    uError("failed to read file:%s , config since %s", filename, tstrerror(code));
+  if (buf == NULL) {
     code = terrno;
+    uError("failed to malloc memory for file:%s , since %s", filename, tstrerror(code));
+    goto _exit;
+  }
+  if (taosReadFile(pFile, buf, fileSize) != fileSize) {
+    code = terrno;
+    uError("failed to read file:%s , config since %s", filename, tstrerror(code));
     goto _exit;
   }
   buf[fileSize] = 0;
@@ -2761,7 +2768,6 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
   cJSON *json = cJSON_CreateObject();
   if (json == NULL) goto _exit;
   if (cJSON_AddNumberToObject(json, "version", version) == NULL) goto _exit;
-  if (json == NULL) goto _exit;
   int sz = taosArrayGetSize(array);
 
   cJSON *cField = cJSON_CreateObject();
@@ -2802,7 +2808,7 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
       }
     }
   }
-  char *pSerialized = cJSON_Print(json);
+  char *pSerialized = tjsonToString(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
     uError("failed to serialize global config since %s", tstrerror(terrno));
@@ -2833,6 +2839,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
       cJSON  *dataDirs = cJSON_CreateArray();
       if (!cJSON_AddItemToObject(cField, item->name, dataDirs)) {
         uError("failed to serialize global config since %s", tstrerror(terrno));
+        goto _exit;
       }
       for (int j = 0; j < sz; j++) {
         SDiskCfg *disk = (SDiskCfg *)taosArrayGet(item->array, j);
@@ -2840,6 +2847,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
         if (dataDir == NULL) goto _exit;
         if (!cJSON_AddItemToArray(dataDirs, dataDir)) {
           uError("failed to serialize global config since %s", tstrerror(terrno));
+          goto _exit;
         }
         if (cJSON_AddStringToObject(dataDir, "dir", disk->dir) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "level", disk->level) == NULL) goto _exit;
@@ -2885,7 +2893,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
       }
     }
   }
-  char *pSerialized = cJSON_Print(json);
+  char *pSerialized = tjsonToString(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
     uError("failed to serialize local config since %s", tstrerror(terrno));
