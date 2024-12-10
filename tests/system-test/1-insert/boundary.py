@@ -120,14 +120,14 @@ class TDTestCase:
     def username_length_check(self):
         username_length = randint(1,self.username_length_boundary-1)
         for username in [tdCom.get_long_name(username_length),tdCom.get_long_name(self.username_length_boundary)]:
-            tdSql.execute(f'create user {username} pass "123"')
+            tdSql.execute(f'create user {username} pass "test123@#$"')
             tdSql.query('show users')
             for user in tdSql.queryResult:
                 if user[0].lower() != 'root':
                     tdSql.checkEqual(user[0],username)
             tdSql.execute(f'drop user {username}')
         username = tdCom.get_long_name(self.username_length_boundary+1)
-        tdSql.error(f'create user {username} pass "123"')
+        tdSql.error(f'create user {username} pass "test123@#$"')
         if "Name or password too long" in tdSql.error_info:
             tdLog.info("error info is true!")
         else:

@@ -210,34 +210,34 @@ class TDTestCase:
 
     def create_user_err(self):
         sqls = [
-            "create users u1 pass 'u1passwd' ",
-            "create user '' pass 'u1passwd' ",
-            "create user  pass 'u1passwd' ",
-            "create user u1 pass u1passwd ",
-            "create user u1 password 'u1passwd' ",
-            "create user u1 pass u1passwd ",
+            "create users u1 pass 'u1Passwd' ",
+            "create user '' pass 'u1Passwd' ",
+            "create user  pass 'u1Passwd' ",
+            "create user u1 pass u1Passwd ",
+            "create user u1 password 'u1Passwd' ",
+            "create user u1 pass u1Passwd ",
             "create user u1 pass '' ",
             "create user u1 pass '   ' ",
             "create user u1 pass  ",
-            "create user u1 u2 pass 'u1passwd' 'u2passwd' ",
-            "create user u1 u2 pass 'u1passwd', 'u2passwd' ",
-            "create user u1, u2 pass 'u1passwd', 'u2passwd' ",
-            "create user u1, u2 pass 'u1passwd'  'u2passwd' ",
+            "create user u1 u2 pass 'u1Passwd' 'u2passwd' ",
+            "create user u1 u2 pass 'u1Passwd', 'u2passwd' ",
+            "create user u1, u2 pass 'u1Passwd', 'u2passwd' ",
+            "create user u1, u2 pass 'u1Passwd'  'u2passwd' ",
             # length of user_name must <= 23
-            "create user u12345678901234567890123 pass 'u1passwd' " ,
+            "create user u12345678901234567890123 pass 'u1Passwd' " ,
             # length of passwd must <= 128
             "create user u1 pass 'u12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678' " ,
             # password must have not " ' ~ ` \
-            "create user u1 pass 'u1passwd\\' " ,
-            "create user u1 pass 'u1passwd~' " ,
-            "create user u1 pass 'u1passwd\"' " ,
-            "create user u1 pass 'u1passwd\'' " ,
-            "create user u1 pass 'u1passwd`' " ,
+            "create user u1 pass 'u1Passwd\\' " ,
+            "create user u1 pass 'u1Passwd~' " ,
+            "create user u1 pass 'u1Passwd\"' " ,
+            "create user u1 pass 'u1Passwd\'' " ,
+            "create user u1 pass 'u1Passwd`' " ,
             # must after create a user named u1
-            "create user u1 pass 'u1passwd' " ,
+            "create user u1 pass 'u1Passwd' " ,
         ]
 
-        tdSql.execute("create user u1 pass 'u1passwd' ")
+        tdSql.execute("create user u1 pass 'u1Passwd' ")
         for sql in sqls:
             tdSql.error(sql)
 

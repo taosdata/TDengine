@@ -13,9 +13,9 @@ class TDTestCase:
         self.conn = conn
         tdSql.init(conn.cursor(), False)
         self.passwd = {'root':'taosdata',
-                       'test':'test'}
+                       'test':'test123@#$'}
     def prepare_user(self):
-        tdSql.execute(f"create user test pass 'test' sysinfo 1")
+        tdSql.execute(f"create user test pass 'test123@#$' sysinfo 1")
 
     def test_connect_user(self, uname):
         try:
@@ -31,7 +31,7 @@ class TDTestCase:
     def run(self):
         self.prepare_user()
         self.test_connect_user('root')
-        self.test_connect_user('test')
+        self.test_connect_user('test123@#$')
     
     def stop(self):
         tdSql.close()
