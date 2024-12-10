@@ -1450,7 +1450,7 @@ TEST(columnTest, json_column_arith_op) {
   SArray *tags = taosArrayInit(1, sizeof(STagVal));
   ASSERT_NE(tags, nullptr);
   STag   *row = NULL;
-  int32_t code = parseJsontoTagData(rightv, tags, &row, NULL);
+  int32_t code = parseJsontoTagData(rightv, tags, &row, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   const int32_t len = 8;
@@ -1606,7 +1606,7 @@ void *prepareNchar(char *rightData) {
   int32_t inputLen = strlen(rightData);
 
   char *t = (char *)taosMemoryCalloc(1, (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-  taosMbsToUcs4(rightData, inputLen, (TdUcs4 *)varDataVal(t), inputLen * TSDB_NCHAR_SIZE, &len);
+  taosMbsToUcs4(rightData, inputLen, (TdUcs4 *)varDataVal(t), inputLen * TSDB_NCHAR_SIZE, &len, NULL);
   varDataSetLen(t, len);
   return t;
 }
@@ -1623,7 +1623,7 @@ TEST(columnTest, json_column_logic_op) {
   SArray *tags = taosArrayInit(1, sizeof(STagVal));
   ASSERT_NE(tags, nullptr);
   STag   *row = NULL;
-  code = parseJsontoTagData(rightv, tags, &row, NULL);
+  code = parseJsontoTagData(rightv, tags, &row, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   const int32_t len0 = 6;

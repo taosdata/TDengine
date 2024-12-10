@@ -71,12 +71,31 @@ add_test(
     COMMAND osTimeTests
 )
 
+
+if(TD_LINUX)
+
 add_executable(osAtomicTests "osAtomicTests.cpp")
 target_link_libraries(osAtomicTests os util gtest_main)
 add_test(
     NAME osAtomicTests
     COMMAND osAtomicTests
 )
+
+add_executable(osDirTests "osDirTests.cpp")
+target_link_libraries(osDirTests os util gtest_main)
+add_test(
+    NAME osDirTests
+    COMMAND osDirTests
+)
+
+add_executable(osEnvTests "osEnvTests.cpp")
+target_link_libraries(osEnvTests os util gtest_main)
+add_test(
+    NAME osEnvTests
+    COMMAND osEnvTests
+)
+
+endif()
 
 add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
 target_link_libraries(osSemaphoreTests os util gtest_main)

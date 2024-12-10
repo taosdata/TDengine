@@ -154,7 +154,7 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
         if (val == NULL) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
-        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, NULL);
         if (len < 0) {
           TAOS_CHECK_GOTO(len, NULL, _exception);
         }
@@ -238,7 +238,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
         if (val == NULL) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
-        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, NULL);
         if (len < 0) {
           TAOS_CHECK_GOTO(len, NULL, _exception);
         }
