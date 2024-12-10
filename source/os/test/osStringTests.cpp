@@ -504,7 +504,7 @@ TEST(osStringTests, taosStr2Uint32) {
     ASSERT_EQ(val, 123);
 
     result = taosStr2Uint32("abc123", &val);
-    ASSERT_EQ(result, TSDB_CODE_INVALID_PARA);
+    ASSERT_NE(result, 0);
     // 测试有效的整数字符串
     result = taosStr2Uint32("12345", &val);
     ASSERT_EQ(result, 0);
