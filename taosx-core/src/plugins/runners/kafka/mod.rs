@@ -440,16 +440,6 @@ async fn execute(
         let schema = schema.clone();
         let notify = notify.clone();
 
-        // ipc writer stream
-        let stream = std::net::TcpStream::connect(ipc_server.as_str())?;
-        set_tcp_keepalive(&stream)?;
-        stream.set_read_timeout(None)?;
-
-        // ack reader stream
-        let ack_stream = stream.try_clone()?;
-        set_tcp_keepalive(&ack_stream)?;
-        ack_stream.set_read_timeout(None)?;
-
         // multi producer(KafkaConsumer) and single consumer(IPC Writer)
         let (tx, rx) =
             flume::bounded(std::thread::available_parallelism().map_or_else(|_| 8, |n| n.get()));
@@ -473,6 +463,16 @@ async fn execute(
                 Ok(ExitStatus::Finished)
             });
         } else {
+            // ipc writer stream
+            let stream = std::net::TcpStream::connect(ipc_server.as_str())?;
+            set_tcp_keepalive(&stream)?;
+            stream.set_read_timeout(None)?;
+
+            // ack reader stream
+            let ack_stream = stream.try_clone()?;
+            set_tcp_keepalive(&ack_stream)?;
+            ack_stream.set_read_timeout(None)?;
+
             // receive ACK from IPC
             consumers.spawn_blocking(move || {
                 let _entered = ack_span.entered();
