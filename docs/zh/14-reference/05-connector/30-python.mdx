@@ -9,25 +9,25 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "./_request_id.mdx";
 
-`taospy` 是 TDengine 数据库面向 Python 语言提供的官方连接器，连接器提供对外提供了对数据库写入、查询、订阅等多种操作接口。
+`taospy` 是 TDengine 数据库面向 Python 语言提供的官方连接器，连接器对外提供对数据库写入、查询、订阅等多种访问接口。
 安装命令：
 ``` bash
 pip3 install taospy
 ```
 
-连接器对外开源，源码托管在 Github [taos-connector-python](https://github.com/taosdata/taos-connector-python) 仓库。
+连接器代码对外开源，源码托管在 Github [taos-connector-python](https://github.com/taosdata/taos-connector-python) 仓库。
 
 ## 连接方式
-`taospy`主要提供三种形式的连接器。一般我们推荐使用 **WebSocket 连接**。
-- **原生连接**，对应 `taospy` 包的 `taos` 模块。通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。
-- **REST 连接**，对应 `taospy` 包的 `taosrest` 模块。通过 taosAdapter 提供的 HTTP 接口连接 TDengine 实例，不支持 schemaless 和数据订阅等特性。
-- **WebSocket 连接**，对应 `taos-ws-py` 包，可以选装。通过 taosAdapter 提供的 WebSocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。
+`taospy`提供三种连接方式，我们推荐使用 **WebSocket 连接**。
+- **原生连接**，Python 连接器加载 TDengine 客户端驱动程序(libtaos.so/taos.dll)，直接连接 TDengine 实例，特点性能高，速度快。功能上支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。对应 `taospy` 包的 `taos` 模块。
+- **REST 连接**，Python 连接器通过 `taosAdapter` 提供的 HTTP 接口连接 TDengine 实例，特点依赖小，不需要安装 TDengine 客户端驱动。功能上不支持 schemaless 和数据订阅等特性。对应 `taospy` 包的 `taosrest` 模块。
+- **WebSocket 连接**，Python 连接器通过 `taosAdapter` 提供的 WebSocket 接口连接 TDengine 实例，特点是兼具前两种连接的优势， 即性能高又依赖小。功能上 WebSocket 连接实现功能集合和原生连接有少量不同。对应 `taos-ws-py` 包，可以选装。
 
 连接方式的详细介绍请参考：[连接方式](../../../develop/connect/#连接方式)
 
 除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
 
-使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
+使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 `taosAdapter` 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
 
 ## 支持的平台
 
