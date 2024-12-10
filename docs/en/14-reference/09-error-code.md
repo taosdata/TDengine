@@ -72,6 +72,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80000133 | Invalid operation                 | Invalid or unsupported operation                             | 1. Modify to confirm the current operation is legal and supported, check parameter validity 2. If the problem persists, preserve the scene and logs, report issue on github |
 | 0x80000134 | Invalid value                     | Invalid value                                                | Preserve the scene and logs, report issue on github          |
 | 0x80000135 | Invalid fqdn                      | Invalid FQDN                                                 | Check if the configured or input FQDN value is correct       |
+| 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
+
 
 ## tsc
 

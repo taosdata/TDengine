@@ -1947,6 +1947,8 @@ _exit:
 }
 
 int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   cJSON *pRoot = cJSON_Parse(buf);
   if (pRoot == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1954,8 +1956,8 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
   if (isGlobal) {
     cJSON *pItem = cJSON_GetObjectItem(pRoot, "version");
     if (pItem == NULL) {
-      cJSON_Delete(pRoot);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
     }
     tsdmConfigVersion = pItem->valueint;
   }
@@ -1963,9 +1965,8 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
   int32_t sz = taosArrayGetSize(array);
   cJSON  *configs = cJSON_GetObjectItem(pRoot, "configs");
   if (configs == NULL) {
-    uError("failed to get configs from json, since %s", cJSON_GetErrorPtr());
-    cJSON_Delete(pRoot);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
   for (int i = 0; i < sz; i++) {
     SConfigItem *pItem = (SConfigItem *)taosArrayGet(array, i);
@@ -1982,15 +1983,31 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
       // check disk id for each dir
       for (int j = 0; j < sz; j++) {
         cJSON *diskCfgJson = cJSON_GetArrayItem(pJson, j);
+        if (diskCfgJson == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _exit;
+        }
+
         filed = cJSON_GetObjectItem(diskCfgJson, "dir");
+        if (filed == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _exit;
+        }
+
         char *dir = cJSON_GetStringValue(filed);
         filed = cJSON_GetObjectItem(diskCfgJson, "disk_id");
+        if (filed == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _exit;
+        }
+
         int64_t actDiskID = 0;
-        int64_t expDiskID = atoll(cJSON_GetStringValue(filed));
+        int64_t expDiskID = taosStr2Int64(cJSON_GetStringValue(filed), NULL, 10);
         if (!taosCheckFileDiskID(dir, &actDiskID, expDiskID)) {
           uError("failed to check disk id for dir:%s, actDiskID%" PRId64 ", expDiskID%" PRId64, dir, actDiskID,
                  expDiskID);
-          return TSDB_CODE_FAILED;
+          code = TSDB_CODE_INVALID_DISK_ID;
+          goto _exit;
         }
       }
       continue;
@@ -2020,13 +2037,19 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
         case CFG_DTYPE_TIMEZONE:
           taosMemoryFree(pItem->str);
           pItem->str = taosStrdup(pJson->valuestring);
+          if (pItem->str == NULL) {
+            code = terrno;
+          }
           break;
       }
     }
   }
 _exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to deserialize config since %s", tstrerror(code));
+  }
   cJSON_Delete(pRoot);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t readCfgFile(const char *path, bool isGlobal) {

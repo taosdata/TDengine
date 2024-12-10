@@ -1636,6 +1636,9 @@ int32_t tDeserializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->forceReadConfig));
   if (pReq->forceReadConfig) {
     pReq->array = taosArrayInit(128, sizeof(SConfigItem));
+    if (pReq->array == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
     TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pReq->array));
   }
   tEndDecode(&decoder);
