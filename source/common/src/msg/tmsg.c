@@ -2071,7 +2071,7 @@ int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg
     }
     memcpy(pNew->pIpRanges, pOld->pIpRanges, sz);
   }
-_return:
+
   if (code < 0) {
     tFreeSUpdateIpWhiteReq(pClone);
     taosMemoryFree(pClone);
@@ -5860,6 +5860,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
       pRsp->pSchemaExt = NULL;
     }
   }
+  pRsp->pColRefs = NULL;
 
   return 0;
 }
@@ -5969,6 +5970,7 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
     if (taosArrayPush(pRsp->pMetaRsp, &tableMetaRsp) == NULL) {
       taosMemoryFree(tableMetaRsp.pSchemas);
       taosMemoryFree(tableMetaRsp.pSchemaExt);
+      taosMemoryFree(tableMetaRsp.pColRefs);
       TAOS_CHECK_EXIT(terrno);
     }
   }
@@ -6024,6 +6026,7 @@ void tFreeSTableMetaRsp(void *pRsp) {
 
   taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemas);
   taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemaExt);
+  taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pColRefs);
 }
 
 void tFreeSTableIndexRsp(void *info) {
@@ -8082,9 +8085,9 @@ int32_t tSerializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpdat
     SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pGroup->vgId));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pGroup->dbUid));
-    for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
-      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pGroup->members[i].dnodeId));
-      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pGroup->members[i].token));
+    for (int j = 0; j < TSDB_ARB_GROUP_MEMBER_NUM; j++) {
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pGroup->members[j].dnodeId));
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pGroup->members[j].token));
     }
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pGroup->isSync));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pGroup->assignedLeader.dnodeId));
@@ -8128,12 +8131,12 @@ int32_t tDeserializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpd
     SMArbUpdateGroup group = {0};
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &group.vgId));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &group.dbUid));
-    for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
-      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &group.members[i].dnodeId));
-      if ((group.members[i].token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE)) == NULL) {
+    for (int j = 0; j < TSDB_ARB_GROUP_MEMBER_NUM; j++) {
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &group.members[j].dnodeId));
+      if ((group.members[j].token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE)) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
-      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, group.members[i].token));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, group.members[j].token));
     }
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &group.isSync));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &group.assignedLeader.dnodeId));
@@ -8173,8 +8176,8 @@ void tFreeSMArbUpdateGroupBatchReq(SMArbUpdateGroupBatchReq *pReq) {
   int32_t sz = taosArrayGetSize(pReq->updateArray);
   for (int32_t i = 0; i < sz; i++) {
     SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
-    for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
-      taosMemoryFreeClear(pGroup->members[i].token);
+    for (int j = 0; j < TSDB_ARB_GROUP_MEMBER_NUM; j++) {
+      taosMemoryFreeClear(pGroup->members[j].token);
     }
     taosMemoryFreeClear(pGroup->assignedLeader.token);
   }
@@ -9986,6 +9989,55 @@ _exit:
   return code;
 }
 
+int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pWrapper->nCols));
+  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pWrapper->version));
+  for (int32_t i = 0; i < pWrapper->nCols; i++) {
+    SColRef *p = &pWrapper->pColRef[i];
+    TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->hasRef));
+    if (p->hasRef) {
+      TAOS_CHECK_EXIT(tEncodeI16v(pCoder, p->id));
+      TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refColName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refTableName));
+    }
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->nCols));
+  TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->version));
+
+  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColRef));
+  if (pWrapper->pColRef == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  for (int i = 0; i < pWrapper->nCols; i++) {
+    SColRef *p = &pWrapper->pColRef[i];
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
+    if (p->hasRef) {
+      TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &p->refColName));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &p->refTableName));
+    }
+  }
+
+_exit:
+  if (code) {
+    taosMemoryFree(pWrapper->pColRef);
+  }
+  return code;
+}
+
 int32_t tEncodeSColCmprWrapper(SEncoder *pCoder, const SColCmprWrapper *pWrapper) {
   int32_t code = 0;
   int32_t lino;
@@ -10108,7 +10160,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeCStr(pCoder, pReq->comment));
   }
 
-  if (pReq->type == TSDB_CHILD_TABLE) {
+  if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tEncodeCStr(pCoder, pReq->ctb.stbName));
     TAOS_CHECK_EXIT(tEncodeU8(pCoder, pReq->ctb.tagNum));
     TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->ctb.suid));
@@ -10119,7 +10171,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
       char *name = taosArrayGet(pReq->ctb.tagName, i);
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, name));
     }
-  } else if (pReq->type == TSDB_NORMAL_TABLE) {
+  } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow));
   } else {
     return TSDB_CODE_INVALID_MSG;
@@ -10133,6 +10185,9 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   // Encode Column Options: encode compress level
   if (pReq->type == TSDB_SUPER_TABLE || pReq->type == TSDB_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
+  }
+  if (pReq->type == TSDB_VIRTUAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_CHECK_EXIT(tEncodeSColRefWrapper(pCoder, &pReq->colRef));
   }
 
   tEndEncode(pCoder);
@@ -10161,7 +10216,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(pCoder, pReq->comment));
   }
 
-  if (pReq->type == TSDB_CHILD_TABLE) {
+  if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pReq->ctb.stbName));
     TAOS_CHECK_EXIT(tDecodeU8(pCoder, &pReq->ctb.tagNum));
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->ctb.suid));
@@ -10181,7 +10236,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
         TAOS_CHECK_EXIT(terrno);
       }
     }
-  } else if (pReq->type == TSDB_NORMAL_TABLE) {
+  } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_TABLE) {
     TAOS_CHECK_EXIT(tDecodeSSchemaWrapperEx(pCoder, &pReq->ntb.schemaRow));
   } else {
     return TSDB_CODE_INVALID_MSG;
@@ -10193,10 +10248,16 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     if (pReq->sqlLen > 0) {
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pCoder, (void **)&pReq->sql, NULL));
     }
-    if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_SUPER_TABLE)
+    if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_SUPER_TABLE) {
       if (!tDecodeIsEnd(pCoder)) {
         TAOS_CHECK_EXIT(tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr));
       }
+    } else if (pReq->type == TSDB_VIRTUAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      if (!tDecodeIsEnd(pCoder)) {
+        TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(pCoder, &pReq->colRef));
+      }
+    }
+
   }
 
   tEndDecode(pCoder);
@@ -10207,28 +10268,21 @@ _exit:
 void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
   if (pReq == NULL) return;
 
+  // TODO(smj) : free virtual table stuff
   if (flags & TSDB_MSG_FLG_ENCODE) {
     // TODO
   } else if (flags & TSDB_MSG_FLG_DECODE) {
-    if (pReq->comment) {
-      pReq->comment = NULL;
-      taosMemoryFree(pReq->comment);
-    }
+    taosMemoryFreeClear(pReq->comment);
 
     if (pReq->type == TSDB_CHILD_TABLE) {
-      if (pReq->ctb.tagName) taosArrayDestroy(pReq->ctb.tagName);
+      taosArrayDestroy(pReq->ctb.tagName);
     } else if (pReq->type == TSDB_NORMAL_TABLE) {
-      if (pReq->ntb.schemaRow.pSchema) taosMemoryFree(pReq->ntb.schemaRow.pSchema);
+      taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
     }
   }
 
-  if (pReq->colCmpr.pColCmpr) taosMemoryFree(pReq->colCmpr.pColCmpr);
-  pReq->colCmpr.pColCmpr = NULL;
-
-  if (pReq->sql != NULL) {
-    taosMemoryFree(pReq->sql);
-  }
-  pReq->sql = NULL;
+  taosMemoryFreeClear(pReq->colCmpr.pColCmpr);
+  taosMemoryFreeClear(pReq->sql);
 }
 
 int tEncodeSVCreateTbBatchReq(SEncoder *pCoder, const SVCreateTbBatchReq *pReq) {
@@ -10321,6 +10375,7 @@ void tFreeSVCreateTbRsp(void *param) {
   if (pRsp->pMeta) {
     taosMemoryFree(pRsp->pMeta->pSchemas);
     taosMemoryFree(pRsp->pMeta->pSchemaExt);
+    taosMemoryFree(pRsp->pMeta->pColRefs);
     taosMemoryFree(pRsp->pMeta);
   }
 }
@@ -10636,6 +10691,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
       TAOS_CHECK_EXIT(tDecodeU32(pDecoder, &pReq->compress));
+      break;
     default:
       break;
   }
@@ -10768,6 +10824,7 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
   if (pRsp->pMeta) {
     taosMemoryFree(pRsp->pMeta->pSchemas);
     taosMemoryFree(pRsp->pMeta->pSchemaExt);
+    taosMemoryFree(pRsp->pMeta->pColRefs);
     taosMemoryFree(pRsp->pMeta);
   }
 }
@@ -10819,6 +10876,7 @@ void tFreeSMCreateStbRsp(SMCreateStbRsp *pRsp) {
   if (pRsp->pMeta) {
     taosMemoryFree(pRsp->pMeta->pSchemas);
     taosMemoryFree(pRsp->pMeta->pSchemaExt);
+    taosMemoryFree(pRsp->pMeta->pColRefs);
     taosMemoryFree(pRsp->pMeta);
   }
 }
