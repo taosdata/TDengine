@@ -1,11 +1,10 @@
-name: publish site
+name: create-test-cases-docs
 on: # 在什么时候触发工作流
   push: # 在从本地main分支被push到GitHub仓库时
     branches:
       - main
-  pull_request: # 在main分支合并别人提的pr时
-    branches:
-      - main
+    paths:
+      - 'tests/e2e/**/*.py'
   workflow_dispatch:
 
 jobs: # 工作流的具体内容
