@@ -432,7 +432,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       uError("p->nTag == 0");
       goto end;
     }
-    parseTagDatatoJson(pTag, &pJson);
+    parseTagDatatoJson(pTag, &pJson, NULL);
     RAW_NULL_CHECK(pJson);
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
@@ -745,7 +745,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             uError("processAlterTable isJson false");
             goto end;
           }
-          parseTagDatatoJson(vAlterTbReq.pTagVal, &buf);
+          parseTagDatatoJson(vAlterTbReq.pTagVal, &buf, NULL);
           if (buf == NULL) {
             uError("parseTagDatatoJson failed, buf == NULL");
             goto end;
