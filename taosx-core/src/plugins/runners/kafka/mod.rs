@@ -461,17 +461,21 @@ async fn execute(
 
         let (ack_tx, ack_rx) = flume::bounded(0);
 
-        // receive ACK from IPC
-        consumers.spawn_blocking(move || {
-            let _entered = ack_span.entered();
-            if unsafe {crate::global::DRY_RUN} {
-                loop {
-                    if ack_tx.send(LushAck::ok()).is_err() {
-                        break
+        if unsafe { crate::global::DRY_RUN } {
+            consumers.spawn_blocking(move || {
+                let _entered = ack_span.entered();
+                while let Ok(_) = rx.recv() {
+                    if let Err(err) = ack_tx.send(LushAck::ok()) {
+                        tracing::error!("Kafka ack send error: {err:#}");
+                        break;
                     }
-                    ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 }
-            } else {
+                Ok(ExitStatus::Finished)
+            });
+        } else {
+            // receive ACK from IPC
+            consumers.spawn_blocking(move || {
+                let _entered = ack_span.entered();
                 let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
                 for ack in ack_reader {
                     ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -487,70 +491,66 @@ async fn execute(
                     ack_tx.send(ack).unwrap();
                 }
                 tracing::info!("Kafka ACK reader finished");
-            }
-            Ok(ExitStatus::Finished)
-        });
-        // IPC Writer
-        let schema_clone = schema.clone();
-        let ipc_span = tracing::info_span!("kafka_ipc_writer", kafka.consumer.id = idx);
-        // polling from kafka and send to ipc writer
-        consumers.spawn_blocking(move || {
-            let _entered = ipc_span.entered();
-            let mut writer = StreamWriter::try_new(stream, &schema_clone)?;
+                Ok(ExitStatus::Finished)
+            });
+            // IPC Writer
+            let schema_clone = schema.clone();
+            let ipc_span = tracing::info_span!("kafka_ipc_writer", kafka.consumer.id = idx);
+            // polling from kafka and send to ipc writer
+            consumers.spawn_blocking(move || {
+                let _entered = ipc_span.entered();
+                let mut writer = StreamWriter::try_new(stream, &schema_clone)?;
 
-            let mut row_count = 0;
-            let mut batches = 0;
-            let mut backoff = 0;
-            while let Ok(batch) = rx.recv() {
-                loop {
-                    let ack = ack_num.load(std::sync::atomic::Ordering::SeqCst);
-                    if batches - ack > max_wait_ack {
-                        if tracing::enabled!(tracing::Level::TRACE) {
-                            tracing::debug!(
-                                ack = ack,
-                                backoff,
-                                batches,
-                                "Kafka IPC Writer ack not catch up, wait for ack"
-                            );
-                        } else if backoff > 0 {
-                            tracing::debug!(
-                                ack = ack,
-                                backoff,
-                                batches,
-                                "Kafka IPC Writer ack not catch up, wait for ack"
-                            );
+                let mut row_count = 0;
+                let mut batches = 0;
+                let mut backoff = 0;
+                while let Ok(batch) = rx.recv() {
+                    loop {
+                        let ack = ack_num.load(std::sync::atomic::Ordering::SeqCst);
+                        if batches - ack > max_wait_ack {
+                            if tracing::enabled!(tracing::Level::TRACE) {
+                                tracing::debug!(
+                                    ack = ack,
+                                    backoff,
+                                    batches,
+                                    "Kafka IPC Writer ack not catch up, wait for ack"
+                                );
+                            } else if backoff > 0 {
+                                tracing::debug!(
+                                    ack = ack,
+                                    backoff,
+                                    batches,
+                                    "Kafka IPC Writer ack not catch up, wait for ack"
+                                );
+                            }
+                            backoff += 1;
+                            std::thread::sleep(Duration::from_millis(backoff * 100));
+                            continue;
+                        } else {
+                            backoff = 0;
+                            break;
                         }
-                        backoff += 1;
-                        std::thread::sleep(Duration::from_millis(backoff * 100));
-                        continue;
-                    } else {
-                        backoff = 0;
-                        break;
                     }
-                }
-                if !unsafe { crate::global::DRY_RUN } {
                     writer.write(&batch)?;
-                }
-                row_count += batch.num_rows();
-                tracing::trace!(
-                    batches,
-                    rows = row_count,
-                    "Kafka IPC Writer send {} rows",
-                    batch.num_rows()
-                );
+                    row_count += batch.num_rows();
+                    tracing::trace!(
+                        batches,
+                        rows = row_count,
+                        "Kafka IPC Writer send {} rows",
+                        batch.num_rows()
+                    );
 
-                batches += 1;
-            }
-            if !unsafe { crate::global::DRY_RUN } {
+                    batches += 1;
+                }
                 writer.finish()?;
-            }
-            tracing::info!(
-                send.batches = batches,
-                send.records = row_count,
-                "Kafka IPC Writer finished, waiting for persisting"
-            );
-            Ok(ExitStatus::Finished)
-        });
+                tracing::info!(
+                    send.batches = batches,
+                    send.records = row_count,
+                    "Kafka IPC Writer finished, waiting for persisting"
+                );
+                Ok(ExitStatus::Finished)
+            });
+        }
 
         let metrics = metrics_arc.clone();
         consumers.spawn(

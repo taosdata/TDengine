@@ -10,7 +10,6 @@
 
 use std::{
     borrow::{Borrow, Cow},
-    hash::{Hash, Hasher},
     ops::Range,
     str::FromStr,
     sync::{Arc, OnceLock},
