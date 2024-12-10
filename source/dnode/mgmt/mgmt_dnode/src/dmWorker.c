@@ -51,10 +51,7 @@ static void *dmConfigThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-config");
-
   int32_t upTimeCount = 0;
-  int64_t upTime = 0;
-
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped || tsConfigInited) break;
@@ -64,15 +61,8 @@ static void *dmConfigThreadFp(void *param) {
     float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
       dmSendConfigReq(pMgmt);
-      lastTime = curTime;
-
-      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
-        upTime = taosGetOsUptime() - tsDndStartOsUptime;
-        tsDndUpTime = TMAX(tsDndUpTime, upTime);
-      }
     }
   }
-
   return NULL;
 }
 
