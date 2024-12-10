@@ -1287,6 +1287,7 @@ export default {
       superconfig: "4. 映射",
       target: "目标超级表",
       createstb: "创建超级表",
+      templatestb: "创建模版",
       payload: "负载格式",
       upload: "上传样本数据",
       col_select: "请选择列",

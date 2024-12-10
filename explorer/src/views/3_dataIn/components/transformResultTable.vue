@@ -101,7 +101,7 @@ export default {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       MongoDBDefaultCols: ["value"],
-      mappingCol: "SubTableName",
+      mappingCol: ["SubTableName", "SuperTableName"],
       defaultHeight:510,
       drawer: false
     };
@@ -188,11 +188,13 @@ export default {
       this.columns = columns;
       this.totalCount = columns.length;
       if (this.$store.state.app.resultTbTitle == 'mappingResTb') {
-        const index = this.columns.indexOf(this.mappingCol);
-        if (index > 0) {
-          this.columns.splice(index, 1);
-          this.columns.unshift(this.mappingCol);
-        }
+        this.mappingCol.forEach(item => {
+          const index = this.columns.indexOf(item);
+          if (index > 0) {
+            this.columns.splice(index, 1);
+            this.columns.unshift(item);
+          }
+        })
       }
       this.tableData = data.slice(0,this.limitOffset);
 

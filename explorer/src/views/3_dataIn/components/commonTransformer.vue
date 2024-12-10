@@ -394,13 +394,28 @@
               <template slot="content">
                 <span v-html="$t('communityTip')"></span>
               </template>
+              <el-dropdown
+                v-if="$store.state.app.supportTopicBody" 
+                size="small" 
+                @command="createStable"
+                >
+                <el-button size="small" type="primary" plain>
+                  {{ $t('datasource.transformer.createstb') }}
+                  <i class="el-icon-arrow-down el-icon--right"></i>
+                </el-button>
+                <el-dropdown-menu slot="dropdown">
+                  <el-dropdown-item command="sqlCreate">{{ $t('datasource.transformer.createstb') }}</el-dropdown-item>
+                  <el-dropdown-item command="templateCreate">{{ $t('datasource.transformer.templatestb') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </el-dropdown>
               <el-button
+                v-else
                 type="primary"
                 class="btn-icon-small"
                 size="small"
                 icon="el-icon-plus"
                 plain
-                @click="createStable"
+                @click="createStable('sqlCreate')"
                 :disabled="$store.state.app.currentDBName == '' || columnsArr.length === 0 || $COMMUNITY"
               >
                 {{ $t("datasource.transformer.createstb") }}
@@ -621,7 +636,7 @@
         :close-on-click-modal="false"
       >
         <CreateSTB ref="createstb" 
-          :isTemplateCreate="$store.state.app.supportTopicBody"
+          :activeType="activeType"
           @close="closeDialog"
           @create="createST"
           @preview="previewStable"
@@ -838,7 +853,8 @@ export default {
       checkedProperties: [],
       requesting: false,
       refreshKey: 0,
-      componentKey: 0
+      componentKey: 0,
+      activeType: '',
     };
   },
   computed: {
@@ -1938,10 +1954,10 @@ export default {
         
         // 预览映射结果table数据
         let resultTableData = outputTBData.map(item => {
-          item.SuperTableNmae = item['__using__']
           if (this.$store.state.app.currentDBType == 'mqtt') {
-           item.SubTableName = item['__tbname__'];
+            item.SuperTableName = item['__using__']
           }
+          item.SubTableName = item['__tbname__'];
           const { __using__, __tbname__, ...rest } = item;
           return rest;
         });
@@ -2188,7 +2204,7 @@ export default {
         console.log(error);
       }
     },
-    createStable() {
+    createStable(command) {
       if (!this.$store.state.app.currentDBName) {
         this.$store.commit("app/SET_CREATESTWITHOUT_DB", 1);
         return;
@@ -2200,6 +2216,7 @@ export default {
         this.$refs.extract[this.$refs.extract.length - 1].submitExtract(true);
       }
 
+      this.activeType = command
       this.showCreateDialog = true;
       this.componentKey ++
     },

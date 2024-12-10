@@ -1502,6 +1502,7 @@ export default {
       superconfig: "4. Mapping",
       target: "Target Super Table",
       createstb: "Create STable",
+      templatestb: "Create Template",
       payload: "Payload Format",
       upload: "Upload Sample Data",
       col_select: "Please select the column",

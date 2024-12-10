@@ -1,17 +1,5 @@
 <template>
   <div class="create-stb">
-    <el-select v-model="activeType" size="small" style="margin-bottom: 18px;">
-      <el-option
-        label="sql 创建"
-        value="sqlCreate"
-      />
-      <el-option
-        label="模版创建"
-        value="templateCreate"
-        :disabled="!isTemplateCreate"
-      />
-    </el-select>
-
     <el-form :model="stable_form" :rules="rules"  ref="form" label-position="left" label-width="150px">
       <el-form-item prop="name" class="name_input">
         <template slot="label">
@@ -300,53 +288,28 @@ export default {
       },
       activeNames: ["1", "2"],
       VariableTableColumnType,
-      activeType: 'sqlCreate',
+      // activeType: 'sqlCreate',
       templateDataType: []
     };
   },
   props: {
-    isTemplateCreate: {
-      type: Boolean,
-      default: false
+    activeType: {
+      type: String,
+      default: ''
     }
   },
   mixins: [VersionMixin],
   watch: {
-    "$store.state.app.stbDefaultColumns": {
-      handler() {
-        this.initColumns()
-      },
-      immediate: true,
-      deep: true,
-    },
     activeType: {
       handler(type) {
         if (type == 'templateCreate') {
           // 模版创建初始值UI
-          const column_item = {
-            type: "TIMESTAMP", 
-            field: "ts", 
-            value: "",
-            length:8, 
-            primaryKey: false 
-          }
-          this.stable_form.name =''
-          this.stable_form.columns = [].concat(column_item, deepClone(this.column_item))
-          this.stable_form.tags = [].concat(deepClone(this.column_item))
-          
-          let arr = this.$store.state.app.stbDefaultColumns;
-          arr = arr.map(item => {
-            return {
-              label: `\${${item.name}}`,
-              value: `\${${item.name}}`
-            }
-          })
-          // 动态获取字段{label: 'data_type','value': 'data_type'}
-          this.templateDataType = arr
+          this.initTemplateColumns()
         } else {
           this.initColumns()
         }
-      }
+      },
+      immediate: true,
     }
   },
   mounted() {
@@ -374,6 +337,35 @@ export default {
         this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
         this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
       }
+    },
+    initTemplateColumns() {
+      const column_item = {
+        type: "TIMESTAMP", 
+        field: "ts", 
+        value: "",
+        length:8, 
+        primaryKey: false 
+      }
+      if (JSON.stringify(this.$store.state.app.s_model) == '{}') {
+        this.stable_form.name =''
+        this.stable_form.columns = [].concat(column_item, deepClone(this.column_item))
+        this.stable_form.tags = [].concat(deepClone(this.column_item))
+      } else {
+        const s_model = deepClone(this.$store.state.app.s_model)
+        this.stable_form.name = s_model.name
+        this.stable_form.columns = s_model.columns.map(item => ({...item,field:item.name}))
+        this.stable_form.tags = s_model.tags.map(item => ({...item,field:item.name}))
+      }
+      
+      let arr = this.$store.state.app.stbDefaultColumns;
+      arr = arr.map(item => {
+        return {
+          label: `\${${item.name}}`,
+          value: `\${${item.name}}`
+        }
+      })
+      // 动态获取字段{label: 'data_type','value': 'data_type'}
+      this.templateDataType = arr
     },
     handleChange(newVal, oldVal, type, index) {
       this.$set(this.stable_form.columns[index], "length", newVal);
