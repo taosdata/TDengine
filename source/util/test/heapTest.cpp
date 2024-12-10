@@ -20,7 +20,7 @@ int32_t heapCompare(const HeapNode* a, const HeapNode* b) {
     return 1;
 }
 
-TEST(TD_UTIL_HEAP_TEST, heapTest) {
+TEST(heapTest, heapTest) {
     Heap* heap = heapCreate(heapCompare);
     ASSERT_TRUE(heap != NULL);
     ASSERT_EQ(0, heapSize(heap));

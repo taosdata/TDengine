@@ -39,7 +39,7 @@ enum {
   WRDE_SYNTAX       /* Shell syntax error.  */
 };
 
-int wordexp(char *words, wordexp_t *pwordexp, int flags) {
+int32_t wordexp(char *words, wordexp_t *pwordexp, int32_t flags) {
   pwordexp->we_offs = 0;
   pwordexp->we_wordc = 1;
   pwordexp->we_wordv[0] = pwordexp->wordPos;
@@ -197,14 +197,10 @@ int32_t taosMulMkDir(const char *dirname) {
     }
   }
 
-  if (code < 0 && errno == EEXIST) {
-    return 0;
-  }
-
-  return code;
+  return 0;
 }
 
-int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
+int32_t taosMulModeMkDir(const char *dirname, int32_t mode, bool checkAccess) {
   if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -326,7 +322,7 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
       int32_t days = (int32_t)(TABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
         TAOS_UNUSED(taosRemoveFile(filename));
-        uInfo("file:%s is removed, days:%d keepDays:%d, sed:%" PRId64, filename, days, keepDays, fileSec);
+        // printf("file:%s is removed, days:%d keepDays:%d, sed:%" PRId64, filename, days, keepDays, fileSec);
       } else {
         // printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
       }
@@ -340,7 +336,9 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
   OS_PARAM_CHECK(outname);
-  wordexp_t full_path;
+  if (dirname[0] == 0) return 0;
+
+  wordexp_t full_path = {0};
   int32_t   code = wordexp(dirname, &full_path, 0);
   switch (code) {
     case 0:
@@ -357,13 +355,12 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   }
 
   wordfree(&full_path);
-
   return 0;
 }
 
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
-  OS_PARAM_CHECK(realPath);
+
   char tmp[PATH_MAX] = {0};
 #ifdef WINDOWS
   if (_fullpath(tmp, dirname, maxlen) != NULL) {
@@ -377,12 +374,14 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
         tstrncpy(realPath, tmp, maxlen);
       }
       return 0;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
+  } else {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
-
-  terrno = TAOS_SYSTEM_ERROR(errno);
-
-  return terrno;
 }
 
 bool taosIsDir(const char *dirname) {
@@ -454,7 +453,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
   }
 
 #ifdef WINDOWS
-  char   szFind[MAX_PATH];  //这是要找的
+  char   szFind[MAX_PATH];  // 这是要找的
   HANDLE hFind;
 
   TdDirPtr pDir = taosMemoryMalloc(sizeof(TdDir));
@@ -462,7 +461,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
     return NULL;
   }
 
-  snprintf(szFind, sizeof(szFind), "%s%s", dirname, "\\*.*");  //利用通配符找这个目录下的所以文件，包括目录
+  snprintf(szFind, sizeof(szFind), "%s%s", dirname, "\\*.*");  // 利用通配符找这个目录下的所以文件，包括目录
 
   pDir->hFind = FindFirstFile(szFind, &(pDir->dirEntry.findFileData));
   if (INVALID_HANDLE_VALUE == pDir->hFind) {
@@ -585,14 +584,14 @@ void taosGetCwd(char *buf, int32_t len) {
 #endif
 }
 
-int taosGetDirSize(const char *path, int64_t *size) {
-  int32_t  code;
+int32_t taosGetDirSize(const char *path, int64_t *size) {
+  int32_t code = 0;
+  char    fullPath[PATH_MAX + 100] = {0};
+
   TdDirPtr pDir = taosOpenDir(path);
   if (pDir == NULL) {
     return code = terrno;
   }
-  int32_t nBytes = 0;
-  char    fullPath[1024] = {0};
 
   int64_t       totalSize = 0;
   TdDirEntryPtr de = NULL;
@@ -601,31 +600,23 @@ int taosGetDirSize(const char *path, int64_t *size) {
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
       continue;
     }
-    nBytes = snprintf(fullPath, sizeof(fullPath), "%s%s%s", path, TD_DIRSEP, name);
-    if (nBytes <= 0 || nBytes >= sizeof(fullPath)) {
-      TAOS_UNUSED(taosCloseDir(&pDir));
-      return TSDB_CODE_OUT_OF_RANGE;
-    }
+    (void)snprintf(fullPath, sizeof(fullPath), "%s%s%s", path, TD_DIRSEP, name);
 
     int64_t subSize = 0;
     if (taosIsDir(fullPath)) {
       code = taosGetDirSize(fullPath, &subSize);
-      if (code != 0) {
-        TAOS_UNUSED(taosCloseDir(&pDir));
-        return code;
-      }
     } else {
       code = taosStatFile(fullPath, &subSize, NULL, NULL);
-      if (code != 0) {
-        TAOS_UNUSED(taosCloseDir(&pDir));
-        return code;
-      }
     }
+
+    if (code != 0) goto _OVER;
+    
     totalSize += subSize;
     fullPath[0] = 0;
   }
 
+_OVER:
   *size = totalSize;
   TAOS_UNUSED(taosCloseDir(&pDir));
-  return 0;
+  return code;
 }
