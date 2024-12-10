@@ -1550,7 +1550,7 @@ impl FromStr for NullValues {
     }
 }
 
-static TABLE_TAG_CACHE: OnceLock<scc::HashMap<String, (usize, u64)>> = OnceLock::new();
+static TABLE_TAG_CACHE: OnceLock<scc::HashSet<String>> = OnceLock::new();
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TableOptions {
@@ -1662,12 +1662,6 @@ impl TableOptions {
             (false, false) => Cow::Borrowed(name),
         }
     }
-}
-
-fn hash_string(s: &str) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    s.hash(&mut hasher);
-    hasher.finish()
 }
 
 trait ArrowFieldExt {
@@ -1960,25 +1954,18 @@ impl MessageArrowRecords {
                         .join(",");
 
                     if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } {
-                        let tag_map = TABLE_TAG_CACHE.get_or_init(|| {
+                        let table_existed = TABLE_TAG_CACHE.get_or_init(|| {
                             tracing::info!("Init tag cache with capacity: {}", unsafe {
                                 SQL_TAG_CACHE_CAPACITY
                             });
-                            scc::HashMap::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
+                            scc::HashSet::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
                         });
                         let tag_key = format!("{}.{}", using, tbname);
-                        let tag_value = format!("({})tags({})", names, tag_values);
-                        let tag_to_cache = (tag_value.len(), hash_string(&tag_value));
-                        let cached_value = tag_map.get(&tag_key);
-                        if let Some(cached_value) = cached_value {
-                            if cached_value.0 == tag_to_cache.0 && cached_value.1 == tag_to_cache.1
-                            {
-                                return (format!("`{}` {}", tbname, col_values), rows);
-                            } else {
-                                tracing::info!("Tag value changed to: {:?}", tag_value);
-                            }
+                        if table_existed.contains(&tag_key) {
+                            return (format!("`{}` {}", tbname, col_values), rows);
                         }
-                        let _ = tag_map.insert(tag_key, tag_to_cache);
+                        // FIXME： 应该在写入成功后，再缓存
+                        let _ = table_existed.insert(tag_key);
                     }
 
                     (
