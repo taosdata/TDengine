@@ -581,7 +581,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
   }
 
   uint32_t defaultPgsz = 0;
-  uint32_t defaultBufsz = 0;
+  int64_t defaultBufsz = 0;
   code = getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
   if (code) {
     qError("failed to get buff page size, rowSize:%d", pAggSup->resultRowSize);

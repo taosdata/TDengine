@@ -22,6 +22,7 @@ exe:
 	gcc $(CFLAGS) ./insert_stb.c  -o $(ROOT)insert_stb $(LFLAGS)
 	gcc $(CFLAGS) ./tmqViewTest.c  -o $(ROOT)tmqViewTest $(LFLAGS)
 	gcc $(CFLAGS) ./stmtQuery.c  -o $(ROOT)stmtQuery $(LFLAGS)
+	gcc $(CFLAGS) ./asyncQuery.c  -o $(ROOT)asyncQuery $(LFLAGS)
 	# gcc $(CFLAGS) ./stmt.c  -o $(ROOT)stmt $(LFLAGS)
 	# gcc $(CFLAGS) ./stmt2.c  -o $(ROOT)stmt2 $(LFLAGS)
 	# gcc $(CFLAGS) ./stmt2-example.c  -o $(ROOT)stmt2-example $(LFLAGS)

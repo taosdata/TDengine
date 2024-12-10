@@ -311,8 +311,8 @@ void    transRefCliHandle(void* handle);
 int32_t transUnrefCliHandle(void* handle);
 int32_t transGetRefCount(void* handle);
 
-int32_t transReleaseCliHandle(void* handle);
-int32_t transReleaseSrvHandle(void* handle);
+int32_t transReleaseCliHandle(void* handle, int32_t status);
+int32_t transReleaseSrvHandle(void* handle, int32_t status);
 
 int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
 int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);

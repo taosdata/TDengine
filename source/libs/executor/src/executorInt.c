@@ -974,7 +974,7 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
   }
 }
 
-int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz) {
+int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* defaultBufsz) {
   *defaultPgsz = 4096;
   uint32_t last = *defaultPgsz;
   while (*defaultPgsz < rowSize * 4) {

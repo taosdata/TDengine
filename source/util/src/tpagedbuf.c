@@ -347,7 +347,7 @@ static SPageInfo* getPageInfoFromPayload(void* page) {
   return ppi;
 }
 
-int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMemBufSize, const char* id,
                            const char* dir) {
   *pBuf = NULL;
   SDiskbasedBuf* pPBuf = taosMemoryCalloc(1, sizeof(SDiskbasedBuf));

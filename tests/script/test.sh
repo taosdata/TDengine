@@ -111,6 +111,7 @@ echo "wal                0"                       >> $TAOS_CFG
 echo "asyncLog           0"                       >> $TAOS_CFG
 echo "locale             en_US.UTF-8"             >> $TAOS_CFG
 echo "enableCoreFile     1"                       >> $TAOS_CFG
+echo "minReservedMemorySize     1024"             >> $TAOS_CFG
 echo " "                                          >> $TAOS_CFG
 
 ulimit -n 600000

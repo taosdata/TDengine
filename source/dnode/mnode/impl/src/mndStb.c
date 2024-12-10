@@ -627,9 +627,12 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
 
   tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
-  terrno = tEncodeSVDropStbReq(&encoder, &req);
+  int32_t code = tEncodeSVDropStbReq(&encoder, &req);
   tEncoderClear(&encoder);
-  if (terrno != 0) return NULL;
+  if (code != 0) {
+    terrno = code;
+    return NULL;
+  }
 
   *pContLen = contLen;
   return pHead;
