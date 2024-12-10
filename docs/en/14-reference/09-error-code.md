@@ -251,6 +251,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000529 | Vnode is stopped                                   | Vnode is closed                                 | Report issue        |
 | 0x80000530 | Duplicate write request                            | Duplicate write request, internal error         | Report issue        |
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
+| 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
 
 ## tsdb
 

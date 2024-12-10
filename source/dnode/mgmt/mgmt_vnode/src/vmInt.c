@@ -94,7 +94,7 @@ static void vmUnRegisterCreatingState(SVnodeMgmt *pMgmt, int32_t vgId) {
   dTrace("vgId:%d, remove from creating Hash", vgId);
   r = taosHashRemove(pMgmt->creatingHash, &vgId, sizeof(int32_t));
   if (r != 0) {
-    dError("vgId:%d, failed to remove vnode from hash", vgId);
+    dError("vgId:%d, failed to remove vnode from creatingHash", vgId);
   }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
 
