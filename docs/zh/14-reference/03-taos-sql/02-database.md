@@ -232,6 +232,3 @@ SHOW db_name.disk_info;
 
 该命令本质上等同于 `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`
 
-
-
-
