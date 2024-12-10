@@ -2,9 +2,12 @@ use arrow::array::{StringArray, StringBuilder};
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
+    #[snafu(display("Topic pattern is empty"))]
     Empty,
-    NotMatch,
-    Invalid,
+    #[snafu(display("Topic {topic} and pattern {pattern} not match"))]
+    NotMatch { topic: String, pattern: String },
+    #[snafu(display("Invalid topic pattern {pattern}"))]
+    Invalid { pattern: String },
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -24,13 +27,16 @@ impl TopicPattern {
     }
 
     pub fn parse_topic(&self, topic: &str) -> Result<Vec<(String, String)>> {
-        let mut pattern_split = self.0.split('/');
+        let pattern = &self.0;
+        let mut pattern_split = pattern.split('/');
         let mut topic_split = topic.split('/');
         let mut res = Vec::new();
         loop {
             match (pattern_split.next(), topic_split.next()) {
                 (None, None) => return Ok(res),
-                (None, Some(_)) | (Some(_), None) => return NotMatchSnafu.fail(),
+                (None, Some(_)) | (Some(_), None) => {
+                    return NotMatchSnafu { topic, pattern }.fail()
+                }
                 (Some(l), Some(r)) if l.is_empty() || r.is_empty() || l == IGNORE_WILDCARD => {
                     continue
                 }
@@ -43,19 +49,20 @@ impl TopicPattern {
 impl std::str::FromStr for TopicPattern {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self> {
-        snafu::ensure!(!s.is_empty(), EmptySnafu);
-        snafu::ensure!(!s.contains("//"), InvalidSnafu);
+    fn from_str(pattern: &str) -> Result<Self> {
+        snafu::ensure!(!pattern.is_empty(), EmptySnafu);
+        snafu::ensure!(!pattern.contains("//"), InvalidSnafu { pattern });
         snafu::ensure!(
-            s.chars()
+            pattern
+                .chars()
                 .all(|c| c.is_alphanumeric() || c == '_' || c == '/'),
-            InvalidSnafu
+            InvalidSnafu { pattern }
         );
-        snafu::ensure!(s != "topic", InvalidSnafu);
-        snafu::ensure!(s != "qos", InvalidSnafu);
-        snafu::ensure!(s != "ts", InvalidSnafu);
-        snafu::ensure!(s != "payload", InvalidSnafu);
-        Ok(Self(s.to_owned()))
+        snafu::ensure!(pattern != "topic", InvalidSnafu { pattern });
+        snafu::ensure!(pattern != "qos", InvalidSnafu { pattern });
+        snafu::ensure!(pattern != "ts", InvalidSnafu { pattern });
+        snafu::ensure!(pattern != "payload", InvalidSnafu { pattern });
+        Ok(Self(pattern.to_owned()))
     }
 }
 
