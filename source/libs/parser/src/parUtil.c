@@ -612,10 +612,10 @@ static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
   return taosStr2Int32(buf, NULL, 10);
 }
 
-static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
+static void getStringFromAuthStr(const char* pStart, char* pStr, uint32_t dstLen, char** pNext) {
   char* p = strchr(pStart, '*');
   if (NULL == p) {
-    tstrncpy(pStr, pStart, strlen(pStart) + 1);
+    tstrncpy(pStr, pStart, dstLen);
     *pNext = NULL;
   } else {
     strncpy(pStr, pStart, p - pStart);
@@ -628,10 +628,10 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
 
 static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
   char* p = NULL;
-  getStringFromAuthStr(pStr, pUserAuth->user, &p);
+  getStringFromAuthStr(pStr, pUserAuth->user, TSDB_USER_LEN, &p);
   pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
-  getStringFromAuthStr(p, pUserAuth->tbName.dbname, &p);
-  getStringFromAuthStr(p, pUserAuth->tbName.tname, &p);
+  getStringFromAuthStr(p, pUserAuth->tbName.dbname, TSDB_DB_NAME_LEN, &p);
+  getStringFromAuthStr(p, pUserAuth->tbName.tname, TSDB_TABLE_NAME_LEN, &p);
   if (pUserAuth->tbName.tname[0]) {
     pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
   } else {

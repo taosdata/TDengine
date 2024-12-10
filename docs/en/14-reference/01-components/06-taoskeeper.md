@@ -143,13 +143,13 @@ For details on TDengine monitoring configuration, please refer to: [TDengine Mon
 
 After installation, please use the `systemctl` command to start the taoskeeper service process.
 
-```bash
+```shell
 systemctl start taoskeeper
 ```
 
 Check if the service is working properly:
 
-```bash
+```shell
 systemctl status taoskeeper
 ```
 
@@ -261,7 +261,7 @@ Query OK, 14 row(s) in set (0.006542s)
 
 You can view the most recent report record of a supertable, such as:
 
-``` shell
+```shell
 taos> select last_row(*) from taosd_dnodes_info;
       last_row(_ts)      |   last_row(disk_engine)   |  last_row(system_net_in)  |   last_row(vnodes_num)    | last_row(system_net_out)  |     last_row(uptime)      |    last_row(has_mnode)    |  last_row(io_read_disk)   | last_row(error_log_count) |     last_row(io_read)     |    last_row(cpu_cores)    |    last_row(has_qnode)    |    last_row(has_snode)    |   last_row(disk_total)    |   last_row(mem_engine)    | last_row(info_log_count)  |   last_row(cpu_engine)    |  last_row(io_write_disk)  | last_row(debug_log_count) |    last_row(disk_used)    |    last_row(mem_total)    |    last_row(io_write)     |     last_row(masters)     |   last_row(cpu_system)    | last_row(trace_log_count) |    last_row(mem_free)     |
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
