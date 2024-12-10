@@ -195,7 +195,7 @@ alter_table_option: {
 ### 修改子表标签值
 
 ```
-ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1,tag_name2=new_tag_value2...;
 ```
 
 ### 修改表生命周期
