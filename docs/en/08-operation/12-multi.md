@@ -121,7 +121,7 @@ The cost of using object storage services is related to the amount of data store
 
 When the TSDB time-series data exceeds the time specified by the `s3_keeplocal` parameter, the related data files will be split into multiple file blocks, each with a default size of 512 MB (`s3_chunkpages * tsdb_pagesize`). Except for the last file block, which is retained on the local file system, the rest of the file blocks are uploaded to the object storage service.
 
-```math
+```text
 Upload Count = Data File Size / (s3_chunkpages * tsdb_pagesize) - 1
 ```
 
@@ -135,7 +135,7 @@ During query operations, if data in object storage needs to be accessed, TSDB do
 
 Adjacent multiple data pages are downloaded as a single data block from object storage to reduce the number of downloads. The size of each data page is specified by the `tsdb_pagesize` parameter when creating the database, with a default of 4 KB.
 
-```math
+```text
 Download Count = Number of Data Blocks Needed for Query - Number of Cached Data Blocks
 ```
 
@@ -155,7 +155,7 @@ For deployment methods, please refer to the [Flexify](https://azuremarketplace.m
 
 In the configuration file /etc/taos/taos.cfg, add parameters for S3 access:
 
-```cfg
+```text
 s3EndPoint   http //20.191.157.23,http://20.191.157.24,http://20.191.157.25
 s3AccessKey  FLIOMMNL0:uhRNdeZMLD4wo,ABCIOMMN:uhRNdeZMD4wog,DEFOMMNL049ba:uhRNdeZMLD4wogXd
 s3BucketName td-test

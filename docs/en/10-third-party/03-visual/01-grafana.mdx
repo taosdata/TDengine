@@ -60,7 +60,7 @@ Click `Save & Test` to test, if successful, it will prompt: `TDengine Data sourc
 
 For users using Grafana version 7.x or configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can use the installation script on the Grafana server to automatically install the plugin and add the data source Provisioning configuration file.
 
-```sh
+```shell
 bash -c "$(curl -fsSL \
   https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)" -- \
   -a http://localhost:6041 \
@@ -77,7 +77,7 @@ Save the script and execute `./install.sh --help` to view detailed help document
 
 Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin [installation](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation).
 
-```bash
+```shell
 grafana-cli plugins install tdengine-datasource
 # with sudo
 sudo -u grafana grafana-cli plugins install tdengine-datasource
@@ -85,7 +85,7 @@ sudo -u grafana grafana-cli plugins install tdengine-datasource
 
 Alternatively, download the .zip file from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
 
-```bash
+```shell
 GF_VERSION=3.5.1
 # from GitHub
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
@@ -95,13 +95,13 @@ wget -O tdengine-datasource-$GF_VERSION.zip https://grafana.com/api/plugins/tden
 
 For CentOS 7.2 operating system, unzip the plugin package into the /var/lib/grafana/plugins directory and restart Grafana.
 
-```bash
+```shell
 sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 ```
 
 If Grafana is running in a Docker environment, you can use the following environment variable to set up automatic installation of the TDengine data source plugin:
 
-```bash
+```shell
 GF_INSTALL_PLUGINS=tdengine-datasource
 ```
 
@@ -120,7 +120,7 @@ Click `Save & Test` to test, if successful, it will prompt: `TDengine Data sourc
 
 Refer to [Grafana containerized installation instructions](https://grafana.com/docs/grafana/next/setup-grafana/installation/docker/#install-plugins-in-the-docker-container). Use the following command to start a container and automatically install the TDengine plugin:
 
-```bash
+```shell
 docker run -d \
   -p 3000:3000 \
   --name=grafana \

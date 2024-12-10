@@ -248,13 +248,13 @@ The new version of the plugin uses the Grafana unified alerting feature, the `-E
 
 Assuming you start the TDengine database on the host `tdengine` with HTTP API port `6041`, user `root1`, and password `pass5ord`. Execute the script:
 
-```bash
+```shell
 ./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord
 ```
 
 If you want to monitor multiple TDengine clusters, you need to set up multiple TDinsight dashboards. Setting up a non-default TDinsight requires some changes: the `-n` `-i` `-t` options need to be changed to non-default names, and if using the built-in SMS alert feature, `-N` and `-L` should also be changed.
 
-```bash
+```shell
 sudo ./TDengine.sh -n TDengine-Env1 -a http://another:6041 -u root -p taosdata -i tdinsight-env1 -t 'TDinsight Env1'
 ```
 

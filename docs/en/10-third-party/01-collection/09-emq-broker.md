@@ -140,7 +140,7 @@ Finally, click the "Create" button at the bottom left to save the rule.
 
 ## Write a Mock Test Program
 
-```javascript
+```js
 {{#include docs/examples/other/mock.js}}
 ```
 

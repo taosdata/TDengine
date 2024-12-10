@@ -417,7 +417,7 @@ MOD(expr1, expr2)
 
 **Example**:
 
-``` sql
+```sql
 taos> select mod(10,3);
          mod(10,3)         |
 ============================
@@ -454,7 +454,7 @@ RAND([seed])
 
 **Example**:
 
-``` sql
+```sql
 taos> select rand();
           rand()           |
 ============================

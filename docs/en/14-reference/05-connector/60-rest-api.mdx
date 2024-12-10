@@ -21,7 +21,7 @@ Below is an example using the `curl` tool in an Ubuntu environment (please confi
 
 The following example lists all databases, please replace `h1.tdengine.com` and 6041 (default value) with the actual running TDengine service FQDN and port number:
 
-```bash
+```shell
 curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
   -d "select name, ntables, status from information_schema.ins_databases;" \
   h1.tdengine.com:6041/rest/sql
@@ -100,13 +100,13 @@ The BODY of the HTTP request contains a complete SQL statement. The data table i
 
 Use `curl` to initiate an HTTP Request with custom authentication as follows:
 
-```bash
+```shell
 curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
 ```
 
 Or,
 
-```bash
+```shell
 curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
 ```
 
@@ -279,7 +279,7 @@ Column types use the following strings:
 
 Prepare data
 
-```bash
+```shell
 create database demo
 use demo
 create table t(ts timestamp,c1 varbinary(20),c2 geometry(100))
@@ -288,7 +288,7 @@ insert into t values(now,'\x7f8290','point(100 100)')
 
 Execute query
 
-```bash
+```shell
 curl --location 'http://<fqdn>:<port>/rest/sql' \
 --header 'Content-Type: text/plain' \
 --header 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' \
@@ -428,7 +428,7 @@ Data Query Return Example
 
 HTTP requests need to include an authorization code `<TOKEN>`, used for identity verification. The authorization code is usually provided by the administrator and can be simply obtained by sending an `HTTP GET` request as follows:
 
-```bash
+```shell
 curl http://<fqnd>:<port>/rest/login/<username>/<password>
 ```
 
@@ -440,7 +440,7 @@ Here, `fqdn` is the FQDN or IP address of the TDengine database, `port` is the p
 
 Example of obtaining an authorization code:
 
-```bash
+```shell
 curl http://192.168.0.1:6041/rest/login/root/taosdata
 ```
 
@@ -457,7 +457,7 @@ Return value:
 
 - Query all records of table d1001 in the demo database:
 
-  ```bash
+  ```shell
   curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
   curl -L -H "Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
   ```
@@ -509,7 +509,7 @@ Return value:
 
 - Create database demo:
 
-  ```bash
+  ```shell
   curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "create database demo" 192.168.0.1:6041/rest/sql
   curl -L -H "Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04" -d "create database demo" 192.168.0.1:6041/rest/sql
   ```
@@ -560,7 +560,7 @@ Return value:
 
 #### TDengine 2.x response codes and message bodies
 
-```JSON
+```json
 {
   "status": "succ",
   "head": [
@@ -624,7 +624,7 @@ Return value:
 
 #### TDengine 3.0 Response Codes and Message Body
 
-```JSON
+```json
 {
     "code": 0,
     "column_meta": [
