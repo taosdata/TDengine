@@ -157,7 +157,7 @@ static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
   metaInitLock(pMeta);
 
   pMeta->path = (char *)&pMeta[1];
-  strcpy(pMeta->path, path);
+  tstrncpy(pMeta->path, path, strlen(path) + 1);
   int32_t ret = taosRealPath(pMeta->path, NULL, strlen(path) + 1);
 
   pMeta->pVnode = pVnode;
