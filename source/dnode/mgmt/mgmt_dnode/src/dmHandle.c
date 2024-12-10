@@ -478,7 +478,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SConfig     *pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
 
-  code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
+  code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_SERVER_CMD, true);
   if (code != 0) {
     if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
