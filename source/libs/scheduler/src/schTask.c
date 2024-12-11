@@ -331,6 +331,12 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
       SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);
+
+      parent->seriousId = pJob->seriousId;
+      TSWAP(pTask, parent);
+      SCH_TASK_DLOG("task seriousId set to 0x%" PRIx64, pTask->seriousId);
+      TSWAP(pTask, parent);
+
       SCH_ERR_RET(schDelayLaunchTask(pJob, parent));
     }
   }
