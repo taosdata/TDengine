@@ -6,7 +6,6 @@
 
 <!-- omit in toc -->
 
-- [Table of Contents](#table-of-contents)
 - [1. Introduction](#1-introduction)
 - [2. Clone Repository](#2-clone-repository)
 - [3. Prerequisites](#3-prerequisites)
