@@ -917,7 +917,9 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
     if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
       goto _out;
     }
 
@@ -927,7 +929,9 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, b1, false);
     if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
       goto _out;
     }
 
@@ -948,7 +952,9 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
     if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
       goto _out;
     }
     const char *status = "ready";
@@ -960,14 +966,18 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
     if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
       goto _out;
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
     if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
       goto _out;
     }
 
@@ -975,7 +985,9 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
     if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
       goto _out;
     }
 
