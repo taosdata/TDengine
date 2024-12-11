@@ -336,7 +336,6 @@ struct STsdbFS {
 typedef struct {
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
-  rocksdb_cache_t                     *blockcache;
   rocksdb_block_based_table_options_t *tableoptions;
   rocksdb_options_t                   *options;
   rocksdb_flushoptions_t              *flushoptions;
