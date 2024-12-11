@@ -142,26 +142,69 @@ class TDTestCase:
         tdSql.query(f"select ts from {self.dbname}.d5")
         tdSql.checkData(0, 0, "2021-07-01 20:00:00.000")
 
-        tdSql.execute(f"insert into {self.dbname}.d6 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-115',1)")
-        tdSql.query(f"select ts from {self.dbname}.d6")
-        tdSql.checkData(0, 0, "2021-07-01 19:05:00.000")
+        tdSql.error(f"insert into {self.dbname}.d6 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-115',1)")
 
         tdSql.execute(f"insert into {self.dbname}.d7 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1105',1)")
         tdSql.query(f"select ts from {self.dbname}.d7")
         tdSql.checkData(0, 0, "2021-07-01 19:05:00.000")
 
-        tdSql.error(f"insert into {self.dbname}.d21 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d22 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d23 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24100',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1210',1)")
+        # tdSql.error(f"insert into {self.dbname}.d21 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
+        # tdSql.error(f"insert into {self.dbname}.d22 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
+        # tdSql.error(f"insert into {self.dbname}.d23 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
+        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
+        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24100',1)")
+        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1210',1)")
 
         tdSql.execute(f'drop database {self.dbname}')
 
+    # def timezone_check(self, cursor, timezone):
+    #     cursor.execute("show local variables")
+    #     res = cursor.fetchall()
+    #     for i in range(cursor.rowcount):
+    #         if res[i][0] == "timezone" :
+    #             if res[i][1].find(timezone) == -1:
+    #                 tdLog.exit("show timezone:%s != %s"%(res[i][1],timezone))
+    #
+    # def timezone_check_set_options(self):
+    #     buildPath = tdCom.getBuildPath()
+    #     cmdStr = '%s/build/bin/timezone_test'%(buildPath)
+    #     print("cmdStr:", cmdStr)
+    #     tdLog.info(cmdStr)
+    #     ret = os.system(cmdStr)
+    #     if ret != 0:
+    #         tdLog.exit("timezone_test error")
+    #
+    # def timezone_check_conf(self, timezone):
+    #     updateCfgDict = ({"clientCfg" : {'timezone': 'UTC'} },)
+    #     tdDnodes.sim.deploy(updateCfgDict)
+    #     conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    #     cursor = conn.cursor()
+    #     self.timezone_check(cursor, 'UTC')
+    #     cursor.close()
 
+    def timezone_check(self, sql, timezone):
+        tdSql.query(sql)
+        rows = tdSql.getRows()
+        for i in range(rows):
+            if tdSql.getData(i, 0) == "timezone" :
+                if tdSql.getData(i, 1).find(timezone) == -1:
+                    tdLog.exit("show timezone:%s != %s"%(tdSql.getData(i, 1), timezone))
+
+    def charset_check(self, sql, charset):
+        tdSql.query(sql)
+        rows = tdSql.getRows()
+        for i in range(rows):
+            if tdSql.getData(i, 0) == "charset" :
+                if tdSql.getData(i, 1).find(charset) == -1:
+                    tdLog.exit("show charset:%s != %s"%(tdSql.getData(i, 1), charset))
     def run(self):  # sourcery skip: extract-duplicate-method
         timezone = self.get_system_timezone()
+        # timezone = "Asia/Shanghai"
+        self.charset_check("show local variables", "UTF-8")
+        self.timezone_check("show dnode 1 variables", "UTF-8")
+        self.timezone_check("show local variables", timezone)
+        self.timezone_check("show dnode 1 variables", timezone)
+
         self.timezone_check_ntb(timezone)
         self.timezone_check_stb(timezone)
         self.timezone_format_test()

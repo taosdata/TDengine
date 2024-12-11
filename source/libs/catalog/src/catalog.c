@@ -447,7 +447,7 @@ int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
     }
 
     char* pJson = NULL;
-    parseTagDatatoJson(pTag, &pJson);
+    parseTagDatatoJson(pTag, &pJson, NULL);
     if(NULL == pJson) {
       taosArrayDestroy(pTagVals);
       CTG_ERR_JRET(terrno);

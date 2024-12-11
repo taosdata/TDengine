@@ -515,6 +515,18 @@ class TDTestCase:
         tdSql.query(f"select t1 from {dbname}.stb1 where abs(c1+t1)=1")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,0)
+        tdSql.query(f"select * from {dbname}.stb1")
+        rows = tdSql.queryRows
+        tdSql.query(f"select t1 from {dbname}.stb1 where abs(c1+t1)=1 or (1<2)")
+        tdSql.checkRows(rows)
+        tdSql.query(f"select t1 from {dbname}.stb1 where abs(c1+t1)=1 and (1<2)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,0)
+        tdSql.query(f"select t1 from {dbname}.stb1 where abs(c1+t1)=1 and (1>2)")
+        tdSql.checkRows(0)
+        tdSql.query(f"select t1 from {dbname}.stb1 where abs(c1+t1)=1 or (1>2)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,0)
 
         tdSql.query(
             f"select abs(c1+t1)*t1 from {dbname}.stb1 where abs(c1)/floor(abs(ceil(t1))) ==1")
