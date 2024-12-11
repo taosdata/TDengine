@@ -230,6 +230,11 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define TAOS_UNUSED(expr) (void)(expr)
 
+bool taosIsBigChar(char c);
+bool taosIsSmallChar(char c);
+bool taosIsNumberChar(char c);
+bool taosIsSpecialChar(char c);
+
 #ifdef __cplusplus
 }
 #endif
