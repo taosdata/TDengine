@@ -388,8 +388,9 @@ static int32_t metaSUidIdxInsert(SMeta *pMeta, const SMetaHandleParam *pParam) {
 }
 
 static int32_t metaSUidIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
-  const SMetaEntry *pEntry = pParam->pEntry;
-  int32_t           code = tdbTbDelete(pMeta->pSuidIdx, &pEntry->uid, sizeof(pEntry->uid), pMeta->txn);
+  const SMetaEntry *pEntry = pParam->pOldEntry;
+
+  int32_t code = tdbTbDelete(pMeta->pSuidIdx, &pEntry->uid, sizeof(pEntry->uid), pMeta->txn);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
@@ -1009,7 +1010,7 @@ static int32_t metaHandleNormalTableDrop(SMeta *pMeta, const SMetaEntry *pEntry)
   return code;
 }
 
-static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam *pParam) {
+static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam *pParam, bool superDropped) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   const SMetaEntry *pEntry = pParam->pEntry;
@@ -1028,6 +1029,10 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
 
   for (int i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
     SMetaTableOp *op = &ops[i];
+
+    if (op->table == META_ENTRY_TABLE && superDropped) {
+      continue;
+    }
 
     code = metaTableOpFn[op->table][op->op](pMeta, pParam);
     if (code) {
@@ -1050,7 +1055,7 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
   return code;
 }
 
-static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) {
+static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, bool superDropped) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SMetaEntry *pChild = NULL;
   SMetaEntry *pSuper = NULL;
@@ -1078,7 +1083,7 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
 
   // do the drop
   metaWLock(pMeta);
-  code = metaHandleChildTableDropImpl(pMeta, &param);
+  code = metaHandleChildTableDropImpl(pMeta, &param, superDropped);
   metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
@@ -1121,9 +1126,145 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   return code;
 }
 
-static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) {
+static int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **childList) {
   int32_t code = TSDB_CODE_SUCCESS;
-  //   TODO
+  void   *key = NULL;
+  int32_t keySize = 0;
+  int32_t c;
+
+  *childList = taosArrayInit(64, sizeof(tb_uid_t));
+  if (*childList == NULL) {
+    return terrno;
+  }
+
+  TBC *cursor = NULL;
+  code = tdbTbcOpen(pMeta->pCtbIdx, &cursor, NULL);
+  if (code) {
+    taosArrayDestroy(*childList);
+    *childList = NULL;
+    return code;
+  }
+
+  int32_t rc = tdbTbcMoveTo(cursor,
+                            &(SCtbIdxKey){
+                                .suid = suid,
+                                .uid = INT64_MIN,
+                            },
+                            sizeof(SCtbIdxKey), &c);
+  if (rc < 0) {
+    tdbTbcClose(cursor);
+    return 0;
+  }
+
+  for (;;) {
+    if (tdbTbcNext(cursor, &key, &keySize, NULL, NULL) < 0) {
+      break;
+    }
+
+    if (((SCtbIdxKey *)key)->suid < suid) {
+      continue;
+    } else if (((SCtbIdxKey *)key)->suid > suid) {
+      break;
+    }
+
+    if (taosArrayPush(*childList, &(((SCtbIdxKey *)key)->uid)) == NULL) {
+      tdbFreeClear(key);
+      tdbTbcClose(cursor);
+      taosArrayDestroy(*childList);
+      *childList = NULL;
+      return terrno;
+    }
+  }
+
+  tdbTbcClose(cursor);
+  tdbFreeClear(key);
+  return code;
+}
+
+static int32_t metaHandleSuperTableDropImpl(SMeta *pMeta, const SMetaHandleParam *pParam) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  const SMetaEntry *pEntry = pParam->pEntry;
+
+  SMetaTableOp ops[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_DELETE},  //
+      {META_UID_IDX, META_TABLE_OP_DELETE},      //
+      {META_NAME_IDX, META_TABLE_OP_DELETE},     //
+      {META_SUID_IDX, META_TABLE_OP_DELETE},     //
+
+      // {META_SCHEMA_TABLE, META_TABLE_OP_UPDATA},  // TODO: here should be insert
+  };
+
+  for (int i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+    SMetaTableOp *op = &ops[i];
+
+    code = metaTableOpFn[op->table][op->op](pMeta, pParam);
+    if (TSDB_CODE_SUCCESS != code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+  }
+
+  int32_t ret = metaStatsCacheDrop(pMeta, pEntry->uid);
+  if (ret < 0) {
+    metaErr(TD_VID(pMeta->pVnode), ret);
+  }
+  return code;
+}
+
+static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SArray     *childList = NULL;
+  SMetaEntry *pOldEntry = NULL;
+
+  code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    return code;
+  }
+
+  code = metaGetChildUidsOfSuperTable(pMeta, pEntry->uid, &childList);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    metaFetchEntryFree(&pOldEntry);
+    return code;
+  }
+
+  // loop to drop all child tables
+  for (int32_t i = 0; i < taosArrayGetSize(childList); i++) {
+    SMetaEntry childEntry = {
+        .version = pEntry->version,
+        .uid = *(tb_uid_t *)taosArrayGet(childList, i),
+        .type = -TSDB_CHILD_TABLE,
+    };
+
+    code = metaHandleChildTableDrop(pMeta, &childEntry, true);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+    }
+  }
+
+  // do drop super table
+  SMetaHandleParam param = {
+      .pEntry = pEntry,
+      .pOldEntry = pOldEntry,
+  };
+  metaWLock(pMeta);
+  code = metaHandleSuperTableDropImpl(pMeta, &param);
+  metaULock(pMeta);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    taosArrayDestroy(childList);
+    metaFetchEntryFree(&pOldEntry);
+    return code;
+  }
+
+  // do other stuff
+  metaUpdTimeSeriesNum(pMeta);
+  pMeta->changed = true;
+
+  // free resource and return
+  taosArrayDestroy(childList);
+  metaFetchEntryFree(&pOldEntry);
   return code;
 }
 
@@ -1177,11 +1318,11 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
   } else {
     switch (type) {
       case TSDB_SUPER_TABLE: {
-        // code = metaHandleSuperTableDrop(pMeta, pEntry);
+        code = metaHandleSuperTableDrop(pMeta, pEntry);
         break;
       }
       case TSDB_CHILD_TABLE: {
-        code = metaHandleChildTableDrop(pMeta, pEntry);
+        code = metaHandleChildTableDrop(pMeta, pEntry, false);
         break;
       }
       case TSDB_NORMAL_TABLE: {

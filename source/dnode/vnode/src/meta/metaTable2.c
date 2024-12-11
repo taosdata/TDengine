@@ -109,6 +109,49 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
   return code;
 }
 
+static int32_t metaCheckDropSuperTableReq(SMeta *pMeta, int64_t version, SVDropStbReq *pReq) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  void     *value = NULL;
+  int32_t   valueSize = 0;
+  SMetaInfo info;
+
+  if (NULL == pReq->name || strlen(pReq->name) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid name:%s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->name, version);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  code = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->name, version);
+    return TSDB_CODE_TDB_STB_NOT_EXIST;
+  } else {
+    int64_t uid = *(int64_t *)value;
+    tdbFreeClear(value);
+
+    if (uid != pReq->suid) {
+      metaError("vgId:%d, %s failed at %s:%d since table %s uid:%" PRId64 " not match, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->suid, version);
+      return TSDB_CODE_TDB_STB_NOT_EXIST;
+    }
+  }
+
+  code = metaGetInfo(pMeta, pReq->suid, &info, NULL);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64
+              " not found, this is an internal error, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->suid, version);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+  if (info.suid != info.uid) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64 " is not a super table, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->suid, version);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return code;
+}
+
 // Create Super Table
 int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -155,9 +198,29 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
 }
 
 // Drop Super Table
-int32_t metaDropSuperTable() {
+int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
-  // TODO
+
+  // check request
+  code = metaCheckDropSuperTableReq(pMeta, verison, pReq);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+
+  // handle entry
+  SMetaEntry entry = {
+      .version = verison,
+      .type = -TSDB_SUPER_TABLE,
+      .uid = pReq->suid,
+  };
+  code = metaHandleEntry2(pMeta, &entry);
+  if (code) {
+    metaError("vgId:%d, failed to drop stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name, pReq->suid,
+              tstrerror(code));
+  } else {
+    metaInfo("vgId:%d, super table %s uid:%" PRId64 " is dropped, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+             pReq->suid, verison);
+  }
   return code;
 }
 
