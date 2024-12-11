@@ -108,6 +108,67 @@ static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* p
   return tmsgSendReq(pEpset, &msg);
 }
 
+static int32_t streamTaskGetMndEpset(SStreamMeta* pMeta, SEpSet* pEpSet) {
+  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    STaskId        id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    SStreamTask*   pTask = NULL;
+
+    int32_t code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
+    if (code != 0) {
+      continue;
+    }
+
+    if (pTask->info.fillHistory == 1) {
+      streamMetaReleaseTask(pMeta, pTask);
+      continue;
+    }
+
+    epsetAssign(pEpSet, &pTask->info.mnodeEpset);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_FAILED;
+}
+
+static int32_t streamTaskUpdateMndEpset(SStreamMeta* pMeta, SEpSet* pEpSet) {
+  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    STaskId        id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    SStreamTask*   pTask = NULL;
+
+    int32_t code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
+    if (code != 0) {
+      stError("vgId:%d s-task:0x%x failed to acquire it for updating mnode epset, code:%s", pMeta->vgId, pId->taskId,
+              tstrerror(code));
+      continue;
+    }
+
+    // ignore this error since it is only for log file
+    char    buf[256] = {0};
+    int32_t ret = epsetToStr(&pTask->info.mnodeEpset, buf, tListLen(buf));
+    if (ret != 0) {  // print error and continue
+      stError("failed to convert epset to str, code:%s", tstrerror(ret));
+    }
+
+    char newBuf[256] = {0};
+    ret = epsetToStr(pEpSet, newBuf, tListLen(newBuf));
+    if (ret != 0) {
+      stError("failed to convert epset to str, code:%s", tstrerror(ret));
+    }
+
+    epsetAssign(&pTask->info.mnodeEpset, pEpSet);
+    stInfo("s-task:0x%x update mnd epset, from %s to %s", pId->taskId, buf, newBuf);
+    streamMetaReleaseTask(pMeta, pTask);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // NOTE: this task should be executed within the SStreamMeta lock region.
 int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   SEpSet       epset = {0};
@@ -121,24 +182,11 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     stDebug("vgId:%d hbMsg rsp not recv, send current hbMsg, msgId:%d, total:%d again", pMeta->vgId, pInfo->hbMsg.msgId,
             pInfo->hbCount);
 
-    for(int32_t i = 0; i < numOfTasks; ++i) {
-      SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-      STaskId        id = {.streamId = pId->streamId, .taskId = pId->taskId};
-      SStreamTask*   pTask = NULL;
-
-      code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
-      if (code != 0) {
-        continue;
-      }
-
-      if (pTask->info.fillHistory == 1) {
-        streamMetaReleaseTask(pMeta, pTask);
-        continue;
-      }
-
-      epsetAssign(&epset, &pTask->info.mnodeEpset);
-      streamMetaReleaseTask(pMeta, pTask);
-      break;
+    code = streamTaskGetMndEpset(pMeta, &epset);
+    if (code != 0) {
+      stError("vgId:%d failed to get the mnode epset, not retrying sending hbMsg, msgId:%d", pMeta->vgId,
+              pInfo->hbMsg.msgId);
+      return code;
     }
 
     pInfo->msgSendTs = taosGetTimestampMs();
@@ -372,9 +420,10 @@ void streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSe
 }
 
 int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
-  stDebug("vgId:%d process hbMsg rsp, msgId:%d rsp confirmed", pMeta->vgId, pRsp->msgId);
   SMetaHbInfo* pInfo = pMeta->pHbInfo;
+  SEpSet       epset = {0};
 
+  stDebug("vgId:%d process hbMsg rsp, msgId:%d rsp confirmed", pMeta->vgId, pRsp->msgId);
   streamMetaWLock(pMeta);
 
   // current waiting rsp recved
@@ -384,6 +433,13 @@ int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
 
     pInfo->hbCount += 1;
     pInfo->msgSendTs = -1;
+
+    streamTaskGetMndEpset(pMeta, &epset);
+    if (!isEpsetEqual(&pRsp->mndEpset, &epset)) {
+      // we need to update the mnode epset for each tasks
+      stInfo("vgId:%d mnode epset updated, update mnode epset for all tasks", pMeta->vgId);
+      streamTaskUpdateMndEpset(pMeta, &pRsp->mndEpset);
+    }
   } else {
     stWarn("vgId:%d recv expired hb rsp, msgId:%d, discarded", pMeta->vgId, pRsp->msgId);
   }
