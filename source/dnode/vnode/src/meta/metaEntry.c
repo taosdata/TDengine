@@ -66,13 +66,15 @@ static FORCE_INLINE int32_t metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, 
 }
 
 static int32_t metaCloneColCmpr(const SColCmprWrapper *pSrc, SColCmprWrapper *pDst) {
-  pDst->nCols = pSrc->nCols;
-  pDst->version = pSrc->version;
-  pDst->pColCmpr = (SColCmpr *)taosMemoryCalloc(pSrc->nCols, sizeof(SColCmpr));
-  if (NULL == pDst->pColCmpr) {
-    return terrno;
+  if (pSrc->nCols > 0) {
+    pDst->nCols = pSrc->nCols;
+    pDst->version = pSrc->version;
+    pDst->pColCmpr = (SColCmpr *)taosMemoryCalloc(pSrc->nCols, sizeof(SColCmpr));
+    if (NULL == pDst->pColCmpr) {
+      return terrno;
+    }
+    memcpy(pDst->pColCmpr, pSrc->pColCmpr, pSrc->nCols * sizeof(SColCmpr));
   }
-  memcpy(pDst->pColCmpr, pSrc->pColCmpr, pSrc->nCols * sizeof(SColCmpr));
   return 0;
 }
 
