@@ -742,7 +742,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
       QUERY_CHECK_CODE(code, lino, _end);
 
       void* tmp = taosArrayPush(pTaskInfo->pResultBlockList, &p1);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       p = p1;
     } else {
       void* tmp = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
@@ -897,7 +897,7 @@ int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
 
   if (!tmp) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
   }
   return TSDB_CODE_SUCCESS;
@@ -1586,8 +1586,7 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
     if (buf.pData == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+      pMsg->code = terrno;
     } else {
       memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
     }
@@ -1606,7 +1605,6 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
 
   code = getTableListInfo(pTaskInfo, &plist);
   if (code || plist == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

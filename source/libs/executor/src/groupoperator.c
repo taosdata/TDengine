@@ -614,7 +614,6 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
   if (pDataBlock->pBlockAgg) {
     pDstBlock->pBlockAgg = taosMemoryCalloc(numOfCols, sizeof(SColumnDataAgg));
     if (pDstBlock->pBlockAgg == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       blockDataDestroy(pDstBlock);
       return NULL;
     }

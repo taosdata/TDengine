@@ -89,7 +89,7 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t clientId, int32_t rwType) {
 
       QW_SCH_ELOG("taosHashPut new sch to scheduleHash failed, errno:%d", errno);
       taosHashCleanup(newSch.tasksHash);
-      QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      QW_ERR_RET(code);
     }
 
     taosHashCleanup(newSch.tasksHash);
@@ -174,7 +174,7 @@ int32_t qwAddTaskStatusImpl(QW_FPARAMS_DEF, SQWSchStatus *sch, int32_t rwType, i
       }
     } else {
       QW_TASK_ELOG("taosHashPut to tasksHash failed, error:%x - %s", code, tstrerror(code));
-      QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      QW_ERR_RET(code);
     }
   }
   QW_UNLOCK(QW_WRITE, &sch->tasksLock);
@@ -254,7 +254,7 @@ int32_t qwAddTaskCtxImpl(QW_FPARAMS_DEF, bool acquire, SQWTaskCtx **ctx) {
       }
     } else {
       QW_TASK_ELOG("taosHashPut to ctxHash failed, error:%x", code);
-      QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      QW_ERR_RET(code);
     }
   }
 
@@ -665,7 +665,7 @@ int32_t qwOpenRef(void) {
     if (gQwMgmt.qwRef < 0) {
       taosWUnLockLatch(&gQwMgmt.lock);
       qError("init qworker ref failed");
-      QW_RET(TSDB_CODE_OUT_OF_MEMORY);
+      QW_RET(gQwMgmt.qwRef);
     }
   }
   taosWUnLockLatch(&gQwMgmt.lock);

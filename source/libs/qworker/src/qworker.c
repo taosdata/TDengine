@@ -1400,7 +1400,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   mgmt->timer = taosTmrInit(0, 0, 0, "qworker");
   if (NULL == mgmt->timer) {
     qError("init timer failed, error:%s", tstrerror(terrno));
-    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_JRET(terrno);
   }
 
   mgmt->nodeType = nodeType;
@@ -1423,7 +1423,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   mgmt->hbTimer = taosTmrStart(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, (void *)param, mgmt->timer);
   if (NULL == mgmt->hbTimer) {
     qError("start hb timer failed");
-    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_JRET(terrno);
   }
 
   QW_ERR_JRET(qExecutorInit());

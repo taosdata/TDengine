@@ -2056,7 +2056,7 @@ static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
 
       if (0 != taosHashPut(groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
         qError("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
-        QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        QRY_ERR_JRET(terrno);
       }
     }
 

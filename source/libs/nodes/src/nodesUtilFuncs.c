@@ -2012,7 +2012,7 @@ int32_t nodesMakeList(SNodeList** ppListOut) {
 
 int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
   if (NULL == pList || NULL == pNode) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
   SListCell* p = NULL;
   int32_t    code = nodesCalloc(1, sizeof(SListCell), (void**)&p);

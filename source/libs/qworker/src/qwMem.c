@@ -96,6 +96,7 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
       char id2[sizeof(qId) + sizeof(cId) + 1] = {0};
       QW_SET_QCID(id2, qId, cId);
       (void)taosHashRemove(gQueryMgmt.pJobInfo, id2, sizeof(id2));
+      
       QW_TASK_DLOG_E("the whole query job removed");
     } else {
       QW_TASK_DLOG("job not removed, remainSessions:%d, %d", taosHashGetSize(pJobInfo->pSessions), pJobInfo->memInfo->remainSession);
@@ -135,6 +136,8 @@ int32_t qwRetrieveJobInfo(QW_FPARAMS_DEF, SQWJobInfo** ppJob) {
         QW_TASK_ELOG("fail to put job to job hash, error: %s", tstrerror(code));
         return code;
       }
+
+      QW_TASK_DLOG_E("job added to hash");
 
       pJob = (SQWJobInfo*)taosHashAcquire(gQueryMgmt.pJobInfo, id, sizeof(id));
       if (NULL == pJob) {
@@ -191,6 +194,8 @@ int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
 
     break;
   } while (true);
+
+  QW_TASK_DLOG_E("session initialized");
 
 _return:
 

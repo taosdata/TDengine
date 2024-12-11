@@ -113,7 +113,7 @@ static int32_t allocBuf(SDataDeleterHandle* pDeleter, const SInputData* pInput, 
   if (taosQueueItemSize(pDeleter->pDataBlocks) > capacity) {
     qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
            taosQueueItemSize(pDeleter->pDataBlocks));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   pBuf->allocSize = sizeof(SDataCacheEntry) + sizeof(SDeleterRes);

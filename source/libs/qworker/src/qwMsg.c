@@ -73,7 +73,7 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
   int32_t msgSize = tSerializeSQueryTableRsp(NULL, 0, &rsp);
   if (msgSize < 0) {
     qError("tSerializeSQueryTableRsp failed");
-    QW_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_RET(msgSize);
   }
   
   void *pRsp = rpcMallocCont(msgSize);
@@ -82,9 +82,10 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
     QW_RET(terrno);
   }
 
-  if (tSerializeSQueryTableRsp(pRsp, msgSize, &rsp) < 0) {
+  msgSize = tSerializeSQueryTableRsp(pRsp, msgSize, &rsp);
+  if (msgSize < 0) {
     qError("tSerializeSQueryTableRsp %d failed", msgSize);
-    QW_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_RET(msgSize);
   }
 
   SRpcMsg rpcRsp = {
@@ -245,7 +246,7 @@ int32_t qwBuildAndSendDropMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   int32_t msgSize = tSerializeSTaskDropReq(NULL, 0, &qMsg);
   if (msgSize < 0) {
     QW_SCH_TASK_ELOG("tSerializeSTaskDropReq get size, msgSize:%d", msgSize);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(msgSize);
   }
   
   void *msg = rpcMallocCont(msgSize);
@@ -253,11 +254,12 @@ int32_t qwBuildAndSendDropMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", msgSize);
     QW_ERR_RET(terrno);
   }
-  
-  if (tSerializeSTaskDropReq(msg, msgSize, &qMsg) < 0) {
+
+  msgSize = tSerializeSTaskDropReq(msg, msgSize, &qMsg);
+  if (msgSize < 0) {
     QW_SCH_TASK_ELOG("tSerializeSTaskDropReq failed, msgSize:%d", msgSize);
     rpcFreeCont(msg);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(msgSize);
   }
 
   SRpcMsg pNewMsg = {
@@ -283,7 +285,7 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   SQueryContinueReq *req = (SQueryContinueReq *)rpcMallocCont(sizeof(SQueryContinueReq));
   if (NULL == req) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(SQueryContinueReq));
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(terrno);
   }
 
   req->header.vgId = mgmt->nodeId;
@@ -326,7 +328,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   int32_t msgSize = tSerializeSTaskDropReq(NULL, 0, &qMsg);
   if (msgSize < 0) {
     QW_SCH_TASK_ELOG("tSerializeSTaskDropReq get size, msgSize:%d", msgSize);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(msgSize);
   }
   
   void *msg = rpcMallocCont(msgSize);
@@ -334,11 +336,12 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", msgSize);
     QW_ERR_RET(terrno);
   }
-  
-  if (tSerializeSTaskDropReq(msg, msgSize, &qMsg) < 0) {
+
+  msgSize = tSerializeSTaskDropReq(msg, msgSize, &qMsg);
+  if (msgSize < 0) {
     QW_SCH_TASK_ELOG("tSerializeSTaskDropReq failed, msgSize:%d", msgSize);
     rpcFreeCont(msg);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(msgSize);
   }
 
   SRpcMsg brokenMsg = {
@@ -362,17 +365,19 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t clientId, SRpcHandleI
   int32_t msgSize = tSerializeSSchedulerHbReq(NULL, 0, &req);
   if (msgSize < 0) {
     QW_SCH_ELOG("tSerializeSSchedulerHbReq hbReq failed, size:%d", msgSize);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(msgSize);
   }
   void *msg = rpcMallocCont(msgSize);
   if (NULL == msg) {
     QW_SCH_ELOG("calloc %d failed", msgSize);
     QW_ERR_RET(terrno);
   }
-  if (tSerializeSSchedulerHbReq(msg, msgSize, &req) < 0) {
+
+  msgSize = tSerializeSSchedulerHbReq(msg, msgSize, &req);
+  if (msgSize < 0) {
     QW_SCH_ELOG("tSerializeSSchedulerHbReq hbReq failed, size:%d", msgSize);
     rpcFreeCont(msg);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(msgSize);
   }
 
   SRpcMsg brokenMsg = {

@@ -1339,7 +1339,6 @@ static void *hbThreadFunc(void *param) {
       }
       void *buf = taosMemoryMalloc(tlen);
       if (buf == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         break;
@@ -1353,7 +1352,6 @@ static void *hbThreadFunc(void *param) {
       SMsgSendInfo *pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
 
       if (pInfo == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
@@ -1365,7 +1363,6 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = taosMemoryMalloc(sizeof(int32_t));
       if (pInfo->param  == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
@@ -1459,7 +1456,7 @@ int32_t appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key, SAppHbMgr **pAppHbMg
   (*pAppHbMgr)->reportBytes = 0;
   (*pAppHbMgr)->key = taosStrdup(key);
   if ((*pAppHbMgr)->key == NULL) {
-    TSC_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    TSC_ERR_JRET(terrno);
   }
 
   // init app info

@@ -609,7 +609,6 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   }
 
   if (!pInfo->pCur || !pInfo->pSchema) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     qError("sysTableScanUserCols failed since %s", terrstr());
     blockDataDestroy(pDataBlock);
     pInfo->loadInfo.totalRows = 0;
@@ -1014,7 +1013,7 @@ static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, in
   char*   outputWKT = NULL;
 
   if (nGeom == 0) {
-    if (!(*output = taosStrdup(""))) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!(*output = taosStrdup(""))) code = terrno;
     *nOutput = 0;
     return code;
   }
@@ -1112,8 +1111,9 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
           code = sysTableGetGeomText(tagVal.pData, tagVal.nData, &tagData, &tagLen);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (tagType == TSDB_DATA_TYPE_VARBINARY) {
-          if (taosAscii2Hex(tagVal.pData, tagVal.nData, (void**)&tagData, &tagLen) < 0) {
-            qError("varbinary for systable failed since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+          code = taosAscii2Hex(tagVal.pData, tagVal.nData, (void**)&tagData, &tagLen);
+          if (code < 0) {
+            qError("varbinary for systable failed since %s", tstrerror(code));
           }
         } else if (IS_VAR_DATA_TYPE(tagType)) {
           tagData = (char*)tagVal.pData;
@@ -2397,7 +2397,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
     if (NULL == pMsgSendInfo) {
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      pTaskInfo->code = terrno;
       taosMemoryFree(buf1);
       return NULL;
     }

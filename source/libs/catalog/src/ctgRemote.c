@@ -34,9 +34,10 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
   SBatchRspMsg* pRsp = NULL;
 
   if (TSDB_CODE_SUCCESS == rspCode && pMsg->pData && (pMsg->len > 0)) {
-    if (tDeserializeSBatchRsp(pMsg->pData, pMsg->len, &batchRsp) < 0) {
+    code = tDeserializeSBatchRsp(pMsg->pData, pMsg->len, &batchRsp);
+    if (code < 0) {
       ctgError("tDeserializeSBatchRsp failed, msgLen:%d", pMsg->len);
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(code);
     }
 
     msgNum = taosArrayGetSize(batchRsp.pRsps);
@@ -673,7 +674,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
     newBatch.batchId = atomic_add_fetch_32(&pJob->batchId, 1);
 
     if (0 != taosHashPut(pBatchs, &vgId, sizeof(vgId), &newBatch, sizeof(newBatch))) {
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     ctgDebug("task %d %s req added to batch %d, target vgId %d", pTask->taskId, TMSG_INFO(msgType), newBatch.batchId,
@@ -778,7 +779,7 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
   int32_t msgSize = tSerializeSBatchReq(NULL, 0, &batchReq);
   if (msgSize < 0) {
     qError("tSerializeSBatchReq failed");
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(msgSize);
   }
 
   *msg = taosMemoryCalloc(1, msgSize);
@@ -786,9 +787,10 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
     qError("calloc batchReq msg failed, size:%d", msgSize);
     CTG_ERR_RET(terrno);
   }
-  if (tSerializeSBatchReq(*msg, msgSize, &batchReq) < 0) {
+  msgSize = tSerializeSBatchReq(*msg, msgSize, &batchReq);
+  if (msgSize < 0) {
     qError("tSerializeSBatchReq failed");
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(msgSize);
   }
 
   *pSize = msgSize;

@@ -63,7 +63,7 @@ typedef struct SFuncExecFuncs {
   processFuncByRow processFuncByRow;
 } SFuncExecFuncs;
 
-#define MAX_INTERVAL_TIME_WINDOW 1000000000  // maximum allowed time windows in final results
+#define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 32
