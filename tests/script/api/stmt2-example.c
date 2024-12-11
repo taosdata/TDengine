@@ -58,8 +58,8 @@ void do_stmt(TAOS* taos) {
   }
 
   int             fieldNum = 0;
-  TAOS_FIELD_STB* pFields = NULL;
-  code = taos_stmt2_get_stb_fields(stmt, &fieldNum, &pFields);
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
   if (code != 0) {
     printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
   } else {
@@ -69,6 +69,7 @@ void do_stmt(TAOS* taos) {
              pFields[i].field_type);
     }
   }
+
 
   int64_t ts = 1591060628000;
   for (int i = 0; i < 2; ++i) {
@@ -87,7 +88,8 @@ void do_stmt(TAOS* taos) {
     taos_stmt2_close(stmt);
     return;
   }
-  taos_stmt2_free_stb_fields(stmt, pFields);
+
+  taos_stmt2_free_fields(stmt, pFields);
   taos_stmt2_close(stmt);
 }
 
