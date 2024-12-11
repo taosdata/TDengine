@@ -41,7 +41,7 @@ typedef struct TThread {
   int      idx;
 } TThread;
 
-MultiThreadQhandle *multiQ = NULL;
+MultiThreadQhandle *tMultiQ = NULL;
 
 void initLogEnv() {
   const char   *logDir = "/tmp/trans_svr";
@@ -70,7 +70,7 @@ void *processShellMsg(void *arg) {
   taosAllocateQall(&qall);
 
   while (1) {
-    int numOfMsgs = taosReadAllQitemsFromQset(multiQ->qset[idx], qall, &qinfo);
+    int numOfMsgs = taosReadAllQitemsFromQset(tMultiQ->qset[idx], qall, &qinfo);
     tDebug("%d shell msgs are received", numOfMsgs);
     if (numOfMsgs <= 0) break;
 
@@ -132,11 +132,11 @@ void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void **)&pTemp);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
-  int32_t idx = balance % multiQ->numOfThread;
+  int32_t idx = balance % tMultiQ->numOfThread;
   tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
-  taosWriteQitem(multiQ->qhandle[idx], pTemp);
+  taosWriteQitem(tMultiQ->qhandle[idx], pTemp);
   balance++;
-  if (balance >= multiQ->numOfThread) balance = 0;
+  if (balance >= tMultiQ->numOfThread) balance = 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -206,15 +206,15 @@ int main(int argc, char *argv[]) {
   }
 
   int32_t numOfAthread = 5;
-  multiQ = taosMemoryMalloc(sizeof(numOfAthread));
-  multiQ->numOfThread = numOfAthread;
-  multiQ->qhandle = (STaosQueue **)taosMemoryMalloc(sizeof(STaosQueue *) * numOfAthread);
-  multiQ->qset = (STaosQset **)taosMemoryMalloc(sizeof(STaosQset *) * numOfAthread);
+  tMultiQ = taosMemoryMalloc(sizeof(numOfAthread));
+  tMultiQ->numOfThread = numOfAthread;
+  tMultiQ->qhandle = (STaosQueue **)taosMemoryMalloc(sizeof(STaosQueue *) * numOfAthread);
+  tMultiQ->qset = (STaosQset **)taosMemoryMalloc(sizeof(STaosQset *) * numOfAthread);
 
   for (int i = 0; i < numOfAthread; i++) {
-    taosOpenQueue(&multiQ->qhandle[i]);
-    taosOpenQset(&multiQ->qset[i]);
-    taosAddIntoQset(multiQ->qset[i], multiQ->qhandle[i], NULL);
+    taosOpenQueue(&tMultiQ->qhandle[i]);
+    taosOpenQset(&tMultiQ->qset[i]);
+    taosAddIntoQset(tMultiQ->qset[i], tMultiQ->qhandle[i], NULL);
   }
   TThread *threads = taosMemoryMalloc(sizeof(TThread) * numOfAthread);
   for (int i = 0; i < numOfAthread; i++) {
