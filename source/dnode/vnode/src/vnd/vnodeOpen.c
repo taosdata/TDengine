@@ -199,7 +199,14 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
     char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
     if (tsdbFilePrefixPos == NULL) continue;
 
-    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + prefixLen);
+    int32_t tsdbFileVgId = 0;  // atoi(tsdbFilePrefixPos + prefixLen);
+    ret = taosStr2int32(tsdbFilePrefixPos + prefixLen, &tsdbFileVgId);
+    if (ret != 0) {
+      vError("vgId:%d, failed to get tsdb file vgid since %s", dstVgId, tstrerror(ret));
+      tfsClosedir(tsdbDir);
+      return ret;
+    }
+
     if (tsdbFileVgId == srcVgId) {
       char *tsdbFileSurfixPos = tsdbFilePrefixPos + prefixLen + vnodeVgroupIdLen(srcVgId);
 
