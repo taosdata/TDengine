@@ -585,7 +585,8 @@ int32_t checkItemDyn(SConfigItem *pItem, bool isServer) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer, bool isUpdateAll) {
+int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer,
+                                  CfgAlterType alterType) {
   cfgLock(pCfg);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
@@ -598,7 +599,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     cfgUnLock(pCfg);
     TAOS_RETURN(code);
   }
-  if ((!isUpdateAll) && (pItem->category == CFG_CATEGORY_GLOBAL)) {
+  if ((pItem->category == CFG_CATEGORY_GLOBAL) && alterType == CFG_ALTER_DNODE) {
     uError("failed to config:%s, not support update global config on only one dnode", name);
     cfgUnLock(pCfg);
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);

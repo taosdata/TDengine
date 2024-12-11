@@ -316,11 +316,6 @@ class TDTestCase:
                     "category": "global"
                 },
                 {
-                    "name": "syncElectInterval",
-                    "value": 50000,
-                    "category": "global"
-                },
-                {
                     "name": "syncHeartbeatInterval",
                     "value": 3000,
                     "category": "global"

@@ -22,13 +22,9 @@
 #include "mndUser.h"
 #include "tutil.h"
 
-#define CFG_VER_NUMBER   1
-#define CFG_RESERVE_SIZE 63
-
-enum CfgAlterType {
-  CFG_ALTER_DNODE,
-  CFG_ALTER_ALL_DNODES,
-};
+#define CFG_VER_NUMBER    1
+#define CFG_RESERVE_SIZE  63
+#define CFG_ALTER_TIMEOUT 3 * 1000
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj);
@@ -458,29 +454,59 @@ static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq
   int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
+
+  int64_t curMs = taosGetTimestampMs();
+
   while (1) {
     SDnodeObj *pDnode = NULL;
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
     if (pIter == NULL) break;
 
     if (pDnode->id == dnodeId || dnodeId == -1 || dnodeId == 0) {
+      bool online = mndIsDnodeOnline(pDnode, curMs);
+      if (!online) {
+        mWarn("dnode:%d, is offline, skip to send config req", pDnode->id);
+        continue;
+      }
       SEpSet  epSet = mndGetDnodeEpset(pDnode);
       int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
       void   *pBuf = rpcMallocCont(bufLen);
 
-      if (pBuf != NULL) {
-        if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
-          sdbCancelFetch(pMnode->pSdb, pIter);
-          sdbRelease(pMnode->pSdb, pDnode);
-          code = bufLen;
-          return code;
-        }
-        mInfo("dnode:%d, send config req to dnode, config:%s value:%s", dnodeId, pDcfgReq->config, pDcfgReq->value);
-        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
-        code = tmsgSendReq(&epSet, &rpcMsg);
+      if (pBuf == NULL) {
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDnode);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        return code;
+      }
+
+      if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDnode);
+        code = bufLen;
+        rpcFreeCont(pBuf);
+        return code;
+      }
+
+      mInfo("dnode:%d, send config req to dnode, config:%s value:%s", pDnode->id, pDcfgReq->config, pDcfgReq->value);
+      SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
+      SRpcMsg rpcRsp = {0};
+
+      code = rpcSendRecvWithTimeout(pMnode->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, NULL, CFG_ALTER_TIMEOUT);
+      if (code != 0) {
+        mError("failed to send config req to dnode:%d, since %s", pDnode->id, tstrerror(code));
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDnode);
+        return code;
+      }
+
+      code = rpcRsp.code;
+      if (code != 0) {
+        mError("failed to alter config %s,on dnode:%d, since %s", pDcfgReq->config, pDnode->id, tstrerror(code));
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDnode);
+        return code;
       }
     }
-
     sdbRelease(pSdb, pDnode);
   }
 
@@ -541,8 +567,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       updateIpWhiteList = 1;
     }
 
-    bool isUpdateAll = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? true : false;
-    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, isUpdateAll), &lino,
+    CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
+    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, alterType), &lino,
                     _err_out);
   }
   SConfigItem *pItem = cfgGetItem(taosGetCfg(), dcfgReq.config);
@@ -658,6 +684,7 @@ static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array) {
       goto _exit;
     }
     if (strcasecmp(obj->name, "tsmmConfigVersion") == 0) {
+      sdbRelease(pSdb, obj);
       continue;
     }
     SConfigItem item = {0};

@@ -54,6 +54,7 @@ typedef enum {
 
 typedef enum { CFG_SCOPE_SERVER, CFG_SCOPE_CLIENT, CFG_SCOPE_BOTH } ECfgScopeType;
 typedef enum { CFG_CATEGORY_GLOBAL, CFG_CATEGORY_LOCAL } ECfgCategoryType;
+typedef enum { CFG_ALTER_LOCAL, CFG_ALTER_DNODE, CFG_ALTER_ALL_DNODES } CfgAlterType;
 
 typedef enum {
   CFG_DYN_NONE = 0,
@@ -123,7 +124,8 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **ppItem, const char *name, const char *value, ECfgSrcType stype,
                          bool lock);
-int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer, bool isUpdateAll);
+int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer,
+                                  CfgAlterType alterType);
 
 int32_t      cfgCreateIter(SConfig *pConf, SConfigIter **ppIter);
 SConfigItem *cfgNextIter(SConfigIter *pIter);
