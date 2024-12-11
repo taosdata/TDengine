@@ -103,14 +103,17 @@ sudo apt install python3
 pip3 install toml
 ```
 
-To package taosX only, you can type this:
+taosx, taos-explorer and external connectors (e.g. taosx-pi, taosx-opc) are components of TDengine Enterprise, and will be included in the TDengine Enterprise installer. taosx-agent and external connectors are included in a separate agent installer for the ease of use on the edge side.
+
+When creating the TDengine Enterprise installer, taosx, taos-explorer and external connectors are built with following command:
 
 ```bash
-cd packaging
-python3 package.py
-```
+# build with enterprise docs, doc build server access is required
+python3 release.py --only_build --ver_number <version>
 
-Check out more packaging options by `python3 package.py --help`.
+# build without enterprise docs
+python3 release.py --only_build --ver_number <version> --build_without_docs
+```
 
 ## 5. Installation
 
@@ -165,23 +168,12 @@ cargo nextest run --workspace <case-name>
 
 ## 8. Releasing
 
-taosx, taos-explorer and external connectors (e.g. taosx-pi, taosx-opc) are components of TDengine Enterprise, and will be included in the TDengine Enterprise installer. taosx-agent and external connectors are included in a separate agent installer for the ease of use on the edge side.
+taosx and related components are released with TDengine Enterprise, whcih can be found on the corporate NAS server:
 
-When creating the TDengine Enterprise installer, taosx, taos-explorer and external connectors are built with following command:
+- NAS Server URL： http://192.168.1.252:5000/
+- Directory: /Release/TDengine/
 
-```bash
-# build with enterprise docs, doc build server access is required
-python3 release.py --only_build --ver_number <version>
-
-# build without enterprise docs
-python3 release.py --only_build --ver_number <version> --build_without_docs
-```
-
-To create the agent installer:
-
-```bash
-python3 release.py --build_agent 1 --ver_number <version>
-```
+All the released versions can be found here.
 
 ## 9. CI/CD
 
