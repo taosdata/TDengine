@@ -592,7 +592,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
         memset(pTmp, 'A' + taosRand() % 26, *pLen);
         *ppVal = taosMemoryCalloc(1, *pLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         assert(*ppVal);
-        assert(taosMbsToUcs4(pTmp, *pLen, (TdUcs4 *)varDataVal(*ppVal), *pLen * TSDB_NCHAR_SIZE, NULL));
+        assert(taosMbsToUcs4(pTmp, *pLen, (TdUcs4 *)varDataVal(*ppVal), *pLen * TSDB_NCHAR_SIZE, NULL, NULL));
         *pLen *= TSDB_NCHAR_SIZE;
         varDataSetLen(*ppVal, *pLen);
         taosMemoryFree(pTmp);

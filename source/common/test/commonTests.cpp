@@ -429,9 +429,9 @@ void test_timestamp_tm_conversion(int64_t ts, int32_t precision, int32_t y, int3
   struct STm tm;
   taosFormatUtcTime(buf, 128, ts, precision);
   printf("formated ts of %ld, precision: %d is: %s\n", ts, precision, buf);
-  taosTs2Tm(ts, precision, &tm);
+  taosTs2Tm(ts, precision, &tm, NULL);
   check_tm(&tm, y, mon, d, h, m, s, fsec);
-  taosTm2Ts(&tm, &ts_tmp, precision);
+  taosTm2Ts(&tm, &ts_tmp, precision, NULL);
   ASSERT_EQ(ts, ts_tmp);
 }
 
@@ -442,15 +442,15 @@ TEST(timeTest, timestamp2tm) {
   int64_t     ts, tmp_ts = 0;
   struct STm  tm;
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ns, &ts, strlen(ts_str_ns), TSDB_TIME_PRECISION_NANO, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ns, &ts, strlen(ts_str_ns), TSDB_TIME_PRECISION_NANO, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_NANO, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775726171L);
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_us, &ts, strlen(ts_str_us), TSDB_TIME_PRECISION_MICRO, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_us, &ts, strlen(ts_str_us), TSDB_TIME_PRECISION_MICRO, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_MICRO, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775726000L);
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ms, &ts, strlen(ts_str_ms), TSDB_TIME_PRECISION_MILLI, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ms, &ts, strlen(ts_str_ms), TSDB_TIME_PRECISION_MILLI, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_MILLI, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775000000L);
 
@@ -477,7 +477,7 @@ void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* 
 
 TEST(timeTest, ts2char) {
   osDefaultInit();
-  if (tsTimezone != TdEastZone8) GTEST_SKIP();
+  if (taosGetLocalTimezoneOffset() != TdEastZone8) GTEST_SKIP();
   int64_t     ts;
   const char* format = "YYYY-MM-DD";
   ts = 0;
@@ -529,7 +529,7 @@ TEST(timeTest, ts2char) {
 
 TEST(timeTest, char2ts) {
   osDefaultInit();
-  if (tsTimezone != TdEastZone8) GTEST_SKIP();
+  if (taosGetLocalTimezoneOffset() != TdEastZone8) GTEST_SKIP();
   int64_t ts;
   int32_t code =
       TEST_char2ts("YYYY-DD-MM HH12:MI:SS:MSPM", &ts, TSDB_TIME_PRECISION_MILLI, "2023-10-10 12:00:00.000AM");
@@ -630,7 +630,7 @@ TEST(timeTest, char2ts) {
 
   // default to 1970-1-1 00:00:00+08 -> 1969-12-31 16:00:00+00
   ASSERT_EQ(0, TEST_char2ts("YYYY", &ts, TSDB_TIME_PRECISION_SECONDS, "1970"));
-  ASSERT_EQ(ts, -1 * tsTimezone * 60 * 60);
+  ASSERT_EQ(ts, -1 * taosGetLocalTimezoneOffset());
 
   ASSERT_EQ(0, TEST_char2ts("yyyyMM1/dd ", &ts, TSDB_TIME_PRECISION_MICRO, "210001/2"));
   ASSERT_EQ(ts, 4102502400000000LL);

@@ -27,7 +27,6 @@ function runCasesOneByOne () {
                 || echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_ALLCI_REPORT
                 end_time=`date +%s`
                 echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_ALLCI_REPORT
-                if $case failed
                 
             elif [[ "$line" == *"$2"* ]]; then
                 if [[ "$cmd" == *"pytest.sh"* ]]; then
