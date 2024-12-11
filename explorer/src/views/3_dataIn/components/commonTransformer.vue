@@ -2170,7 +2170,7 @@ export default {
           parser: {
             parse: this.$store.state.app.topParse.parser.parse,
             s_model: s_model,
-            mutate: [].concat(this.$store.state.app.transformExtractParseData),
+            mutate: this.$store.state.app.transformExtractParseData ? [].concat(this.$store.state.app.transformExtractParseData) : [],
           },
 
           input: this.$store.state.app.topParse.input
