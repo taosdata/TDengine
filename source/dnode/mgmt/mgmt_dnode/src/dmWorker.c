@@ -366,12 +366,6 @@ void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   }
 }
 
-void dmStopConfigThread(SDnodeMgmt *pMgmt) {
-  if (taosCheckPthreadValid(pMgmt->configThread)) {
-    taosThreadClear(&pMgmt->configThread);
-  }
-}
-
 void dmStopStatusInfoThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->statusInfoThread)) {
     (void)taosThreadJoin(pMgmt->statusInfoThread, NULL);
