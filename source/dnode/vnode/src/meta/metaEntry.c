@@ -246,7 +246,7 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
   } else if (TSDB_CHILD_TABLE == (*ppEntry)->type) {
     taosMemoryFreeClear((*ppEntry)->ctbEntry.comment);
     taosMemoryFreeClear((*ppEntry)->ctbEntry.pTags);
-  } else if (TSDB_CHILD_TABLE == (*ppEntry)->type) {
+  } else if (TSDB_NORMAL_TABLE == (*ppEntry)->type) {
     metaCloneSchemaFree(&(*ppEntry)->ntbEntry.schemaRow);
     taosMemoryFreeClear((*ppEntry)->ntbEntry.comment);
   } else {
