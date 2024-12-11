@@ -2534,7 +2534,7 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
   }
   tsdbRowClose(&rowIter);
 
-  if (tSimpleHashGetSize(iColHash) > 0) {
+  if (iColHash && tSimpleHashGetSize(iColHash) > 0) {
     pRow = memRowIterGet(&iter, false, NULL, 0);
     while (pRow) {
       if (tSimpleHashGetSize(iColHash) == 0) {
