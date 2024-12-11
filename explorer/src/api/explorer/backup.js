@@ -11,13 +11,13 @@ export function getBackupList(id) {
 }
 
 //添加backup
-export function addBackupData(clusterID,data) {
+export function addBackupData(data) {
     return request({
         baseURL:process.env.VUE_APP_X_API,
         headers:{
             "Content-Type":"application/json"
         },
-        url: `/tasks?lang=${language}&labels=type::backup,cluster-id::${clusterID}`,
+        url: `/tasks?lang=${language}`,
         method: "post",
         data
     });
