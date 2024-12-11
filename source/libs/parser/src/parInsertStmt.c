@@ -938,13 +938,17 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_STB** fields,
+int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_ALL** fields,
                             STableMeta* pMeta, void* boundTags, bool preCtbname) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
-  int32_t numOfBound = boundColsInfo.numOfBound + (tags->mixTagsCols ? 0 : tags->numOfBound) + (preCtbname ? 1 : 0);
+  bool           hastag = tags != NULL;
+  int32_t        numOfBound = boundColsInfo.numOfBound + (preCtbname ? 1 : 0);
+  if (hastag) {
+    numOfBound += tags->mixTagsCols ? 0 : tags->numOfBound;
+  }
   int32_t idx = 0;
   if (fields != NULL) {
-    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_STB));
+    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_ALL));
     if (NULL == *fields) {
       return terrno;
     }
@@ -957,7 +961,7 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
       idx++;
     }
 
-    if (tags->numOfBound > 0 && !tags->mixTagsCols) {
+    if (hastag && tags->numOfBound > 0 && !tags->mixTagsCols) {
       SSchema* tagSchema = getTableTagSchema(pMeta);
 
       for (int32_t i = 0; i < tags->numOfBound; ++i) {
@@ -1054,7 +1058,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
 }
 
 int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool preCtbname, int32_t* fieldNum,
-                               TAOS_FIELD_STB** fields) {
+                               TAOS_FIELD_ALL** fields) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
   if (pDataBlock->boundColsInfo.numOfBound <= 0) {
