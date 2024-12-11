@@ -2501,7 +2501,7 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
     if (!IS_LAST_KEY(((SLastKey *)TARRAY_DATA(keyArray))[jCol])) {
       if (cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
         SLastCol lastCol = {.rowKey = rowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
-        TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&lastCol, NULL), &lino, _exit);
+        TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
 
         tsdbCacheFreeSLastColItem(pTargetCol);
         taosArraySet(pLastArray, jCol, &lastCol);
@@ -2511,7 +2511,7 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
         if (cmp_res <= 0) {
           SLastCol lastCol = {
               .rowKey = rowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
-          TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&lastCol, NULL), &lino, _exit);
+          TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
 
           tsdbCacheFreeSLastColItem(pTargetCol);
           taosArraySet(pLastArray, jCol, &lastCol);
@@ -2546,7 +2546,7 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
 
     sversion = TSDBROW_SVERSION(pRow);
     if (sversion != -1) {
-      TAOS_CHECK_GOTO(updateTSchema(sversion, pr, uid), &lino, _exit);
+      TAOS_CHECK_EXIT(updateTSchema(sversion, pr, uid));
 
       pTSchema = pr->pCurrSchema;
     }
@@ -2569,7 +2569,7 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
         if (cmp_res <= 0) {
           SLastCol lastCol = {
               .rowKey = tsdbRowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
-          TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&lastCol, NULL), &lino, _exit);
+          TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
 
           tsdbCacheFreeSLastColItem(pTargetCol);
           taosArraySet(pLastArray, *pjCol, &lastCol);
@@ -2610,7 +2610,6 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     TAOS_CHECK_EXIT(terrno);
   }
 
-  // SLastKey key = {.lflag = ltype, .uid = uid, .cid = cid};
   TAOS_CHECK_EXIT(tsdbCacheGetBatchFromLru(pTsdb, uid, pLastArray, pr, ltype, keyArray));
 
   if (tsUpdateCacheBatch) {
