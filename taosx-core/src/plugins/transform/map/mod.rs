@@ -54,7 +54,7 @@ impl TransformExt for Map {
             .iter()
             .map(|f| f.name().clone())
             .chain(fields.iter().map(|f| f.name().clone()))
-            .unique()
+            .unique() // (point_name, ts, value, ${point_name}, site_controller_id)
             .map(|name| {
                 if let Some((idx, field)) =
                     fields.iter().find_position(|field| name == *field.name())

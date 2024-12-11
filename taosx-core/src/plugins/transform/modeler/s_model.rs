@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Context;
 use serde::Serialize;
@@ -60,25 +60,51 @@ impl SModel {
                 .context("add template error")?;
         }
 
-        let mut res = HashMap::new();
+        let mut models = HashMap::new();
         for ctx in ctx.into_iter() {
             let name = template
                 .render("name", &ctx)
                 .context("render stable name error")?;
             let name = opts.canonical_table_name(&name).to_string();
-            if res.contains_key(&name) {
-                continue;
-            }
-            res.insert(
-                name.clone(),
-                SModel {
+            let columns = self.render_column(&template, &ctx)?;
+            let tags = self.render_tags(&template, &ctx)?;
+            models
+                .entry(name.clone())
+                .and_modify(|model: &mut SModel| {
+                    {
+                        let curr_columns = model
+                            .columns
+                            .iter()
+                            .map(|col| col.name.clone())
+                            .collect::<HashSet<_>>();
+
+                        for col in columns
+                            .into_iter()
+                            .filter(|col| !curr_columns.contains(&col.name))
+                        {
+                            model.columns.push(col);
+                        }
+                    }
+                    let curr_tags = model
+                        .tags
+                        .iter()
+                        .map(|col| col.name.clone())
+                        .collect::<HashSet<_>>();
+                    for tag in tags
+                        .into_iter()
+                        .filter(|tag| !curr_tags.contains(&tag.name))
+                    {
+                        model.tags.push(tag);
+                    }
+                })
+                .or_insert(SModel {
                     name,
                     columns: self.render_column(&template, &ctx)?,
                     tags: self.render_tags(&template, &ctx)?,
-                },
-            );
+                });
         }
-        Ok(res)
+
+        Ok(models)
     }
 
     fn column_templates(&self) -> Vec<(String, String)> {
@@ -256,13 +282,15 @@ mod tests {
         };
         assert_eq!(
             model.create_stable_sql(),
-            "CREATE STABLE IF NOT EXISTS `abc` (col1 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', col2 VARCHAR(128) COMPRESS 'lz4') TAGS (tag1 INT, tag2 VARCHAR(128));"
+            "CREATE STABLE IF NOT EXISTS `abc` \
+            (col1 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
+            col2 VARCHAR(128) COMPRESS 'lz4') TAGS (tag1 INT, tag2 VARCHAR(128));"
         );
         Ok(())
     }
 
     #[test]
-    fn apply_test() -> anyhow::Result<()> {
+    fn apply_single_column_test() -> anyhow::Result<()> {
         let model = SModel {
             name: "${abc_x}".to_string(),
             columns: vec![
@@ -308,7 +336,94 @@ mod tests {
             })],
             &TableOptions::default(),
         )?;
-        assert_eq!(models.get("abc").context("model not found")?.create_stable_sql(), "CREATE STABLE IF NOT EXISTS `abc` (col1 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', col2 VARCHAR(128) COMPRESS 'lz4') TAGS (tag1 INT, tag2 VARCHAR(128));");
+        assert_eq!(
+            models
+                .get("abc")
+                .context("model not found")?
+                .create_stable_sql(),
+            "CREATE STABLE IF NOT EXISTS `abc` \
+            (col1 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
+            col2 VARCHAR(128) COMPRESS 'lz4') \
+            TAGS (tag1 INT, tag2 VARCHAR(128));"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn apply_multi_column_test() -> anyhow::Result<()> {
+        let model = SModel {
+            name: "${abc_x}".to_string(),
+            columns: vec![
+                Column {
+                    name: "${col1_x}".to_string(),
+                    r#type: "${TIMESTAMP_x}".to_string(),
+                    encode: Some("${delta-i_x}".to_string()),
+                    compress: Some("${lz4_x}".to_string()),
+                    level: Some("${medium_x}".to_string()),
+                },
+                Column {
+                    name: "${col2_x}".to_string(),
+                    r#type: "${VARCHAR(128)_x}".to_string(),
+                    compress: Some("${lz4_x}".to_string()),
+                    ..Default::default()
+                },
+            ],
+            tags: vec![
+                Tag {
+                    name: "${tag1_x}".to_string(),
+                    r#type: "${INT_x}".to_string(),
+                },
+                Tag {
+                    name: "${tag2_x}".to_string(),
+                    r#type: "${VARCHAR(128)_x}".to_string(),
+                },
+            ],
+        };
+        let models = model.apply(
+            [
+                json::json!({
+                    "abc_x": "abc",
+                    "col1_x": "col1",
+                    "TIMESTAMP_x": "TIMESTAMP",
+                    "delta-i_x": "delta-i",
+                    "lz4_x": "lz4",
+                    "medium_x": "medium",
+                    "col2_x": "col2",
+                    "VARCHAR(128)_x": "VARCHAR(128)",
+                    "tag1_x": "tag1",
+                    "INT_x": "INT",
+                    "tag2_x": "tag2",
+                    "VARCHAR(128)_x": "VARCHAR(128)"
+                }),
+                json::json!({
+                    "abc_x": "abc",
+                    "col1_x": "col11",
+                    "TIMESTAMP_x": "TIMESTAMP",
+                    "delta-i_x": "delta-i",
+                    "lz4_x": "lz4",
+                    "medium_x": "medium",
+                    "col2_x": "col2",
+                    "VARCHAR(128)_x": "VARCHAR(128)",
+                    "tag1_x": "tag1",
+                    "INT_x": "INT",
+                    "tag2_x": "tag2",
+                    "VARCHAR(128)_x": "VARCHAR(128)"
+                }),
+            ],
+            &TableOptions::default(),
+        )?;
+        let sql = models
+            .get("abc")
+            .context("model not found")?
+            .create_stable_sql();
+        assert_eq!(
+            sql,
+            "CREATE STABLE IF NOT EXISTS `abc` \
+            (col1 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
+            col2 VARCHAR(128) COMPRESS 'lz4', \
+            col11 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium') \
+            TAGS (tag1 INT, tag2 VARCHAR(128));"
+        );
         Ok(())
     }
 }

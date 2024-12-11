@@ -2019,8 +2019,8 @@ mod tests {
 
                     MessageTableMeta {
                         name: Arc::new(table_name),
-                        using: Some(STable::Name(stable.to_string())),
-                        tags: Some(table_tags.slice(i, 1)),
+                        using: Some(Arc::new(STable::Name(stable.to_string()))),
+                        tags: Some(Arc::new(table_tags.slice(i, 1))),
                     }
                 })
                 .collect_vec();

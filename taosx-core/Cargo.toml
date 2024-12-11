@@ -175,6 +175,7 @@ snafu = "0.8.5"
 parking_lot = "0.12.3"
 lz4 = "1.28.0"
 snap = "1.1.1"
+datafusion = "43.0.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
