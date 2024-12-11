@@ -592,10 +592,10 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
   }
 
   int32_t dirLen = strlen(tmp);
-  if (dirLen >= TSDB_FILENAME_LEN) {
+  if (dirLen < 0 || dirLen >= TSDB_FILENAME_LEN) {
     wordfree(&wep);
     code = TSDB_CODE_OUT_OF_RANGE;
-    fError("failed to mount %s to FS since %s, real path:%s", idir, tstrerror(code), tmp);
+    fError("failed to mount %s to FS since %s, real path:%s, len:%d", idir, tstrerror(code), tmp, dirLen);
     TAOS_RETURN(code);
   }
 
