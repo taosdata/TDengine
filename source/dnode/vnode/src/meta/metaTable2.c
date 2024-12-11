@@ -133,6 +133,37 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // check table existence
+  if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize) == 0) {
+    pReq->uid = *(int64_t *)value;
+    tdbFreeClear(value);
+
+    if (metaGetInfo(pMeta, pReq->uid, &info, NULL) != 0) {
+      metaError("vgId:%d, %s failed at %s:%d since cannot find table with uid %" PRId64
+                ", which is an internal error, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->uid, version);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    // check table type
+    if (info.suid == info.uid || info.suid == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since table with uid %" PRId64 " is not a super table, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->uid, version);
+      return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+    }
+
+    // check suid
+    if (info.suid != pReq->ctb.suid) {
+      metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64 " exists in another stable with uid %" PRId64
+                " instead of stable with uid %" PRId64 " version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->uid, info.suid, pReq->ctb.suid,
+                version);
+      return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+    }
+
+    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+  }
+
   // check super table existence
   if (tdbTbGet(pMeta->pNameIdx, pReq->ctb.stbName, strlen(pReq->ctb.stbName) + 1, &value, &valueSize) == 0) {
     int64_t suid = *(int64_t *)value;
@@ -159,30 +190,6 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
     metaError("vgId:%d, %s failed at %s:%d since table with uid %" PRId64 " is not a super table, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.suid, version);
     return TSDB_CODE_INVALID_MSG;
-  }
-
-  // check table existence
-  if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize) == 0) {
-    pReq->uid = *(int64_t *)value;
-    tdbFreeClear(value);
-
-    if (metaGetInfo(pMeta, pReq->uid, &info, NULL) != 0) {
-      metaError("vgId:%d, %s failed at %s:%d since cannot find table with uid %" PRId64
-                ", which is an internal error, version:%" PRId64,
-                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->uid, version);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
-
-    // check table type and suid
-    if (info.suid != pReq->ctb.suid) {
-      metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64 " exists in another stable with uid %" PRId64
-                " instead of stable with uid %" PRId64 " version:%" PRId64,
-                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->uid, info.suid, pReq->ctb.suid,
-                version);
-      return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
-    }
-
-    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
 
   // check grant
