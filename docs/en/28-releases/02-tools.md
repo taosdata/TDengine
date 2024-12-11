@@ -1,12 +1,12 @@
 ---
-title: taosTools Release History and Download Links
 sidebar_label: taosTools
-description: This document provides download links for all released versions of taosTools compatible with TDengine 3.0.
+title: taosTools Release History and Download Links
+slug: /release-history/taostools
 ---
 
-taosTools installation packages can be downloaded at the following links:
+Download links for various versions of taosTools are as follows:
 
-For other historical version installers, please visit [here](https://tdengine.com/downloads/historical/).
+For other historical versions, please visit [here](https://tdengine.com/downloads/historical)
 
 import Release from "/components/ReleaseV3";
 

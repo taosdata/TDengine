@@ -93,7 +93,7 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
       char    strOri[128] = {0};
       taosRandStr(strOri, size);
       int32_t len = 0;
-      bool    ret = taosMbsToUcs4(strOri, size, (TdUcs4*)varDataVal(str), size * TSDB_NCHAR_SIZE, &len);
+      bool    ret = taosMbsToUcs4(strOri, size, (TdUcs4*)varDataVal(str), size * TSDB_NCHAR_SIZE, &len, NULL);
       if (!ret) {
         (void) printf("error\n");
         return NULL;
@@ -331,7 +331,7 @@ TEST(testCase, external_mem_sort_Test) {
 
       if(pInfo[i].type == TSDB_DATA_TYPE_NCHAR){
         char        buf[128] = {0};
-        int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(v), varDataLen(v), buf);
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(v), varDataLen(v), buf, NULL);
         printf("%d: %s\n", row++, buf);
       }else if(pInfo[i].type == TSDB_DATA_TYPE_BINARY || pInfo[i]->type == TSDB_DATA_TYPE_GEOMETRY){
         char        buf[128] = {0};

@@ -52,6 +52,22 @@
 
 #define TMQ_META_VERSION "1.0"
 
+static bool  tmqAddJsonObjectItem(cJSON *object, const char *string, cJSON *item){
+  bool ret = cJSON_AddItemToObject(object, string, item);
+  if (!ret){
+    cJSON_Delete(item);
+  }
+  return ret;
+}
+static bool  tmqAddJsonArrayItem(cJSON *array, cJSON *item){
+  bool ret = cJSON_AddItemToArray(array, item);
+  if (!ret){
+    cJSON_Delete(item);
+  }
+  return ret;
+}
+
+
 static int32_t  tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen);
 static tb_uid_t processSuid(tb_uid_t suid, char* db) { return suid + MurmurHash3_32(db, strlen(db)); }
 static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id, int8_t t,
@@ -68,41 +84,43 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
   cJSON* type = cJSON_CreateString("create");
   RAW_NULL_CHECK(type);
 
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "type", type));
   cJSON* tableType = cJSON_CreateString(t == TSDB_NORMAL_TABLE ? "normal" : "super");
   RAW_NULL_CHECK(tableType);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableType", tableType));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableType", tableType));
   cJSON* tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
 
   cJSON* columns = cJSON_CreateArray();
   RAW_NULL_CHECK(columns);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "columns", columns));
+
   for (int i = 0; i < schemaRow->nCols; i++) {
     cJSON* column = cJSON_CreateObject();
     RAW_NULL_CHECK(column);
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(columns, column));
     SSchema* s = schemaRow->pSchema + i;
     cJSON*   cname = cJSON_CreateString(s->name);
     RAW_NULL_CHECK(cname);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(column, "name", cname));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "name", cname));
     cJSON* ctype = cJSON_CreateNumber(s->type);
     RAW_NULL_CHECK(ctype);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(column, "type", ctype));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "type", ctype));
     if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_VARBINARY || s->type == TSDB_DATA_TYPE_GEOMETRY) {
       int32_t length = s->bytes - VARSTR_HEADER_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(column, "length", cbytes));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
     } else if (s->type == TSDB_DATA_TYPE_NCHAR) {
       int32_t length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(column, "length", cbytes));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
     }
     cJSON* isPk = cJSON_CreateBool(s->flags & COL_IS_KEY);
     RAW_NULL_CHECK(isPk);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(column, "isPrimarykey", isPk));
-    RAW_FALSE_CHECK(cJSON_AddItemToArray(columns, column));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "isPrimarykey", isPk));
 
     if (pColCmprRow == NULL) {
       continue;
@@ -124,44 +142,44 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
 
     cJSON* encodeJson = cJSON_CreateString(encode);
     RAW_NULL_CHECK(encodeJson);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(column, "encode", encodeJson));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "encode", encodeJson));
 
     cJSON* compressJson = cJSON_CreateString(compress);
     RAW_NULL_CHECK(compressJson);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(column, "compress", compressJson));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "compress", compressJson));
 
     cJSON* levelJson = cJSON_CreateString(level);
     RAW_NULL_CHECK(levelJson);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(column, "level", levelJson));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "level", levelJson));
   }
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "columns", columns));
 
   cJSON* tags = cJSON_CreateArray();
   RAW_NULL_CHECK(tags);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
+
   for (int i = 0; schemaTag && i < schemaTag->nCols; i++) {
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
     SSchema* s = schemaTag->pSchema + i;
     cJSON*   tname = cJSON_CreateString(s->name);
     RAW_NULL_CHECK(tname);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "name", tname));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "name", tname));
     cJSON* ttype = cJSON_CreateNumber(s->type);
     RAW_NULL_CHECK(ttype);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "type", ttype));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "type", ttype));
     if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_VARBINARY || s->type == TSDB_DATA_TYPE_GEOMETRY) {
       int32_t length = s->bytes - VARSTR_HEADER_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "length", cbytes));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "length", cbytes));
     } else if (s->type == TSDB_DATA_TYPE_NCHAR) {
       int32_t length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "length", cbytes));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "length", cbytes));
     }
-    RAW_FALSE_CHECK(cJSON_AddItemToArray(tags, tag));
   }
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tags", tags));
 
 end:
   *pJson = json;
@@ -175,7 +193,7 @@ static int32_t setCompressOption(cJSON* json, uint32_t para) {
     RAW_NULL_CHECK(encodeStr);
     cJSON* encodeJson = cJSON_CreateString(encodeStr);
     RAW_NULL_CHECK(encodeJson);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "encode", encodeJson));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "encode", encodeJson));
     return code;
   }
   uint8_t compress = COMPRESS_L2_TYPE_U32(para);
@@ -184,7 +202,7 @@ static int32_t setCompressOption(cJSON* json, uint32_t para) {
     RAW_NULL_CHECK(compressStr);
     cJSON* compressJson = cJSON_CreateString(compressStr);
     RAW_NULL_CHECK(compressJson);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "compress", compressJson));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "compress", compressJson));
     return code;
   }
   uint8_t level = COMPRESS_L2_TYPE_LEVEL_U32(para);
@@ -193,7 +211,7 @@ static int32_t setCompressOption(cJSON* json, uint32_t para) {
     RAW_NULL_CHECK(levelStr);
     cJSON* levelJson = cJSON_CreateString(levelStr);
     RAW_NULL_CHECK(levelJson);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "level", levelJson));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "level", levelJson));
     return code;
   }
 
@@ -214,19 +232,19 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
   RAW_NULL_CHECK(json);
   cJSON* type = cJSON_CreateString("alter");
   RAW_NULL_CHECK(type);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "type", type));
   SName name = {0};
   RAW_RETURN_CHECK(tNameFromString(&name, req.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
   cJSON* tableType = cJSON_CreateString("super");
   RAW_NULL_CHECK(tableType);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableType", tableType));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableType", tableType));
   cJSON* tableName = cJSON_CreateString(name.tname);
   RAW_NULL_CHECK(tableName);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
 
   cJSON* alterType = cJSON_CreateNumber(req.alterType);
   RAW_NULL_CHECK(alterType);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "alterType", alterType));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "alterType", alterType));
   switch (req.alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
     case TSDB_ALTER_TABLE_ADD_COLUMN: {
@@ -234,22 +252,22 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       cJSON* colType = cJSON_CreateNumber(field->type);
       RAW_NULL_CHECK(colType);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colType", colType));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colType", colType));
 
       if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_VARBINARY ||
           field->type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = field->bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       } else if (field->type == TSDB_DATA_TYPE_NCHAR) {
         int32_t length = (field->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
       break;
     }
@@ -258,22 +276,22 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       cJSON* colType = cJSON_CreateNumber(field->type);
       RAW_NULL_CHECK(colType);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colType", colType));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colType", colType));
 
       if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_VARBINARY ||
           field->type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = field->bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       } else if (field->type == TSDB_DATA_TYPE_NCHAR) {
         int32_t length = (field->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
       RAW_RETURN_CHECK(setCompressOption(json, field->compress));
       break;
@@ -284,7 +302,7 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
@@ -293,21 +311,21 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       cJSON* colType = cJSON_CreateNumber(field->type);
       RAW_NULL_CHECK(colType);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colType", colType));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colType", colType));
       if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_VARBINARY ||
           field->type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = field->bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       } else if (field->type == TSDB_DATA_TYPE_NCHAR) {
         int32_t length = (field->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
       break;
     }
@@ -319,10 +337,10 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
       RAW_NULL_CHECK(newField);
       cJSON* colName = cJSON_CreateString(oldField->name);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       cJSON* colNewName = cJSON_CreateString(newField->name);
       RAW_NULL_CHECK(colNewName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colNewName", colNewName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colNewName", colNewName));
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
@@ -330,7 +348,7 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       RAW_RETURN_CHECK(setCompressOption(json, field->bytes));
       break;
     }
@@ -391,51 +409,47 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   int64_t id = pCreateReq->uid;
   uint8_t tagNum = pCreateReq->ctb.tagNum;
   int32_t code = 0;
-  cJSON*  tags = NULL;
+  SArray* pTagVals = NULL;
+  char*   pJson = NULL;
+
   cJSON*  tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
   cJSON* using = cJSON_CreateString(sname);
   RAW_NULL_CHECK(using);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "using", using));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "using", using));
   cJSON* tagNumJson = cJSON_CreateNumber(tagNum);
   RAW_NULL_CHECK(tagNumJson);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tagNum", tagNumJson));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tagNum", tagNumJson));
 
-  tags = cJSON_CreateArray();
+  cJSON* tags = cJSON_CreateArray();
   RAW_NULL_CHECK(tags);
-  SArray* pTagVals = NULL;
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
   RAW_RETURN_CHECK(tTagToValArray(pTag, &pTagVals));
-
   if (tTagIsJson(pTag)) {
     STag* p = (STag*)pTag;
     if (p->nTag == 0) {
       uError("p->nTag == 0");
       goto end;
     }
-    char* pJson = NULL;
-    parseTagDatatoJson(pTag, &pJson);
-    if (pJson == NULL) {
-      uError("parseTagDatatoJson failed, pJson == NULL");
-      goto end;
-    }
+    parseTagDatatoJson(pTag, &pJson, NULL);
+    RAW_NULL_CHECK(pJson);
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
     STagVal* pTagVal = taosArrayGet(pTagVals, 0);
     RAW_NULL_CHECK(pTagVal);
     char* ptname = taosArrayGet(tagName, 0);
     RAW_NULL_CHECK(ptname);
     cJSON* tname = cJSON_CreateString(ptname);
     RAW_NULL_CHECK(tname);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "name", tname));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "name", tname));
     cJSON* ttype = cJSON_CreateNumber(TSDB_DATA_TYPE_JSON);
     RAW_NULL_CHECK(ttype);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "type", ttype));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "type", ttype));
     cJSON* tvalue = cJSON_CreateString(pJson);
     RAW_NULL_CHECK(tvalue);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "value", tvalue));
-    RAW_FALSE_CHECK(cJSON_AddItemToArray(tags, tag));
-    taosMemoryFree(pJson);
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "value", tvalue));
     goto end;
   }
 
@@ -444,36 +458,34 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     RAW_NULL_CHECK(pTagVal);
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, tag));
     char* ptname = taosArrayGet(tagName, i);
     RAW_NULL_CHECK(ptname);
     cJSON* tname = cJSON_CreateString(ptname);
     RAW_NULL_CHECK(tname);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "name", tname));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "name", tname));
     cJSON* ttype = cJSON_CreateNumber(pTagVal->type);
     RAW_NULL_CHECK(ttype);
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "type", ttype));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "type", ttype));
 
     cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      char*   buf = NULL;
       int64_t bufSize = 0;
       if (pTagVal->type == TSDB_DATA_TYPE_VARBINARY) {
         bufSize = pTagVal->nData * 2 + 2 + 3;
       } else {
         bufSize = pTagVal->nData + 3;
       }
-      buf = taosMemoryCalloc(bufSize, 1);
-
+      char* buf = taosMemoryCalloc(bufSize, 1);
       RAW_NULL_CHECK(buf);
-      if (!buf) goto end;
       if (dataConverToStr(buf, bufSize, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL) != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
         goto end;
       }
 
       tvalue = cJSON_CreateString(buf);
-      RAW_NULL_CHECK(tvalue);
       taosMemoryFree(buf);
+      RAW_NULL_CHECK(tvalue);
     } else {
       double val = 0;
       GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
@@ -481,12 +493,11 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       RAW_NULL_CHECK(tvalue);
     }
 
-    RAW_FALSE_CHECK(cJSON_AddItemToObject(tag, "value", tvalue));
-    RAW_FALSE_CHECK(cJSON_AddItemToArray(tags, tag));
+    RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "value", tvalue));
   }
 
 end:
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tags", tags));
+  taosMemoryFree(pJson);
   taosArrayDestroy(pTagVals);
 }
 
@@ -497,22 +508,23 @@ static void buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs, cJSO
   RAW_NULL_CHECK(json);
   cJSON* type = cJSON_CreateString("create");
   RAW_NULL_CHECK(type);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "type", type));
 
   cJSON* tableType = cJSON_CreateString("child");
   RAW_NULL_CHECK(tableType);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableType", tableType));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableType", tableType));
 
   buildChildElement(json, pCreateReq);
   cJSON* createList = cJSON_CreateArray();
   RAW_NULL_CHECK(createList);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "createList", createList));
+
   for (int i = 0; nReqs > 1 && i < nReqs; i++) {
     cJSON* create = cJSON_CreateObject();
     RAW_NULL_CHECK(create);
     buildChildElement(create, pCreateReq + i);
-    RAW_FALSE_CHECK(cJSON_AddItemToArray(createList, create));
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(createList, create));
   }
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "createList", createList));
 
 end:
   *pJson = json;
@@ -619,59 +631,62 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_NULL_CHECK(json);
   cJSON* type = cJSON_CreateString("alter");
   RAW_NULL_CHECK(type);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
-  cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ? "child" : "normal");
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "type", type));
+  cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+                                                vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL
+                                            ? "child"
+                                            : "normal");
   RAW_NULL_CHECK(tableType);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableType", tableType));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableType", tableType));
   cJSON* tableName = cJSON_CreateString(vAlterTbReq.tbName);
   RAW_NULL_CHECK(tableName);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
   cJSON* alterType = cJSON_CreateNumber(vAlterTbReq.action);
   RAW_NULL_CHECK(alterType);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "alterType", alterType));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "alterType", alterType));
 
   switch (vAlterTbReq.action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN: {
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
       RAW_NULL_CHECK(colType);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colType", colType));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colType", colType));
 
       if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY || vAlterTbReq.type == TSDB_DATA_TYPE_VARBINARY ||
           vAlterTbReq.type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       } else if (vAlterTbReq.type == TSDB_DATA_TYPE_NCHAR) {
         int32_t length = (vAlterTbReq.bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
       break;
     }
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION: {
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
       RAW_NULL_CHECK(colType);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colType", colType));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colType", colType));
 
       if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY || vAlterTbReq.type == TSDB_DATA_TYPE_VARBINARY ||
           vAlterTbReq.type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       } else if (vAlterTbReq.type == TSDB_DATA_TYPE_NCHAR) {
         int32_t length = (vAlterTbReq.bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
       RAW_RETURN_CHECK(setCompressOption(json, vAlterTbReq.compress));
       break;
@@ -679,43 +694,43 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
     case TSDB_ALTER_TABLE_DROP_COLUMN: {
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES: {
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.colModType);
       RAW_NULL_CHECK(colType);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colType", colType));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colType", colType));
       if (vAlterTbReq.colModType == TSDB_DATA_TYPE_BINARY || vAlterTbReq.colModType == TSDB_DATA_TYPE_VARBINARY ||
           vAlterTbReq.colModType == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = vAlterTbReq.colModBytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       } else if (vAlterTbReq.colModType == TSDB_DATA_TYPE_NCHAR) {
         int32_t length = (vAlterTbReq.colModBytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colLength", cbytes));
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       cJSON* colNewName = cJSON_CreateString(vAlterTbReq.colNewName);
       RAW_NULL_CHECK(colNewName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colNewName", colNewName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colNewName", colNewName));
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL: {
       cJSON* tagName = cJSON_CreateString(vAlterTbReq.tagName);
       RAW_NULL_CHECK(tagName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", tagName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", tagName));
 
       bool isNull = vAlterTbReq.isNull;
       if (vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON) {
@@ -730,7 +745,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             uError("processAlterTable isJson false");
             goto end;
           }
-          parseTagDatatoJson(vAlterTbReq.pTagVal, &buf);
+          parseTagDatatoJson(vAlterTbReq.pTagVal, &buf, NULL);
           if (buf == NULL) {
             uError("parseTagDatatoJson failed, buf == NULL");
             goto end;
@@ -752,20 +767,72 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         }
 
         cJSON* colValue = cJSON_CreateString(buf);
-        RAW_NULL_CHECK(colValue);
-        RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colValue", colValue));
         taosMemoryFree(buf);
+        RAW_NULL_CHECK(colValue);
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colValue", colValue));
       }
 
       cJSON* isNullCJson = cJSON_CreateBool(isNull);
       RAW_NULL_CHECK(isNullCJson);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colValueNull", isNullCJson));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colValueNull", isNullCJson));
       break;
     }
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
+      int32_t nTags = taosArrayGetSize(vAlterTbReq.pMultiTag);
+      if (nTags <= 0) {
+        uError("processAlterTable parse multi tags error");
+        goto end;
+      }
+
+      cJSON* tags = cJSON_CreateArray();
+      RAW_NULL_CHECK(tags);
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tags", tags));
+
+      for (int32_t i = 0; i < nTags; i++) {
+        cJSON* member = cJSON_CreateObject();
+        RAW_NULL_CHECK(member);
+        RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, member));
+
+        SMultiTagUpateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
+        cJSON*             tagName = cJSON_CreateString(pTagVal->tagName);
+        RAW_NULL_CHECK(tagName);
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(member, "colName", tagName));
+
+        if (pTagVal->tagType == TSDB_DATA_TYPE_JSON) {
+          uError("processAlterTable isJson false");
+          goto end;
+        }
+        bool isNull = pTagVal->isNull;
+        if (!isNull) {
+          int64_t bufSize = 0;
+          if (pTagVal->tagType == TSDB_DATA_TYPE_VARBINARY) {
+            bufSize = pTagVal->nTagVal * 2 + 2 + 3;
+          } else {
+            bufSize = pTagVal->nTagVal + 3;
+          }
+          char* buf = taosMemoryCalloc(bufSize, 1);
+          RAW_NULL_CHECK(buf);
+          if (dataConverToStr(buf, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL) !=
+              TSDB_CODE_SUCCESS) {
+            taosMemoryFree(buf);
+            goto end;
+          }
+          cJSON* colValue = cJSON_CreateString(buf);
+          taosMemoryFree(buf);
+          RAW_NULL_CHECK(colValue);
+          RAW_FALSE_CHECK(tmqAddJsonObjectItem(member, "colValue", colValue));
+        }
+        cJSON* isNullCJson = cJSON_CreateBool(isNull);
+        RAW_NULL_CHECK(isNullCJson);
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(member, "colValueNull", isNullCJson));
+      }
+      break;
+    }
+
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       RAW_NULL_CHECK(colName);
-      RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colName", colName));
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colName", colName));
       RAW_RETURN_CHECK(setCompressOption(json, vAlterTbReq.compress));
       break;
     }
@@ -775,6 +842,9 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
 end:
   uDebug("alter table return");
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    taosArrayDestroy(vAlterTbReq.pMultiTag);
+  }
   tDecoderClear(&decoder);
   *pJson = json;
 }
@@ -800,13 +870,13 @@ static void processDropSTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_NULL_CHECK(json);
   cJSON* type = cJSON_CreateString("drop");
   RAW_NULL_CHECK(type);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "type", type));
   cJSON* tableType = cJSON_CreateString("super");
   RAW_NULL_CHECK(tableType);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableType", tableType));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableType", tableType));
   cJSON* tableName = cJSON_CreateString(req.name);
   RAW_NULL_CHECK(tableName);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
 
 end:
   uDebug("processDropSTable return");
@@ -839,10 +909,10 @@ static void processDeleteTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_NULL_CHECK(json);
   cJSON* type = cJSON_CreateString("delete");
   RAW_NULL_CHECK(type);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "type", type));
   cJSON* sqlJson = cJSON_CreateString(sql);
   RAW_NULL_CHECK(sqlJson);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", sqlJson));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "sql", sqlJson));
 
 end:
   uDebug("processDeleteTable return");
@@ -870,16 +940,17 @@ static void processDropTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_NULL_CHECK(json);
   cJSON* type = cJSON_CreateString("drop");
   RAW_NULL_CHECK(type);
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "type", type));
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "type", type));
   cJSON* tableNameList = cJSON_CreateArray();
   RAW_NULL_CHECK(tableNameList);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableNameList", tableNameList));
+
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     SVDropTbReq* pDropTbReq = req.pReqs + iReq;
     cJSON*       tableName = cJSON_CreateString(pDropTbReq->name);
     RAW_NULL_CHECK(tableName);
-    RAW_FALSE_CHECK(cJSON_AddItemToArray(tableNameList, tableName));
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(tableNameList, tableName));
   }
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableNameList", tableNameList));
 
 end:
   uDebug("processDropTable return");
@@ -1855,19 +1926,19 @@ end:
 typedef int32_t _raw_decode_func_(SDecoder* pDecoder, SMqDataRsp* pRsp);
 static int32_t  decodeRawData(SDecoder* decoder, void* data, int32_t dataLen, _raw_decode_func_ func,
                               SMqRspObj* rspObj) {
-  int8_t dataVersion = *(int8_t*)data;
-  if (dataVersion >= MQ_DATA_RSP_VERSION) {
-    data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
-    dataLen -= sizeof(int8_t) + sizeof(int32_t);
+   int8_t dataVersion = *(int8_t*)data;
+   if (dataVersion >= MQ_DATA_RSP_VERSION) {
+     data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
+     dataLen -= sizeof(int8_t) + sizeof(int32_t);
   }
 
-  rspObj->resIter = -1;
-  tDecoderInit(decoder, data, dataLen);
-  int32_t code = func(decoder, &rspObj->dataRsp);
-  if (code != 0) {
-    SET_ERROR_MSG("decode mq taosx data rsp failed");
+   rspObj->resIter = -1;
+   tDecoderInit(decoder, data, dataLen);
+   int32_t code = func(decoder, &rspObj->dataRsp);
+   if (code != 0) {
+     SET_ERROR_MSG("decode mq taosx data rsp failed");
   }
-  return code;
+   return code;
 }
 
 static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj* pMetaHash,
@@ -2125,6 +2196,8 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
   RAW_FALSE_CHECK(cJSON_AddStringToObject(pJson, "tmq_meta_version", TMQ_META_VERSION));
   cJSON* pMetaArr = cJSON_CreateArray();
   RAW_NULL_CHECK(pMetaArr);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(pJson, "metas", pMetaArr));
+
   int32_t num = taosArrayGetSize(rsp.batchMetaReq);
   for (int32_t i = 0; i < num; i++) {
     int32_t* len = taosArrayGet(rsp.batchMetaLen, i);
@@ -2140,10 +2213,9 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     cJSON* pItem = NULL;
     processSimpleMeta(&metaRsp, &pItem);
     tDeleteMqMetaRsp(&metaRsp);
-    RAW_FALSE_CHECK(cJSON_AddItemToArray(pMetaArr, pItem));
+    RAW_FALSE_CHECK(tmqAddJsonArrayItem(pMetaArr, pItem));
   }
 
-  RAW_FALSE_CHECK(cJSON_AddItemToObject(pJson, "metas", pMetaArr));
   tDeleteMqBatchMetaRsp(&rsp);
   char* fullStr = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
@@ -2195,44 +2267,44 @@ static int32_t getOffSetLen(const SMqDataRsp* pRsp) {
 
 typedef int32_t __encode_func__(SEncoder* pEncoder, const SMqDataRsp* pRsp);
 static int32_t  encodeMqDataRsp(__encode_func__* encodeFunc, SMqDataRsp* rspObj, tmq_raw_data* raw) {
-  int32_t  len = 0;
-  int32_t  code = 0;
-  SEncoder encoder = {0};
-  void*    buf = NULL;
-  tEncodeSize(encodeFunc, rspObj, len, code);
-  if (code < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   int32_t  len = 0;
+   int32_t  code = 0;
+   SEncoder encoder = {0};
+   void*    buf = NULL;
+   tEncodeSize(encodeFunc, rspObj, len, code);
+   if (code < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  len += sizeof(int8_t) + sizeof(int32_t);
-  buf = taosMemoryCalloc(1, len);
-  if (buf == NULL) {
-    code = terrno;
-    goto FAILED;
+   len += sizeof(int8_t) + sizeof(int32_t);
+   buf = taosMemoryCalloc(1, len);
+   if (buf == NULL) {
+     code = terrno;
+     goto FAILED;
   }
-  tEncoderInit(&encoder, buf, len);
-  if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   tEncoderInit(&encoder, buf, len);
+   if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  int32_t offsetLen = getOffSetLen(rspObj);
-  if (offsetLen <= 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   int32_t offsetLen = getOffSetLen(rspObj);
+   if (offsetLen <= 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  if (tEncodeI32(&encoder, offsetLen) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   if (tEncodeI32(&encoder, offsetLen) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  if (encodeFunc(&encoder, rspObj) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   if (encodeFunc(&encoder, rspObj) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  tEncoderClear(&encoder);
+   tEncoderClear(&encoder);
 
-  raw->raw = buf;
-  raw->raw_len = len;
-  return code;
+   raw->raw = buf;
+   raw->raw_len = len;
+   return code;
 FAILED:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);

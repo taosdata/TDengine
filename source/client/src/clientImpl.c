@@ -300,7 +300,9 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .svrVer = pTscObj->sVer,
                        .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                        .isStmtBind = pRequest->isStmtBind,
-                       .setQueryFp = setQueryRequest};
+                       .setQueryFp = setQueryRequest,
+                       .timezone = pTscObj->optionInfo.timezone,
+                       .charsetCxt = pTscObj->optionInfo.charsetCxt,};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -331,7 +333,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode);
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode, pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
@@ -369,7 +371,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
-                              atomic_load_8(&pRequest->pTscObj->biMode));
+                              atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
@@ -507,6 +509,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .pUser = pRequest->pTscObj->user,
+                      .timezone = pRequest->pTscObj->optionInfo.timezone,
                       .sysInfo = pRequest->pTscObj->sysInfo};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
@@ -1361,6 +1364,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
                         .sysInfo = pRequest->pTscObj->sysInfo,
+                        .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->allocatorRefId};
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
@@ -1816,7 +1820,7 @@ int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
                   .handleRefId = pMsg->info.refId,
                   .pEpSet = pEpSet};
 
-  if (pMsg->contLen > 0) {
+  if (pMsg->code != TSDB_CODE_OUT_OF_MEMORY && pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
     if (buf.pData == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -2086,7 +2090,7 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
 
 static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
   int32_t idx = -1;
-  iconv_t conv = taosAcquireConv(&idx, C2M);
+  iconv_t conv = taosAcquireConv(&idx, C2M, pResultInfo->charsetCxt);
   if (conv == (iconv_t)-1) return TSDB_CODE_TSC_INTERNAL_ERROR;
 
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
@@ -2096,7 +2100,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
     if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0) {
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
       if (p == NULL) {
-        taosReleaseConv(idx, conv, C2M);
+        taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
         return terrno;
       }
 
@@ -2113,7 +2117,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
                 "doConvertUCS4 error, invalid data. len:%d, bytes:%d, (p + len):%p, (pResultInfo->convertBuf[i] + "
                 "colLength[i]):%p",
                 len, bytes, (p + len), (pResultInfo->convertBuf[i] + colLength[i]));
-            taosReleaseConv(idx, conv, C2M);
+            taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
             return TSDB_CODE_TSC_INTERNAL_ERROR;
           }
 
@@ -2127,7 +2131,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
       pResultInfo->row[i] = pResultInfo->pCol[i].pData;
     }
   }
-  taosReleaseConv(idx, conv, C2M);
+  taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2211,7 +2215,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
 static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
   int32_t numOfRows = pResultInfo->numOfRows;
   int32_t numOfCols = pResultInfo->numOfCols;
-  bool needConvert = false;
+  bool    needConvert = false;
   for (int32_t i = 0; i < numOfCols; ++i) {
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       needConvert = true;
@@ -2292,7 +2296,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (tTagIsJson(data)) {
           char* jsonString = NULL;
-          parseTagDatatoJson(data, &jsonString);
+          parseTagDatatoJson(data, &jsonString, pResultInfo->charsetCxt);
           if (jsonString == NULL) {
             tscError("doConvertJson error: parseTagDatatoJson failed");
             return terrno;
@@ -2302,9 +2306,10 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
           *(char*)varDataVal(dst) = '\"';
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
-                                         varDataVal(dst) + CHAR_BYTES);
+                                         varDataVal(dst) + CHAR_BYTES, pResultInfo->charsetCxt);
           if (length <= 0) {
-            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset);
+            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
+              pResultInfo->charsetCxt != NULL ? ((SConvInfo *)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
           varDataSetLen(dst, length + CHAR_BYTES * 2);
@@ -2400,8 +2405,8 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   p += sizeof(int32_t);
 
   if (rows != pResultInfo->numOfRows || cols != pResultInfo->numOfCols) {
-    tscError("setResultDataPtr paras error:rows;%d numOfRows:%" PRId64 " cols:%d numOfCols:%d", rows, pResultInfo->numOfRows, cols,
-             pResultInfo->numOfCols);
+    tscError("setResultDataPtr paras error:rows;%d numOfRows:%" PRId64 " cols:%d numOfCols:%d", rows,
+             pResultInfo->numOfRows, cols, pResultInfo->numOfCols);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
@@ -2577,8 +2582,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
 
-  int32_t code =
-      setResultDataPtr(pResultInfo, convertUcs4);
+  int32_t code = setResultDataPtr(pResultInfo, convertUcs4);
   return code;
 }
 
@@ -3032,13 +3036,13 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
     taosMemoryFreeClear(pResultInfo->pData);
-    pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, 0);
+    pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
     return;
   }
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(pResultInfo->pData);
-    pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, 0);
+    pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, pRequest->code);
     return;
   }
 

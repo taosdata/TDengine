@@ -17,6 +17,7 @@
 #include "tglobal.h"
 #include "defines.h"
 #include "os.h"
+#include "osString.h"
 #include "tconfig.h"
 #include "tgrant.h"
 #include "tlog.h"
@@ -217,6 +218,8 @@ float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
 char    tsTagFilterCache = 0;
 
+int32_t tsBypassFlag = 0;
+
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
 // 0  no query allowed, queries are disabled
@@ -279,7 +282,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 int32_t tsTransPullupInterval = 2;
 int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointInterval = 60;
+int32_t tsStreamCheckpointInterval = 300;
 float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 20;
 int32_t tsMaxConcurrentCheckpoint = 1;
@@ -324,6 +327,7 @@ bool tsExperimental = true;
 int32_t tsMaxTsmaNum = 3;
 int32_t tsMaxTsmaCalcDelay = 600;
 int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24;  // in ms, default to 1d
+void*   pTimezoneNameMap = NULL;
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
@@ -612,6 +616,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
       cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "safetyCheckLevel", tsSafetyCheckLevel, 0, 5, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "bypassFlag", tsBypassFlag, 0, INT32_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
@@ -1007,12 +1012,43 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+static int32_t taosSetLogOutput(SConfig *pCfg) {
+  if (tsLogOutput) {
+    char *pLog = tsLogOutput;
+    char *pEnd = NULL;
+    if (strcasecmp(pLog, "stdout") && strcasecmp(pLog, "stderr") && strcasecmp(pLog, "/dev/null")) {
+      if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
+        int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
+        if (*pLog == '/' || *pLog == '\\') {
+          if (pathLen <= 0 || pathLen > PATH_MAX) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          tstrncpy(tsLogDir, pLog, pathLen);
+        } else {
+          int32_t len = strlen(tsLogDir);
+          if (len < 0 || len >= (PATH_MAX - 1)) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          if (len == 0 || (tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\')) {
+            tsLogDir[len++] = TD_DIRSEP_CHAR;
+          }
+          int32_t remain = PATH_MAX - len - 1;
+          if (remain < pathLen) TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+          tstrncpy(tsLogDir + len, pLog, pathLen);
+        }
+        TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
+      }
+    } else {
+      tstrncpy(tsLogDir, pLog, PATH_MAX);
+      TAOS_CHECK_RETURN(cfgSetItem(pCfg, "logDir", tsLogDir, CFG_STYPE_DEFAULT, true));
+    }
+  }
+  return 0;
+}
+
 static int32_t taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "logDir");
   tstrncpy(tsLogDir, pItem->str, PATH_MAX);
   TAOS_CHECK_RETURN(taosExpandDir(tsLogDir, tsLogDir, PATH_MAX));
+  TAOS_CHECK_RETURN(taosSetLogOutput(pCfg));
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalLogDirGB");
   tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
@@ -1303,39 +1339,15 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "safetyCheckLevel");
   tsSafetyCheckLevel = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "bypassFlag");
+  tsBypassFlag = pItem->i32;
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static int32_t taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timezone");
-  if (0 == strlen(pItem->str)) {
-    uError("timezone is not set");
-  } else {
-    TAOS_CHECK_RETURN(osSetTimezone(pItem->str));
-    uDebug("timezone format changed from %s to %s", pItem->str, tsTimezoneStr);
-  }
-  TAOS_CHECK_RETURN(cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, true));
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "locale");
-  const char *locale = pItem->str;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "charset");
-  const char *charset = pItem->str;
-
-  int32_t code = taosSetSystemLocale(locale, charset);
-  if (TSDB_CODE_SUCCESS != code) {
-    uError("failed to set locale:%s, since: %s", locale, tstrerror(code));
-    char curLocale[TD_LOCALE_LEN] = {0};
-    char curCharset[TD_CHARSET_LEN] = {0};
-    taosGetSystemLocale(curLocale, curCharset);
-    if (0 != strlen(curLocale) && 0 != strlen(curCharset)) {
-      uInfo("current locale: %s, charset: %s", curLocale, curCharset);
-    }
-  }
-
-  osSetSystemLocale(locale, charset);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCoreFile");
   tsEnableCoreFile = pItem->bval;
@@ -1853,8 +1865,10 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   }
 
   if (tsc) {
+    TAOS_CHECK_GOTO(taosSetClientLogCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
   } else {
+    TAOS_CHECK_GOTO(taosSetClientLogCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);
@@ -2046,7 +2060,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
                                          {"maxTsmaNum", &tsMaxTsmaNum},
-                                         {"safetyCheckLevel", &tsSafetyCheckLevel}};
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel},
+                                         {"bypassFlag", &tsBypassFlag}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2062,6 +2077,9 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
+  if (strcasecmp("charset", name) == 0 || strcasecmp("timezone", name) == 0) {
+     goto _out;
+  }
   cfgLock(pCfg);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
@@ -2153,18 +2171,15 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
     case 'l': {
       if (strcasecmp("locale", name) == 0) {
         SConfigItem *pLocaleItem = cfgGetItem(pCfg, "locale");
-        SConfigItem *pCharsetItem = cfgGetItem(pCfg, "charset");
-        if (pLocaleItem == NULL || pCharsetItem == NULL) {
-          uError("failed to get locale or charset from cfg");
+        if (pLocaleItem == NULL) {
+          uError("failed to get locale from cfg");
           code = TSDB_CODE_CFG_NOT_FOUND;
           goto _out;
         }
 
         const char *locale = pLocaleItem->str;
-        const char *charset = pCharsetItem->str;
-        TAOS_CHECK_GOTO(taosSetSystemLocale(locale, charset), &lino, _out);
-        osSetSystemLocale(locale, charset);
-        uInfo("locale set to '%s', charset set to '%s'", locale, charset);
+        TAOS_CHECK_GOTO(taosSetSystemLocale(locale), &lino, _out);
+        uInfo("locale set to '%s'", locale);
         matched = true;
       }
       break;
@@ -2239,13 +2254,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       break;
     }
     case 't': {
-      if (strcasecmp("timezone", name) == 0) {
-        TAOS_CHECK_GOTO(osSetTimezone(pItem->str), &lino, _out);
-        uInfo("%s set from %s to %s", name, tsTimezoneStr, pItem->str);
-
-        TAOS_CHECK_GOTO(cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, false), &lino, _out);
-        matched = true;
-      } else if (strcasecmp("tempDir", name) == 0) {
+      if (strcasecmp("tempDir", name) == 0) {
         uInfo("%s set from %s to %s", name, tsTempDir, pItem->str);
         tstrncpy(tsTempDir, pItem->str, PATH_MAX);
         TAOS_CHECK_GOTO(taosExpandDir(tsTempDir, tsTempDir, PATH_MAX), &lino, _out);
@@ -2302,7 +2311,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
                                          {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
                                          {"tsmaDataDeleteMark", &tsmaDataDeleteMark},
-                                         {"safetyCheckLevel", &tsSafetyCheckLevel}};
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel},
+                                         {"bypassFlag", &tsBypassFlag}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

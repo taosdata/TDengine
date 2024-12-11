@@ -53,7 +53,7 @@ static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   if (pMnode->stopped) {
     code = TSDB_CODE_APP_IS_STOPPING;
   } else if (!mndIsLeader(pMnode)) {
-    code = -1;
+    code = 1;
   } else {
 #if 1
     (void)atomic_add_fetch_32(&pMnode->rpcRef, 1);
@@ -713,7 +713,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   }
 
   char timestr[24] = "1970-01-01 00:00:00.00";
-  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
   if (code < 0) {
     mError("failed to parse time since %s", tstrerror(code));
     (void)taosThreadRwlockDestroy(&pMnode->lock);
@@ -1002,8 +1002,12 @@ int64_t mndGenerateUid(const char *name, int32_t len) {
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonStbInfo *pStbInfo, SMonGrantInfo *pGrantInfo) {
-  int32_t code = 0;
-  TAOS_CHECK_RETURN(mndAcquireRpc(pMnode));
+  int32_t code = mndAcquireRpc(pMnode);
+  if (code < 0) {
+    TAOS_RETURN(code);
+  } else if (code == 1) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
 
   SSdb   *pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();

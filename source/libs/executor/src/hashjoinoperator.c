@@ -114,7 +114,7 @@ int32_t hJoinLaunchPrimExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t
   SColumnInfoData* pPrimOut = taosArrayGet(pBlock->pDataBlock, pTable->primCtx.targetSlotId);
   if (0 != pCtx->timezoneUnit) {
     for (int32_t i = startIdx; i <= endIdx; ++i) {
-      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - (((int64_t*)pPrimIn->pData)[i] - pCtx->timezoneUnit) % pCtx->truncateUnit;
+      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit) % pCtx->truncateUnit;
     }
   } else {
     for (int32_t i = startIdx; i <= endIdx; ++i) {
@@ -904,9 +904,9 @@ static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* 
 
 static int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* queryDone) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
-  SSDataBlock* pBlock = NULL;
-  int32_t code = TSDB_CODE_SUCCESS;
-  
+  SSDataBlock*        pBlock = NULL;
+  int32_t             code = TSDB_CODE_SUCCESS;
+
   while (true) {
     pBlock = getNextBlockFromDownstream(pOperator, pJoin->pBuild->downStreamIdx);
     if (NULL == pBlock) {

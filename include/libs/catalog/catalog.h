@@ -102,6 +102,7 @@ typedef struct SCatalogReq {
   bool    svrVerRequired;
   bool    forceUpdate;
   bool    cloned;
+  bool    forceFetchViewMeta;
 } SCatalogReq;
 
 typedef struct SMetaRes {

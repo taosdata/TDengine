@@ -2289,7 +2289,9 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
       .slidingUnit = pTableScanNode->slidingUnit,
       .offset = pTableScanNode->offset,
       .precision = pTableScanNode->scan.node.pOutputDataBlockDesc->precision,
+      .timeRange = pTableScanNode->scanRange,
   };
+  calcIntervalAutoOffset(&interval);
 
   return interval;
 }
@@ -2390,6 +2392,9 @@ int32_t convertFillType(int32_t mode) {
     case FILL_MODE_LINEAR:
       type = TSDB_FILL_LINEAR;
       break;
+    case FILL_MODE_NEAR:
+      type = TSDB_FILL_NEAR;
+      break;
     default:
       type = TSDB_FILL_NONE;
   }
@@ -2406,13 +2411,14 @@ void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, b
 
     int64_t key = w->skey;
     while (key < ts) {  // moving towards end
-      key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+      key = getNextTimeWindowStart(pInterval, key, TSDB_ORDER_ASC);
       if (key > ts) {
         break;
       }
 
       w->skey = key;
     }
+    w->ekey = taosTimeAdd(w->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
   }
 }
 
@@ -2425,14 +2431,12 @@ static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
 }
 
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
-  int32_t factor = (order == TSDB_ORDER_ASC) ? -1 : 1;
-
   STimeWindow win = *pWindow;
   STimeWindow save = win;
   while (win.skey <= ts && win.ekey >= ts) {
     save = win;
-    win.skey = taosTimeAdd(win.skey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-    win.ekey = taosTimeAdd(win.ekey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+    // get previous time window
+    getNextTimeWindow(pInterval, &win, order == TSDB_ORDER_ASC ? TSDB_ORDER_DESC : TSDB_ORDER_ASC);
   }
 
   return save;
@@ -2445,7 +2449,6 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   STimeWindow w = {0};
   if (pResultRowInfo->cur.pageId == -1) {  // the first window, from the previous stored value
     getInitialStartTimeWindow(pInterval, ts, &w, (order == TSDB_ORDER_ASC));
-    w.ekey = taosTimeGetIntervalEnd(w.skey, pInterval);
     return w;
   }
 
@@ -2468,19 +2471,17 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   return w;
 }
 
-void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
-  int64_t slidingStart = 0;
-  if (pInterval->offset > 0) {
-    slidingStart = taosTimeAdd(tw->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-  } else {
-    slidingStart = tw->skey;
-  }
+TSKEY getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order) {
   int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-  slidingStart = taosTimeAdd(slidingStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-  tw->skey = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-  int64_t slidingEnd =
-      taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  tw->ekey = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+  TSKEY   nextStart = taosTimeAdd(start, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+  nextStart = taosTimeAdd(nextStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
+  nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+  return nextStart;
+}
+
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
+  tw->skey = getNextTimeWindowStart(pInterval, tw->skey, order);
+  tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {

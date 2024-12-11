@@ -346,7 +346,8 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
       p->rowKey.pks[0].pData = taosMemoryCalloc(1, pPkCol->bytes);
       if (p->rowKey.pks[0].pData == NULL) {
         taosMemoryFreeClear(p);
-        TSDB_CHECK_NULL(p->rowKey.pks[0].pData, code, lino, _end, terrno);
+        code = terrno;
+        TSDB_CHECK_CODE(code, lino, _end);
       }
     }
 

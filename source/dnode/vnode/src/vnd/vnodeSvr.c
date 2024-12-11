@@ -147,8 +147,12 @@ static int32_t vnodePreProcessAlterTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SVAlterTbReq vAlterTbReq = {0};
   int64_t      ctimeMs = taosGetTimestampMs();
   if (tDecodeSVAlterTbReqSetCtime(&dc, &vAlterTbReq, ctimeMs) < 0) {
+    taosArrayDestroy(vAlterTbReq.pMultiTag);
+    vAlterTbReq.pMultiTag = NULL;
     goto _exit;
   }
+  taosArrayDestroy(vAlterTbReq.pMultiTag);
+  vAlterTbReq.pMultiTag = NULL;
 
   code = 0;
 
@@ -361,6 +365,10 @@ _exit:
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  if (tsBypassFlag & TSDB_BYPASS_RA_RPC_RECV_SUBMIT) {
+    return TSDB_CODE_MSG_PREPROCESSED;
+  }
 
   SDecoder *pCoder = &(SDecoder){0};
 
@@ -726,10 +734,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
     } break;
     case TDMT_VND_STREAM_TASK_RESET: {
-      if (pVnode->restored && vnodeIsLeader(pVnode) &&
-           (code = tqProcessTaskResetReq(pVnode->pTq, pMsg)) < 0) {
-          goto _err;
-        }
+      if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessTaskResetReq(pVnode->pTq, pMsg)) < 0) {
+        goto _err;
+      }
 
     } break;
     case TDMT_VND_ALTER_CONFIRM:
@@ -750,7 +757,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_DROP_INDEX:
       vnodeProcessDropIndexReq(pVnode, ver, pReq, len, pRsp);
       break;
-    case TDMT_VND_STREAM_CHECK_POINT_SOURCE: // always return true
+    case TDMT_VND_STREAM_CHECK_POINT_SOURCE:  // always return true
       tqProcessTaskCheckPointSourceReq(pVnode->pTq, pMsg, pRsp);
       break;
     case TDMT_VND_STREAM_TASK_UPDATE:  // always return true
@@ -970,6 +977,11 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
 extern int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now);
 
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  if (!pVnode->restored) {
+    vInfo("vgId:%d, ignore trim req during restoring. ver:%" PRId64, TD_VID(pVnode), ver);
+    return 0;
+  }
+
   int32_t     code = 0;
   SVTrimDbReq trimReq = {0};
 
@@ -1426,6 +1438,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   }
 
 _exit:
+  taosArrayDestroy(vAlterTbReq.pMultiTag);
   tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);

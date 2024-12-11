@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tutil.h"
 #include "tlog.h"
+#include "regex.h"
 
 void *tmemmem(const char *haystack, int32_t hlen, const char *needle, int32_t nlen) {
   const char *limit;
@@ -416,25 +417,6 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]) {
   return 0;
 }
 
-char *taosIpStr(uint32_t ipInt) {
-  static char    ipStrArray[3][30];
-  static int32_t ipStrIndex = 0;
-
-  char *ipStr = ipStrArray[(ipStrIndex++) % 3];
-  // sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt
-  // >> 24));
-  sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
-  return ipStr;
-}
-
-void taosIp2String(uint32_t ip, char *str) {
-  sprintf(str, "%u.%u.%u.%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24));
-}
-
-void taosIpPort2String(uint32_t ip, uint16_t port, char *str) {
-  sprintf(str, "%u.%u.%u.%u:%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24), port);
-}
-
 size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize) {
   if (rsize == 0 || rsize == 1) {
     char *p = strnchr(str, reject[0], size, false);
@@ -519,4 +501,30 @@ int32_t parseCfgReal(const char *str, float *out) {
   }
   *out = val;
   return TSDB_CODE_SUCCESS;
+}
+
+bool tIsValidFileName(const char *fileName, const char *pattern) {
+  const char *fileNamePattern = "^[a-zA-Z0-9_.-]+$";
+
+  regex_t fileNameReg;
+
+  if (pattern) fileNamePattern = pattern;
+
+  if (regcomp(&fileNameReg, fileNamePattern, REG_EXTENDED) != 0) {
+    fprintf(stderr, "failed to compile file name pattern:%s\n", fileNamePattern);
+    return false;
+  }
+
+  int32_t code = regexec(&fileNameReg, fileName, 0, NULL, 0);
+  regfree(&fileNameReg);
+  if (code != 0) {
+    return false;
+  }
+  return true;
+}
+
+bool tIsValidFilePath(const char *filePath, const char *pattern) {
+  const char *filePathPattern = "^[a-zA-Z0-9:/\\_.-]+$";
+
+  return tIsValidFileName(filePath, pattern ? pattern : filePathPattern);
 }

@@ -35,6 +35,7 @@ int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t 
 
 int32_t initCtxAsText();
 int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT);
+int32_t checkWKB(const unsigned char *wkb, size_t size);
 
 int32_t initCtxRelationFunc();
 int32_t doIntersects(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
@@ -47,11 +48,12 @@ int32_t doCovers(const GEOSGeometry *geom1, const GEOSPreparedGeometry *prepared
                  bool swapped, char *res);
 int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                    bool swapped, char *res);
-int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
-                           bool swapped, char *res);
+int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
+                           const GEOSGeometry *geom2, bool swapped, char *res);
 
-int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom);
-void destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom);
+int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
+                     const GEOSPreparedGeometry **outputPreparedGeom);
+void    destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom);
 
 #ifdef __cplusplus
 }

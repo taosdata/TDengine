@@ -75,6 +75,25 @@ static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
   streamMutexUnlock(&pTask->lock);
 }
 
+static void setProcessProgress(SStreamTask* pTask, STaskStatusEntry* pEntry) {
+  if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+    return;
+  }
+
+  if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    pEntry->processedVer = pTask->status.latestForceWindow.skey;
+  } else {
+    if (pTask->exec.pWalReader != NULL) {
+      pEntry->processedVer = walReaderGetCurrentVer(pTask->exec.pWalReader) - 1;
+      if (pEntry->processedVer < 0) {
+        pEntry->processedVer = pTask->chkInfo.processedVer;
+      }
+
+      walReaderValidVersionRange(pTask->exec.pWalReader, &pEntry->verRange.minVer, &pEntry->verRange.maxVer);
+    }
+  }
+}
+
 static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* pEpset) {
   int32_t code = 0;
   int32_t tlen = 0;
@@ -257,16 +276,9 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     }
     streamMutexUnlock(&pTask->lock);
 
-    if (pTask->exec.pWalReader != NULL) {
-      entry.processedVer = walReaderGetCurrentVer(pTask->exec.pWalReader) - 1;
-      if (entry.processedVer < 0) {
-        entry.processedVer = pTask->chkInfo.processedVer;
-      }
-
-      walReaderValidVersionRange(pTask->exec.pWalReader, &entry.verRange.minVer, &entry.verRange.maxVer);
-    }
-
+    setProcessProgress(pTask, &entry);
     addUpdateNodeIntoHbMsg(pTask, pMsg);
+
     p = taosArrayPush(pMsg->pTaskStatus, &entry);
     if (p == NULL) {
       stError("failed to add taskInfo:0x%x in hbMsg, vgId:%d", pTask->id.taskId, pMeta->vgId);

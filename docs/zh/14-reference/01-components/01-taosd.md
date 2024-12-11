@@ -27,24 +27,23 @@ taosd 命令行参数如下
 
 ### 连接相关
 |参数名称|支持版本|参数含义|
-|-----------------------|----------|-|
-|firstEp                |          |taosd 启动时，主动连接的集群中首个 dnode 的 end point，默认值 localhost:6030|
-|secondEp               |          |taosd 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，无默认值|
-|fqdn                   |          |taosd 监听的服务地址，默认为所在服务器上配置的第一个 hostname|
-|serverPort             |          |taosd 监听的端口，默认值 6030|
-|compressMsgSize        |          |是否对 RPC 消息进行压缩；-1：所有消息都不压缩；0：所有消息都压缩；N (N>0)：只有大于 N 个字节的消息才压缩；默认值 -1|
-|shellActivityTimer     |          |客户端向 mnode 发送心跳的时长，单位为秒，取值范围 1-120，默认值 3|
-|numOfRpcSessions       |          |RPC 支持的最大连接数，取值范围 100-100000，默认值 30000|
-|numOfRpcThreads        |          |RPC 线程数目，默认值为 CPU 核数的一半|
-|numOfTaskQueueThreads  |          |dnode 处理 RPC 消息的线程数|
-|statusInterval         |          |dnode 与 mnode 之间的心跳间隔|
-|rpcQueueMemoryAllowed  |          |dnode 允许的 rpc 消息占用的内存最大值，单位 bytes，取值范围 104857600-INT64_MAX，默认值 服务器内存的 1/10 |
-|resolveFQDNRetryTime   |          |FQDN 解析失败时的重试次数|
-|timeToGetAvailableConn |          |获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，默认值 500000|
-|maxShellConns          |          |允许创建的最大链接数|
-|maxRetryWaitTime       |          |重连最大超时时间|
-|shareConnLimit         |3.3.4.3 后|内部参数，一个链接可以共享的查询数目，取值范围 1-256，默认值 10|
-|readTimeout            |3.3.4.3 后|内部参数，最小超时时间，取值范围 64-604800，单位为秒，默认值 900|
+|-----------------------|-------------------------|------------|
+|firstEp                |                         |taosd 启动时，主动连接的集群中首个 dnode 的 end point，默认值 localhost:6030|
+|secondEp               |                         |taosd 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，无默认值|
+|fqdn                   |                         |taosd 监听的服务地址，默认为所在服务器上配置的第一个 hostname|
+|serverPort             |                         |taosd 监听的端口，默认值 6030|
+|compressMsgSize        |                         |是否对 RPC 消息进行压缩；-1：所有消息都不压缩；0：所有消息都压缩；N (N>0)：只有大于 N 个字节的消息才压缩；默认值 -1|
+|shellActivityTimer     |                         |客户端向 mnode 发送心跳的时长，单位为秒，取值范围 1-120，默认值 3 |
+|numOfRpcSessions       |                         |RPC 支持的最大连接数，取值范围 100-100000，默认值 30000|
+|numOfRpcThreads        |                         |RPC 收发数据线程数目，取值范围1-50,默认值为 CPU 核数的一半|
+|numOfTaskQueueThreads  |                         |客户端处理 RPC 消息的线程数取值, 范围4-16,默认值为 CPU 核数的一半|
+|rpcQueueMemoryAllowed  |                         |dnode允许的已经收到的RPC消息占用的内存最大值，单位 bytes，取值范围 104857600-INT64_MAX，默认值为服务器内存的 1/10 |
+|resolveFQDNRetryTime   | 3.x 之后取消             |FQDN 解析失败时的重试次数|
+|timeToGetAvailableConn | 3.3.4.x之后取消          |获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，默认值 500000|
+|maxShellConns          | 3.x 后取消             |允许创建的最大链接数|
+|maxRetryWaitTime       |                         |重连最大超时时间, 默认值是 10s|
+|shareConnLimit         |3.3.4.0 新增             |一个链接可以共享的请求的数目，取值范围 1-512，默认值 10|
+|readTimeout            |3.3.4.0 新增             |单个请求最小超时时间，取值范围 64-604800，单位为秒，默认值 900|
 
 ### 监控相关
 |参数名称|支持版本|参数含义|
@@ -294,6 +293,7 @@ charset 的有效值是 UTF-8。
 |checkpointBackupDir |          |内部参数，用于恢复 snode 数据|
 |enableAuditDelete   |          |内部参数，用于测试审计功能|
 |slowLogThresholdTest|          |内部参数，用于测试慢日志|
+|bypassFlag          |3.3.4.5 后|内部参数，用于短路测试，0：正常写入，1：写入消息在 taos 客户端发送 RPC 消息前返回，2：写入消息在 taosd 服务端收到 RPC 消息后返回，4：写入消息在 taosd 服务端写入内存缓存前返回，8：写入消息在 taosd 服务端数据落盘前返回；默认值 0|
 
 ### 压缩参数
 |参数名称|支持版本|参数含义|

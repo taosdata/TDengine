@@ -67,8 +67,17 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   SVnodeInfo oldInfo = {0};
   oldInfo.config = vnodeCfgDefault;
   if (vnodeLoadInfo(dir, &oldInfo) == 0) {
-    vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
-    return (oldInfo.config.dbId == info.config.dbId) ? 0 : -1;
+    code = (oldInfo.config.dbId == info.config.dbId) ? 0 : TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
+    if (code == 0) {
+      vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
+    } else {
+      vError("vgId:%d, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
+             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             oldInfo.config.vgId, dir, oldInfo.config.dbId, oldInfo.config.dbname,
+             oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
+             info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
+    }
+    return code;
   }
 
   vInfo("vgId:%d, save config while create", info.config.vgId);
@@ -360,6 +369,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   info.config = vnodeCfgDefault;
 
   // load vnode info
+  vInfo("vgId:%d, start to vnode load info %s", info.config.vgId, dir);
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
     vError("failed to open vnode from %s since %s", path, tstrerror(terrno));
@@ -429,22 +439,26 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   int8_t rollback = vnodeShouldRollback(pVnode);
 
   // open buffer pool
+  vInfo("vgId:%d, start to open vnode buffer pool", TD_VID(pVnode));
   if (vnodeOpenBufPool(pVnode) < 0) {
     vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open meta
+  vInfo("vgId:%d, start to open vnode meta", TD_VID(pVnode));
   if (metaOpen(pVnode, &pVnode->pMeta, rollback) < 0) {
     vError("vgId:%d, failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
+  vInfo("vgId:%d, start to upgrade meta", TD_VID(pVnode));
   if (metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
   // open tsdb
+  vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
   if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -455,6 +469,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 
+  vInfo("vgId:%d, start to open vnode wal", TD_VID(pVnode));
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s. wal:%s", TD_VID(pVnode), tstrerror(terrno), tdir);
@@ -467,6 +482,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   TAOS_UNUSED(ret);
 
   // open query
+  vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
   if (vnodeQueryOpen(pVnode)) {
     vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -474,18 +490,21 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // sma required the tq is initialized before the vnode open
+  vInfo("vgId:%d, start to open vnode tq", TD_VID(pVnode));
   if (tqOpen(tdir, pVnode)) {
     vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open sma
+  vInfo("vgId:%d, start to open vnode sma", TD_VID(pVnode));
   if (smaOpen(pVnode, rollback, force)) {
     vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // vnode begin
+  vInfo("vgId:%d, start to begin vnode", TD_VID(pVnode));
   if (vnodeBegin(pVnode) < 0) {
     vError("vgId:%d, failed to begin since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
