@@ -2450,6 +2450,32 @@ export function getDataSources(lang) {
                 placeholder: "topic1::0,topic2::1",
                 edit_disabled: true,
               },
+              {
+                name: "compression",
+                display: "Compression",
+                hint: {
+                  type: "str",
+                  choices: ["none", "gzip", "snappy", "lz4", "zstd"],
+                },
+                short_description:
+                  "To save network bandwidth, you can compress the data and send it to MQTT broker. The same compression algorithm is configured here to achieve decompression.",
+                description:
+                  "To save network bandwidth, you can compress the data and send it to MQTT broker. The same compression algorithm is configured here to achieve decompression.",
+                value: "none",
+              },
+              {
+                name: "char_encoding",
+                display: "Char Encoding",
+                hint: {
+                  type: "str",
+                  choices: ["UTF_8", "GBK", "GB18030", "BIG5"],
+                },
+                short_description:
+                  "TaosX only accepts UTF8 encoded strings by default. If the sender uses non UTF8 encoding, it needs to be specified here.",
+                description:
+                  "TaosX only accepts UTF8 encoded strings by default. If the sender uses non UTF8 encoding, it needs to be specified here.",
+                value: "UTF_8",
+              },
             ],
           },
         ],
@@ -2841,20 +2867,20 @@ export function getDataSources(lang) {
                 required: false,
                 placeholder: "Earliest",
                 value: "Earliest",
-              }, // {
-              //   "name": "fetch_max_wait_time",
-              //   "display": "Waiting Timeout",
-              //   "hint": {
-              //     "type": "integer",
-              //     "min": 0,
-              //     "max": 300
-              //   },
-              //   "short_description": "A timeout for polling data from the topic.",
-              //   "description": "A timeout for polling data from the topic.\n\nThe default value `0`: means waiting for valid message without timeout,the unit is s.\n",
-              //   "required": false,
-              //   "placeholder": "",
-              //   "value": 0
-              // }
+              },
+              {
+                name: "char_encoding",
+                display: "Char Encoding",
+                hint: {
+                  type: "str",
+                  choices: ["UTF_8", "GBK", "GB18030", "BIG5"],
+                },
+                short_description:
+                  "TaosX only accepts UTF8 encoded strings by default. If the sender uses non UTF8 encoding, it needs to be specified here.",
+                description:
+                  "TaosX only accepts UTF8 encoded strings by default. If the sender uses non UTF8 encoding, it needs to be specified here.",
+                value: "UTF_8",
+              },
             ],
           },
         ],
@@ -7278,6 +7304,32 @@ export function getDataSources(lang) {
                 placeholder: "topic1::0,topic2::1",
                 edit_disabled: true,
               },
+              {
+                name: "compression",
+                display: "数据压缩",
+                hint: {
+                  type: "str",
+                  choices: ["none", "gzip", "snappy", "lz4", "zstd"],
+                },
+                short_description:
+                  "为了节省网络带宽，您可以将数据压缩后发送给 mqtt broker，这里配置同样的压缩算法，可实现解压缩",
+                description:
+                  "为了节省网络带宽，您可以将数据压缩后发送给 mqtt broker，这里配置同样的压缩算法，可实现解压缩",
+                value: "none",
+              },
+              {
+                name: "char_encoding",
+                display: "字符编码",
+                hint: {
+                  type: "str",
+                  choices: ["UTF_8", "GBK", "GB18030", "BIG5"],
+                },
+                short_description:
+                  "taosX 默认只接收 utf8 编码的字符串，如果发送端使用了非 utf8 编码，需要在这里指定。",
+                description:
+                  "taosX 默认只接收 utf8 编码的字符串，如果发送端使用了非 utf8 编码，需要在这里指定。",
+                value: "UTF_8",
+              },
             ],
           },
         ],
@@ -7653,20 +7705,20 @@ export function getDataSources(lang) {
                 required: false,
                 placeholder: "Earliest",
                 value: "Earliest",
-              }, // {
-              //   "name": "fetch_max_wait_time",
-              //   "display": "等待超时时间",
-              //   "hint": {
-              //     "type": "integer",
-              //     "min": 0,
-              //     "max": 300
-              //   },
-              //   "short_description": "超时时间范围内没有新增数据，Kafka 任务将自动结束。。",
-              //   "description": "超时时间范围内没有新增数据，Kafka 任务将自动结束。\n\n默认为 `0`: 表示无超时时间，持续进行订阅，单位为 s。\n",
-              //   "required": false,
-              //   "placeholder": "",
-              //   "value": 0,
-              // }
+              },
+              {
+                name: "char_encoding",
+                display: "字符编码",
+                hint: {
+                  type: "str",
+                  choices: ["UTF_8", "GBK", "GB18030", "BIG5"],
+                },
+                short_description:
+                  "taosX 默认只接收 utf8 编码的字符串，如果发送端使用了非 utf8 编码，需要在这里指定。",
+                description:
+                  "taosX 默认只接收 utf8 编码的字符串，如果发送端使用了非 utf8 编码，需要在这里指定。",
+                value: "UTF_8",
+              },
             ],
           },
         ],
