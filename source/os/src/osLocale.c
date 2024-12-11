@@ -87,8 +87,7 @@ int32_t taosSetSystemLocale(const char *inLocale) {
     return terrno;
   }
 
-  (void)memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
-
+  tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
   return 0;
 }
 
