@@ -349,7 +349,7 @@ _exit:
     wError("vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));
   }
 
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+  TAOS_RETURN(code);
 }
 
 static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
@@ -706,8 +706,13 @@ _exit:
 
 static int32_t walInitWriteFile(SWal *pWal) {
   TdFilePtr     pIdxTFile, pLogTFile;
+  int64_t       fileFirstVer = -1;
+  int32_t       code = 0;
   SWalFileInfo *pRet = taosArrayGetLast(pWal->fileInfoSet);
-  int64_t       fileFirstVer = pRet->firstVer;
+  if (pRet == NULL) {
+    fileFirstVer = pWal->vers.lastVer + 1;
+  }
+  fileFirstVer = pRet->firstVer;
 
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
@@ -723,6 +728,13 @@ static int32_t walInitWriteFile(SWal *pWal) {
   // switch file
   pWal->pIdxFile = pIdxTFile;
   pWal->pLogFile = pLogTFile;
+  if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
+    code = walRollFileInfo(pWal);
+    if (code < 0) {
+      wError("vgId:%d, failed to roll file info while init write file since %s", pWal->cfg.vgId, terrstr());
+      TAOS_RETURN(code);
+    }
+  }
   pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
