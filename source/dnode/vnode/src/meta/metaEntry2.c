@@ -14,6 +14,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry);
 void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 
 #define metaErr(VGID, ERRNO)                                                                                     \
   do {                                                                                                           \
@@ -172,6 +173,8 @@ static int32_t metaEntryTableUpsert(SMeta *pMeta, const SMetaHandleParam *pParam
     code = tdbTbInsert(pMeta->pTbDb, &key, sizeof(key), value, valueSize, pMeta->txn);
   } else if (META_TABLE_OP_UPDATA == op) {
     code = tdbTbUpsert(pMeta->pTbDb, &key, sizeof(key), value, valueSize, pMeta->txn);
+  } else if (META_TABLE_OP_DELETE == op) {
+    code = tdbTbInsert(pMeta->pTbDb, &key, sizeof(key), value, valueSize, pMeta->txn);
   } else {
     code = TSDB_CODE_INVALID_PARA;
   }
@@ -190,14 +193,8 @@ static int32_t metaEntryTableUpdate(SMeta *pMeta, const SMetaHandleParam *pParam
   return metaEntryTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
 }
 
-static int32_t metaEntryTableDelete(SMeta *pMeta, const SMetaHandleParam *pEntry) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  // SMetaEntry entry { .version = ; };
-
-  // TODO
-
-  return code;
+static int32_t metaEntryTableDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
+  return metaEntryTableUpsert(pMeta, pParam, META_TABLE_OP_DELETE);
 }
 
 // Schema Table
@@ -328,7 +325,7 @@ static int32_t metaUidIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
 static int32_t metaUidIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
   int32_t code = 0;
 
-  const SMetaEntry *pEntry = pParam->pEntry;
+  const SMetaEntry *pEntry = pParam->pOldEntry;
 
   // delete tdb
   code = tdbTbDelete(pMeta->pUidIdx, &pEntry->uid, sizeof(pEntry->uid), pMeta->txn);
@@ -369,8 +366,9 @@ static int32_t metaNameIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
 }
 
 static int32_t metaNameIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
-  int32_t           code = TSDB_CODE_SUCCESS;
-  const SMetaEntry *pEntry = pParam->pEntry;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry *pEntry = pParam->pOldEntry;
   code = tdbTbDelete(pMeta->pNameIdx, pEntry->name, strlen(pEntry->name) + 1, pMeta->txn);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
@@ -430,7 +428,7 @@ static int32_t metaChildIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) 
 }
 
 static int32_t metaChildIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
-  const SMetaEntry *pEntry = pParam->pEntry;
+  const SMetaEntry *pEntry = pParam->pOldEntry;
 
   SCtbIdxKey key = {
       .suid = pEntry->ctbEntry.suid,
@@ -461,10 +459,9 @@ static int32_t metaTagIdxInsert(SMeta *pMeta, const SMetaHandleParam *pParam) {
       metaErr(TD_VID(pMeta->pVnode), code);
     }
   } else {
-    STagIdxKey *pTagIdxKey = NULL;
-    int32_t     nTagIdxKey;
-
     for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+      STagIdxKey    *pTagIdxKey = NULL;
+      int32_t        nTagIdxKey;
       const void    *pTagData = NULL;
       int32_t        nTagData = 0;
       const SSchema *pTagColumn = &pTagSchema->pSchema[i];
@@ -501,6 +498,8 @@ static int32_t metaTagIdxInsert(SMeta *pMeta, const SMetaHandleParam *pParam) {
       code = tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
       if (code) {
         metaErr(TD_VID(pMeta->pVnode), code);
+        metaDestroyTagIdxKey(pTagIdxKey);
+        return code;
       }
       metaDestroyTagIdxKey(pTagIdxKey);
       pTagIdxKey = NULL;
@@ -515,13 +514,79 @@ static int32_t metaTagIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
 }
 
 static int32_t metaTagIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
-  // TODO
-  return 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry     *pEntry = pParam->pEntry;
+  const SMetaEntry     *pChild = pParam->pOldEntry;
+  const SMetaEntry     *pSuper = pParam->pSuperEntry;
+  const SSchemaWrapper *pTagSchema = &pSuper->stbEntry.schemaTag;
+  const SSchema        *pTagColumn = NULL;
+  const STag           *pTags = (const STag *)pChild->ctbEntry.pTags;
+
+  if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    pTagColumn = &pTagSchema->pSchema[0];
+    code = metaDelJsonVarFromIdx(pMeta, pChild, pTagColumn);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+    }
+  } else {
+    for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+      pTagColumn = &pTagSchema->pSchema[i];
+
+      if (!IS_IDX_ON(pTagColumn)) {
+        continue;
+      }
+
+      STagIdxKey *pTagIdxKey = NULL;
+      int32_t     nTagIdxKey;
+
+      const void *pTagData = NULL;
+      int32_t     nTagData = 0;
+
+      STagVal tagVal = {.cid = pTagColumn->colId};
+      if (tTagGet(pTags, &tagVal)) {
+        if (IS_VAR_DATA_TYPE(pTagColumn->type)) {
+          pTagData = tagVal.pData;
+          nTagData = (int32_t)tagVal.nData;
+        } else {
+          pTagData = &(tagVal.i64);
+          nTagData = tDataTypes[pTagColumn->type].bytes;
+        }
+      } else {
+        if (!IS_VAR_DATA_TYPE(pTagColumn->type)) {
+          nTagData = tDataTypes[pTagColumn->type].bytes;
+        }
+      }
+      code = metaCreateTagIdxKey(pSuper->uid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type, pChild->uid,
+                                 &pTagIdxKey, &nTagIdxKey);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        return code;
+      }
+
+      code = tdbTbDelete(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, pMeta->txn);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        metaDestroyTagIdxKey(pTagIdxKey);
+        return code;
+      }
+      metaDestroyTagIdxKey(pTagIdxKey);
+      pTagIdxKey = NULL;
+    }
+  }
+  return code;
 }
 
 // Btime Index
 static int32_t metaBtimeIdxUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, EMetaTableOp op) {
-  const SMetaEntry *pEntry = pParam->pEntry;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry *pEntry;
+  if (META_TABLE_OP_DELETE == op) {
+    pEntry = pParam->pOldEntry;
+  } else {
+    pEntry = pParam->pEntry;
+  }
 
   SBtimeIdxKey key = {
       .uid = pEntry->uid,
@@ -536,12 +601,18 @@ static int32_t metaBtimeIdxUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, 
   }
 
   if (META_TABLE_OP_INSERT == op) {
-    return tdbTbInsert(pMeta->pBtimeIdx, &key, sizeof(key), NULL, 0, pMeta->txn);
+    code = tdbTbInsert(pMeta->pBtimeIdx, &key, sizeof(key), NULL, 0, pMeta->txn);
   } else if (META_TABLE_OP_UPDATA == op) {
-    return tdbTbUpsert(pMeta->pBtimeIdx, &key, sizeof(key), NULL, 0, pMeta->txn);
+    code = tdbTbUpsert(pMeta->pBtimeIdx, &key, sizeof(key), NULL, 0, pMeta->txn);
+  } else if (META_TABLE_OP_DELETE == op) {
+    code = tdbTbDelete(pMeta->pBtimeIdx, &key, sizeof(key), pMeta->txn);
   } else {
-    return TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
   }
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
+  return code;
 }
 
 static int32_t metaBtimeIdxInsert(SMeta *pMeta, const SMetaHandleParam *pParam) {
@@ -553,20 +624,7 @@ static int32_t metaBtimeIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) 
 }
 
 static int32_t metaBtimeIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
-  // int32_t      code = TSDB_CODE_SUCCESS;
-  // SBtimeIdxKey key = {
-  //     .uid = pEntry->uid,
-  // };
-
-  // if (TSDB_CHILD_TABLE == pEntry->type) {
-  //   key.btime = pEntry->ctbEntry.btime;
-  // } else if (TSDB_NORMAL_TABLE == pEntry->type) {
-  //   key.btime = pEntry->ntbEntry.btime;
-  // } else {
-  //   return TSDB_CODE_INVALID_PARA;
-  // }
-  // return tdbTbDelete(pMeta->pBtimeIdx, &key, sizeof(key), pMeta->txn);
-  return TSDB_CODE_SUCCESS;
+  return metaBtimeIdxUpsert(pMeta, pParam, META_TABLE_OP_DELETE);
 }
 
 // TTL Index
@@ -577,12 +635,14 @@ static int32_t metaTtlIdxUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, EM
       .uid = pEntry->uid,
       .pTxn = pMeta->txn,
   };
-  if (pEntry->type == TSDB_CHILD_TABLE) {
+  if (TSDB_CHILD_TABLE == pEntry->type) {
     ctx.ttlDays = pEntry->ctbEntry.ttlDays;
     ctx.changeTimeMs = pEntry->ctbEntry.btime;
-  } else {
+  } else if (TSDB_NORMAL_TABLE == pEntry->type) {
     ctx.ttlDays = pEntry->ntbEntry.ttlDays;
     ctx.changeTimeMs = pEntry->ntbEntry.btime;
+  } else {
+    return TSDB_CODE_INVALID_PARA;
   }
 
   int32_t ret = ttlMgrInsertTtl(pMeta->pTtlMgr, &ctx);
@@ -601,8 +661,30 @@ static int32_t metaTtlIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
 }
 
 static int32_t metaTtlIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
-  // TODO
-  return 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry *pEntry = pParam->pOldEntry;
+  STtlDelTtlCtx     ctx = {
+          .uid = pEntry->uid,
+          .pTxn = pMeta->txn,
+  };
+
+  if (TSDB_CHILD_TABLE == pEntry->type) {
+    ctx.ttlDays = pEntry->ctbEntry.ttlDays;
+  } else if (TSDB_NORMAL_TABLE == pEntry->type) {
+    ctx.ttlDays = pEntry->ntbEntry.ttlDays;
+  } else {
+    code = TSDB_CODE_INVALID_PARA;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    int32_t ret = ttlMgrDeleteTtl(pMeta->pTtlMgr, &ctx);
+    if (ret < 0) {
+      metaError("vgId:%d, failed to delete ttl, uid: %" PRId64 " %s", TD_VID(pMeta->pVnode), pEntry->uid,
+                tstrerror(ret));
+    }
+  }
+  return code;
 }
 
 static int32_t (*metaTableOpFn[META_TABLE_MAX][META_TABLE_OP_MAX])(SMeta *pMeta, const SMetaHandleParam *pParam) =
@@ -851,7 +933,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
   return code;
 }
 
-static int32_t metaHandleNormalTableDropImpl(SMeta *pMeta, const SMetaEntry *pEntry) {
+static int32_t metaHandleNormalTableDropImpl(SMeta *pMeta, SMetaHandleParam *pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   SMetaTableOp ops[] = {
@@ -859,68 +941,183 @@ static int32_t metaHandleNormalTableDropImpl(SMeta *pMeta, const SMetaEntry *pEn
       {META_UID_IDX, META_TABLE_OP_DELETE},      //
       {META_NAME_IDX, META_TABLE_OP_DELETE},     //
       {META_BTIME_IDX, META_TABLE_OP_DELETE},    //
+      {META_TTL_IDX, META_TABLE_OP_DELETE},      //
 
-      // {META_SCHEMA_TABLE, META_TABLE_OP_UPDATA},  // TODO: need to be insert
-      // {META_TTL_IDX, META_TABLE_OP_INSERT},       //
+      // {META_SCHEMA_TABLE, META_TABLE_OP_DELETE},  //
   };
 
-  // for (int32_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
-  //   SMetaTableOp *op = &ops[i];
-  //   code = metaTableOpFn[op->table][op->op](pMeta, pEntry);
-  //   if (code) {
-  //     metaErr(TD_VID(pMeta->pVnode), code);
-  //   }
-  // }
-
-  return code;
-}
-
-static int32_t metaHandleNormalTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  SMetaEntry entry = {0};
-
-  // TODO: get entry
-
-  metaWLock(pMeta);
-  // code = metaHandleNormalTableDropImpl(pMeta, &entry);
-  // if (code) {
-  //   metaErr(TD_VID(pMeta->pVnode), code);
-  // } else {
-  //   code = metaTableOpFn[META_ENTRY_TABLE][META_TABLE_OP_INSERT](pMeta, pEntry);
-  // }
-  // metaULock(pMeta);
-
-  if (TSDB_CODE_SUCCESS == code) {
-    pMeta->pVnode->config.vndStats.numOfNTables--;
-    pMeta->pVnode->config.vndStats.numOfNTimeSeries -= (entry.ntbEntry.schemaRow.nCols - 1);
-
-    // if ((type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE) && tbUids) {
-    //   if (taosArrayPush(tbUids, &uid) == NULL) {
-    //     rc = terrno;
-    //     goto _exit;
-    //   }
-
-    //   if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
-    //     int32_t ret = tsdbCacheDropTable(pMeta->pVnode->pTsdb, uid, suid, NULL);
-    //     if (ret < 0) {
-    //       metaError("vgId:%d, failed to drop table:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
-    //       uid,
-    //                 tstrerror(ret));
-    //     }
-    //   }
-    // }
-
-    pMeta->changed = true;
-  } else {
-    metaErr(TD_VID(pMeta->pVnode), code);
+  for (int32_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+    SMetaTableOp *op = &ops[i];
+    code = metaTableOpFn[op->table][op->op](pMeta, pParam);
+    if (code) {
+      const SMetaEntry *pEntry = pParam->pEntry;
+      metaErr(TD_VID(pMeta->pVnode), code);
+    }
   }
 
   return code;
 }
 
-static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) {
+static int32_t metaHandleNormalTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SMetaEntry *pOldEntry = NULL;
+
+  // fetch the entry
+  code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    return code;
+  }
+
+  SMetaHandleParam param = {
+      .pEntry = pEntry,
+      .pOldEntry = pOldEntry,
+  };
+
+  // do the drop
+  metaWLock(pMeta);
+  code = metaHandleNormalTableDropImpl(pMeta, &param);
+  metaULock(pMeta);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    metaFetchEntryFree(&pOldEntry);
+    return code;
+  }
+
+  // update other stuff
+  pMeta->pVnode->config.vndStats.numOfNTables--;
+  pMeta->pVnode->config.vndStats.numOfNTimeSeries -= (pOldEntry->ntbEntry.schemaRow.nCols - 1);
+
+#if 0
+  if (tbUids) {
+    if (taosArrayPush(tbUids, &uid) == NULL) {
+      rc = terrno;
+      goto _exit;
+    }
+  }
+#endif
+
+  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+    int32_t ret = tsdbCacheDropTable(pMeta->pVnode->pTsdb, pOldEntry->uid, 0, NULL);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+  }
+
+  pMeta->changed = true;
+  metaFetchEntryFree(&pOldEntry);
+  return code;
+}
+
+static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam *pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
-  //   TODO
+
+  const SMetaEntry *pEntry = pParam->pEntry;
+  const SMetaEntry *pChild = pParam->pOldEntry;
+  const SMetaEntry *pSuper = pParam->pSuperEntry;
+
+  SMetaTableOp ops[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_DELETE},  //
+      {META_UID_IDX, META_TABLE_OP_DELETE},      //
+      {META_NAME_IDX, META_TABLE_OP_DELETE},     //
+      {META_CHILD_IDX, META_TABLE_OP_DELETE},    //
+      {META_TAG_IDX, META_TABLE_OP_DELETE},      //
+      {META_BTIME_IDX, META_TABLE_OP_DELETE},    //
+      {META_TTL_IDX, META_TABLE_OP_DELETE},      //
+  };
+
+  for (int i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+    SMetaTableOp *op = &ops[i];
+
+    code = metaTableOpFn[op->table][op->op](pMeta, pParam);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+  }
+
+  --pMeta->pVnode->config.vndStats.numOfCTables;
+  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0);
+  int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
+  if (ret < 0) {
+    metaErr(TD_VID(pMeta->pVnode), ret);
+  }
+
+  ret = metaTbGroupCacheClear(pMeta, pSuper->uid);
+  if (ret < 0) {
+    metaErr(TD_VID(pMeta->pVnode), ret);
+  }
+  return code;
+}
+
+static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SMetaEntry *pChild = NULL;
+  SMetaEntry *pSuper = NULL;
+
+  // fetch old entry
+  code = metaFetchEntryByUid(pMeta, pEntry->uid, &pChild);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    return code;
+  }
+
+  // fetch super entry
+  code = metaFetchEntryByUid(pMeta, pChild->ctbEntry.suid, &pSuper);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    metaFetchEntryFree(&pChild);
+    return code;
+  }
+
+  SMetaHandleParam param = {
+      .pEntry = pEntry,
+      .pOldEntry = pChild,
+      .pSuperEntry = pSuper,
+  };
+
+  // do the drop
+  metaWLock(pMeta);
+  code = metaHandleChildTableDropImpl(pMeta, &param);
+  metaULock(pMeta);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    metaFetchEntryFree(&pChild);
+    metaFetchEntryFree(&pSuper);
+    return code;
+  }
+
+  // do other stuff
+  if (!metaTbInFilterCache(pMeta, pSuper->name, 1)) {
+    int32_t      nCols = 0;
+    SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
+    if (metaGetStbStats(pMeta->pVnode, pSuper->uid, NULL, &nCols) == 0) {
+      pStats->numOfTimeSeries -= nCols - 1;
+    }
+  }
+
+  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+    int32_t ret = tsdbCacheDropTable(pMeta->pVnode->pTsdb, pChild->uid, pSuper->uid, NULL);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+  }
+
+#if 0
+  if (tbUids) {
+    if (taosArrayPush(tbUids, &uid) == NULL) {
+      rc = terrno;
+      goto _exit;
+    }
+  }
+
+  if ((type == TSDB_CHILD_TABLE) && tbUid) {
+    *tbUid = uid;
+  }
+#endif
+  pMeta->changed = true;
+  metaFetchEntryFree(&pChild);
+  metaFetchEntryFree(&pSuper);
   return code;
 }
 
@@ -984,7 +1181,7 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
         break;
       }
       case TSDB_CHILD_TABLE: {
-        // code = metaHandleChildTableDrop(pMeta, pEntry);
+        code = metaHandleChildTableDrop(pMeta, pEntry);
         break;
       }
       case TSDB_NORMAL_TABLE: {

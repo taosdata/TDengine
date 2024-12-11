@@ -1490,7 +1490,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     tb_uid_t     tbUid = 0;
 
     /* code */
-    ret = metaDropTable(pVnode->pMeta, ver, pDropTbReq, tbUids, &tbUid);
+    ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
     if (ret < 0) {
       if (pDropTbReq->igNotExists && terrno == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
         dropTbRsp.code = TSDB_CODE_SUCCESS;

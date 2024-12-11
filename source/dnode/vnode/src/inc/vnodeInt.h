@@ -162,6 +162,7 @@ int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** pMetaRsp);
 int32_t         metaCreateTable2(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** ppRsp);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids, int64_t* tbUid);
+int32_t         metaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq);
 int32_t         metaTrimTables(SMeta* pMeta);
 int32_t         metaDropTables(SMeta* pMeta, SArray* tbUids);
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
