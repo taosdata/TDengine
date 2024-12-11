@@ -627,7 +627,14 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
 
   processLogFileName(logName, maxFileNum);
 
-  char name[PATH_MAX + 50] = "\0";
+  int32_t logNameLen = strlen(tsLogObj.logName) + 2;  // logName + ".0" or ".1"
+
+  if (logNameLen < 0 || logNameLen >= PATH_MAX) {
+    uError("log name:%s is invalid since length:%d is out of range", logName, logNameLen);
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char name[PATH_MAX] = "\0";
   (void)snprintf(name, sizeof(name), "%s.%d", tsLogObj.logName, tsLogObj.flag);
   (void)taosThreadMutexInit(&tsLogObj.logMutex, NULL);
 
