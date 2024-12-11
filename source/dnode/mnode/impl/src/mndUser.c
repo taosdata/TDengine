@@ -1862,13 +1862,13 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  (void)sprintf(detail, "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable, createReq.superUser,
-                createReq.sysInfo);
+  TAOS_UNUSED(snprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
+                       createReq.superUser, createReq.sysInfo));
   char operation[15] = {0};
   if (createReq.isImport == 1) {
-    (void)strcpy(operation, "importUser");
+    tstrncpy(operation, "importUser", sizeof(operation));
   } else {
-    (void)strcpy(operation, "createUser");
+    tstrncpy(operation, "createUser", sizeof(operation));
   }
 
   auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail));
@@ -2466,9 +2466,10 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char detail[1000] = {0};
-    (void)sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
-                  mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
-                  alterReq.createdb ? 1 : 0, alterReq.tabName);
+    (void)snprintf(detail, sizeof(detail),
+                   "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
+                   mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
+                   alterReq.createdb ? 1 : 0, alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, detail, strlen(detail));
   } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
              alterReq.alterType == TSDB_ALTER_USER_SYSINFO || alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
@@ -2841,8 +2842,8 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       SNode  *pAst = NULL;
       int32_t sqlLen = 0;
       size_t  bufSz = strlen(value) + 1;
-      if (bufSz < 5) bufSz = 5;
-      TAOS_MEMORY_REALLOC(*sql, bufSz + 1);
+      if (bufSz < 6) bufSz = 6;
+      TAOS_MEMORY_REALLOC(*sql, bufSz);
       if (*sql == NULL) {
         code = terrno;
         goto _exit;
@@ -2856,12 +2857,12 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       if (nodesStringToNode(value, &pAst) == 0) {
         if (nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen) != 0) {
           sqlLen = 5;
-          (void)sprintf(*sql, "error");
+          (void)snprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
       } else {
         sqlLen = 5;
-        (void)sprintf(*sql, "error");
+        (void)snprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);
