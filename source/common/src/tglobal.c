@@ -2768,6 +2768,7 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
   char   buf[30];
   cJSON *json = cJSON_CreateObject();
   if (json == NULL) goto _exit;
+  if (cJSON_AddNumberToObject(json, "file_version", GLOBAL_CONFIG_FILE_VERSION) == NULL) goto _exit;
   if (cJSON_AddNumberToObject(json, "version", version) == NULL) goto _exit;
   int sz = taosArrayGetSize(array);
 
@@ -2828,7 +2829,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
 
   cJSON *cField = cJSON_CreateObject();
   if (cField == NULL) goto _exit;
-
+  if (cJSON_AddNumberToObject(json, "file_version", LOCAL_CONFIG_FILE_VERSION) == NULL) goto _exit;
   if (!cJSON_AddItemToObject(json, "configs", cField)) goto _exit;
 
   // cjson only support int32_t or double

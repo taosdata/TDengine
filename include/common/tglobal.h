@@ -31,6 +31,9 @@ extern "C" {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0x7
 
+#define GLOBAL_CONFIG_FILE_VERSION 1
+#define LOCAL_CONFIG_FILE_VERSION  1
+
 typedef enum {
   DND_CA_SM4 = 1,
 } EEncryptAlgor;
