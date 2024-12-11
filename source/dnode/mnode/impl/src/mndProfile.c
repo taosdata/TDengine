@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndProfile.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
-#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -336,10 +336,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   code = 0;
 
-  char detail[1000] = {0};
-  (void)sprintf(detail, "app:%s", connReq.app);
-
-  auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
+  char    detail[1000] = {0};
+  int32_t nBytes = snprintf(detail, sizeof(detail), "app:%s", connReq.app);
+  if ((uint32_t)nBytes < sizeof(detail)) {
+    auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
+  } else {
+    mError("failed to audit logic since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  }
 
 _OVER:
 

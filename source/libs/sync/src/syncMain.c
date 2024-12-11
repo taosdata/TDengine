@@ -2901,7 +2901,7 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
     n += tsnprintf(buf + n, len - n, "%s", "{");
     for (int i = 0; i < ths->peersEpset->numOfEps; i++) {
       n += tsnprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
-                    (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
+                     (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
     }
     n += tsnprintf(buf + n, len - n, "%s", "}");
 
