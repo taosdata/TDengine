@@ -11,7 +11,7 @@ import RequestId from "./_request_id.mdx";
 
 `taospy` 是 TDengine 数据库面向 Python 语言提供的官方连接器，连接器对外提供对数据库写入、查询、订阅等多种访问接口。  
 
-安装命令：
+连接器要求 Python3.0 及以上，安装命令如下：
 ``` bash
 # 原生连接和 REST 连接
 pip3 install taospy
@@ -45,23 +45,23 @@ pip3 install taos-ws-py
 
 |Python Connector 版本|主要变化| TDengine 版本 |
 |:------------------:|----| :----: |
-|2.7.16|新增订阅配置 (session.timeout.ms, max.poll.interval.ms)|3.3.2.0|
-|2.7.15|新增 VARBINARY 和 GEOMETRY 类型支持|3.2.3.5|
-|2.7.14|修复已知问题|3.2.3.5|
-|2.7.13|新增 tmq 同步提交 offset 接口|3.1.1.25|
-|2.7.12|1. 新增 varbinary 类型支持（STMT暂不支持 varbinary ）<br/> 2. query 性能提升（感谢贡献者[hadrianl](https://github.com/taosdata/taos-connector-python/pull/209)）|3.1.1.2|
-|2.7.9|数据订阅支持获取消费进度和重置消费进度|3.0.2.6|
-|2.7.8|新增 `execute_many`|3.0.2.2|
+|2.7.16|新增订阅配置 (session.timeout.ms, max.poll.interval.ms)|3.1.1.2 及更高版本|
+|2.7.15|新增 VARBINARY 和 GEOMETRY 类型支持|3.1.1.2 及更高版本|
+|2.7.14|修复已知问题|3.1.1.2 及以上|
+|2.7.13|新增 tmq 同步提交 offset 接口|3.1.1.2 及更高版本|
+|2.7.12|1. 新增 varbinary 类型支持（STMT暂不支持 varbinary ）<br/> 2. query 性能提升（感谢贡献者[hadrianl](https://github.com/taosdata/taos-connector-python/pull/209)）|3.1.1.2 及更高版本|
+|2.7.9|数据订阅支持获取消费进度和重置消费进度|3.0.2.6 及更高版本|
+|2.7.8|新增 `execute_many`|3.0.0.0 及更高版本|
 
 WebSocket 版本连接器  
 
-|WebSocket Connector 版本|主要变化|
-|:---------------------:|-----|
-|0.3.5|新增 VARBINARY 和 GEOMETRY 类型支持，修复已知问题|
-|0.3.2|优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题|
-|0.2.9|已知问题修复|
-|0.2.5|1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT|
-|0.2.4|数据订阅新增取消订阅方法|
+|WebSocket Connector 版本|主要变化| TDengine 版本 |
+|:---------------------:|-----|:------:|
+|0.3.5|新增 VARBINARY 和 GEOMETRY 类型支持，修复已知问题|3.3.0.0 及更高版本|
+|0.3.2|优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题|3.2.3.0 及更高版本|
+|0.2.9|已知问题修复|3.0.5.0 及更高版本|
+|0.2.5|1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT|3.0.5.0 及更高版本|
+|0.2.4|数据订阅新增取消订阅方法|3.0.5.0 及更高版本|
 
 ## 处理异常
 
