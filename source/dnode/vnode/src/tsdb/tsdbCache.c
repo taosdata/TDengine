@@ -696,11 +696,7 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
           TAOS_CHECK_EXIT(terrno);
         }
 
-        code = tSimpleHashRemove(iColHash, &pColVal->cid, sizeof(pColVal->cid));
-        if (code != TSDB_CODE_SUCCESS) {
-          tsdbTrace("vgId:%d, %s tSimpleHashIterateRemove failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
-                    __LINE__, tstrerror(code));
-        }
+        TAOS_CHECK_EXIT(tSimpleHashRemove(iColHash, &pColVal->cid, sizeof(pColVal->cid)));
       }
     }
     tsdbRowClose(&iter);
@@ -2538,53 +2534,51 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
   }
   tsdbRowClose(&rowIter);
 
-  pRow = memRowIterGet(&iter, false, NULL, 0);
-  while (pRow) {
-    if (tSimpleHashGetSize(iColHash) == 0) {
-      break;
-    }
+  if (tSimpleHashGetSize(iColHash) > 0) {
+    pRow = memRowIterGet(&iter, false, NULL, 0);
+    while (pRow) {
+      if (tSimpleHashGetSize(iColHash) == 0) {
+        break;
+      }
 
-    sversion = TSDBROW_SVERSION(pRow);
-    if (sversion != -1) {
-      TAOS_CHECK_EXIT(updateTSchema(sversion, pr, uid));
+      sversion = TSDBROW_SVERSION(pRow);
+      if (sversion != -1) {
+        TAOS_CHECK_EXIT(updateTSchema(sversion, pr, uid));
 
-      pTSchema = pr->pCurrSchema;
-    }
-    nCol = pTSchema->numOfCols;
+        pTSchema = pr->pCurrSchema;
+      }
+      nCol = pTSchema->numOfCols;
 
-    STsdbRowKey tsdbRowKey = {0};
-    tsdbRowGetKey(pRow, &tsdbRowKey);
+      STsdbRowKey tsdbRowKey = {0};
+      tsdbRowGetKey(pRow, &tsdbRowKey);
 
-    STSDBRowIter rowIter = {0};
-    TAOS_CHECK_EXIT(tsdbRowIterOpen(&rowIter, pRow, pTSchema));
+      STSDBRowIter rowIter = {0};
+      TAOS_CHECK_EXIT(tsdbRowIterOpen(&rowIter, pRow, pTSchema));
 
-    iCol = 0;
-    for (SColVal *pColVal = tsdbRowIterNext(&rowIter); pColVal && iCol < nCol;
-         pColVal = tsdbRowIterNext(&rowIter), iCol++) {
-      int32_t *pjCol = tSimpleHashGet(iColHash, &pColVal->cid, sizeof(pColVal->cid));
-      if (pjCol && COL_VAL_IS_VALUE(pColVal)) {
-        SLastCol *pTargetCol = &((SLastCol *)TARRAY_DATA(pLastArray))[*pjCol];
-        int32_t   cmp_res = tRowKeyCompare(&pTargetCol->rowKey, &tsdbRowKey.key);
+      iCol = 0;
+      for (SColVal *pColVal = tsdbRowIterNext(&rowIter); pColVal && iCol < nCol;
+           pColVal = tsdbRowIterNext(&rowIter), iCol++) {
+        int32_t *pjCol = tSimpleHashGet(iColHash, &pColVal->cid, sizeof(pColVal->cid));
+        if (pjCol && COL_VAL_IS_VALUE(pColVal)) {
+          SLastCol *pTargetCol = &((SLastCol *)TARRAY_DATA(pLastArray))[*pjCol];
 
-        if (cmp_res <= 0) {
-          SLastCol lastCol = {
-              .rowKey = tsdbRowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
-          TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
+          int32_t cmp_res = tRowKeyCompare(&pTargetCol->rowKey, &tsdbRowKey.key);
+          if (cmp_res <= 0) {
+            SLastCol lastCol = {
+                .rowKey = tsdbRowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
+            TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
 
-          tsdbCacheFreeSLastColItem(pTargetCol);
-          taosArraySet(pLastArray, *pjCol, &lastCol);
-        }
+            tsdbCacheFreeSLastColItem(pTargetCol);
+            taosArraySet(pLastArray, *pjCol, &lastCol);
+          }
 
-        code = tSimpleHashRemove(iColHash, &pColVal->cid, sizeof(pColVal->cid));
-        if (code != TSDB_CODE_SUCCESS) {
-          tsdbTrace("vgId:%d, %s tSimpleHashIterateRemove failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
-                    __LINE__, tstrerror(code));
+          TAOS_CHECK_EXIT(tSimpleHashRemove(iColHash, &pColVal->cid, sizeof(pColVal->cid)));
         }
       }
-    }
-    tsdbRowClose(&rowIter);
+      tsdbRowClose(&rowIter);
 
-    pRow = memRowIterGet(&iter, false, NULL, 0);
+      pRow = memRowIterGet(&iter, false, NULL, 0);
+    }
   }
 
 _exit:
