@@ -836,6 +836,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   }
 
   if ((rspLen = tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp)) <= 0) {
+    rpcFreeCont(pRsp);
     code = rspLen;
     goto _OVER;
   }
