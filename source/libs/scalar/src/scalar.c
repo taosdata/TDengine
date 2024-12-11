@@ -1673,8 +1673,8 @@ static int32_t sclGetMinusOperatorResType(SOperatorNode *pOp) {
   if (!IS_MATHABLE_TYPE(((SExprNode *)(pOp->pLeft))->resType.type)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
-  pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
-  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  pOp->node.resType.type = ((SExprNode *)(pOp->pLeft))->resType.type;
+  pOp->node.resType.bytes = tDataTypes[((SExprNode *)(pOp->pLeft))->resType.type].bytes;
   return TSDB_CODE_SUCCESS;
 }
 
