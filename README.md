@@ -249,6 +249,19 @@ After the packaging is complete, you can see the following files
 ll /root/TDinternal/community/release
 ```
 
+Using the following script to package doc zip if you want to build docs zip
+```bash
+cd /root/TDinternal/enterprise/packaging
+pip3 install GitPython argparse
+python3 build_doc.py -ez -nu 
+```
+
+After the docs packaging is complete, you can see the following files
+```bash
+ll /root/TDinternal/enterprise/packaging/docs-zh.zip
+ll /root/TDinternal/enterprise/packaging/docs-en.zip
+```
+
 # Testing
 
 ## Run the TSIM test script
