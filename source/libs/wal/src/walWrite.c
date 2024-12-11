@@ -349,7 +349,7 @@ _exit:
     wError("vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));
   }
 
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+  TAOS_RETURN(code);
 }
 
 static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
