@@ -19,7 +19,7 @@ class TDTestCase:
         # user info
         self.userNum = 100
         self.basic_username = "user"
-        self.password = "pwd"
+        self.password = "test123@#$"
 
         # db info
         self.dbname = "user_privilege_multi_users"
