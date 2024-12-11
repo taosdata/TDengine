@@ -1305,6 +1305,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
     out.columnData->info.type = type;
     out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
 
+    int32_t overflowCount = 0;
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
       if (valueNode->node.resType.type != type) {
@@ -1317,6 +1318,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
         if (overflow) {
           cell = cell->pNext;
+          ++overflowCount;
           continue;
         }
 
@@ -1356,6 +1358,9 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
       }
 
       cell = cell->pNext;
+    }
+    if(overflowCount == listNode->pNodeList->length) {
+      FILTER_SET_FLAG(info->status, FI_STATUS_EMPTY);
     }
     colDataDestroy(out.columnData);
     taosMemoryFree(out.columnData);
