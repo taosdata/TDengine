@@ -28,7 +28,7 @@ taosBenchmark supports comprehensive performance testing for TDengine, and the T
 
 Execute the following command to quickly experience taosBenchmark performing a write performance test on TDengine based on the default configuration.
 
-```bash
+```shell
 taosBenchmark
 ```
 
@@ -38,7 +38,7 @@ When running without parameters, taosBenchmark by default connects to the TDengi
 
 When running taosBenchmark using command line parameters and controlling its behavior, the `-f <json file>` parameter cannot be used. All configuration parameters must be specified through the command line. Below is an example of using command line mode to test the write performance of taosBenchmark.
 
-```bash
+```shell
 taosBenchmark -I stmt -n 200 -t 100
 ```
 
@@ -50,7 +50,7 @@ The taosBenchmark installation package includes examples of configuration files,
 
 Use the following command line to run taosBenchmark and control its behavior through a configuration file.
 
-```bash
+```shell
 taosBenchmark -f <json file>
 ```
 

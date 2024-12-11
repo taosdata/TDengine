@@ -273,19 +273,19 @@ To better operate the above data structures, some convenience functions are prov
 
 Create table:
 
-```bash
+```shell
 create table battery(ts timestamp, vol1 float, vol2 float, vol3 float, deviceId varchar(16));
 ```
 
 Create custom function:
 
-```bash
+```shell
 create aggregate function max_vol as '/root/udf/libmaxvol.so' outputtype binary(64) bufsize 10240 language 'C'; 
 ```
 
 Use custom function:
 
-```bash
+```shell
 select max_vol(vol1, vol2, vol3, deviceid) from battery;
 ```
 
@@ -334,7 +334,7 @@ When developing UDFs in Python, you need to implement the specified interface fu
 
 The interface for scalar functions is as follows.
 
-```Python
+```python
 def process(input: datablock) -> tuple[output_type]:
 ```
 
@@ -347,7 +347,7 @@ The main parameters are as follows:
 
 The interface for aggregate functions is as follows.
 
-```Python
+```python
 def start() -> bytes:
 def reduce(inputs: datablock, buf: bytes) -> bytes
 def finish(buf: bytes) -> output_type:
@@ -365,7 +365,7 @@ Finally, when all row data blocks have been processed, the finish function is ca
 
 The interfaces for initialization and destruction are as follows.
 
-```Python
+```python
 def init()
 def destroy()
 ```
@@ -381,7 +381,7 @@ Parameter description:
 
 The template for developing scalar functions in Python is as follows.
 
-```Python
+```python
 def init():
     # initialization
 def destroy():
@@ -393,7 +393,7 @@ def process(input: datablock) -> tuple[output_type]:
 
 The template for developing aggregate functions in Python is as follows.
 
-```Python
+```python
 def init():
     #initialization
 def destroy():
@@ -828,7 +828,7 @@ Through this example, we learned how to define aggregate functions and print cus
 <details>
 <summary>pybitand.py</summary>
 
-```Python
+```python
 {{#include tests/script/sh/pybitand.py}}
 ```
 
