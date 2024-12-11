@@ -7153,3 +7153,18 @@ bool getColsFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = pNode->node.resType.bytes;
   return true;
 }
+
+int32_t colsFunction(SqlFunctionCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SFunctionNode* pSelectFunc = ((SFunctionNode*)(pCtx[0].pExpr->pExpr->_function.pFunctNode->pParameterList->pHead->pNode));
+  
+  SFuncExecFuncs selectExecFuncs;
+  code = fmGetFuncExecFuncs(pCtx->functionId, &selectExecFuncs);
+  if(TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if(selectExecFuncs.process == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return selectExecFuncs.process(pCtx);
+}

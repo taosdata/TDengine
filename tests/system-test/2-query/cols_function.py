@@ -51,6 +51,7 @@ class TDTestCase:
         tdSql.query(f'select cols(min(c1), ts, c0) from {self.dbname}.meters')
         
         tdSql.query(f'select cols(last(ts), ts, c0), count(1) from {self.dbname}.meters')
+        tdSql.query(f'select count(1), cols(last(ts), ts, c0), min(c0) from {self.dbname}.meters')
         tdSql.query(f'select cols(last(ts), ts, c0), count(1) from {self.dbname}.meters')
         tdSql.query(f'select cols(last(ts), ts as time, c0 cc), count(1) from {self.dbname}.meters')
         tdSql.query(f'select cols(last(ts), c0, c1, c2, c3), count(1) from {self.dbname}.meters')

@@ -14,7 +14,6 @@
  */
 
 #include "cmdnodes.h"
-#include "nodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"

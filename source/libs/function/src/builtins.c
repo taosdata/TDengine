@@ -5647,13 +5647,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "cols",
     .type = FUNCTION_TYPE_COLS,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC |
-     FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_SELECT_COLS_FUNC,
     .translateFunc = translateCols,
     .dynDataRequiredFunc = NULL,
     .getEnvFunc   = getColsFuncEnv,
     .initFunc     = functionSetup,
-    .sprocessFunc = NULL,
+    .processFunc  = colsFunction,
+    .sprocessFunc = colsScalarFunction,
     .finalizeFunc = NULL
   },
 };

@@ -1090,6 +1090,10 @@ static bool isVectorFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsVectorFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isColsFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsSelectColsFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
   return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && isSelectStmt(pCxt->pCurrStmt) &&
           ((SSelectStmt*)pCxt->pCurrStmt)->isDistinct);
@@ -2853,6 +2857,9 @@ static int32_t calcSelectFuncNum(SFunctionNode* pFunc, int32_t currSelectFuncNum
   if (fmIsCumulativeFunc(pFunc->funcId)) {
     return currSelectFuncNum > 0 ? currSelectFuncNum : 1;
   }
+  if(fmIsSelectColsFunc(pFunc->funcId)) {
+    return currSelectFuncNum;
+  }
   return currSelectFuncNum + ((fmIsMultiResFunc(pFunc->funcId) && !fmIsLastRowFunc(pFunc->funcId))
                                   ? getMultiResFuncNum(pFunc->pParameterList)
                                   : 1);
@@ -3791,6 +3798,9 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   if (isVectorFunc(*pNode) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
+  if (isColsFunc(*pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
     SNode* pActualNode = getGroupByNode(pGroupNode);
@@ -3883,12 +3893,17 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
 typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existCol;
+  bool               hasColFunc;
   SNodeList*         pColList;
 } CheckAggColCoexistCxt;
 
 static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
   if (isVectorFunc(*pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if(isColsFunc(*pNode)) {
+    pCxt->hasColFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pPartKey = NULL;
@@ -3969,7 +3984,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (!pSelect->onlyHasKeepOrderFunc) {
     pSelect->timeLineResMode = TIME_LINE_NONE;
   }
-  CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existCol = false};
+  CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existCol = false, .hasColFunc = false};
   nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
@@ -3980,6 +3995,9 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   }
   if (cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  }
+  if (cxt.hasColFunc) {
+    return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   return TSDB_CODE_SUCCESS;
 }
