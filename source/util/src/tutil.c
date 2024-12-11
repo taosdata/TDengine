@@ -525,8 +525,8 @@ bool tIsValidFileName(const char *fileName, const char *pattern) {
 
 bool tIsValidFilePath(const char *filePath, const char *pattern) {
   const char *filePathPattern = "^[a-zA-Z0-9:/\\_.-]+$";
-
   return tIsValidFileName(filePath, pattern ? pattern : filePathPattern);
+}
 
 bool taosIsBigChar(char c) {
   if (c >= 'A' && c <= 'Z') {
