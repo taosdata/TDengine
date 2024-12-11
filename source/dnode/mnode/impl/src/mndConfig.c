@@ -535,10 +535,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   SDCfgDnodeReq dcfgReq = {0};
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
-    tstrncpy(dcfgReq.config, "resetlog", 8);
+    tstrncpy(dcfgReq.config, "resetlog", 9);
     goto _send_req;
 #ifdef TD_ENTERPRISE
-  } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
+  } else if (strncasecmp(cfgReq.config, "s3blocksize", 12) == 0) {
     int32_t optLen = strlen("s3blocksize");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
@@ -553,7 +553,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       goto _err_out;
     }
 
-    tstrncpy(dcfgReq.config, "s3blocksize", 11);
+    tstrncpy(dcfgReq.config, "s3blocksize", 12);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #endif
   } else {
