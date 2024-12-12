@@ -3544,6 +3544,8 @@ static int8_t getTriggerType(uint32_t tokenType) {
       return STREAM_TRIGGER_MAX_DELAY;
     case TK_FORCE_WINDOW_CLOSE:
       return STREAM_TRIGGER_FORCE_WINDOW_CLOSE;
+    case TK_CONTINUOUS_WINDOW_CLOSE:
+      return STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE;
     default:
       break;
   }

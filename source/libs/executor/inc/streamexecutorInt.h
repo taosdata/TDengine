@@ -54,6 +54,18 @@ typedef struct SSlicePoint {
   SRowBuffPos*   pResPos;
 } SSlicePoint;
 
+typedef struct SInervalSlicePoint {
+  SSessionKey      winKey;
+  bool             *pFinished;
+  SSliceRowData*   pLastRow;
+  SRowBuffPos*     pResPos;
+} SInervalSlicePoint;
+
+typedef enum SIntervalSliceType {
+  INTERVAL_SLICE_START = 1,
+  INTERVAL_SLICE_END = 2,
+} SIntervalSliceType;
+
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
@@ -105,6 +117,31 @@ int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, 
 int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
 int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
 TSKEY   compareTs(void* pKey);
+void doStreamIntervalSaveCheckpoint(struct SOperatorInfo* pOperator);
+int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, bool needPrev, STimeWindow* pTWin, int64_t groupId,
+                                    SInervalSlicePoint* pCurPoint, SInervalSlicePoint* pPrevPoint, int32_t* pWinCode);
+int32_t getIntervalSlicePrevStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, SWinKey* pCurKey,
+                                     SInervalSlicePoint* pPrevPoint);
+bool isInterpoWindowFinished(SInervalSlicePoint* pPoint);
+void resetIntervalSliceFunctionKey(SqlFunctionCtx* pCtx, int32_t numOfOutput);
+int32_t setIntervalSliceOutputBuf(SStreamAggSupporter* pAggSup, SInervalSlicePoint* pPoint, SqlFunctionCtx* pCtx,
+                                  int32_t numOfOutput, int32_t* rowEntryInfoOffset);
+void doSetElapsedEndKey(TSKEY winKey, SExprSupp* pSup);
+void doStreamSliceInterpolation(SSliceRowData* pPrevWinVal, TSKEY winKey, TSKEY curTs, SSDataBlock* pDataBlock,
+                                int32_t curRowIndex, SExprSupp* pSup, SIntervalSliceType type, int32_t* pOffsetInfo);
+void setInterpoWindowFinished(SInervalSlicePoint* pPoint);
+int32_t doStreamIntervalNonblockAggNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
+
+int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo);
+int32_t setBlockGroupIdByUid(struct SStreamScanInfo* pInfo, SSDataBlock* pBlock);
+int32_t rebuildDeleteBlockData(struct SSDataBlock* pBlock, STimeWindow* pWindow, const char* id);
+int32_t deletePartName(struct SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t *deleteNum);
+int32_t setBlockIntoRes(struct SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow, bool filter);
+int32_t doTableScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
+int32_t calBlockTbName(struct SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId);
+void streamScanOperatorSaveCheckpoint(struct SStreamScanInfo* pInfo);
+int32_t doStreamDataScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
+bool hasPrimaryKeyCol(SStreamScanInfo* pInfo);
 
 #ifdef __cplusplus
 }

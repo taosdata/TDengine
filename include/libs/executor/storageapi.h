@@ -125,6 +125,7 @@ typedef struct SRowBuffPos {
   bool  beUsed;
   bool  needFree;
   bool  beUpdated;
+  bool  invalid;
 } SRowBuffPos;
 
 // tq
@@ -319,6 +320,14 @@ typedef struct SUpdateInfo {
   __compar_fn_t comparePkCol;
 } SUpdateInfo;
 
+typedef struct STableTsDataState {
+  SSHashObj*    pTableTsDataMap;
+  __compar_fn_t comparePkColFn;
+  void*         pPkValBuff;
+  int32_t       pkValLen;
+  void*         pState;
+} STableTsDataState;
+
 typedef struct {
   void*   iter;      //  rocksdb_iterator_t*    iter;
   void*   snapshot;  //  rocksdb_snapshot_t*    snapshot;
@@ -338,6 +347,7 @@ typedef struct SStateStore {
   int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache,
                                    int32_t* pWinCode);
   int32_t (*streamStateDeleteParName)(SStreamState* pState, int64_t groupId);
+  void (*streamStateSetParNameInvalid)(SStreamState* pState);
 
   int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
                                       int32_t* pWinCode);
@@ -449,6 +459,13 @@ typedef struct SStateStore {
   int32_t (*streamStateDeleteCheckPoint)(SStreamState* pState, TSKEY mark);
   void (*streamStateReloadInfo)(SStreamState* pState, TSKEY ts);
   void (*streamStateCopyBackend)(SStreamState* src, SStreamState* dst);
+
+  int32_t (*streamStateGetAndSetTsData)(STableTsDataState* pState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
+                                        TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
+  int32_t (*streamStateTsDataCommit)(STableTsDataState* pState);
+  int32_t (*streamStateInitTsDataState)(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
+  void (*streamStateDestroyTsDataState)(STableTsDataState* pTsDataState);
+  int32_t (*streamStateRecoverTsData)(STableTsDataState* pTsDataState);
 } SStateStore;
 
 typedef struct SStorageAPI {

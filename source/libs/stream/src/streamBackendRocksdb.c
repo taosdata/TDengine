@@ -4377,7 +4377,7 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
   }
 }
 
-int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal, int32_t* pVLen) {
+int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, void** pVal, int32_t* pVLen) {
   if (!pCur) {
     return -1;
   }
@@ -4402,7 +4402,6 @@ int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGro
   return 0;
 }
 
-#ifdef BUILD_NO_CALL
 int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen) {
   int    code = 0;
   char*  tVal;
@@ -4417,7 +4416,7 @@ int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void
 
   return code;
 }
-#endif
+
 // parname cfg
 int32_t streamStatePutParName_rocksdb(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
   int code = 0;

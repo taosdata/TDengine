@@ -25,18 +25,6 @@
 
 #define STREAM_INTERVAL_SLICE_OP_CHECKPOINT_NAME "StreamIntervalSliceOperator_Checkpoint"
 
-typedef struct SInervalSlicePoint {
-  SSessionKey      winKey;
-  bool             *pFinished;
-  SSliceRowData*   pLastRow;
-  SRowBuffPos*     pResPos;
-} SInervalSlicePoint;
-
-typedef enum SIntervalSliceType {
-  INTERVAL_SLICE_START = 1,
-  INTERVAL_SLICE_END = 2,
-} SIntervalSliceType;
-
 void streamIntervalSliceReleaseState(SOperatorInfo* pOperator) {
 }
 
@@ -150,8 +138,8 @@ _end:
   return code;
 }
 
-static int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, bool needPrev, STimeWindow* pTWin, int64_t groupId,
-                                           SInervalSlicePoint* pCurPoint, SInervalSlicePoint* pPrevPoint, int32_t* pWinCode) {
+int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, bool needPrev, STimeWindow* pTWin, int64_t groupId,
+                                    SInervalSlicePoint* pCurPoint, SInervalSlicePoint* pPrevPoint, int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SWinKey curKey = {.ts = pTWin->skey, .groupId = groupId};
@@ -222,17 +210,31 @@ void doSetElapsedEndKey(TSKEY winKey, SExprSupp* pSup) {
   }
 }
 
-static void resetIntervalSliceFunctionKey(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+void resetIntervalSliceFunctionKey(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
     pCtx[k].start.key = INT64_MIN;
     pCtx[k].end.key = INT64_MIN;
   }
 }
 
-int32_t setIntervalSliceOutputBuf(SInervalSlicePoint* pPoint, SqlFunctionCtx* pCtx, int32_t numOfOutput,
-                                  int32_t* rowEntryInfoOffset) {
+static int32_t checkAndRecoverPointBuff(SStreamAggSupporter* pAggSup, SInervalSlicePoint* pPoint) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pPoint->pResPos->pRowBuff == NULL) {
+    void* pVal = NULL;
+    // recover curPoint.pResPos->pRowBuff
+    code = pAggSup->stateStore.streamStateGetByPos(pAggSup->pState, pPoint->pResPos, &pVal);
+    pPoint->pFinished = POINTER_SHIFT(pPoint->pResPos->pRowBuff, pAggSup->resultRowSize - pAggSup->stateKeySize);
+    pPoint->pLastRow = POINTER_SHIFT(pPoint->pFinished, sizeof(bool));
+  }
+  return code;
+}
+
+int32_t setIntervalSliceOutputBuf(SStreamAggSupporter* pAggSup, SInervalSlicePoint* pPoint, SqlFunctionCtx* pCtx,
+                                  int32_t numOfOutput, int32_t* rowEntryInfoOffset) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
+
+  checkAndRecoverPointBuff(pAggSup, pPoint);
   SResultRow* res = pPoint->pResPos->pRowBuff;
 
   // set time window for current result
@@ -247,11 +249,11 @@ _end:
   return code;
 }
 
-static void setInterpoWindowFinished(SInervalSlicePoint* pPoint) {
+void setInterpoWindowFinished(SInervalSlicePoint* pPoint) {
   (*pPoint->pFinished) = true;
 }
 
-static bool isInterpoWindowFinished(SInervalSlicePoint* pPoint) {
+bool isInterpoWindowFinished(SInervalSlicePoint* pPoint) {
   return *pPoint->pFinished;
 }
 
@@ -290,7 +292,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
     }
 
     if (pInfo->hasInterpoFunc && IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && isInterpoWindowFinished(&prevPoint) == false) {
-      code = setIntervalSliceOutputBuf(&prevPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
+      code = setIntervalSliceOutputBuf(&pInfo->streamAggSup, &prevPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
       QUERY_CHECK_CODE(code, lino, _end);
 
       resetIntervalSliceFunctionKey(pSup->pCtx, numOfOutput);
@@ -312,7 +314,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
       break;
     }
 
-    code = setIntervalSliceOutputBuf(&curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
+    code = setIntervalSliceOutputBuf(&pInfo->streamAggSup, &curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
     QUERY_CHECK_CODE(code, lino, _end);
 
     resetIntervalSliceFunctionKey(pSup->pCtx, numOfOutput);
@@ -647,8 +649,15 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
 
   setOperatorInfo(pOperator, "StreamIntervalSliceOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamIntervalSliceNext, NULL, destroyStreamIntervalSliceOperatorInfo,
-                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  if (pIntervalPhyNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    pOperator->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, doStreamIntervalNonblockAggNext, NULL, destroyStreamIntervalSliceOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  } else {
+    pOperator->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, doStreamIntervalSliceNext, NULL, destroyStreamIntervalSliceOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  }
   setOperatorStreamStateFn(pOperator, streamIntervalSliceReleaseState, streamIntervalSliceReloadState);
 
   initStreamBasicInfo(&pInfo->basic);

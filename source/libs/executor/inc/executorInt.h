@@ -528,18 +528,19 @@ typedef struct SStreamScanInfo {
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
-  SSDataBlock*   pCreateTbRes;
-  int8_t         igCheckUpdate;
-  int8_t         igExpired;
-  void*          pState;  // void
-  SStoreTqReader readerFn;
-  SStateStore    stateStore;
-  SSDataBlock*   pCheckpointRes;
-  int8_t         pkColType;
-  int32_t        pkColLen;
-  bool           useGetResultRange;
-  STimeWindow    lastScanRange;
-  SSDataBlock*   pRangeScanRes;   // update SSDataBlock
+  SSDataBlock*      pCreateTbRes;
+  int8_t            igCheckUpdate;
+  int8_t            igExpired;
+  void*             pState;  // void
+  SStoreTqReader    readerFn;
+  SStateStore       stateStore;
+  SSDataBlock*      pCheckpointRes;
+  int8_t            pkColType;
+  int32_t           pkColLen;
+  bool              useGetResultRange;
+  STimeWindow       lastScanRange;
+  SSDataBlock*      pRangeScanRes;  // update SSDataBlock
+  STableTsDataState tsDataState;
 } SStreamScanInfo;
 
 typedef struct {

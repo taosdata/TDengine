@@ -1326,7 +1326,7 @@ _end:
   return code;
 }
 
-static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   STableScanInfo* pInfo = pOperator->info;
@@ -2532,12 +2532,13 @@ _end:
   return code;
 }
 
-static int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
+int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   blockDataCleanup(pInfo->pCreateTbRes);
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
+    pInfo->stateStore.streamStateSetParNameInvalid(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState);
   } else {
     code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
                                 &pInfo->tagCalSup, pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes,
@@ -2907,7 +2908,7 @@ _end:
 }
 
 // re-build the delete block, ONLY according to the split timestamp
-static int32_t rebuildDeleteBlockData(SSDataBlock* pBlock, STimeWindow* pWindow, const char* id) {
+int32_t rebuildDeleteBlockData(SSDataBlock* pBlock, STimeWindow* pWindow, const char* id) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t numOfRows = pBlock->info.rows;
@@ -2977,8 +2978,8 @@ static int32_t colIdComparFn(const void* param1, const void* param2) {
   }
 }
 
-static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
-                               bool filter) {
+int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
+                        bool filter) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
@@ -3241,7 +3242,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   return pRes;
 }
 
-static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo) {
+int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   STqReader* pReader = pInfo->tqReader;
@@ -3293,7 +3294,7 @@ _end:
 }
 
 // for partition by tag
-static int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
@@ -3440,6 +3441,7 @@ void streamScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
     pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME,
                                           strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
     taosMemoryFree(pBuf);
+    pInfo->stateStore.streamStateTsDataCommit(&pInfo->tsDataState);
     saveStreamOperatorStateComplete(&pInfo->basic);
   }
 
@@ -3535,7 +3537,7 @@ static int32_t copyGetResultBlock(SSDataBlock* dest, TSKEY start, TSKEY end) {
   return appendDataToSpecialBlock(dest, &start, &end, NULL, NULL, NULL);
 }
 
-static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t *deleteNum) {
+int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t *deleteNum) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
@@ -4332,6 +4334,10 @@ static void destroyStreamScanOperatorInfo(void* param) {
   taosArrayDestroy(pStreamScan->pBlockLists);
   blockDataDestroy(pStreamScan->pCheckpointRes);
 
+  if (pStreamScan->stateStore.streamStateDestroyTsDataState) {
+    pStreamScan->stateStore.streamStateDestroyTsDataState(&pStreamScan->tsDataState);
+  }
+
   taosMemoryFree(pStreamScan);
 }
 
@@ -4699,6 +4705,16 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
 
   SET_WIN_KEY_INVALID(pInfo->lastScanRange.skey);
   SET_WIN_KEY_INVALID(pInfo->lastScanRange.ekey);
+
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    pAPI->stateStore.streamStateInitTsDataState(&pInfo->tsDataState, pInfo->pkColType, pInfo->pkColLen,
+                                                pTaskInfo->streamInfo.pState);
+    pAPI->stateStore.streamStateRecoverTsData(&pInfo->tsDataState);
+  } else {
+    pInfo->tsDataState.pTableTsDataMap = NULL;
+    pInfo->tsDataState.pPkValBuff = NULL;
+  }
+
   // for stream
   if (pTaskInfo->streamInfo.pState) {
     void*   buff = NULL;
@@ -4716,6 +4732,9 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
   __optr_fn_t nextFn = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? doStreamScanNext : doQueueScanNext;
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && pTableScanNode->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    nextFn = doStreamDataScanNext;
+  }
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, nextFn, NULL, destroyStreamScanOperatorInfo, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamScanReleaseState, streamScanReloadState);

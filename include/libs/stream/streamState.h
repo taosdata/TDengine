@@ -117,12 +117,21 @@ void streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache, int32_t* pWinCode);
 int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId);
+void streamStateSetParNameInvalid(SStreamState* pState);
 
 // group id
 int32_t streamStateGroupPut(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
 SStreamStateCur* streamStateGroupGetCur(SStreamState* pState);
 void streamStateGroupCurNext(SStreamStateCur* pCur);
 int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
+
+// ts data
+int32_t streamStateGetAndSetTsData(STableTsDataState* pState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
+                                  TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
+int32_t streamStateTsDataCommit(STableTsDataState* pState);
+int32_t streamStateInitTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
+void    streamStateDestroyTsDataState(STableTsDataState* pTsDataState);
+int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
 
