@@ -34,33 +34,37 @@ pip3 install taos-ws-py
 
 使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 `taosAdapter` 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
 
+## Python 版本兼容性
+
+支持 Python 3.0 及以上版本。
+
 ## 支持的平台
 
-- 原生连接[支持的平台](../#支持的平台)和 TDengine 客户端支持的平台一致。
-- REST 连接支持所有能运行 Python 的平台。
+- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+- WebSocket/REST 连接支持所有能运行 Python 的平台。
 
 ## 历史版本
 
-建议使用最新版本的 `taospy`
+Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 |Python Connector 版本|主要变化| TDengine 版本 |
-|:------------------:|----| :----: |
-|2.7.16|新增订阅配置 (session.timeout.ms, max.poll.interval.ms)|3.1.1.2 及更高版本|
-|2.7.15|新增 VARBINARY 和 GEOMETRY 类型支持|3.1.1.2 及更高版本|
-|2.7.14|修复已知问题|3.1.1.2 及以上|
-|2.7.13|新增 tmq 同步提交 offset 接口|3.1.1.2 及更高版本|
+|:------------------| :----| :----|
+|2.7.16|新增订阅配置 (session.timeout.ms, max.poll.interval.ms)| - |
+|2.7.15|新增 VARBINARY 和 GEOMETRY 类型支持| - |
+|2.7.14|修复已知问题| - |
+|2.7.13|新增 tmq 同步提交 offset 接口| - |
 |2.7.12|1. 新增 varbinary 类型支持（STMT暂不支持 varbinary ）<br/> 2. query 性能提升（感谢贡献者[hadrianl](https://github.com/taosdata/taos-connector-python/pull/209)）|3.1.1.2 及更高版本|
 |2.7.9|数据订阅支持获取消费进度和重置消费进度|3.0.2.6 及更高版本|
 |2.7.8|新增 `execute_many`|3.0.0.0 及更高版本|
 
-WebSocket 版本连接器  
+WebSocket Connector 历史版本：  
 
 |WebSocket Connector 版本|主要变化| TDengine 版本 |
-|:---------------------:|-----|:------:|
+|:---------------------|:-----|:------|
 |0.3.5|新增 VARBINARY 和 GEOMETRY 类型支持，修复已知问题|3.3.0.0 及更高版本|
 |0.3.2|优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题|3.2.3.0 及更高版本|
-|0.2.9|已知问题修复|3.0.5.0 及更高版本|
-|0.2.5|1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT|3.0.5.0 及更高版本|
+|0.2.9|已知问题修复| - |
+|0.2.5|1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT| - |
 |0.2.4|数据订阅新增取消订阅方法|3.0.5.0 及更高版本|
 
 ## 处理异常
