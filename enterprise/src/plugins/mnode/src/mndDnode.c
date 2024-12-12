@@ -34,6 +34,7 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
   }
 
   mndTransSetSerial(pTrans);
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_INTERUPT);
 
   mInfo("trans:%d, used to restore dnode:%s", pTrans->id, pDnode->ep);
 
