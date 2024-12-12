@@ -2343,7 +2343,7 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
   }
 
   int32_t total = taosArrayGetSize(*pReqTaskList);
-  if (total == numOfTasks) {  // all tasks has send the reqs
+  if (total == numOfTasks) {  // all tasks have sent the reqs
     int64_t checkpointId = mndStreamGenChkptId(pMnode, false);
     mInfo("stream:0x%" PRIx64 " all tasks req checkpoint, start checkpointId:%" PRId64, req.streamId, checkpointId);
 

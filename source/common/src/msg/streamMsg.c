@@ -651,6 +651,7 @@ int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
 
   TAOS_CHECK_EXIT(tStartEncode(pEncoder));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->msgId));
+  TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pRsp->mndEpset));
   tEndEncode(pEncoder);
 
 _exit:
@@ -663,6 +664,7 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
 
   TAOS_CHECK_EXIT(tStartDecode(pDecoder));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->msgId));
+  TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pRsp->mndEpset));
   tEndDecode(pDecoder);
 
 _exit:
