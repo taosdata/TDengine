@@ -1852,7 +1852,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 
           tstrncpy(pStmt->usingTableName.dbname, pStmt->targetTableName.dbname, sizeof(pStmt->usingTableName.dbname));
           pStmt->usingTableName.type = 1;
-
+          pStmt->pTableMeta->tableType = TSDB_CHILD_TABLE;  // set the table type to child table for parse cache
           *bFoundTbName = true;
         }
       } else if (pCols->pColIndex[i] < numOfCols) {
