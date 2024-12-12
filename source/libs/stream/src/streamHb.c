@@ -152,7 +152,7 @@ static int32_t streamTaskGetMndEpset(SStreamMeta* pMeta, SEpSet* pEpSet) {
   return TSDB_CODE_FAILED;
 }
 
-static int32_t streamTaskUpdateMndEpset(SStreamMeta* pMeta, SEpSet* pEpSet) {
+static void streamTaskUpdateMndEpset(SStreamMeta* pMeta, SEpSet* pEpSet) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
@@ -185,7 +185,7 @@ static int32_t streamTaskUpdateMndEpset(SStreamMeta* pMeta, SEpSet* pEpSet) {
     streamMetaReleaseTask(pMeta, pTask);
   }
 
-  return TSDB_CODE_SUCCESS;
+  stDebug("vgId:%d update mnd epset for %d tasks completed", pMeta->vgId, numOfTasks);
 }
 
 // NOTE: this task should be executed within the SStreamMeta lock region.
