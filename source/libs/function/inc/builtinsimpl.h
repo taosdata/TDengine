@@ -251,6 +251,8 @@ int32_t blockDBUsageSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
 int32_t blockDBUsageFunction(SqlFunctionCtx* pCtx);
 int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool    getColsFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+
 #ifdef __cplusplus
 }
 #endif
