@@ -17,6 +17,9 @@
 #include "tq.h"
 
 int32_t tqBuildFName(char** data, const char* path, char* name) {
+  if (data == NULL || path == NULL || name == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t len = strlen(path) + strlen(name) + 2;
   char*   fname = taosMemoryCalloc(1, len);
   if(fname == NULL) {
@@ -33,6 +36,9 @@ int32_t tqBuildFName(char** data, const char* path, char* name) {
 }
 
 int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
+  if (pTq == NULL || name == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t   code = TDB_CODE_SUCCESS;
   void*     pMemBuf = NULL;
 
@@ -54,6 +60,10 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
     }
     total += INT_BYTES;
     size = htonl(size);
+    if (size <= 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto END;
+    }
     pMemBuf = taosMemoryCalloc(1, size);
     if (pMemBuf == NULL) {
       code = terrno;

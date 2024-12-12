@@ -16,6 +16,9 @@
 #include "tq.h"
 
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
+  if (pBlock == NULL || pRsp == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
   int32_t dataStrLen = sizeof(SRetrieveTableRspForTmq) + dataEncodeBufSize;
   void*   buf = taosMemoryCalloc(1, dataStrLen);
@@ -47,18 +50,10 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, SMqDataRsp* pRsp) {
-  SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pTqReader->pSchemaWrapper);
-  if (pSW == NULL) {
-    return terrno;
-  }
-  if (taosArrayPush(pRsp->blockSchema, &pSW) == NULL) {
-    return terrno;
-  }
-  return 0;
-}
-
 static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, int32_t n) {
+  if (pRsp == NULL || pTq == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pTq->pVnode->pMeta, META_READER_LOCK);
 
@@ -84,6 +79,9 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, i
 }
 
 int32_t getDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId, SSDataBlock** res) {
+  if (task == NULL || pHandle == NULL || res == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   uint64_t ts = 0;
   qStreamSetOpen(task);
 
@@ -99,6 +97,9 @@ int32_t getDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId, S
 }
 
 int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest) {
+  if (pTq == NULL || pHandle == NULL || pRsp == NULL || pOffset == NULL || pRequest == NULL){
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t vgId = TD_VID(pTq->pVnode);
   int32_t code = 0;
   int32_t line = 0;
@@ -189,6 +190,9 @@ END:
 }
 
 int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* pOffset) {
+  if (pTq == NULL || pHandle == NULL || pRsp == NULL || pBatchMetaRsp == NULL || pOffset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t          task = pExec->task;
   int code = qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
@@ -280,6 +284,9 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
 }
 
 static int32_t buildCreateTbInfo(SMqDataRsp* pRsp, SVCreateTbReq* pCreateTbReq){
+  if (pRsp == NULL || pCreateTbReq == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = 0;
   void*   createReq = NULL;
   if (pRsp->createTableNum == 0) {
@@ -329,6 +336,9 @@ END:
 }
 
 static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded){
+  if (pTq == NULL || pHandle == NULL || pRsp == NULL || totalRows == NULL) {
+    return;
+  }
   int32_t code = 0;
   STqExecHandle* pExec = &pHandle->execHandle;
   STqReader* pReader = pExec->pTqReader;
@@ -407,6 +417,9 @@ END:
 
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows,
                        int8_t sourceExcluded) {
+  if (pTq == NULL || pHandle == NULL || pRsp == NULL || totalRows == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   STqExecHandle* pExec = &pHandle->execHandle;
   int32_t        code = 0;
   STqReader* pReader = pExec->pTqReader;

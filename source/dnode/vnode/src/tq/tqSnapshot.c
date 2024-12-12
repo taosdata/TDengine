@@ -27,6 +27,9 @@ struct STqSnapReader {
 };
 
 int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqSnapReader** ppReader) {
+  if (pTq == NULL || ppReader == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t        code = 0;
   STqSnapReader* pReader = NULL;
 
@@ -77,12 +80,18 @@ _err:
 }
 
 void tqSnapReaderClose(STqSnapReader** ppReader) {
+  if (ppReader == NULL || *ppReader == NULL) {
+    return;
+  }
   tdbTbcClose((*ppReader)->pCur);
   taosMemoryFree(*ppReader);
   *ppReader = NULL;
 }
 
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
+  if (pReader == NULL || ppData == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t code = 0;
   void*   pKey = NULL;
   void*   pVal = NULL;
@@ -126,6 +135,9 @@ struct STqSnapWriter {
 };
 
 int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter) {
+  if (pTq == NULL || ppWriter == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t        code = 0;
   STqSnapWriter* pWriter = NULL;
 
@@ -156,6 +168,9 @@ _err:
 }
 
 int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
+  if (ppWriter == NULL || *ppWriter == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t        code = 0;
   STqSnapWriter* pWriter = *ppWriter;
   STQ*           pTq = pWriter->pTq;
@@ -180,6 +195,9 @@ _err:
 }
 
 int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  if (pWriter == NULL || pData == NULL || nData < sizeof(SSnapDataHdr)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t   code = 0;
   STQ*      pTq = pWriter->pTq;
   SDecoder  decoder = {0};
@@ -190,7 +208,7 @@ int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData
   code = tDecodeSTqHandle(pDecoder, &handle);
   if (code) goto end;
   taosWLockLatch(&pTq->lock);
-  code = tqMetaSaveInfo(pTq, pTq->pExecStore, handle.subKey, (int)strlen(handle.subKey), pData + sizeof(SSnapDataHdr),
+  code = tqMetaSaveInfo(pTq, pTq->pExecStore, handle.subKey, strlen(handle.subKey), pData + sizeof(SSnapDataHdr),
                         nData - sizeof(SSnapDataHdr));
   taosWUnLockLatch(&pTq->lock);
 
@@ -202,6 +220,9 @@ end:
 }
 
 int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  if (pWriter == NULL || pData == NULL || nData < sizeof(SSnapDataHdr)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t      code = 0;
   STQ*         pTq = pWriter->pTq;
   STqCheckInfo info = {0};
@@ -223,6 +244,9 @@ _err:
 }
 
 int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  if (pWriter == NULL || pData == NULL || nData < sizeof(SSnapDataHdr)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t code = 0;
   STQ*    pTq = pWriter->pTq;
 

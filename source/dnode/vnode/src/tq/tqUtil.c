@@ -21,6 +21,9 @@ static int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, c
                                       const SMqBatchMetaRsp* pRsp, int32_t vgId);
 
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
+  if (pRsp == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
 
@@ -41,6 +44,9 @@ void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
 }
 
 static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
+  if (pRsp == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   tOffsetCopy(&pRsp->reqOffset, &pOffset);
   tOffsetCopy(&pRsp->rspOffset, &pOffset);
 
@@ -81,6 +87,9 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
 
 static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                      SRpcMsg* pMsg, bool* pBlockReturned) {
+  if (pOffsetVal == NULL || pTq == NULL || pHandle == NULL || pRequest == NULL || pMsg == NULL || pBlockReturned == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   uint64_t   consumerId = pRequest->consumerId;
   STqOffset* pOffset = NULL;
   int32_t    code = tqMetaGetOffset(pTq, pRequest->subKey, &pOffset);
@@ -142,6 +151,9 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
 
 static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
+  if (pTq == NULL || pHandle == NULL || pRequest == NULL || pMsg == NULL || pOffset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   uint64_t consumerId = pRequest->consumerId;
   int32_t  vgId = TD_VID(pTq->pVnode);
   terrno = 0;
@@ -212,6 +224,9 @@ static void tDeleteCommon(void* parm) {}
 
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
+  if (pTq == NULL || pHandle == NULL || pRequest == NULL || pMsg == NULL || offset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t         vgId = TD_VID(pTq->pVnode);
   SMqDataRsp      taosxRsp = {0};
   SMqBatchMetaRsp btMetaRsp = {0};
@@ -410,6 +425,9 @@ END:
 }
 
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg) {
+  if (pTq == NULL || pHandle == NULL || pRequest == NULL || pMsg == NULL) {
+    return TSDB_CODE_TMQ_INVALID_MSG;
+  }
   int32_t      code = 0;
   STqOffsetVal reqOffset = {0};
   tOffsetCopy(&reqOffset, &pRequest->reqOffset);
@@ -445,6 +463,9 @@ END:
 
 static void initMqRspHead(SMqRspHead* pMsgHead, int32_t type, int32_t epoch, int64_t consumerId, int64_t sver,
                           int64_t ever) {
+  if (pMsgHead == NULL) {
+    return;
+  }
   pMsgHead->consumerId = consumerId;
   pMsgHead->epoch = epoch;
   pMsgHead->mqMsgType = type;
@@ -454,6 +475,9 @@ static void initMqRspHead(SMqRspHead* pMsgHead, int32_t type, int32_t epoch, int
 
 int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
                                const SMqBatchMetaRsp* pRsp, int32_t vgId) {
+  if (pHandle == NULL || pMsg == NULL || pReq == NULL || pRsp == NULL) {
+    return TSDB_CODE_TMQ_INVALID_MSG;
+  }
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeMqBatchMetaRsp, pRsp, len, code);
@@ -491,6 +515,9 @@ int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SM
 
 int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp,
                           int32_t vgId) {
+  if (pHandle == NULL || pMsg == NULL || pReq == NULL || pRsp == NULL) {
+    return TSDB_CODE_TMQ_INVALID_MSG;
+  }
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeMqMetaRsp, pRsp, len, code);
@@ -529,6 +556,9 @@ int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPoll
 
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever) {
+  if (pRpcHandleInfo == NULL || pRsp == NULL) {
+    return TSDB_CODE_TMQ_INVALID_MSG;
+  }
   int32_t len = 0;
   int32_t code = 0;
 
