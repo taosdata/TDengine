@@ -60,6 +60,7 @@ static void *dmConfigThreadFp(void *param) {
     float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
       dmSendConfigReq(pMgmt);
+      lastTime = curTime;
     }
   }
   return NULL;
