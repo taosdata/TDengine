@@ -657,7 +657,7 @@ END:
 }
 
 static int32_t presistConsumerByType(STrans *pTrans, SArray *consumers, int8_t type, char *cgroup, char *topic) {
-  if (pTrans == NULL || consumers == NULL || cgroup == NULL || topic == NULL) {
+  if (pTrans == NULL || consumers == NULL || cgroup == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t         code = 0;
