@@ -221,7 +221,7 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
     metaInfo("vgId:%d, super table %s uid:%" PRId64 " is dropped, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
              pReq->suid, verison);
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 // Alter Super Table

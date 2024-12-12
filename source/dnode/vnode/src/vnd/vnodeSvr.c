@@ -1376,7 +1376,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   // process request
   tbUidList = taosArrayInit(8, sizeof(int64_t));
   if (tbUidList == NULL) goto _exit;
-  if (metaDropSTable(pVnode->pMeta, ver, &req, tbUidList) < 0) {
+  if (metaDropSuperTable(pVnode->pMeta, ver, &req) < 0) {
     rcode = terrno;
     goto _exit;
   }
