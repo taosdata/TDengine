@@ -1298,12 +1298,26 @@ static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntr
   if (!TSDB_CACHE_NO(pMeta->pVnode->config) &&
       pEntry->ntbEntry.schemaRow.version != pOldEntry->ntbEntry.schemaRow.version) {
 #if 0
-    int16_t cid = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId;
-    int8_t  col_type = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].type;
-    int32_t ret = tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
-    if (ret < 0) {
-      terrno = ret;
-      goto _err;
+    {  // for add column
+      int16_t cid = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId;
+      int8_t  col_type = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].type;
+      int32_t ret = tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
+      if (ret < 0) {
+        terrno = ret;
+        goto _err;
+      }
+    }
+    {  // for drop column
+
+      if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+        int16_t cid = pColumn->colId;
+
+        if (tsdbCacheDropNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, hasPrimayKey) != 0) {
+          metaError("vgId:%d, failed to drop ntable column:%s uid:%" PRId64, TD_VID(pMeta->pVnode), entry.name,
+                    entry.uid);
+        }
+        tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, entry.uid, pSchema->version);
+      }
     }
 #endif
     tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
