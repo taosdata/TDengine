@@ -74,10 +74,8 @@ echo "TDENGINE_DIR = $TDENGINE_DIR"
 today=`date +"%Y%m%d"`
 TDENGINE_ALLCI_REPORT="$TDENGINE_DIR/tests/all-ci-report-$today.log"
 
-
-
-function buildTDengine() {
-    print_color "$GREEN" "TDengine build start"
+function pullTDengine() {
+    print_color "$GREEN" "TDengine pull start"
     
     # pull parent code
     cd "$TDENGINE_DIR/../"
@@ -101,41 +99,76 @@ function buildTDengine() {
     git clean -dfx
     git pull
 
+    print_color "$GREEN" "TDengine pull end"
+}
+
+function buildTDengine() {
+    print_color "$GREEN" "TDengine build start"
+
     [ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
     cd $TDENGINE_DIR/debug
 
-    if [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "yes" ] ; then
-        print_color "$GREEN" "rebuild.."
-        rm -rf *
-        makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
-        print_color "$GREEN" "$makecmd"
-        $makecmd
-        make -j 8 install
-    elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "no" ] ; then
-        print_color "$GREEN" "not build,only install"
-        cd $TDENGINE_DIR/debug
-        make -j 8 install    
-    elif [ -n "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
-        print_color "$GREEN" "rebuild.."
-        rm -rf *
-        makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
-        print_color "$GREEN" "$makecmd"
-        $makecmd        
-        make -j 8 install
-    fi
-
-    print_color "$GREEN" "TDengine build end"
+    print_color "$GREEN" "rebuild.."
+    rm -rf *
+    makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
+    print_color "$GREEN" "$makecmd"
+    $makecmd        
+    make -j 8 install
 }
 
+# function buildTDengineold() {
+#     print_color "$GREEN" "TDengine build start"
 
-# Check and get the branch name
-if [ -n "$BRANCH" ]; then
+#     [ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
+#     cd $TDENGINE_DIR/debug
+
+#     if [ -n "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
+#         print_color "$GREEN" "rebuild.."
+#         rm -rf *
+#         makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
+#         print_color "$GREEN" "$makecmd"
+#         $makecmd        
+#         make -j 8 install
+#     elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "yes" ] ; then
+#         print_color "$GREEN" "rebuild.."
+#         #rm -rf *
+#         makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
+#         print_color "$GREEN" "$makecmd"
+#         $makecmd
+#         make -j 8 install 
+#     elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "no" ] ; then
+#         print_color "$GREEN" "not build,only install"
+#         cd $TDENGINE_DIR/debug
+#         make -j 8 install   
+#     fi
+
+#     print_color "$GREEN" "TDengine build end"
+# }
+
+
+# Check and get the branch name and build branch
+if [ -n "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
     branch="$BRANCH"
     print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "Build is required for this test！"
+    print_color "$GREEN" "Build is required for this test!"
+    pullTDengine
     buildTDengine
+elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "yes" ] ; then
+    branch="$BRANCH"
+    print_color "$GREEN" "Testing branch: $branch "
+    print_color "$GREEN" "Build is required for this test!"
+    pullTDengine
+    buildTDengine
+elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "no" ] ; then
+    branch="$BRANCH"
+    print_color "$GREEN" "Testing branch: $branch "
+    print_color "$GREEN" "not build,only install!"
+    pullTDengine
+    cd $TDENGINE_DIR/debug
+    make -j 8 install 
 else
-    print_color "$GREEN" "Build is not required for this test！"
+    print_color "$GREEN" "Build is not required for this test!"
+    pullTDengine
 fi
 
 function runCasesOneByOne () {
