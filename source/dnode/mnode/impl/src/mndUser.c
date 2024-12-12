@@ -1706,8 +1706,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   if (pCreate->isImport != 1) {
     taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
   } else {
-    // mInfo("pCreate->pass:%s", pCreate->pass)
-    strncpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    // mInfo("pCreate->pass:%s", pCreate->eass)
+    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
   }
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -1803,6 +1803,43 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndCheckPasswordFmt(const char *pwd) {
+  int32_t len = strlen(pwd);
+  if (len < TSDB_PASSWORD_MIN_LEN || len > TSDB_PASSWORD_MAX_LEN) {
+    return -1;
+  }
+
+  if (strcmp(pwd, "taosdata") == 0) {
+    return 0;
+  }
+
+  bool charTypes[4] = {0};
+  for (int32_t i = 0; i < len; ++i) {
+    if (taosIsBigChar(pwd[i])) {
+      charTypes[0] = true;
+    } else if (taosIsSmallChar(pwd[i])) {
+      charTypes[1] = true;
+    } else if (taosIsNumberChar(pwd[i])) {
+      charTypes[2] = true;
+    } else if (taosIsSpecialChar(pwd[i])) {
+      charTypes[3] = true;
+    } else {
+      return -1;
+    }
+  }
+
+  int32_t numOfTypes = 0;
+  for (int32_t i = 0; i < 4; ++i) {
+    numOfTypes += charTypes[i];
+  }
+
+  if (numOfTypes < 3) {
+    return -1;
+  }
+
+  return 0;
+}
+
 static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = 0;
@@ -1836,7 +1873,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  if (createReq.pass[0] == 0) {
+  if (mndCheckPasswordFmt(createReq.pass) != 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
   }
 
@@ -2325,8 +2362,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType &&
-      (alterReq.pass[0] == 0 || strlen(alterReq.pass) >= TSDB_PASSWORD_LEN)) {
+  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType && mndCheckPasswordFmt(alterReq.pass) != 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
   }
 

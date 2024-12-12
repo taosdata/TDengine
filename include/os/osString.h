@@ -25,7 +25,7 @@ typedef int32_t TdUcs4;
 #if !defined(DISALLOW_NCHAR_WITHOUT_ICONV)// && defined(DARWIN)
 #include "iconv.h"
 #else
-typedef void   *iconv_t;
+typedef void *iconv_t;
 #endif
 typedef enum { M2C = 0, C2M, CM_NUM } ConvType;
 
@@ -67,28 +67,33 @@ typedef struct {
 #ifdef strndup
 #undef strndup
 #endif
-#define strndup     STR_TO_F_FUNC_TAOS_FORBID
+#define strndup STR_TO_F_FUNC_TAOS_FORBID
 
 #endif
 
 #define tstrncpy(dst, src, size)         \
   do {                                   \
     (void)strncpy((dst), (src), (size)); \
-    (dst)[(size) - 1] = 0;               \
+    (dst)[(size)-1] = 0;                 \
   } while (0)
 
 int64_t tsnprintf(char *dst, int64_t size, const char *format, ...);
-#define TAOS_STRCPY(_dst, _src) ((void)strcpy(_dst, _src))
+#define TAOS_STRCPY(_dst, _src)         ((void)strcpy(_dst, _src))
 #define TAOS_STRNCPY(_dst, _src, _size) ((void)strncpy(_dst, _src, _size))
-#define TAOS_STRCAT(_dst, _src) ((void)strcat(_dst, _src))
-#define TAOS_STRNCAT(_dst, _src, len) ((void)strncat(_dst, _src, len))
+#define TAOS_STRCAT(_dst, _src)         ((void)strcat(_dst, _src))
+#define TAOS_STRNCAT(_dst, _src, len)   ((void)strncat(_dst, _src, len))
 
 char   *tstrdup(const char *src);
 int32_t taosUcs4len(TdUcs4 *ucs4);
 int32_t taosStr2int64(const char *str, int64_t *val);
-int32_t taosStr2int16(const char *str, int16_t *val);
 int32_t taosStr2int32(const char *str, int32_t *val);
+int32_t taosStr2int16(const char *str, int16_t *val);
 int32_t taosStr2int8(const char *str, int8_t *val);
+
+int32_t taosStr2Uint64(const char *str, uint64_t *val);
+int32_t taosStr2Uint32(const char *str, uint32_t *val);
+int32_t taosStr2Uint16(const char *str, uint16_t *val);
+int32_t taosStr2Uint8(const char *str, uint8_t *val);
 
 iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt);
 void    taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void* charsetCxt);
@@ -122,9 +127,9 @@ float    taosStr2Float(const char *str, char **pEnd);
 int32_t  taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size);
 int32_t  taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size);
 char    *taosStrndup(const char *s, int n);
-//int32_t  taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
-bool isHex(const char* z, uint32_t n);
-bool isValidateHex(const char* z, uint32_t n);
+// int32_t  taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
+bool isHex(const char *z, uint32_t n);
+bool isValidateHex(const char *z, uint32_t n);
 
 #ifdef __cplusplus
 }
