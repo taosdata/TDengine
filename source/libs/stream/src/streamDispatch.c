@@ -1747,7 +1747,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   }
 
   if (addFailure) {  // add failure downstream node id, and start the nodeEp update procedure
-    streamTaskAddIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
+    // ignore the return error and continue
+    int32_t unused = streamTaskAddIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
   }
 
   // all msg rsp already, continue
