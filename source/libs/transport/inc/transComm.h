@@ -328,7 +328,7 @@ void transRefSrvHandle(void* handle);
 void transUnrefSrvHandle(void* handle);
 
 void    transRefCliHandle(void* handle);
-int32_t transUnrefCliHandle(void* handle);
+void    transUnrefCliHandle(void* handle);
 int32_t transGetRefCount(void* handle);
 
 int32_t transReleaseCliHandle(void* handle);
@@ -459,6 +459,21 @@ void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
+typedef struct {
+  queue      node;  // queue for write
+  queue      q;     // queue for reqs
+  uv_write_t wreq;
+  void*      arg;
+} SWReqsWrapper;
+
+int32_t     initWQ(queue* wq);
+void        destroyWQ(queue* wq);
+uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
+
+void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
+
+int32_t transSetReadOption(uv_handle_t* handle);
+
 #endif
 bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b);
 
@@ -531,21 +546,6 @@ enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 
 #define HEAP_MISS_HIT_LIMIT 100000
 #define READ_TIMEOUT        100000
-
-typedef struct {
-  queue      node;  // queue for write
-  queue      q;     // queue for reqs
-  uv_write_t wreq;
-  void*      arg;
-} SWReqsWrapper;
-
-int32_t     initWQ(queue* wq);
-void        destroyWQ(queue* wq);
-uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
-
-void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
-
-int32_t transSetReadOption(uv_handle_t* handle);
 
 #ifdef __cplusplus
 }

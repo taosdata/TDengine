@@ -907,6 +907,71 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   *ppBuf = pBuf;
   return len;
 }
+int32_t initWQ(queue* wq) {
+  int32_t code = 0;
+  QUEUE_INIT(wq);
+  for (int i = 0; i < 4; i++) {
+    SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
+    if (w == NULL) {
+      TAOS_CHECK_GOTO(terrno, NULL, _exception);
+    }
+    w->wreq.data = w;
+    w->arg = NULL;
+    QUEUE_INIT(&w->node);
+    QUEUE_PUSH(wq, &w->q);
+  }
+  return 0;
+_exception:
+  destroyWQ(wq);
+  return code;
+}
+void destroyWQ(queue* wq) {
+  while (!QUEUE_IS_EMPTY(wq)) {
+    queue* h = QUEUE_HEAD(wq);
+    QUEUE_REMOVE(h);
+    SWReqsWrapper* w = QUEUE_DATA(h, SWReqsWrapper, q);
+    taosMemoryFree(w);
+  }
+}
+
+uv_write_t* allocWReqFromWQ(queue* wq, void* arg) {
+  if (!QUEUE_IS_EMPTY(wq)) {
+    queue* node = QUEUE_HEAD(wq);
+    QUEUE_REMOVE(node);
+    SWReqsWrapper* w = QUEUE_DATA(node, SWReqsWrapper, q);
+    w->arg = arg;
+    QUEUE_INIT(&w->node);
+
+    return &w->wreq;
+  } else {
+    SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
+    if (w == NULL) {
+      return NULL;
+    }
+    w->wreq.data = w;
+    w->arg = arg;
+    QUEUE_INIT(&w->node);
+    return &w->wreq;
+  }
+  return NULL;
+}
+
+void freeWReqToWQ(queue* wq, SWReqsWrapper* w) {
+  QUEUE_INIT(&w->node);
+  QUEUE_PUSH(wq, &w->q);
+}
+
+int32_t transSetReadOption(uv_handle_t* handle) {
+  int32_t code = 0;
+  int32_t fd;
+  int     ret = uv_fileno((uv_handle_t*)handle, &fd);
+  if (ret != 0) {
+    tWarn("failed to get fd since %s", uv_err_name(ret));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  code = taosSetSockOpt2(fd);
+  return code;
+}
 
 #else
 #define BUFFER_CAP 4096
@@ -971,33 +1036,34 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   taosMemoryFree(buf);
   return ret;
 }
-int32_t transDecompressMsg(char** msg, int32_t len) {
-  STransMsgHead* pHead = (STransMsgHead*)(*msg);
-  if (pHead->comp == 0) return 0;
-
-  char* pCont = transContFromHead(pHead);
-
-  STransCompMsg* pComp = (STransCompMsg*)pCont;
-  int32_t        oriLen = htonl(pComp->contLen);
-
-  char* buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
-  if (buf == NULL) {
-    return terrno;
-  }
-
-  STransMsgHead* pNewHead = (STransMsgHead*)buf;
-  int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
-  memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
-
-  pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
-
-  taosMemoryFree(pHead);
-  *msg = buf;
-  if (decompLen != oriLen) {
-    return TSDB_CODE_INVALID_MSG;
-  }
+int32_t transDecompressMsg(char** msg, int32_t* len) {
   return 0;
+  // STransMsgHead* pHead = (STransMsgHead*)(*msg);
+  // if (pHead->comp == 0) return 0;
+
+  // char* pCont = transContFromHead(pHead);
+
+  // STransCompMsg* pComp = (STransCompMsg*)pCont;
+  // int32_t        oriLen = htonl(pComp->contLen);
+
+  // char* buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
+  // if (buf == NULL) {
+  //   return terrno;
+  // }
+
+  // STransMsgHead* pNewHead = (STransMsgHead*)buf;
+  // int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
+  //                                                len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+  // memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
+
+  // pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
+
+  // taosMemoryFree(pHead);
+  // *msg = buf;
+  // if (decompLen != oriLen) {
+  //   return TSDB_CODE_INVALID_MSG;
+  // }
+  // return 0;
 }
 
 void transFreeMsg(void* msg) {
@@ -1779,9 +1845,10 @@ int64_t transAddExHandle(int32_t refMgt, void* p) {
   return taosAddRef(refMgt, p);
   // acquire extern handle
 }
-int32_t transRemoveExHandle(int32_t refMgt, int64_t refId) {
+void transRemoveExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
-  return taosRemoveRef(refMgt, refId);
+  int32_t code = taosRemoveRef(refMgt, refId);
+  return;
 }
 
 void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
@@ -1789,9 +1856,10 @@ void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
   return (void*)taosAcquireRef(refMgt, refId);
 }
 
-int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
+void transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
-  return taosReleaseRef(refMgt, refId);
+  int32_t code = taosReleaseRef(refMgt, refId);
+  return;
 }
 void transDestroyExHandle(void* handle) {
   if (handle == NULL) {
@@ -1828,75 +1896,6 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return 0; }
 int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) { return 0; }
 
 #endif
-// int32_t transGenRandomError(int32_t status) {
-//   STUB_RAND_NETWORK_ERR(status)
-//   return status;
-// }
-
-int32_t initWQ(queue* wq) {
-  int32_t code = 0;
-  QUEUE_INIT(wq);
-  for (int i = 0; i < 4; i++) {
-    SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
-    if (w == NULL) {
-      TAOS_CHECK_GOTO(terrno, NULL, _exception);
-    }
-    w->wreq.data = w;
-    w->arg = NULL;
-    QUEUE_INIT(&w->node);
-    QUEUE_PUSH(wq, &w->q);
-  }
-  return 0;
-_exception:
-  destroyWQ(wq);
-  return code;
-}
-void destroyWQ(queue* wq) {
-  while (!QUEUE_IS_EMPTY(wq)) {
-    queue* h = QUEUE_HEAD(wq);
-    QUEUE_REMOVE(h);
-    SWReqsWrapper* w = QUEUE_DATA(h, SWReqsWrapper, q);
-    taosMemoryFree(w);
-  }
-}
-
-uv_write_t* allocWReqFromWQ(queue* wq, void* arg) {
-  if (!QUEUE_IS_EMPTY(wq)) {
-    queue* node = QUEUE_HEAD(wq);
-    QUEUE_REMOVE(node);
-    SWReqsWrapper* w = QUEUE_DATA(node, SWReqsWrapper, q);
-    w->arg = arg;
-    QUEUE_INIT(&w->node);
-
-    return &w->wreq;
-  } else {
-    SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
-    if (w == NULL) {
-      return NULL;
-    }
-    w->wreq.data = w;
-    w->arg = arg;
-    QUEUE_INIT(&w->node);
-    return &w->wreq;
-  }
-}
-
-void freeWReqToWQ(queue* wq, SWReqsWrapper* w) {
-  QUEUE_INIT(&w->node);
-  QUEUE_PUSH(wq, &w->q);
-}
-
-int32_t transSetReadOption(uv_handle_t* handle) {
-  int32_t code = 0;
-  int32_t fd;
-  int     ret = uv_fileno((uv_handle_t*)handle, &fd);
-  if (ret != 0) {
-    tWarn("failed to get fd since %s", uv_err_name(ret));
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
-  code = taosSetSockOpt2(fd);
-  return code;
-}
 
 int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet) {
   if (pEpset == NULL) {

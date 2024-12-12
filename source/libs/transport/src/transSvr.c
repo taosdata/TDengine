@@ -15,6 +15,18 @@
 #include "transComm.h"
 #include "tversion.h"
 
+#ifdef TD_ACORE
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#endif
+
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 #ifndef TD_ACORE
@@ -2073,6 +2085,56 @@ void transCloseServer(void* arg) {
 }
 #else
 
+typedef struct {
+  queue   q;
+  int32_t acceptFd;
+} SFdArg;
+typedef struct {
+  queue q;
+} SFdQueue;
+typedef struct SWorkThrd {
+  TdThread thread;
+  // //uv_connect_t connect_req;
+  // uv_pipe_t*   pipe;
+  // uv_os_fd_t   fd;
+  // uv_loop_t*   loop;
+  // SAsyncPool*  asyncPool;
+  queue msg;
+
+  queue conn;
+  void *pInst;
+  bool  quit;
+
+  // SIpWhiteListTab* pWhiteList;
+  int64_t whiteListVer;
+  int8_t  enableIpWhiteList;
+
+  int32_t connRefMgt;
+
+  int32_t       pipe_fd[2];  //
+  int32_t       pipe_queue_fd[2];
+  int32_t       client_count;
+  int8_t        inited;
+  TdThreadMutex mutex;
+  SFdQueue      fdQueue;
+
+} SWorkThrd;
+typedef struct SServerObj {
+  TdThread    thread;
+  int         workerIdx;
+  int         numOfThreads;
+  int         numOfWorkerReady;
+  SWorkThrd **pThreadObj;
+
+  // uv_pipe_t   pipeListen;
+  // uv_pipe_t** pipe;
+  uint32_t ip;
+  uint32_t port;
+  // uv_async_t* pAcceptAsync;  // just to quit from from accept thread
+  int32_t serverFd;
+  bool    inited;
+} SServerObj;
+
 int32_t transReleaseSrvHandle(void *handle) { return 0; }
 void    transRefSrvHandle(void *handle) { return; }
 
@@ -2088,16 +2150,165 @@ int32_t transSendResponse(STransMsg *msg) {
     return 0;
   }
   int32_t svrVer = 0;
-  code = taosVersionStrToInt(version, &svrVer);
+  code = taosVersionStrToInt(td_version, &svrVer);
   msg->info.cliVer = svrVer;
   msg->type = msg->info.connType;
   return transSendResp(msg);
 }
 int32_t transRegisterMsg(const STransMsg *msg) { return 0; }
 int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }
-void   *transInitServer(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *shandle) {
-    int32_t code = 0;
+
+void *transAcceptThread(void *arg) {
+  int32_t code = 0;
+
+  setThreadName("trans-accept-work");
+  SServerObj        *srv = arg;
+  struct sockaddr_in client_addr;
+  socklen_t          client_addr_len = sizeof(client_addr);
+  int32_t            workerIdx = 0;
+
+  while (1) {
+    int32_t client_fd = accept(srv->serverFd, (struct sockaddr *)&client_addr, &client_addr_len);
+    if (client_fd < 0) {
+      tError("failed to accept since %s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      continue;
+    }
+    workerIdx = (workerIdx + 1) % srv->numOfThreads;
+    SWorkThrd *pThrd = srv->pThreadObj[workerIdx];
+    taosThreadMutexLock(&pThrd->mutex);
+
+    SFdArg *arg = taosMemoryCalloc(1, sizeof(SFdArg));
+    QUEUE_PUSH(&pThrd->fdQueue.q, &arg->q);
+    code = write(pThrd->pipe_fd[1], "1", 1);
+
+    taosThreadMutexUnlock(&pThrd->mutex);
+
+    if (1 != sizeof(client_fd)) {
+      tError("failed to write to pipe since %s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      continue;
+    }
+  }
+  return NULL;
+}
+void *transWorkerThread(void *arg) {
+  int32_t code = 0;
+  setThreadName("trans-svr-work");
+  SWorkThrd *pThrd = (SWorkThrd *)arg;
+  while (1) {
+    fd_set read_fds;
+    FD_ZERO(&read_fds);
+
+    FD_SET(pThrd->pipe_fd[0], &read_fds);
+    int32_t max_fd = pThrd->pipe_fd[0];
+    int32_t nActivitys = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
+    if (nActivitys < 0 && errno != EINTR) {
+      tError("failed to select since %s", tstrerror(errno));
+    }
+    if (FD_ISSET(pThrd->pipe_fd[0], &read_fds)) {
+      char    buf[2] = {0};
+      int32_t nBytes = read(pThrd->pipe_fd[0], buf, sizeof(buf));
+
+      taosThreadMutexLock(&pThrd->mutex);
+      queue rq;
+      QUEUE_INIT(&rq);
+      QUEUE_MOVE(&pThrd->fdQueue.q, &rq);
+      while (!QUEUE_IS_EMPTY(rq)) {
+        queue *el = QUEUE_HEAD(rq);
+        QUEUE_REMOVE(el);
+        SFdArg *pArg = QUEUE_DATA(el, SFdArg, q);
+        // TODO create new socket
+        taosMemoryFree(pArg);
+      }
+      taosThreadMutexUnlock(&pThrd->mutex);
+    }
+  }
+
+  return NULL;
+}
+static int32_t addHandleToAcceptloop(void *arg) {
+  // impl later
+  int32_t     code = 0;
+  SServerObj *srv = arg;
+  int32_t     server_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (server_fd < 0) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+  srv->serverFd = server_fd;
+
+  int32_t opt = 1;
+  setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+  struct sockaddr_in server_addr;
+  memset(&server_addr, 0, sizeof(server_addr));
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_addr.s_addr = inet_addr("0.0.0.0");
+  server_addr.sin_port = htons(srv->port);
+
+  if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+  if (listen(server_fd, 128) < 0) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+  code = taosThreadCreate(&srv->thread, NULL, transAcceptThread, srv);
+  return code;
+}
+void *transInitServer(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInit) {
+  int32_t code = 0;
+
+  SServerObj *srv = taosMemoryCalloc(1, sizeof(SServerObj));
+  if (srv == NULL) {
+    code = terrno;
+    tError("failed to init server since: %s", tstrerror(code));
     return NULL;
+  }
+
+  srv->ip = ip;
+  srv->port = port;
+  srv->numOfThreads = numOfThreads;
+  srv->workerIdx = 0;
+  srv->numOfWorkerReady = 0;
+  // srv->loop = (uv_loop_t *)taosMemoryMalloc(sizeof(uv_loop_t));
+  srv->pThreadObj = (SWorkThrd **)taosMemoryCalloc(srv->numOfThreads, sizeof(SWorkThrd *));
+  // srv->pipe = (uv_pipe_t **)taosMemoryCalloc(srv->numOfThreads, sizeof(uv_pipe_t *));
+  if (srv->pThreadObj == NULL) {
+    code = terrno;
+    return NULL;
+  }
+  for (int i = 0; i < srv->numOfThreads; i++) {
+    SWorkThrd *thrd = (SWorkThrd *)taosMemoryCalloc(1, sizeof(SWorkThrd));
+    thrd->pInst = pInit;
+    thrd->quit = false;
+    thrd->pInst = pInit;
+    thrd->connRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
+    if (thrd->connRefMgt < 0) {
+      code = thrd->connRefMgt;
+      goto End;
+    }
+
+    QUEUE_INIT(&thrd->fdQueue.q);
+    if (pipe(thrd->pipe_fd) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto End;
+    }
+
+    int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void *)(thrd));
+    if (err == 0) {
+      tDebug("success to create worker-thread:%d", i);
+    } else {
+      // TODO: clear all other resource later
+      tError("failed to create worker-thread:%d", i);
+      goto End;
+    }
+    thrd->inited = 1;
+  }
+  code = addHandleToAcceptloop(srv);
+  if (code != 0) {
+    goto End;
+  }
+  return NULL;
+End:
+  return NULL;
 }
 void transCloseServer(void *arg) {
   // impl later
