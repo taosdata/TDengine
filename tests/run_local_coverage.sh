@@ -374,7 +374,7 @@ if [ ! -f "$COVERAGE_INFO" ]; then
 fi
 
 # Generate local HTML reports
-genhtml "$COVERAGE_INFO" --output-directory "$OUTPUT_DIR"
+genhtml "$COVERAGE_INFO"  --branch-coverage --function-coverage --output-directory "$OUTPUT_DIR"
 
 # Check whether the report was generated successfully
 if [ $? -eq 0 ]; then
