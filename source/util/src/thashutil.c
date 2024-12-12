@@ -143,38 +143,6 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len) {
 uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
 uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint16_t *)key; }
 uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }
-uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
-  float f = GET_FLOAT_VAL(key);
-  if (isnan(f)) {
-    return 0x7fc00000;
-  }
-
-  if (FLT_EQUAL(f, 0.0)) {
-    return 0;
-  }
-  if (fabs(f) < FLT_MAX / BASE - DLT) {
-    int32_t t = (int32_t)(round(BASE * (f + DLT)));
-    return (uint32_t)t;
-  } else {
-    return 0x7fc00000;
-  }
-}
-uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
-  double f = GET_DOUBLE_VAL(key);
-  if (isnan(f)) {
-    return 0x7fc00000;
-  }
-
-  if (FLT_EQUAL(f, 0.0)) {
-    return 0;
-  }
-  if (fabs(f) < DBL_MAX / BASE - DLT) {
-    int32_t t = (int32_t)(round(BASE * (f + DLT)));
-    return (uint32_t)t;
-  } else {
-    return 0x7fc00000;
-  }
-}
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
   uint64_t val = *(uint64_t *)key;
 
@@ -190,6 +158,7 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_DOUBLE:
       fn = taosIntHash_64;
       break;
     case TSDB_DATA_TYPE_BINARY:
@@ -200,6 +169,7 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
       break;
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_FLOAT:
       fn = taosIntHash_32;
       break;
     case TSDB_DATA_TYPE_SMALLINT:
@@ -210,12 +180,6 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_TINYINT:
       fn = taosIntHash_8;
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      fn = taosFloatHash;
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      fn = taosDoubleHash;
       break;
     default:
       fn = taosIntHash_32;
