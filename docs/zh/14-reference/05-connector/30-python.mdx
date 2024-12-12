@@ -23,7 +23,9 @@ pip3 install taos-ws-py
 连接器代码对外开源，源码托管在 Github [taos-connector-python](https://github.com/taosdata/taos-connector-python) 仓库。
 
 ## 连接方式
+
 `taospy`提供三种连接方式，我们推荐使用 **WebSocket 连接**。
+
 - **原生连接**，Python 连接器加载 TDengine 客户端驱动程序(libtaos.so/taos.dll)，直接连接 TDengine 实例，特点性能高，速度快。功能上支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。对应 `taospy` 包的 `taos` 模块。
 - **REST 连接**，Python 连接器通过 `taosAdapter` 提供的 HTTP 接口连接 TDengine 实例，特点依赖小，不需要安装 TDengine 客户端驱动。功能上不支持 schemaless 和数据订阅等特性。对应 `taospy` 包的 `taosrest` 模块。
 - **WebSocket 连接**，Python 连接器通过 `taosAdapter` 提供的 WebSocket 接口连接 TDengine 实例，特点是兼具前两种连接的优势， 即性能高又依赖小。功能上 WebSocket 连接实现功能集合和原生连接有少量不同。对应 `taos-ws-py` 包，可以选装。
@@ -43,25 +45,25 @@ pip3 install taos-ws-py
 
 建议使用最新版本的 `taospy`
 
-|Python Connector 版本|主要变化| TDengine 版本 |
-|:------------------:|----| :----: |
-|2.7.16|新增订阅配置 (session.timeout.ms, max.poll.interval.ms)|3.1.1.2 及更高版本|
-|2.7.15|新增 VARBINARY 和 GEOMETRY 类型支持|3.1.1.2 及更高版本|
-|2.7.14|修复已知问题|3.1.1.2 及以上|
-|2.7.13|新增 tmq 同步提交 offset 接口|3.1.1.2 及更高版本|
-|2.7.12|1. 新增 varbinary 类型支持（STMT暂不支持 varbinary ）<br/> 2. query 性能提升（感谢贡献者[hadrianl](https://github.com/taosdata/taos-connector-python/pull/209)）|3.1.1.2 及更高版本|
-|2.7.9|数据订阅支持获取消费进度和重置消费进度|3.0.2.6 及更高版本|
-|2.7.8|新增 `execute_many`|3.0.0.0 及更高版本|
+| Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine 版本    |
+| :-------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------: |
+|        2.7.16         | 新增订阅配置 (session.timeout.ms, max.poll.interval.ms)                                                                                                          | 3.1.1.2 及更高版本 |
+|        2.7.15         | 新增 VARBINARY 和 GEOMETRY 类型支持                                                                                                                              | 3.1.1.2 及更高版本 |
+|        2.7.14         | 修复已知问题                                                                                                                                                     |   3.1.1.2 及以上   |
+|        2.7.13         | 新增 tmq 同步提交 offset 接口                                                                                                                                    | 3.1.1.2 及更高版本 |
+|        2.7.12         | 1. 新增 varbinary 类型支持（STMT暂不支持 varbinary ）<br/> 2. query 性能提升（感谢贡献者[hadrianl](https://github.com/taosdata/taos-connector-python/pull/209)） | 3.1.1.2 及更高版本 |
+|         2.7.9         | 数据订阅支持获取消费进度和重置消费进度                                                                                                                           | 3.0.2.6 及更高版本 |
+|         2.7.8         | 新增 `execute_many`                                                                                                                                              | 3.0.0.0 及更高版本 |
 
 WebSocket 版本连接器  
 
-|WebSocket Connector 版本|主要变化| TDengine 版本 |
-|:---------------------:|-----|:------:|
-|0.3.5|新增 VARBINARY 和 GEOMETRY 类型支持，修复已知问题|3.3.0.0 及更高版本|
-|0.3.2|优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题|3.2.3.0 及更高版本|
-|0.2.9|已知问题修复|3.0.5.0 及更高版本|
-|0.2.5|1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT|3.0.5.0 及更高版本|
-|0.2.4|数据订阅新增取消订阅方法|3.0.5.0 及更高版本|
+| WebSocket Connector 版本 | 主要变化                                                                              |   TDengine 版本    |
+| :----------------------: | ------------------------------------------------------------------------------------- | :----------------: |
+|          0.3.5           | 新增 VARBINARY 和 GEOMETRY 类型支持，修复已知问题                                     | 3.3.0.0 及更高版本 |
+|          0.3.2           | 优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题                  | 3.2.3.0 及更高版本 |
+|          0.2.9           | 已知问题修复                                                                          | 3.0.5.0 及更高版本 |
+|          0.2.5           | 1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT | 3.0.5.0 及更高版本 |
+|          0.2.4           | 数据订阅新增取消订阅方法                                                              | 3.0.5.0 及更高版本 |
 
 ## 处理异常
 
@@ -73,17 +75,17 @@ Python 连接器可能会产生 4 种异常：
 - 数据订阅异常
 - TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)
 
-|Error Type|Description|Suggested Actions|
-|:--------:|:---------:|:---------------:|
-|InterfaceError|taosc 版本太低，不支持所使用的接口|请检查 TDengine 客户端版本|
-|ConnectionError|数据库链接错误|请检查 TDengine 服务端状态和连接参数|
-|DatabaseError|数据库错误|请检查 TDengine 服务端版本，并将 Python 连接器升级到最新版|
-|OperationalError|操作错误|API 使用错误，请检查代码|
-|ProgrammingError|接口调用错误|请检查提交的数据是否正确|
-|StatementError|stmt 相关异常|请检查绑定参数与 sql 是否匹配|
-|ResultError|操作数据错误|请检查操作的数据与数据库中的数据类型是否匹配|
-|SchemalessError|schemaless 相关异常|请检查数据格式及对应的协议类型是否正确|
-|TmqError|tmq 相关异常|请检查 Topic 及 consumer 配置是否正确|
+|    Error Type    |            Description             |                     Suggested Actions                      |
+| :--------------: | :--------------------------------: | :--------------------------------------------------------: |
+|  InterfaceError  | taosc 版本太低，不支持所使用的接口 |                 请检查 TDengine 客户端版本                 |
+| ConnectionError  |           数据库链接错误           |            请检查 TDengine 服务端状态和连接参数            |
+|  DatabaseError   |             数据库错误             | 请检查 TDengine 服务端版本，并将 Python 连接器升级到最新版 |
+| OperationalError |              操作错误              |                  API 使用错误，请检查代码                  |
+| ProgrammingError |            接口调用错误            |                  请检查提交的数据是否正确                  |
+|  StatementError  |           stmt 相关异常            |               请检查绑定参数与 sql 是否匹配                |
+|   ResultError    |            操作数据错误            |        请检查操作的数据与数据库中的数据类型是否匹配        |
+| SchemalessError  |        schemaless 相关异常         |           请检查数据格式及对应的协议类型是否正确           |
+|     TmqError     |            tmq 相关异常            |           请检查 Topic 及 consumer 配置是否正确            |
 
 Python 中通常通过 try-expect 处理异常，异常处理相关请参考 [Python 错误和异常文档](https://docs.python.org/3/tutorial/errors.html)。  
 TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code) 
@@ -98,32 +100,32 @@ Python Connector 的所有数据库操作如果出现异常，都会直接抛出
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对应类型转换如下：
 
-|TDengine DataType|Python DataType|
-|:---------------:|:-------------:|
-|TIMESTAMP|datetime|
-|INT|int|
-|BIGINT|int|
-|FLOAT|float|
-|DOUBLE|int|
-|SMALLINT|int|
-|TINYINT|int|
-|BOOL|bool|
-|BINARY|str|
-|NCHAR|str|
-|JSON|str|
-|GEOMETRY|bytearray|
-|VARBINARY|bytearray|
+| TDengine DataType | Python DataType |
+| :---------------: | :-------------: |
+|     TIMESTAMP     |    datetime     |
+|        INT        |       int       |
+|      BIGINT       |       int       |
+|       FLOAT       |      float      |
+|      DOUBLE       |       int       |
+|     SMALLINT      |       int       |
+|      TINYINT      |       int       |
+|       BOOL        |      bool       |
+|      BINARY       |       str       |
+|       NCHAR       |       str       |
+|       JSON        |       str       |
+|     GEOMETRY      |    bytearray    |
+|     VARBINARY     |    bytearray    |
 ## 示例程序汇总
 
-| 示例程序链接                                                                                                    | 示例程序内容            |
-| ------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py)           | 参数绑定， 一次绑定多行 |
-| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py)               | 参数绑定，一次绑定一行  |
-| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)       | InfluxDB 行协议写入     |
-| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)               | 使用 JSON 类型的标签    |
-| [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)       | tmq 订阅              |
-| [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | 支持全部类型示例 |
-| [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py) | 参数绑定支持全部类型示例 |
+| 示例程序链接                                                                                                              | 示例程序内容             |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py)                       | 参数绑定， 一次绑定多行  |
+| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py)                           | 参数绑定，一次绑定一行   |
+| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)                   | InfluxDB 行协议写入      |
+| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)                           | 使用 JSON 类型的标签     |
+| [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)                   | tmq 订阅                 |
+| [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | 支持全部类型示例         |
+| [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py)   | 参数绑定支持全部类型示例 |
 
 示例程序源码请参考：
 
