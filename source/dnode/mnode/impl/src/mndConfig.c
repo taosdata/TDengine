@@ -33,9 +33,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndInitWriteCfg(SMnode *pMnode);
-static int32_t mndInitReadCfg(SMnode *pMnode);
+static int32_t mndTryRebuildCfg(SMnode *pMnode);
 static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array);
 static void    cfgArrayCleanUp(SArray *array);
+static void    cfgObjArrayCleanUp(SArray *array);
 
 static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype,
                                     int32_t tsmmConfigVersion);
@@ -218,7 +219,7 @@ static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *pOld, SConfigObj *pNew
 
 static int32_t mndCfgActionDeploy(SMnode *pMnode) { return mndInitWriteCfg(pMnode); }
 
-static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndInitReadCfg(pMnode); }
+static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndTryRebuildCfg(pMnode); }
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
@@ -343,20 +344,60 @@ _OVER:
   return code;
 }
 
-int32_t mndInitReadCfg(SMnode *pMnode) {
-  int32_t     code = 0;
-  int32_t     sz = -1;
-  SConfigObj *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
-  if (obj == NULL) {
-    code = mndInitWriteCfg(pMnode);
-    if (code != 0) {
-      mError("failed to init write cfg, since %s", tstrerror(code));
+int32_t mndTryRebuildCfg(SMnode *pMnode) {
+  int32_t   code = 0;
+  int32_t   sz = -1;
+  STrans   *pTrans = NULL;
+  SAcctObj *vObj = NULL, *obj = NULL;
+  SArray   *addArray = NULL;
+  vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
+  if (vObj == NULL) {
+    if ((code = mndInitWriteCfg(pMnode)) < 0) goto _exit;
+    mInfo("failed to acquire mnd config version, try to rebuild config in sdb.");
+  } else {
+    sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
+    addArray = taosArrayInit(4, sizeof(SConfigObj));
+    for (int i = 0; i < sz; ++i) {
+      SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
+      obj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
+      if (obj == NULL) {
+        SConfigObj *newObj = mndInitConfigObj(item);
+        if (newObj == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+        if (NULL == taosArrayPush(addArray, newObj)) {
+          code = terrno;
+          goto _exit;
+        }
+      } else {
+        sdbRelease(pMnode->pSdb, obj);
+      }
     }
-    mInfo("failed to acquire mnd config version, try to rebuild it , since %s", terrstr());
-    goto _OVER;
+    int32_t addSize = taosArrayGetSize(addArray);
+    if (addSize > 0) {
+      pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "add-config");
+      if (pTrans == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+      for (int i = 0; i < addSize; ++i) {
+        SConfigObj *AddObj = taosArrayGet(addArray, i);
+        if ((code = mndSetCreateConfigCommitLogs(pTrans, AddObj)) != 0) goto _exit;
+      }
+      if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _exit;
+      mInfo("add new config to sdb, nums:%d", addSize);
+    }
   }
-_OVER:
-  return code;
+_exit:
+  if (code != 0) {
+    mError("failed to try rebuild config in sdb, since %s", tstrerror(code));
+  }
+  sdbRelease(pMnode->pSdb, vObj);
+  sdbRelease(pMnode->pSdb, obj);
+  cfgObjArrayCleanUp(addArray);
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
 }
 
 int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigObj *item) {
@@ -758,6 +799,18 @@ static void cfgArrayCleanUp(SArray *array) {
     taosMemoryFreeClear(item->name);
   }
 
+  taosArrayDestroy(array);
+}
+
+static void cfgObjArrayCleanUp(SArray *array) {
+  if (array == NULL) {
+    return;
+  }
+  int32_t sz = taosArrayGetSize(array);
+  for (int32_t i = 0; i < sz; ++i) {
+    SConfigObj *obj = taosArrayGet(array, i);
+    taosMemoryFree(obj);
+  }
   taosArrayDestroy(array);
 }
 
