@@ -4330,6 +4330,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       }
 
       SColumnNode *refNode = (SColumnNode *)node->pLeft;
+      int32_t      type = refNode->node.resType.type;
       SExprNode   *exprNode = NULL;
       if (OP_TYPE_IN != node->opType) {
         SValueNode  *valueNode = (SValueNode *)node->pRight;
@@ -4338,6 +4339,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
           valueNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
         }
         exprNode = &valueNode->node;
+        type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
       } else {
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
         if (LIST_LENGTH(listNode->pNodeList) > 10) {
@@ -4345,8 +4347,19 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
           return DEAL_RES_CONTINUE;
         }
         exprNode = &listNode->node;
+        SListCell     *cell = listNode->pNodeList->pHead;
+        for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
+          SValueNode *valueNode = (SValueNode *)cell->pNode;
+          cell = cell->pNext;
+          if (IS_NUMERIC_TYPE(valueNode->node.resType.type) && IS_NUMERIC_TYPE(type)) {
+            int32_t tmp = vectorGetConvertType(type, valueNode->node.resType.type);
+            if (tmp != 0){
+              type = tmp;
+            }
+          }
+        }
+        exprNode->resType.type = type;
       }
-      int32_t type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
       if (0 != type && type != refNode->node.resType.type) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
