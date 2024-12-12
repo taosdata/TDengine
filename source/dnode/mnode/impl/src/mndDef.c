@@ -758,7 +758,11 @@ SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
-      tstrncpy(pObj->str, pItem->str, TSDB_CONFIG_VALUE_LEN);
+      pObj->str = taosStrdup(pItem->str);
+      if (pObj->str == NULL) {
+        taosMemoryFree(pObj);
+        return NULL;
+      }
       break;
   }
   return pObj;
@@ -802,12 +806,15 @@ int32_t mndUpdateObj(SConfigObj *pObjNew, const char *name, char *value) {
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_STRING: {
-      strncpy(pObjNew->str, value, strlen(value));
-      pObjNew->str[strlen(value)] = 0;
+      pObjNew->str = taosStrdup(value);
+      if (pObjNew->str == NULL) {
+        code = terrno;
+        return code;
+      }
       break;
     }
-
     case CFG_DTYPE_NONE:
+      break;
     default:
       code = TSDB_CODE_INVALID_CFG;
       break;
@@ -820,10 +827,90 @@ SConfigObj *mndInitConfigVersion() {
   if (pObj == NULL) {
     return NULL;
   }
-  strncpy(pObj->name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
+  tstrncpy(pObj->name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
   pObj->dtype = CFG_DTYPE_INT32;
   pObj->i32 = 0;
   return pObj;
+}
+
+int32_t tEncodeSConfigObj(SEncoder *pEncoder, const SConfigObj *pObj) {
+  TAOS_CHECK_RETURN(tStartEncode(pEncoder));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->name));
+
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pObj->dtype));
+  switch (pObj->dtype) {
+    case CFG_DTYPE_BOOL:
+      TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->bval));
+      break;
+    case CFG_DTYPE_INT32:
+      TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pObj->i32));
+      break;
+    case CFG_DTYPE_INT64:
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->i64));
+      break;
+    case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
+      TAOS_CHECK_RETURN(tEncodeFloat(pEncoder, pObj->fval));
+      break;
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+      if (pObj->str != NULL) {
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->str));
+      } else {
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, ""));
+      }
+      break;
+    default:
+      break;
+  }
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSConfigObj(SDecoder *pDecoder, SConfigObj *pObj) {
+  TAOS_CHECK_RETURN(tStartDecode(pDecoder));
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->name));
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, (int32_t *)&pObj->dtype));
+  switch (pObj->dtype) {
+    case CFG_DTYPE_NONE:
+      break;
+    case CFG_DTYPE_BOOL:
+      TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pObj->bval));
+      break;
+    case CFG_DTYPE_INT32:
+      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->i32));
+      break;
+    case CFG_DTYPE_INT64:
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->i64));
+      break;
+    case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
+      TAOS_CHECK_RETURN(tDecodeFloat(pDecoder, &pObj->fval));
+      break;
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+      TAOS_CHECK_RETURN(tDecodeCStrAlloc(pDecoder, &pObj->str));
+      break;
+  }
+  tEndDecode(pDecoder);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+void tFreeSConfigObj(SConfigObj *obj) {
+  if (obj == NULL) {
+    return;
+  }
+  if (obj->dtype == CFG_DTYPE_STRING || obj->dtype == CFG_DTYPE_DIR || obj->dtype == CFG_DTYPE_LOCALE ||
+      obj->dtype == CFG_DTYPE_CHARSET || obj->dtype == CFG_DTYPE_TIMEZONE) {
+    taosMemoryFreeClear(obj->str);
+  }
+  taosMemoryFreeClear(obj);
 }
 
 // SMqSubActionLogEntry *tCloneSMqSubActionLogEntry(SMqSubActionLogEntry *pEntry) {

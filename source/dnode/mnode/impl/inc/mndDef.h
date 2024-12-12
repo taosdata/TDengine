@@ -324,13 +324,16 @@ typedef struct {
     float   fval;
     int32_t i32;
     int64_t i64;
-    char    str[TSDB_CONFIG_VALUE_LEN];
+    char*   str;
   };
 } SConfigObj;
 
+int32_t     tEncodeSConfigObj(SEncoder* pEncoder, const SConfigObj* pObj);
+int32_t     tDecodeSConfigObj(SDecoder* pDecoder, SConfigObj* pObj);
 SConfigObj* mndInitConfigObj(SConfigItem* pItem);
 SConfigObj* mndInitConfigVersion();
 int32_t     mndUpdateObj(SConfigObj* pObj, const char* name, char* value);
+void        tFreeSConfigObj(SConfigObj* obj);
 
 typedef struct {
   int32_t maxUsers;
@@ -505,8 +508,8 @@ typedef struct {
   int64_t        dstTbUid;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
-  int8_t         timezone;      // int8_t is not enough, timezone is unit of second
-  int32_t        dstVgId;  // for stream
+  int8_t         timezone;  // int8_t is not enough, timezone is unit of second
+  int32_t        dstVgId;   // for stream
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
