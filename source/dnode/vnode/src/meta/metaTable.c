@@ -43,23 +43,21 @@ static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
-static int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress) {
+int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress) {
   int32_t nCols = pWp->nCols;
   int32_t ver = pWp->version;
   if (add) {
-    SColCmpr *p = taosMemoryCalloc(1, sizeof(SColCmpr) * (nCols + 1));
+    SColCmpr *p = taosMemoryRealloc(pWp->pColCmpr, sizeof(SColCmpr) * (nCols + 1));
     if (p == NULL) {
       return terrno;
     }
-
-    memcpy(p, pWp->pColCmpr, sizeof(SColCmpr) * nCols);
+    pWp->pColCmpr = p;
 
     SColCmpr *pCol = p + nCols;
     pCol->id = pSchema->colId;
     pCol->alg = compress;
     pWp->nCols = nCols + 1;
     pWp->version = ver;
-    pWp->pColCmpr = p;
   } else {
     for (int32_t i = 0; i < nCols; i++) {
       SColCmpr *pOCmpr = &pWp->pColCmpr[i];
@@ -2989,8 +2987,9 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       return metaAddTableColumn(pMeta, version, pReq, pMetaRsp);
-    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
+      // return metaDropTableColumn(pMeta, version, pReq, pMetaRsp);
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
       return metaAlterTableColumn(pMeta, version, pReq, pMetaRsp);

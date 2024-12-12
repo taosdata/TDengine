@@ -109,7 +109,7 @@ int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
   return code;
 }
 
-static int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntry) {
+int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntry) {
   int32_t code = TSDB_CODE_SUCCESS;
   void   *value = NULL;
   int32_t valueSize = 0;
@@ -1309,6 +1309,7 @@ static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntr
     tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
   }
   metaTimeSeriesNotifyCheck(pMeta);
+  metaFetchEntryFree(&pOldEntry);
   return code;
 }
 
