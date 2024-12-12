@@ -305,9 +305,9 @@ class TDTestCase(TBase):
         """
         try:
             # create new user and grant create database priviledge
-            tdSql.execute("create user test pass 'test';")
+            tdSql.execute("create user test pass 'ab45*&TC';")
             tdSql.execute("alter user test createdb 1;")
-            conn = taos.connect(user="test", password="test")
+            conn = taos.connect(user="test", password="ab45*&TC")
             cursor = conn.cursor()
             # create database and tables with new user
             tdLog.info("Prepare data for test case test_abnormal_drop_table_with_non_root_user")

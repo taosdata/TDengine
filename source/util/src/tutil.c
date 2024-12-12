@@ -525,6 +525,64 @@ bool tIsValidFileName(const char *fileName, const char *pattern) {
 
 bool tIsValidFilePath(const char *filePath, const char *pattern) {
   const char *filePathPattern = "^[a-zA-Z0-9:/\\_.-]+$";
-
   return tIsValidFileName(filePath, pattern ? pattern : filePathPattern);
+}
+
+bool taosIsBigChar(char c) {
+  if (c >= 'A' && c <= 'Z') {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool taosIsSmallChar(char c) {
+  if (c >= 'a' && c <= 'z') {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool taosIsNumberChar(char c) {
+  if (c >= '0' && c <= '9') {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool taosIsSpecialChar(char c) {
+  switch (c) {
+    case '!':
+    case '@':
+    case '#':
+    case '$':
+    case '%':
+    case '^':
+    case '&':
+    case '*':
+    case '(':
+    case ')':
+    case '-':
+    case '_':
+    case '+':
+    case '=':
+    case '[':
+    case ']':
+    case '{':
+    case '}':
+    case ':':
+    case ';':
+    case '>':
+    case '<':
+    case '?':
+    case '|':
+    case '~':
+    case ',':
+    case '.':
+    return true;
+    default:
+    return false;
+  }
 }
