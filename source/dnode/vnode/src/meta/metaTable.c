@@ -2992,7 +2992,7 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
       return metaAlterTableColumnBytes(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-      return metaAlterTableColumn(pMeta, version, pReq, pMetaRsp);
+      return metaAlterTableColumnName(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return metaUpdateTableTagVal(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
