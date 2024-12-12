@@ -1718,9 +1718,6 @@ static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     ((SExprNode *)(pOp->pRight))->resType = ldt;
-    if (IS_NUMERIC_TYPE(ldt.type)){
-      ((SExprNode *)(pOp->pRight))->resType.type = TSDB_DATA_TYPE_DOUBLE;
-    }
   } else if (nodesIsRegularOp(pOp)) {
     if (pOp->pRight == NULL) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
