@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tmisce.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tjson.h"
+#include "tmisce.h"
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
@@ -332,6 +332,18 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);
+
+    char category[TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE] = {0};
+    TAOS_CHECK_GOTO(cfgDumpItemCategory(pItem, &category[VARSTR_HEADER_SIZE], TSDB_CONFIG_CATEGORY_LEN, &valueLen),
+                    NULL, _exit);
+    varDataSetLen(category, valueLen);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    if (pColInfo == NULL) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, category, false), NULL, _exit);
 
     char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
     if (strcasecmp(pItem->name, "dataDir") == 0 && pDiskCfg) {

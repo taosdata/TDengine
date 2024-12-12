@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "command.h"
 #include "catalog.h"
+#include "command.h"
 #include "commandInt.h"
 #include "scheduler.h"
 #include "systable.h"
@@ -54,7 +54,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, numOfCols);
-  if(len < 0) {
+  if (len < 0) {
     taosMemoryFree(*pRsp);
     *pRsp = NULL;
     return terrno;
@@ -223,7 +223,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
   if (NULL == pDesc || NULL == pDesc->pMeta) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t        numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
+  int32_t numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildDescResultDataBlock(&pBlock);
@@ -726,7 +726,8 @@ static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STab
   }
 }
 
-static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg, void* charsetCxt) {
+static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg,
+                                              void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
   pBlock->info.rows = 1;
@@ -905,7 +906,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     goto _return;
   }
 
-  if (cfgCheckRangeForDynUpdate(tsCfg, pStmt->config, pStmt->value, false)) {
+  if (cfgCheckRangeForDynUpdate(tsCfg, pStmt->config, pStmt->value, false, CFG_ALTER_LOCAL)) {
     return terrno;
   }
 
@@ -956,6 +957,12 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN;
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+    goto _exit;
+  }
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD5_LEN;
   if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
     goto _exit;
   }
@@ -1058,7 +1065,8 @@ static int32_t execShowCreateView(SShowCreateViewStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
-int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode, void* charsetCxt) {
+int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode,
+                     void* charsetCxt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
       return execDescribe(sysInfoUser, pStmt, pRsp, biMode);

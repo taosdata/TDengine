@@ -23,6 +23,10 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if ((code = dmStartStatusThread(pMgmt)) != 0) {
     return code;
   }
+
+  if ((code = dmStartConfigThread(pMgmt)) != 0) {
+    return code;
+  }
   if ((code = dmStartStatusInfoThread(pMgmt)) != 0) {
     return code;
   }

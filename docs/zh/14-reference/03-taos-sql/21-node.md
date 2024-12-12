@@ -42,38 +42,29 @@ DROP DNODE dnode_id [force] [unsafe]
 ALTER DNODE dnode_id dnode_option
 
 ALTER ALL DNODES dnode_option
-
-dnode_option: {
-    'resetLog'
-  | 'balance' 'value'
-  | 'monitor' 'value'
-  | 'debugFlag' 'value'
-  | 'monDebugFlag' 'value'
-  | 'vDebugFlag' 'value'
-  | 'mDebugFlag' 'value'
-  | 'cDebugFlag' 'value'
-  | 'httpDebugFlag' 'value'
-  | 'qDebugflag' 'value'
-  | 'sdbDebugFlag' 'value'
-  | 'uDebugFlag' 'value'
-  | 'tsdbDebugFlag' 'value'
-  | 'sDebugflag' 'value'
-  | 'rpcDebugFlag' 'value'
-  | 'dDebugFlag' 'value'
-  | 'mqttDebugFlag' 'value'
-  | 'wDebugFlag' 'value'
-  | 'tmrDebugFlag' 'value'
-  | 'cqDebugFlag' 'value'
-}
 ```
 
-上面语法中的这些可修改配置项其配置方式与 dnode 配置文件中的配置方式相同，区别是修改是动态的立即生效，且不需要重启 dnode。
+对于支持动态修改的配置参数，您可以使用 ALTER DNODE 或 ALTER ALL DNODES 语法修改 dnode 中配置参数的值，自 3.3.4.0 后，修改的配置参数将自动持久化，即便数据库服务重启后仍然生效。
+
+对于一个配置参数是否支持动态修改，请您参考以下页面：[taosd 参考手册](../01-components/01-taosd.md)
 
 value 是参数的值，需要是字符格式。如修改 dnode 1 的日志输出级别为 debug：
 
 ```sql
 ALTER DNODE 1 'debugFlag' '143';
 ```
+
+### 补充说明：
+配置参数在 dnode 中被分为全局配置参数与局部配置参数，您可以查看 SHOW VARIABLES 或 SHOW DNODE dnode_id VARIABLE 中的 category 字段来确认配置参数属于全局配置参数还是局部配置参数：
+1. 局部配置参数：您可以使用 ALTER DNODE 或 ALTER ALL DNODES 来更新某一个 dnode 或全部 dnodes 的局部配置参数。
+2. 全局配置参数：全局配置参数要求各个 dnode 保持一致，所以您只可以使用 ALTER ALL DNODES 来更新全部 dnodes 的全局配置参数。
+
+配置参数是否可以动态修改，有以下三种情况：
+1. 支持动态修改 立即生效 
+2. 支持动态修改 重启生效
+3. 不支持动态修改
+
+对于重启后生效的配置参数，您可以通过 SHOW VARIABLES 或 SHOW DNODE dnode_id VARIABLE 看到修改后的值，但是需要重启数据库服务才使其生效。
 
 ## 添加管理节点
 
@@ -137,18 +128,12 @@ SHOW CLUSTER ALIVE;
 
 ```sql
 ALTER LOCAL local_option
-
-local_option: {
-    'resetLog'
-  | 'rpcDebugFlag' 'value'
-  | 'tmrDebugFlag' 'value'
-  | 'cDebugFlag' 'value'
-  | 'uDebugFlag' 'value'
-  | 'debugFlag' 'value'
-}
 ```
 
-上面语法中的参数与在配置文件中配置客户端的用法相同，但不需要重启客户端，修改后立即生效。
+您可以使用以上语法更该客户端的配置参数，并且不需要重启客户端，修改后立即生效。
+
+对于一个配置参数是否支持动态修改，请您参考以下页面：[taosc 参考手册](../01-components/02-taosc.md)
+
 
 ## 查看客户端配置
 
