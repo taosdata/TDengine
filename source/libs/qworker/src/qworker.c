@@ -752,6 +752,10 @@ _return:
 
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
+    if (code) {
+      (void)qwDropTask(QW_FPARAMS());
+    }
+    
     qwReleaseTaskCtx(mgmt, ctx);
   }
 

@@ -141,8 +141,8 @@ int32_t qwRetrieveJobInfo(QW_FPARAMS_DEF, SQWJobInfo** ppJob) {
 
       pJob = (SQWJobInfo*)taosHashAcquire(gQueryMgmt.pJobInfo, id, sizeof(id));
       if (NULL == pJob) {
-        QW_TASK_ELOG_E("job not in job hash, may be dropped");
-        return TSDB_CODE_QRY_JOB_NOT_EXIST;
+        QW_TASK_WLOG_E("job not in job hash, may be dropped");
+        continue;
       }
     }
 
