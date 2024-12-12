@@ -1651,7 +1651,7 @@ int32_t doTsDataCommit(STableTsDataState* pTsDataState) {
                                          pTempBuf);
       QUERY_CHECK_CODE(code, lino, _end);
       memset(pTempBuf, 0, len);
-      qDebug("flush ts data,table id:%" PRIu64 , (uint64_t*)pKey);
+      qDebug("flush ts data,table id:%" PRIu64 , *(uint64_t*)pKey);
     }
   }
 
