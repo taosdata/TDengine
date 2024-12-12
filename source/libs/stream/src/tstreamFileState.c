@@ -550,7 +550,6 @@ int32_t clearFlushedRowBuffByFlag(SStreamFileState* pFileState, uint64_t max) {
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
     if (pPos->invalid) {
       if (!pPos->beUsed) {
-        pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
         SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
         taosMemoryFreeClear(tmp);
         if (pPos->pRowBuff) {
