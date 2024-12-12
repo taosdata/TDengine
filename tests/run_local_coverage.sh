@@ -106,6 +106,7 @@ function buildTDengine() {
 
     if [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "yes" ] ; then
         print_color "$GREEN" "rebuild.."
+        rm -rf *
         makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
         print_color "$GREEN" "$makecmd"
         $makecmd
@@ -116,6 +117,7 @@ function buildTDengine() {
         make -j 8 install    
     elif [ -n "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
         print_color "$GREEN" "rebuild.."
+        rm -rf *
         makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
         print_color "$GREEN" "$makecmd"
         $makecmd        
