@@ -261,6 +261,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000529 | Vnode is stopped                                   | Vnode 已经关闭                 | 上报问题           |
 | 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误         | 上报问题           |
 | 0x80000531 | Vnode query is busy                                | 查询忙碌                       | 上报问题           |
+| 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                       | 上报问题           |
 
 
 ## tsdb

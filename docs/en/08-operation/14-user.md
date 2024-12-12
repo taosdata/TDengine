@@ -22,10 +22,10 @@ The parameters are explained as follows.
 - sysinfo: Whether the user can view system information. 1 means they can view it, 0 means they cannot. System information includes server configuration information, various node information such as dnode, query node (qnode), etc., as well as storage-related information, etc. The default is to view system information.
 - createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. The default value is 0. // Supported starting from TDengine Enterprise version 3.3.2.0
 
-The following SQL can create a user named test with the password 123456 who can view system information.
+The following SQL can create a user named test with the password abc123!@# who can view system information.
 
 ```sql
-create user test pass '123456' sysinfo 1
+create user test pass 'abc123!@#' sysinfo 1
 ```
 
 ### Viewing Users

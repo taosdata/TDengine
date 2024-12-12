@@ -17,6 +17,8 @@ The password must be between 8 and 16 characters long and include at least three
 
 `SYSINFO` indicates whether the user can view system information. `1` means they can view, `0` means they have no permission to view. System information includes service configuration, dnode, vnode, storage, etc. The default value is `1`.
 
+`CREATEDB` indicates whether the user can create databases. `1` means they can create databases, `0` means they have no permission to create databases. The default value is `0`. // Supported starting from TDengine Enterprise version 3.3.2.0
+
 In the example below, we create a user with the password `abc123!@#` who can view system information.
 
 ```sql
