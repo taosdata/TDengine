@@ -291,7 +291,7 @@ https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B
 如仍无法解决，则需要联系涛思技术人员支持。
 
 ### 32 同一台服务器，数据库的数据目录 dataDir 不变，为什么原有数据库丢失且集群 ID 发生了变化？
-背景知识：TDengine 服务端进程（taosd）在启动时，若数据目录（dataDir，该目录在配置文件 taos.cfg 中指定）下不存在有效的数据文件子目录（如 mnode、dnode 和 vnode 等），则会自动创建这些目录。在创建新的 mnode 目录的同时，会分配一个新的集群 ID，从而创建一个新的集群。
+背景知识：TDengine 服务端进程（taosd）在启动时，若数据目录（dataDir，该目录在配置文件 taos.cfg 中指定）下不存在有效的数据文件子目录（如 mnode、dnode 和 vnode 等），则会自动创建这些目录。在创建新的 mnode 目录的同时，会分配一个新的集群 ID，从而产生一个新的集群。
 
 原因分析：taosd 的数据目录 dataDir 可以指向多个不同的挂载点。如果这些挂载点未在 fstab 文件中配置自动挂载，服务器重启后，dataDir 将仅作为一个本地磁盘的普通目录存在，而未能按预期指向挂载的磁盘。此时，若 taosd 服务启动，它将在 dataDir 下新建目录，从而产生一个新的集群。
 
