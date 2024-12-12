@@ -110,10 +110,111 @@ mod tests {
 
     #[test]
     fn test_column_meta() {
-        let column_meta = ColumnMeta::try_new("id".to_string(), "INT".to_string()).unwrap();
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TINYINT".to_string()).unwrap();
         assert_eq!(column_meta.column_name, "id");
-        assert_eq!(column_meta.type_name, "INT");
+        assert_eq!(column_meta.type_name, "TINYINT");
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int8);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "TINYINT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt8);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "SMALLINT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int16);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "SMALLINT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt16);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "MEDIUMINT".to_string()).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int32);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "MEDIUMINT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt32);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "INT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int32);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "INT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt32);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "BIGINT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int64);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "BIGINT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt64);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "FLOAT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Float32);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "DOUBLE".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Float64);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "DECIMAL".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "CHAR".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "VARCHAR".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "BINARY".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "VARBINARY".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TINYBLOB".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "BLOB".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "MEDIUMBLOB".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "LONGBLOB".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TINYTEXT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TEXT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "MEDUIMTEXT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "LONGTEXT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "DATE".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TIME".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "DATETIME".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TIMESTAMP".to_string()).unwrap();
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::Timestamp(TimeUnit::Nanosecond)
+        );
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "YEAR".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int16);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "BIT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt8);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "UNKNOWN".to_string()).unwrap();
+        assert!(column_meta.get_ipc_type().is_err());
     }
 
     #[test]

@@ -12,6 +12,8 @@ ignore = [
   "RUSTSEC-2021-0141",
   # derivative is indirectly referenced by ring-channel and mongodb
   "RUSTSEC-2024-0388",
+  # idna, wait for mongodb / hickory-proto to update
+  "RUSTSEC-2024-0421",
 ]
 
 [output]

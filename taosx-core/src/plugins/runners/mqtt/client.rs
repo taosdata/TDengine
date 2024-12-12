@@ -13,8 +13,6 @@ const MAX_RETRY_COUNT: i32 = 10;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
-    #[snafu(display("Invalid mqtt address: {source}"))]
-    InvalidAddress { source: anyhow::Error },
     #[snafu(display("Invalid mqtt tls config: {source}"))]
     InvalidTls { source: anyhow::Error },
     #[snafu(display("Invalid QoS: {qos}"))]
@@ -63,6 +61,26 @@ pub enum Error {
     InvalidUtf8 { source: FromUtf8Error },
     #[snafu(display("MQTT subscription not found"))]
     SubscriptionEmpty,
+    #[snafu(display("Invalid MQTT version"))]
+    InvalidVersion { version: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Version {
+    V3,
+    V5,
+}
+
+impl std::str::FromStr for Version {
+    type Err = Error;
+
+    fn from_str(version: &str) -> Result<Self, Self::Err> {
+        match version {
+            "3.1" | "3.1.1" => Ok(Version::V3),
+            "5.0" | "5" => Ok(Version::V5),
+            _ => InvalidVersionSnafu { version }.fail(),
+        }
+    }
 }
 
 pub trait MessagePoller {
@@ -98,10 +116,10 @@ impl MessagePoller for GenericMessagePoller {
         I: IntoIterator<Item = (String, u8)> + Send,
     {
         match config.version {
-            super::config::Version::V3 => Ok(Self::V3(
+            Version::V3 => Ok(Self::V3(
                 v3::MessagePoller::from_config(config, subscriptions).await?,
             )),
-            super::config::Version::V5 => Ok(Self::V5(
+            Version::V5 => Ok(Self::V5(
                 v5::MessagePoller::from_config(config, subscriptions).await?,
             )),
         }
@@ -109,8 +127,8 @@ impl MessagePoller for GenericMessagePoller {
 
     async fn try_connect(config: &MqttConnectConfig) -> Result<(), Error> {
         match config.version {
-            super::config::Version::V3 => v3::MessagePoller::try_connect(config).await,
-            super::config::Version::V5 => v5::MessagePoller::try_connect(config).await,
+            Version::V3 => v3::MessagePoller::try_connect(config).await,
+            Version::V5 => v5::MessagePoller::try_connect(config).await,
         }
     }
 
@@ -119,5 +137,21 @@ impl MessagePoller for GenericMessagePoller {
             GenericMessagePoller::V3(poller) => poller.poll().await,
             GenericMessagePoller::V5(poller) => poller.poll().await,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_version_test() -> anyhow::Result<()> {
+        assert_eq!("3.1".parse::<Version>()?, Version::V3);
+        assert_eq!("3.1.1".parse::<Version>()?, Version::V3);
+        assert_eq!("5.0".parse::<Version>()?, Version::V5);
+        assert_eq!("5".parse::<Version>()?, Version::V5);
+
+        assert!("4".parse::<Version>().is_err());
+        Ok(())
     }
 }

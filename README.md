@@ -6,18 +6,17 @@
 
 <!-- omit in toc -->
 
-- [Table of Contents](#table-of-contents)
-- [1. Introduction](#1-introduction)
-- [2. Clone Repository](#2-clone-repository)
-- [3. Prerequisites](#3-prerequisites)
-- [4. Build](#4-build)
-- [5. Packaging](#5-packaging)
-- [6. Installation](#6-installation)
-- [7. Running](#7-running)
-- [8. Testing](#8-testing)
-- [9. CI/CD](#9-cicd)
-- [10. Coverage](#10-coverage)
-- [11. Contributing](#11-contributing)
+1. [Introduction](#1-introduction)
+1. [Prerequisites](#2-prerequisites)
+1. [Build](#3-build)
+1. [Packaging](#4-packaging)
+1. [Installation](#5-installation)
+1. [Running](#6-running)
+1. [Testing](#7-testing)
+1. [Releasing](#8-releasing)
+1. [CI/CD](#9-cicd)
+1. [Coverage](#10-coverage)
+1. [Contributing](#11-contributing)
 
 ## 1. Introduction
 
@@ -38,13 +37,7 @@ Features:
   - Message queue: Kafka.
   - Others common protocols: OPC-UA/DA, MQTT.
 
-## 2. Clone Repository
-
-```bash
-git clone --depth 1 https://github.com/taosdata/taosx.git
-```
-
-## 3. Prerequisites
+## 2. Prerequisites
 
 taosX uses Rust for its development. You need to install Rust and other required tools and libraries. Here is a script to install all dependencies with specified versions:
 
@@ -110,7 +103,13 @@ go version
 go env
 ```
 
-## 4. Build
+## 3. Build
+
+Clone the code first:
+
+```bash
+git clone --depth 1 https://github.com/taosdata/taosx.git
+```
 
 Build the system using cargo-make:
 
@@ -119,7 +118,7 @@ cd taosx
 cargo make build-all
 ```
 
-## 5. Packaging
+## 4. Packaging
 
 You need python3 environment and some packages from PyPI for packaging.
 
@@ -142,7 +141,7 @@ python3 release.py -ba agent
 ```
 Check out more packaging options by `python3 release.py --help`.
 
-## 6. Installation
+## 5. Installation
 
 taosX is delivered along with TDengine Enterprise Edition, so you do not need to install it separately. But we do provide a way to install it locally:
 
@@ -150,7 +149,7 @@ taosX is delivered along with TDengine Enterprise Edition, so you do not need to
 cargo make install-locally
 ```
 
-## 7. Running
+## 6. Running
 
 You can run taosx and taos-explorer without installation:
 
@@ -168,7 +167,7 @@ sudo systemctl start taos-explorer
 
 Open your web-browser to with url <http://localhost:6060> and enjoy!
 
-## 8. Testing
+## 7. Testing
 
 To run Rust all the unitest cases is simple:
 
