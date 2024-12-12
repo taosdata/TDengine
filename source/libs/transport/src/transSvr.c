@@ -2134,6 +2134,207 @@ typedef struct SServerObj {
   int32_t serverFd;
   bool    inited;
 } SServerObj;
+#define DIV_ROUNDUP(x, y) (((x) + ((y)-1)) / (y))
+
+#define EVT_TIMEOUT          0x01
+#define EVT_READ             0x02
+#define EVT_WRITE            0x04
+#define EVT_SIGNAL           0x08
+
+/* How many bytes to allocate for N fds? */
+#define SELECT_ALLOC_SIZE(n) (DIV_ROUNDUP(n, NFDBITS) * sizeof(fd_mask))
+
+typedef struct {
+  int32_t evtFds;
+  int32_t evtFdsSize;
+  int32_t resizeOutSets;
+  fd_set *evtReadSetIn;
+  fd_set *evtWriteSetIn;
+  fd_set *evtReadSetOut;
+  fd_set *evtWriteSetOut;
+} SSelectOp;
+
+static int32_t selectResize(SSelectOp *pOpt, int32_t cap);
+static int32_t selectCreate(SSelectOp **pOpt);
+static int32_t selectDispath(SSelectOp *pOpt, struct timeval *tv);
+static int32_t selectAdd(SSelectOp *pOpt, int32_t fd, int32_t events, void *arg);
+static int32_t selectDel(SSelectOp *pOpt, int32_t fd, int32_t events, void *arg);
+static void    selectDestroy(SSelectOp *pOpt);
+
+int32_t selectHandle(int32_t res, int32_t fd);
+
+static int32_t selectCreate(SSelectOp **pOpt) {
+  int32_t    code = 0;
+  SSelectOp *pRes = taosMemoryCalloc(1, sizeof(SSelectOp));
+  if (pRes == NULL) {
+    *pOpt = NULL;
+    return terrno;
+  }
+  pRes->evtFds = 0;
+  pRes->evtFdsSize = 0;
+  pRes->resizeOutSets = 0;
+  pRes->evtReadSetIn = NULL;
+  pRes->evtWriteSetIn = NULL;
+  pRes->evtReadSetOut = NULL;
+  pRes->evtWriteSetOut = NULL;
+
+  code = selectResize(pRes, (32 + 1));
+  if (code != 0) {
+    selectDestroy(pRes);
+  } else {
+    *pOpt = pRes;
+  }
+
+  return code;
+}
+
+// int32_t selectUtilRange()
+
+int32_t selectHandle(int32_t res, int32_t fd) {
+  int32_t code = 0;
+  if (res & EVT_READ) {
+    // handle read
+  }
+  if (res & EVT_WRITE) {
+    // handle write
+  }
+  return code;
+}
+static int32_t selectDispath(SSelectOp *pOpt, struct timeval *tv) {
+  int32_t code = 0, res = 0, i, j, nfds = 0;
+  if (pOpt->resizeOutSets) {
+    fd_set *readSetOut = NULL, *writeSetOut = NULL;
+    int32_t sz = pOpt->evtFdsSize;
+    readSetOut = taosMemoryRealloc(pOpt->evtReadSetOut, sz);
+    if (readSetOut == NULL) {
+      return terrno;
+    }
+    pOpt->evtReadSetOut = readSetOut;
+
+    writeSetOut = taosMemoryRealloc(pOpt->evtWriteSetOut, sz);
+    if (writeSetOut == NULL) {
+      return terrno;
+    }
+
+    pOpt->evtWriteSetOut = writeSetOut;
+    pOpt->resizeOutSets = 0;
+  }
+
+  memcpy(pOpt->evtReadSetOut, pOpt->evtReadSetIn, pOpt->evtFdsSize);
+  memcpy(pOpt->evtWriteSetOut, pOpt->evtWriteSetIn, pOpt->evtFdsSize);
+
+  nfds = pOpt->evtFds + 1;
+  // TODO lock or not
+  code = select(nfds, pOpt->evtReadSetOut, pOpt->evtWriteSetOut, NULL, tv);
+  if (code < 0) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  for (j = 0; j < nfds; j++) {
+    res = 0;
+    if (FD_ISSET(j, pOpt->evtReadSetOut)) {
+      res |= EVT_READ;
+    }
+    if (FD_ISSET(j, pOpt->evtWriteSetOut)) {
+      res |= EVT_WRITE;
+    }
+    selectHandle(res, i);
+  }
+
+  return code;
+}
+static int32_t selectResize(SSelectOp *pOpt, int32_t cap) {
+  int32_t code = 0;
+
+  fd_set *readSetIn = NULL;
+  fd_set *writeSetIn = NULL;
+
+  readSetIn = taosMemoryRealloc(pOpt->evtReadSetIn, cap);
+  if (readSetIn == NULL) {
+    return terrno;
+  }
+  pOpt->evtReadSetIn = readSetIn;
+
+  writeSetIn = taosMemoryRealloc(pOpt->evtWriteSetIn, cap);
+  if (writeSetIn == NULL) {
+    return terrno;
+  }
+
+  pOpt->evtWriteSetIn = writeSetIn;
+  pOpt->resizeOutSets = 1;
+
+  memset((char *)pOpt->evtReadSetIn + pOpt->evtFdsSize, 0, cap - pOpt->evtFdsSize);
+  memset((char *)pOpt->evtWriteSetIn + pOpt->evtFdsSize, 0, cap - pOpt->evtFdsSize);
+
+  pOpt->evtFdsSize = cap;
+  return code;
+}
+
+static int32_t selectAdd(SSelectOp *pOpt, int32_t fd, int32_t events, void *arg) {
+  // add new fd to the set
+  int32_t code = 0;
+  if (pOpt->evtFds < fd) {
+    int32_t fdSize = pOpt->evtFdsSize;
+
+    if (fdSize < (int32_t)sizeof(fd_mask)) {
+      fdSize = (int32_t)sizeof(fd_mask);
+    }
+    while (fdSize < (int32_t)SELECT_ALLOC_SIZE(fd + 1)) {
+      fdSize *= 2;
+    }
+    if (fdSize != pOpt->evtFdsSize) {
+      if (selectResize(pOpt, fdSize)) {
+        return -1;
+      }
+      pOpt->evtFds = fd;
+    }
+  }
+  if (events & EVT_READ) {
+    FD_SET(fd, pOpt->evtReadSetIn);
+  }
+
+  if (events & EVT_WRITE) {
+    FD_SET(fd, pOpt->evtWriteSetIn);
+  }
+  return 0;
+}
+static int32_t selectDel(SSelectOp *pOpt, int32_t fd, int32_t events, void *arg) {
+  int32_t code = 0;
+  ASSERT((events & EVT_SIGNAL) == 0);
+
+  if (pOpt->evtFds < fd) {
+    return TAOS_SYSTEM_ERROR(EBADF);
+  }
+
+  if (events & EVT_READ) {
+    FD_CLR(fd, pOpt->evtReadSetIn);
+  }
+
+  if (events & EVT_WRITE) {
+    FD_CLR(fd, pOpt->evtWriteSetIn);
+  }
+  return code;
+}
+static void selectDestroy(SSelectOp *pOpt) {
+  if (pOpt == NULL) return;
+
+  if (pOpt->evtReadSetIn) {
+    taosMemoryFree(pOpt->evtReadSetIn);
+  }
+
+  if (pOpt->evtWriteSetIn) {
+    taosMemoryFree(pOpt->evtWriteSetIn);
+  }
+
+  if (pOpt->evtReadSetOut) {
+    taosMemoryFree(pOpt->evtReadSetOut);
+  }
+
+  if (pOpt->evtWriteSetOut) {
+    taosMemoryFree(pOpt->evtWriteSetOut);
+  }
+  taosMemoryFree(pOpt);
+}
 
 int32_t transReleaseSrvHandle(void *handle) { return 0; }
 void    transRefSrvHandle(void *handle) { return; }
