@@ -236,6 +236,7 @@ typedef struct SFltBuildGroupCtx {
   SFilterInfo *info;
   SArray      *group;
   int32_t      code;
+  bool         ignore;
 } SFltBuildGroupCtx;
 
 typedef struct {
