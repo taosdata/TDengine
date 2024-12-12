@@ -36,10 +36,14 @@ while getopts "hd:b:f:c:u:" arg; do
     u)
       UNIT_TEST_CASE=$OPTARG
       ;;
+    build)
+      BRANCH_BUILD=$OPTARG
+      ;;
     h)
-      echo "Usage: $(basename $0) -d [TDengine dir] -b [branch] -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case]"
+      echo "Usage: $(basename $0) -d [TDengine dir] -b [Test branch] -build [Build test branch] -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case]"
       echo "                  -d [TDengine dir] [default /root/TDinternal/community; eg: /home/TDinternal/community] "
-      echo "                  -b [Branch] [default local branch; eg:cover/3.0] "
+      echo "                  -b [Test branch] [default local branch; eg:cover/3.0] "
+      echo "                  -build [Build test branch] [default no:not build, but still install ;yes:will build and install ] "
       echo "                  -f [TDengine gcda dir] [default /root/TDinternal/community/debug; eg:/root/TDinternal/community/debug/community/source/dnode/vnode/CMakeFiles/vnode.dir/src/tq/] "
       echo "                  -c [Test single case/all cases] [default null; -c all : include parallel_test/longtimeruning_cases.task and all unit cases; -c task : include parallel_test/longtimeruning_cases.task; single case: eg: -c './test.sh -f tsim/stream/streamFwcIntervalFill.sim' ] "
       echo "                  -u [Unit test case] [default null;  eg: './schedulerTest' ] "
@@ -55,9 +59,10 @@ done
 # Check if the command name is provided
 if [ -z "$TDENGINE_DIR" ]; then
   echo "Error: TDengine dir is required."
-  echo "Usage: $(basename $0) -d [TDengine dir] -b [branch] -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case]  "
+  echo "Usage: $(basename $0) -d [TDengine dir] -b [Test branch] -build [Build test branch]  -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case]  "
   echo "                        -d [TDengine dir] [default /root/TDinternal/community; eg: /home/TDinternal/community] "
-  echo "                        -b [Branch] [default local branch; eg:cover/3.0] "   
+  echo "                        -b [Test branch] [default local branch; eg:cover/3.0] "   
+  echo "                        -build [Build test branch] [default no:not build, but still install ;yes:will build and install ] "
   echo "                        -f [TDengine gcda dir] [default /root/TDinternal/community/debug; eg:/root/TDinternal/community/debug/community/source/dnode/vnode/CMakeFiles/vnode.dir/src/tq/]  " 
   echo "                        -c [Test casingle case/all casesse] [default null; -c all : include parallel_test/longtimeruning_cases.task and all unit cases; -c task : include parallel_test/longtimeruning_cases.task; single case: eg: -c './test.sh -f tsim/stream/streamFwcIntervalFill.sim' ]  " 
   echo "                        -u [Unit test case] [default null;  eg: './schedulerTest' ] "
@@ -99,14 +104,17 @@ function buildTDengine() {
     [ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
     cd $TDENGINE_DIR/debug
 
-    # print_color "$GREEN" "rebuild.."
-
-    # makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
-    # print_color "$GREEN" "$makecmd"
-    # $makecmd
-
-    cd $TDENGINE_DIR/debug
-    make -j 8 install
+    if [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "yes" ] ; then
+        print_color "$GREEN" "rebuild.."
+        makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
+        print_color "$GREEN" "$makecmd"
+        $makecmd
+        make -j 8 install
+    else
+        print_color "$GREEN" "not build,only install"
+        cd $TDENGINE_DIR/debug
+        make -j 8 install
+    fi
 
     print_color "$GREEN" "TDengine build end"
 }
