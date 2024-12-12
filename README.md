@@ -53,6 +53,30 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash
 cargo install cargo-make toml
 ```
 
+If you cannot download for a long time when pulling and installing Rust, you can refer to https://rsproxy.cn/ for mirroring source configuration.
+
+```bash
+# edit ~/.zshrc or ~/.bashrc
+export RUSTUP_DIST_SERVER="https://rsproxy.cn"
+export RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
+
+# install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://rsproxy.cn/rustup-init.sh | sh
+
+# Set crates.io mirroring,export content to the file ~/.cargo/config
+[source.crates-io]
+replace-with = 'rsproxy-sparse'
+[source.rsproxy]
+registry = "https://rsproxy.cn/crates.io-index"
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+[registries.rsproxy]
+index = "https://rsproxy.cn/crates.io-index"
+[net]
+git-fetch-with-cli = true
+
+```
+
 For UI development, you need to install Node.js. We recommend you to install [NVM](https://github.com/nvm-sh/nvm) for Node.js version manager:
 
 ```bash
@@ -104,14 +128,19 @@ sudo apt install python3
 pip3 install toml
 ```
 
-To package taosX only, you can type this:
+To package taosX and taos-explorer, you can type this:
 
 ```bash
 cd packaging
-python3 package.py
+python3 release.py -o taosx
 ```
+To package taosX-agent, you can type this:
 
-Check out more packaging options by `python3 package.py --help`.
+```bash
+cd packaging
+python3 release.py -ba agent
+```
+Check out more packaging options by `python3 release.py --help`.
 
 ## 6. Installation
 
@@ -141,7 +170,7 @@ Open your web-browser to with url <http://localhost:6060> and enjoy!
 
 ## 8. Testing
 
-Rust all the test cases is simple:
+To run Rust all the unitest cases is simple:
 
 ```bash
 make test
@@ -164,9 +193,12 @@ To run the specific test case(s) from above list with `nextest`:
 cargo nextest run --workspace <case-name>
 ```
 
+To run the e2e test
 ## 9. CI/CD
 
 We use GitHub Actions for CI/CD workflow configuration. See [.github/workflows/pr-ci.yaml](https://github.com/taosdata/taosx/blob/main/.github/workflows/pr-ci.yaml).
+
+Due to the complexity of the data source environment, we have not yet provided a way to run CI tests locally.
 
 ## 10. Coverage
 
@@ -175,9 +207,11 @@ We collect code coverage with `cargo-llvm-cov`:
 ```bash
 # Install llvm-cov
 cargo install cargo-llvm-cov
-# Collect code coverage
+# Collect code coverage for taosx unitest
 cargo llvm-cov --html --open nextest run --workspace
 ```
+
+We use GitHub Actions for testing coverage workflow configuration.See [.github/workflows/3.0-qa-ci.yaml](https://github.com/taosdata/taosx/actions/workflows/3.0-qa-ci.yaml)
 
 ## 11. Contributing
 
