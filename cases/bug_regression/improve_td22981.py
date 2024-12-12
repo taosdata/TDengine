@@ -32,13 +32,13 @@ class TestTd22981(TDCase):
 
     def run(self):
         for i in range(self.taosd_setting["spec"]["dnodes"][0]["config"]["mndSdbWriteDelta"]):
-            self.tdSql.execute('create user u1 pass "u1";')
+            self.tdSql.execute('create user u1 pass "u1@taosdata";')
             self.tdSql.execute('drop user u1;')
         mnd_wal_file_list = self.get_wal_file_list()
         if mnd_wal_file_list[-1] < self.taosd_setting["spec"]["dnodes"][0]["config"]["mndLogRetention"]:
             self.tdSql.checkEqual(0 in mnd_wal_file_list, True)
             for i in range(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["mndLogRetention"]/((mnd_wal_file_list[-1]-mnd_wal_file_list[0])/self.taosd_setting["spec"]["dnodes"][0]["config"]["mndSdbWriteDelta"]))):
-                self.tdSql.execute('create user u1 pass "u1";')
+                self.tdSql.execute('create user u1 pass "u1@taosdata";')
                 self.tdSql.execute('drop user u1;')
         mnd_wal_file_list = self.get_wal_file_list()
         self.tdSql.checkEqual(0 not in mnd_wal_file_list, True)
