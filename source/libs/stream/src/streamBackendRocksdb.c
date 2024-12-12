@@ -4631,7 +4631,7 @@ int32_t compareHashTableImpl(SHashObj* p1, SHashObj* p2, SArray* diff) {
       if (fname == NULL) {
         return terrno;
       }
-      tstrncpy(fname, name, strlen(name));
+      tstrncpy(fname, name, strlen(name) + 1);
       if (taosArrayPush(diff, &fname) == NULL) {
         taosMemoryFree(fname);
         return terrno;
