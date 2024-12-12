@@ -19,7 +19,7 @@
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
-static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+int        tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
@@ -598,7 +598,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   return 0;
 }
 
-static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey1 = (STagIdxKey *)pKey1;
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
   tb_uid_t    uid1 = 0, uid2 = 0;

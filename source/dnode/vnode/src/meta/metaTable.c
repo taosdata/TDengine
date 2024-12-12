@@ -17,8 +17,15 @@
 
 extern SDmNotifyHandle dmNotifyHdl;
 
-static int  metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
-static int  metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
+
+int32_t metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+
+int32_t     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int  metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -29,30 +36,28 @@ static int  metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int  metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl);
-static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
+void        metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 // opt ins_tables query
 static int metaUpdateBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
-static int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress) {
+int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress) {
   int32_t nCols = pWp->nCols;
   int32_t ver = pWp->version;
   if (add) {
-    SColCmpr *p = taosMemoryCalloc(1, sizeof(SColCmpr) * (nCols + 1));
+    SColCmpr *p = taosMemoryRealloc(pWp->pColCmpr, sizeof(SColCmpr) * (nCols + 1));
     if (p == NULL) {
       return terrno;
     }
-
-    memcpy(p, pWp->pColCmpr, sizeof(SColCmpr) * nCols);
+    pWp->pColCmpr = p;
 
     SColCmpr *pCol = p + nCols;
     pCol->id = pSchema->colId;
     pCol->alg = compress;
     pWp->nCols = nCols + 1;
     pWp->version = ver;
-    pWp->pColCmpr = p;
   } else {
     for (int32_t i = 0; i < nCols; i++) {
       SColCmpr *pOCmpr = &pWp->pColCmpr[i];
@@ -87,7 +92,7 @@ static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
   }
 }
 
-static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
+int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
     return terrno;
@@ -110,7 +115,7 @@ static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
   return 0;
 }
 
-static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
   int32_t code = 0;
 
 #ifdef USE_INVERTED_INDEX
@@ -279,7 +284,7 @@ _exception:
   return code;
 }
 
-static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
+void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
 #if defined(TD_ENTERPRISE)
   int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
   int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
@@ -432,6 +437,12 @@ _drop_super_table:
   }
 
   ret = tdbTbDelete(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, pMeta->txn);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to drop stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name, pReq->suid,
+              tstrerror(terrno));
+  }
+
+  ret = metaCacheDrop(pMeta, pReq->suid);
   if (ret < 0) {
     metaError("vgId:%d, failed to drop stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name, pReq->suid,
               tstrerror(terrno));
@@ -2976,12 +2987,15 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+      return metaAddTableColumn(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_DROP_COLUMN:
+      return metaDropTableColumn(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      return metaAlterTableColumnBytes(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-      return metaAlterTableColumn(pMeta, version, pReq, pMetaRsp);
+      return metaAlterTableColumnName(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
-      return metaUpdateTableTagVal(pMeta, version, pReq);
+      return metaUpdateTableTagValue(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
       return metaUpdateTableMultiTagVal(pMeta, version, pReq);
       return terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
@@ -3155,7 +3169,7 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
   return 0;
 }
 
-static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey) {
+void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey) {
   if (pTagIdxKey) taosMemoryFree(pTagIdxKey);
 }
 
