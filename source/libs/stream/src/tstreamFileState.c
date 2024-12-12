@@ -1341,8 +1341,8 @@ void clearExpiredState(SStreamFileState* pFileState) {
   int32_t    iter = 0;
   while ((pIte = tSimpleHashIterate(pSearchBuff, pIte, &iter)) != NULL) {
     SArray* pWinStates = *((void**)pIte);
-    int32_t size = taosArrayGetSize(pWinStates);
-    for (int32_t i = 0; i < size - 1; i++) {
+    int32_t size = TARRAY_SIZE(pWinStates) - 1;
+    for (int32_t i = 0; i < size; i++) {
       SWinKey* pKey = taosArrayGet(pWinStates, i);
       int32_t  code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, sizeof(SWinKey));
       qTrace("clear expired buff, ts:%" PRId64 ". %s at line %d res:%d", pKey->ts, __func__, __LINE__, code_buff);
@@ -1352,7 +1352,7 @@ void clearExpiredState(SStreamFileState* pFileState) {
         qTrace("clear expired file, ts:%" PRId64 ". %s at line %d res:%d", pKey->ts, __func__, __LINE__, code_file);
       }
     }
-    taosArrayRemoveBatch(pWinStates, 0, size - 1, NULL);
+    taosArrayRemoveBatch(pWinStates, 0, size, NULL);
   }
   code = clearRowBuffNonFlush(pFileState);
   QUERY_CHECK_CODE(code, lino, _end);
