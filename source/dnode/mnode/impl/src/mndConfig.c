@@ -63,9 +63,10 @@ int32_t mndInitConfig(SMnode *pMnode) {
 }
 
 SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  void   *buf = NULL;
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  void    *buf = NULL;
+  SSdbRaw *pRaw = NULL;
 
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
@@ -77,8 +78,8 @@ SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
   int32_t tlen = encoder.pos;
   tEncoderClear(&encoder);
 
-  int32_t  size = sizeof(int32_t) + tlen + CFG_RESERVE_SIZE;
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_CFG, CFG_VER_NUMBER, size);
+  int32_t size = sizeof(int32_t) + tlen;
+  pRaw = sdbAllocRaw(SDB_CFG, CFG_VER_NUMBER, size);
   TSDB_CHECK_NULL(pRaw, code, lino, _over, terrno);
 
   buf = taosMemoryMalloc(tlen);
@@ -173,6 +174,7 @@ static int32_t mndCfgActionInsert(SSdb *pSdb, SConfigObj *obj) {
 
 static int32_t mndCfgActionDelete(SSdb *pSdb, SConfigObj *obj) {
   mTrace("cfg:%s, perform delete action, row:%p", obj->name, obj);
+  tFreeSConfigObj(obj);
   return 0;
 }
 
@@ -306,9 +308,11 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   if ((code = mndSetCreateConfigCommitLogs(pTrans, versionObj)) != 0) {
     mError("failed to init mnd config version, since %s", tstrerror(code));
     tFreeSConfigObj(versionObj);
+    taosMemoryFree(versionObj);
     goto _OVER;
   }
   tFreeSConfigObj(versionObj);
+  taosMemoryFree(versionObj);
   sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
 
   for (int i = 0; i < sz; ++i) {
@@ -321,9 +325,11 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
     if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
       mError("failed to init mnd config:%s, since %s", item->name, tstrerror(code));
       tFreeSConfigObj(obj);
+      taosMemoryFree(obj);
       goto _OVER;
     }
     tFreeSConfigObj(obj);
+    taosMemoryFree(obj);
   }
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
@@ -657,7 +663,9 @@ _OVER:
   }
   mndTransDrop(pTrans);
   tFreeSConfigObj(pVersion);
+  taosMemoryFree(pVersion);
   tFreeSConfigObj(pObj);
+  taosMemoryFree(pObj);
   return code;
 }
 
@@ -759,6 +767,7 @@ static void cfgObjArrayCleanUp(SArray *array) {
   for (int32_t i = 0; i < sz; ++i) {
     SConfigObj *obj = taosArrayGet(array, i);
     tFreeSConfigObj(obj);
+    taosMemoryFree(obj);
   }
   taosArrayDestroy(array);
 }

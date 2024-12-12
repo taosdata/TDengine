@@ -908,9 +908,8 @@ void tFreeSConfigObj(SConfigObj *obj) {
   }
   if (obj->dtype == CFG_DTYPE_STRING || obj->dtype == CFG_DTYPE_DIR || obj->dtype == CFG_DTYPE_LOCALE ||
       obj->dtype == CFG_DTYPE_CHARSET || obj->dtype == CFG_DTYPE_TIMEZONE) {
-    taosMemoryFreeClear(obj->str);
+    taosMemoryFree(obj->str);
   }
-  taosMemoryFreeClear(obj);
 }
 
 // SMqSubActionLogEntry *tCloneSMqSubActionLogEntry(SMqSubActionLogEntry *pEntry) {
