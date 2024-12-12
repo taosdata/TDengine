@@ -110,7 +110,7 @@ function buildTDengine() {
         print_color "$GREEN" "$makecmd"
         $makecmd
         make -j 8 install
-    else
+    elif [ "$BRANCH_BUILD" == "no" ] ; then
         print_color "$GREEN" "not build,only install"
         cd $TDENGINE_DIR/debug
         make -j 8 install
