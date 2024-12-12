@@ -47,7 +47,7 @@ jobs:
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DIR
 
-  build_rust_run_unitest:
+  build_rust_run_unittest:
     needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, rust]
     env:
@@ -103,7 +103,7 @@ jobs:
           tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz
 
-  build_go_run_unitest:
+  build_go_run_unittest:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [remove_artifacts,set_env]
     env:
@@ -136,7 +136,7 @@ jobs:
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
           cp taosx-opc $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
 
-  build_java_run_unitest:
+  build_java_run_unittest:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [remove_artifacts,set_env]
     env:
@@ -235,7 +235,7 @@ jobs:
   #         docker stop -t 60 ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}}
   deploy_components:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [build_rust_run_unitest, build_go_run_unitest, build_java_run_unitest]
+    needs: [build_rust_run_unittest, build_go_run_unittest, build_java_run_unittest]
     steps:
       - name: Deploy taosx
         run: |
@@ -285,7 +285,7 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
           cp /data/github/TestNG_taosX/setenv.sh $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/$TEST_CASE_DIR/
-          cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/$TEST_CASE_DIR/ && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
+          cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/$TEST_CASE_DIR/ && source ./setenv.sh && poetry install && cd tests && poetry lock --no-update && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
 
       - name: Stop taosx-agent & taosx
         shell: bash {0}
@@ -397,7 +397,7 @@ jobs:
           EOF
           }
 
-          PR_INFO="Coverage test results for taosX and its plugins\n
+          PR_INFO="Testing coverage report for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
@@ -423,7 +423,7 @@ jobs:
           EOF
           }
 
-          PR_INFO="Coverage test results for taosX and its plugins\n
+          PR_INFO="Testing coverage report for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
