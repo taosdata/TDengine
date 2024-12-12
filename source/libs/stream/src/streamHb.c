@@ -434,6 +434,7 @@ void streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSe
 int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
   SMetaHbInfo* pInfo = pMeta->pHbInfo;
   SEpSet       epset = {0};
+  int32_t      code = 0;
 
   stDebug("vgId:%d process hbMsg rsp, msgId:%d rsp confirmed", pMeta->vgId, pRsp->msgId);
   streamMetaWLock(pMeta);
@@ -446,8 +447,8 @@ int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
     pInfo->hbCount += 1;
     pInfo->msgSendTs = -1;
 
-    streamTaskGetMndEpset(pMeta, &epset);
-    if (!isEpsetEqual(&pRsp->mndEpset, &epset)) {
+    code = streamTaskGetMndEpset(pMeta, &epset);
+    if (!isEpsetEqual(&pRsp->mndEpset, &epset) && (code == 0)) {
       // we need to update the mnode epset for each tasks
       stInfo("vgId:%d mnode epset updated, update mnode epset for all tasks", pMeta->vgId);
       streamTaskUpdateMndEpset(pMeta, &pRsp->mndEpset);
