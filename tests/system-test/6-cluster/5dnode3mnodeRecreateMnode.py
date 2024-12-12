@@ -111,7 +111,7 @@ class TDTestCase:
                     "batchNum": 5000
                     }
         username="user1"
-        passwd="123"
+        passwd="test123@#$"
 
         dnodeNumbers=int(dnodeNumbers)
         mnodeNums=int(mnodeNums)
