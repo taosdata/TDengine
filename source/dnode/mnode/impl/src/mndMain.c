@@ -255,7 +255,7 @@ static void mndIncreaseUpTime(SMnode *pMnode) {
                       .pCont = pReq,
                       .contLen = contLen,
                       .info.notFreeAhandle = 1,
-                      .info.ahandle = (void *)0x9527};
+                      .info.ahandle = 0};
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
@@ -531,7 +531,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       TAOS_RETURN(code);
     } else {
-      (void)strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif

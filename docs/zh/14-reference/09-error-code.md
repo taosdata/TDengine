@@ -137,7 +137,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000350 | User already exists                                                                          | Create user, 重复创建                         | 确认操作是否正确                                                                                |
 | 0x80000351 | Invalid user                                                                                 | 用户不存在                                    | 确认操作是否正确                                                                                |
 | 0x80000352 | Invalid user format                                                                          | 格式不正确                                    | 确认操作是否正确                                                                                |
-| 0x80000353 | Invalid password format                                                                      | 格式不正确                                    | 确认操作是否正确                                                                                |
+| 0x80000353 | Invalid password format                                                                      | 密码长度必须为 8 到 16 位，并且至少包含大写字母、小写字母、数字、特殊字符中的三类 | 确认密码字符串的格式                                                   |
 | 0x80000354 | Can not get user from conn                                                                   | 内部错误                                      | 上报issue                                                                                       |
 | 0x80000355 | Too many users                                                                               | （仅企业版）用户数量超限                      | 调整配置                                                                                        |
 | 0x80000357 | Authentication failure                                                                       | 密码不正确                                    | 确认操作是否正确                                                                                |
@@ -262,6 +262,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000529 | Vnode is stopped                                   | Vnode 已经关闭                 | 上报问题           |
 | 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误         | 上报问题           |
 | 0x80000531 | Vnode query is busy                                | 查询忙碌                       | 上报问题           |
+| 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                       | 上报问题           |
 
 
 ## tsdb

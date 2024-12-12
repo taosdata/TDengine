@@ -17,8 +17,8 @@ if $rows != 5 then
 endi
 
 print =============== create users
-sql create user user1 PASS 'user1'
-sql create user user2 PASS 'user2'
+sql create user user1 PASS '123124(*&xx)'
+sql create user user2 PASS '1234(*&xx'
 sql select * from information_schema.ins_users
 if $rows != 3 then 
   return -1

@@ -26,7 +26,7 @@ The default configuration file for `Agent` is located at `/etc/taos/agent.toml`,
 
 As shown below:
 
-```TOML
+```toml
 # taosX service endpoint
 #
 #endpoint = "http://localhost:6055"
@@ -83,7 +83,7 @@ You don't need to be confused about how to set up the configuration file. Read a
 
 On Linux systems, the `Agent` can be started with the Systemd command:
 
-```bash
+```shell
 systemctl start taosx-agent
 ```
 
@@ -95,6 +95,6 @@ You can view the log files or use the `journalctl` command to view the logs of t
 
 The command to view logs with `journalctl` on Linux is as follows:
 
-```bash
+```shell
 journalctl -u taosx-agent [-f]
 ```

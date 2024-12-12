@@ -115,7 +115,7 @@ static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
       .pCont = pHead,
       .contLen = contLen,
       .msgType = TDMT_MND_RETRIEVE_ANAL_ALGO,
-      .info.ahandle = (void *)0x9527,
+      .info.ahandle = 0,
       .info.refId = 0,
       .info.noResp = 0,
       .info.handle = 0,

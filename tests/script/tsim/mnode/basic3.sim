@@ -68,7 +68,7 @@ if  $leaderExist != 1 then
 endi
 
 print =============== step3: create user
-sql create user user1 PASS 'user1'
+sql create user user1 PASS 'user121$*'
 sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1

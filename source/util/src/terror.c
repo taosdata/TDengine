@@ -444,6 +444,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_ARB_NOT_SYNCED,           "Vgroup peer is not sy
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_WRITE_DISABLED,           "Vnode write is disabled for snapshot")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Same with old param")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TTL_FLUSH_INCOMPLETION,   "Failed to flush all ttl modification to tdb")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH,   "Vnode already exist but Dbid not match")
 
 
 // tsdb

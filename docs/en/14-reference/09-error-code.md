@@ -131,7 +131,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000350 | User already exists                                          | Create user, duplicate creation                              | Confirm if the operation is correct                          |
 | 0x80000351 | Invalid user                                                 | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x80000352 | Invalid user format                                          | Incorrect format                                             | Confirm if the operation is correct                          |
-| 0x80000353 | Invalid password format                                      | Incorrect format                                             | Confirm if the operation is correct                          |
+| 0x80000353 | Invalid password format                                      | The password must be between 8 and 16 characters long and include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters.  | Confirm the format of the password string |
 | 0x80000354 | Can not get user from conn                                   | Internal error                                               | Report issue                                                 |
 | 0x80000355 | Too many users                                               | (Enterprise only) Exceeding user limit                       | Adjust configuration                                         |
 | 0x80000357 | Authentication failure                                       | Incorrect password                                           | Confirm if the operation is correct                          |
@@ -253,6 +253,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000529 | Vnode is stopped                                   | Vnode is closed                                 | Report issue        |
 | 0x80000530 | Duplicate write request                            | Duplicate write request, internal error         | Report issue        |
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
+| 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
 
 ## tsdb
 

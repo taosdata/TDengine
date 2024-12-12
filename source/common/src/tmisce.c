@@ -22,12 +22,15 @@
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
   memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
-  strncpy(pEp->fqdn, ep, TSDB_FQDN_LEN - 1);
+  tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
 
   char* temp = strchr(pEp->fqdn, ':');
   if (temp) {
     *temp = 0;
-    pEp->port = atoi(temp + 1);
+    pEp->port = taosStr2UInt16(temp + 1, NULL, 10);
+    if (pEp->port < 0) {
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   if (pEp->port == 0) {
@@ -299,7 +302,6 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     char      value[TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t   valueLen = 0;
-
     SDiskCfg* pDiskCfg = NULL;
     if (strcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
       char* buf = &value[VARSTR_HEADER_SIZE];
