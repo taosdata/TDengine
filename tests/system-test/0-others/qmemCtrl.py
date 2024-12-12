@@ -38,10 +38,10 @@ class TDTestCase:
         }
 
     def update_cfg(self, use_mpool = 1, min_rsize = 0, single_msize = 0):
-        updatecfgDict = {'queryUseMemoryPool':'{use_mpool}','minReservedMemorySize': min_rsize, 'singleQueryMaxMemorySize': single_msize}
+        updatecfgDict = {'queryUseMemoryPool':f'{use_mpool}','minReservedMemorySize': min_rsize, 'singleQueryMaxMemorySize': single_msize}
         tdDnodes.stop(1)
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
+        tdDnodes.deploy(1, updatecfgDict)
+        tdDnodes.starttaosd(1)
 
     def alter_cfg(self, use_mpool = 1, min_rsize = 0, single_msize = 0):
         tdSql.error(f"alter dnode 1 'queryUseMemoryPool' '{use_mpool}'")
@@ -83,8 +83,12 @@ class TDTestCase:
         self.variables_check(0, 0, 1024, 0)
 
         tdLog.info(f'[enable pool + up limit] start')
-        self.update_cfg(1, 1000000000, 1000000000)
-        self.variables_check(0, 1, 1000000000, 1000000000)
+        self.update_cfg(1, 1024, 1000000000)
+        self.variables_check(0, 1, 1024, 1000000000)
+
+        tdLog.info(f'[enable pool + reserve limit] start')
+        self.update_cfg(1, 1000000000, 3000)
+        self.variables_check(0, 1, 1000000000, 3000)
 
         tdLog.info(f'[enable pool + out of reserve] start')
         self.update_cfg(1, 1000000001)

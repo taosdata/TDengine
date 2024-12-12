@@ -319,7 +319,7 @@ int32_t mpChkFullQuota(SMemPool* pPool, SMPSession* pSession, int64_t size) {
   SMPJob* pJob = pSession->pJob;  
   int64_t cAllocSize = atomic_add_fetch_64(&pJob->job.allocMemSize, size);
   int64_t quota = atomic_load_32(pPool->cfg.jobQuota);
-  if (quota > 0 && cAllocSize / 1048576UL > quota) {
+  if (quota > 0 && cAllocSize > (quota * 1048576L)) {
     code = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;
     uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, pJob->job.jobId, cAllocSize, quota);
     pPool->cfg.cb.reachFp(pJob->job.jobId, pJob->job.clientId, code);
