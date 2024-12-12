@@ -104,7 +104,7 @@ function buildTDengine() {
 
     makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
     print_color "$GREEN" "$makecmd"
-    #$makecmd
+    $makecmd
 
     make -j 8 install
 
