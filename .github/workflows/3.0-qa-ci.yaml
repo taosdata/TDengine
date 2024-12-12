@@ -9,7 +9,7 @@ env:
   RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
-  TEST_CASE_DIR: taosx/tests/e2e
+  TEST_CASE_DIR: tests/e2e
   DIR_PATH_3_0: "3.0"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8788
@@ -283,8 +283,8 @@ jobs:
         run: |
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
-          ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
-          cp /data/github/TestNG_taosX/taosx/tests/e2e/setenv.sh $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/$TEST_CASE_DIR/
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
+          cp /data/github/TestNG_taosX/setenv.sh $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/$TEST_CASE_DIR/
           cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/$TEST_CASE_DIR/ && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
 
       - name: Stop taosx-agent & taosx
