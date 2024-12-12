@@ -72,6 +72,7 @@ void    taosInitRWLatch(SRWLatch *pLatch);
 void    taosWLockLatch(SRWLatch *pLatch);
 void    taosWUnLockLatch(SRWLatch *pLatch);
 void    taosRLockLatch(SRWLatch *pLatch);
+int32_t taosRTryLockLatch(SRWLatch *pLatch);
 void    taosRUnLockLatch(SRWLatch *pLatch);
 int32_t taosWTryLockLatch(SRWLatch *pLatch);
 

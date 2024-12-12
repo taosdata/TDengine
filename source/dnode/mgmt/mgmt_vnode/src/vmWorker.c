@@ -456,6 +456,8 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   pQPool->max = tsNumOfVnodeQueryThreads;
   if ((code = tQueryAutoQWorkerInit(pQPool)) != 0) return code;
 
+  tsNumOfQueryThreads += tsNumOfVnodeQueryThreads;
+
   SAutoQWorkerPool *pStreamPool = &pMgmt->streamPool;
   pStreamPool->name = "vnode-stream";
   pStreamPool->ratio = tsRatioOfVnodeStreamThreads;

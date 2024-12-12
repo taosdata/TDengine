@@ -444,7 +444,7 @@ int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs) 
     }
 
     clearColValArraySml(info->currTableDataCtx->pValues);
-    taosArrayClearP(info->escapedStringList, taosMemoryFree);
+    taosArrayClearP(info->escapedStringList, NULL);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       uError("SML:0x%" PRIx64 " %s smlBuildCol error:%d", info->id, __FUNCTION__, ret);
       return ret;
@@ -1270,7 +1270,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosArrayDestroy(info->valueJsonArray);
 
   taosArrayDestroyEx(info->preLineTagKV, freeSSmlKv);
-  taosArrayDestroyP(info->escapedStringList, taosMemoryFree);
+  taosArrayDestroyP(info->escapedStringList, NULL);
 
   if (!info->dataFormat) {
     for (int i = 0; i < info->lineNum; i++) {
@@ -1536,7 +1536,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
     SML_CHECK_NULL(info->lines);
   }
 
-  taosArrayClearP(info->escapedStringList, taosMemoryFree);
+  taosArrayClearP(info->escapedStringList, NULL);
   if(info->protocol == TSDB_SML_JSON_PROTOCOL)  {
     taosMemoryFreeClear(info->preLine.tags);
   }

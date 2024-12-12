@@ -126,7 +126,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
   if (NULL == key) {
-    TSC_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    TSC_ERR_RET(terrno);
   }
   tscInfo("connecting to server, numOfEps:%d inUse:%d user:%s db:%s key:%s", epSet.epSet.numOfEps, epSet.epSet.inUse,
           user, db, key);
@@ -1820,11 +1820,10 @@ int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
                   .handleRefId = pMsg->info.refId,
                   .pEpSet = pEpSet};
 
-  if (pMsg->code != TSDB_CODE_OUT_OF_MEMORY && pMsg->contLen > 0) {
+  if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
     if (buf.pData == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+      pMsg->code = terrno;
     } else {
       (void)memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
     }
@@ -2957,7 +2956,6 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
 
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (NULL == param) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   int32_t code = tsem_init(&param->sem, 0, 0);
@@ -2998,7 +2996,6 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
 
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (param == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   int32_t code = tsem_init(&param->sem, 0, 0);

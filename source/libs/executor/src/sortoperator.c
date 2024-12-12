@@ -112,10 +112,10 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
       goto _error;
     }
     SNodeList* pSortColsNodeArr = makeColsNodeArrFromSortKeys(pSortNode->pSortKeys);
-    if (!pSortColsNodeArr) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pSortColsNodeArr) code = terrno;
     if (TSDB_CODE_SUCCESS == code) {
       pGroupIdCalc->pSortColsArr = makeColumnArrayFromList(pSortColsNodeArr);
-      if (!pGroupIdCalc->pSortColsArr) code = TSDB_CODE_OUT_OF_MEMORY;
+      if (!pGroupIdCalc->pSortColsArr) code = terrno;
       nodesClearList(pSortColsNodeArr);
     }
     if (TSDB_CODE_SUCCESS == code) {

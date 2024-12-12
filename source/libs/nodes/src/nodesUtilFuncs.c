@@ -1079,7 +1079,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pReal->pMeta);
       taosMemoryFreeClear(pReal->pVgroupList);
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
-      taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, taosMemoryFree);
+      taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
       break;
     }
@@ -1627,7 +1627,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
-      taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, taosMemoryFree);
+      taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pLogicNode->pTsmaTargetTbInfo);
       break;
     }
@@ -2012,7 +2012,7 @@ int32_t nodesMakeList(SNodeList** ppListOut) {
 
 int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
   if (NULL == pList || NULL == pNode) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
   SListCell* p = NULL;
   int32_t    code = nodesCalloc(1, sizeof(SListCell), (void**)&p);

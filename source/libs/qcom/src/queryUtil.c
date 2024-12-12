@@ -625,7 +625,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
         taosHashCancelIterate(pSrc->vgHash, pIter);
         freeVgInfo(*pDst);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       pIter = taosHashIterate(pSrc->vgHash, pIter);

@@ -106,6 +106,8 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
         if (code && code != TSDB_CODE_TIMEOUT_ERROR) {
           TSDB_CHECK_CODE(code, lino, _exit);
         }
+        
+        code = 0;
       }
     }
   }

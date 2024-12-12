@@ -3729,7 +3729,7 @@ int32_t ctgGetTbNamesFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbNa
   for (int32_t i = 0; i < tbNum; ++i) {
     CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
     if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
   }
 
@@ -3863,7 +3863,7 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
       taosMemoryFree(pViewMeta->querySql);
       taosMemoryFree(pViewMeta->user);
       taosMemoryFree(pViewMeta);
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
     pViewMeta->pSchema = taosMemoryMalloc(pViewMeta->numOfCols * sizeof(SSchema));
     if (pViewMeta->pSchema == NULL) {

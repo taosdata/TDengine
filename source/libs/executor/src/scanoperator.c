@@ -1167,7 +1167,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
       if (TSDB_CODE_DUP_KEY == terrno) {
         continue;
       }
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     info.uid = *pUid;
@@ -4572,11 +4572,10 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     int32_t    numOfTags;
     SExprInfo* pTagExpr = createExpr(pTableScanNode->pTags, &numOfTags);
     if (pTagExpr == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
     }
-    if (initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags, &pTaskInfo->storageAPI.functionStore) != 0) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+    code = initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags, &pTaskInfo->storageAPI.functionStore);
+    if (code != 0) {
       goto _error;
     }
   }
@@ -5173,7 +5172,7 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
 
   while (pInfo->curPos < size && pRes->info.rows < pOperator->resultInfo.capacity) {
     code = doTagScanOneTable(pOperator, pRes, &mr, &pTaskInfo->storageAPI);
-    if (code != TSDB_CODE_OUT_OF_MEMORY) {
+    if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD && code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
       // ignore other error
       code = TSDB_CODE_SUCCESS;
     }

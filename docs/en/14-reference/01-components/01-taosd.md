@@ -74,6 +74,9 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 |maxNumOfDistinctRes     |          |Maximum number of distinct results allowed to return, default value 100,000, maximum allowed value 100 million|
 |queryBufferSize         |          |Not effective yet|
 |queryRspPolicy          |          |Query response strategy|
+|queryUseMemoryPool      |          |Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on|
+|minReservedMemorySize   |          |The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000|
+|singleQueryMaxMemorySize|          |The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000|
 |filterScalarMode        |          |Force scalar filter mode, 0: off; 1: on, default value 0|
 |queryPlannerTrace       |          |Internal parameter, whether the query plan outputs detailed logs|
 |queryNodeChunkSize      |          |Internal parameter, chunk size of the query plan|

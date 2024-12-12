@@ -51,7 +51,6 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
 
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     colDataDestroy(pColumnData);
     taosMemoryFree(pColumnData);
     return terrno;
@@ -1235,7 +1234,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
         sclError("calloc %d failed", len);
         sclFreeParam(&output);
         nodesDestroyNode((SNode *)res);
-        ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+        ctx->code = terrno;
         return DEAL_RES_ERROR;
       }
       (void)memcpy(res->datum.p, output.columnData->pData, len);
@@ -1246,7 +1245,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
         sclError("calloc %d failed", (int)(varDataTLen(output.columnData->pData) + 1));
         sclFreeParam(&output);
         nodesDestroyNode((SNode *)res);
-        ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+        ctx->code = terrno;
         return DEAL_RES_ERROR;
       }
       (void)memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
@@ -1440,7 +1439,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
         sclError("calloc %d failed", (int)(varDataTLen(output.columnData->pData) + 1));
         sclFreeParam(&output);
         nodesDestroyNode((SNode *)res);
-        ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+        ctx->code = terrno;
         return DEAL_RES_ERROR;
       }
       (void)memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
@@ -1494,7 +1493,7 @@ EDealRes sclWalkFunction(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
@@ -1513,7 +1512,7 @@ EDealRes sclWalkLogic(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
@@ -1532,7 +1531,7 @@ EDealRes sclWalkOperator(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
@@ -1613,7 +1612,7 @@ EDealRes sclWalkCaseWhen(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     return DEAL_RES_ERROR;
   }
 

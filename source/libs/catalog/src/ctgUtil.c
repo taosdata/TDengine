@@ -1620,7 +1620,7 @@ int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst) {
       taosHashCancelIterate(src->vgHash, pIter);
       taosHashCleanup((*dst)->vgHash);
       taosMemoryFreeClear(*dst);
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     pIter = taosHashIterate(src->vgHash, pIter);
@@ -1787,7 +1787,7 @@ static int32_t ctgCloneDbVgroup(void* pSrc, void** ppDst) {
   }
   
   *ppDst = taosArrayDup((const SArray*)pSrc, NULL); 
-  return (*ppDst) ? TSDB_CODE_SUCCESS : TSDB_CODE_OUT_OF_MEMORY;
+  return (*ppDst) ? TSDB_CODE_SUCCESS : terrno;
 #else
   return TSDB_CODE_CTG_INTERNAL_ERROR;
 #endif
@@ -1824,7 +1824,7 @@ static int32_t ctgCloneDbInfo(void* pSrc, void** ppDst) {
 #if 0
   SDbInfo* pDst = taosMemoryMalloc(sizeof(SDbInfo));
   if (NULL == pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   
   TAOS_MEMCPY(pDst, pSrc, sizeof(SDbInfo));
@@ -2263,13 +2263,13 @@ static int32_t ctgCloneMetaDataArray(SArray* pSrc, __array_item_dup_fn_t copyFun
   int32_t size = taosArrayGetSize(pSrc);
   *pDst = taosArrayInit(size, sizeof(SMetaRes));
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < size; ++i) {
     SMetaRes* pRes = taosArrayGet(pSrc, i);
     SMetaRes  res = {.code = pRes->code, .pRes = copyFunc(pRes->pRes)};
     if (NULL == res.pRes) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     taosArrayPush(*pDst, &res);
   }
@@ -2630,11 +2630,11 @@ int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx) {
 int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
   pViewMeta->querySql = tstrdup(pRsp->querySql);
   if (NULL == pViewMeta->querySql) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
   pViewMeta->user = tstrdup(pRsp->user);
   if (NULL == pViewMeta->user) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
   pViewMeta->version = pRsp->version;
   pViewMeta->viewId = pRsp->viewId;

@@ -1761,7 +1761,7 @@ static int32_t downstreamSourceNodeInlineToMsg(const void* pObj, STlvEncoder* pE
     code = tlvEncodeValueU64(pEncoder, pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeValueU64(pEncoder, pNode->schedId);
+    code = tlvEncodeValueU64(pEncoder, pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI32(pEncoder, pNode->execId);
@@ -1788,7 +1788,7 @@ static int32_t msgToDownstreamSourceNodeInlineToMsg(STlvDecoder* pDecoder, void*
     code = tlvDecodeValueU64(pDecoder, &pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueU64(pDecoder, &pNode->schedId);
+    code = tlvDecodeValueU64(pDecoder, &pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI32(pDecoder, &pNode->execId);

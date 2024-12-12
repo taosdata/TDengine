@@ -4771,8 +4771,8 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  taosArrayClearP(p->pAdd, taosMemoryFree);
-  taosArrayClearP(p->pDel, taosMemoryFree);
+  taosArrayClearP(p->pAdd, NULL);
+  taosArrayClearP(p->pDel, NULL);
   taosHashClear(p->pSstTbl[1 - p->idx]);
 
   TdDirPtr pDir = taosOpenDir(p->buf);
@@ -4849,8 +4849,8 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
     int32_t code = compareHashTable(p->pSstTbl[p->idx], p->pSstTbl[1 - p->idx], p->pAdd, p->pDel);
     if (code != 0) {
       // dead code
-      taosArrayClearP(p->pAdd, taosMemoryFree);
-      taosArrayClearP(p->pDel, taosMemoryFree);
+      taosArrayClearP(p->pAdd, NULL);
+      taosArrayClearP(p->pDel, NULL);
       taosHashClear(p->pSstTbl[1 - p->idx]);
       p->update = 0;
       return code;
@@ -4946,9 +4946,9 @@ void dbChkpDestroy(SDbChkp* pChkp) {
   taosMemoryFree(pChkp->buf);
   taosMemoryFree(pChkp->path);
 
-  taosArrayDestroyP(pChkp->pSST, taosMemoryFree);
-  taosArrayDestroyP(pChkp->pAdd, taosMemoryFree);
-  taosArrayDestroyP(pChkp->pDel, taosMemoryFree);
+  taosArrayDestroyP(pChkp->pSST, NULL);
+  taosArrayDestroyP(pChkp->pAdd, NULL);
+  taosArrayDestroyP(pChkp->pDel, NULL);
 
   taosHashCleanup(pChkp->pSstTbl[0]);
   taosHashCleanup(pChkp->pSstTbl[1]);
@@ -5124,8 +5124,8 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   TAOS_UNUSED(taosCloseFile(&pFile));
 
   // clear delta data buf
-  taosArrayClearP(p->pAdd, taosMemoryFree);
-  taosArrayClearP(p->pDel, taosMemoryFree);
+  taosArrayClearP(p->pAdd, NULL);
+  taosArrayClearP(p->pDel, NULL);
   code = 0;
 
 _ERROR:

@@ -519,7 +519,7 @@ int32_t ctgGetTbDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTabl
     vgList = taosArrayInit(1, sizeof(SVgroupInfo));
     if (NULL == vgList) {
       ctgError("taosArrayInit %d failed", (int32_t)sizeof(SVgroupInfo));
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);    
+      CTG_ERR_JRET(terrno);    
     }
 
     if (NULL == taosArrayPush(vgList, &vgroupInfo)) {
@@ -877,13 +877,13 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   gCtgMgmt.timer = taosTmrInit(0, 0, 0, "catalog");
   if (NULL == gCtgMgmt.timer) {
     qError("init timer failed, error:%s", tstrerror(terrno));
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   gCtgMgmt.cacheTimer = taosTmrStart(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer);
   if (NULL == gCtgMgmt.cacheTimer) {
     qError("start cache timer failed");
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   CTG_ERR_RET(ctgStartUpdateThread());

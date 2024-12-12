@@ -403,7 +403,7 @@ _exit:
 }
 
 void tCleanupStreamDispatchReq(SStreamDispatchReq* pReq) {
-  taosArrayDestroyP(pReq->data, taosMemoryFree);
+  taosArrayDestroyP(pReq->data, NULL);
   taosArrayDestroy(pReq->dataLen);
 }
 
