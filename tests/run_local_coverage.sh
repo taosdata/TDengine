@@ -99,13 +99,13 @@ function buildTDengine() {
     [ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
     cd $TDENGINE_DIR/debug
 
-    print_color "$GREEN" "rebuild.."
-    LOCAL_COMMIT=`git rev-parse --short @`
+    # print_color "$GREEN" "rebuild.."
 
-    makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
-    print_color "$GREEN" "$makecmd"
-    $makecmd
+    # makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
+    # print_color "$GREEN" "$makecmd"
+    # $makecmd
 
+    cd $TDENGINE_DIR/debug
     make -j 8 install
 
     print_color "$GREEN" "TDengine build end"
