@@ -35,7 +35,7 @@ static void *funcPtr1(void *param) {
   return NULL;
 }
 
-TEST(osThreadTests, invalidParameter) {
+TEST(osThreadTests, para1) {
   TdThread     tid1 = {0};
   TdThread     tid2 = {0};
   int32_t      reti = 0;
@@ -191,4 +191,63 @@ TEST(osThreadTests, invalidParameter) {
   EXPECT_NE(reti, 0);
   reti = taosThreadCondAttrDestroy(&condattr);
   EXPECT_EQ(reti, 0);
+}
+
+TEST(osThreadTests, option) {
+  int32_t reti = 0;
+
+  TdThreadSpinlock lock = {0};
+  reti = taosThreadSpinInit(&lock, -1);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinLock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinTrylock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinUnlock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinDestroy(&lock);
+  EXPECT_NE(reti, 0);
+
+  reti = taosThreadSpinInit(NULL, 0);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinLock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinTrylock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinUnlock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinDestroy(NULL);
+  EXPECT_NE(reti, 0);
+}
+
+TEST(osThreadTests, splilock) {
+  int32_t reti = 0;
+
+  TdThreadSpinlock lock = {0};
+  reti = taosThreadSpinInit(&lock, -1);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinLock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinTrylock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinUnlock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinDestroy(&lock);
+  EXPECT_NE(reti, 0);
+
+  reti = taosThreadSpinInit(NULL, 0);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinLock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinTrylock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinUnlock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinDestroy(NULL);
+  EXPECT_NE(reti, 0);
+}
+
+TEST(osThreadTests, others) {
+  taosThreadTestCancel();
+  taosThreadClear(NULL);
 }
