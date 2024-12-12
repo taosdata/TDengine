@@ -110,9 +110,15 @@ function buildTDengine() {
         print_color "$GREEN" "$makecmd"
         $makecmd
         make -j 8 install
-    elif [ "$BRANCH_BUILD" == "no" ] ; then
+    elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "no" ] ; then
         print_color "$GREEN" "not build,only install"
         cd $TDENGINE_DIR/debug
+        make -j 8 install    
+    elif [ -n "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
+        print_color "$GREEN" "rebuild.."
+        makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
+        print_color "$GREEN" "$makecmd"
+        $makecmd        
         make -j 8 install
     fi
 
