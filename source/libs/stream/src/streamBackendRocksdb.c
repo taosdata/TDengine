@@ -4825,7 +4825,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
           return terrno;
         }
 
-        tstrncpy(fname, name, strlen(name));
+        tstrncpy(fname, name, strlen(name) + 1);
         if (taosArrayPush(p->pAdd, &fname) == NULL) {
           taosMemoryFree(fname);
           TAOS_UNUSED(taosThreadRwlockUnlock(&p->rwLock));
