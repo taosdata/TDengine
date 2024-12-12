@@ -15,6 +15,7 @@ void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
 
 #define metaErr(VGID, ERRNO)                                                                                     \
   do {                                                                                                           \
@@ -54,7 +55,7 @@ typedef struct {
   EMetaTableOp op;
 } SMetaTableOp;
 
-static int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
+int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
   int32_t code = TSDB_CODE_SUCCESS;
   void   *value = NULL;
   int32_t valueSize = 0;
@@ -129,7 +130,7 @@ static int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry *
   return code;
 }
 
-static void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
+void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
 
 // Entry Table
 static int32_t metaEntryTableUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, EMetaTableOp op) {
@@ -262,7 +263,38 @@ static int32_t metaSchemaTableInsert(SMeta *pMeta, const SMetaHandleParam *pPara
 }
 
 static int32_t metaSchemaTableUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
-  return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry *pEntry = pParam->pEntry;
+  const SMetaEntry *pOldEntry = pParam->pOldEntry;
+
+  if (NULL == pOldEntry) {
+    return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
+  }
+
+  if (pEntry->type == TSDB_NORMAL_TABLE &&
+      pOldEntry->ntbEntry.schemaRow.version != pEntry->ntbEntry.schemaRow.version) {
+    code = metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+
+    if (pOldEntry->ntbEntry.schemaRow.nCols != pEntry->ntbEntry.schemaRow.nCols) {
+      pMeta->pVnode->config.vndStats.numOfNTimeSeries +=
+          (pEntry->ntbEntry.schemaRow.nCols - pOldEntry->ntbEntry.schemaRow.nCols);
+    }
+  }
+
+  if (pEntry->type == TSDB_SUPER_TABLE && pOldEntry->stbEntry.schemaRow.version != pEntry->stbEntry.schemaRow.version) {
+    return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
+  }
+
+  if (pParam->pEntry->type == TSDB_CHILD_TABLE) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return 0;
 }
 
 static int32_t metaSchemaTableDelete(SMeta *pMeta, const SMetaHandleParam *pEntry) {
@@ -1211,6 +1243,75 @@ static int32_t metaHandleSuperTableDropImpl(SMeta *pMeta, const SMetaHandleParam
   return code;
 }
 
+static int32_t metaHandleNormalTableUpdateImpl(SMeta *pMeta, const SMetaHandleParam *pParam) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry *pEntry = pParam->pEntry;
+
+  SMetaTableOp ops[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_UPDATA},   //
+      {META_SCHEMA_TABLE, META_TABLE_OP_UPDATA},  //
+      {META_UID_IDX, META_TABLE_OP_UPDATA},       //
+  };
+  for (int32_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+    SMetaTableOp *op = &ops[i];
+    code = metaTableOpFn[op->table][op->op](pMeta, pParam);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+  }
+#if 0
+  if (metaUpdateChangeTime(pMeta, entry.uid, pAlterTbReq->ctimeMs) < 0) {
+    metaError("vgId:%d, failed to update change time:%s uid:%" PRId64, TD_VID(pMeta->pVnode), entry.name, entry.uid);
+  }
+#endif
+  return code;
+}
+
+static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SMetaEntry *pOldEntry = NULL;
+
+  // fetch old entry
+  code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    return code;
+  }
+
+  // handle update
+  SMetaHandleParam param = {
+      .pEntry = pEntry,
+      .pOldEntry = pOldEntry,
+  };
+  metaWLock(pMeta);
+  code = metaHandleNormalTableUpdateImpl(pMeta, &param);
+  metaULock(pMeta);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    metaFetchEntryFree(&pOldEntry);
+    return code;
+  }
+
+  // do other stuff
+  if (!TSDB_CACHE_NO(pMeta->pVnode->config) &&
+      pEntry->ntbEntry.schemaRow.version != pOldEntry->ntbEntry.schemaRow.version) {
+#if 0
+    int16_t cid = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId;
+    int8_t  col_type = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].type;
+    int32_t ret = tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
+    if (ret < 0) {
+      terrno = ret;
+      goto _err;
+    }
+#endif
+    tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
+  }
+  metaTimeSeriesNotifyCheck(pMeta);
+  return code;
+}
+
 static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SArray     *childList = NULL;
@@ -1304,7 +1405,7 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
       }
       case TSDB_NORMAL_TABLE: {
         if (isExist) {
-          // code = metaHandleNormalTableUpdate(pMeta, pEntry);
+          code = metaHandleNormalTableUpdate(pMeta, pEntry);
         } else {
           code = metaHandleNormalTableCreate(pMeta, pEntry);
         }
