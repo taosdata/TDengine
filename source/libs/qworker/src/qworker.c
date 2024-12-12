@@ -554,7 +554,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   switch (phase) {
     case QW_PHASE_PRE_QUERY: {
       if (QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
-        QW_TASK_ELOG("task already dropped at wrong phase %s", qwPhaseStr(phase));
+        QW_TASK_ELOG("task already dropped at phase %s", qwPhaseStr(phase));
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_STATUS_ERROR);
       }
 
