@@ -207,7 +207,6 @@ typedef struct {
 
 typedef struct {
   int32_t nodeId;
-  SEpSet  epset;
 } SDownstreamTaskEpset;
 
 typedef enum {
