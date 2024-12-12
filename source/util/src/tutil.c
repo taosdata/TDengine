@@ -503,28 +503,61 @@ int32_t parseCfgReal(const char *str, float *out) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool tIsValidFileName(const char *fileName, const char *pattern) {
-  const char *fileNamePattern = "^[a-zA-Z0-9_.-]+$";
-
-  regex_t fileNameReg;
-
-  if (pattern) fileNamePattern = pattern;
-
-  if (regcomp(&fileNameReg, fileNamePattern, REG_EXTENDED) != 0) {
-    fprintf(stderr, "failed to compile file name pattern:%s\n", fileNamePattern);
+bool taosIsBigChar(char c) {
+  if (c >= 'A' && c <= 'Z') {
+    return true;
+  } else {
     return false;
   }
-
-  int32_t code = regexec(&fileNameReg, fileName, 0, NULL, 0);
-  regfree(&fileNameReg);
-  if (code != 0) {
-    return false;
-  }
-  return true;
 }
 
-bool tIsValidFilePath(const char *filePath, const char *pattern) {
-  const char *filePathPattern = "^[a-zA-Z0-9:/\\_.-]+$";
+bool taosIsSmallChar(char c) {
+  if (c >= 'a' && c <= 'z') {
+    return true;
+  } else {
+    return false;
+  }
+}
 
-  return tIsValidFileName(filePath, pattern ? pattern : filePathPattern);
+bool taosIsNumberChar(char c) {
+  if (c >= '0' && c <= '9') {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool taosIsSpecialChar(char c) {
+  switch (c) {
+    case '!':
+    case '@':
+    case '#':
+    case '$':
+    case '%':
+    case '^':
+    case '&':
+    case '*':
+    case '(':
+    case ')':
+    case '-':
+    case '_':
+    case '+':
+    case '=':
+    case '[':
+    case ']':
+    case '{':
+    case '}':
+    case ':':
+    case ';':
+    case '>':
+    case '<':
+    case '?':
+    case '|':
+    case '~':
+    case ',':
+    case '.':
+    return true;
+    default:
+    return false;
+  }
 }
