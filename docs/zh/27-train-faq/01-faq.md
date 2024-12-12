@@ -280,4 +280,12 @@ TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集�
 https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B8%E5%85%B3
 您可以随时关闭该参数，只需要在taos.cfg 中修改telemetryReporting为 0，然后重启数据库服务即可。
 代码位于:https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c
-此外，对于安全性要求极高的企业版 TDengine Enterprise 来说，此参数不会工作。
+此外，对于安全性要求极高的企业版 TDengine Enterprise 来说，此参数不会工作。  
+### 31 第一次连接集群时遇到“Sync leader is unreachable”怎么办？
+报这个错，说明第一次向集群的连接是成功的，但第一次访问的IP不是mnode的leader节点，客户端试图与leader建立连接时发生错误。客户端通过EP，也就是指定的fqdn与端口号寻找leader节点，常见的报错原因有两个：  
+
+- 集群中其他节点的端口没有打开
+- 客户端的hosts未正确配置
+  
+因此用户首先要检查服务端，集群的所有端口（原生连接默认6030，http连接默认6041）有无打开；其次是客户端的hosts文件中是否配置了集群所有节点的fqdn与IP信息。
+如仍无法解决，则需要联系涛思技术人员支持。
