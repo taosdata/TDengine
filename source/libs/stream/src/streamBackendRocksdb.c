@@ -4627,11 +4627,12 @@ int32_t compareHashTableImpl(SHashObj* p1, SHashObj* p2, SArray* diff) {
   while (pIter) {
     char* name = taosHashGetKey(pIter, &len);
     if (!isBkdDataMeta(name, len) && !taosHashGet(p1, name, len)) {
-      char* fname = taosMemoryCalloc(1, len + 1);
+      int32_t cap = len + 1;
+      char*   fname = taosMemoryCalloc(1, cap);
       if (fname == NULL) {
         return terrno;
       }
-      tstrncpy(fname, name, strlen(name) + 1);
+      tstrncpy(fname, name, cap);
       if (taosArrayPush(diff, &fname) == NULL) {
         taosMemoryFree(fname);
         return terrno;
@@ -4819,13 +4820,14 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
       size_t len = 0;
       char*  name = taosHashGetKey(pIter, &len);
       if (name != NULL && !isBkdDataMeta(name, len)) {
-        char* fname = taosMemoryCalloc(1, len + 1);
+        int32_t cap = len + 1;
+        char*   fname = taosMemoryCalloc(1, cap);
         if (fname == NULL) {
           TAOS_UNUSED(taosThreadRwlockUnlock(&p->rwLock));
           return terrno;
         }
 
-        tstrncpy(fname, name, strlen(name) + 1);
+        tstrncpy(fname, name, cap);
         if (taosArrayPush(p->pAdd, &fname) == NULL) {
           taosMemoryFree(fname);
           TAOS_UNUSED(taosThreadRwlockUnlock(&p->rwLock));
