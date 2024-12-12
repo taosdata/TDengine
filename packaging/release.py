@@ -53,6 +53,7 @@ class ReleaseInfo:
         self.UploadAgent = False
         self.BuildAgent = False
         self.build_without_docs = False
+        self.build_with_selfhost = False
     def print(self):
         for attr in dir(self):
             if not attr.startswith("__"):
@@ -184,8 +185,8 @@ def init_build_info():
     parser.add_argument('-ce', '--cus_email', help='customized email')
     parser.add_argument('-ua', '--upload_agent', help='upload taosx-agent to taosdata.com')
     parser.add_argument('-ba', '--build_agent', help='build taosx-agent')
-    parser.add_argument('-bw', '--build_without_docs', action='store_true', help='build taosexplorer with docs zip')
-    parser.add_argument('-bh', '--build_with_selfhost', action='store_true', help='build taosexplorer with docs zip')
+    parser.add_argument('-bw', '--build_without_docs', action='store_true', help='build taosexplorer without docs zip')
+    parser.add_argument('-bh', '--build_with_selfhost', action='store_true', help='build taosexplorer with selfhost  docs zip')
 
     args, unknown_args = parser.parse_known_args()
 
@@ -196,6 +197,7 @@ def init_build_info():
         release_info.build_without_docs = True
     if args.build_with_selfhost:
         release_info.build_with_selfhost = True
+        
     release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(os.path.join(script_dir, "..", "release"))
     release_info.CpuType = GetCpuType()
@@ -576,8 +578,9 @@ def update_docs_zip_file(explorer_path):
             subprocess.run(f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-{release_info.CustomPrompt}.zip {doc_zip_path}", shell=True)
         else:
             if release_info.build_with_selfhost:
-                cmd1 = f"cp {local_doc_zip_path}/docs-en.zip {doc_zip_path}"
-                cmd2 = f"cp {local_doc_zip_path}/docs-zh.zip {doc_zip_path}"
+                if os.path.exists(local_doc_zip_path):
+                    cmd1 = f"cp {local_doc_zip_path}/docs-en.zip {doc_zip_path}"
+                    cmd2 = f"cp {local_doc_zip_path}/docs-zh.zip {doc_zip_path}"
             else:
                 cmd1 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-en.zip {doc_zip_path}"
                 cmd2 = f"scp root@192.168.0.30:{remote_doc_zip_path}/docs-zh.zip {doc_zip_path}"
