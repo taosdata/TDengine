@@ -506,6 +506,7 @@ static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq
         sdbRelease(pMnode->pSdb, pDnode);
         return code;
       }
+      rpcFreeCont(rpcRsp.pCont);
     }
     sdbRelease(pSdb, pDnode);
   }
