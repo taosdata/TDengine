@@ -10,12 +10,10 @@ import RequestId from "./_request_id.mdx";
 
 `TDengine.Connector` 是 TDengine 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine 集群数据的 C# 应用软件。
 
-## 兼容性
+## .NET 版本兼容性
 
 - .NET Framework 4.6 及以上版本。
 - .NET 5.0 及以上版本。
-- `TDengine.Connector` 3.1.0 版本进行了完整的重构，不再兼容 3.0.2 及以前版本。3.0.2 文档请参考 [nuget](https://www.nuget.org/packages/TDengine.Connector/3.0.2)
-- `TDengine.Connector` 3.x 不兼容 TDengine 2.x，如果在运行 TDengine 2.x 版本的环境下需要使用 C# 连接器请使用 TDengine.Connector 的 1.x 版本。
 
 ## 支持的平台
 
@@ -24,13 +22,13 @@ import RequestId from "./_request_id.mdx";
 
 ## 版本历史
 
-| Connector 版本 | 主要变化                       | TDengine 版本 |
-|:-------------|:---------------------------|:------------|
-| 3.1.4        | 提升 websocket 查询和写入性能       | 3.3.2.0     |
-| 3.1.3        | 支持 WebSocket 自动重连          | 3.2.1.0     |
-| 3.1.2        | 修复 schemaless 资源释放         | 3.2.1.0     |
-| 3.1.1        | 支持 varbinary 和 geometry 类型 | 3.2.1.0     |
-| 3.1.0        | WebSocket 使用原生实现           | 3.2.1.0     |
+| Connector 版本 | 主要变化                       | TDengine 版本   |
+|:-------------|:---------------------------|:--------------|
+| 3.1.4        | 提升 websocket 查询和写入性能       | 3.3.2.0 及更高版本 |
+| 3.1.3        | 支持 WebSocket 自动重连          | -             |
+| 3.1.2        | 修复 schemaless 资源释放         | -             |
+| 3.1.1        | 支持 varbinary 和 geometry 类型 | -             |
+| 3.1.0        | WebSocket 使用原生实现           | 3.2.1.0 及更高版本 |
 
 ## 处理异常
 
