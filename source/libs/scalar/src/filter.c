@@ -1284,7 +1284,8 @@ static void filterFreeGroup(void *pItem) {
   taosMemoryFreeClear(p->unitFlags);
 }
 
-int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
+int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, SArray *group) {
+  SFltBuildGroupCtx *ctx = (SFltBuildGroupCtx *)pContext;
   SOperatorNode *node = (SOperatorNode *)tree;
   int32_t        ret = TSDB_CODE_SUCCESS;
   SFilterFieldId left = {0}, right = {0};
@@ -1360,7 +1361,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
       cell = cell->pNext;
     }
     if(overflowCount == listNode->pNodeList->length) {
-      FILTER_SET_FLAG(info->status, FI_STATUS_EMPTY);
+      ctx->ignore = true;
     }
     colDataDestroy(out.columnData);
     taosMemoryFree(out.columnData);
@@ -1697,10 +1698,17 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
           FLT_ERR_RET(terrno);
         }
 
-        SFltBuildGroupCtx tctx = {.info = ctx->info, .group = newGroup};
+        SFltBuildGroupCtx tctx = {.info = ctx->info, .group = newGroup, .ignore = false};
         nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)&tctx);
         FLT_ERR_JRET(tctx.code);
-
+        if(tctx.ignore) {
+          ctx->ignore = true;
+          taosArrayDestroyEx(newGroup, filterFreeGroup);
+          newGroup = NULL;
+          taosArrayDestroyEx(resGroup, filterFreeGroup);
+          resGroup = NULL;
+          break;
+        }
         FLT_ERR_JRET(filterDetachCnfGroups(resGroup, preGroup, newGroup));
 
         taosArrayDestroyEx(newGroup, filterFreeGroup);
@@ -1712,9 +1720,10 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
 
         cell = cell->pNext;
       }
-
-      if (NULL == taosArrayAddAll(ctx->group, preGroup)) {
-        FLT_ERR_JRET(terrno);
+      if (!ctx->ignore) {
+        if (NULL == taosArrayAddAll(ctx->group, preGroup)) {
+          FLT_ERR_JRET(terrno);
+        }
       }
 
       taosArrayDestroy(preGroup);
@@ -1726,6 +1735,9 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
       SListCell *cell = node->pParameterList->pHead;
       for (int32_t i = 0; i < node->pParameterList->length; ++i) {
         nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)pContext);
+        if(ctx->ignore) {
+          ctx->ignore = false;
+        }
         FLT_ERR_JRET(ctx->code);
 
         cell = cell->pNext;
@@ -1740,7 +1752,7 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
   }
 
   if (QUERY_NODE_OPERATOR == nType) {
-    FLT_ERR_JRET(fltAddGroupUnitFromNode(ctx->info, pNode, ctx->group));
+    FLT_ERR_JRET(fltAddGroupUnitFromNode(ctx, ctx->info, pNode, ctx->group));
 
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -3836,12 +3848,15 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
     goto _return;
   }
 
-  SFltBuildGroupCtx tctx = {.info = info, .group = group};
+  SFltBuildGroupCtx tctx = {.info = info, .group = group, .ignore = false};
   nodesWalkExpr(tree, fltTreeToGroup, (void *)&tctx);
   if (TSDB_CODE_SUCCESS != tctx.code) {
     taosArrayDestroyEx(group, filterFreeGroup);
     code = tctx.code;
     goto _return;
+  }
+  if (tctx.ignore) {
+    FILTER_SET_FLAG(info->status, FI_STATUS_EMPTY);
   }
   code = filterConvertGroupFromArray(info, group);
   if (TSDB_CODE_SUCCESS != code) {
@@ -3876,7 +3891,7 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
 
 _return:
   if (code) {
-    qInfo("init from node failed, code:%d", code);
+    qInfo("init from node failed, code:%d, %s", code, tstrerror(code));
   }
   return code;
 }
