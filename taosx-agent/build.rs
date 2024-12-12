@@ -29,6 +29,8 @@ fn shadow_build() {
         } else {
             cus_prompt.trim()
         };
+        println!("cargo:rustc-env=CUS_NAME={cus_name}");
+        println!("cargo:rustc-env=CUS_PROMPT={cus_prompt}");
         let content = std::fs::read_to_string(&readme)
             .unwrap()
             .replace("taos", cus_prompt)

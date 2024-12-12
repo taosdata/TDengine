@@ -3,6 +3,8 @@
 # Use env scripts to get the latest version from git tags to make it available for any platform.
 env_scripts = ['''
   #!@duckscript
+
+  # setup version
   ver = get_env VER_NUMBER
   if is_empty ${ver}
     out = exec git describe --tags --abbrev=0
@@ -60,6 +62,18 @@ env_scripts = ['''
     else
       set_env "PLUGINS_HOME" "/usr/local/${cus_prompt}/plugins"
     end
+  end
+  
+  # setup cus_name
+  cus_name = get_env CUS_NAME
+  if is_empty ${cus_name}
+    set_env CUS_NAME "TDengine"
+  end
+
+  # setup cus_prompt
+  cus_prompt = get_env CUS_PROMPT
+  if is_empty ${cus_prompt}
+    set_env CUS_PROMPT "taos"
   end
   ''']
 
@@ -619,11 +633,12 @@ script_runner = "@duckscript"
 script = """
 !include_files .github/helpers.duck
 
+cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
-  cp target/debug/taosx target/deploy/taosx
+  cp target/debug/taosx target/deploy/${cus_prompt}x
 else
-  upx_run target/${profile}/taosx target/deploy/taosx
+  upx_run target/${profile}/taosx target/deploy/${cus_prompt}x
 end
 """
 
@@ -646,11 +661,12 @@ script_runner = "@duckscript"
 script = """
 !include_files .github/helpers.duck
 
+cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
-  cp target/debug/taosx-agent target/deploy/taosx-agent
+  cp target/debug/taosx-agent target/deploy/${cus_prompt}x-agent
 else
-  upx_run target/${profile}/taosx-agent target/deploy/taosx-agent
+  upx_run target/${profile}/taosx-agent target/deploy/${cus_prompt}x-agent
 end
 """
 
@@ -660,11 +676,12 @@ script_runner = "@duckscript"
 script = """
 !include_files .github/helpers.duck
 
+cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
-  cp target/debug/taosx-agent.exe target/deploy/taosx-agent.exe
+  cp target/debug/taosx-agent.exe target/deploy/${cus_prompt}x-agent.exe
 else
-  upx_run target/${profile}/taosx-agent.exe target/deploy/taosx-agent.exe
+  upx_run target/${profile}/taosx-agent.exe target/deploy/${cus_prompt}x-agent.exe
 end
 """
 
@@ -732,13 +749,10 @@ script = """
 
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
-  cp target/debug/taos-explorer target/deploy/taos-explorer
+  cp target/debug/taos-explorer target/deploy/${cus_prompt}-explorer
 else
-  upx_run target/${profile}/taos-explorer target/deploy/taos-explorer
+  upx_run target/${profile}/taos-explorer target/deploy/${cus_prompt}-explorer
 end
-
-custom_promt = get_env "CUS_PROMPT"
-echo "Custom prompt: ${custom_promt}"
 
 cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
 """
@@ -747,18 +761,16 @@ dependencies = ["explorer"]
 
 script_runner = "@duckscript"
 script = """
+cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
-  cp target/debug/taos-explorer.exe target/deploy/taos-explorer.exe
+  cp target/debug/taos-explorer.exe target/deploy/${cus_prompt}-explorer.exe
 else
-  cp target/${profile}/taos-explorer.exe target/deploy/taos-explorer.exe
+  cp target/${profile}/taos-explorer.exe target/deploy/${cus_prompt}-explorer.exe
 end
 
-custom_promt = get_env "CUS_PROMPT"
-echo "Custom prompt: ${custom_promt}"
-
-cp explorer/bin/taos-explorer-srv.exe target/deploy/taos-explorer-srv.exe
-cp explorer/bin/taos-explorer-srv.xml target/deploy/taos-explorer-srv.xml
+cp explorer/bin/taos-explorer-srv.exe target/deploy/${cus_prompt}-explorer-srv.exe
+cp explorer/bin/taos-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
 cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
 """
 
