@@ -311,7 +311,7 @@ function lcovFunc {
         '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.cc'\
         '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' \
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c'\
-        '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'\
+        '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c' '*/debug/*' '*/tests/*'\
          --rc lcov_branch_coverage=1  -o coverage.info
 
     # generate result
