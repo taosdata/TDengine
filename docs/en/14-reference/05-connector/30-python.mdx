@@ -10,7 +10,7 @@ import RequestId from "./_request_id.mdx";
 
 `Taopsy' is the official connector provided by TDengine database for Python language, which provides multiple access interfaces for database writing, querying, subscribing, etc.
 
-The connector requires Python 3.0 or above, and the installation command is as follows:
+The installation command is as follows:
 ``` bash
 # Native connection and REST connection
 pip3 install taospy
@@ -34,11 +34,11 @@ The connector code is open sourced and hosted on Github [taos connector python](
 
 For a detailed introduction of the connection method, please refer to: [Connection Method](../../../development/connect/# Connection Method)
 
-In addition to encapsulating native and REST interfaces, taopsy also provides compliance with the Python Data Access Specification (PEP 249)(https://peps.python.org/pep-0249/) The programming interface.
- This makes it easy to integrate taopsy with many third-party tools, such as QLAlchemy(https://www.sqlalchemy.org/) And [pandas](https://pandas.pydata.org/).
+In addition to encapsulating native and REST interfaces, taopsy also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
+This makes it easy to integrate taopsy with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) And [pandas](https://pandas.pydata.org/).
 
 The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "native connection" in the following text;
- The method of establishing a connection with the server using the REST interface or WebSocket interface provided by the taosAdapter is referred to as a "REST connection" or "WebSocket connection" in the following text.
+The method of establishing a connection with the server using the REST interface or WebSocket interface provided by the taosAdapter is referred to as a "REST connection" or "WebSocket connection" in the following text.
 
 ## Python Version Compatibility
 
@@ -52,7 +52,6 @@ Supports Python 3.0 and above versions.
 ## Versions History
 
 Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
-
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | :-------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------- |
