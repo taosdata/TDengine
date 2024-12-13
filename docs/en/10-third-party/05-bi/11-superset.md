@@ -10,12 +10,15 @@ Apache Superset provides an intuitive user interface that makes creating, sharin
 Through the Python connector of TDengine, Superset can support TDengine data sources and provide functions such as data presentation and analysis  
 
 ## Install Apache Superset
+
 Ensure that Apache Superset v2.1.0 or above is installed. If not, please visit [official website]（https://superset.apache.org/）to install  
 
 ## Install TDengine
+
 Both TDengine Enterprise Edition and Community Edition are supported, with version requirements of 3.0 or higher  
 
 ## Install TDengine Python Connector
+
 The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.17 and later, which will be automatically installed in the Superset directory and provide data source services  
 The connection uses the WebSocket protocol, so it is necessary to install the taos ws py component of TDengine separately. The complete installation script is as follows:  
 ```bash
@@ -24,6 +27,7 @@ pip3 install taos-ws-py
 ```
 
 ## Configure TDengine Connection In Superset
+
 Step 1, enter the new database connection page  
 Superset -> Setting-> Database Connections -> +DATABASE   
 Step 2, select TDengine database connection  
@@ -49,6 +53,7 @@ Step 5, configure the connection string, click "TEST CONNECTION" to test if the 
        
 
 ## Start
+
 There is no difference in the use of TDengine data source compared to other data sources. Here is a brief introduction to basic data queries:  
 1. Click the "+" button in the upper right corner of the Superset interface, select SQL query, and enter the query interface  
 2. Select the TDengine data source that has been created earlier from the dropdown list in the upper left corner  
@@ -58,6 +63,7 @@ There is no difference in the use of TDengine data source compared to other data
 6. In the SQL editor area, any SQL statement that conforms to TDengine syntax can be entered for execution  
 
 ## Example
+
 We chose two popular templates from the Superset Chart template to showcase their effects, using smart meter data as an example:  
 
 The first type is Aggregate, which displays the maximum voltage value collected per minute during the specified time period in Group 4  
