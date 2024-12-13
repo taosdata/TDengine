@@ -2,11 +2,18 @@
 
 1. [Introduction](#Introduction)
 2. [Documentation](#Documentation)
-3. [Building](#Building)
-4. [Packaging](#Packaging)
-5. [Contributing](#Contributing)
+3. [Prerequisites](#Prerequisites)
+4. [Building](#Building)
+5. [Packaging](#Packaging)
+6. [Installation](#Installation)
+7. [Running](#Running)
+8. [Testing](#Testing)
+9. [Releasing](#Releasing)
+10. [CI/CD](#CI/CD)
+11. [Coverage](#Coverage)
+12. [Contributing](#Contributing)
 
-# Introduction
+# 1. Introduction
 
 TDengine Enterprise includes all features of TDengine OSS and further helps industrial customers.
 
@@ -17,17 +24,11 @@ TDengine Enterprise includes all features of TDengine OSS and further helps indu
 
 For a full list of TDengine competitive advantages, please [check here](https://tdengine.com/enterprise/). The easiest way to experience TDengine is through [TDengine Cloud](https://cloud.tdengine.com). 
 
-# Documentation
+# 2. Documentation
 
-For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com)).
+For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com/next) ([TDengine 文档](https://docs.taosdata.com/next)).
 
-# Building
-
-At the moment, TDengine server supports running on Linux/Windows/macOS systems. Any application can also choose the WebSocket interface provided by taosAdapter to connect the taosd service . TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
-
-You can choose to install through source code or [installation package](http://192.168.1.252:5000/). This quick guide only applies to installing from source.
-
-## Prerequisites
+## 3. Prerequisites
 
 List the software and tools required to work on the project.
 
@@ -39,13 +40,13 @@ List the software and tools required to work on the project.
 
 Step-by-step instructions to set up the prerequisites software.
 
-### Install the required package
+### 3.1 Install the required package
 
 ```bash
 apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping 
 ```
 
-### Install Go
+### 3.2 Install Go
 
 Update the installation package to version 1.23.3.
 ```bash
@@ -78,7 +79,7 @@ go env
 go version
 ```
 
-### Install Cargo
+### 3.3 Install Cargo
 
 Better start it from [rustup](https://rustup.rs/)(the installer for Rust).
 ```bash
@@ -134,7 +135,7 @@ Install the cargo-make component.
 cargo install cargo-make
 ```
 
-### Install Jdk & maven
+### 3.4 Install Jdk & maven
 
 Install JDK & maven
 
@@ -156,7 +157,7 @@ Then make the environment variables take effect.
 source ~/.bashrc
 ```
 
-### Install node
+### 3.5 Install node
 
 Recommend install node using nvm.
 
@@ -185,7 +186,7 @@ npm config set registry=https://registry.npmmirror.com
 npm install -g yarn
 ```
 
-### Install Python-connector
+### 3.6 Install Python-connector
 
 Install Python3.
 ```bash
@@ -203,7 +204,13 @@ Install the Python connector for TDengine.
 pip3 install taospy taos-ws-py
 ```
 
-## Building the Project
+# 4. Building
+
+At the moment, TDengine server supports running on Linux/Windows/macOS systems. Any application can also choose the WebSocket interface provided by taosAdapter to connect the taosd service . TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
+
+You can choose to install through source code or [installation package](http://192.168.1.252:5000/). This quick guide only applies to installing from source.
+
+## 4.1 Building the Project
 
 Clone TDinternal repository to a local directory (for example, /root).
 ```bash
@@ -236,7 +243,7 @@ Install
 make install
 ```
 
-# Packaging
+# 5. Packaging
 
 Using the following script to package the enterprise edition.
 ```bash
@@ -244,64 +251,83 @@ cd /root/TDinternal/enterprise/packaging
 ./new_ver_release.sh -n <version_number>
 ```
 
-After the packaging is complete, you can see the following files
+After the packaging is complete, you can see the following files.
 ```bash
 ll /root/TDinternal/community/release
 ```
 
-Using the following script to package doc zip if you want to build docs zip
+# 6. Installing
+
 ```bash
-cd /root/TDinternal/enterprise/packaging
-pip3 install GitPython argparse
-python3 build_doc.py -ez -nu 
+tar -xvzf TDengine-enterprise-version-Linux-x64.tar.gz
+cd TDengine-enterprise-version-Linux-x64
+./install.sh
 ```
 
-After the docs packaging is complete, you can see the following files
+# 7. Running
+
 ```bash
-ll /root/TDinternal/enterprise/packaging/docs-zh.zip
-ll /root/TDinternal/enterprise/packaging/docs-en.zip
+cd TDengine-enterprise-version-Linux-x64
+./start-all.sh
+./stop-all.sh
 ```
 
-# Testing
+# 8. Testing
 
-## Run the TSIM test script
+## 8.1 Run the TSIM test script
 
 ```bash
 cd /root/TDinternal/community/tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
 
-## Run the Python test script
+## 8.2 Run the Python test script
 
 ```bash
 cd /root/TDinternal/community/tests/system-test
 python3 ./test.py -f 2-query/floor.py
 ```
 
-## Run unittest
+## 8.3 Run unittest
 
 ```bash
 cd /root/TDinternal/debug
 ctest
 ```
-
-## Continuous Integration
-
-Temporarily unable to work, adjustments are being made.
-
-```bash
-cd /root/TDinternal/community/tests
-./run_all_ci_cases.sh
-```
-
-## Smoke Testing
+## 8.4 Smoke Testing
 
 ```bash
 cd /root/TDinternal/community/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
-# Contributing
+# 9 Releasing
+
+TDengine Enterprise, which can be found on the corporate NAS server:
+
+	NAS Server URL： http://192.168.1.252:5000/
+	Directory: /Release/TDengine/
+All the released versions can be found here.
+
+# 10 CI/CD
+
+We use jenkins for CI/CD workflow configuration. See http://ci.bl.taosdata.com:8080/job/NewTest/view/change-requests/
+We can also run ci script locally.
+```bash
+cd /root/TDinternal/community/tests
+./run_all_ci_cases.sh
+```
+
+# 11 Coverage
+
+We can see coverage result in https://coveralls.io/github/taosdata/TDengine
+We can also run coverage script locally.
+```bash
+cd /root/TDinternal/community/tests
+./run_local_coverage.sh
+```
+
+# 12 Contributing
 
 Guidelines for contributing to the project:
 - Fork the repository
