@@ -186,8 +186,7 @@ class TDTestCase:
             raise Exception(repr(e))
         finally:
             if infoFile:
-                infoFile.flush()
-                # close()
+                infoFile.close()
 
     def s3_check_show_grants_granted(self):
         tdLog.printNoPrefix("======== test show grants granted: ")

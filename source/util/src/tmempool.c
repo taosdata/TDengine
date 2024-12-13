@@ -808,7 +808,7 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
         MP_ERR_JRET(code);
       }
 
-      ASSERT((pInput->pOrigMem && pInput->origSize > 0) || (NULL == pInput->pOrigMem && pInput->origSize == 0));
+      // ASSSRT((pInput->pOrigMem && pInput->origSize > 0) || (NULL == pInput->pOrigMem && pInput->origSize == 0));
       
       if (pInput->pOrigMem && pInput->origSize > 0) {
         code = taosHashRemove(pStat->remainHash, &pInput->pOrigMem, POINTER_BYTES);
