@@ -539,7 +539,7 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
     opts.source = pHead->head.body;
     opts.result = newBody;
     opts.unitLen = 16;
-    TAOS_UNUSED(strncpy((char *)opts.key, cfg->encryptKey, 16));
+    tstrncpy((char *)opts.key, cfg->encryptKey, 16);
 
     int32_t count = CBC_Decrypt(&opts);
 
