@@ -1,6 +1,6 @@
 # Table of Contents
 
-1. [Introduction](#Introduction)
+1. [Introduction](#)
 2. [Documentation](#Documentation)
 3. [Prerequisites](#Prerequisites)
 4. [Building](#Building)
@@ -28,7 +28,7 @@ For a full list of TDengine competitive advantages, please [check here](https://
 
 For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com/next) ([TDengine 文档](https://docs.taosdata.com/next)).
 
-## 3. Prerequisites
+# 3. Prerequisites
 
 List the software and tools required to work on the project.
 
@@ -40,13 +40,13 @@ List the software and tools required to work on the project.
 
 Step-by-step instructions to set up the prerequisites software.
 
-### 3.1 Install the required package
+## 3.1 Install the required package
 
 ```bash
 apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping 
 ```
 
-### 3.2 Install Go
+## 3.2 Install Go
 
 Update the installation package to version 1.23.3.
 ```bash
@@ -79,7 +79,7 @@ go env
 go version
 ```
 
-### 3.3 Install Cargo
+## 3.3 Install Cargo
 
 Better start it from [rustup](https://rustup.rs/)(the installer for Rust).
 ```bash
@@ -135,7 +135,7 @@ Install the cargo-make component.
 cargo install cargo-make
 ```
 
-### 3.4 Install Jdk & maven
+## 3.4 Install Jdk & maven
 
 Install JDK & maven
 
@@ -157,7 +157,7 @@ Then make the environment variables take effect.
 source ~/.bashrc
 ```
 
-### 3.5 Install node
+## 3.5 Install node
 
 Recommend install node using nvm.
 
@@ -186,7 +186,7 @@ npm config set registry=https://registry.npmmirror.com
 npm install -g yarn
 ```
 
-### 3.6 Install Python-connector
+## 3.6 Install Python-connector
 
 Install Python3.
 ```bash
