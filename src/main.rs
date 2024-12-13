@@ -2,7 +2,7 @@ use std::backtrace::Backtrace;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
@@ -789,6 +789,16 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     tracing::info!("{}", s);
 }
 
+fn is_root_directory<P: AsRef<Path>>(path: P) -> bool {
+    let path = path.as_ref();
+    if cfg!(target_os = "windows") {
+        // Windows root directory check
+        path.parent().is_none() && path.is_absolute()
+    } else {
+        // Unix-like root directory check
+        path == Path::new("/")
+    }
+}
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let version = build::PKG_VERSION;
@@ -880,26 +890,26 @@ fn main() -> Result<()> {
     let config_file = get_effective_config_path(&args);
     let mut _notify_watcher = None;
     if let Some(handle) = handle {
-        let mut watcher = notify::recommended_watcher({
-            let config_file = config_file.clone();
-            move |event: notify::Result<notify::Event>| {
-                let event = match event {
-                    Ok(event) => event,
-                    Err(e) => {
-                        tracing::error!("notify event error: {e}");
-                        return;
-                    }
-                };
-                log_level_reload(event, &config_file, &handle, tracing_level_filter);
-            }
-        })?;
-        watcher
-            .watch(
-                config_file.parent().context("get config dir error")?,
-                notify::RecursiveMode::NonRecursive,
-            )
-            .context("start watch config file error")?;
-        _notify_watcher = Some(watcher);
+        let parent = config_file.parent().context("get config dir error")?;
+        if config_file.exists() && is_root_directory(parent) {
+            let mut watcher = notify::recommended_watcher({
+                let config_file = config_file.clone();
+                move |event: notify::Result<notify::Event>| {
+                    let event = match event {
+                        Ok(event) => event,
+                        Err(e) => {
+                            tracing::error!("notify event error: {e}");
+                            return;
+                        }
+                    };
+                    log_level_reload(event, &config_file, &handle, tracing_level_filter);
+                }
+            })?;
+            watcher
+                .watch(parent, notify::RecursiveMode::NonRecursive)
+                .context("start watch config file error")?;
+            _notify_watcher = Some(watcher);
+        }
     }
     tracing::info!(
         "listen on config file {} data change",
@@ -1176,5 +1186,18 @@ mod tests {
             matches.get_one("log.reservedDiskSize"),
             Some(&"3GB".to_string())
         )
+    }
+    #[test]
+    fn is_root() {
+        let paths = ["/", "/home", "C:\\", "C:\\Users", "D:\\", "D:\\Documents"];
+
+        for path in &paths {
+            let path_obj = Path::new(path);
+            if is_root_directory(path_obj) {
+                println!("{:?} is a root directory", path_obj);
+            } else {
+                println!("{:?} is not a root directory", path_obj);
+            }
+        }
     }
 }
