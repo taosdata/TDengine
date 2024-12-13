@@ -28,6 +28,8 @@
 #include "tlog.h"
 #include "ttime.h"
 
+#define STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME      "StreamIntervalNonblockHistoryState"
+
 // static int32_t buildWinResultKey(SRowBuffPos* pPos, SSHashObj* pUpdatedMap, SSHashObj* pResultCache, bool savePos) {
 //   int32_t      code = TSDB_CODE_SUCCESS;
 //   int32_t      lino = 0;
@@ -51,6 +53,51 @@
 //   }
 //   return code;
 // }
+
+void streamIntervalNonblockReleaseState(SOperatorInfo* pOperator) {
+  SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
+  SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
+  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
+  pAggSup->stateStore.streamStateCommit(pAggSup->pState);
+  int32_t resSize = sizeof(TSKEY);
+  pAggSup->stateStore.streamStateSaveInfo(pAggSup->pState, STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME,
+                                          strlen(STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME), &pInfo->twAggSup.maxTs,
+                                          resSize);
+  pAggSup->stateStore.streamStateCommit(pAggSup->pState);
+
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->fpSet.releaseStreamStateFn) {
+    downstream->fpSet.releaseStreamStateFn(downstream);
+  }
+}
+
+void streamIntervalNonblockReloadState(SOperatorInfo* pOperator) {
+  int32_t                           code = TSDB_CODE_SUCCESS;
+  int32_t                           lino = 0;
+  SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
+  SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
+  SExecTaskInfo*                    pTaskInfo = pOperator->pTaskInfo;
+  int32_t                           size = 0;
+  void*                             pBuf = NULL;
+  code = pAggSup->stateStore.streamStateGetInfo(pAggSup->pState, STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME,
+                                                strlen(STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME), &pBuf, &size);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  TSKEY ts = *(TSKEY*)pBuf;
+  taosMemoryFreeClear(pBuf);
+  pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
+  pAggSup->stateStore.streamStateReloadInfo(pAggSup->pState, ts);
+
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->fpSet.reloadStreamStateFn) {
+    downstream->fpSet.reloadStreamStateFn(downstream);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+}
 
 static int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock, SArray* pUpdated) {
   int32_t                           code = TSDB_CODE_SUCCESS;
@@ -146,6 +193,62 @@ _end:
   return code;
 }
 
+int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, SArray* pUpdated, int32_t capacity) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (pAggSup->historyResutFlag) {
+    goto _end;
+  }
+
+  if (pAggSup->pCur == NULL) {
+    pAggSup->pCur = pAggSup->stateStore.streamStateGetLastStateCur(pAggSup->pState);
+  }
+  int32_t num = capacity - taosArrayGetSize(pUpdated);
+  void*   pPos = NULL;
+  for (int32_t i = 0; i < num; i++) {
+    int32_t winCode = pAggSup->stateStore.streamStateLastStateGetKVByCur(pAggSup->pCur, &pPos);
+    if (winCode == TSDB_CODE_FAILED) {
+      pAggSup->stateStore.streamStateFreeCur(pAggSup->pCur);
+      pAggSup->pCur = NULL;
+      pAggSup->historyResutFlag = true;
+      break;
+    }
+    void* tmpPtr = taosArrayPush(pUpdated, &pPos);
+    QUERY_CHECK_NULL(tmpPtr, code, lino, _end, terrno);
+
+    pAggSup->stateStore.streamStateLastStateCurNext(pAggSup->pCur);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s.", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t buildIntervalHistoryResult(SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
+  SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
+  code = getHistoryRemainResultInfo(pAggSup, pInfo->pUpdated, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (taosArrayGetSize(pInfo->pUpdated) > 0) {
+    taosArraySort(pInfo->pUpdated, winPosCmprImpl);
+    initMultiResInfoFromArrayList(&pInfo->groupResInfo, pInfo->pUpdated);
+    pInfo->pUpdated = taosArrayInit(1024, POINTER_BYTES);
+    QUERY_CHECK_NULL(pInfo->pUpdated, code, lino, _end, terrno);
+
+    doBuildStreamIntervalResult(pOperator, pInfo->streamAggSup.pState, pInfo->binfo.pRes, &pInfo->groupResInfo);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s.", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                           code = TSDB_CODE_SUCCESS;
   int32_t                           lino = 0;
@@ -170,6 +273,16 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {
+    if (isFillHistoryOperator(&pInfo->basic)) {
+      code = buildIntervalHistoryResult(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pInfo->binfo.pRes->info.rows != 0) {
+        printDataBlock(pInfo->binfo.pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+        (*ppRes) = pInfo->binfo.pRes;
+        return code;
+      }
+    }
+
     if (pInfo->recvCkBlock) {
       pInfo->recvCkBlock = false;
       printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
@@ -242,13 +355,17 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     if (code == TSDB_CODE_STREAM_INTERNAL_ERROR) {
       pOperator->status = OP_RES_TO_RETURN;
       code = TSDB_CODE_SUCCESS;
-      break;
     }
     QUERY_CHECK_CODE(code, lino, _end);
+    pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
 
     if (taosArrayGetSize(pInfo->pUpdated) > 0) {
       break;
     }
+  }
+
+  if (pOperator->status == OP_RES_TO_RETURN && isFillHistoryOperator(&pInfo->basic)) {
+    getHistoryRemainResultInfo(pAggSup, pInfo->pUpdated, pOperator->resultInfo.capacity);
   }
 
   taosArraySort(pInfo->pUpdated, winPosCmprImpl);

@@ -416,6 +416,8 @@ typedef struct SStreamAggSupporter {
   struct SUpdateInfo* pUpdateInfo;
   int32_t             windowCount;
   int32_t             windowSliding;
+  SStreamStateCur*    pCur;
+  bool                historyResutFlag;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
@@ -452,6 +454,7 @@ typedef struct STimeWindowAggSupp {
 typedef struct SSteamOpBasicInfo {
   int32_t primaryPkIndex;
   bool    updateOperatorInfo;
+  bool    isFillHistoryOperator;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {

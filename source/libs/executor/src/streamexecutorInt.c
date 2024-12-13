@@ -32,4 +32,13 @@ void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo) {
 void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
   pBasicInfo->primaryPkIndex = -1;
   pBasicInfo->updateOperatorInfo = false;
+  pBasicInfo->isFillHistoryOperator = false;
+}
+
+void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  pBasicInfo->isFillHistoryOperator = true;
+}
+
+bool isFillHistoryOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return pBasicInfo->isFillHistoryOperator;
 }

@@ -4735,9 +4735,14 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && pTableScanNode->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
     nextFn = doStreamDataScanNext;
   }
+
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, nextFn, NULL, destroyStreamScanOperatorInfo, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
-  setOperatorStreamStateFn(pOperator, streamScanReleaseState, streamScanReloadState);
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && pTableScanNode->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    setOperatorStreamStateFn(pOperator, streamDataScanReleaseState, streamDataScanReloadState);
+  } else {
+    setOperatorStreamStateFn(pOperator, streamScanReleaseState, streamScanReloadState);
+  }
 
   *pOptrInfo = pOperator;
   return code;

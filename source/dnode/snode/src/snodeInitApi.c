@@ -118,6 +118,11 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateInitTsDataState = streamStateInitTsDataState;
   pStore->streamStateDestroyTsDataState = streamStateDestroyTsDataState;
   pStore->streamStateRecoverTsData = streamStateRecoverTsData;
+  pStore->streamStateReloadTsDataState = streamStateReloadTsDataState;
+
+  pStore->streamStateGetLastStateCur = streamStateGetLastStateCur;
+  pStore->streamStateLastStateCurNext = streamStateLastStateCurNext;
+  pStore->streamStateLastStateGetKVByCur = streamStateLastStateGetKVByCur;
 
   pStore->streamStateOpen = streamStateOpen;
   pStore->streamStateClose = streamStateClose;

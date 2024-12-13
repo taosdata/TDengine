@@ -37,12 +37,34 @@
 #include "storageapi.h"
 #include "wal.h"
 
+static int32_t getMaxTsKeyInfo(SStreamScanInfo* pInfo, SSDataBlock* pBlock, TSKEY* pCurTs, void** ppPkVal,
+                               int32_t* pWinCode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   pLastPkVal = NULL;
+  int32_t lastPkLen = 0;
+  if (hasPrimaryKeyCol(pInfo)) {
+    SColumnInfoData* pPkColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryKeyIndex);
+    pLastPkVal = colDataGetData(pPkColDataInfo, pBlock->info.rows - 1);
+    lastPkLen = colDataGetRowLength(pPkColDataInfo, pBlock->info.rows - 1);
+  }
+
+  code = pInfo->stateStore.streamStateGetAndSetTsData(&pInfo->tsDataState, pBlock->info.id.uid, pCurTs, ppPkVal,
+                                                      pBlock->info.window.ekey, pLastPkVal, lastPkLen, pWinCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
-  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
@@ -62,7 +84,7 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     SSDataBlock* pBlock = pPacked->pDataBlock;
     if (pBlock->info.parTbName[0]) {
       code =
-          pAPI->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
+          pInfo->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -201,17 +223,7 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       TSKEY   curTs = INT64_MIN;
       void*   pPkVal = NULL;
       int32_t winCode = TSDB_CODE_FAILED;
-      void*   pLastPkVal = NULL;
-      int32_t lastPkLen = 0;
-      if (hasPrimaryKeyCol(pInfo)) {
-        SColumnInfoData* pPkColDataInfo = taosArrayGet(pInfo->pRes->pDataBlock, pInfo->primaryKeyIndex);
-        pLastPkVal = colDataGetData(pPkColDataInfo, pInfo->pRes->info.rows - 1);
-        lastPkLen = colDataGetRowLength(pPkColDataInfo, pInfo->pRes->info.rows - 1);
-      }
-
-      code =
-          pAPI->stateStore.streamStateGetAndSetTsData(&pInfo->tsDataState, pInfo->pRes->info.id.uid, &curTs, &pPkVal,
-                                                      pInfo->pRes->info.window.ekey, pLastPkVal, lastPkLen, &winCode);
+      code = getMaxTsKeyInfo(pInfo, pInfo->pRes, &curTs, &pPkVal, &winCode);
       QUERY_CHECK_CODE(code, lino, _end);
 
       SColumnInfoData* pTsCol = taosArrayGet(pInfo->pRes->pDataBlock, pInfo->primaryTsIndex);
@@ -225,10 +237,14 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         }
 
         if (num > 0) {
+          qInfo("%s stream scan op ignore disorder data. rows:%d, tableUid:%" PRId64 ", last max ts:%" PRId64
+                ", block start key:%" PRId64 ", end key:%" PRId64,
+                GET_TASKID(pTaskInfo), num, pInfo->pRes->info.id.uid, curTs, pInfo->pRes->info.window.skey,
+                pInfo->pRes->info.window.ekey);
           code = blockDataTrimFirstRows(pInfo->pRes, num);
           QUERY_CHECK_CODE(code, lino, _end);
-          qInfo("%s stream scan op trim first rows:%d.tableUid:%" PRId64 ", curTs:%" PRId64 ", block start key:%" PRId64 ", end key:%" PRId64,
-                GET_TASKID(pTaskInfo), num, pInfo->pRes->info.id.uid, curTs, pInfo->pRes->info.window.skey, pInfo->pRes->info.window.ekey);
+          code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
 
@@ -326,19 +342,31 @@ int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
-      (*ppRes) = pInfo->pRes;
+      (*ppRes) = pInfo->pRecoverRes;
       return code;
     }
 
-    code = doTableScanNext(pInfo->pTableScanOp, &pInfo->pRes);
-    QUERY_CHECK_CODE(code, lino, _end);
+    while (1) {
+      code = doTableScanNext(pInfo->pTableScanOp, &pInfo->pRecoverRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pInfo->pRecoverRes == NULL) {
+        break;
+      }
+      setStreamOperatorState(&pInfo->basic, pInfo->pRecoverRes->info.type);
+      code = doFilter(pInfo->pRecoverRes, pOperator->exprSupp.pFilterInfo, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
 
-    setStreamOperatorState(&pInfo->basic, pInfo->pRes->info.type);
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
-    QUERY_CHECK_CODE(code, lino, _end);
+      if (pInfo->pRecoverRes->info.rows <= 0) {
+        continue;
+      }
 
-    if (pInfo->pRes->info.rows > 0) {
-      code = calBlockTbName(pInfo, pInfo->pRes, 0);
+      TSKEY   curTs = INT64_MIN;
+      void*   pPkVal = NULL;
+      int32_t winCode = TSDB_CODE_FAILED;
+      code = getMaxTsKeyInfo(pInfo, pInfo->pRecoverRes, &curTs, &pPkVal, &winCode);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      code = calBlockTbName(pInfo, pInfo->pRecoverRes, 0);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (pInfo->pCreateTbRes->info.rows > 0) {
@@ -349,9 +377,10 @@ int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         return code;
       }
 
-      qDebug("stream recover scan get block, rows %" PRId64, pInfo->pRes->info.rows);
-      printSpecDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), "recover", GET_TASKID(pTaskInfo));
-      (*ppRes) = pInfo->pRes;
+      qDebug("stream recover scan get block, rows %" PRId64, pInfo->pRecoverRes->info.rows);
+      printSpecDataBlock(pInfo->pRecoverRes, getStreamOpName(pOperator->operatorType), "recover",
+                         GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->pRecoverRes;
       return code;
     }
     pStreamInfo->recoverStep = STREAM_RECOVER_STEP__NONE;
@@ -412,4 +441,22 @@ _end:
     (*ppRes) = NULL;
   }
   return code;
+}
+
+void streamDataScanReleaseState(SOperatorInfo* pOperator) {
+  SStreamScanInfo* pInfo = pOperator->info;
+  pInfo->stateStore.streamStateTsDataCommit(&pInfo->tsDataState);
+}
+
+void streamDataScanReloadState(SOperatorInfo* pOperator) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SStreamScanInfo* pInfo = pOperator->info;
+  code = pInfo->stateStore.streamStateReloadTsDataState(&pInfo->tsDataState);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
 }

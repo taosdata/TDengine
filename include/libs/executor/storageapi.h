@@ -349,7 +349,7 @@ typedef struct SStateStore {
   int32_t (*streamStateDeleteParName)(SStreamState* pState, int64_t groupId);
   void (*streamStateSetParNameInvalid)(SStreamState* pState);
 
-  int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+  int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                                       int32_t* pWinCode);
   void (*streamStateReleaseBuf)(SStreamState* pState, void* pVal, bool used);
   void (*streamStateClearBuff)(SStreamState* pState, void* pVal);
@@ -466,6 +466,11 @@ typedef struct SStateStore {
   int32_t (*streamStateInitTsDataState)(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
   void (*streamStateDestroyTsDataState)(STableTsDataState* pTsDataState);
   int32_t (*streamStateRecoverTsData)(STableTsDataState* pTsDataState);
+  int32_t (*streamStateReloadTsDataState)(STableTsDataState* pTsDataState);
+
+  SStreamStateCur* (*streamStateGetLastStateCur)(SStreamState* pState);
+  void (*streamStateLastStateCurNext)(SStreamStateCur* pCur);
+  int32_t (*streamStateLastStateGetKVByCur)(SStreamStateCur* pCur, void** pVal);
 } SStateStore;
 
 typedef struct SStorageAPI {

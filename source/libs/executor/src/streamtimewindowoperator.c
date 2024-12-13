@@ -2268,6 +2268,9 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
     pExpSup->pCtx[i].saveHandle.pState = pSup->pState;
   }
 
+  pSup->pCur = NULL;
+  pSup->historyResutFlag = false;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

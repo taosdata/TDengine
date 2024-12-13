@@ -70,6 +70,8 @@ void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
 void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
+void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
+bool isFillHistoryOperator(SSteamOpBasicInfo* pBasicInfo);
 
 int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption);
 void    removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins);
@@ -131,6 +133,8 @@ void doStreamSliceInterpolation(SSliceRowData* pPrevWinVal, TSKEY winKey, TSKEY 
                                 int32_t curRowIndex, SExprSupp* pSup, SIntervalSliceType type, int32_t* pOffsetInfo);
 void setInterpoWindowFinished(SInervalSlicePoint* pPoint);
 int32_t doStreamIntervalNonblockAggNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
+void streamIntervalNonblockReleaseState(struct SOperatorInfo* pOperator);
+void streamIntervalNonblockReloadState(struct SOperatorInfo* pOperator);
 
 int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo);
 int32_t setBlockGroupIdByUid(struct SStreamScanInfo* pInfo, SSDataBlock* pBlock);
@@ -142,6 +146,8 @@ int32_t calBlockTbName(struct SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
 void streamScanOperatorSaveCheckpoint(struct SStreamScanInfo* pInfo);
 int32_t doStreamDataScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
 bool hasPrimaryKeyCol(SStreamScanInfo* pInfo);
+void streamDataScanReleaseState(struct SOperatorInfo* pOperator);
+void streamDataScanReloadState(struct SOperatorInfo* pOperator);
 
 #ifdef __cplusplus
 }

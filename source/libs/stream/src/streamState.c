@@ -290,7 +290,7 @@ int32_t streamStateCreate(SStreamState* pState, const SWinKey* key, void** pVal,
   return createRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen);
 }
 
-int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                                  int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -299,18 +299,25 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
   SSHashObj* pSearchBuff = getSearchBuff(pState->pFileState);
   if (pSearchBuff != NULL) {
     SArray* pWinStates = NULL;
-    code = addArrayBuffIfNotExist(pSearchBuff, key->groupId, &pWinStates);
+    code = addArrayBuffIfNotExist(pSearchBuff, pKey->groupId, &pWinStates);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = addSearchItem(pState->pFileState, pWinStates, key, &isEnd);
+
+    // recover
+    if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pState->pFileState)) {
+      code = recoverHashSortBuff(pState->pFileState, pWinStates, pKey->groupId);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    code = addSearchItem(pState->pFileState, pWinStates, pKey, &isEnd);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   if (isEnd) {
-    code = streamStateCreate(pState, key, pVal, pVLen);
+    code = streamStateCreate(pState, pKey, pVal, pVLen);
     QUERY_CHECK_CODE(code, lino, _end);
     (*pWinCode) = TSDB_CODE_FAILED;
   } else {
-    code = streamStateGet(pState, key, pVal, pVLen, pWinCode);
+    code = streamStateGet(pState, pKey, pVal, pVLen, pWinCode);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -679,4 +686,20 @@ void streamStateDestroyTsDataState(STableTsDataState* pTsDataState) {
 
 int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState) {
   return recoverTsData(pTsDataState);
+}
+
+SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState) {
+  return getLastStateCur(pState->pFileState);
+}
+
+void streamStateLastStateCurNext(SStreamStateCur* pCur) {
+  moveLasstStateCurNext(pCur);
+}
+
+int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** pVal){
+  return getLastStateKVByCur(pCur, pVal);
+}
+
+int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) {
+  return reloadTsDataState(pTsDataState);
 }

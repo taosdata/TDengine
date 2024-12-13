@@ -86,7 +86,7 @@ int32_t streamStateFillGetNext(SStreamState* pState, const SWinKey* pKey, SWinKe
 int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                                int32_t* pWinCode);
 
-int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                                  int32_t* pWinCode);
 void    streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used);
 void    streamStateClearBuff(SStreamState* pState, void* pVal);
@@ -132,6 +132,12 @@ int32_t streamStateTsDataCommit(STableTsDataState* pState);
 int32_t streamStateInitTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
 void    streamStateDestroyTsDataState(STableTsDataState* pTsDataState);
 int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState);
+int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState);
+
+// continuous
+SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState);
+void streamStateLastStateCurNext(SStreamStateCur* pCur);
+int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** pVal);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
 
