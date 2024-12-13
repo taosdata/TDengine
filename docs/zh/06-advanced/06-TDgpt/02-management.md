@@ -63,7 +63,7 @@ pidfile = /usr/local/taos/taosanode/taosanode.pid
 # conflict with systemctl, so do NOT uncomment this
 # daemonize = /var/log/taos/taosanode/taosanode.log
 
-# log directory
+# uWSGI log files
 logto = /var/log/taos/taosanode/taosanode.log
 
 # wWSGI monitor port
@@ -73,7 +73,7 @@ stats = 127.0.0.1:8387
 virtualenv = /usr/local/taos/taosanode/venv/
 
 [taosanode]
-# default app log file
+# default taosanode log file
 app-log = /var/log/taos/taosanode/taosanode.app.log
 
 # model storage directory
