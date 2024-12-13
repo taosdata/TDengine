@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <tlog.h>
+#include "nodes.h"
 #include "os.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -4551,6 +4552,29 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SRewriteGetInOperContext {
+  bool hasInOper;
+} SRewriteGetInOperContext;
+
+static EDealRes rewriteInOperForTimerange(SNode **ppNode, void *pContext) {
+  SRewriteGetInOperContext *pCxt = pContext;
+  if (nodeType(*ppNode) == QUERY_NODE_OPERATOR && ((SOperatorNode *)(*ppNode))->opType == OP_TYPE_BIT_OR) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (nodeType(*ppNode) == QUERY_NODE_OPERATOR && ((SOperatorNode *)(*ppNode))->opType == OP_TYPE_IN) {
+    pCxt->hasInOper = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+bool hasAndTypeInOperator(SNode *pNode) {
+  SRewriteGetInOperContext cxt = {.hasInOper = false};
+  nodesRewriteExpr(&pNode, rewriteInOperForTimerange, &cxt);
+
+  return cxt.hasInOper;
+}
+
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
@@ -4581,8 +4605,11 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
         FLT_ERR_JRET(fltSclGetTimeStampDatum(endPt, &end));
         win->skey = start.i;
         win->ekey = end.i;
-        if(optNode->opType == OP_TYPE_IN) *isStrict = false;
-        else *isStrict = true;
+        if (optNode->opType == OP_TYPE_IN || hasAndTypeInOperator(info->sclCtx.node)) {
+          *isStrict = false;
+        } else {
+          *isStrict = true;
+        }
         goto _return;
       } else if (taosArrayGetSize(points) == 0) {
         *win = TSWINDOW_DESC_INITIALIZER;
@@ -5105,6 +5132,9 @@ int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
       taosArrayDestroy(colRange->points);
       taosArrayDestroy(points);
       colRange->points = merged;
+      if(merged->size == 0) {
+        break;
+      }
     } else {
       taosArrayDestroy(colRange->points);
       colRange->points = points;
