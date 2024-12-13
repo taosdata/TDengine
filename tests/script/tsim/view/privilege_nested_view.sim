@@ -1,3 +1,4 @@
+## \brief Test view nested privilege
 sql connect
 sql use testa;
 

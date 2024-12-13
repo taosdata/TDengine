@@ -1,3 +1,4 @@
+## \brief Test insert into table use view data
 sql connect
 sql use testa;
 

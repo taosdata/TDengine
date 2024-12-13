@@ -1,0 +1,18 @@
+::: script/tsim/view/create_drop_view.sim
+    handler: shell
+::: script/tsim/view/insert_view.sim
+    handler: shell
+::: script/tsim/view/privilege_basic_view.sim
+    handler: shell
+::: script/tsim/view/privilege_nested_view.sim
+    handler: shell
+::: script/tsim/view/query_view.sim
+    handler: shell
+::: script/tsim/view/same_name_tb_view.sim
+    handler: shell
+::: script/tsim/view/show_desc_view.sim
+    handler: shell
+::: script/tsim/view/stream_view.sim
+    handler: shell
+::: script/tsim/view/view.sim
+    handler: shell

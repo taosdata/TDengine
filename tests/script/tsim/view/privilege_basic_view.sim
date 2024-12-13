@@ -1,3 +1,4 @@
+## \brief Test view privilege
 sql connect
 sql use testa;
 
