@@ -1021,6 +1021,7 @@ static int32_t metaCheckUpdateTableTagValReq(SMeta *pMeta, int64_t version, SVAl
     code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
     TAOS_RETURN(code);
   }
+  tdbFreeClear(value);
 
   TAOS_RETURN(code);
 }
