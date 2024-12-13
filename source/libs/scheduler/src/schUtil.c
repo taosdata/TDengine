@@ -22,7 +22,7 @@
 #include "tref.h"
 #include "trpc.h"
 
-FORCE_INLINE int32_t schAcquireJob(int64_t refId, SSchJob** ppJob) {
+FORCE_INLINE int32_t schAcquireJob(int64_t refId, SSchJob **ppJob) {
   qDebug("sch acquire jobId:0x%" PRIx64, refId);
   *ppJob = (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId);
   if (NULL == *ppJob) {
@@ -41,7 +41,7 @@ FORCE_INLINE int32_t schReleaseJob(int64_t refId) {
   return taosReleaseRef(schMgmt.jobRef, refId);
 }
 
-FORCE_INLINE int32_t schReleaseJobEx(int64_t refId, int32_t* released) {
+FORCE_INLINE int32_t schReleaseJobEx(int64_t refId, int32_t *released) {
   if (0 == refId) {
     return TSDB_CODE_SUCCESS;
   }
@@ -50,7 +50,7 @@ FORCE_INLINE int32_t schReleaseJobEx(int64_t refId, int32_t* released) {
   return taosReleaseRefEx(schMgmt.jobRef, refId, released);
 }
 
-int32_t schDumpEpSet(SEpSet *pEpSet, char** ppRes) {
+int32_t schDumpEpSet(SEpSet *pEpSet, char **ppRes) {
   *ppRes = NULL;
   if (NULL == pEpSet) {
     return TSDB_CODE_SUCCESS;
@@ -89,7 +89,7 @@ char *schGetOpStr(SCH_OP_TYPE type) {
 }
 
 void schFreeHbTrans(SSchHbTrans *pTrans) {
-  (void)rpcReleaseHandle((void *)pTrans->trans.pHandleId, TAOS_CONN_CLIENT);
+  (void)rpcReleaseHandle((void *)pTrans->trans.pHandleId, TAOS_CONN_CLIENT, 0);
 
   schFreeRpcCtx(&pTrans->rpcCtx);
 }
@@ -202,11 +202,12 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
 
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   if (NULL == addr) {
-    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx,
+                  (int32_t)taosArrayGetSize(pTask->candidateAddrs));
     return;
   }
 
-  SQueryNodeEpId  epId = {0};
+  SQueryNodeEpId epId = {0};
 
   epId.nodeId = addr->nodeId;
 
@@ -240,11 +241,12 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
 
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   if (NULL == addr) {
-    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx,
+                  (int32_t)taosArrayGetSize(pTask->candidateAddrs));
     return TSDB_CODE_SCH_INTERNAL_ERROR;
   }
 
-  SQueryNodeEpId  epId = {0};
+  SQueryNodeEpId epId = {0};
 
   epId.nodeId = addr->nodeId;
 
@@ -276,8 +278,8 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
   SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
 
-  qDebug("hb connection updated, sId:0x%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
-         epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->pTrans, trans->pHandle);
+  qDebug("hb connection updated, nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", epId->nodeId, epId->ep.fqdn,
+         epId->ep.port, trans->pTrans, trans->pHandle);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -323,7 +325,8 @@ uint64_t schGenUUID(void) {
   uint64_t pid = taosGetPId();
   int32_t  val = atomic_add_fetch_32(&requestSerialId, 1);
 
-  uint64_t id = ((uint64_t)((hashId & 0x0FFF)) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
+  uint64_t id =
+      ((uint64_t)((hashId & 0x0FFF)) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
   return id;
 }
 #endif
@@ -373,17 +376,17 @@ void schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) 
   *pTask = *task;
 }
 
-int32_t schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int32_t idx, int32_t taskNum) {
+int32_t schValidateSubplan(SSchJob *pJob, SSubplan *pSubplan, int32_t level, int32_t idx, int32_t taskNum) {
   if (NULL == pSubplan) {
     SCH_JOB_ELOG("fail to get the %dth subplan, taskNum: %d, level: %d", idx, taskNum, level);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  
+
   if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pSubplan)) {
     SCH_JOB_ELOG("invalid subplan type, level:%d, subplanNodeType:%d", level, nodeType(pSubplan));
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  
+
   if (pSubplan->subplanType < SUBPLAN_TYPE_MERGE || pSubplan->subplanType > SUBPLAN_TYPE_COMPUTE) {
     SCH_JOB_ELOG("invalid subplanType %d, level:%d, subplan idx:%d", pSubplan->subplanType, level, idx);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -396,15 +399,17 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int
 
   if (SCH_IS_DATA_BIND_PLAN(pSubplan)) {
     if (pSubplan->execNode.epSet.numOfEps <= 0) {
-      SCH_JOB_ELOG("no execNode specifed for data src plan %d, numOfEps:%d", pSubplan->subplanType, pSubplan->execNode.epSet.numOfEps);
+      SCH_JOB_ELOG("no execNode specifed for data src plan %d, numOfEps:%d", pSubplan->subplanType,
+                   pSubplan->execNode.epSet.numOfEps);
       SCH_ERR_RET(TSDB_CODE_SCH_DATA_SRC_EP_MISS);
     }
     if (pSubplan->execNode.epSet.inUse >= pSubplan->execNode.epSet.numOfEps) {
-      SCH_JOB_ELOG("invalid epset inUse %d for data src plan %d, numOfEps:%d", pSubplan->execNode.epSet.inUse, pSubplan->subplanType, pSubplan->execNode.epSet.numOfEps);
+      SCH_JOB_ELOG("invalid epset inUse %d for data src plan %d, numOfEps:%d", pSubplan->execNode.epSet.inUse,
+                   pSubplan->subplanType, pSubplan->execNode.epSet.numOfEps);
       SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
     }
   }
-  
+
   if (NULL == pSubplan->pNode && pSubplan->subplanType != SUBPLAN_TYPE_MODIFY) {
     SCH_JOB_ELOG("empty plan root node, level:%d, subplan idx:%d, subplanType:%d", level, idx, pSubplan->subplanType);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -418,4 +423,23 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int
   return TSDB_CODE_SUCCESS;
 }
 
+void schStopTaskDelayTimer(SSchJob *pJob, SSchTask *pTask, bool syncOp) {
+  SCH_TASK_DLOG("try to stop task delayTimer %" PRIuPTR, (uintptr_t)pTask->delayTimer);
+  tmr_h delayTimer = pTask->delayTimer;
 
+  atomic_store_8(&pTask->delayLaunchPar.exit, 1);
+  
+  if (!taosTmrStopA(&pTask->delayTimer)) {
+    SCH_TASK_DLOG("task delayTimer %" PRIuPTR " not stopped", (uintptr_t)delayTimer);
+
+    if (syncOp) {
+      while (!taosTmrIsStopped(&delayTimer)) {
+        taosMsleep(1);
+      }
+
+      SCH_TASK_DLOG("task delayTimer %" PRIuPTR " is stopped", (uintptr_t)delayTimer);
+    } else {
+      SCH_TASK_WLOG("stop task delayTimer %" PRIuPTR " failed, may stopped, status:%d", (uintptr_t)delayTimer, pTask->status);
+    }
+  }
+}

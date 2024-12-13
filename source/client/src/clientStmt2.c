@@ -275,7 +275,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
   STableDataCxt** pSrc =
       (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (NULL == pSrc || NULL == *pSrc) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   STableDataCxt* pTableCtx = *pSrc;
@@ -295,7 +295,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
   if (NULL == pStmt->sql.pBindInfo) {
     pStmt->sql.pBindInfo = taosMemoryMalloc(pTableCtx->boundColsInfo.numOfBound * sizeof(*pStmt->sql.pBindInfo));
     if (NULL == pStmt->sql.pBindInfo) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -540,7 +540,7 @@ static int32_t stmtGetFromCache(STscStmt2* pStmt) {
 
       if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock,
                       POINTER_BYTES)) {
-        STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        STMT_ERR_RET(terrno);
       }
 
       pStmt->exec.pCurrBlock = pNewBlock;
@@ -630,7 +630,7 @@ static int32_t stmtGetFromCache(STscStmt2* pStmt) {
 
     if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock,
                     POINTER_BYTES)) {
-      STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      STMT_ERR_RET(terrno);
     }
 
     pStmt->exec.pCurrBlock = pNewBlock;
@@ -766,13 +766,11 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
 
   pStmt = taosMemoryCalloc(1, sizeof(STscStmt2));
   if (NULL == pStmt) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pStmt->sql.pTableCache = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == pStmt->sql.pTableCache) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pStmt);
     return NULL;
   }
@@ -798,7 +796,6 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     pStmt->sql.siInfo.pTableHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (NULL == pStmt->sql.siInfo.pTableHash) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       (void)stmtClose(pStmt);
       return NULL;
     }
@@ -894,7 +891,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
 static int32_t stmtInitStbInterlaceTableInfo(STscStmt2* pStmt) {
   STableDataCxt** pSrc = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (!pSrc) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   STableDataCxt* pDst = NULL;
 
@@ -1199,7 +1196,7 @@ static int32_t stmtCacheBlock(STscStmt2* pStmt) {
 
   STableDataCxt** pSrc = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (!pSrc) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   STableDataCxt* pDst = NULL;
 
@@ -1266,7 +1263,7 @@ static int32_t stmtBackupQueryFields(STscStmt2* pStmt) {
   pRes->fields = taosMemoryMalloc(size);
   pRes->userFields = taosMemoryMalloc(size);
   if (NULL == pRes->fields || NULL == pRes->userFields) {
-    STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    STMT_ERR_RET(terrno);
   }
   (void)memcpy(pRes->fields, pStmt->exec.pRequest->body.resInfo.fields, size);
   (void)memcpy(pRes->userFields, pStmt->exec.pRequest->body.resInfo.userFields, size);
@@ -1284,7 +1281,7 @@ static int32_t stmtRestoreQueryFields(STscStmt2* pStmt) {
   if (NULL == pStmt->exec.pRequest->body.resInfo.fields) {
     pStmt->exec.pRequest->body.resInfo.fields = taosMemoryMalloc(size);
     if (NULL == pStmt->exec.pRequest->body.resInfo.fields) {
-      STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      STMT_ERR_RET(terrno);
     }
     (void)memcpy(pStmt->exec.pRequest->body.resInfo.fields, pRes->fields, size);
   }
@@ -1292,7 +1289,7 @@ static int32_t stmtRestoreQueryFields(STscStmt2* pStmt) {
   if (NULL == pStmt->exec.pRequest->body.resInfo.userFields) {
     pStmt->exec.pRequest->body.resInfo.userFields = taosMemoryMalloc(size);
     if (NULL == pStmt->exec.pRequest->body.resInfo.userFields) {
-      STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      STMT_ERR_RET(terrno);
     }
     (void)memcpy(pStmt->exec.pRequest->body.resInfo.userFields, pRes->userFields, size);
   }
