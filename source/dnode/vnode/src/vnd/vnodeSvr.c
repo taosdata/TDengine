@@ -977,6 +977,11 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
 extern int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now);
 
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  if (!pVnode->restored) {
+    vInfo("vgId:%d, ignore trim req during restoring. ver:%" PRId64, TD_VID(pVnode), ver);
+    return 0;
+  }
+
   int32_t     code = 0;
   SVTrimDbReq trimReq = {0};
 
@@ -1088,7 +1093,7 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
     expiredTb.suid = *uid;
     terrno = metaReaderGetTableEntryByUid(&mr, *uid);
     if (terrno < 0) goto _end;
-    strncpy(buf, mr.me.name, TSDB_TABLE_NAME_LEN);
+    tstrncpy(buf, mr.me.name, TSDB_TABLE_NAME_LEN);
     void *p = taosArrayPush(pNames, buf);
     if (p == NULL) {
       goto _end;

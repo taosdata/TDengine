@@ -244,7 +244,7 @@ int32_t mndCompactGetDbName(SMnode *pMnode, int32_t compactId, char *dbname, int
     TAOS_RETURN(code);
   }
 
-  (void)strncpy(dbname, pCompact->dbname, len);
+  tstrncpy(dbname, pCompact->dbname, len);
   mndReleaseCompact(pMnode, pCompact);
   TAOS_RETURN(code);
 }
@@ -321,7 +321,7 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
       TAOS_CHECK_GOTO(tNameFromString(&name, pCompact->dbname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
       (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     } else {
-      (void)strncpy(varDataVal(tmpBuf), pCompact->dbname, TSDB_SHOW_SQL_LEN);
+      tstrncpy(varDataVal(tmpBuf), pCompact->dbname, TSDB_SHOW_SQL_LEN);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pCompact, &lino, _OVER);
@@ -516,11 +516,14 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[TSDB_INT32_ID_LEN] = {0};
-  (void)sprintf(obj, "%d", pCompact->compactId);
-
-  auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql, killCompactReq.sqlLen);
-
+  char    obj[TSDB_INT32_ID_LEN] = {0};
+  int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pCompact->compactId);
+  if ((uint32_t)nBytes < sizeof(obj)) {
+    auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql,
+                killCompactReq.sqlLen);
+  } else {
+    mError("compact:%" PRId32 " failed to audit since %s", pCompact->compactId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to kill compact %" PRId32 " since %s", killCompactReq.compactId, terrstr());
@@ -643,7 +646,7 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
 
       char    detail[1024] = {0};
       int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
-                             TMSG_INFO(TDMT_VND_QUERY_COMPACT_PROGRESS), epSet.numOfEps, epSet.inUse);
+                              TMSG_INFO(TDMT_VND_QUERY_COMPACT_PROGRESS), epSet.numOfEps, epSet.inUse);
       for (int32_t i = 0; i < epSet.numOfEps; ++i) {
         len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
       }
@@ -954,7 +957,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
       continue;
     }
 
-    int64_t remainder = ((curMin + (int64_t)pDb->cfg.compactTimeOffset * 60LL) % pDb->cfg.compactInterval);
+    int64_t remainder = ((curMin - (int64_t)pDb->cfg.compactTimeOffset * 60LL) % pDb->cfg.compactInterval);
     if (remainder != 0) {
       mDebug("db:%p,%s, current time:%" PRIi64 "m is not divisible by compact interval:%dm, offset:%" PRIi8
              "h, remainder:%" PRIi64 "m, skip",

@@ -20,6 +20,7 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "version.h"
+#include "tconv.h"
 #ifdef TD_JEMALLOC_ENABLED
 #include "jemalloc/jemalloc.h"
 #endif
@@ -278,7 +279,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
           printf("ERROR: Encrypt key overflow, it should be at most %d characters\n", ENCRYPT_KEY_LEN);
           return TSDB_CODE_INVALID_CFG;
         }
-        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
+        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN + 1);
       } else {
         printf("'-y' requires a parameter\n");
         return TSDB_CODE_INVALID_CFG;
@@ -477,7 +478,7 @@ int mainWindows(int argc, char **argv) {
     return code;
   }
 
-  if ((code = taosConvInit()) != 0) {
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();

@@ -67,8 +67,17 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   SVnodeInfo oldInfo = {0};
   oldInfo.config = vnodeCfgDefault;
   if (vnodeLoadInfo(dir, &oldInfo) == 0) {
-    vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
-    return (oldInfo.config.dbId == info.config.dbId) ? 0 : -1;
+    code = (oldInfo.config.dbId == info.config.dbId) ? 0 : TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
+    if (code == 0) {
+      vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
+    } else {
+      vError("vgId:%d, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
+             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             oldInfo.config.vgId, dir, oldInfo.config.dbId, oldInfo.config.dbname,
+             oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
+             info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
+    }
+    return code;
   }
 
   vInfo("vgId:%d, save config while create", info.config.vgId);
@@ -190,7 +199,14 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
     char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
     if (tsdbFilePrefixPos == NULL) continue;
 
-    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + prefixLen);
+    int32_t tsdbFileVgId = 0;  // atoi(tsdbFilePrefixPos + prefixLen);
+    ret = taosStr2int32(tsdbFilePrefixPos + prefixLen, &tsdbFileVgId);
+    if (ret != 0) {
+      vError("vgId:%d, failed to get tsdb file vgid since %s", dstVgId, tstrerror(ret));
+      tfsClosedir(tsdbDir);
+      return ret;
+    }
+
     if (tsdbFileVgId == srcVgId) {
       char *tsdbFileSurfixPos = tsdbFilePrefixPos + prefixLen + vnodeVgroupIdLen(srcVgId);
 

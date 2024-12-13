@@ -164,9 +164,6 @@ If you are using Maven to manage your project, simply add the following dependen
   pip3 install taospy[ws]
   ```
 
-</TabItem>
-</Tabs>
-
 - **Installation Verification**
 
 <Tabs defaultValue="rest">
@@ -199,8 +196,8 @@ import taosws
 
 </TabItem>
 </Tabs>
+</TabItem>
 
-<Tabs>
 <TabItem label="Go" value="go">
 
 Edit `go.mod` to add the `driver-go` dependency.

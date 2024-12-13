@@ -613,7 +613,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
     {  // destroy the related fill-history tasks
       // drop task should not in the meta-lock, and drop the related fill-history task now
-      streamMetaWUnLock(pMeta);
       if (pReq->dropRelHTask) {
         code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
         int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
@@ -621,7 +620,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 id, vgId, pReq->taskId, numOfTasks);
       }
 
-      streamMetaWLock(pMeta);
       if (pReq->dropRelHTask) {
         code = streamMetaCommit(pMeta);
       }
@@ -656,9 +654,11 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 pInfo->processedVer <= pReq->checkpointVer);
 
   if (!valid) {
-    stFatal("invalid checkpoint id check, current checkpointId:%" PRId64 " checkpointVer:%" PRId64
-            " processedVer:%" PRId64 " req checkpointId:%" PRId64 " checkpointVer:%" PRId64,
-            pInfo->checkpointId, pInfo->checkpointVer, pInfo->processedVer, pReq->checkpointId, pReq->checkpointVer);
+    stFatal("s-task:%s invalid checkpointId update info recv, current checkpointId:%" PRId64 " checkpointVer:%" PRId64
+            " processedVer:%" PRId64 " req checkpointId:%" PRId64 " checkpointVer:%" PRId64 " discard it",
+            id, pInfo->checkpointId, pInfo->checkpointVer, pInfo->processedVer, pReq->checkpointId,
+            pReq->checkpointVer);
+    streamMutexUnlock(&pTask->lock);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
@@ -695,8 +695,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
     return TSDB_CODE_SUCCESS;
   }
 
-  streamMetaWUnLock(pMeta);
-
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
     code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
@@ -705,9 +703,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
             (int32_t)pReq->hTaskId, numOfTasks);
   }
 
-  streamMetaWLock(pMeta);
   code = streamMetaCommit(pMeta);
-
   return TSDB_CODE_SUCCESS;
 }
 

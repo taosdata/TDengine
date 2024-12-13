@@ -124,7 +124,7 @@ INTERVAL 子句允许使用 AUTO 关键字来指定窗口偏移量，此时如�
 
 ```sql
 -- 有起始时间限制，从 '2018-10-03 14:38:05' 切分时间窗口
-SELECT COUNT(*) FROM meters WHERE _rowts >= '2018-10-03 14:38:05' INTERVAL (1m， AUTO);
+SELECT COUNT(*) FROM meters WHERE _rowts >= '2018-10-03 14:38:05' INTERVAL (1m, AUTO);
 
 -- 无起始时间限制，不生效，仍以 0 为偏移量
 SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, AUTO);

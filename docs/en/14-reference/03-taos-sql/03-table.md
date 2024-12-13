@@ -170,7 +170,7 @@ ALTER TABLE [db_name.]tb_name alter_table_clause
 
 alter_table_clause: {
     alter_table_options
-  | SET tag tag_name = new_tag_value,tag_name2=new_tag2_value...
+  | SET tag tag_name = new_tag_value, tag_name2=new_tag2_value ...
 }
 
 alter_table_options:
@@ -194,7 +194,7 @@ alter_table_option: {
 ### Modify Subtable Tag Value
 
 ```sql
-ALTER TABLE tb_name SET tag tag_name=new_tag_value;
+ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
 ### Modify Table Lifespan
