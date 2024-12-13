@@ -122,23 +122,23 @@ END:
 
 static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char* val){
   if (taos == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    return terrno = TSDB_CODE_INVALID_PARA;
   }
 
 #ifdef WINDOWS
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE){
-    return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
+    return terrno = TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
   }
 #endif
 
   if (option < TSDB_OPTION_CONNECTION_CLEAR || option >= TSDB_MAX_OPTIONS_CONNECTION){
-    return TSDB_CODE_INVALID_PARA;
+    return terrno = TSDB_CODE_INVALID_PARA;
   }
 
   int32_t code = taos_init();
   // initialize global config
   if (code != 0) {
-    return code;
+    return terrno = code;
   }
 
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
@@ -208,7 +208,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
 
 END:
   releaseTscObj(*(int64_t *)taos);
-  return code;
+  return terrno = code;
 }
 
 int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...){
