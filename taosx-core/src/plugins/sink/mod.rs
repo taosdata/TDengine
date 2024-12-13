@@ -2805,10 +2805,10 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
     for message in record.records() {
         let batch = message.record();
-        let num_rows = batch.num_rows();
-        if num_rows == 0 {
+        if batch.num_rows() == 0 {
             continue;
         }
+
         let instant = std::time::Instant::now();
         let batch = tokio::task::spawn_blocking({
             let parser = parser.clone();
@@ -2817,6 +2817,7 @@ async fn consume_flat_record(
         })
         .await?
         .context("Transformer parse error")?;
+
         if tracing::event_enabled!(tracing::Level::TRACE) {
             let elapsed = instant.elapsed();
             tracing::trace!(cost = ?elapsed, "Parse message elapsed: {:?}", elapsed);
@@ -2829,11 +2830,19 @@ async fn consume_flat_record(
                 if message.is_empty() {
                     continue;
                 }
+
+                let num_rows = message.iter().map(|r| r.records.num_rows()).sum::<usize>();
                 if unsafe { crate::global::DRY_RUN } {
                     *count += num_rows;
                     metrics.add_processed_rows(num_rows as u64);
                     continue;
                 }
+                tracing::debug!(
+                    "Writing flat message, num_rows: {}, message.len(): {}",
+                    num_rows,
+                    message.len()
+                );
+
                 let factor = message
                     .iter()
                     .map(|message| message.records.num_rows())

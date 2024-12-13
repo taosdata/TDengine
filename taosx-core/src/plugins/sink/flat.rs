@@ -394,7 +394,6 @@ pub async fn flat_write_with_raw_block(
         if records.records.num_rows() == 0 {
             continue;
         }
-        metrics.add_processed_rows(records.records.num_rows() as u64);
         if records.records.column(0).null_count() > 0 {
             bail!("Timestamp field contains null or invalid values");
         }
