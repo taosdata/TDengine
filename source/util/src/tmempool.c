@@ -95,7 +95,7 @@ int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup
     return TSDB_CODE_SUCCESS;
   }
 
-  atomic_add_fetch_64(&pInfo->allocNum, pGrp->nodesNum);
+  (void)atomic_add_fetch_64(&pInfo->allocNum, pGrp->nodesNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -138,7 +138,7 @@ int32_t mpPopIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, void** ppRes) {
       pNode = (SMPListNode*)((char*)pGrp->pNodes + offset * pInfo->nodeSize);
       break;
     } else {
-      atomic_sub_fetch_32(&pGrp->idleOffset, 1);
+      (void)atomic_sub_fetch_32(&pGrp->idleOffset, 1);
     }
     
     MP_ERR_RET(mpAddCacheGroup(pPool, pInfo, pGrp));
@@ -271,9 +271,9 @@ FORCE_INLINE void mpUpdateMaxAllocSize(int64_t* pMaxAllocMemSize, int64_t newSiz
 void mpUpdateAllocSize(SMemPool* pPool, SMPSession* pSession, int64_t size, int64_t addSize) {
   if (addSize) {
     if (NULL != pSession) {
-      atomic_add_fetch_64(&pSession->pJob->job.allocMemSize, addSize);
+      (void)atomic_add_fetch_64(&pSession->pJob->job.allocMemSize, addSize);
     }
-    atomic_add_fetch_64(&pPool->allocMemSize, addSize);
+    (void)atomic_add_fetch_64(&pPool->allocMemSize, addSize);
   }
 
   if (NULL != pSession) {
@@ -495,8 +495,8 @@ int32_t mpAddToRemainAllocHash(SHashObj* pHash, SMPFileLine* pFileLine) {
       continue;
     }
 
-    atomic_add_fetch_64(&pStat->allocBytes, pFileLine->size);
-    atomic_add_fetch_64(&pStat->allocTimes, 1);
+    (void)atomic_add_fetch_64(&pStat->allocBytes, pFileLine->size);
+    (void)atomic_add_fetch_64(&pStat->allocTimes, 1);
     break;
   }
 
@@ -593,107 +593,107 @@ void mpLogDetailStat(SMPStatDetail* pDetail, EMPStatLogItem item, SMPStatInput* 
   switch (item) {
     case E_MP_STAT_LOG_MEM_MALLOC: {
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
-        atomic_add_fetch_64(&pDetail->times.memMalloc.exec, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memMalloc.exec, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memMalloc.exec, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memMalloc.exec, pInput->size);
       }
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
-        atomic_add_fetch_64(&pDetail->times.memMalloc.succ, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memMalloc.succ, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memMalloc.succ, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memMalloc.succ, pInput->size);
       } 
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
-        atomic_add_fetch_64(&pDetail->times.memMalloc.fail, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memMalloc.fail, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memMalloc.fail, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memMalloc.fail, pInput->size);
       } 
       break;
     }
     case E_MP_STAT_LOG_MEM_CALLOC:{
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
-        atomic_add_fetch_64(&pDetail->times.memCalloc.exec, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memCalloc.exec, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memCalloc.exec, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memCalloc.exec, pInput->size);
       }
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
-        atomic_add_fetch_64(&pDetail->times.memCalloc.succ, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memCalloc.succ, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memCalloc.succ, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memCalloc.succ, pInput->size);
       } 
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
-        atomic_add_fetch_64(&pDetail->times.memCalloc.fail, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memCalloc.fail, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memCalloc.fail, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memCalloc.fail, pInput->size);
       } 
       break;
     }
     case E_MP_STAT_LOG_MEM_REALLOC:{
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
-        atomic_add_fetch_64(&pDetail->times.memRealloc.exec, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memRealloc.exec, pInput->size);
-        atomic_add_fetch_64(&pDetail->bytes.memRealloc.origExec, pInput->origSize);
+        (void)atomic_add_fetch_64(&pDetail->times.memRealloc.exec, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memRealloc.exec, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memRealloc.origExec, pInput->origSize);
       }
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
-        atomic_add_fetch_64(&pDetail->times.memRealloc.succ, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memRealloc.succ, pInput->size);
-        atomic_add_fetch_64(&pDetail->bytes.memRealloc.origSucc, pInput->origSize);
+        (void)atomic_add_fetch_64(&pDetail->times.memRealloc.succ, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memRealloc.succ, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memRealloc.origSucc, pInput->origSize);
       } 
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
-        atomic_add_fetch_64(&pDetail->times.memRealloc.fail, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memRealloc.fail, pInput->size);
-        atomic_add_fetch_64(&pDetail->bytes.memRealloc.origFail, pInput->origSize);
+        (void)atomic_add_fetch_64(&pDetail->times.memRealloc.fail, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memRealloc.fail, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memRealloc.origFail, pInput->origSize);
       } 
       break;
     }
     case E_MP_STAT_LOG_MEM_FREE:{
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
-        atomic_add_fetch_64(&pDetail->times.memFree.exec, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memFree.exec, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memFree.exec, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memFree.exec, pInput->size);
       }
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
-        atomic_add_fetch_64(&pDetail->times.memFree.succ, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memFree.succ, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memFree.succ, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memFree.succ, pInput->size);
       } 
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
-        atomic_add_fetch_64(&pDetail->times.memFree.fail, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memFree.fail, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memFree.fail, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memFree.fail, pInput->size);
       } 
       break;
     }
     case E_MP_STAT_LOG_MEM_STRDUP: {
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
-        atomic_add_fetch_64(&pDetail->times.memStrdup.exec, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memStrdup.exec, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memStrdup.exec, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memStrdup.exec, pInput->size);
       }
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
-        atomic_add_fetch_64(&pDetail->times.memStrdup.succ, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memStrdup.succ, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memStrdup.succ, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memStrdup.succ, pInput->size);
       } 
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
-        atomic_add_fetch_64(&pDetail->times.memStrdup.fail, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memStrdup.fail, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memStrdup.fail, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memStrdup.fail, pInput->size);
       } 
       break;
     }
     case E_MP_STAT_LOG_MEM_STRNDUP: {
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
-        atomic_add_fetch_64(&pDetail->times.memStrndup.exec, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memStrndup.exec, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memStrndup.exec, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memStrndup.exec, pInput->size);
       }
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
-        atomic_add_fetch_64(&pDetail->times.memStrndup.succ, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memStrndup.succ, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memStrndup.succ, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memStrndup.succ, pInput->size);
       } 
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
-        atomic_add_fetch_64(&pDetail->times.memStrndup.fail, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memStrndup.fail, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memStrndup.fail, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memStrndup.fail, pInput->size);
       } 
       break;
     }
     case E_MP_STAT_LOG_MEM_TRIM: {
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
-        atomic_add_fetch_64(&pDetail->times.memTrim.exec, 1);
+        (void)atomic_add_fetch_64(&pDetail->times.memTrim.exec, 1);
       }
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
-        atomic_add_fetch_64(&pDetail->times.memTrim.succ, 1);
-        atomic_add_fetch_64(&pDetail->bytes.memTrim.succ, pInput->size);
+        (void)atomic_add_fetch_64(&pDetail->times.memTrim.succ, 1);
+        (void)atomic_add_fetch_64(&pDetail->bytes.memTrim.succ, pInput->size);
       } 
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
-        atomic_add_fetch_64(&pDetail->times.memTrim.fail, 1);
+        (void)atomic_add_fetch_64(&pDetail->times.memTrim.fail, 1);
       } 
       break;
     }
@@ -793,8 +793,8 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
         MP_ERR_JRET(code);
       }
       
-      atomic_add_fetch_64(&pAlloc->allocTimes, 1);
-      atomic_add_fetch_64(&pAlloc->allocBytes, pInput->size);
+      (void)atomic_add_fetch_64(&pAlloc->allocTimes, 1);
+      (void)atomic_add_fetch_64(&pAlloc->allocBytes, pInput->size);
       break;
     }
     case E_MP_STAT_LOG_MEM_REALLOC: {
@@ -824,8 +824,8 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
           MP_ERR_JRET(code);
         }
         
-        atomic_add_fetch_64(&pFree->freeTimes, 1);
-        atomic_add_fetch_64(&pFree->freeBytes, pInput->origSize);
+        (void)atomic_add_fetch_64(&pFree->freeTimes, 1);
+        (void)atomic_add_fetch_64(&pFree->freeBytes, pInput->origSize);
       }
       
       code = taosHashPut(pStat->remainHash, &pInput->pMem, POINTER_BYTES, &fileLine, sizeof(fileLine));
@@ -856,8 +856,8 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
         MP_ERR_JRET(code);
       }
 
-      atomic_add_fetch_64(&pAlloc->allocTimes, 1);
-      atomic_add_fetch_64(&pAlloc->allocBytes, pInput->size);
+      (void)atomic_add_fetch_64(&pAlloc->allocTimes, 1);
+      (void)atomic_add_fetch_64(&pAlloc->allocBytes, pInput->size);
       break;
     }
     case E_MP_STAT_LOG_MEM_FREE: {
@@ -884,8 +884,8 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
         MP_ERR_JRET(code);
       }
         
-      atomic_add_fetch_64(&pFree->freeTimes, 1);
-      atomic_add_fetch_64(&pFree->freeBytes, pInput->size);
+      (void)atomic_add_fetch_64(&pFree->freeTimes, 1);
+      (void)atomic_add_fetch_64(&pFree->freeBytes, pInput->size);
       break;
     }
     case E_MP_STAT_LOG_MEM_TRIM:
@@ -905,7 +905,7 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
 
 _return:
   
-  atomic_add_fetch_64(&pStat->logErrTimes, 1);
+  (void)atomic_add_fetch_64(&pStat->logErrTimes, 1);
 }
 
 

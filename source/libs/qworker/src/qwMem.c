@@ -152,7 +152,7 @@ int32_t qwRetrieveJobInfo(QW_FPARAMS_DEF, SQWJobInfo** ppJob) {
       continue;
     }
 
-    atomic_add_fetch_32(&pJob->memInfo->remainSession, 1);
+    (void)atomic_add_fetch_32(&pJob->memInfo->remainSession, 1);
     QW_UNLOCK(QW_READ, &pJob->lock);
 
     break;
