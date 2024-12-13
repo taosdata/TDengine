@@ -1457,3 +1457,81 @@ int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);
 }
+
+int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->tbName || strlen(pReq->tbName) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid table name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+
+  if (pEntry->version >= version) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s version %" PRId64 " is not less than %" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  if (pEntry->type != TSDB_NORMAL_TABLE && pEntry->type != TSDB_SUPER_TABLE) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s type %d is invalid, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->tbName, pEntry->type, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // do change the entry
+  int8_t           updated = 0;
+  SColCmprWrapper *wp = &pEntry->colCmpr;
+  for (int32_t i = 0; i < wp->nCols; i++) {
+    SColCmpr *p = &wp->pColCmpr[i];
+    if (p->id == pReq->colId) {
+      uint32_t dst = 0;
+      updated = tUpdateCompress(p->alg, pReq->compress, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
+                                TSDB_COLVAL_LEVEL_MEDIUM, &dst);
+      if (updated > 0) {
+        p->alg = dst;
+      }
+    }
+  }
+
+  if (updated == 0) {
+    code = TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST;
+    metaError("vgId:%d, %s failed at %s:%d since column %d compress level is not changed, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colId, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  } else if (updated < 0) {
+    code = TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+    metaError("vgId:%d, %s failed at %s:%d since column %d compress level is invalid, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colId, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  }
+
+  pEntry->version = version;
+
+  // do handle entry
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
+             pEntry->uid, version);
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
