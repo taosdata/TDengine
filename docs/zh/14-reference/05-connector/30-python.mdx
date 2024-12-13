@@ -64,12 +64,11 @@ WebSocket Connector 历史版本：
 
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine 版本    |
-| ----------------------- | ------------------------------------------------------------------------------------- | ----------------- |
-|          0.3.5           | 新增 VARBINARY 和 GEOMETRY 类型支持，修复已知问题                                     | 3.3.0.0 及更高版本 |
-|          0.3.2           | 优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题                  | 3.2.3.0 及更高版本 |
-|          0.2.9           | 已知问题修复                                                                          | - |
-|          0.2.5           | 1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT | - |
-|          0.2.4           | 数据订阅新增取消订阅方法                                                              | 3.0.5.0 及更高版本 |
+| ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
+|          0.3.2           | 优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题                        | 3.2.3.0 及更高版本 |
+|          0.2.9           | 已知问题修复                                                                           | - |
+|          0.2.5           | 1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT        | - |
+|          0.2.4           | 数据订阅新增取消订阅方法                                                                 | 3.0.5.0 及更高版本 |
 
 ## 处理异常
 
@@ -83,15 +82,15 @@ Python 连接器可能会产生 4 种异常：
 
 |    Error Type    |            Description             |                     Suggested Actions                      |
 | :--------------- | :--------------------------------- | :--------------------------------------------------------- |
-|  InterfaceError  | taosc 版本太低，不支持所使用的接口 |                 请检查 TDengine 客户端版本                 |
-| ConnectionError  |           数据库链接错误           |            请检查 TDengine 服务端状态和连接参数            |
-|  DatabaseError   |             数据库错误             | 请检查 TDengine 服务端版本，并将 Python 连接器升级到最新版 |
-| OperationalError |              操作错误              |                  API 使用错误，请检查代码                  |
-| ProgrammingError |            接口调用错误            |                  请检查提交的数据是否正确                  |
-|  StatementError  |           stmt 相关异常            |               请检查绑定参数与 sql 是否匹配                |
-|   ResultError    |            操作数据错误            |        请检查操作的数据与数据库中的数据类型是否匹配        |
-| SchemalessError  |        schemaless 相关异常         |           请检查数据格式及对应的协议类型是否正确           |
-|     TmqError     |            tmq 相关异常            |           请检查 Topic 及 consumer 配置是否正确            |
+|  InterfaceError  | taosc 版本太低，不支持所使用的接口      |                 请检查 TDengine 客户端版本                    |
+| ConnectionError  |           数据库链接错误              |            请检查 TDengine 服务端状态和连接参数                |
+|  DatabaseError   |             数据库错误               | 请检查 TDengine 服务端版本，并将 Python 连接器升级到最新版        |
+| OperationalError |              操作错误                |                  API 使用错误，请检查代码                      |
+| ProgrammingError |            接口调用错误               |                  请检查提交的数据是否正确                      |
+|  StatementError  |           stmt 相关异常              |               请检查绑定参数与 sql 是否匹配                    |
+|   ResultError    |            操作数据错误               |        请检查操作的数据与数据库中的数据类型是否匹配               |
+| SchemalessError  |        schemaless 相关异常           |           请检查数据格式及对应的协议类型是否正确                  |
+|     TmqError     |            tmq 相关异常              |           请检查 Topic 及 consumer 配置是否正确                |
 
 Python 中通常通过 try-expect 处理异常，异常处理相关请参考 [Python 错误和异常文档](https://docs.python.org/3/tutorial/errors.html)。  
 TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code) 
