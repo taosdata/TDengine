@@ -981,7 +981,7 @@ int32_t convertTagDataToStr(char* str, int32_t strBuffLen, int type, void* buf, 
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str);
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str, NULL);
       if (length <= 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -1132,7 +1132,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     if (tagData != NULL) {
       if (tagType == TSDB_DATA_TYPE_JSON) {
         char* tagJson = NULL;
-        parseTagDatatoJson(tagData, &tagJson);
+        parseTagDatatoJson(tagData, &tagJson, NULL);
         if (tagJson == NULL) {
           code = terrno;
           goto _end;

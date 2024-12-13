@@ -370,7 +370,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
-      strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
 
       count = CBC_Decrypt(&opts);
 
@@ -386,6 +386,11 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       code = TSDB_CODE_CHECKSUM_ERROR;
       mError("failed to read sdb file:%s since %s, readLen:%d", file, tstrerror(code), readLen);
       goto _OVER;
+    }
+
+    if (pRaw->type >= SDB_MAX) {
+      mInfo("skip sdb raw type:%d since it is not supported", pRaw->type);
+      continue;
     }
 
     code = sdbWriteWithoutFree(pSdb, pRaw);
@@ -510,7 +515,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
-          strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
+          tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
 
           int32_t count = CBC_Encrypt(&opts);
 

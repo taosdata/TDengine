@@ -11,8 +11,8 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== create user1
-sql create user user1 PASS 'user1'
-sql create user user2 PASS 'user2'
+sql create user user1 PASS 'use@##r1$*'
+sql create user user2 PASS 'use&*r2$*'
 sql select * from information_schema.ins_users
 if $rows != 3 then 
   return -1

@@ -428,7 +428,12 @@ static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
     return TSDB_CODE_MND_INVALID_DB;
   }
 
-  int32_t acctId = atoi(dbName);
+  int32_t acctId;
+  int32_t code = taosStr2int32(dbName, &acctId);
+  if (code != 0) {
+    return code;
+  }
+
   if (acctId != pUser->acctId) {
     return TSDB_CODE_MND_INVALID_DB_ACCT;
   }

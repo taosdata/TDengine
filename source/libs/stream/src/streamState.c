@@ -120,7 +120,8 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   SStreamTask* pStreamTask = pTask;
   pState->streamId = streamId;
   pState->taskId = taskId;
-  TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x", pState->streamId, pState->taskId));
+  TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x",
+                        pState->streamId, pState->taskId));
 
   code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -539,7 +540,6 @@ int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId) {
 
 void streamStateDestroy(SStreamState* pState, bool remove) {
   streamFileStateDestroy(pState->pFileState);
-  // streamStateDestroy_rocksdb(pState, remove);
   tSimpleHashCleanup(pState->parNameMap);
   // do nothong
   taosMemoryFreeClear(pState->pTdbState);
@@ -584,7 +584,8 @@ int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey
   return getCountWinResultBuff(pState->pFileState, pKey, winCount, ppVal, pVLen, pWinCode);
 }
 
-int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen) {
+int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal,
+                               int32_t* pVLen) {
   return createCountWinResultBuff(pState->pFileState, pKey, winCount, pVal, pVLen);
 }
 
@@ -605,9 +606,7 @@ SStreamStateCur* streamStateGroupGetCur(SStreamState* pState) {
   return pCur;
 }
 
-void streamStateGroupCurNext(SStreamStateCur* pCur) {
-  streamFileStateGroupCurNext(pCur);
-}
+void streamStateGroupCurNext(SStreamStateCur* pCur) { streamFileStateGroupCurNext(pCur); }
 
 int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen) {
   if (pVal != NULL) {
@@ -616,13 +615,9 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
   return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);
 }
 
-void streamStateClearExpiredState(SStreamState* pState) {
-  clearExpiredState(pState->pFileState);
-}
+void streamStateClearExpiredState(SStreamState* pState) { clearExpiredState(pState->pFileState); }
 
-void streamStateSetFillInfo(SStreamState* pState) {
-  setFillInfo(pState->pFileState);
-}
+void streamStateSetFillInfo(SStreamState* pState) { setFillInfo(pState->pFileState); }
 
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {

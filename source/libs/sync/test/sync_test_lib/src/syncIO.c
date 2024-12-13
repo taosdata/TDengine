@@ -520,7 +520,7 @@ void syncUtilU642Addr(uint64_t u64, char *host, int64_t len, uint16_t *port) {
   uint32_t hostU32 = (uint32_t)((u64 >> 32) & 0x00000000FFFFFFFF);
 
   struct in_addr addr = {.s_addr = hostU32};
-  taosInetNtoa(addr, host, len);
+  taosInetNtop(addr, host, len);
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 
