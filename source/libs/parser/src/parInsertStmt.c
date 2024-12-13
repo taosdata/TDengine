@@ -323,6 +323,7 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
   int32_t          code = 0;
   int16_t          lastColId = -1;
   bool             colInOrder = true;
+  bool             orderedDup[2];
 
   if (NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
@@ -368,7 +369,9 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
     // }
   }
 
-  code = tRowBuildFromBind(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols);
+  code = tRowBuildFromBind(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, orderedDup);
+  pDataBlock->ordered = orderedDup[0];
+  pDataBlock->duplicateTs = orderedDup[1];
 
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
@@ -689,6 +692,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
   int16_t         lastColId = -1;
   bool            colInOrder = true;
   int             ncharColNums = 0;
+  bool            orderedDup[2];
 
   if (NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
@@ -745,7 +749,9 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
     pBindInfos[c].bytes = pColSchema->bytes;
   }
 
-  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols);
+  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, orderedDup);
+  pDataBlock->ordered = orderedDup[0];
+  pDataBlock->duplicateTs = orderedDup[1];
 
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
