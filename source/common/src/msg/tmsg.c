@@ -76,7 +76,7 @@ static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas *p
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogScope));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogMaxLen));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThreshold));
-  TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest)); //Obsolete
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest));  // Obsolete
   TAOS_CHECK_RETURN(tEncodeCStr(encoder, pMonitorParas->tsSlowLogExceptDb));
   return 0;
 }
@@ -87,7 +87,7 @@ static int32_t tDeserializeSMonitorParas(SDecoder *decoder, SMonitorParas *pMoni
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogScope));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogMaxLen));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThreshold));
-  TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest)); //Obsolete
+  TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest));  // Obsolete
   TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pMonitorParas->tsSlowLogExceptDb));
   return 0;
 }
@@ -10182,7 +10182,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       char  name[TSDB_COL_NAME_LEN] = {0};
       char *tmp = NULL;
       TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &tmp));
-      strncpy(name, tmp, TSDB_COL_NAME_LEN - 1);
+      tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
       if (taosArrayPush(pReq->ctb.tagName, name) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
@@ -12218,7 +12218,7 @@ void setFieldWithOptions(SFieldWithOptions *fieldWithOptions, SField *field) {
   fieldWithOptions->bytes = field->bytes;
   fieldWithOptions->flags = field->flags;
   fieldWithOptions->type = field->type;
-  strncpy(fieldWithOptions->name, field->name, TSDB_COL_NAME_LEN);
+  tstrncpy(fieldWithOptions->name, field->name, TSDB_COL_NAME_LEN);
 }
 int32_t tSerializeTableTSMAInfoReq(void *buf, int32_t bufLen, const STableTSMAInfoReq *pReq) {
   SEncoder encoder = {0};

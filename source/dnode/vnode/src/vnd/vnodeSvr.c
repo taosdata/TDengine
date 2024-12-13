@@ -1225,7 +1225,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     }
 
     // validate hash
-    sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
+    tsnprintf(tbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
       cRsp.code = TSDB_CODE_VND_HASH_MISMATCH;
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
@@ -1518,7 +1518,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
         pRsp->code = terrno;
         goto _exit;
       }
-      strcpy(str, pDropTbReq->name);
+      tstrncpy(str, pDropTbReq->name, TSDB_TABLE_FNAME_LEN);
       if (taosArrayPush(tbNames, &str) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         pRsp->code = terrno;

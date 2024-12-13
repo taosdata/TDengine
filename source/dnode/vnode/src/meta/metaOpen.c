@@ -197,7 +197,7 @@ static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
   code = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
+  tsnprintf(indexFullPath, sizeof(indexFullPath), "%s/%s", pMeta->path, "invert");
   ret = taosMkDir(indexFullPath);
 
   SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
@@ -209,7 +209,7 @@ static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
 
   // open pTtlMgr ("ttlv1.idx")
   char logPrefix[128] = {0};
-  sprintf(logPrefix, "vgId:%d", TD_VID(pVnode));
+  tsnprintf(logPrefix, sizeof(logPrefix), "vgId:%d", TD_VID(pVnode));
   code = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0, logPrefix, tsTtlFlushThreshold);
   TSDB_CHECK_CODE(code, lino, _exit);
 
