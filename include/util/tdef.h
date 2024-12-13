@@ -47,7 +47,7 @@ extern "C" {
 #define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[21];
+extern const int32_t TYPE_BYTES[22];
 
 #define CHAR_BYTES      sizeof(char)
 #define SHORT_BYTES     sizeof(int16_t)
@@ -59,6 +59,9 @@ extern const int32_t TYPE_BYTES[21];
 #define M256_BYTES      32
 #define TSDB_KEYSIZE    sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE sizeof(TdUcs4)
+
+#define DECIMAL64_BYTES 8
+#define DECIMAL128_BYTES 16
 
 // NULL definition
 #define TSDB_DATA_BOOL_NULL      0x02
@@ -693,6 +696,14 @@ typedef enum {
 } EVersionType;
 
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
+
+// Decimal
+#define TSDB_DECIMAL_MIN_PRECISION 1
+#define TSDB_DECIMAL_MAX_PRECISION 38
+#define TSDB_DECIMAL_MAX_SCALE TSDB_DECIMAL_MAX_PRECISION
+
+#define TSDB_DECIMAL64_MAX_PRECISION 18
+#define TSDB_DECIMAL64_MAX_SCALE TSDB_DECIMAL64_MAX_PRECISION
 
 #ifdef __cplusplus
 }

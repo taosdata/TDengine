@@ -515,6 +515,7 @@ typedef struct SFieldWithOptions {
   int8_t   flags;
   int32_t  bytes;
   uint32_t compress;
+  STypeMod typeMod;
 } SFieldWithOptions;
 
 typedef struct SRetention {
@@ -586,6 +587,7 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 // for debug
 int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 
+// TODO wjm resolve compatibility problem
 struct SSchema {
   int8_t   type;
   int8_t   flags;
@@ -659,6 +661,7 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_SET_NULL   ((int8_t)0x10)
 #define COL_SET_VAL    ((int8_t)0x20)
 #define COL_IS_SYSINFO ((int8_t)0x40)
+#define COL_HAS_TYPE_MOD ((int8_t)0x80)
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
@@ -677,6 +680,13 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
     (s)->flags &= (~COL_IDX_ON); \
   } while (0)
 
+#define SSCHEMA_SET_TYPE_MOD(s)     \
+  do {                              \
+    (s)->flags |= COL_HAS_TYPE_MOD; \
+  } while (0)
+
+#define HAS_TYPE_MOD(s) (((s)->flags & COL_HAS_TYPE_MOD))
+
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
 #define SSCHMEA_COLID(s) ((s)->colId)
@@ -692,6 +702,10 @@ typedef struct {
   int32_t tsSlowLogThresholdTest;  // Obsolete
   char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN];
 } SMonitorParas;
+
+typedef struct {
+  STypeMod typeMod;
+} SExtSchema;
 
 typedef struct {
   int32_t  nCols;
@@ -3243,6 +3257,7 @@ typedef struct SVCreateStbReq {
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
   int64_t         keep;
+  SExtSchema*     pExtSchema;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
