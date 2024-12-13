@@ -13,16 +13,16 @@ CREATE USER user_name PASS 'password' [SYSINFO {1|0}] [CREATEDB {1|0}];
 
 The username can be up to 23 bytes long.
 
-The password can be up to 31 bytes long. The password can include letters, numbers, and special characters except for single quotes, double quotes, backticks, backslashes, and spaces, and it cannot be an empty string.
+The password must be between 8 and 16 characters long and include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters. Special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`.
 
 `SYSINFO` indicates whether the user can view system information. `1` means they can view, `0` means they have no permission to view. System information includes service configuration, dnode, vnode, storage, etc. The default value is `1`.
 
 `CREATEDB` indicates whether the user can create databases. `1` means they can create databases, `0` means they have no permission to create databases. The default value is `0`. // Supported starting from TDengine Enterprise version 3.3.2.0
 
-In the example below, we create a user with the password `123456` who can view system information.
+In the example below, we create a user with the password `abc123!@#` who can view system information.
 
 ```sql
-taos> create user test pass '123456' sysinfo 1;
+taos> create user test pass 'abc123!@#' sysinfo 1;
 Query OK, 0 of 0 rows affected (0.001254s)
 ```
 

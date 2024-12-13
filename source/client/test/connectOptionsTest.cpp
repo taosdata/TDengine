@@ -299,8 +299,8 @@ TEST(connectionCase, setConnectionOption_Test) {
   taosMsleep(2 * HEARTBEAT_INTERVAL);
 
   //test user APP and user IP
-  check_sql_result(pConn, "select user_app from performance_schema.perf_connections", "aaaaaaaaaaaaaaaaaaaaaab");
-  check_sql_result(pConn, "select user_ip from performance_schema.perf_connections", "192.168.0.2");
+  check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where user_app = 'aaaaaaaaaaaaaaaaaaaaaab'", 1);
+  check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where user_ip = '192.168.0.2'", 1);
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "192.168.1.2");
   ASSERT(code == 0);
@@ -313,9 +313,8 @@ TEST(connectionCase, setConnectionOption_Test) {
 
   taosMsleep(2 * HEARTBEAT_INTERVAL);
 
-  check_sql_result(pConn, "select user_app from performance_schema.perf_connections", "user");
-  check_sql_result(pConn, "select user_ip from performance_schema.perf_connections", "192.168.1.2");
-
+  check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where user_app = 'user'", 1);
+  check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where user_ip = '192.168.1.2'", 1);
 
   // test clear
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CLEAR, "192.168.0.2");
@@ -944,3 +943,4 @@ TEST(timezoneCase, localtime_performance_Test) {
 #endif
 
 #pragma GCC diagnostic pop
+

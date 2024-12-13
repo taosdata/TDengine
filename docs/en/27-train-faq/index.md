@@ -90,7 +90,7 @@ Batch insertion. Each insert statement can insert multiple records into one tabl
 
 When inserting nchar type data containing Chinese characters on Windows, first ensure that the system's regional settings are set to China (this can be set in the Control Panel). At this point, the `taos` client in cmd should already be working properly; if developing a Java application in an IDE, such as Eclipse or IntelliJ, ensure that the file encoding in the IDE is set to GBK (which is the default encoding type for Java), then initialize the client configuration when creating the Connection, as follows:
 
-```JAVA
+```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
 Properties properties = new Properties();
 properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
@@ -145,7 +145,7 @@ Version 3.0 of TDengine includes a standalone component developed in Go called `
 
 The Go language version requirement is 1.14 or higher. If there are Go compilation errors, often due to issues accessing Go mod in China, they can be resolved by setting Go environment variables:
 
-```sh
+```shell
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
@@ -196,7 +196,7 @@ Here are the solutions:
 
 1. Create a file /Library/LaunchDaemons/limit.maxfiles.plist, write the following content (the example changes limit and maxfiles to 100,000, modify as needed):
 
-```plist
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

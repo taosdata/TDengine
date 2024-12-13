@@ -396,7 +396,7 @@ static int32_t tsdbFSAddEntryToFileObjHash(STFileHash *hash, const char *fname) 
   STFileHashEntry *entry = taosMemoryMalloc(sizeof(*entry));
   if (entry == NULL) return terrno;
 
-  strncpy(entry->fname, fname, TSDB_FILENAME_LEN);
+  tstrncpy(entry->fname, fname, TSDB_FILENAME_LEN);
 
   uint32_t idx = MurmurHash3_32(fname, strlen(fname)) % hash->numBucket;
 
@@ -946,7 +946,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         arg->tsdb = fs->tsdb;
         arg->fid = fset->fid;
 
-        code = vnodeAsync(&fset->channel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree, arg, NULL);
+        code = vnodeAsync(&fset->channel, EVA_PRIORITY_HIGH, tsdbMerge, taosAutoMemoryFree, arg, NULL);
         TSDB_CHECK_CODE(code, lino, _exit);
         fset->mergeScheduled = true;
       }
