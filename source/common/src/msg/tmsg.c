@@ -673,6 +673,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pField->bytes));
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pField->name));
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, pField->compress));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pField->typeMod));
   }
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
@@ -759,6 +760,7 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &field.bytes));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, field.name));
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &field.compress));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &field.typeMod));
     if (taosArrayPush(pReq->pColumns, &field) == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
@@ -903,6 +905,7 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, pField->bytes));
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pField->name));
       TAOS_CHECK_EXIT(tEncodeU32(&encoder, pField->compress));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pField->typeMod));
 
     } else {
       SField *pField = taosArrayGet(pReq->pFields, i);
@@ -955,6 +958,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &field.bytes));
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, field.name));
       TAOS_CHECK_EXIT(tDecodeU32(&decoder, &field.compress));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &field.typeMod));
       if (taosArrayPush(pReq->pFields, &field) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
@@ -10430,6 +10434,44 @@ _exit:
   return code;
 }
 
+static int32_t tEncodeSExtSchema(SEncoder* pCoder, const SExtSchema* pExtSchema) {
+  int32_t code = 0, lino;
+  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pExtSchema->typeMod));
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeSExtSchema(SDecoder* pCoder, SExtSchema* pExtSchema) {
+  int32_t code = 0, lino;
+  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pExtSchema->typeMod));
+
+_exit:
+  return code;
+}
+
+static int32_t tEncodeSExtSchemas(SEncoder* pCoder, const SExtSchema* pExtSchemas, int32_t nCol) {
+  int32_t code = 0, lino;
+  for (int32_t i = 0; i < nCol; ++i) {
+    TAOS_CHECK_EXIT(tEncodeSExtSchema(pCoder, pExtSchemas + i));
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tDecodeSExtSchemas(SDecoder* pCoder, SExtSchema** ppExtSchema, int32_t nCol) {
+  int32_t code = 0, lino;
+  *ppExtSchema = tDecoderMalloc(pCoder, sizeof(SExtSchema) * nCol);
+  if (!*ppExtSchema) TAOS_CHECK_EXIT(terrno);
+  for (int32_t i = 0; i < nCol; ++i) {
+    TAOS_CHECK_EXIT(tDecodeSExtSchema(pCoder, (*ppExtSchema) + i));
+  }
+
+_exit:
+  return code;
+}
+
 int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   int32_t code = 0;
   int32_t lino;
@@ -10453,6 +10495,12 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
 
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->colCmpred));
   TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
+  if (pReq->pExtSchema) {
+    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 1));
+    TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchema, pReq->schemaRow.nCols));
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
+  }
   tEndEncode(pCoder);
 
 _exit:
@@ -10486,6 +10534,14 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_EXIT(tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr));
+    }
+
+    if (!tDecodeIsEnd(pCoder)) {
+      int8_t hasExtSchema = 0;
+      TAOS_CHECK_EXIT(tDecodeI8(pCoder, &hasExtSchema));
+      if (hasExtSchema) {
+        TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchema, pReq->schemaRow.nCols));
+      }
     }
   }
   tEndDecode(pCoder);
