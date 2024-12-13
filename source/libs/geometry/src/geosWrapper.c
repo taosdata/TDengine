@@ -100,7 +100,7 @@ static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData
   }
 
   (void)tsnprintf(
-      wktPatternWithSpace, 1024,
+      wktPatternWithSpace, 4 * 1024,
       "^( *)point( *)z?m?( *)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
       "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *)\\)))|linestring( *)z?m?( "
       "*)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
