@@ -2895,12 +2895,12 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       if (nodesStringToNode(value, &pAst) == 0) {
         if (nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen) != 0) {
           sqlLen = 5;
-          tsnprintf(*sql, bufSz + 1, "error");
+          tsnprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
       } else {
         sqlLen = 5;
-        tsnprintf(*sql, bufSz + 1, "error");
+        tsnprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);
