@@ -7,6 +7,10 @@ fn shadow_build() {
     const DEFAULT_CUS_PROMPT: &str = "taos";
 
     fn labeling(mut file: &File) -> SdResult<()> {
+        let clippy_allow: &str =
+            r"#[allow(clippy::all, clippy::pedantic, clippy::restriction, clippy::nursery)]";
+        writeln!(file, "{clippy_allow}")?;
+
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let manifest_dir = Path::new(&manifest_dir);
         let readme = manifest_dir.join("src").join("CLI.md");

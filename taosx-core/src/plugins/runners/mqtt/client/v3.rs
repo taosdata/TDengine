@@ -12,9 +12,9 @@ use crate::runners::mqtt::{
 
 use super::{
     ConnFailedWithCodeV3Snafu, ConnectionErrorV3Snafu, ExpectedConnAckSnafu, ExpectedSubAckSnafu,
-    InvalidAddressSnafu, InvalidQoSSnafu, InvalidTlsSnafu, SubFailedWithCodeV3Snafu,
-    SubscriptionEmptySnafu, TaskExitedSnafu, UnexpectedPollErrorV3Snafu, MAX_RETRY_COUNT,
-    MAX_RETRY_INTERVAL, MIN_RETRY_INTERVAL,
+    InvalidQoSSnafu, InvalidTlsSnafu, SubFailedWithCodeV3Snafu, SubscriptionEmptySnafu,
+    TaskExitedSnafu, UnexpectedPollErrorV3Snafu, MAX_RETRY_COUNT, MAX_RETRY_INTERVAL,
+    MIN_RETRY_INTERVAL,
 };
 
 pub struct MessagePoller {
@@ -222,8 +222,7 @@ impl super::MessagePoller for MessagePoller {
 }
 
 fn build_options(config: &MqttConnectConfig) -> Result<MqttOptions, super::Error> {
-    let (host, port) = config.host_port().context(InvalidAddressSnafu)?;
-    let mut options = MqttOptions::new(&config.client_id, host, port);
+    let mut options = MqttOptions::new(&config.client_id, &config.host, config.port);
 
     // username, password
     if let (Some(username), Some(password)) = (&config.username, &config.password) {
@@ -231,16 +230,21 @@ fn build_options(config: &MqttConnectConfig) -> Result<MqttOptions, super::Error
     }
 
     // ssl
-    if let Some((ca, client_cert, client_key)) = config.ssl() {
-        let tls_config = build_tls_config(ca, client_cert, client_key).context(InvalidTlsSnafu)?;
+    if let Some(((ca, cert), cert_key)) = config
+        .ca
+        .clone()
+        .zip(config.cert.clone())
+        .zip(config.cert_key.clone())
+    {
+        let tls_config = build_tls_config(ca, cert, cert_key).context(InvalidTlsSnafu)?;
         options.set_transport(Transport::tls_with_config(tls_config));
     }
 
     // keepalive
-    options.set_keep_alive(config.keep_alive());
+    options.set_keep_alive(config.keep_alive);
 
     // session
-    options.set_clean_session(config.clean_session());
+    options.set_clean_session(config.clean_session);
 
     // packet size
     options.set_max_packet_size(usize::MAX, usize::MAX);
@@ -266,83 +270,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use bytes::Bytes;
-    use rumqttc::QoS;
-    use taos::Dsn;
-
-    use crate::runners::mqtt::client::MessagePoller;
-
     use super::*;
-
-    #[ignore]
-    #[tokio::test]
-    async fn try_connect_success() {
-        assert!(try_connect(
-            "mqtt://emqx:1883?version=3.1&client_id=abc&username=admin&password=public"
-        )
-        .await
-        .is_ok());
-
-        assert!(try_connect(
-            "mqtt://192.168.1.1:1883?version=3.1&client_id=abc&username=admin&password=public"
-        )
-        .await
-        .is_err());
-
-        assert!(try_connect(
-            "mqtt://192.168.1.1:1884?version=3.1&client_id=abc&username=admin&password=public"
-        )
-        .await
-        .is_err());
-
-        assert!(try_connect(
-            "mqtt://192.168.1.1:1884?version=3.1&client_id=abc&username=admin&password=private"
-        )
-        .await
-        .is_err());
-    }
-
-    async fn try_connect(dsn_str: &str) -> Result<(), crate::runners::mqtt::client::Error> {
-        let config = dsn_str.parse::<Dsn>().unwrap().try_into().unwrap();
-        super::MessagePoller::try_connect(&config).await
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn subscribe_test() {
-        const TOPIC: &str = "tp_test";
-        const PAYLOAD: &[u8] = b"hello, world";
-
-        let s: MqttConnectConfig =
-            "mqtt://emqx:1883?version=3.1.1&client_id=sub_test&clean_session=true&username=admin&password=public"
-                .parse::<Dsn>()
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let mut poller = super::MessagePoller::from_config(&s, [(TOPIC.to_string(), 1)])
-            .await
-            .unwrap();
-        let client = poller.client.clone();
-
-        tokio::join!(
-            async {
-                for _ in 0..5 {
-                    let message = poller.poll().await.unwrap();
-                    assert_eq!(message.topic, TOPIC.to_string());
-                    assert_eq!(message.qos, 1);
-                    assert_eq!(message.payload, Bytes::from_static(PAYLOAD));
-                }
-            },
-            async {
-                for _ in 0..5 {
-                    client
-                        .publish(TOPIC, QoS::AtLeastOnce, false, PAYLOAD)
-                        .await
-                        .unwrap();
-                }
-            }
-        );
-    }
 
     #[test]
     fn build_subscribe_filters_test() {

@@ -4,6 +4,7 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::atomic::AtomicU16;
 use std::sync::atomic::Ordering::SeqCst;
@@ -134,7 +135,7 @@ impl TmqMetrics {
     }
 
     #[inline]
-    pub fn update_progress(&self, assignments: Vec<(String, Vec<Assignment>)>) {
+    pub fn update_progress(&self, assignments: HashMap<String, Vec<Assignment>>) {
         for (topic, assignments) in assignments {
             let topic_progress = self.progress.entry(topic).or_insert_with(DashMap::new);
             for assignment in assignments {
@@ -286,7 +287,10 @@ mod tests {
     #[test]
     fn test_get_progress_string() {
         let tmq_metrics = TmqMetrics::default();
-        tmq_metrics.update_progress(vec![("topic1".to_string(), vec![Assignment::default()])]);
+        tmq_metrics.update_progress(HashMap::from_iter([(
+            "topic1".to_string(),
+            vec![Assignment::default()],
+        )]));
         let progress = tmq_metrics.get_progress_string();
         println!("{}", progress);
     }

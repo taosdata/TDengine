@@ -460,7 +460,7 @@ impl TaskScheduler {
             Cron(schedule) => {
                 let task = task.clone();
                 let global = self.global_state.clone();
-                Job::new_cron_job_async(schedule.as_ref(), move |jid, _| {
+                Job::new_cron_job_async(schedule.as_str(), move |jid, _| {
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?
             }

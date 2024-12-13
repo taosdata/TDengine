@@ -319,7 +319,7 @@ pub struct RecordVisit<'a> {
     is_from_log: bool,
 }
 
-impl<'a> Visit for RecordVisit<'a> {
+impl Visit for RecordVisit<'_> {
     fn record_str(&mut self, field: &field::Field, value: &str) {
         if field.name() == "message" {
             self.message.replace(value.to_string());

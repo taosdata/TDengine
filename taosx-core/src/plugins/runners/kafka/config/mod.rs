@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
+use anyhow::Context;
 use faststr::FastStr;
 use taos::{Dsn, Itertools};
 use tracing::debug;
@@ -9,6 +10,7 @@ use tracing::debug;
 use crate::plugins::config::AdvancedOptions;
 use crate::runners::kafka::config::connect::KafkaConnectConfig;
 use crate::utils;
+use crate::utils::codec::StringDecoder;
 
 pub mod connect;
 
@@ -29,6 +31,8 @@ pub struct KafkaTaskConfig {
     pub client_id: Option<String>,
     pub commit_interval: Option<Duration>,
     pub enable_group_instance_id: bool,
+
+    pub codec_processor: Option<StringDecoder>,
 
     pub advanced_options: AdvancedOptions,
 
@@ -53,8 +57,19 @@ impl KafkaTaskConfig {
             enable_group_instance_id: Self::parse_enable_group_instance_id(dsn),
             advanced_options: AdvancedOptions::from_dsn(dsn)?,
             extras: Self::parse_extras(dsn)?,
+            codec_processor: Self::parse_codec_processor(dsn)?,
         };
         Ok(config)
+    }
+
+    pub fn parse_codec_processor(dsn: &Dsn) -> anyhow::Result<Option<StringDecoder>> {
+        dsn.params
+            .get("char_encoding")
+            .map(|s| {
+                s.parse()
+                    .with_context(|| format!("invalid char_encoding: {s}"))
+            })
+            .transpose()
     }
 
     fn parse_group(dsn: &Dsn) -> String {

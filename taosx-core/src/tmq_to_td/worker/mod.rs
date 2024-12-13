@@ -19,7 +19,7 @@ use serde::Serialize;
 use taos::*;
 use tracing::Instrument;
 
-use super::TaosConnection;
+use super::{execute_many_sql, TaosConnection};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -275,14 +275,13 @@ impl WriteOptions {
             )
         };
 
-        if self.actions.is_empty() || self.strategy.require_blocks() {
+        if self.actions.is_empty() && !self.strategy.require_blocks() {
             return Ok(RawMessage::raw_only(
                 self.next_mid(),
                 MessageType::DataOnly,
                 raw,
             ));
         }
-        // if !self.actions.is_empty() || self.strategy.require_blocks() {
         let mut vec = Vec::new();
         while let Some(block) = data
             .fetch_raw_block()
@@ -375,7 +374,7 @@ impl Worker {
         let metrics = self.metrics.as_ref().tmq();
         let meta = message.meta.as_ref().unwrap();
         let sqls = meta.iter().map(ToString::to_string).collect_vec();
-        conn.exec_many(&sqls)
+        execute_many_sql(conn, sqls)
             .in_current_span()
             .await
             .context("Write raw meta with sql error")?;
@@ -1197,7 +1196,7 @@ impl Worker {
                         // Fallback to sql method.
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
                         let sqls = meta.iter().map(ToString::to_string).collect_vec();
-                        conn.exec_many(&sqls)
+                        execute_many_sql(conn, sqls)
                             .in_current_span()
                             .await
                             .context("Write raw meta with sql error")?;

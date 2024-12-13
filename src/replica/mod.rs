@@ -1203,16 +1203,15 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn test_replica_func() {
-        std::env::set_var("RUST_LOG", "debug");
+    async fn test_replica_func_with_taos() {
+        std::env::set_var("RUST_LOG", "trace");
         use tracing_subscriber::EnvFilter;
 
         let filter = EnvFilter::from_default_env();
         let _ = tracing_subscriber::fmt::fmt()
             .with_env_filter(filter)
             .try_init();
-        let taos_builder = taos::TaosBuilder::from_dsn("taos://localhost").unwrap();
+        let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 
         taos.exec_many([
@@ -1232,7 +1231,9 @@ mod tests {
         let group = rand::distributions::Alphanumeric.sample_string(&mut rng, 10);
 
         println!("Using group {}", group);
-        let tmq = format!("tmq:///?msg.consume.excluded=1&group.id={group}&timeout=never");
+        let tmq = format!(
+            "tmq:///?msg.consume.excluded=1&group.id={group}&auto.offset.reset=earliest&timeout=2s"
+        );
         let tmq_builder = taos::TmqBuilder::from_dsn(tmq).unwrap();
         let mut rep1 = tmq_builder.build().await.unwrap();
         rep1.subscribe(["rep1".to_string()]).await.unwrap();
@@ -1243,12 +1244,12 @@ mod tests {
             let taos = taos::TaosBuilder::from_dsn(format!("taos:///{}", target))?
                 .build()
                 .await?;
-            let mut stream = consumer.stream_with_timeout(taos::Timeout::from_millis(1000));
+            let mut stream = consumer.stream();
             let mut msgs = 0;
-            while let Ok(msg) = stream.try_next().await {
-                let (offset, message) = msg.unwrap();
+            while let Ok(Some(msg)) = stream.try_next().await {
+                let (offset, message) = msg;
                 msgs += 1;
-                println!("{}: {}", target, offset.vgroup_id());
+                tracing::info!("{}: {}", target, offset.vgroup_id());
                 match message {
                     MessageSet::Data(data) => {
                         let raw = data.as_raw_data().await?;
@@ -1258,7 +1259,7 @@ mod tests {
                         .await?;
                     }
                     MessageSet::Meta(data) => {
-                        println!("{target}: {:?}", data.as_json_meta().await?);
+                        tracing::info!("{target}: {:?}", data.as_json_meta().await?);
                         let raw = data.as_raw_meta().await?;
                         taos.write_raw_meta(&raw).await?;
                     }
@@ -1266,29 +1267,41 @@ mod tests {
                 }
                 consumer.commit(offset).await?;
                 if msgs > 10 {
-                    println!("{}: 10 messages received", target);
+                    tracing::info!("{}: 10 messages received", target);
                     break;
                 }
             }
+            tracing::info!("{}: received {} messages", target, msgs);
             anyhow::Ok(msgs)
         };
 
-        println!("start replicas: rep1 and rep2");
+        tracing::info!("start replicas: rep1 and rep2");
         let rep1_handler = tokio::spawn(async move { replica_runner(rep1, "rep1").await });
         let rep2_handler = tokio::spawn(async move { replica_runner(rep2, "rep2").await });
 
-        taos.exec("create table rep1.tb1 (ts timestamp, val int)")
-            .await
-            .unwrap();
-        taos.exec("create table rep2.tb2 (ts timestamp, val int)")
-            .await
-            .unwrap();
+        tracing::info!("create tables in rep1 and rep2");
+        taos.exec_many([
+            "create table rep1.tb1 (ts timestamp, val int)",
+            "insert into rep1.tb1 values (now, 1)",
+        ])
+        .await
+        .unwrap();
+        taos.exec_many([
+            "create table rep2.tb2 (ts timestamp, val int)",
+            "insert into rep2.tb2 values (now, 1)",
+        ])
+        .await
+        .unwrap();
 
-        tokio::time::sleep(Duration::from_secs(40)).await;
+        tracing::info!("wait for rep1 and rep2");
+        // tokio::time::sleep(Duration::from_secs(40)).await;
         let num1 = rep1_handler.await.unwrap().unwrap();
         let num2 = rep2_handler.await.unwrap().unwrap();
 
-        assert!(num1 == 1, "rep1 should have received 1 message");
-        assert!(num2 == 1, "rep2 should have received 1 message");
+        tracing::info!("rep1 received {} messages", num1);
+        tracing::info!("rep2 received {} messages", num2);
+
+        assert!(num1 == 2, "rep1 should have received 1 message");
+        assert!(num2 == 2, "rep2 should have received 1 message");
     }
 }

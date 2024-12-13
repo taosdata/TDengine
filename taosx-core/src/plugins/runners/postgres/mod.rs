@@ -151,7 +151,6 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from postgres to taos
-
 pub async fn postgres_to_taos(
     from: Dsn,
     parser: Option<Parser>,

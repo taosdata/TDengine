@@ -697,3 +697,10 @@ end
 dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
 args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]
+
+[tasks.install-locally]
+script = """
+sudo cp target/taosx.service target/taos-explorer.service /etc/systemd/system/
+sudo cp target/${BUILD_PROFILE}/taosx target/${BUILD_PROFILE}/taos-explorer /usr/bin/
+sudo systemctl daemon-reload
+"""
