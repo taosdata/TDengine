@@ -168,7 +168,7 @@ cargo nextest run --workspace <case-name>
 
 ## 8. Releasing
 
-taosx and related components are released with TDengine Enterprise, whcih can be found on the corporate NAS server:
+taosx and related components are released with TDengine Enterprise, which can be found on the corporate NAS server:
 
 - NAS Server URL： http://192.168.1.252:5000/
 - Directory: /Release/TDengine/
