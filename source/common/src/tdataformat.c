@@ -449,9 +449,10 @@ static int32_t tBindInfoCompare(const void *p1, const void *p2, const void *para
  * `infoSorted` is whether the bind information is sorted by column id
  * `pTSchema` is the schema of the table
  * `rowArray` is the array to store the rows
+ * `orderedDup` is an array to store ordered and duplicateTs
  */
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                          SArray *rowArray) {
+                          SArray *rowArray, bool *orderedDup) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -469,6 +470,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     return terrno;
   }
 
+  SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
 
@@ -506,6 +508,24 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    if (orderedDup) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        // init to ordered by default 
+        orderedDup[0] = true;
+        // init to non-duplicate by default
+        orderedDup[1] = false;
+      } else {
+        // no more compare if we already get disordered or duplicate rows
+        if (orderedDup[0] && !orderedDup[1]) {
+          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
+          orderedDup[0] = (code >= 0);
+          orderedDup[1] = (code == 0);
+        }
+      }
+      lastRowKey = rowKey;
     }
   }
 
@@ -3235,9 +3255,10 @@ _exit:
  * `infoSorted` is whether the bind information is sorted by column id
  * `pTSchema` is the schema of the table
  * `rowArray` is the array to store the rows
+ * `orderedDup` is an array to store ordered and duplicateTs
  */
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray) {
+                           SArray *rowArray, bool *orderedDup) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -3266,6 +3287,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     }
   }
 
+  SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
 
@@ -3316,6 +3338,24 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    if (orderedDup) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        // init to ordered by default 
+        orderedDup[0] = true;
+        // init to non-duplicate by default
+        orderedDup[1] = false;
+      } else {
+        // no more compare if we already get disordered or duplicate rows
+        if (orderedDup[0] && !orderedDup[1]) {
+          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
+          orderedDup[0] = (code >= 0);
+          orderedDup[1] = (code == 0);
+        }
+      }
+      lastRowKey = rowKey;
     }
   }
 
