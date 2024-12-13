@@ -387,10 +387,10 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
     return terrno;
   }
 
-  if (pInfo->pFillInfo == NULL || pInfo->p == NULL) {
+  if (pInfo->pFillInfo == NULL) {
     taosMemoryFree(pInfo->pFillInfo);
     taosMemoryFree(pInfo->p);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   } else {
     return TSDB_CODE_SUCCESS;
   }
