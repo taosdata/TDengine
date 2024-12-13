@@ -773,8 +773,28 @@ static int32_t metaTtlIdxInsert(SMeta *pMeta, const SMetaHandleParam *pParam) {
   return metaTtlIdxUpsert(pMeta, pParam, META_TABLE_OP_INSERT);
 }
 
+static int32_t metaTtlIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam);
+
 static int32_t metaTtlIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
-  return metaTtlIdxUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry *pEntry = pParam->pEntry;
+  const SMetaEntry *pOldEntry = pParam->pOldEntry;
+
+  if ((pEntry->type == TSDB_CHILD_TABLE && pOldEntry->ctbEntry.ttlDays != pEntry->ctbEntry.ttlDays) ||
+      (pEntry->type == TSDB_NORMAL_TABLE && pOldEntry->ntbEntry.ttlDays != pEntry->ntbEntry.ttlDays)) {
+    code = metaTtlIdxDelete(pMeta, pParam);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+    }
+
+    code = metaTtlIdxInsert(pMeta, pParam);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t metaTtlIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
@@ -1336,6 +1356,7 @@ static int32_t metaHandleNormalTableUpdateImpl(SMeta *pMeta, const SMetaHandlePa
       {META_ENTRY_TABLE, META_TABLE_OP_UPDATA},   //
       {META_SCHEMA_TABLE, META_TABLE_OP_UPDATA},  //
       {META_UID_IDX, META_TABLE_OP_UPDATA},       //
+      {META_TTL_IDX, META_TABLE_OP_UPDATA},       //
   };
   for (int32_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
     SMetaTableOp *op = &ops[i];
@@ -1365,6 +1386,7 @@ static int32_t metaHandleChildTableUpdateImpl(SMeta *pMeta, const SMetaHandlePar
       {META_UID_IDX, META_TABLE_OP_UPDATA},      //
       {META_TAG_IDX, META_TABLE_OP_UPDATA},      //
       {META_CHILD_IDX, META_TABLE_OP_UPDATA},    //
+      {META_TTL_IDX, META_TABLE_OP_UPDATA},      //
   };
 
   for (int i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {

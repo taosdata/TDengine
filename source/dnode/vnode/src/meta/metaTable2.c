@@ -1367,3 +1367,93 @@ int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq
   metaFetchEntryFree(&pSuper);
   TAOS_RETURN(code);
 }
+
+static int32_t metaCheckUpdateTableOptionsReq(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pReq->tbName == NULL || strlen(pReq->tbName) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid table name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  return code;
+}
+
+int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  int32_t code = 0;
+
+  code = metaCheckUpdateTableOptionsReq(pMeta, version, pReq);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+
+  // fetch entry
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+
+  // do change the entry
+  pEntry->version = version;
+  if (pEntry->type == TSDB_CHILD_TABLE) {
+    if (pReq->updateTTL) {
+      pEntry->ctbEntry.ttlDays = pReq->newTTL;
+      // metaDeleteTtl(pMeta, &entry);
+      // entry.ctbEntry.ttlDays = pReq->newTTL;
+      // metaUpdateTtl(pMeta, &entry);
+    }
+    if (pReq->newCommentLen >= 0) {
+      char *pNewComment = taosMemoryRealloc(pEntry->ctbEntry.comment, pReq->newCommentLen + 1);
+      if (NULL == pNewComment) {
+        metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+                  __LINE__, tstrerror(terrno), version);
+        metaFetchEntryFree(&pEntry);
+        TAOS_RETURN(terrno);
+      }
+      pEntry->ctbEntry.comment = pNewComment;
+      pEntry->ctbEntry.commentLen = pReq->newCommentLen;
+    }
+  } else if (pEntry->type == TSDB_NORMAL_TABLE) {
+    if (pReq->updateTTL) {
+      pEntry->ntbEntry.ttlDays = pReq->newTTL;
+      // metaDeleteTtl(pMeta, &entry);
+      // entry.ntbEntry.ttlDays = pReq->newTTL;
+      // metaUpdateTtl(pMeta, &entry);
+    }
+    if (pReq->newCommentLen >= 0) {
+      char *pNewComment = taosMemoryRealloc(pEntry->ntbEntry.comment, pReq->newCommentLen + 1);
+      if (NULL == pNewComment) {
+        metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+                  __LINE__, tstrerror(terrno), version);
+        metaFetchEntryFree(&pEntry);
+        TAOS_RETURN(terrno);
+      }
+      pEntry->ntbEntry.comment = pNewComment;
+      pEntry->ntbEntry.commentLen = pReq->newCommentLen;
+    }
+  } else {
+    metaError("vgId:%d, %s failed at %s:%d since table %s type %d is invalid, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->tbName, pEntry->type, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // do handle entry
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
+             pEntry->uid, version);
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}

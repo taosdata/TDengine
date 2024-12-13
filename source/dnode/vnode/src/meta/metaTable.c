@@ -23,6 +23,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
 int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
 int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
+int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
 
 int32_t metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 
@@ -2999,9 +3000,8 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaUpdateTableTagValue(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
       return metaUpdateTableMultiTagValue(pMeta, version, pReq);
-      return terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
-      return metaUpdateTableOptions(pMeta, version, pReq);
+      return metaUpdateTableOptions2(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_ADD_TAG_INDEX:
       return metaAddTagIndex(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_DROP_TAG_INDEX:
