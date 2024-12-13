@@ -15,6 +15,61 @@
 
 #include "meta.h"
 
+static bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
+  for (int32_t i = 0; i < nCols; i++) {
+    if (HAS_TYPE_MOD(pSchema + i)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t metaEncodeExtSchema(SEncoder* pCoder, const SMetaEntry* pME) {
+  if (pME->pExtSchema) {
+    const SSchemaWrapper *pSchWrapper = NULL;
+    bool                  hasTypeMods = false;
+    if (pME->type == TSDB_SUPER_TABLE) {
+      pSchWrapper = &pME->stbEntry.schemaRow;
+    } else if (pME->type == TSDB_NORMAL_TABLE) {
+      pSchWrapper = &pME->ntbEntry.schemaRow;
+    } else {
+      return 0;
+    }
+    hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
+
+    for (int32_t i = 0; i < pSchWrapper->nCols && hasTypeMods; ++i) {
+      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->pExtSchema[i].typeMod));
+    }
+  }
+  return 0;
+}
+
+static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
+  bool hasExtSchema = false;
+  SSchemaWrapper* pSchWrapper = NULL;
+  if (pME->type == TSDB_SUPER_TABLE) {
+    pSchWrapper = &pME->stbEntry.schemaRow;
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    pSchWrapper = &pME->ntbEntry.schemaRow;
+  } else {
+    return 0;
+  }
+
+  hasExtSchema = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
+  if (hasExtSchema && pSchWrapper->nCols > 0) {
+    pME->pExtSchema = (SExtSchema*)tDecoderMalloc(pDecoder, sizeof(SExtSchema) * pSchWrapper->nCols);
+    if (pME->pExtSchema == NULL) {
+      return terrno;
+    }
+
+    for (int32_t i = 0; i < pSchWrapper->nCols && hasExtSchema; i++) {
+      TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pME->pExtSchema[i].typeMod));
+    }
+  }
+
+  return 0;
+}
+
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
@@ -129,6 +184,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       return TSDB_CODE_INVALID_PARA;
     }
     TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+    TAOS_CHECK_RETURN(metaEncodeExtSchema(pCoder, pME));
   }
 
   tEndEncode(pCoder);
@@ -203,7 +259,11 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       }
       TABLE_SET_COL_COMPRESSED(pME->flags);
     }
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(metaDecodeExtSchemas(pCoder, pME));
+    }
   }
+
 
   tEndDecode(pCoder);
   return 0;

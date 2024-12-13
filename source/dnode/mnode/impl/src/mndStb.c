@@ -117,6 +117,7 @@ void mndCleanupStb(SMnode *pMnode) {}
 SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   int32_t code = 0;
   int32_t lino = 0;
+  bool    hasTypeMod = false;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + pStb->commentLen +
@@ -155,6 +156,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     SDB_SET_INT16(pRaw, dataPos, pSchema->colId, _OVER)
     SDB_SET_INT32(pRaw, dataPos, pSchema->bytes, _OVER)
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, _OVER)
+    hasTypeMod = hasTypeMod || HAS_TYPE_MOD(pSchema);
   }
 
   for (int32_t i = 0; i < pStb->numOfTags; ++i) {
@@ -190,6 +192,14 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
       SDB_SET_INT32(pRaw, dataPos, p->alg, _OVER)
     }
   }
+
+  // TODO wjm test it, what if some cols are deleted, maybe rewrite it
+  if (hasTypeMod) {
+    for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
+      SDB_SET_INT32(pRaw, dataPos, pStb->pExtSchemas[i].typeMod, _OVER);
+    }
+  }
+
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -212,6 +222,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SStbObj *pStb = NULL;
+  bool     hasExtSchemas = false;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -264,6 +275,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT16(pRaw, dataPos, &pSchema->colId, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &pSchema->bytes, _OVER)
     SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, _OVER)
+    hasExtSchemas = hasExtSchemas || HAS_TYPE_MOD(pSchema);
   }
 
   for (int32_t i = 0; i < pStb->numOfTags; ++i) {
@@ -314,6 +326,16 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
       SColCmpr *pCmpr = &pStb->pCmpr[i];
       SDB_GET_INT16(pRaw, dataPos, &pCmpr->id, _OVER)
       SDB_GET_INT32(pRaw, dataPos, (int32_t *)&pCmpr->alg, _OVER)  // compatiable
+    }
+  }
+
+  // type mod
+  if (hasExtSchemas) {
+    pStb->pExtSchemas = taosMemoryCalloc(pStb->numOfColumns, sizeof(SExtSchema));
+    if (!pStb->pExtSchemas) goto _OVER;
+    for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
+      SSchema *pSchema = &pStb->pColumns[i];
+      SDB_GET_INT32(pRaw, dataPos, &pStb->pExtSchemas[i].typeMod, _OVER)
     }
   }
 
@@ -557,6 +579,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
       }
     }
   }
+  req.pExtSchema = pStb->pExtSchemas; // only reference to it.
   // get length
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, &req, contLen, ret);
@@ -855,6 +878,7 @@ static SSchema *mndFindStbColumns(const SStbObj *pStb, const char *colName) {
 
 int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreate, SDbObj *pDb) {
   int32_t code = 0;
+  bool    hasTypeMods = false;
   memcpy(pDst->name, pCreate->name, TSDB_TABLE_FNAME_LEN);
   memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDst->createdTime = taosGetTimestampMs();
@@ -930,6 +954,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
     pSchema->colId = pDst->nextColId;
     pDst->nextColId++;
+    hasTypeMods = hasTypeMods || pField->typeMod != 0;
   }
 
   for (int32_t i = 0; i < pDst->numOfTags; ++i) {
@@ -953,6 +978,18 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     SColCmpr *pColCmpr = &pDst->pCmpr[i];
     pColCmpr->id = pSchema->colId;
     pColCmpr->alg = pField->compress;
+  }
+
+  if (hasTypeMods) {
+    pDst->pExtSchemas = taosMemoryCalloc(pDst->numOfColumns, sizeof(SExtSchema));
+    if (!pDst->pExtSchemas) {
+      code = terrno;
+      TAOS_RETURN(code);
+    }
+    for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
+      SFieldWithOptions * pField = taosArrayGet(pCreate->pColumns, i);
+      pDst->pExtSchemas[i].typeMod = pField->typeMod;
+    }
   }
   TAOS_RETURN(code);
 }
@@ -1247,6 +1284,7 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
       p->alg = pField->compress;
     }
   }
+  // TODO wjm alter table with deicmal table
   pDst->tagVer = createReq->tagVer;
   pDst->colVer = createReq->colVer;
   return TSDB_CODE_SUCCESS;
@@ -3602,6 +3640,8 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
           colTypeLen +=
               tsnprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
                         "(%d)", (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+        } else if (IS_DECIMAL_TYPE(colType)) {
+          //colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d,%d)", pStb->pColumns[i].precision, pStb->pColumns[i].scale);
         }
         varDataSetLen(colTypeStr, colTypeLen);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false), pStb, &lino, _OVER);

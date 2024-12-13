@@ -18,6 +18,7 @@
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
+#include "decimal.h"
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
@@ -1498,4 +1499,11 @@ int64_t int64SafeSub(int64_t a, int64_t b) {
     res = INT64_MIN;
   }
   return res;
+}
+
+STypeMod calcTypeMod(const SDataType* pType) {
+  if (IS_DECIMAL_TYPE(pType->type)) {
+    return decimalCalcTypeMod(pType);
+  }
+  return 0;
 }

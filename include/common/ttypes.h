@@ -277,8 +277,9 @@ typedef struct {
 #define IS_INTEGER_TYPE(_t)          ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)))
 #define IS_TIMESTAMP_TYPE(_t)        ((_t) == TSDB_DATA_TYPE_TIMESTAMP)
 #define IS_BOOLEAN_TYPE(_t)          ((_t) == TSDB_DATA_TYPE_BOOL)
+#define IS_DECIMAL_TYPE(_t)          ((_t) == TSDB_DATA_TYPE_DECIMAL || (_t) == TSDB_DATA_TYPE_DECIMAL64)
 
-#define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
+#define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)) || (IS_DECIMAL_TYPE(_t)))
 #define IS_MATHABLE_TYPE(_t) \
   (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
@@ -379,6 +380,9 @@ int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
 void    assignVal(char *val, const char *src, int32_t len, int32_t type);
 void   *getDataMin(int32_t type, void *value);
 void   *getDataMax(int32_t type, void *value);
+
+#define STypeMod int32_t
+uint8_t getDecimalType(uint8_t precision);
 
 #ifdef __cplusplus
 }

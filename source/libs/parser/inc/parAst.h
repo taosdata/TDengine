@@ -191,6 +191,7 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
 
 SDataType createDataType(uint8_t type);
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
+SDataType createDecimalDataType(uint8_t type, const SToken* pPrecisionToken, const SToken* pScaleToken);
 
 SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
 SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt);
