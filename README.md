@@ -192,7 +192,15 @@ To run the specific test case(s) from above list with `nextest`:
 cargo nextest run --workspace <case-name>
 ```
 
-To run the e2e test
+## 8. Releasing
+
+taosx and related components are released with TDengine Enterprise, which can be found on the corporate NAS server:
+
+- NAS Server URL： http://192.168.1.252:5000/
+- Directory: /Release/TDengine/
+
+All the released versions can be found here.
+
 ## 9. CI/CD
 
 We use GitHub Actions for CI/CD workflow configuration. See [.github/workflows/pr-ci.yaml](https://github.com/taosdata/taosx/blob/main/.github/workflows/pr-ci.yaml).
