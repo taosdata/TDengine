@@ -57,7 +57,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.operation')" width="200">
+      <el-table-column :label="$t('taosuser.operation')" width="280">
         <template slot-scope="scope">
           <el-switch
             :value="scope.row.status.toLowerCase() != 'stopped'"
@@ -68,21 +68,24 @@
           >
           </el-switch>
           <el-button
+             plain
+             size="small"
+             @click="viewBackup(scope.row)"
+             icon="el-icon-view"
+          ></el-button>
+          <el-button
             plain
             size="small"
             @click="edit(scope.row)"
             icon="el-icon-edit"
             :disabled="$COMMUNITY"
           ></el-button>
-          <el-tooltip placement="top" :content="$t('taosuser.dataRestoration')" effect="light">  
-            <el-button
-             :disabled="scope.row.status.toLowerCase() == 'running' || $COMMUNITY"
+          <el-button
              plain
              size="small"
-             @click="handleRestorBackup(scope.row, scope.$index)"
-             icon="el-icon-first-aid-kit"
-           ></el-button>
-          </el-tooltip>
+             @click="copy(scope.row)"
+             icon="el-icon-document-copy"
+          ></el-button>
           <el-button
             plain
             size="small"
@@ -187,9 +190,12 @@
             <el-option :label="$t('taosuser.compressionLevel.fastest')" value="fastest"></el-option>
           </el-select>
         </el-form-item>
+        <el-form-item v-if="viewOnly" prop="created_at" :label="$t('taosuser.createtime')">
+          <el-input v-model="ruleForm.created_at"></el-input>
+        </el-form-item>
       </el-form>
       
-      <el-row style="margin-top: 20px">
+      <el-row style="margin-top: 20px" v-if="!viewOnly">
         <el-col :span="5" :offset="6">
           <el-button size="small" @click="dialog = false" class="w100">{{
             $t("cancel")
@@ -265,6 +271,7 @@ export default {
       historyList: [],
       dialogHistory: false,
       dialogTitle: "Create New Backup",
+      viewOnly: false,
       pageSize: 10,
       currentPage: 1,
       total: 10,
@@ -283,7 +290,8 @@ export default {
         retry_interval: 5,
         backup_max_size_value: "1",
         backup_max_size_unit: "GB",
-        compression_level: "balanced",
+        compression_level: "best",
+        created_at: "",
       },
       rules: {
         cylce: [
@@ -401,8 +409,9 @@ export default {
       });
     },
     add() {
-      this.dialogTitle = this.$t('taosuser.createbackup');
+      this.dialogTitle = `${this.$t('create')}${this.$t('taosuser.backupPlan')}`;
       this.dialog = true;
+      this.viewOnly = false;
       this.ruleForm = {
         database: "",
         stable: "",
@@ -416,7 +425,7 @@ export default {
         backup_max_size: "1GB",
         backup_max_size_value: "1",
         backup_max_size_unit: "GB",
-        compression_level: "balanced",
+        compression_level: "best",
       }
       this.currentId = null;
     },
@@ -424,9 +433,15 @@ export default {
       this.getBackData();
     },
     edit(data) {
-      this.dialogTitle = this.$t('taosuser.changebackup');
-      this.dialog = true;
+      this.copy(data);
+      this.dialogTitle = `${this.$t('change')}${this.$t('taosuser.backupPlan')}`;
       this.currentId = data.id;
+    },
+    copy(data) {
+      this.currentId = null;
+      this.viewOnly = false;
+      this.dialogTitle = `${this.$t('create')}${this.$t('taosuser.backupPlan')}`;
+      this.dialog = true;
       this.ruleForm.database = data.database;
       this.ruleForm.stable = data.stable;
       this.ruleForm.upcoming = data.upcoming;
@@ -434,7 +449,7 @@ export default {
       this.ruleForm.compression_level = data.compression_level;
       this.ruleForm.max_retry = data.max_retry;
       this.ruleForm.retry_interval = data.retry_interval;
-
+      
       const interval_parts = data.interval.match(/^(\d+)([sdh])$/);
       if (interval_parts && interval_parts.length === 3) {
         this.ruleForm.interval_value = interval_parts[1];
@@ -443,6 +458,13 @@ export default {
       const backup_file_max_size_parts = data.max_size.match(/^(\d+)([A-Z]{2})/);
       this.ruleForm.backup_max_size_value = backup_file_max_size_parts[1];
       this.ruleForm.backup_max_size_unit = backup_file_max_size_parts[2];
+    },
+
+    viewBackup(data){
+      this.copy(data);
+      this.dialogTitle = `${this.$t('taosuser.backupPlan')}`;
+      this.ruleForm.created_at = data.created_at;
+      this.viewOnly = true;
     },
     parseData(data, targetData) {
       targetData.id = data.id;
@@ -467,6 +489,7 @@ export default {
       }
       targetData.backup_max_size = data.to_expand.params.max_size;
       targetData.compression_level = data.to_expand.params.compression_level;
+      targetData.created_at = parsinginZone(data.created_at);
     },
 
     async start(val, data) {
