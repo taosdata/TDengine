@@ -1,5 +1,7 @@
 import { request } from "@/utils/request";
 import i18n from '@/lang/index'
+import { decrypt } from '@/utils';
+
 let language=i18n.locale.includes('zh')?'zh':'en'
 //获取backup列表
 export function getBackupList(id) {
@@ -7,6 +9,34 @@ export function getBackupList(id) {
         baseURL:process.env.VUE_APP_X_API,
         url: `/tasks?lang=${language}&detail=true&labels=type::backup,cluster-id::${id}`,
         method: "get"
+    });
+}
+
+export function getBackupHistory(id) {
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url: `/backup/${id}/points`,
+        method: "get"
+    });
+}
+
+export function restoreBackups(backupDir, points) {
+    const username = localStorage.getItem("username") || ''
+    const decryptPwd = decrypt(localStorage.getItem("pwd")) || '';
+
+    let base_url = localStorage.getItem("base_url")
+    let splitArr = base_url.split('//')
+    let dsn = `tmq+${splitArr[0]}//${username}:${encodeURIComponent(decryptPwd)}@${splitArr[1]}`;
+
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url: `/tasks`,
+        method: "post",
+        data: {
+            "labels": ["type::restore", `cluster-id::${localStorage.getItem("local_clusterID")}`],
+            "from": `local:${backupDir}?points=${points.join(",")}`,
+            "to": dsn
+        }
     });
 }
 

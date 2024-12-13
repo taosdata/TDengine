@@ -27,7 +27,10 @@
       <el-table-column width="120" :label="$t('topic.stables')" prop="stable" show-overflow-tooltip></el-table-column>
       <el-table-column :label="$t('taosuser.backupForm.fileDir')" prop="directory" show-overflow-tooltip></el-table-column>
       <el-table-column width="210" :label="$t('taosuser.backupForm.upcoming')" prop="upcoming">
-        <span slot-scope="scope">{{ formatTime(scope.row.upcoming) }}</span>
+        <span slot-scope="scope">{{ parsinginZone(scope.row.upcoming) }}</span>
+      </el-table-column>
+      <el-table-column width="100" :label="'备份文件'" prop="upcoming">
+        <a slot-scope="scope" @click="showBackupHistory(scope.row)">50G/2</a>
       </el-table-column>
       <el-table-column width="60" :label="$t('taosuser.lastbackup')" prop="status" show-overflow-tooltip>
         <template slot-scope="scope">
@@ -51,34 +54,6 @@
             <span v-else>{{
               handleDSStatus(scope.row.status)
             }}</span>
-            <!-- <template v-if="scope.row.status.toLowerCase() !== 'running'">
-              <el-tooltip
-                placement="bottom"
-                effect="light"
-                content="Excute Start"
-              >
-                <el-button
-                  plain
-                  size="small"
-                  @click="start(scope.row, scope.$index)"
-                  icon="el-icon-qidong"
-                ></el-button>
-              </el-tooltip>
-            </template>
-            <template v-else>
-              <el-tooltip
-                placement="bottom"
-                effect="light"
-                content="Excute Stop"
-              >
-                <el-button
-                  plain
-                  size="small"
-                  @click="stop(scope.row, scope.$index)"
-                  icon="el-icon-tingzhi"
-                ></el-button
-              ></el-tooltip>
-            </template> -->
           </div>
         </template>
       </el-table-column>
@@ -231,6 +206,38 @@
         </el-col>
       </el-row>
     </el-dialog>
+
+    <el-dialog
+      align="center"
+      :title="'备份历史'"
+      width="900px"
+      :visible.sync="dialogHistory"
+      :destroy-on-close='true'
+      :close-on-click-modal="false"
+    >
+      <el-table style="margin-top: 20px" 
+      row-key="id" 
+      :data="historyList" 
+      default-expand-all
+      :tree-props="{children: 'children', hasChildren: 'hasChildren'}">
+        <el-table-column width="150" :label="'ID'" prop="id"></el-table-column>
+        <el-table-column :label="'备份时间点'" prop="point">
+          <span slot-scope="scope">{{ parsinginZone(scope.row.point) }}</span>
+        </el-table-column>
+        <el-table-column width="150" :label="'累积文件大小'" prop="file_size"></el-table-column>
+        <el-table-column width="100" :label="'文件数量'" prop="file_count"></el-table-column>
+        <el-table-column width="100" :label="'操作'">
+          <el-tooltip placement="top" :content="$t('taosuser.dataRestoration')" effect="light">  
+            <el-button
+             plain
+             size="small"
+             @click="restoreBackup(scope.row)"
+             icon="el-icon-first-aid-kit"
+           ></el-button>
+          </el-tooltip>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 <script>
@@ -238,7 +245,9 @@ import {
   getBackupList,
   addBackupData,
   editBackup,
-  restorBackupData
+  restorBackupData,
+  getBackupHistory,
+  restoreBackups,
 } from "@/api/explorer/backup";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import { Message } from "element-ui";
@@ -252,6 +261,8 @@ export default {
       requestIng: false,
       dblist: [],
       stableList: [],
+      historyList: [],
+      dialogHistory: false,
       dialogTitle: "Create New Backup",
       pageSize: 10,
       currentPage: 1,
@@ -327,6 +338,38 @@ export default {
   methods: {
     async getSTbaleList() {
       this.stableList = await getStables(this.ruleForm.database);
+    },
+    restoreBackupPoint(point) {
+      restoreBackups(this.backupDirectory, [point]);
+    }, 
+    async showBackupHistory(backData) {
+      const id = backData.id;
+      this.backupDirectory = backData.directory;
+
+      const res = await getBackupHistory(id);
+      if (res && res.length === 0) {
+        this.historyList = [];
+        return ;
+      }
+
+      let currentItem = {"id": 0, "point": res[0].point, "file_size": 0, "file_count": 0, "hasChildren":true, "children": []};
+      const groupedList = [currentItem];
+
+      for (let i = 0; i < res.length; i++) {
+        let item = res[i];
+        if (item.point === currentItem.point) {
+          currentItem.file_size = item.file_size;
+          currentItem.file_count += item.file_count;
+          currentItem.children.push(item);
+          currentItem.children.push(item);
+        } else {
+          currentItem = {"id": i, "point": item.point, "hasChildren":true, "file_size": item.file_size, "file_count": item.file_count, "children": [item]};
+          groupedList.push(currentItem);
+        }
+      }
+      this.historyList = groupedList;
+      console.log('this.historyList', groupedList);
+      this.dialogHistory = true;
     },
     closeDialog(){
       this.$refs.ruleForm.resetFields();
