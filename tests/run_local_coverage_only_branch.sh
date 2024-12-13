@@ -300,7 +300,7 @@ function lcovFunc {
     fi
 
     # collect data
-    lcov -d "$TDENGINE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
+    lcov -d "$TDENGINE_GCDA_DIR" -capture --rc lcov_branch_coverage=0 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
 
     # remove exclude paths
     lcov --remove coverage.info \
@@ -308,7 +308,7 @@ function lcovFunc {
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c' '/*/enterprise/*' '*/docs/*' '*/sim/*'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
         '*/tbase64.c' '*/tbuffer.c' '*/tdes.c' '*/texception.c' '*/examples/*' '*/tidpool.c' '*/tmempool.c'\
-        '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.cc'\
+        '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.cc' '*/branch/*'\
         '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' \
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c'\
         '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c' '*/debug/*' '*/tests/*'\
