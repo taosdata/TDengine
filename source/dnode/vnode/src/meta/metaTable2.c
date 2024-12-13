@@ -854,7 +854,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   }
 
   if (NULL == pColumn) {
-    metaError("vgId:%d, %s failed at %s:%d since column id %" PRId64 " not found in table %s, version:%" PRId64,
+    metaError("vgId:%d, %s failed at %s:%d since column id %d not found in table %s, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colId, pReq->tbName, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
