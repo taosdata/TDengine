@@ -2366,7 +2366,7 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
     }
 
     // remove this entry
-    (void)taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
+    (void) taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
 
     int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);
     mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", req.streamId, numOfStreams);
