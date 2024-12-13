@@ -75,6 +75,10 @@ static int32_t stmtCreateRequest(STscStmt2* pStmt) {
     if (pStmt->reqid != 0) {
       pStmt->reqid++;
     }
+    if (pStmt->db != NULL) {
+      taosMemoryFreeClear(pStmt->exec.pRequest->pDb); 
+      pStmt->exec.pRequest->pDb = strdup(pStmt->db);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
       pStmt->exec.pRequest->isStmtBind = true;
@@ -109,7 +113,7 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
       }
       break;
     case STMT_SETTAGS:
-      if (STMT_STATUS_NE(SETTBNAME) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(ADD_BATCH)) {
+      if (STMT_STATUS_EQ(INIT)) {
         code = TSDB_CODE_TSC_STMT_API_ERROR;
       }
       break;
@@ -145,7 +149,7 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
           code = TSDB_CODE_TSC_STMT_API_ERROR;
         }
       } else {
-        if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(SETTAGS)) {
+        if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS)) {
           code = TSDB_CODE_TSC_STMT_API_ERROR;
         }
       }
@@ -412,6 +416,7 @@ static void stmtFreeTbCols(void* buf) {
 static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   STMT_DLOG_E("start to free SQL info");
 
+  taosMemoryFreeClear(pStmt->db);
   taosMemoryFree(pStmt->sql.pBindInfo);
   taosMemoryFree(pStmt->sql.queryRes.fields);
   taosMemoryFree(pStmt->sql.queryRes.userFields);
@@ -842,6 +847,7 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
 
   STMT_DLOG("start to set dbName: %s", dbName);
 
+  pStmt->db = taosStrdup(dbName);
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   // The SQL statement specifies a database name, overriding the previously specified database
@@ -952,14 +958,6 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   if (!pStmt->sql.stbInterlaceMode || NULL == pStmt->sql.siInfo.pDataCtx) {
     STMT_ERR_RET(stmtCreateRequest(pStmt));
 
-    if (pStmt->exec.pRequest->pDb == NULL) {
-      char* dbName = NULL;
-      if (qParseDbName(pStmt->exec.pRequest->sqlstr, pStmt->exec.pRequest->sqlLen, &dbName)) {
-        STMT_ERR_RET(stmtSetDbName2(pStmt, dbName));
-        taosMemoryFreeClear(dbName);
-      }
-    }
-
     STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
                               pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
     STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));
@@ -999,6 +997,19 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
   }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
+
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
+      STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
+    pStmt->bInfo.needParse = false;
+  }
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
+
+  if (pStmt->bInfo.needParse) {
+    STMT_ERR_RET(stmtParseSql(pStmt));
+  }
+  if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {
+    STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
+  }
 
   SBoundColInfo* tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
   if (tags_info->numOfBound <= 0 || tags_info->numOfCols <= 0) {

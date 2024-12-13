@@ -2175,6 +2175,13 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       }
     }
 
+    if (bindv->tags && bindv->tags[i]) {
+      code = stmtSetTbTags2(stmt, bindv->tags[i]);
+      if (code) {
+        return code;
+      }
+    }
+
     if (bindv->bind_cols && bindv->bind_cols[i]) {
       TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
 
@@ -2194,13 +2201,6 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       code = stmtBindBatch2(stmt, bind, col_idx);
       if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    }
-
-    if (bindv->tags && bindv->tags[i]) {
-      code = stmtSetTbTags2(stmt, bindv->tags[i]);
-      if (code) {
         return code;
       }
     }
