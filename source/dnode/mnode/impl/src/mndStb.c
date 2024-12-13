@@ -1368,7 +1368,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   if (createReq.sql == NULL && createReq.sqlLen == 0) {
     char detail[1000] = {0};
 
-    tsnprintf(detail, sizeof(detail), "dbname:%s, stable name:%s", name.dbname, name.tname);
+    (void)tsnprintf(detail, sizeof(detail), "dbname:%s, stable name:%s", name.dbname, name.tname);
 
     auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail, strlen(detail));
   } else {
@@ -3148,7 +3148,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
         TAOS_RETURN(code);
       }
 
-      tsnprintf(tbFName, sizeof(tbFName), "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
+      (void)tsnprintf(tbFName, sizeof(tbFName), "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
       int32_t code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
       if (code || !exist) {
         indexRsp.suid = pStbVersion->suid;
@@ -3331,7 +3331,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     }
 
     char watermark[64 + VARSTR_HEADER_SIZE] = {0};
-    tsnprintf(varDataVal(watermark), sizeof(watermark) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
+    (void)tsnprintf(varDataVal(watermark), sizeof(watermark) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
               pStb->watermark[0], pStb->watermark[1]);
     varDataSetLen(watermark, strlen(varDataVal(watermark)));
 
@@ -3339,7 +3339,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)watermark, false), pStb, &lino, _ERROR);
 
     char maxDelay[64 + VARSTR_HEADER_SIZE] = {0};
-    tsnprintf(varDataVal(maxDelay), sizeof(maxDelay) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
+    (void)tsnprintf(varDataVal(maxDelay), sizeof(maxDelay) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
               pStb->maxdelay[0], pStb->maxdelay[1]);
     varDataSetLen(maxDelay, strlen(varDataVal(maxDelay)));
 

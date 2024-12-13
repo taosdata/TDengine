@@ -1005,7 +1005,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
 
   // checkpoint interval
   char tmp[20 + VARSTR_HEADER_SIZE] = {0};
-  tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%d sec", tsStreamCheckpointInterval);
+  (void)tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%d sec", tsStreamCheckpointInterval);
   varDataSetLen(tmp, strlen(varDataVal(tmp)));
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1191,7 +1191,7 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     colDataSetNULL(pColInfo, numOfRows);
   } else {
-    tsnprintf(buf, sizeof(buf), formatTotalMb, pe->outputTotal);
+    (void)tsnprintf(buf, sizeof(buf), formatTotalMb, pe->outputTotal);
     memset(vbuf, 0, tListLen(vbuf));
     STR_TO_VARSTR(vbuf, buf);
 

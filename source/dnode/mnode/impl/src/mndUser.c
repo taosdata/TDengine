@@ -691,7 +691,7 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
 
   (void)uv_inet_ntop(AF_INET, &addr, buf, 32);
   if (range->mask != 32) {
-    tsnprintf(buf + strlen(buf), 36 - strlen(buf), "/%d", range->mask);
+    (void)tsnprintf(buf + strlen(buf), 36 - strlen(buf), "/%d", range->mask);
   }
   return;
 }
@@ -1901,7 +1901,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
+  (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
             createReq.superUser, createReq.sysInfo);
   char operation[15] = {0};
   if (createReq.isImport == 1) {
@@ -2504,7 +2504,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char detail[1000] = {0};
-    tsnprintf(detail, sizeof(detail),
+    (void)tsnprintf(detail, sizeof(detail),
               "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
               mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
               alterReq.createdb ? 1 : 0, alterReq.tabName);
@@ -2895,12 +2895,12 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       if (nodesStringToNode(value, &pAst) == 0) {
         if (nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen) != 0) {
           sqlLen = 5;
-          tsnprintf(*sql, bufSz, "error");
+          (void)tsnprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
       } else {
         sqlLen = 5;
-        tsnprintf(*sql, bufSz, "error");
+        (void)tsnprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);

@@ -911,7 +911,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     taosInetNtoa(varDataVal(endpoint), pConn->ip);
-    tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
+    (void)tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
               sizeof(endpoint) - VARSTR_HEADER_SIZE - strlen(varDataVal(endpoint)), ":%d", pConn->port);
     varDataLen(endpoint) = strlen(varDataVal(endpoint));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -988,7 +988,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     cols = 0;
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
-    tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
+    (void)tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
               pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1045,7 +1045,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     taosInetNtoa(varDataVal(endpoint), pConn->ip);
-    tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
+    (void)tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
               sizeof(endpoint) - VARSTR_HEADER_SIZE - strlen(varDataVal(endpoint)), ":%d", pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1246,7 +1246,7 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
 
     char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    tsnprintf(&name[VARSTR_HEADER_SIZE], sizeof(name) - VARSTR_HEADER_SIZE, "%s", pApp->name);
+    (void)tsnprintf(&name[VARSTR_HEADER_SIZE], sizeof(name) - VARSTR_HEADER_SIZE, "%s", pApp->name);
     varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)name, false);

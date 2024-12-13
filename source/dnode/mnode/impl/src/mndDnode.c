@@ -1060,18 +1060,18 @@ _OVER:
 
 static void getSlowLogScopeString(int32_t scope, char *result) {
   if (scope == SLOW_LOG_TYPE_NULL) {
-    strncat(result, "NONE", 64);
+    (void)strncat(result, "NONE", 64);
     return;
   }
   while (scope > 0) {
     if (scope & SLOW_LOG_TYPE_QUERY) {
-      strncat(result, "QUERY", 64);
+      (void)strncat(result, "QUERY", 64);
       scope &= ~SLOW_LOG_TYPE_QUERY;
     } else if (scope & SLOW_LOG_TYPE_INSERT) {
-      strncat(result, "INSERT", 64);
+      (void)strncat(result, "INSERT", 64);
       scope &= ~SLOW_LOG_TYPE_INSERT;
     } else if (scope & SLOW_LOG_TYPE_OTHERS) {
-      strncat(result, "OTHERS", 64);
+      (void)strncat(result, "OTHERS", 64);
       scope &= ~SLOW_LOG_TYPE_OTHERS;
     } else {
       (void)printf("invalid slow log scope:%d", scope);
@@ -1079,7 +1079,7 @@ static void getSlowLogScopeString(int32_t scope, char *result) {
     }
 
     if (scope > 0) {
-      strncat(result, "|", 64);
+      (void)strncat(result, "|", 64);
     }
   }
 }
@@ -1237,7 +1237,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   }
 
   char obj[200] = {0};
-  tsnprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
+  (void)tsnprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
 
   auditRecord(pReq, pMnode->clusterId, "createDnode", "", obj, createReq.sql, createReq.sqlLen);
 
@@ -1421,7 +1421,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj1[30] = {0};
-  tsnprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
+  (void)tsnprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropDnode", "", obj1, dropReq.sql, dropReq.sqlLen);
 
@@ -1553,7 +1553,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   {  // audit
     char obj[50] = {0};
-    tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
+    (void)tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
 
     auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
   }

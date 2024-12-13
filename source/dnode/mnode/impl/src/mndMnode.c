@@ -880,7 +880,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[40] = {0};
-  tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
+  (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen);
 
