@@ -219,6 +219,46 @@ function mergeAuthentication(cfgAuth, data) {
     }
 }
 
+function mergeWriteConfig(cfgParams, dataParams) {
+    let haveAvailable = false;
+    for (let i = 0; i < cfgParams.length; i++) {
+        let key = cfgParams[i].name;
+        cfgParams[i].value = dataParams[key];
+        haveAvailable = true;
+        if (cfgParams[i].hint?.type === 'compose') {
+            cfgParams[i].type_value = dataParams[key + '_type'];
+        }
+    }
+    return haveAvailable;
+}
+
+function parseglobal(data) {
+    if (!data) return
+    const global = {}
+    const writeConfigData = deepClone(data)
+    const processSubKeys = (prefix, subData) => {
+        Object.keys(subData).forEach(subKey => {
+        global[`${prefix}.${subKey}`] = String(subData[subKey]);
+        });
+    };
+
+    const valueMap = ['variable_not_exist_in_table_name_template', 'table_name_contains_illegal_char']
+    for (const [key, value] of Object.entries(writeConfigData)) {
+        if (key.startsWith('cache')) {
+            processSubKeys('cache', writeConfigData[key]);
+        } else if (key.startsWith('archive')) {
+            processSubKeys('archive', writeConfigData[key]);
+        } else if (valueMap.includes(key)) {
+            global[key] = typeof value === 'object' ? value['replace_to'] : ''
+            global[key + '_type'] = typeof value === 'object' ? 'replace_to' : value
+        } else {
+            global[key] = value
+        }
+    }
+    
+    return global
+}
+
 // 前端组装数据，不使用后端的 from_detail
 export async function refreshTask(id) {
     let taskDetail = await loadTaskDetail(id)
@@ -227,6 +267,7 @@ export async function refreshTask(id) {
     let dsConfig = getDataSource(i18n.locale, dsType);
     const data = taskDetail.from_expand;
     const from = taskDetail.from
+    const global = parseglobal(taskDetail.parser.parser.global)
     
     mergeTaskDetailOptions(dsConfig.options, data, from);
     if (dsConfig.advanced && dsConfig.advanced.params) {
@@ -237,6 +278,10 @@ export async function refreshTask(id) {
     }
     if (dsConfig.authentication) {
         mergeAuthentication(dsConfig.authentication, data);
+    }
+
+    if (dsConfig.writeConfig) {
+        mergeWriteConfig(dsConfig.writeConfig.params, global)
     }
     
     for (let i = 0; i < dsConfig.groups.length; i++) {

@@ -3,7 +3,7 @@ import { cloneDeep } from "lodash";
 import { isObject, isArray } from "@/utils/validate";
 import { StaticTemplatePath } from "@/const";
 import { Loading } from "element-ui";
-import { parsinginZone, decrypt, formatTime } from "@/utils/index";
+import { parsinginZone, decrypt, formatTime, deepClone } from "@/utils/index";
 import i18n from "@/lang";
 import store from "@/store/modules/app";
 import { cs } from "date-fns/locale";
@@ -65,6 +65,7 @@ const opcGroupShowValue = "csv_config_file";
 const piAdvancedShowValue = "multi-column";
 const authenticationField = uuid();
 export const datasetsField = uuid();
+const writeConfigField = uuid();
 let currentType = "";
 const DefaultParserValue = {
   parse: {
@@ -152,6 +153,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       parser,
       params,
       advanced,
+      writeConfig
     } = item;
 
     const paramsConfig = [
@@ -186,6 +188,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     handleParser(parser, paramsConfig, parserValue, id);
     handleCsvData(id, paramsConfig);
     handleAdvanced(advanced, paramsConfig, id);
+    handleWriteConfig(writeConfig, paramsConfig, id)
     // 先处理protocol
     if (id == "csv") {
       config.parser = parserValue;
@@ -1241,6 +1244,52 @@ function handleAdvanced(advanced, paramsConfig, id) {
   });
 }
 
+function handleWriteConfig(writeConfig, paramsConfig, id) {
+  if (!writeConfig) return;
+  const { params, collapsible, collapsed = true, name, description } = writeConfig;
+  const children = [];
+  const config = {
+    label: name,
+    field: writeConfigField,
+    description,
+    type: "writeConfig",
+    defaultValue: collapsible,
+    collapsible: collapsible ? "one" : "",
+    children,
+  };
+
+  paramsConfig.push(config);
+
+  params.forEach((group) => {
+    const {
+      name,
+      value,
+      display,
+      hint,
+      hidden = false,
+      required = false,
+      placeholder,
+      description: d1,
+      short_description: d2,
+      type_value,
+      disabledValues
+    } = group;
+    const config = {
+      label: display,
+      field: handleField(name),
+      description: d1 ?? d2,
+      defaultValue: value, // if: !hidden,
+      placeholder,
+      required,
+      hint,
+      type_value,
+      disabledValues: disabledValues ? disabledValues : []
+    };
+    handleHintType(config, hint, value);
+    children.push(config);
+  });
+}
+
 //根据hint判断表单项类型
 export function handleHintType(config, hint) {
   let type = hint;
@@ -1289,11 +1338,6 @@ export function handleHintType(config, hint) {
       config.type = "compose";
       if (hint?.choices) {
         config.options = hint.choices
-          .filter((item) => item != "--NONE--")
-          .map((item) => ({
-            label: item,
-            value: item,
-          }));
       }
       break;
     case "duration":
@@ -1304,6 +1348,12 @@ export function handleHintType(config, hint) {
       }
       config.min = hint?.min ?? -Infinity;
       config.max = hint?.max ?? Infinity;
+      break;
+    case "select":
+      config.type = "select";
+      if (hint?.choices) {
+        config.options = hint.choices;
+      }
       break;
 
     default:
@@ -1371,7 +1421,7 @@ export function generateFormInitData(paramsConfig) {
       }
       if (item.type === "composeAppend") {
         data[item.field + "_type"] = item.type_value || "";
-        data[item.field] = value ? value?.match(/\d+/)[0] : undefined;
+        data[item.field] = value ? String(value)?.match(/\d+/)[0] : undefined;
       }
     }
     return data;
@@ -1425,6 +1475,35 @@ export function getDsnData(data, definition) {
     dsn += "&model=" + getActiveTabKey(data);
   }
   return dsn;
+}
+
+export function getWriteConfigData(data) {
+  const writeConfigData = deepClone(data[writeConfigField])
+
+  const global = {
+    cache: {},
+    archive: {}
+  };
+
+  const valueMap = ['variable_not_exist_in_table_name_template_type', 'table_name_contains_illegal_char_type']
+
+  for (const [key, value] of Object.entries(writeConfigData)) {
+    const cacheKey = key.replace(/^cache~/, '');
+    const archiveKey = key.replace(/^archive~/, '');
+  
+    if (key.startsWith('cache')) {
+      global.cache[cacheKey] = value;
+    } else if (key.startsWith('archive')) {
+      global.archive[archiveKey] = value;
+    } else if (valueMap.includes(key)) {
+      const noTypeKey = key.replace(/_type$/, '');
+      global[noTypeKey] = value === 'replace_to' ?  {replace_to:  writeConfigData[noTypeKey]} : value
+    } else {
+      global[key] = value
+    }
+  }
+  console.log('output:',global);
+  return global
 }
 
 function handleProtocolData(protocol, definition) {

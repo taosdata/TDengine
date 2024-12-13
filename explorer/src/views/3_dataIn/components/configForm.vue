@@ -11,7 +11,32 @@
             :key="item.label"
             ref="checkConnectivity"
           ></ConnectivityCheck>
-
+          <div v-if="item.type == 'writeConfig'" :key="item.label" class="block-wrapper">
+            <el-collapse 
+              :class='`collapse-${lang}`'
+              accordion>
+              <el-collapse-item name='one'>
+                <template slot="title">
+                  <div class="mb10">
+                    <BlockHeader :title="item.label"> </BlockHeader>
+                    <DocsContent
+                      v-if="item.description"
+                      class="docs-content"
+                      :content="item.description"
+                    />
+                  </div>
+                </template>
+                <FormItem
+                  v-for="(child, index) in item.children"
+                  :key="child.label + '-' + index"
+                  :config="child"
+                  :data="data[item.field]"
+                  :parentConfigList="item.children"
+                  :parent="parent + item.field + '.'"
+                />
+              </el-collapse-item>
+            </el-collapse>
+          </div>
         <section
           class="block-wrapper"
           :id="item.field"
@@ -70,7 +95,7 @@
           </template>
           <template v-else-if="item.type == 'advanced'">
             <el-collapse 
-              :class='`advanced-${lang}`'
+              :class='`collapse-${lang}`'
               accordion>
               <el-collapse-item name='one'>
                 <template slot="title">
@@ -254,7 +279,7 @@ export default {
   .mb10 {
     margin-bottom: 10px;
   }
-  .advanced-en {
+  .collapse-en {
     :deep(.el-collapse-item__header) {
       min-height: 80px;
       border-bottom: 0;
@@ -267,7 +292,7 @@ export default {
     } 
     border-top: 0;
   }
-  .advanced-zh {
+  .collapse-zh {
     :deep(.el-collapse-item__header) {
       min-height: 60px;
       border-bottom: 0;
