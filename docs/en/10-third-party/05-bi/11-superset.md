@@ -34,11 +34,11 @@ Step 4: The SQLALCHEMY URL * field is a key connection information string, and i
     Connection string format： taosws://user:password@host:port
 ```
 | Parameter  | Parameter Description |
-|:-------:|:---------:|
-|user: | Username for logging into TDengine database
-|password: | Password for logging into TDengine database
-|host: | Name of the host where the TDengine database is located
-|port: | The port that provides WebSocket services, default is 6041
+|:---------- |:---------             |
+|user:       | Username for logging into TDengine database                 |   
+|password:   | Password for logging into TDengine database                 |
+|host:       | Name of the host where the TDengine database is located     |
+|port:       | The port that provides WebSocket services, default is 6041  |
 
 Example:  
 The TDengine database installed on this machine provides WebSocket service port 6041, using the default username and password, and the connection string is:  
