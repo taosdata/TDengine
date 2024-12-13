@@ -218,7 +218,6 @@ static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndTryRebuildCfg(pMn
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SConfigReq configReq = {0};
-  SDnodeObj *pDnode = NULL;
   int32_t    code = TSDB_CODE_SUCCESS;
   SArray    *array = NULL;
 
@@ -288,7 +287,6 @@ _OVER:
   }
   sdbRelease(pMnode->pSdb, vObj);
   cfgArrayCleanUp(array);
-  mndReleaseDnode(pMnode, pDnode);
   return TSDB_CODE_SUCCESS;
 }
 

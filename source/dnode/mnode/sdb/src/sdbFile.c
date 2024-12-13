@@ -53,7 +53,7 @@ static int32_t sdbPrepareData(SSdb *pSdb) {
   mInfo("start to prepare sdb");
 
   for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
-    SdbDeployFp fp = pSdb->prepareFps[i];
+    SdbPrepareFp fp = pSdb->prepareFps[i];
     if (fp == NULL) continue;
 
     mInfo("start to prepare sdb:%s", sdbTableName(i));
