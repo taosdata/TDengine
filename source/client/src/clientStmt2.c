@@ -109,7 +109,7 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
       }
       break;
     case STMT_SETTAGS:
-      if (STMT_STATUS_NE(SETTBNAME) && STMT_STATUS_NE(FETCH_FIELDS)) {
+      if (STMT_STATUS_NE(SETTBNAME) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(ADD_BATCH)) {
         code = TSDB_CODE_TSC_STMT_API_ERROR;
       }
       break;
@@ -145,7 +145,7 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
           code = TSDB_CODE_TSC_STMT_API_ERROR;
         }
       } else {
-        if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS)) {
+        if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(SETTAGS)) {
           code = TSDB_CODE_TSC_STMT_API_ERROR;
         }
       }
@@ -951,6 +951,14 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
 
   if (!pStmt->sql.stbInterlaceMode || NULL == pStmt->sql.siInfo.pDataCtx) {
     STMT_ERR_RET(stmtCreateRequest(pStmt));
+
+    if (pStmt->exec.pRequest->pDb == NULL) {
+      char* dbName = NULL;
+      if (qParseDbName(pStmt->exec.pRequest->sqlstr, pStmt->exec.pRequest->sqlLen, &dbName)) {
+        STMT_ERR_RET(stmtSetDbName2(pStmt, dbName));
+        taosMemoryFreeClear(dbName);
+      }
+    }
 
     STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
                               pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
