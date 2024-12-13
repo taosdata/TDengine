@@ -54,13 +54,28 @@ char tsEncryptKey[17] = {0};
 int32_t tsMaxShellConns = 50000;
 int32_t tsShellActivityTimer = 3;  // second
 
+// memory pool
+int8_t  tsMemPoolFullFunc = 0;
+int8_t  tsQueryUseMemoryPool = 1;
+int32_t tsQueryBufferPoolSize = 0; //MB
+int32_t tsSingleQueryMaxMemorySize = 0; //MB
+int32_t tsMinReservedMemorySize = 0; //MB
+int64_t tsCurrentAvailMemorySize = 0;
+int8_t  tsNeedTrim = 0;
+
 // queue & threads
+int32_t tsQueryMinConcurrentTaskNum = 1;
+int32_t tsQueryMaxConcurrentTaskNum = 0;
+int32_t tsQueryConcurrentTaskNum = 0;
+int32_t tsQueryNoFetchTimeoutSec = 3600 * 5;
+
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
 int32_t tsShareConnLimit = 10;
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 
+int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 16;
 int32_t tsNumOfMnodeQueryThreads = 16;
@@ -743,6 +758,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxCompactConcurrency", tsNumOfCompactThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
+  
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0);
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "singleQueryMaxMemorySize", tsSingleQueryMaxMemorySize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0);
+  //TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferPoolSize", tsQueryBufferPoolSize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt32Ex(pCfg, "minReservedMemorySize", 0, 1024, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryNoFetchTimeoutSec", tsQueryNoFetchTimeoutSec, 60, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0);
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
@@ -1711,6 +1734,21 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "experimental");
   tsExperimental = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryUseMemoryPool");
+  tsQueryUseMemoryPool = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "memPoolFullFunc");
+  tsMemPoolFullFunc = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "singleQueryMaxMemorySize");
+  tsSingleQueryMaxMemorySize = pItem->i32;
+
+  //TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryBufferPoolSize");
+  //tsQueryBufferPoolSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minReservedMemorySize");
+  tsMinReservedMemorySize = pItem->i32;
+
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2083,7 +2121,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"experimental", &tsExperimental},
                                          {"maxTsmaNum", &tsMaxTsmaNum},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
-                                         {"bypassFlag", &tsBypassFlag}};
+                                         {"bypassFlag", &tsBypassFlag},
+                                         {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
