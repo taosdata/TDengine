@@ -19,24 +19,25 @@ Anode的主要目录结构如下图所示
 
 ```bash
 .
+├── bin
 ├── cfg
-├── model
-│   └── ad_autoencoder
-├── release
-├── script
-└── taosanalytics
-    ├── algo
-    │   ├── ad
-    │   └── fc
-    ├── misc
-    └── test
+├── lib
+│   └── taosanalytics
+│       ├── algo
+│       │   ├── ad
+│       │   └── fc
+│       ├── misc
+│       └── test
+├── log -> /var/log/taos/taosanode
+├── model -> /var/lib/taos/taosanode/model
+└── venv -> /var/lib/taos/taosanode/venv
 
 ```
 
 |目录|说明|
 |---|---|
 |taosanalytics| 源代码目录，其下包含了算法具体保存目录 algo，放置杂项目录 misc，单元测试和集成测试目录 test。 algo 目录下 ad 保存异常检测算法代码，fc 目录保存预测算法代码|
-|script|是安装脚本和发布脚本放置目录|
+|venv| Python 虚拟环境|
 |model|放置针对数据集完成的训练模型|
 |cfg|配置文件目录|
 
@@ -63,7 +64,8 @@ Anode采用算法自动加载模式，因此只识别符合命名约定的 Pytho
 
 ```SQL
 --- algo 后面的参数 name 即为类属性 `name`
-SELECT COUNT(*) FROM foo ANOMALY_WINDOW(col_name, 'algo=name')
+SELECT COUNT(*)
+FROM foo ANOMALY_WINDOW(col_name, 'algo=name')
 ```
 
 ## 添加具有模型的分析算法
@@ -76,19 +78,10 @@ SELECT COUNT(*) FROM foo ANOMALY_WINDOW(col_name, 'algo=name')
 
 ```bash
 .
-├── cfg
-├── model                    
-│   └── ad_autoencoder       
-│       ├── ad_autoencoder_foo.dat
-│       └── ad_autoencoder_foo.info
-├── release
-├── script
-└── taosanalytics
-    ├── algo
-    │   ├── ad
-    │   └── fc
-    ├── misc
-    └── test
+└── model
+    └── ad_autoencoder
+        ├── ad_autoencoder_foo.dat
+        └── ad_autoencoder_foo.info
 
 ```
 
