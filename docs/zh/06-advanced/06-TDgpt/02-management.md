@@ -37,7 +37,7 @@ systemctl status taosanoded
 |/usr/local/taos/taosanode/bin|可执行文件目录|
 |/usr/local/taos/taosanode/resource|资源文件目录，链接到文件夹 /var/lib/taos/taosanode/resource/|
 |/usr/local/taos/taosanode/lib|库文件目录|
-|/var/lib/taos/taosanode/model/|模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
+|/usr/local/taos/taosanode/model/|模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
 |/var/log/taos/taosanode/|日志文件目录|
 |/etc/taos/taosanode.ini|配置文件|
 
