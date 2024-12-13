@@ -144,13 +144,14 @@
           <el-date-picker
             v-model="ruleForm.upcoming"
             type="datetime"
-            value-format="yyyy-MM-ddTHH:mm:ss">
+            :value-format="`yyyy-MM-ddTHH:mm:ss${getTimezoneAddition()}`">
           </el-date-picker>
         </el-form-item>
 
         <el-form-item prop="interval_value" required :label="$t('taosuser.backupcycle')">
           <el-input v-model="ruleForm.interval_value" class="input-with-select">
             <el-select v-model="ruleForm.interval_unit" style="width: 100px;" slot="append">
+              <el-option :label="$t('dashboard.timeUnit')[1]" value="m"></el-option>
               <el-option :label="$t('dashboard.timeUnit')[2]" value="h"></el-option>
               <el-option :label="$t('dashboard.timeUnit')[3]" value="d"></el-option>
             </el-select>
@@ -284,20 +285,6 @@ export default {
         backup_max_size_unit: "GB",
         compression_level: "balanced",
       },
-      cycleList: [
-        {
-          label: "taosuser.everyday",
-          value: "schedule:@daily",
-        },
-        {
-          label: "taosuser.every7day",
-          value: "schedule:@weekly",
-        },
-        {
-          label: "taosuser.every30day",
-          value: "schedule:@monthly",
-        },
-      ],
       rules: {
         cylce: [
           {
@@ -342,6 +329,9 @@ export default {
     restoreBackupPoint(point) {
       restoreBackups(this.backupDirectory, [point]);
     }, 
+    getTimezoneAddition() {
+      return getTimezoneAddition();
+    },
     async showBackupHistory(backData) {
       const id = backData.id;
       this.backupDirectory = backData.directory;
@@ -464,7 +454,7 @@ export default {
 
       targetData.status = data.status;
       targetData.stable = data.from_expand.params.stable;
-      targetData.upcoming = new Date(data.trigger.upcoming);
+      targetData.upcoming = data.trigger.upcoming;
 
       targetData.interval = data.trigger.interval;
       targetData.max_size = data.to_expand.params.max_size;
@@ -579,8 +569,7 @@ export default {
           `cluster-id::${clusterID}`
         ],
         "trigger": {
-          "schedule": "@daily",
-          "upcoming": `${this.ruleForm.upcoming}${getTimezoneAddition()}`, 
+          "upcoming": this.ruleForm.upcoming, 
           "interval": `${this.ruleForm.interval_value}${this.ruleForm.interval_unit}`
         },
         "from": dsn,
