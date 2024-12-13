@@ -1101,66 +1101,66 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 
   SVariablesInfo info = {0};
 
-  (void)strcpy(info.name, "statusInterval");
+  tstrncpy(info.name, "statusInterval", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   // fill info.info
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "timezone");
+  tstrncpy(info.name, "timezone", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
-  (void)strcpy(info.scope, "both");
+  tstrncpy(info.scope, "both", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "locale");
+  tstrncpy(info.name, "locale", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
-  (void)strcpy(info.scope, "both");
+  tstrncpy(info.scope, "both", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "charset");
+  tstrncpy(info.name, "charset", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
-  (void)strcpy(info.scope, "both");
+  tstrncpy(info.scope, "both", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "monitor");
+  tstrncpy(info.name, "monitor", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "monitorInterval");
+  tstrncpy(info.name, "monitorInterval", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "slowLogThreshold");
+  tstrncpy(info.name, "slowLogThreshold", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "slowLogMaxLen");
+  tstrncpy(info.name, "slowLogMaxLen", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
@@ -1168,9 +1168,9 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 
   char scopeStr[64] = {0};
   getSlowLogScopeString(tsSlowLogScope, scopeStr);
-  (void)strcpy(info.name, "slowLogScope");
+  tstrncpy(info.name, "slowLogScope", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
