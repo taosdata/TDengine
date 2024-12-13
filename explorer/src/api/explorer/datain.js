@@ -267,7 +267,6 @@ export async function refreshTask(id) {
     let dsConfig = getDataSource(i18n.locale, dsType);
     const data = taskDetail.from_expand;
     const from = taskDetail.from
-    const global = parseglobal(taskDetail.parser.parser.global)
     
     mergeTaskDetailOptions(dsConfig.options, data, from);
     if (dsConfig.advanced && dsConfig.advanced.params) {
@@ -281,6 +280,7 @@ export async function refreshTask(id) {
     }
 
     if (dsConfig.writeConfig) {
+        const global = parseglobal(taskDetail?.parser.parser.global)
         mergeWriteConfig(dsConfig.writeConfig.params, global)
     }
     
