@@ -968,7 +968,7 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
     return;
   }
 
-  strcpy(pMetaRsp->dbFName, pVnode->config.dbname);
+  tstrncpy(pMetaRsp->dbFName, pVnode->config.dbname, TSDB_DB_FNAME_LEN);
   pMetaRsp->dbId = pVnode->config.dbId;
   pMetaRsp->vgId = TD_VID(pVnode);
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
@@ -1216,7 +1216,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
         rcode = -1;
         goto _exit;
       }
-      strcpy(str, pCreateReq->name);
+      tstrncpy(str, pCreateReq->name, TSDB_TABLE_FNAME_LEN);
       if (taosArrayPush(tbNames, &str) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         rcode = -1;

@@ -57,7 +57,9 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
   if (envStr == NULL || cfgStr == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (cfgStr != envStr) strcpy(cfgStr, envStr);
+  if (cfgStr != envStr) {
+    tstrncpy(cfgStr, envStr, strlen(envStr) + 1);
+  }
   char *p = strchr(cfgStr, '=');
 
   if (p != NULL) {

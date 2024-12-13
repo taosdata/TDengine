@@ -1214,14 +1214,14 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       int32_t len = 0;
       char    newValue[1024] = {0};
 
-      strcpy(newValue, value);
+      tstrncpy(newValue, value, sizeof(newValue));
 
       int32_t count = 1;
       while (vlen < 1024) {
         (void)paGetToken(value + vlen + 1 * count, &tmp, &len);
         if (len == 0) break;
         tmp[len] = 0;
-        strcpy(newValue + vlen, tmp);
+        tstrncpy(newValue + vlen, tmp, sizeof(newValue) - vlen);
         vlen += len;
         count++;
       }
