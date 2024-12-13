@@ -62,7 +62,7 @@ typedef struct SMetaEntry {
     struct {
       int64_t  btime;
       int32_t  ttlDays;
-      int32_t  commentLen;
+      int32_t  commentLen;  // not include '\0'
       char*    comment;
       tb_uid_t suid;
       uint8_t* pTags;
@@ -431,7 +431,7 @@ typedef struct SStateStore {
   int32_t (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                  GetTsFun fp, void* pFile, TSKEY delMark, const char* id, int64_t ckId, int8_t type,
                                  struct SStreamFileState** ppFileState);
-  
+
   int32_t (*streamStateGroupPut)(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
   SStreamStateCur* (*streamStateGroupGetCur)(SStreamState* pState);
   void (*streamStateGroupCurNext)(SStreamStateCur* pCur);

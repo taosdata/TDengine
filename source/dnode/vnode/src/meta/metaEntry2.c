@@ -964,7 +964,7 @@ static int32_t metaHandleNormalTableCreate(SMeta *pMeta, const SMetaEntry *pEntr
   metaULock(pMeta);
 
   // update other stuff
-  if (TSDB_CODE_SUCCESS != code) {
+  if (TSDB_CODE_SUCCESS == code) {
     pMeta->pVnode->config.vndStats.numOfNTables++;
     pMeta->pVnode->config.vndStats.numOfNTimeSeries += pEntry->ntbEntry.schemaRow.nCols - 1;
     pMeta->changed = true;
@@ -1041,7 +1041,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
   metaULock(pMeta);
 
   // update other stuff
-  if (TSDB_CODE_SUCCESS != code) {
+  if (TSDB_CODE_SUCCESS == code) {
     pMeta->pVnode->config.vndStats.numOfCTables++;
 
     if (!metaTbInFilterCache(pMeta, pSuperEntry->name, 1)) {

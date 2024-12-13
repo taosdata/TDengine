@@ -1402,9 +1402,6 @@ int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   if (pEntry->type == TSDB_CHILD_TABLE) {
     if (pReq->updateTTL) {
       pEntry->ctbEntry.ttlDays = pReq->newTTL;
-      // metaDeleteTtl(pMeta, &entry);
-      // entry.ctbEntry.ttlDays = pReq->newTTL;
-      // metaUpdateTtl(pMeta, &entry);
     }
     if (pReq->newCommentLen >= 0) {
       char *pNewComment = taosMemoryRealloc(pEntry->ctbEntry.comment, pReq->newCommentLen + 1);
@@ -1414,15 +1411,13 @@ int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
         metaFetchEntryFree(&pEntry);
         TAOS_RETURN(terrno);
       }
+      memcpy(pNewComment, pReq->newComment, pReq->newCommentLen + 1);
       pEntry->ctbEntry.comment = pNewComment;
       pEntry->ctbEntry.commentLen = pReq->newCommentLen;
     }
   } else if (pEntry->type == TSDB_NORMAL_TABLE) {
     if (pReq->updateTTL) {
       pEntry->ntbEntry.ttlDays = pReq->newTTL;
-      // metaDeleteTtl(pMeta, &entry);
-      // entry.ntbEntry.ttlDays = pReq->newTTL;
-      // metaUpdateTtl(pMeta, &entry);
     }
     if (pReq->newCommentLen >= 0) {
       char *pNewComment = taosMemoryRealloc(pEntry->ntbEntry.comment, pReq->newCommentLen + 1);
@@ -1432,6 +1427,7 @@ int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
         metaFetchEntryFree(&pEntry);
         TAOS_RETURN(terrno);
       }
+      memcpy(pNewComment, pReq->newComment, pReq->newCommentLen + 1);
       pEntry->ntbEntry.comment = pNewComment;
       pEntry->ntbEntry.commentLen = pReq->newCommentLen;
     }

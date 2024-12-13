@@ -3003,10 +3003,6 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaUpdateTableMultiTagValue(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       return metaUpdateTableOptions2(pMeta, version, pReq);
-    case TSDB_ALTER_TABLE_ADD_TAG_INDEX:
-      return metaAddTagIndex(pMeta, version, pReq);
-    case TSDB_ALTER_TABLE_DROP_TAG_INDEX:
-      return metaDropTagIndex(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       return metaUpdateTableColCompress2(pMeta, version, pReq);
     default:

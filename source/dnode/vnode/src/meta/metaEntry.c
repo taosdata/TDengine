@@ -317,7 +317,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
         metaCloneEntryFree(ppEntry);
         return code;
       }
-      memcpy((*ppEntry)->ctbEntry.comment, pEntry->ctbEntry.comment, pEntry->ctbEntry.commentLen);
+      memcpy((*ppEntry)->ctbEntry.comment, pEntry->ctbEntry.comment, pEntry->ctbEntry.commentLen + 1);
     }
 
     // tags
@@ -350,7 +350,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
         metaCloneEntryFree(ppEntry);
         return code;
       }
-      memcpy((*ppEntry)->ntbEntry.comment, pEntry->ntbEntry.comment, pEntry->ntbEntry.commentLen);
+      memcpy((*ppEntry)->ntbEntry.comment, pEntry->ntbEntry.comment, pEntry->ntbEntry.commentLen + 1);
     }
   } else {
     return TSDB_CODE_INVALID_PARA;
