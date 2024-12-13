@@ -26,8 +26,8 @@ pip3 install taos-ws-py
 ## Superset 中配置 TDengine 连接
 
 第1步，进入新建数据库连接页面 Superset -> Setting-> Database Connections -> +DATABASE   
-第2步，选择 TDengine 数据库连接。`SUPPORTED DATABASES` 下拉列表中选择 `TDengine` 项，若下拉列表中无 `TDengine` 项，请检查安装顺序，确保 `TDengine  Python 连接器`在 `Superset` 安装之后再安装。  
-第3步，`DISPLAY NAME` 中给连接起个名字，任意填写即可。   
+第2步，选择 TDengine 数据库连接。`SUPPORTED DATABASES` 下拉列表中选择 `TDengine` 项，若下拉列表中无 `TDengine` 项，请检查安装顺序，确保 `TDengine  Python 连接器` 在 `Superset` 安装之后再安装。  
+第3步，`DISPLAY NAME` 中填写连接名称，任意填写即可。   
 第4步，`SQLALCHEMY URL` 项为关键连接信息串，务必填写正确。   
 ```bash
 连接串格式： taosws://用户名:密码@主机名:端口号
