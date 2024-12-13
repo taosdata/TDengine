@@ -218,16 +218,87 @@ class TDTestCase:
         tdSql.query(f"SELECT c1 FROM t1 WHERE (time BETWEEN 1641024000000 AND 1641024000001) and (1 < 2)")
         tdSql.checkRows(2)
 
+    def operOnTime(self):
+        tdSql.execute(f"create database if not exists {self.dbname}")
+        
+        tdSql.execute(f"DROP TABLE IF EXISTS {self.dbname}.t1;")
+        tdSql.execute(f"CREATE TABLE {self.dbname}.t1( ts TIMESTAMP, c0 INT, c1 INT UNSIGNED, \
+            c2 BIGINT, c3 BIGINT UNSIGNED, c4 SMALLINT, c5 SMALLINT UNSIGNED, c6 TINYINT, c7 TINYINT UNSIGNED);")
+        tdSql.execute(f"INSERT INTO {self.dbname}.t1 VALUES (1641024000001, 1, 1, 1, 1, 1, 1, 1, 1);")
+
+        columns = ["c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7"]
+        for col in columns:
+            tdLog.debug(f"oper on time test, {col} start ...")
+            tdSql.query(f"SELECT ts, ts+1, ts+{col}, ts+(-{col}) FROM {self.dbname}.t1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1641024000001)
+            tdSql.checkData(0, 1, 1641024000002)
+            tdSql.checkData(0, 2, 1641024000002)
+            tdSql.checkData(0, 3, 1641024000000)
+
+            tdSql.query(f"SELECT ts, ts+1, ts+{col}, ts+(-{col}) FROM {self.dbname}.t1 where (ts-(-{col})) > 0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1641024000001)
+            tdSql.checkData(0, 1, 1641024000002)
+            tdSql.checkData(0, 2, 1641024000002)
+            tdSql.checkData(0, 3, 1641024000000)
+
+            tdSql.query(f"SELECT ts, ts-1, ts-{col}, ts-(-{col}) FROM {self.dbname}.t1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1641024000001)
+            tdSql.checkData(0, 1, 1641024000000)
+            tdSql.checkData(0, 2, 1641024000000)
+            tdSql.checkData(0, 3, 1641024000002)
+
+        tdSql.query(f"SELECT ts, ts+true, ts-true, ts-false, ts+false FROM {self.dbname}.t1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1641024000001)
+        tdSql.checkData(0, 1, 1641024000002)
+        tdSql.checkData(0, 2, 1641024000000)
+        tdSql.checkData(0, 3, 1641024000001)
+        tdSql.checkData(0, 4, 1641024000001)
+        
+        tdSql.execute(f"DROP TABLE IF EXISTS {self.dbname}.t2;")
+        tdSql.execute(f"CREATE TABLE {self.dbname}.t2( ts TIMESTAMP, c1 float, c2 double);")
+        tdSql.execute(f"INSERT INTO {self.dbname}.t2(ts, c1, c2) VALUES (1641024000001, 1.0, 1.0);")
+        
+        columns = ["c1", "c2"]
+        for col in columns:
+            tdSql.query(f"SELECT ts, ts+{col}, ts+(-{col}), ts-{col}, ts-(-{col}) FROM {self.dbname}.t2")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1641024000001)
+            tdSql.checkData(0, 1, 1641024000002)
+            tdSql.checkData(0, 2, 1641024000000)
+            tdSql.checkData(0, 3, 1641024000000)
+            tdSql.checkData(0, 4, 1641024000002)
+
+            tdSql.query(f"SELECT ts, ts+{col}, ts+(-{col}), ts-{col}, ts-(-{col}) FROM {self.dbname}.t2 where (ts-(-{col})) > 0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1641024000001)
+            tdSql.checkData(0, 1, 1641024000002)
+            tdSql.checkData(0, 2, 1641024000000)
+            tdSql.checkData(0, 3, 1641024000000)
+            tdSql.checkData(0, 4, 1641024000002)
+            
+            tdSql.query(f"SELECT ts, cast(ts+{col} as bigint), cast(ts+(-{col}) as bigint), cast(ts-{col} as bigint),\
+                cast(ts-(-{col}) as bigint) FROM {self.dbname}.t2")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1641024000001)
+            tdSql.checkData(0, 1, 1641024000002)
+            tdSql.checkData(0, 2, 1641024000000)
+            tdSql.checkData(0, 3, 1641024000000)
+            tdSql.checkData(0, 4, 1641024000002)
                
     def run(self):
         dbname = "db"
         tdSql.prepare()
         tdSql.execute(f"create database if not exists {self.dbname}")
         
-        self.ts5757()
-        # self.ts5760()
-        self.ts5758()
-        self.ts5759()
+        #self.ts5757()
+        #self.ts5760()
+        #self.ts5758()
+        #self.ts5759()
+        self.operOnTime()
         
 
 
