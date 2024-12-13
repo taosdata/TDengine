@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndProfile.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
+#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -137,12 +137,12 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
-static void setUserInfo2Conn(SConnObj* connObj, char* userApp, uint32_t userIp){
-  if (connObj == NULL){
+static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) {
+  if (connObj == NULL) {
     return;
   }
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
-  connObj->userIp  = userIp;
+  connObj->userIp = userIp;
 }
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
                                int32_t pid, const char *app, int64_t startTime) {
@@ -384,7 +384,7 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq)
   app.appId = pReq->appId;
   app.ip = clientIp;
   app.pid = pReq->pid;
-  (void)strcpy(app.name, pReq->name);
+  tstrncpy(app.name, pReq->name, sizeof(app.name));
   app.startTime = pReq->startTime;
   (void)memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
   app.lastAccessTimeMs = taosGetTimestampMs();
@@ -911,7 +911,8 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     taosInetNtoa(varDataVal(endpoint), pConn->ip);
-    (void)sprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)), ":%d", pConn->port);
+    tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
+              sizeof(endpoint) - VARSTR_HEADER_SIZE - strlen(varDataVal(endpoint)), ":%d", pConn->port);
     varDataLen(endpoint) = strlen(varDataVal(endpoint));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
@@ -944,7 +945,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE){
+    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
       taosInetNtoa(varDataVal(userIp), pConn->userIp);
       varDataLen(userIp) = strlen(varDataVal(userIp));
     }
@@ -987,7 +988,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     cols = 0;
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
-    (void)sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
+    tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
+              pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
@@ -1043,7 +1045,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     taosInetNtoa(varDataVal(endpoint), pConn->ip);
-    (void)sprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)), ":%d", pConn->port);
+    tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
+              sizeof(endpoint) - VARSTR_HEADER_SIZE - strlen(varDataVal(endpoint)), ":%d", pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
@@ -1099,11 +1102,12 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     int32_t offset = VARSTR_HEADER_SIZE;
     for (int32_t i = 0; i < pQuery->subPlanNum && offset + reserve < strSize; ++i) {
       if (i) {
-        offset += sprintf(subStatus + offset, ",");
+        offset += tsnprintf(subStatus + offset, sizeof(subStatus) - offset, ",");
       }
       if (offset + reserve < strSize) {
         SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
-        offset += sprintf(subStatus + offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
+        offset +=
+            tsnprintf(subStatus + offset, sizeof(subStatus) - offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
       } else {
         break;
       }
@@ -1138,7 +1142,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE){
+    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
       taosInetNtoa(varDataVal(userIp), pConn->userIp);
       varDataLen(userIp) = strlen(varDataVal(userIp));
     }
@@ -1242,7 +1246,7 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
 
     char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    (void)sprintf(&name[VARSTR_HEADER_SIZE], "%s", pApp->name);
+    tsnprintf(&name[VARSTR_HEADER_SIZE], sizeof(name) - VARSTR_HEADER_SIZE, "%s", pApp->name);
     varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)name, false);

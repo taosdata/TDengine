@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndVgroup.h"
 #include "audit.h"
 #include "mndArbGroup.h"
 #include "mndDb.h"
@@ -27,6 +26,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndVgroup.h"
 #include "tmisce.h"
 
 #define VGROUP_VER_NUMBER   1
@@ -1077,7 +1077,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         char buf1[20] = {0};
         char role[20] = "offline";
         if (!exist) {
-          strcpy(role, "dropping");
+          tstrncpy(role, "dropping", sizeof(role));
         } else if (online) {
           char *star = "";
           if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER ||
@@ -2561,7 +2561,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[33] = {0};
-  sprintf(obj, "%d", req.vgId);
+  tsnprintf(obj, sizeof(obj), "%d", req.vgId);
 
   auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", "", obj, req.sql, req.sqlLen);
 

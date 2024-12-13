@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndMnode.h"
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
@@ -880,7 +880,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[40] = {0};
-  sprintf(obj, "%d", dropReq.dnodeId);
+  tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen);
 
