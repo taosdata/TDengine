@@ -2359,6 +2359,8 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
       best: '最佳压缩率',
       fastest: '最快速度',
     },
+    confirmDeleteBackupFile: "是否删除关联的备份文件？",
+
     datareplication: "数据同步",
     name: "名称",
     database: "数据库",

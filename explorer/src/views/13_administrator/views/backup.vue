@@ -23,8 +23,9 @@
       </el-tooltip>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column width="100" :label="$t('taosuser.database')" prop="database" show-overflow-tooltip></el-table-column>
-      <el-table-column width="120" :label="$t('topic.stables')" prop="stable" show-overflow-tooltip></el-table-column>
+      <el-table-column width="50" label="ID" prop="id" show-overflow-tooltip></el-table-column>
+      <el-table-column width="150" :label="$t('taosuser.database')" prop="database" show-overflow-tooltip></el-table-column>
+      <el-table-column width="180" :label="$t('topic.stables')" prop="stable" show-overflow-tooltip></el-table-column>
       <el-table-column :label="$t('taosuser.backupForm.fileDir')" prop="directory" show-overflow-tooltip></el-table-column>
       <el-table-column width="210" :label="$t('taosuser.backupForm.upcoming')" prop="upcoming">
         <span slot-scope="scope">{{ parsinginZone(scope.row.upcoming) }}</span>
@@ -89,7 +90,7 @@
           <el-button
             plain
             size="small"
-            @click="del(scope.row)"
+            @click="toDel(scope.row)"
             icon="el-icon-delete"
             :disabled="$COMMUNITY"
           ></el-button>
@@ -106,6 +107,7 @@
       :destroy-on-close='true'
       :close-on-click-modal="false"
     >
+      <div class="cover-readonly" v-if="viewOnly"></div>
       <el-form
         :model="ruleForm"
         :rules="rules"
@@ -245,6 +247,27 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+    <el-dialog
+      :title="$t('tips')"
+      :visible.sync="deleteConfirmDialog"
+      width="300px"
+      :before-close="handleClose">
+      <span><el-checkbox v-model="yesDeleteFile">{{ $t('taosuser.confirmDeleteBackupFile') }}</el-checkbox></span>
+      <span slot="footer" class="dialog-footer">
+          <el-button size="small" @click="deleteConfirmDialog = false" class="w100">{{
+            $t("cancel")
+          }}</el-button>
+ 
+          <el-button
+            size="small"
+            @click="del()"
+            v-loading="requestIng"
+            class="w100"
+            type="primary"
+            >{{ $t("confirm") }}</el-button
+          >
+      </span>
+    </el-dialog>
   </div>
 </template>
 <script>
@@ -270,6 +293,8 @@ export default {
       stableList: [],
       historyList: [],
       dialogHistory: false,
+      deleteConfirmDialog: false,
+      yesDeleteFile: false,
       dialogTitle: "Create New Backup",
       viewOnly: false,
       pageSize: 10,
@@ -278,6 +303,7 @@ export default {
       dialog: false,
       operateStatus: true,
       currentId: null,
+      clearBackupFile: false,
       clusterid: localStorage.getItem("local_clusterID"),
       ruleForm: {
         database: "",
@@ -370,7 +396,6 @@ export default {
       this.dialogHistory = true;
     },
     closeDialog(){
-      this.$refs.ruleForm.resetFields();
       this.$refs.ruleForm.clearValidate()
       this.dialog=false
     },
@@ -382,30 +407,27 @@ export default {
       }
       return timeFMT;
     },
-    del(data) {
-      this.$confirm(
-        this.$t("replication.backupDel").replace("{id}", data.id),
-        this.$t("warning"),
-        {
-          confirmButtonText: this.$t("confirm"),
-          cancelButtonText: this.$t("cancel"),
-          type: "warning",
+    toDel(row) {
+      this.currentId = row.id;
+      this.deleteConfirmDialog = true;
+      this.yesDeleteFile = false;
+    },
+    
+    del() {
+      excuteDel(this.currentId, this.yesDeleteFile).then((res) => {
+        if (res && Object.hasOwnProperty.call(res, "id")) {
+          Message({
+            type: "success",
+            message: this.$t('delSucc'),
+          });
+          this.deleteConfirmDialog = false;
+          this.getBackData();
+        } else {
+          Message({
+            type: 'error',
+            message: res.message
+          })
         }
-      ).then(async () => {
-        await excuteDel(data.id).then((res) => {
-          if (res && Object.hasOwnProperty.call(res, "id")) {
-            Message({
-              type: "success",
-              message: this.$t('delSucc'),
-            });
-            this.getBackData();
-          } else {
-            Message({
-              type: 'error',
-              message: res.message
-            })
-          }
-        });
       });
     },
     add() {
@@ -428,12 +450,15 @@ export default {
         compression_level: "best",
       }
       this.currentId = null;
+      this.$refs.ruleForm.clearValidate();
     },
     refresh() {
       this.getBackData();
     },
     edit(data) {
       this.copy(data);
+      this.ruleForm.database = data.database;
+      this.ruleForm.stable = data.stable;
       this.dialogTitle = `${this.$t('change')}${this.$t('taosuser.backupPlan')}`;
       this.currentId = data.id;
     },
@@ -442,8 +467,8 @@ export default {
       this.viewOnly = false;
       this.dialogTitle = `${this.$t('create')}${this.$t('taosuser.backupPlan')}`;
       this.dialog = true;
-      this.ruleForm.database = data.database;
-      this.ruleForm.stable = data.stable;
+      this.ruleForm.database = "";
+      this.ruleForm.stable = "";
       this.ruleForm.upcoming = data.upcoming;
       this.ruleForm.directory = data.directory;
       this.ruleForm.compression_level = data.compression_level;
@@ -462,6 +487,8 @@ export default {
 
     viewBackup(data){
       this.copy(data);
+      this.ruleForm.database = data.database;
+      this.ruleForm.stable = data.stable;
       this.dialogTitle = `${this.$t('taosuser.backupPlan')}`;
       this.ruleForm.created_at = data.created_at;
       this.viewOnly = true;
@@ -569,7 +596,7 @@ export default {
             await addBackupData(postData);
           }
           
-          Message.success(this.$t('editSucc'));
+          Message.success(this.$t('operateSucc'));
           this.dialog = false;
           this.refresh();
         }
@@ -726,5 +753,11 @@ export default {
 }
 .el-switch {
   margin-right: 10px;
+}
+.cover-readonly {
+  position: absolute; left:0; right:0; top:50px; bottom:0;z-index:10;
+}
+.w100 {
+  width: 100px;
 }
 </style>
