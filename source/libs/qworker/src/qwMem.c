@@ -79,7 +79,7 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
   char id[sizeof(tId) + sizeof(eId) + 1] = {0};
   QW_SET_TEID(id, tId, eId);
 
-  (void)taosHashRemove(pJobInfo->pSessions, id, sizeof(id));
+  TAOS_UNUSED(taosHashRemove(pJobInfo->pSessions, id, sizeof(id)));
 
   taosMemPoolDestroySession(gMemPoolHandle, session);
 
@@ -95,7 +95,7 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
 
       char id2[sizeof(qId) + sizeof(cId) + 1] = {0};
       QW_SET_QCID(id2, qId, cId);
-      (void)taosHashRemove(gQueryMgmt.pJobInfo, id2, sizeof(id2));
+      TAOS_UNUSED(taosHashRemove(gQueryMgmt.pJobInfo, id2, sizeof(id2)));
       
       QW_TASK_DLOG_E("the whole query job removed");
     } else {
