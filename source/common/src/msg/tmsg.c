@@ -9393,7 +9393,7 @@ int32_t tSerializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pR
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->sId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->epId.nodeId));
   TAOS_CHECK_EXIT(tEncodeU16(&encoder, pReq->epId.ep.port));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->epId.ep.fqdn));
@@ -9440,7 +9440,7 @@ int32_t tDeserializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *
   tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->sId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->epId.nodeId));
   TAOS_CHECK_EXIT(tDecodeU16(&decoder, &pReq->epId.ep.port));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->epId.ep.fqdn));
@@ -11350,11 +11350,11 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
 static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
   taosArrayDestroy(pRsp->blockDataLen);
   pRsp->blockDataLen = NULL;
-  taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockData, NULL);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;
-  taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockTbName, NULL);
   pRsp->blockTbName = NULL;
   tOffsetDestroy(&pRsp->reqOffset);
   tOffsetDestroy(&pRsp->rspOffset);
@@ -11416,7 +11416,7 @@ void tDeleteSTaosxRsp(SMqDataRsp *pRsp) {
 
   taosArrayDestroy(pRsp->createTableLen);
   pRsp->createTableLen = NULL;
-  taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->createTableReq, NULL);
   pRsp->createTableReq = NULL;
 }
 
@@ -12975,7 +12975,7 @@ _exit:
 
 void tDeleteMqBatchMetaRsp(SMqBatchMetaRsp *pRsp) {
   taosMemoryFreeClear(pRsp->pMetaBuff);
-  taosArrayDestroyP(pRsp->batchMetaReq, taosMemoryFree);
+  taosArrayDestroyP(pRsp->batchMetaReq, NULL);
   taosArrayDestroy(pRsp->batchMetaLen);
   pRsp->batchMetaReq = NULL;
   pRsp->batchMetaLen = NULL;

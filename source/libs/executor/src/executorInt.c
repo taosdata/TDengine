@@ -438,9 +438,6 @@ static int32_t doCreateConstantValColumnSMAInfo(SInputColumnInfoData* pInput, SF
       return terrno;
     }
     pInput->pColumnDataAgg[paramIndex] = da;
-    if (da == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
   } else {
     da = pInput->pColumnDataAgg[paramIndex];
   }
@@ -974,7 +971,7 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
   }
 }
 
-int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz) {
+int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* defaultBufsz) {
   *defaultPgsz = 4096;
   uint32_t last = *defaultPgsz;
   while (*defaultPgsz < rowSize * 4) {
@@ -1056,7 +1053,7 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, S
   if (pSup->pExprInfo != NULL) {
     pSup->pCtx = createSqlFunctionCtx(pExprInfo, numOfExpr, &pSup->rowEntryInfoOffset, pStore);
     if (pSup->pCtx == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -1145,7 +1142,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
         if (!pTable) {
           taosArrayDestroy(pDeleterParam->pUidList);
           taosMemoryFree(pDeleterParam);
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
         void*          tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
         if (!tmp) {

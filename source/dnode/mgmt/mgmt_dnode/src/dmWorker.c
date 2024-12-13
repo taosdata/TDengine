@@ -221,8 +221,11 @@ static void *dmMonitorThreadFp(void *param) {
 
       trimCount = (trimCount + 1) % TRIM_FREQ;
       if (trimCount == 0) {
-        taosMemoryTrim(0);
+        taosMemoryTrim(0, NULL);
       }
+    }
+    if (atomic_val_compare_exchange_8(&tsNeedTrim, 1, 0)) {
+      taosMemoryTrim(0, NULL);
     }
   }
 

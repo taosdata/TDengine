@@ -45,6 +45,7 @@ typedef struct SDataInserterHandle {
   bool                fullOrderColList;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  uint64_t            flags;
   TdThreadMutex       mutex;
   tsem_t              ready;
   bool                explain;
@@ -138,7 +139,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* pMsg, int
   pParam->pInserter = pInserter;
 
   pMsgSendInfo->param = pParam;
-  pMsgSendInfo->paramFreeFp = taosMemoryFree;
+  pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
   pMsgSendInfo->msgInfo.pData = pMsg;
   pMsgSendInfo->msgInfo.len = msgLen;
   pMsgSendInfo->msgType = TDMT_VND_SUBMIT;
@@ -434,6 +435,9 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosMemoryFree(pInserter->pSchema);
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
+  nodesDestroyNode((SNode *)pInserter->pNode);
+  pInserter->pNode = NULL;
+  
   (void)taosThreadMutexDestroy(&pInserter->mutex);
 
   taosMemoryFree(pInserter->pManager);
@@ -447,8 +451,16 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
+static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
+  SDataInserterHandle* pDispatcher = (SDataInserterHandle*)pHandle;
+
+  *pFlags = atomic_load_64(&pDispatcher->flags);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createDataInserter(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle,
                            void* pParam) {
+  SDataSinkNode* pDataSink = *ppDataSink;
   SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
   if (NULL == inserter) {
     taosMemoryFree(pParam);
@@ -462,12 +474,14 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   inserter->sink.fGetData = NULL;
   inserter->sink.fDestroy = destroyDataSinker;
   inserter->sink.fGetCacheSize = getCacheSize;
+  inserter->sink.fGetFlags = getSinkFlags;
   inserter->pManager = pManager;
   inserter->pNode = pInserterNode;
   inserter->pParam = pParam;
   inserter->status = DS_BUF_EMPTY;
   inserter->queryEnd = false;
   inserter->explain = pInserterNode->explain;
+  *ppDataSink = NULL;
 
   int64_t suid = 0;
   int32_t code = pManager->pAPI->metaFn.getTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId,
@@ -520,6 +534,9 @@ _return:
   } else {
     taosMemoryFree(pManager);
   }
+
+  nodesDestroyNode((SNode *)*ppDataSink);
+  *ppDataSink = NULL;
 
   return terrno;
 }

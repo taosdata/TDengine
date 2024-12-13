@@ -73,6 +73,9 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 |tagFilterCache          |          |Not supported                     |Whether to cache tag filter results|
 |queryBufferSize         |          |Supported, effective after restart|Not effective yet|
 |queryRspPolicy          |          |Supported, effective immediately  |Query response strategy|
+|queryUseMemoryPool      |          |Not supported                     |Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on|
+|minReservedMemorySize   |          |Not supported                     |The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000|
+|singleQueryMaxMemorySize|          |Not supported                     |The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000|
 |filterScalarMode        |          |Not supported                     |Force scalar filter mode, 0: off; 1: on, default value 0|
 |queryPlannerTrace       |          |Supported, effective immediately  |Internal parameter, whether the query plan outputs detailed logs|
 |queryNodeChunkSize      |          |Supported, effective immediately  |Internal parameter, chunk size of the query plan|

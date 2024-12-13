@@ -1173,12 +1173,16 @@ int32_t ctgDumpTbIndexRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableIndex) {
     SArray* pRes = taosArrayInit(pJob->tbIndexNum, sizeof(SMetaRes));
+    if (NULL == pRes) {
+      CTG_ERR_RET(terrno);
+    }
+    
     if (atomic_val_compare_exchange_ptr(&pJob->jobRes.pTableIndex, NULL, pRes)) {
       taosArrayDestroy(pRes);
     }
 
     if (NULL == pJob->jobRes.pTableIndex) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
   }
 
@@ -1198,12 +1202,16 @@ int32_t ctgDumpTbCfgRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableCfg) {
     SArray* pRes = taosArrayInit(pJob->tbCfgNum, sizeof(SMetaRes));
+    if (NULL == pRes) {
+      CTG_ERR_RET(terrno);
+    }
+
     if (atomic_val_compare_exchange_ptr(&pJob->jobRes.pTableCfg, NULL, pRes)) {
       taosArrayDestroy(pRes);
     }
 
     if (NULL == pJob->jobRes.pTableCfg) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
   }
 
@@ -1223,12 +1231,16 @@ int32_t ctgDumpTbTagRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableTag) {
     SArray* pRes = taosArrayInit(pJob->tbTagNum, sizeof(SMetaRes));
+    if (NULL == pRes) {
+      CTG_ERR_RET(terrno);
+    }
+
     if (atomic_val_compare_exchange_ptr(&pJob->jobRes.pTableTag, NULL, pRes)) {
       taosArrayDestroy(pRes);
     }
 
     if (NULL == pJob->jobRes.pTableTag) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
   }
 

@@ -804,7 +804,7 @@ static int32_t hJoinAddRowToHashImpl(SHJoinOperatorInfo* pJoin, SGroupData* pGro
     pRow->next = NULL;
     if (tSimpleHashPut(pJoin->pKeyHash, pTable->keyData, keyLen, &group, sizeof(group))) {
       taosMemoryFree(pRow);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   } else {
     pRow->next = pGroup->rows;
@@ -1201,7 +1201,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   size_t hashCap = pInfo->pBuild->inputStat.inputRowNum > 0 ? (pInfo->pBuild->inputStat.inputRowNum * 1.5) : 1024;
   pInfo->pKeyHash = tSimpleHashInit(hashCap, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   if (pInfo->pKeyHash == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return;
   }
 

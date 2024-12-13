@@ -368,7 +368,9 @@ static inline int32_t dmSendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 
 static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) { (void)rpcRegisterBrokenLinkArg(pMsg); }
 
-static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { (void)rpcReleaseHandle(pHandle, type); }
+static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type, int32_t status) {
+  (void)rpcReleaseHandle(pHandle, type, status);
+}
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_MNODE_NOT_FOUND ||

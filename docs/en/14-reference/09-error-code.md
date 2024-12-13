@@ -286,6 +286,9 @@ This document details the server error codes that may be encountered when using 
 | 0x80000729 | Task message error                   | Query message error                                          | Preserve the scene and logs, report issue on GitHub          |
 | 0x8000072B | Task status error                    | Subquery status error                                        | Preserve the scene and logs, report issue on GitHub          |
 | 0x8000072F | Job not exist                        | Query JOB no longer exists                                   | Preserve the scene and logs, report issue on GitHub          |
+| 0x80000739 | Query memory upper limit is reached  | Single query memory upper limit is reached                   | Modify memory upper limit size or optimize SQL               |
+| 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                           | Limit concurrent queries or add more physical memory         |
+| 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                          | Correct application to fetch data asap                       |
 
 ## grant
 
