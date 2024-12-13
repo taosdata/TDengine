@@ -26,6 +26,7 @@
 #endif
 #include "dmUtil.h"
 #include "tcs.h"
+#include "qworker.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -473,6 +474,13 @@ int mainWindows(int argc, char **argv) {
 
   if ((code = taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
     dError("failed to start since read config error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
+  
+  if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
+    dError("failed to init memPool, error:0x%x", code);
     taosCloseLog();
     taosCleanupArgs();
     return code;

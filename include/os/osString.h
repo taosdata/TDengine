@@ -84,6 +84,7 @@ int64_t tsnprintf(char *dst, int64_t size, const char *format, ...);
 #define TAOS_STRNCAT(_dst, _src, len)   ((void)strncat(_dst, _src, len))
 
 char   *tstrdup(const char *src);
+char   *tstrndup(const char *str, int64_t size);
 int32_t taosUcs4len(TdUcs4 *ucs4);
 int32_t taosStr2int64(const char *str, int64_t *val);
 int32_t taosStr2int32(const char *str, int32_t *val);
@@ -126,7 +127,6 @@ double   taosStr2Double(const char *str, char **pEnd);
 float    taosStr2Float(const char *str, char **pEnd);
 int32_t  taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size);
 int32_t  taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size);
-char    *taosStrndup(const char *s, int n);
 // int32_t  taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
 bool isHex(const char *z, uint32_t n);
 bool isValidateHex(const char *z, uint32_t n);

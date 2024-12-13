@@ -1078,7 +1078,7 @@ int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_
 
   int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
   if (code != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   code = vectorConvertSingleColImpl(input, output, NULL, startIndex, numOfRows);

@@ -299,6 +299,10 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
   return 0;
 }
 
+void taosSetNoNewFile() {
+  tsLogObj.openInProgress = 1;
+}
+
 static void taosStopLog() {
   if (tsLogObj.logHandle) {
     tsLogObj.logHandle->stop = 1;
