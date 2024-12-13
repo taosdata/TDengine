@@ -2193,10 +2193,14 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
   SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (IS_VAR_DATA_TYPE(type)) {
-    pInfo->bytes = varDataTLen(pData);
+    if (type == TSDB_DATA_TYPE_JSON) {
+      pInfo->bytes = getJsonValueLen(pData);
+    } else {
+      pInfo->bytes = varDataTLen(pData);
+    }
   }
 
-  memcpy(pInfo->buf, pData, pInfo->bytes);
+  (void)memcpy(pInfo->buf, pData, pInfo->bytes);
   pInfo->ts = currentTs;
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo, false);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2651,7 +2655,11 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
     pInfo->isNull = false;
 
     if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
-      pInfo->bytes = varDataTLen(pData);
+      if (pInputCol->info.type == TSDB_DATA_TYPE_JSON) {
+        pInfo->bytes = getJsonValueLen(pData);
+      } else {
+        pInfo->bytes = varDataTLen(pData);
+      }
     }
 
     memcpy(pInfo->buf, pData, pInfo->bytes);
@@ -5051,7 +5059,11 @@ static void modeFunctionCleanup(SModeInfo * pInfo) {
 
 static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo *pInfo, STuplePos* pPos) {
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
-    memcpy(pInfo->buf, data, varDataTLen(data));
+    if (pInfo->colType == TSDB_DATA_TYPE_JSON) {
+      (void)memcpy(pInfo->buf, data, getJsonValueLen(data));
+    } else {
+      (void)memcpy(pInfo->buf, data, varDataTLen(data));
+    }
   } else {
     memcpy(pInfo->buf, data, pInfo->colBytes);
   }
@@ -5061,7 +5073,16 @@ static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo *pI
 
 static int32_t doModeAdd(SModeInfo* pInfo, int32_t rowIndex, SqlFunctionCtx* pCtx, char* data) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t hashKeyBytes = IS_STR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
+  int32_t hashKeyBytes;
+  if (IS_VAR_DATA_TYPE(pInfo->colType)) {
+    if (pInfo->colType == TSDB_DATA_TYPE_JSON) {
+      hashKeyBytes = getJsonValueLen(data);
+    } else {
+      hashKeyBytes = varDataTLen(data);
+    }
+  } else {
+    hashKeyBytes = pInfo->colBytes;
+  }
 
   SModeItem* pHashItem = (SModeItem *)taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
@@ -5852,7 +5873,7 @@ bool irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->lastValue = (double)INT64_MIN;
 
   pInfo->hasResult = 0;
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t irateFunction(SqlFunctionCtx* pCtx) {
