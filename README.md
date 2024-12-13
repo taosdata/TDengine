@@ -279,15 +279,15 @@ ll /root/TDinternal/community/release
 # 6. Installing
 
 ```bash
-tar -xvzf TDengine-enterprise-version-Linux-x64.tar.gz
-cd TDengine-enterprise-version-Linux-x64
+tar -xvzf TDengine-enterprise-<version_number>-Linux-x64.tar.gz
+cd TDengine-enterprise-<version_number>-Linux-x64
 ./install.sh
 ```
 
 # 7. Running
 
 ```bash
-cd TDengine-enterprise-version-Linux-x64
+cd TDengine-enterprise-<version_number>-Linux-x64
 ./start-all.sh
 ./stop-all.sh
 ```
@@ -324,12 +324,21 @@ cd /root/TDinternal/community/packaging/smokeTest
 
 # 9 Releasing
 
-TDengine Enterprise, which can be found on the corporate NAS server:
+TDengine Enterprise installers can be found on the corporate NAS server:
 
     NAS Server URL： http://192.168.1.252:5000/
     Directory: /Release/TDengine/
 
-All the released versions can be found here.
+NAS server write permission is enabled on `192.168.1.131`. To release, please follow steps below, take v3.3.4.0 for example:
+
+```bash
+# create the release directory first
+ssh root@192.168.1.131
+mkdir -p /pkgs/TDengine/3.3/v3.3.4.0/enterprise
+
+# copy the installer to release directory
+scp <installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
+```
 
 # 10 CI/CD
 
