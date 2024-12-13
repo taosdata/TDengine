@@ -152,11 +152,13 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
 }
 
 static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  bool tmp = false;
+  int32_t code = 0;
+  bool    tmp = false;
   if (strcasecmp(value, "true") == 0) {
     tmp = true;
   }
-  if (atoi(value) > 0) {
+  int32_t val = 0;
+  if ((code = taosStr2int32(value, &val)) == 0 && val > 0) {
     tmp = true;
   }
 
@@ -308,6 +310,7 @@ static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType s
 
 static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value, const char *level, const char *primary,
                              const char *disable, ECfgSrcType stype) {
+  int32_t code = 0;
   (void)taosThreadMutexLock(&pCfg->lock);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
@@ -328,20 +331,40 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
 
   SDiskCfg cfg = {0};
   tstrncpy(cfg.dir, pItem->str, sizeof(cfg.dir));
-  cfg.level = level ? atoi(level) : 0;
-  cfg.primary = primary ? atoi(primary) : 1;
-  cfg.disable = disable ? atoi(disable) : 0;
+
+  if (level == NULL || strlen(level) == 0) {
+    cfg.level = 0;
+  } else {
+    code = taosStr2int32(level, &cfg.level);
+    TAOS_CHECK_GOTO(code, NULL, _err);
+  }
+
+  if (primary == NULL || strlen(primary) == 0) {
+    cfg.primary = 1;
+  } else {
+    code = taosStr2int32(primary, &cfg.primary);
+    TAOS_CHECK_GOTO(code, NULL, _err);
+  }
+
+  if (disable == NULL || strlen(disable) == 0) {
+    cfg.disable = 0;
+  } else {
+    code = taosStr2int8(disable, &cfg.disable);
+    TAOS_CHECK_GOTO(code, NULL, _err);
+  }
   void *ret = taosArrayPush(pItem->array, &cfg);
   if (ret == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
-
-    TAOS_RETURN(terrno);
+    code = terrno;
+    TAOS_CHECK_GOTO(code, NULL, _err);
   }
 
   pItem->stype = stype;
   (void)taosThreadMutexUnlock(&pCfg->lock);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
+_err:
+  (void)taosThreadMutexUnlock(&pCfg->lock);
+  TAOS_RETURN(code);
 }
 
 static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool resetArray) {
@@ -365,7 +388,7 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
   if (pDebugFlagItem == NULL) return -1;
   if (pDebugFlagItem->array != NULL) {
     SLogVar logVar = {0};
-    (void)strncpy(logVar.name, name, TSDB_LOG_VAR_LEN - 1);
+    tstrncpy(logVar.name, name, TSDB_LOG_VAR_LEN);
     if (NULL == taosArrayPush(pDebugFlagItem->array, &logVar)) {
       TAOS_RETURN(terrno);
     }
@@ -462,6 +485,7 @@ void cfgLock(SConfig *pCfg) {
 void cfgUnLock(SConfig *pCfg) { (void)taosThreadMutexUnlock(&pCfg->lock); }
 
 int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer) {
+  int32_t     code = 0;
   ECfgDynType dynType = isServer ? CFG_DYN_SERVER : CFG_DYN_CLIENT;
 
   cfgLock(pCfg);
@@ -493,8 +517,9 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       }
     } break;
     case CFG_DTYPE_BOOL: {
-      int32_t ival = (int32_t)atoi(pVal);
-      if (ival != 0 && ival != 1) {
+      int32_t ival = 0;
+      code = taosStr2int32(pVal, &ival);
+      if (code != 0 || (ival != 0 && ival != 1)) {
         uError("cfg:%s, type:%s value:%d out of range[0, 1]", pItem->name, cfgDtypeStr(pItem->dtype), ival);
         cfgUnLock(pCfg);
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
@@ -587,6 +612,18 @@ int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scop
   SConfigItem item = {.dtype = CFG_DTYPE_BOOL, .bval = defaultVal, .scope = scope, .dynScope = dynScope};
   return cfgAddItem(pCfg, &item, name);
 }
+
+int32_t cfgAddInt32Ex(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
+                    int8_t dynScope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_INT32,
+                      .i32 = defaultVal,
+                      .imin = minval,
+                      .imax = maxval,
+                      .scope = scope,
+                      .dynScope = dynScope};
+  return cfgAddItem(pCfg, &item, name);
+}
+
 
 int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
                     int8_t dynScope) {
@@ -949,9 +986,10 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
             for (size_t j = 0; j < sz; ++j) {
               SDiskCfg *pCfg = taosArrayGet(pItem->array, j);
               if (dump) {
-                (void)printf("%s %s %s l:%d p:%d d:%"PRIi8"\n", src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
+                (void)printf("%s %s %s l:%d p:%d d:%" PRIi8 "\n", src, name, pCfg->dir, pCfg->level, pCfg->primary,
+                             pCfg->disable);
               } else {
-                uInfo("%s %s %s l:%d p:%d d:%"PRIi8, src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
+                uInfo("%s %s %s l:%d p:%d d:%" PRIi8, src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
               }
             }
             break;
@@ -986,7 +1024,7 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
     name = value = value2 = value3 = value4 = NULL;
     olen = vlen = vlen2 = vlen3 = vlen4 = 0;
 
-    strncpy(line, *pEnv, sizeof(line) - 1);
+    tstrncpy(line, *pEnv, sizeof(line));
     pEnv++;
     if (taosEnvToCfg(line, line) < 0) {
       uTrace("failed to convert env to cfg:%s", line);
@@ -1031,7 +1069,7 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
   int32_t index = 0;
   if (envCmd == NULL) TAOS_RETURN(TSDB_CODE_SUCCESS);
   while (envCmd[index] != NULL) {
-    strncpy(buf, envCmd[index], sizeof(buf) - 1);
+    tstrncpy(buf, envCmd[index], sizeof(buf));
     buf[sizeof(buf) - 1] = 0;
     if (taosEnvToCfg(buf, buf) < 0) {
       uTrace("failed to convert env to cfg:%s", buf);
@@ -1482,7 +1520,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
   char **pEnv = environ;
   line[1023] = 0;
   while (*pEnv != NULL) {
-    strncpy(line, *pEnv, sizeof(line) - 1);
+    tstrncpy(line, *pEnv, sizeof(line));
     pEnv++;
     if (strncmp(line, "TAOS_APOLLO_URL", 14) == 0) {
       char *p = strchr(line, '=');

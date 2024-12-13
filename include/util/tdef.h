@@ -318,6 +318,8 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_JSON_KEY_LEN 256
 
 #define TSDB_AUTH_LEN          16
+#define TSDB_PASSWORD_MIN_LEN  8
+#define TSDB_PASSWORD_MAX_LEN  16
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       32
@@ -673,6 +675,8 @@ typedef enum {
   ANAL_ALGO_TYPE_FORECAST = 1,
   ANAL_ALGO_TYPE_END,
 } EAnalAlgoType;
+
+#define MIN_RESERVE_MEM_SIZE 1024 // MB
 
 #ifdef __cplusplus
 }

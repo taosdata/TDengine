@@ -26,6 +26,7 @@
 #endif
 #include "dmUtil.h"
 #include "tcs.h"
+#include "qworker.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -279,7 +280,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
           printf("ERROR: Encrypt key overflow, it should be at most %d characters\n", ENCRYPT_KEY_LEN);
           return TSDB_CODE_INVALID_CFG;
         }
-        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
+        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN + 1);
       } else {
         printf("'-y' requires a parameter\n");
         return TSDB_CODE_INVALID_CFG;
@@ -473,6 +474,13 @@ int mainWindows(int argc, char **argv) {
 
   if ((code = taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
     dError("failed to start since read config error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
+  
+  if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
+    dError("failed to init memPool, error:0x%x", code);
     taosCloseLog();
     taosCleanupArgs();
     return code;
