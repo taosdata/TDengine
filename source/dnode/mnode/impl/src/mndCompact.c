@@ -957,7 +957,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
       continue;
     }
 
-    int64_t remainder = ((curMin + (int64_t)pDb->cfg.compactTimeOffset * 60LL) % pDb->cfg.compactInterval);
+    int64_t remainder = ((curMin - (int64_t)pDb->cfg.compactTimeOffset * 60LL) % pDb->cfg.compactInterval);
     if (remainder != 0) {
       mDebug("db:%p,%s, current time:%" PRIi64 "m is not divisible by compact interval:%dm, offset:%" PRIi8
              "h, remainder:%" PRIi64 "m, skip",
