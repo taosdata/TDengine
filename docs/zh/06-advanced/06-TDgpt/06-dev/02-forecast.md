@@ -34,7 +34,7 @@ return {
 
 ```python
 import numpy as np
-from service import AbstractForecastService
+from taosanalytics.service import AbstractForecastService
 
 # 算法实现类名称 需要以下划线 "_" 开始，并以 Service 结束
 class _MyForecastService(AbstractForecastService):
