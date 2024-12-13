@@ -69,7 +69,9 @@ void tmsgSendRsp(SRpcMsg* pMsg) {
 
 void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) { (*defaultMsgCb.registerBrokenLinkArgFp)(pMsg); }
 
-void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) { (*defaultMsgCb.releaseHandleFp)(pHandle, type); }
+void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type, int32_t status) {
+  (*defaultMsgCb.releaseHandleFp)(pHandle, type, status);
+}
 
 void tmsgReportStartup(const char* name, const char* desc) { (*defaultMsgCb.reportStartupFp)(name, desc); }
 

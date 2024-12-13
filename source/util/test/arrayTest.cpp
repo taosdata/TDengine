@@ -182,8 +182,8 @@ TEST(arrayTest, check_duplicate_needfree) {
     ASSERT_STREQ(v, value);
   }
 
-  taosArrayClearP(pa, taosMemoryFree);
-  taosArrayDestroyP(pa, taosMemoryFree);
+  taosArrayClearP(pa, NULL);
+  taosArrayDestroyP(pa, NULL);
 }
 
 // over all
