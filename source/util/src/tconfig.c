@@ -557,7 +557,7 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
       break;
   }
 
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+  TAOS_RETURN(code);
 }
 
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
