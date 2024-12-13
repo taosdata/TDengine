@@ -846,7 +846,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   SSchema        *pColumn = NULL;
   int32_t         iColumn = 0;
   for (int32_t i = 0; i < pSchema->nCols; i++) {
-    if (pSchema->pSchema[i].colId == pReq->colId) {
+    if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColumn = &pSchema->pSchema[i];
       iColumn = i;
       break;
@@ -931,7 +931,7 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   int32_t         iColumn = 0;
   int32_t         rowSize = 0;
   for (int32_t i = 0; i < pSchema->nCols; i++) {
-    if (pSchema->pSchema[i].colId == pReq->colId) {
+    if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColumn = &pSchema->pSchema[i];
       iColumn = i;
     }
@@ -1061,7 +1061,7 @@ int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
   }
 
-  // do change tag value
+  // search the tag to update
   SSchemaWrapper *pTagSchema = &pSuper->stbEntry.schemaTag;
   SSchema        *pColumn = NULL;
   int32_t         iColumn = 0;
@@ -1165,6 +1165,204 @@ int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   }
 
   // free resource and return
+  metaFetchEntryFree(&pChild);
+  metaFetchEntryFree(&pSuper);
+  TAOS_RETURN(code);
+}
+
+static int32_t metaCheckUpdateTableMultiTagValueReq(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  int32_t code = 0;
+
+  // check tag name
+  if (NULL == pReq->pMultiTag || taosArrayGetSize(pReq->pMultiTag) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid tag name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  // check name
+  void   *value = NULL;
+  int32_t valueSize = 0;
+  code = tdbTbGet(pMeta->pNameIdx, pReq->tbName, strlen(pReq->tbName) + 1, &value, &valueSize);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    TAOS_RETURN(code);
+  }
+  tdbFreeClear(value);
+
+  if (taosArrayGetSize(pReq->pMultiTag) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid tag name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  code = metaCheckUpdateTableMultiTagValueReq(pMeta, version, pReq);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+
+  // fetch child entry
+  SMetaEntry *pChild = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pChild);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+
+  if (pChild->type != TSDB_CHILD_TABLE) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s is not a child table, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, version);
+    metaFetchEntryFree(&pChild);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // fetch super entry
+  SMetaEntry *pSuper = NULL;
+  code = metaFetchEntryByUid(pMeta, pChild->ctbEntry.suid, &pSuper);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since super table uid %" PRId64 " not found, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pChild->ctbEntry.suid, version);
+    metaFetchEntryFree(&pChild);
+    TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
+  }
+
+  // search the tags to update
+  SSchemaWrapper *pTagSchema = &pSuper->stbEntry.schemaTag;
+
+  if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s has no tag, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->tbName, version);
+    metaFetchEntryFree(&pChild);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
+  }
+
+  // do check if tag name exists
+  SHashObj *pTagTable =
+      taosHashInit(pTagSchema->nCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pTagTable == NULL) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(terrno), version);
+    metaFetchEntryFree(&pChild);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(terrno);
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pReq->pMultiTag); i++) {
+    SMultiTagUpateVal *pTagVal = taosArrayGet(pReq->pMultiTag, i);
+    if (taosHashPut(pTagTable, pTagVal->tagName, strlen(pTagVal->tagName), pTagVal, sizeof(*pTagVal)) != 0) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+                __LINE__, tstrerror(terrno), version);
+      taosHashCleanup(pTagTable);
+      metaFetchEntryFree(&pChild);
+      metaFetchEntryFree(&pSuper);
+      TAOS_RETURN(terrno);
+    }
+  }
+
+  int32_t numOfChangedTags = 0;
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    taosHashGet(pTagTable, pTagSchema->pSchema[i].name, strlen(pTagSchema->pSchema[i].name)) != NULL
+        ? numOfChangedTags++
+        : 0;
+  }
+  if (numOfChangedTags < taosHashGetSize(pTagTable)) {
+    metaError("vgId:%d, %s failed at %s:%d since tag count mismatch, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    taosHashCleanup(pTagTable);
+    metaFetchEntryFree(&pChild);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
+  }
+
+  // do change tag value
+  pChild->version = version;
+  const STag *pOldTag = (const STag *)pChild->ctbEntry.pTags;
+  SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+  if (NULL == pTagArray) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(terrno), version);
+    taosHashCleanup(pTagTable);
+    metaFetchEntryFree(&pChild);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(terrno);
+  }
+
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    SSchema *pCol = &pTagSchema->pSchema[i];
+    STagVal  value = {
+         .cid = pCol->colId,
+    };
+
+    SMultiTagUpateVal *pTagVal = taosHashGet(pTagTable, pCol->name, strlen(pCol->name));
+    if (pTagVal == NULL) {
+      if (!tTagGet(pOldTag, &value)) {
+        continue;
+      }
+    } else {
+      value.type = pCol->type;
+      if (pTagVal->isNull) {
+        continue;
+      }
+
+      if (IS_VAR_DATA_TYPE(pCol->type)) {
+        value.pData = pTagVal->pTagVal;
+        value.nData = pTagVal->nTagVal;
+      } else {
+        memcpy(&value.i64, pTagVal->pTagVal, pTagVal->nTagVal);
+      }
+    }
+
+    if (taosArrayPush(pTagArray, &value) == NULL) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+                __LINE__, tstrerror(terrno), version);
+      taosHashCleanup(pTagTable);
+      taosArrayDestroy(pTagArray);
+      metaFetchEntryFree(&pChild);
+      metaFetchEntryFree(&pSuper);
+      TAOS_RETURN(terrno);
+    }
+  }
+
+  STag *pNewTag = NULL;
+  code = tTagNew(pTagArray, pTagSchema->version, false, &pNewTag);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(code), version);
+    taosHashCleanup(pTagTable);
+    taosArrayDestroy(pTagArray);
+    metaFetchEntryFree(&pChild);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(code);
+  }
+  taosArrayDestroy(pTagArray);
+  taosMemoryFree(pChild->ctbEntry.pTags);
+  pChild->ctbEntry.pTags = (uint8_t *)pNewTag;
+
+  // do handle entry
+  code = metaHandleEntry2(pMeta, pChild);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pChild->uid, pReq->tbName, version);
+    taosHashCleanup(pTagTable);
+    metaFetchEntryFree(&pChild);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(code);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
+             pChild->uid, version);
+  }
+
+  taosHashCleanup(pTagTable);
   metaFetchEntryFree(&pChild);
   metaFetchEntryFree(&pSuper);
   TAOS_RETURN(code);
