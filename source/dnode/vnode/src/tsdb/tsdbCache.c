@@ -1545,8 +1545,8 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   SIdxKey *idxKey = taosArrayGet(remainCols, 0);
   if (idxKey->key.cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
     // ignore 'ts' loaded from cache and load it from tsdb
-    SLastCol *pLastCol = taosArrayGet(pLastArray, 0);
-    tsdbCacheUpdateLastColToNone(pLastCol, TSDB_LAST_CACHE_NO_CACHE);
+    // SLastCol *pLastCol = taosArrayGet(pLastArray, 0);
+    // tsdbCacheUpdateLastColToNone(pLastCol, TSDB_LAST_CACHE_NO_CACHE);
 
     SLastKey *key = &(SLastKey){.lflag = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
     if (!taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key})) {
@@ -1660,7 +1660,9 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       pLastCol = &noneCol;
     }
 
-    taosArraySet(pLastArray, idxKey->idx, pLastCol);
+    if (!extraTS || i > 0) {
+      taosArraySet(pLastArray, idxKey->idx, pLastCol);
+    }
     // taosArrayRemove(remainCols, i);
 
     if (/*!pTmpColArray*/ lastTmpIndexArray && !lastTmpColArray) {
