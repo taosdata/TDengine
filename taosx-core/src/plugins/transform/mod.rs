@@ -2216,7 +2216,6 @@ fn test_indices_to_ranges() {
 #[cfg(test)]
 mod parser_tests {
     use crate::plugins::transform::modeler::Modeler;
-
     use super::Parser;
 
     #[test]
@@ -2244,4 +2243,52 @@ mod parser_tests {
         let json = serde_json::to_string_pretty(&parser).unwrap();
         println!("{}", json);
     }
+
+    #[test]
+    fn test_parse_record() {
+        let parser = r#"{
+            "parse": {
+                "value": {"json": ""}
+            },
+            "model": {
+                "name": "t_${DEV_ID}",
+                "using": "deva",
+                "tags": [ "dev_id" ],
+                "columns": [ "_ts", "_val" ]
+            },
+            "mutate": [{
+                "map": {
+                    "_ts": {
+                        "cast": "_ts",
+                        "as": "TIMESTAMP(ms)"
+                    },
+                    "_val": {
+                        "cast": "_val",
+                        "as": "INT"
+                    },
+                    "dev_id": {
+                        "cast": "DEV_ID",
+                        "as": "VARCHAR"
+                    }
+                }
+            }]
+
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        
+        let raw_data = arrow_array::record_batch!(
+            ("topic", Utf8, ["test", "test", "test"]),
+            ("value", Utf8, [
+                r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val": 12, "DEV_ID": "2212"}"#,
+                r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val": 13, "DEV_ID": "2213"}"#,
+                r#"{"_ts": "2024-12-02T18:00:01+08:00", "_val": 14, "DEV_ID": "2212"}"#
+            ])
+        ).unwrap();
+
+        let records = parser.parse_message_from_records(&raw_data, false).unwrap();
+        assert_eq!(records.len(), 2);
+        dbg!(records);
+
+    }
+
 }

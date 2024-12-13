@@ -7916,6 +7916,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "arrow",
+ "arrow-array",
  "arrow-cast-guess-precision",
  "arrow-compute-ext",
  "arrow-flight",
