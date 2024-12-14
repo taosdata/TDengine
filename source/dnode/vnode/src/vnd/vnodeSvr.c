@@ -2458,7 +2458,7 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq,
     return code;
   }
 
-  code = metaDropIndexFromSTable(pVnode->pMeta, ver, &req);
+  code = metaDropIndexFromSuperTable(pVnode->pMeta, ver, &req);
   if (code) {
     pRsp->code = code;
     return code;
