@@ -1575,8 +1575,7 @@ int32_t metaAddIndexToSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *
   }
 
   if (pEntry->stbEntry.schemaTag.version >= pReq->schemaTag.version) {
-    metaError("vgId:%d, %s failed at %s:%d since table %s tag schema version %" PRId64 " is not less than %" PRId64
-              ", version:%" PRId64,
+    metaError("vgId:%d, %s failed at %s:%d since table %s tag schema version %d is not less than %d, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pEntry->stbEntry.schemaTag.version,
               pReq->schemaTag.version, version);
     metaFetchEntryFree(&pEntry);
@@ -1603,8 +1602,7 @@ int32_t metaAddIndexToSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *
   }
 
   if (pOldTagSchema->version >= pNewTagSchema->version) {
-    metaError("vgId:%d, %s failed at %s:%d since table %s tag schema version %" PRId64 " is not less than %" PRId64
-              ", version:%" PRId64,
+    metaError("vgId:%d, %s failed at %s:%d since table %s tag schema version %d is not less than %d, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pOldTagSchema->version,
               pNewTagSchema->version, version);
     metaFetchEntryFree(&pEntry);
