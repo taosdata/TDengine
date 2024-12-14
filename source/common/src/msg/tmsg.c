@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tglobal.h"
 #include "tmsg.h"
 
 #undef TD_MSG_NUMBER_
@@ -1608,6 +1609,99 @@ _exit:
 
 void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
 
+int32_t tSerializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->forceReadConfig));
+  if (pReq->forceReadConfig) {
+    TAOS_CHECK_EXIT(tSerializeSConfigArray(&encoder, pReq->array));
+  }
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cver));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->forceReadConfig));
+  if (pReq->forceReadConfig) {
+    pReq->array = taosArrayInit(128, sizeof(SConfigItem));
+    if (pReq->array == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pReq->array));
+  }
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSConfigReq(SConfigReq *pReq) { taosArrayDestroy(pReq->array); }
+
+int32_t tSerializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->forceReadConfig));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->isConifgVerified));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->isVersionVerified));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->cver));
+  if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
+    TAOS_CHECK_EXIT(tSerializeSConfigArray(&encoder, pRsp->array));
+  }
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->forceReadConfig));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isConifgVerified));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isVersionVerified));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->cver));
+  if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
+    pRsp->array = taosArrayInit(128, sizeof(SConfigItem));
+    TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pRsp->array));
+  }
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSConfigRsp(SConfigRsp *pRsp) { taosArrayDestroy(pRsp->array); }
+
 int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
   int32_t  code = 0, lino = 0;
   int32_t  tlen = 0;
@@ -3160,6 +3254,7 @@ int32_t tSerializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq) 
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->version));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->config));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->value));
   tEndEncode(&encoder);
@@ -3181,6 +3276,7 @@ int32_t tDeserializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->version));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->config));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->value));
   tEndDecode(&decoder);
@@ -5624,6 +5720,7 @@ int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->name));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->value));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->scope));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->category));
   return 0;
 }
 
@@ -5631,6 +5728,7 @@ int32_t tDecodeSVariablesInfo(SDecoder *pDecoder, SVariablesInfo *pInfo) {
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->name));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->value));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->scope));
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->category));
   return 0;
 }
 

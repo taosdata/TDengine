@@ -5,8 +5,9 @@
 #include <unistd.h>
 #include "taos.h"
 
-int CTB_NUMS = 10;
-int ROW_NUMS = 2;
+int CTB_NUMS = 1000;
+int ROW_NUMS = 10;
+int CYC_NUMS = 5;
 
 void do_query(TAOS* taos, const char* sql) {
   TAOS_RES* result = taos_query(taos, sql);
@@ -19,10 +20,32 @@ void do_query(TAOS* taos, const char* sql) {
   taos_free_result(result);
 }
 
-void do_stmt(TAOS* taos, const char* sql) {
+void do_ins(TAOS* taos, const char* sql) {
+  TAOS_RES* result = taos_query(taos, sql);
+  int       code = taos_errno(result);
+  if (code) {
+    printf("failed to query: %s, reason:%s\n", sql, taos_errstr(result));
+    taos_free_result(result);
+    return;
+  }
+  taos_free_result(result);
+}
+
+void createCtb(TAOS* taos, const char* tbname) {
+  char* tmp = (char*)malloc(sizeof(char) * 100);
+  sprintf(tmp, "create table db.%s using db.stb tags(0, 'after')", tbname);
+  do_query(taos, tmp);
+}
+
+void initEnv(TAOS* taos) {
   do_query(taos, "drop database if exists db");
   do_query(taos, "create database db");
   do_query(taos, "create table db.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
+  do_query(taos, "use db");
+}
+
+void do_stmt(TAOS* taos, const char* sql) {
+  initEnv(taos);
 
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
@@ -35,35 +58,107 @@ void do_stmt(TAOS* taos, const char* sql) {
   }
   int             fieldNum = 0;
   TAOS_FIELD_STB* pFields = NULL;
-  code = taos_stmt2_get_stb_fields(stmt, &fieldNum, &pFields);
-  if (code != 0) {
-    printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
-  } else {
-    printf("col nums:%d\n", fieldNum);
-    for (int i = 0; i < fieldNum; i++) {
-      printf("field[%d]: %s, data_type:%d, field_type:%d\n", i, pFields[i].name, pFields[i].type,
-             pFields[i].field_type);
-    }
-  }
+  //   code = taos_stmt2_get_stb_fields(stmt, &fieldNum, &pFields);
+  //   if (code != 0) {
+  //     printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
+  //   } else {
+  //     printf("col nums:%d\n", fieldNum);
+  //     for (int i = 0; i < fieldNum; i++) {
+  //       printf("field[%d]: %s, data_type:%d, field_type:%d\n", i, pFields[i].name, pFields[i].type,
+  //              pFields[i].field_type);
+  //     }
+  //   }
 
   // tbname
   char** tbs = (char**)malloc(CTB_NUMS * sizeof(char*));
   for (int i = 0; i < CTB_NUMS; i++) {
     tbs[i] = (char*)malloc(sizeof(char) * 20);
     sprintf(tbs[i], "ctb_%d", i);
-    // char* tmp=(char*)malloc(sizeof(char) * 100);
-    // sprintf(tmp, "create table db.%s using db.stb tags(0, 'abc')", tbs[i]);
-    // do_query(taos, tmp);
+    createCtb(taos, tbs[i]);
   }
-  // col params
-  int64_t** ts = (int64_t**)malloc(CTB_NUMS * sizeof(int64_t*));
+  for (int r = 0; r < CYC_NUMS; r++) {
+    // col params
+    int64_t** ts = (int64_t**)malloc(CTB_NUMS * sizeof(int64_t*));
+    char**    b = (char**)malloc(CTB_NUMS * sizeof(char*));
+    int*      ts_len = (int*)malloc(ROW_NUMS * sizeof(int));
+    int*      b_len = (int*)malloc(ROW_NUMS * sizeof(int));
+    for (int i = 0; i < ROW_NUMS; i++) {
+      ts_len[i] = sizeof(int64_t);
+      b_len[i] = 1;
+    }
+    for (int i = 0; i < CTB_NUMS; i++) {
+      ts[i] = (int64_t*)malloc(ROW_NUMS * sizeof(int64_t));
+      b[i] = (char*)malloc(ROW_NUMS * sizeof(char));
+      for (int j = 0; j < ROW_NUMS; j++) {
+        ts[i][j] = 1591060628000 + r * 100000 + j;
+        b[i][j] = 'a' + j;
+      }
+    }
+    // tag params
+    int t1 = 0;
+    int t1len = sizeof(int);
+    int t2len = 3;
+    //   TAOS_STMT2_BIND* tagv[2] = {&tags[0][0], &tags[1][0]};
+
+    clock_t start, end;
+    double  cpu_time_used;
+
+    // bind params
+    TAOS_STMT2_BIND** paramv = (TAOS_STMT2_BIND**)malloc(CTB_NUMS * sizeof(TAOS_STMT2_BIND*));
+    TAOS_STMT2_BIND** tags = (TAOS_STMT2_BIND**)malloc(CTB_NUMS * sizeof(TAOS_STMT2_BIND*));
+    for (int i = 0; i < CTB_NUMS; i++) {
+      // create tags
+      tags[i] = (TAOS_STMT2_BIND*)malloc(2 * sizeof(TAOS_STMT2_BIND));
+      tags[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, &t1, &t1len, NULL, 0};
+      tags[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, "after", &t2len, NULL, 0};
+
+      // create col params
+      paramv[i] = (TAOS_STMT2_BIND*)malloc(2 * sizeof(TAOS_STMT2_BIND));
+      paramv[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, &ts[i][0], &ts_len[0], NULL, ROW_NUMS};
+      paramv[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, ROW_NUMS};
+    }
+    // bind
+    start = clock();
+    TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, tags, paramv};
+    if (taos_stmt2_bind_param(stmt, &bindv, -1)) {
+      printf("failed to execute taos_stmt2_bind_param statement.error:%s\n", taos_stmt2_error(stmt));
+      taos_stmt2_close(stmt);
+      return;
+    }
+    end = clock();
+    cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("stmt2-bind [%s] insert Time used: %f seconds\n", sql, cpu_time_used);
+    start = clock();
+    // exec
+    if (taos_stmt2_exec(stmt, NULL)) {
+      printf("failed to execute taos_stmt2_exec statement.error:%s\n", taos_stmt2_error(stmt));
+      taos_stmt2_close(stmt);
+      return;
+    }
+    end = clock();
+    cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("stmt2-exec [%s] insert Time used: %f seconds\n", sql, cpu_time_used);
+  }
+
+  //   taos_stmt2_free_fields(stmt, pFields);
+  taos_stmt2_close(stmt);
+}
+
+void do_taosc(TAOS* taos) {
+  initEnv(taos);
+  // cols
+  int64_t** ts = (int64_t*)malloc(CTB_NUMS * sizeof(int64_t));
   char**    b = (char**)malloc(CTB_NUMS * sizeof(char*));
-  int*      ts_len = (int*)malloc(ROW_NUMS * sizeof(int));
-  int*      b_len = (int*)malloc(ROW_NUMS * sizeof(int));
-  for (int i = 0; i < ROW_NUMS; i++) {
-    ts_len[i] = sizeof(int64_t);
-    b_len[i] = 1;
+  // ctbnames
+  char** tbs = (char**)malloc(CTB_NUMS * sizeof(char*));
+
+  // create table before insert
+  for (int i = 0; i < CTB_NUMS; i++) {
+    tbs[i] = (char*)malloc(sizeof(char) * 20);
+    sprintf(tbs[i], "ctb_%d", i);
+    createCtb(taos, tbs[i]);
   }
+
   for (int i = 0; i < CTB_NUMS; i++) {
     ts[i] = (int64_t*)malloc(ROW_NUMS * sizeof(int64_t));
     b[i] = (char*)malloc(ROW_NUMS * sizeof(char));
@@ -72,87 +167,30 @@ void do_stmt(TAOS* taos, const char* sql) {
       b[i][j] = 'a' + j;
     }
   }
-  // tag params
-  int t1 = 0;
-  int t1len = sizeof(int);
-  int t2len = 3;
-  //   TAOS_STMT2_BIND* tagv[2] = {&tags[0][0], &tags[1][0]};
+  for (int r = 0; r < CYC_NUMS; r++) {
+    clock_t start, end;
+    double  cpu_time_used;
+    char*   tsc_sql = malloc(sizeof(char) * 1000000);
+    sprintf(tsc_sql, "insert into db.stb(tbname,ts,b,t1,t2) values");
 
-  clock_t start, end;
-  double  cpu_time_used;
-
-  // bind params
-  TAOS_STMT2_BIND** paramv = (TAOS_STMT2_BIND**)malloc(CTB_NUMS * sizeof(TAOS_STMT2_BIND*));
-  TAOS_STMT2_BIND** tags = (TAOS_STMT2_BIND**)malloc(CTB_NUMS * sizeof(TAOS_STMT2_BIND*));
-  for (int i = 0; i < CTB_NUMS; i++) {
-    // create tags
-    tags[i] = (TAOS_STMT2_BIND*)malloc(2 * sizeof(TAOS_STMT2_BIND));
-    tags[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, &t1, &t1len, NULL, 0};
-    tags[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, "after", &t2len, NULL, 0};
-
-    // create col params
-    paramv[i] = (TAOS_STMT2_BIND*)malloc(2 * sizeof(TAOS_STMT2_BIND));
-    paramv[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, &ts[i][0], &ts_len[0], NULL, ROW_NUMS};
-    paramv[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, ROW_NUMS};
-  }
-  // bind
-  start = clock();
-  TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, tags, paramv};
-  if (taos_stmt2_bind_param(stmt, &bindv, -1)) {
-    printf("failed to execute taos_stmt2_bind_param statement.error:%s\n", taos_stmt2_error(stmt));
-    taos_stmt2_close(stmt);
-    return;
-  }
-  end = clock();
-  cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
-  printf("stmt2-bind [%s] insert Time used: %f seconds\n", sql, cpu_time_used);
-  start = clock();
-  // exec
-  if (taos_stmt2_exec(stmt, NULL)) {
-    printf("failed to execute taos_stmt2_exec statement.error:%s\n", taos_stmt2_error(stmt));
-    taos_stmt2_close(stmt);
-    return;
-  }
-  end = clock();
-  cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
-  printf("stmt2-exec [%s] insert Time used: %f seconds\n", sql, cpu_time_used);
-
-  taos_stmt2_free_fields(stmt, pFields);
-  taos_stmt2_close(stmt);
-}
-
-void do_taosc(TAOS* taos) {
-  do_query(taos, "drop database if exists testdb");
-  do_query(taos, "create database testdb");
-  do_query(taos, "create table testdb.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
-  int64_t* ts = (int64_t*)malloc(CTB_NUMS * sizeof(int64_t));
-  char**   tbs = (char**)malloc(CTB_NUMS * sizeof(char*));
-  for (int i = 0; i < CTB_NUMS; i++) {
-    tbs[i] = (char*)malloc(sizeof(char) * 10);
-  }
-  clock_t start, end;
-  double  cpu_time_used;
-  char*   tsc_sql = malloc(sizeof(char) * 1000000);
-  sprintf(tsc_sql, "insert into testdb.stb(tbname,ts,b,t1,t2) values");
-
-  for (int j = 0; j < ROW_NUMS; j++) {
     for (int i = 0; i < CTB_NUMS; i++) {
-      ts[i] = 1591060628000 + i + j * CTB_NUMS;
-      snprintf(tbs[i], sizeof(tbs[i]), "ctb_%d", i + j * CTB_NUMS);
-      if (i == CTB_NUMS - 1 && j == ROW_NUMS - 1) {
-        sprintf(tsc_sql + strlen(tsc_sql), "('%s',%lld,'abc',0,'after')", tbs[i], ts[i]);
-      } else {
-        sprintf(tsc_sql + strlen(tsc_sql), "('%s',%lld,'abc'0,'after'),", tbs[i], ts[i]);
+      snprintf(tbs[i], sizeof(tbs[i]), "ctb_%d", i);
+      for (int j = 0; j < ROW_NUMS; j++) {
+        if (i == CTB_NUMS - 1 && j == ROW_NUMS - 1) {
+          sprintf(tsc_sql + strlen(tsc_sql), "('%s',%lld,'%c',0,'after')", tbs[i], ts[i][j] + r * 10000, b[i][j]);
+        } else {
+          sprintf(tsc_sql + strlen(tsc_sql), "('%s',%lld,'%c',0,'after'),", tbs[i], ts[i][j] + r * 10000, b[i][j]);
+        }
       }
     }
-  }
 
-  start = clock();
-  // printf("%s", tsc_sql);
-  taos_query(taos, tsc_sql);
-  end = clock();
-  cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
-  printf("taosc insert Time used: %f seconds\n", cpu_time_used);
+    start = clock();
+    // printf("%s", tsc_sql);
+    do_ins(taos, tsc_sql);
+    end = clock();
+    cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("taosc insert Time used: %f seconds\n", cpu_time_used);
+  }
 }
 
 int main() {
@@ -162,10 +200,10 @@ int main() {
     exit(1);
   }
 
-  //   sleep(3);
+  sleep(3);
   do_stmt(taos, "insert into db.stb(tbname,ts,b,t1,t2) values(?,?,?,?,?)");
-  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)");
-  //   do_taosc(taos);
+  // do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)");
+  do_taosc(taos);
   taos_close(taos);
   taos_cleanup();
 }
