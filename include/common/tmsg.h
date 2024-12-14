@@ -681,7 +681,7 @@ typedef struct {
   int32_t tsSlowLogThreshold;
   int32_t tsSlowLogMaxLen;
   int32_t tsSlowLogScope;
-  int32_t tsSlowLogThresholdTest;   //Obsolete
+  int32_t tsSlowLogThresholdTest;  // Obsolete
   char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN];
 } SMonitorParas;
 
@@ -1828,6 +1828,16 @@ int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
 typedef struct {
+  int32_t forceReadConfig;
+  int32_t cver;
+  SArray* array;
+} SConfigReq;
+
+int32_t tSerializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
+int32_t tDeserializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
+void    tFreeSConfigReq(SConfigReq* pReq);
+
+typedef struct {
   int32_t dnodeId;
   char    machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeInfoReq;
@@ -1903,6 +1913,18 @@ typedef struct {
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 void    tFreeSStatusRsp(SStatusRsp* pRsp);
+
+typedef struct {
+  int32_t forceReadConfig;
+  int32_t isConifgVerified;
+  int32_t isVersionVerified;
+  int32_t cver;
+  SArray* array;
+} SConfigRsp;
+
+int32_t tSerializeSConfigRsp(void* buf, int32_t bufLen, SConfigRsp* pRsp);
+int32_t tDeserializeSConfigRsp(void* buf, int32_t bufLen, SConfigRsp* pRsp);
+void    tFreeSConfigRsp(SConfigRsp* pRsp);
 
 typedef struct {
   int32_t reserved;
@@ -2209,6 +2231,7 @@ typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
   char value[TSDB_CONFIG_PATH_LEN + 1];
   char scope[TSDB_CONFIG_SCOPE_LEN + 1];
+  char category[TSDB_CONFIG_CATEGORY_LEN + 1];
   char info[TSDB_CONFIG_INFO_LEN + 1];
 } SVariablesInfo;
 
@@ -2417,8 +2440,9 @@ int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq
 void    tFreeSMCfgDnodeReq(SMCfgDnodeReq* pReq);
 
 typedef struct {
-  char config[TSDB_DNODE_CONFIG_LEN];
-  char value[TSDB_DNODE_VALUE_LEN];
+  char    config[TSDB_DNODE_CONFIG_LEN];
+  char    value[TSDB_DNODE_VALUE_LEN];
+  int32_t version;
 } SDCfgDnodeReq;
 
 int32_t tSerializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
@@ -2758,7 +2782,7 @@ int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
 
 typedef struct {
   SMsgHead header;
-  uint64_t sId;
+  uint64_t clientId;
 } SSchTasksStatusReq;
 
 typedef struct {
@@ -2788,7 +2812,7 @@ typedef struct SQueryNodeEpId {
 
 typedef struct {
   SMsgHead       header;
-  uint64_t       sId;
+  uint64_t       clientId;
   SQueryNodeEpId epId;
   SArray*        taskAction;  // SArray<STaskAction>
 } SSchedulerHbReq;

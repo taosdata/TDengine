@@ -318,6 +318,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     return terrno = TSDB_CODE_INVALID_PTR;
   }
 
+  int32_t     code = TSDB_CODE_SUCCESS;
   uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
 
   // need the resize process, write lock applied
@@ -327,10 +328,15 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     taosHashWUnlock(pHashObj);
   }
 
+  SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
+  if (pNewNode == NULL) {
+    code = terrno;
+    return code;
+  }
+
   // disable resize
   taosHashRLock(pHashObj);
 
-  int32_t     code = TSDB_CODE_SUCCESS;
   uint32_t    slot = HASH_INDEX(hashVal, pHashObj->capacity);
   SHashEntry *pe = pHashObj->hashList[slot];
 
@@ -350,33 +356,22 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
 
   if (pNode == NULL) {
     // no data in hash table with the specified key, add it into hash table
-    SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
-    if (pNewNode == NULL) {
-      // terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = terrno;
-      goto _exit;
-    }
-
     pushfrontNodeInEntryList(pe, pNewNode);
     (void)atomic_add_fetch_64(&pHashObj->size, 1);
   } else {
     // not support the update operation, return error
     if (pHashObj->enableUpdate) {
-      SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
-      if (pNewNode == NULL) {
-        // terrno = TSDB_CODE_OUT_OF_MEMORY;
-        code = terrno;
-        goto _exit;
-      }
-
       doUpdateHashNode(pHashObj, pe, prev, pNode, pNewNode);
     } else {
+      taosMemoryFreeClear(pNewNode);
       terrno = TSDB_CODE_DUP_KEY;
       code = terrno;
       goto _exit;
     }
   }
+  
 _exit:
+
   taosHashEntryWUnlock(pHashObj, pe);
   taosHashRUnlock(pHashObj);
   return code;

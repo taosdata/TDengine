@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tglobal.h"
 #include "tmsg.h"
 
 #undef TD_MSG_NUMBER_
@@ -76,7 +77,7 @@ static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas *p
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogScope));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogMaxLen));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThreshold));
-  TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest)); //Obsolete
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest));  // Obsolete
   TAOS_CHECK_RETURN(tEncodeCStr(encoder, pMonitorParas->tsSlowLogExceptDb));
   return 0;
 }
@@ -87,7 +88,7 @@ static int32_t tDeserializeSMonitorParas(SDecoder *decoder, SMonitorParas *pMoni
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogScope));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogMaxLen));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThreshold));
-  TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest)); //Obsolete
+  TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest));  // Obsolete
   TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pMonitorParas->tsSlowLogExceptDb));
   return 0;
 }
@@ -1607,6 +1608,99 @@ _exit:
 }
 
 void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
+
+int32_t tSerializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->forceReadConfig));
+  if (pReq->forceReadConfig) {
+    TAOS_CHECK_EXIT(tSerializeSConfigArray(&encoder, pReq->array));
+  }
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cver));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->forceReadConfig));
+  if (pReq->forceReadConfig) {
+    pReq->array = taosArrayInit(128, sizeof(SConfigItem));
+    if (pReq->array == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pReq->array));
+  }
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSConfigReq(SConfigReq *pReq) { taosArrayDestroy(pReq->array); }
+
+int32_t tSerializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->forceReadConfig));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->isConifgVerified));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->isVersionVerified));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->cver));
+  if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
+    TAOS_CHECK_EXIT(tSerializeSConfigArray(&encoder, pRsp->array));
+  }
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->forceReadConfig));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isConifgVerified));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isVersionVerified));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->cver));
+  if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
+    pRsp->array = taosArrayInit(128, sizeof(SConfigItem));
+    TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pRsp->array));
+  }
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSConfigRsp(SConfigRsp *pRsp) { taosArrayDestroy(pRsp->array); }
 
 int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
   int32_t  code = 0, lino = 0;
@@ -3160,6 +3254,7 @@ int32_t tSerializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq) 
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->version));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->config));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->value));
   tEndEncode(&encoder);
@@ -3181,6 +3276,7 @@ int32_t tDeserializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->version));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->config));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->value));
   tEndDecode(&decoder);
@@ -5624,6 +5720,7 @@ int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->name));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->value));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->scope));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->category));
   return 0;
 }
 
@@ -5631,6 +5728,7 @@ int32_t tDecodeSVariablesInfo(SDecoder *pDecoder, SVariablesInfo *pInfo) {
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->name));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->value));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->scope));
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->category));
   return 0;
 }
 
@@ -9295,7 +9393,7 @@ int32_t tSerializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pR
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->sId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->epId.nodeId));
   TAOS_CHECK_EXIT(tEncodeU16(&encoder, pReq->epId.ep.port));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->epId.ep.fqdn));
@@ -9342,7 +9440,7 @@ int32_t tDeserializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *
   tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->sId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->epId.nodeId));
   TAOS_CHECK_EXIT(tDecodeU16(&decoder, &pReq->epId.ep.port));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->epId.ep.fqdn));
@@ -11252,11 +11350,11 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
 static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
   taosArrayDestroy(pRsp->blockDataLen);
   pRsp->blockDataLen = NULL;
-  taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockData, NULL);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;
-  taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockTbName, NULL);
   pRsp->blockTbName = NULL;
   tOffsetDestroy(&pRsp->reqOffset);
   tOffsetDestroy(&pRsp->rspOffset);
@@ -11318,7 +11416,7 @@ void tDeleteSTaosxRsp(SMqDataRsp *pRsp) {
 
   taosArrayDestroy(pRsp->createTableLen);
   pRsp->createTableLen = NULL;
-  taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->createTableReq, NULL);
   pRsp->createTableReq = NULL;
 }
 
@@ -12877,7 +12975,7 @@ _exit:
 
 void tDeleteMqBatchMetaRsp(SMqBatchMetaRsp *pRsp) {
   taosMemoryFreeClear(pRsp->pMetaBuff);
-  taosArrayDestroyP(pRsp->batchMetaReq, taosMemoryFree);
+  taosArrayDestroyP(pRsp->batchMetaReq, NULL);
   taosArrayDestroy(pRsp->batchMetaLen);
   pRsp->batchMetaReq = NULL;
   pRsp->batchMetaLen = NULL;
