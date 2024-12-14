@@ -17,6 +17,7 @@
 
 void* serverLoop(void* param) {
   TestServer* server = (TestServer*)param;
+  cfgInit(&tsCfg);
 
   if (dmInit() != 0) {
     return NULL;

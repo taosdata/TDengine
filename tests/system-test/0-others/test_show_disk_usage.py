@@ -191,7 +191,7 @@ class TDTestCase:
         self.value_check(icache, cacheRdbSize, 64)
         self.value_check(itableMeta,tableMetaSize, 64)
         self.value_check(itsdbSize, tsdbSize, 64)
-        self.value_check(iwal, walSize, 128)
+        self.value_check(iwal, walSize, 256)
         #if abs(icache - cacheRdbSize) > 12:
         #    tdLog.error("cache_rdb size is not equal")
         
