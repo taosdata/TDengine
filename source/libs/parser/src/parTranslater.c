@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parTranslater.h"
 #include "parInt.h"
+#include "parTranslater.h"
 #include "tdatablock.h"
 
 #include "catalog.h"
@@ -13620,8 +13620,12 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
   tstrncpy((*pSchema)[2].name, "scope", TSDB_COL_NAME_LEN);
 
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[3].bytes = TSDB_CONFIG_INFO_LEN;
-  tstrncpy((*pSchema)[3].name, "info", TSDB_COL_NAME_LEN);
+  (*pSchema)[3].bytes = TSDB_CONFIG_CATEGORY_LEN;
+  strcpy((*pSchema)[3].name, "category");
+
+  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[4].bytes = TSDB_CONFIG_INFO_LEN;
+  strcpy((*pSchema)[4].name, "info");
 
   return TSDB_CODE_SUCCESS;
 }

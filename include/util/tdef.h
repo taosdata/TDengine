@@ -591,6 +591,7 @@ enum { ENCRYPT_KEY_STAT_UNKNOWN = 0, ENCRYPT_KEY_STAT_UNSET, ENCRYPT_KEY_STAT_SE
 typedef struct {
   char    dir[TSDB_FILENAME_LEN];
   int32_t level;
+  int64_t diskId;
   int32_t primary;
   int8_t  disable;  // disable create new file
 } SDiskCfg;
@@ -626,12 +627,13 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define VNODE_HANDLE   -3
 #define CLIENT_HANDLE  -5
 
-#define TSDB_CONFIG_OPTION_LEN 32
-#define TSDB_CONFIG_VALUE_LEN  64
-#define TSDB_CONFIG_SCOPE_LEN  8
-#define TSDB_CONFIG_NUMBER     16
-#define TSDB_CONFIG_PATH_LEN   4096
-#define TSDB_CONFIG_INFO_LEN   64
+#define TSDB_CONFIG_OPTION_LEN   32
+#define TSDB_CONFIG_VALUE_LEN    64
+#define TSDB_CONFIG_SCOPE_LEN    8
+#define TSDB_CONFIG_NUMBER       16
+#define TSDB_CONFIG_PATH_LEN     4096
+#define TSDB_CONFIG_INFO_LEN     64
+#define TSDB_CONFIG_CATEGORY_LEN 8
 
 #define QUERY_ID_SIZE      20
 #define QUERY_OBJ_ID_SIZE  18
