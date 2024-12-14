@@ -533,7 +533,14 @@ TEST_F(TransEnv, http) {
   STelemAddrMgmt mgt;
   taosTelemetryMgtInit(&mgt, "telemetry.tdengine.com");
   int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+
   taosMsleep(10000);
+  code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT);
+  for (int32_t i = 0; i < 10; i++) {
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT);
+    taosMsleep(10000);
+
+  }
   
   taosTelemetryDestroy(&mgt); 
 }

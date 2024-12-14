@@ -859,7 +859,11 @@ int32_t taosSendRecvHttpReportWithQID(const char* server, const char* uri, uint1
 
 static void transHttpDestroyHandle(void* handle) { taosMemoryFree(handle); }
 
-static void transHttpDestroyRecvHandle(void* handle) { taosMemoryFree(handle); }
+static void transHttpDestroyRecvHandle(void* handle) {
+  SHttpRecvBuf* p = handle;
+  taosMemoryFree(p->pBuf);
+  taosMemoryFree(p);
+}
 
 int64_t transInitHttpChanImpl();
 
