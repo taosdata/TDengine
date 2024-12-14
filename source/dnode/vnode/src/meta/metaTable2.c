@@ -1743,3 +1743,93 @@ int32_t metaDropIndexFromSuperTable(SMeta *pMeta, int64_t version, SDropIndexReq
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);
 }
+
+int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->name || strlen(pReq->name) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid table name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->name, &pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->name, version);
+    TAOS_RETURN(TSDB_CODE_TDB_STB_NOT_EXIST);
+  }
+
+  if (pEntry->type != TSDB_SUPER_TABLE) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s type %d is invalid, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->name, pEntry->type, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  SMetaEntry entry = {
+      .version = version,
+      .type = TSDB_SUPER_TABLE,
+      .uid = pReq->suid,
+      .name = pReq->name,
+      .stbEntry.schemaRow = pReq->schemaRow,
+      .stbEntry.schemaTag = pReq->schemaTag,
+      .colCmpr = pReq->colCmpr,
+  };
+  TABLE_SET_COL_COMPRESSED(entry.flags);
+
+  // do handle the entry
+  code = metaHandleEntry2(pMeta, &entry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pReq->suid, pReq->name, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+             pReq->suid, version);
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+int32_t metaDropMultipleTables(SMeta *pMeta, int64_t version, SArray *uidArray) {
+  int32_t code = 0;
+
+  if (taosArrayGetSize(uidArray) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(uidArray); i++) {
+    tb_uid_t  uid = *(tb_uid_t *)taosArrayGet(uidArray, i);
+    SMetaInfo info;
+    code = metaGetInfo(pMeta, uid, &info, NULL);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since table uid %" PRId64 " not found, code:%d", TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, uid, code);
+      return code;
+    }
+
+    SMetaEntry entry = {
+        .version = version,
+        .uid = uid,
+    };
+
+    if (info.suid == 0) {
+      entry.type = -TSDB_NORMAL_TABLE;
+    } else if (info.suid == uid) {
+      entry.type = -TSDB_SUPER_TABLE;
+    } else {
+      entry.type = -TSDB_CHILD_TABLE;
+    }
+    code = metaHandleEntry2(pMeta, &entry);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(code), uid, version);
+      return code;
+    }
+  }
+  return code;
+}

@@ -1038,7 +1038,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids > 0) {
-    int32_t code = metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
+    int32_t code = metaDropMultipleTables(pVnode->pMeta, ver, ttlReq.pTbUids);
     if (code) return code;
 
     code = tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
@@ -1344,7 +1344,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     return code;
   }
 
-  code = metaAlterSTable(pVnode->pMeta, ver, &req);
+  code = metaAlterSuperTable(pVnode->pMeta, ver, &req);
   if (code) {
     pRsp->code = code;
     tDecoderClear(&dc);

@@ -1085,7 +1085,6 @@ static int32_t metaHandleSuperTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
 
   if (TSDB_CODE_SUCCESS == code) {
     pMeta->pVnode->config.vndStats.numOfSTables++;
-    pMeta->changed = true;
 
     metaInfo("vgId:%d, %s success, version:%" PRId64 " type:%d uid:%" PRId64 " name:%s", TD_VID(pMeta->pVnode),
              __func__, pEntry->version, pEntry->type, pEntry->uid, pEntry->name);
@@ -1135,7 +1134,6 @@ static int32_t metaHandleNormalTableCreate(SMeta *pMeta, const SMetaEntry *pEntr
   if (TSDB_CODE_SUCCESS == code) {
     pMeta->pVnode->config.vndStats.numOfNTables++;
     pMeta->pVnode->config.vndStats.numOfNTimeSeries += pEntry->ntbEntry.schemaRow.nCols - 1;
-    pMeta->changed = true;
 
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
       int32_t rc = tsdbCacheNewTable(pMeta->pVnode->pTsdb, pEntry->uid, -1, &pEntry->ntbEntry.schemaRow);
@@ -1229,7 +1227,6 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
       }
     }
 
-    pMeta->changed = true;
   } else {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
@@ -1309,7 +1306,6 @@ static int32_t metaHandleNormalTableDrop(SMeta *pMeta, const SMetaEntry *pEntry)
     }
   }
 
-  pMeta->changed = true;
   metaFetchEntryFree(&pOldEntry);
   return code;
 }
@@ -1424,7 +1420,6 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
     *tbUid = uid;
   }
 #endif
-  pMeta->changed = true;
   metaFetchEntryFree(&pChild);
   metaFetchEntryFree(&pSuper);
   return code;
@@ -1781,7 +1776,6 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
 
   // do other stuff
   metaUpdTimeSeriesNum(pMeta);
-  pMeta->changed = true;
 
   // free resource and return
   taosArrayDestroy(childList);
@@ -1858,6 +1852,7 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    pMeta->changed = true;
     metaDebug("vgId:%d, %s success, version:%" PRId64 " type:%d uid:%" PRId64 " name:%s", vgId, __func__,
               pEntry->version, pEntry->type, pEntry->uid, pEntry->type > 0 ? pEntry->name : "");
   } else {
