@@ -811,7 +811,8 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS) ||
-      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_DISK_USAGE)) {
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_DISK_USAGE) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_FILESETS)) {
     if (pScanLogicNode->pVgroupList) {
       vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     }

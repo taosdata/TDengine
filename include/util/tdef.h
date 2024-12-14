@@ -508,6 +508,15 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_TABLE_TTL              0
 #define TSDB_DEFAULT_TABLE_TTL          0
 
+#define TSDB_DEFAULT_COMPACT_INTERVAL    0
+#define TSDB_MIN_COMPACT_INTERVAL        10             // unit minute
+#define TSDB_MAX_COMPACT_INTERVAL        TSDB_MAX_KEEP  // unit minute
+#define TSDB_DEFAULT_COMPACT_START_TIME  0
+#define TSDB_DEFAULT_COMPACT_END_TIME    0
+#define TSDB_MIN_COMPACT_TIME_OFFSET     0
+#define TSDB_MAX_COMPACT_TIME_OFFSET     23
+#define TSDB_DEFAULT_COMPACT_TIME_OFFSET 0
+
 #define TSDB_MIN_EXPLAIN_RATIO     0
 #define TSDB_MAX_EXPLAIN_RATIO     1
 #define TSDB_DEFAULT_EXPLAIN_RATIO 0.001
