@@ -741,7 +741,6 @@ void cliHandleResp(SCliConn* conn) {
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seq:%" PRId64 ", sid:%" PRId64 ", code:%s",
           CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(resp.msgType), conn->dst, conn->src, pHead->msgLen, seq, qId,
           tstrerror(pHead->code));
-
   code = cliNotifyCb(conn, pReq, &resp);
   if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
     tGWarn("%s msg need retry", CONN_GET_INST_LABEL(conn));

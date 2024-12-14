@@ -19,7 +19,7 @@ from util.common import *
 from util.sqlset import *
 
 class TDTestCase:
-    updatecfgDict = {'queryUseMemoryPool':'true','minReservedMemorySize':1025, 'singleQueryMaxMemorySize': 0}
+    updatecfgDict = {'forceReadConfig':'1','queryUseMemoryPool':'true','minReservedMemorySize':1025, 'singleQueryMaxMemorySize': 0}
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
