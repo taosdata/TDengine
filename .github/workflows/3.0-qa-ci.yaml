@@ -284,8 +284,8 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
-          cp /data/github/TestNG_taosX/setenv.sh $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/$TEST_CASE_DIR/
-          cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/$TEST_CASE_DIR/ && source ./setenv.sh && poetry lock --no-update && poetry install &&  poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
+          cp /data/github/TestNG_taosX/setenv.sh /data/github/taosx/$TEST_CASE_DIR/
+          cd /data/github/taosx/$TEST_CASE_DIR/ && source ./setenv.sh && poetry lock --no-update && poetry install &&  poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
 
       - name: Stop taosx-agent & taosx
         shell: bash {0}
