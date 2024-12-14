@@ -33,7 +33,7 @@ void do_stmt(TAOS* taos) {
 
   char*           tbs[2] = {"tb", "tb2"};
   int             t1_val[2] = {0, 1};
-  int             t2_len[2] = {10, 10};
+  int             t2_len[2] = {5, 5};
   int             t3_len[2] = {sizeof(int), sizeof(int)};
   TAOS_STMT2_BIND tags[2][2] = {{{0, &t1_val[0], &t3_len[0], NULL, 0}, {0, "after1", &t2_len[0], NULL, 0}},
                                 {{0, &t1_val[1], &t3_len[1], NULL, 0}, {0, "after2", &t2_len[1], NULL, 0}}};
@@ -87,7 +87,7 @@ void do_stmt(TAOS* taos) {
     taos_stmt2_close(stmt);
     return;
   }
-
+  taos_stmt2_free_stb_fields(stmt, pFields);
   taos_stmt2_close(stmt);
 }
 
