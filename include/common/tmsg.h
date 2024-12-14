@@ -2778,7 +2778,7 @@ int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
 
 typedef struct {
   SMsgHead header;
-  uint64_t sId;
+  uint64_t clientId;
 } SSchTasksStatusReq;
 
 typedef struct {
@@ -2808,7 +2808,7 @@ typedef struct SQueryNodeEpId {
 
 typedef struct {
   SMsgHead       header;
-  uint64_t       sId;
+  uint64_t       clientId;
   SQueryNodeEpId epId;
   SArray*        taskAction;  // SArray<STaskAction>
 } SSchedulerHbReq;

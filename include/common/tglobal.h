@@ -70,6 +70,18 @@ extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;
 
 // queue & threads
+extern int32_t tsQueryMinConcurrentTaskNum;
+extern int32_t tsQueryMaxConcurrentTaskNum;
+extern int32_t tsQueryConcurrentTaskNum;
+extern int32_t tsSingleQueryMaxMemorySize;
+extern int8_t  tsQueryUseMemoryPool;
+extern int8_t  tsMemPoolFullFunc;
+//extern int32_t tsQueryBufferPoolSize;
+extern int32_t tsMinReservedMemorySize;
+extern int64_t tsCurrentAvailMemorySize;
+extern int8_t  tsNeedTrim;
+extern int32_t tsQueryNoFetchTimeoutSec;
+extern int32_t tsNumOfQueryThreads;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsShareConnLimit;

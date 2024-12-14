@@ -5339,7 +5339,7 @@ static int32_t jsonToColumnDefNode(const SJson* pJson, void* pObj) {
 static const char* jkDownstreamSourceAddr = "Addr";
 static const char* jkDownstreamSourceClientId = "ClientId";
 static const char* jkDownstreamSourceTaskId = "TaskId";
-static const char* jkDownstreamSourceSchedId = "SchedId";
+static const char* jkDownstreamSourceSeriousId = "SeriousId";
 static const char* jkDownstreamSourceExecId = "ExecId";
 static const char* jkDownstreamSourceFetchMsgType = "FetchMsgType";
 
@@ -5354,7 +5354,7 @@ static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceTaskId, pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceSchedId, pNode->schedId);
+    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceSeriousId, pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceExecId, pNode->execId);
@@ -5377,7 +5377,7 @@ static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
     code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceTaskId, &pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceSchedId, &pNode->schedId);
+    code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceSeriousId, &pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkDownstreamSourceExecId, &pNode->execId);
@@ -5392,13 +5392,13 @@ static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
 static const char* jkWindowOffsetStartOffset = "StartOffset";
 static const char* jkWindowOffsetEndOffset = "EndOffset";
 static int32_t     windowOffsetNodeToJson(const void* pObj, SJson* pJson) {
-      const SWindowOffsetNode* pNode = (const SWindowOffsetNode*)pObj;
+  const SWindowOffsetNode* pNode = (const SWindowOffsetNode*)pObj;
 
-      int32_t code = tjsonAddObject(pJson, jkWindowOffsetStartOffset, nodeToJson, pNode->pStartOffset);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = tjsonAddObject(pJson, jkWindowOffsetEndOffset, nodeToJson, pNode->pEndOffset);
+  int32_t code = tjsonAddObject(pJson, jkWindowOffsetStartOffset, nodeToJson, pNode->pStartOffset);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkWindowOffsetEndOffset, nodeToJson, pNode->pEndOffset);
   }
-      return code;
+  return code;
 }
 
 static int32_t jsonToWindowOffsetNode(const SJson* pJson, void* pObj) {
@@ -5668,11 +5668,11 @@ static const char* jkColumnOptionsEncode = "encode";
 static const char* jkColumnOptionsCompress = "compress";
 static const char* jkColumnOptionsLevel = "level";
 static int32_t     columnOptionsToJson(const void* pObj, SJson* pJson) {
-      const SColumnOptions* pNode = (const SColumnOptions*)pObj;
-      int32_t               code = tjsonAddStringToObject(pJson, jkColumnOptionsEncode, pNode->encode);
-      code = tjsonAddStringToObject(pJson, jkColumnOptionsCompress, pNode->compress);
-      code = tjsonAddStringToObject(pJson, jkColumnOptionsLevel, pNode->compressLevel);
-      return code;
+  const SColumnOptions* pNode = (const SColumnOptions*)pObj;
+  int32_t               code = tjsonAddStringToObject(pJson, jkColumnOptionsEncode, pNode->encode);
+  code = tjsonAddStringToObject(pJson, jkColumnOptionsCompress, pNode->compress);
+  code = tjsonAddStringToObject(pJson, jkColumnOptionsLevel, pNode->compressLevel);
+  return code;
 }
 
 static int32_t jsonToColumnOptions(const SJson* pJson, void* pObj) {
@@ -7187,17 +7187,12 @@ static int32_t jsonToCompactDatabaseStmt(const SJson* pJson, void* pObj) {
 
 static int32_t compactVgroupsStmtToJson(const void* pObj, SJson* pJson) {
   const SCompactVgroupsStmt* pNode = (const SCompactVgroupsStmt*)pObj;
-  // TODO
-  ASSERT(0);
   return 0;
 }
 
 static int32_t jsonToCompactVgroupsStmt(const SJson* pJson, void* pObj) {
-  // TODO
-  ASSERT(0);
   SCompactVgroupsStmt* pNode = (SCompactVgroupsStmt*)pObj;
   return 0;
-  // tjsonGetStringValue(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
 }
 
 static const char* jkCreateStreamStmtStreamName = "StreamName";
@@ -7532,7 +7527,7 @@ static int32_t jsonToShowClusterMachinesStmt(const SJson* pJson, void* pObj) { r
 static int32_t jsonToShowEncryptionsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static int32_t showUsageStmtStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
-static int32_t  jsonToShowUsageStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+static int32_t jsonToShowUsageStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static const char* jkShowDnodeVariablesStmtDnodeId = "DnodeId";
 static const char* jkShowDnodeVariablesStmtLikePattern = "LikePattern";
