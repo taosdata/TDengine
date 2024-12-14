@@ -1404,14 +1404,19 @@ int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
       pEntry->ctbEntry.ttlDays = pReq->newTTL;
     }
     if (pReq->newCommentLen >= 0) {
-      char *pNewComment = taosMemoryRealloc(pEntry->ctbEntry.comment, pReq->newCommentLen + 1);
-      if (NULL == pNewComment) {
-        metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
-                  __LINE__, tstrerror(terrno), version);
-        metaFetchEntryFree(&pEntry);
-        TAOS_RETURN(terrno);
+      char *pNewComment = NULL;
+      if (pReq->newCommentLen) {
+        pNewComment = taosMemoryRealloc(pEntry->ctbEntry.comment, pReq->newCommentLen + 1);
+        if (NULL == pNewComment) {
+          metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+                    __LINE__, tstrerror(terrno), version);
+          metaFetchEntryFree(&pEntry);
+          TAOS_RETURN(terrno);
+        }
+        memcpy(pNewComment, pReq->newComment, pReq->newCommentLen + 1);
+      } else {
+        taosMemoryFreeClear(pEntry->ctbEntry.comment);
       }
-      memcpy(pNewComment, pReq->newComment, pReq->newCommentLen + 1);
       pEntry->ctbEntry.comment = pNewComment;
       pEntry->ctbEntry.commentLen = pReq->newCommentLen;
     }
@@ -1420,14 +1425,19 @@ int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
       pEntry->ntbEntry.ttlDays = pReq->newTTL;
     }
     if (pReq->newCommentLen >= 0) {
-      char *pNewComment = taosMemoryRealloc(pEntry->ntbEntry.comment, pReq->newCommentLen + 1);
-      if (NULL == pNewComment) {
-        metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
-                  __LINE__, tstrerror(terrno), version);
-        metaFetchEntryFree(&pEntry);
-        TAOS_RETURN(terrno);
+      char *pNewComment = NULL;
+      if (pReq->newCommentLen > 0) {
+        pNewComment = taosMemoryRealloc(pEntry->ntbEntry.comment, pReq->newCommentLen + 1);
+        if (NULL == pNewComment) {
+          metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+                    __LINE__, tstrerror(terrno), version);
+          metaFetchEntryFree(&pEntry);
+          TAOS_RETURN(terrno);
+        }
+        memcpy(pNewComment, pReq->newComment, pReq->newCommentLen + 1);
+      } else {
+        taosMemoryFreeClear(pEntry->ntbEntry.comment);
       }
-      memcpy(pNewComment, pReq->newComment, pReq->newCommentLen + 1);
       pEntry->ntbEntry.comment = pNewComment;
       pEntry->ntbEntry.commentLen = pReq->newCommentLen;
     }
