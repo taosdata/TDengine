@@ -1316,7 +1316,7 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
     TSFormatNode* format = taosArrayGet(formats, i);
     if (format->type != TS_FORMAT_NODE_TYPE_KEYWORD) {
       if (s - start + format->len + 1 > outLen) break;
-      tstrncpy(s, format->c, format->len + 1);
+      (void)strncpy(s, format->c, format->len);
       s += format->len;
       continue;
     }
@@ -1536,7 +1536,7 @@ static const char* tsFormatStr2Int32(int32_t* dest, const char* str, int32_t len
     s = last;
   } else {
     char buf[16] = {0};
-    tstrncpy(buf, s, len);
+    (void)strncpy(buf, s, len);
     int32_t copiedLen = strlen(buf);
     if (copiedLen < len) {
       if (!needMoreDigit) {
