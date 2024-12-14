@@ -20,13 +20,13 @@ export function getBackupHistory(id) {
     });
 }
 
-export function restoreBackups(backupDir, points) {
+export function restoreBackups(restoreData) {
     const username = localStorage.getItem("username") || ''
     const decryptPwd = decrypt(localStorage.getItem("pwd")) || '';
 
     let base_url = localStorage.getItem("base_url")
     let splitArr = base_url.split('//')
-    let dsn = `tmq+${splitArr[0]}//${username}:${encodeURIComponent(decryptPwd)}@${splitArr[1]}`;
+    let dsn = `tmq+${splitArr[0]}//${username}:${encodeURIComponent(decryptPwd)}@${splitArr[1]}/${restoreData.database}`;
 
     return request({
         baseURL:process.env.VUE_APP_X_API,
@@ -34,7 +34,7 @@ export function restoreBackups(backupDir, points) {
         method: "post",
         data: {
             "labels": ["type::restore", `cluster-id::${localStorage.getItem("local_clusterID")}`],
-            "from": `local:${backupDir}?points=${points.join(",")}`,
+            "from": `local:${restoreData.backupDirectory}?from=${restoreData.from}&to=${restoreData.to}`,
             "to": dsn
         }
     });

@@ -1,103 +1,137 @@
 <template>
   <div class="dnode-block">
-    <div class="flexEnd">
-      <el-button
-        plain
-        type="primary"
-        @click="refresh"
-        size="small"
-        icon="el-icon-refresh"
-        :disabled="requestIng || $COMMUNITY"
-        style="font-size:14px;"
-        >{{ $t("refresh") }}</el-button
-      >
-      <el-tooltip
-        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
-      >
-        <template slot="content">
-          <span v-html="$t('communityTip')"></span>
-        </template>
-        <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY"
-          >{{$t('taosuser.createbackup')}}</el-button
-        >
-      </el-tooltip>
-    </div>
-    <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column width="50" label="ID" prop="id" show-overflow-tooltip></el-table-column>
-      <el-table-column width="150" :label="$t('taosuser.database')" prop="database" show-overflow-tooltip></el-table-column>
-      <el-table-column width="180" :label="$t('topic.stables')" prop="stable" show-overflow-tooltip></el-table-column>
-      <el-table-column :label="$t('taosuser.backupForm.fileDir')" prop="directory" show-overflow-tooltip></el-table-column>
-      <el-table-column width="210" :label="$t('taosuser.backupForm.upcoming')" prop="upcoming">
-        <span slot-scope="scope">{{ parsinginZone(scope.row.upcoming) }}</span>
-      </el-table-column>
-      <el-table-column width="100" :label="'备份文件'" prop="upcoming">
-        <a slot-scope="scope" @click="showBackupHistory(scope.row)">50G/2</a>
-      </el-table-column>
-      <el-table-column width="60" :label="$t('taosuser.lastbackup')" prop="status" show-overflow-tooltip>
-        <template slot-scope="scope">
-          <div class="status-operation">
-            <el-tooltip
-              v-if="
-                ['stopped', 'finished', 'failed'].includes(
-                  scope.row.status.toLowerCase()
-                )
-              "
-              placement="bottom"
-              effect="light"
-              popper-class="backup"
-            >
-              <div v-html="scope.row.last_modified_at" slot="content"></div>
-              <div slot="content" v-html="scope.row.reason"></div>
-              <span>{{
-               handleDSStatus(scope.row.status)
-              }}</span>
-            </el-tooltip>
-            <span v-else>{{
-              handleDSStatus(scope.row.status)
-            }}</span>
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column :label="$t('taosuser.operation')" width="280">
-        <template slot-scope="scope">
-          <el-switch
-            :value="scope.row.status.toLowerCase() != 'stopped'"
-            active-color="#13ce66"
-            inactive-color="#dcdfe6"
-            @change="switchOperation($event, scope.row)"
-            :disabled="$COMMUNITY"
+    
+    <el-tabs v-model="backupActiveTab">
+      <el-tab-pane :label="$t('taosuser.backupPlan')" name="backupPlan">
+        <div class="flexEnd">
+          <el-button
+            plain
+            type="primary"
+            @click="refresh"
+            size="small"
+            icon="el-icon-refresh"
+            :disabled="requestIng || $COMMUNITY"
+            style="font-size:14px;"
+            >{{ $t("refresh") }}</el-button
           >
-          </el-switch>
-          <el-button
-             plain
-             size="small"
-             @click="viewBackup(scope.row)"
-             icon="el-icon-view"
-          ></el-button>
-          <el-button
-            plain
-            size="small"
-            @click="edit(scope.row)"
-            icon="el-icon-edit"
-            :disabled="$COMMUNITY"
-          ></el-button>
-          <el-button
-             plain
-             size="small"
-             @click="copy(scope.row)"
-             icon="el-icon-document-copy"
-          ></el-button>
-          <el-button
-            plain
-            size="small"
-            @click="toDel(scope.row)"
-            icon="el-icon-delete"
-            :disabled="$COMMUNITY"
-          ></el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
+          <el-tooltip
+            placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+          >
+            <template slot="content">
+              <span v-html="$t('communityTip')"></span>
+            </template>
+            <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY"
+              >{{$t('taosuser.createbackup')}}</el-button
+            >
+          </el-tooltip>
+        </div>
+        <el-table style="margin-top: 20px" :data="topicList" size="mini">
+          <el-table-column width="50" label="ID" prop="id" show-overflow-tooltip></el-table-column>
+          <el-table-column width="150" :label="$t('taosuser.database')" prop="database" show-overflow-tooltip></el-table-column>
+          <el-table-column width="180" :label="$t('topic.stables')" prop="stable" show-overflow-tooltip></el-table-column>
+          <el-table-column :label="$t('taosuser.backupForm.fileDir')" prop="directory" show-overflow-tooltip></el-table-column>
+          <el-table-column width="210" :label="$t('taosuser.backupForm.upcoming')" prop="upcoming">
+            <span slot-scope="scope">{{ parsinginZone(scope.row.upcoming) }}</span>
+          </el-table-column>
+          <el-table-column width="100" :label="$t('taosuser.backupFile')" prop="upcoming" align="center">
+            <a slot-scope="scope" @click="activeBackupFileOf(scope.row.id)">{{ $t('view') }}</a>
+          </el-table-column>
+          <el-table-column width="100" :label="$t('taosuser.lastbackup')" prop="status" show-overflow-tooltip>
+            <template slot-scope="scope">
+              <div class="status-operation">
+                <el-tooltip
+                  v-if="
+                    ['stopped', 'finished', 'failed'].includes(
+                      scope.row.status.toLowerCase()
+                    )
+                  "
+                  placement="bottom"
+                  effect="light"
+                  popper-class="backup"
+                >
+                  <div v-html="scope.row.last_modified_at" slot="content"></div>
+                  <div slot="content" v-html="scope.row.reason"></div>
+                  <span>{{
+                  handleDSStatus(scope.row.status)
+                  }}</span>
+                </el-tooltip>
+                <span v-else>{{
+                  handleDSStatus(scope.row.status)
+                }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('taosuser.operation')" width="280">
+            <template slot-scope="scope">
+              <el-switch
+                :value="scope.row.status.toLowerCase() != 'stopped'"
+                active-color="#13ce66"
+                inactive-color="#dcdfe6"
+                @change="switchOperation($event, scope.row)"
+                :disabled="$COMMUNITY"
+              >
+              </el-switch>
+              <el-button
+                plain
+                size="small"
+                @click="viewBackup(scope.row)"
+                icon="el-icon-view"
+              ></el-button>
+              <el-button
+                plain
+                size="small"
+                @click="edit(scope.row)"
+                icon="el-icon-edit"
+                :disabled="$COMMUNITY"
+              ></el-button>
+              <el-button
+                plain
+                size="small"
+                @click="copy(scope.row)"
+                icon="el-icon-document-copy"
+              ></el-button>
+              <el-button
+                plain
+                size="small"
+                @click="toDel(scope.row)"
+                icon="el-icon-delete"
+                :disabled="$COMMUNITY || scope.row.status.toLowerCase() != 'stopped'"
+              ></el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+      <el-tab-pane :label="$t('taosuser.backupFile')" name="backupFile">
+        <div class="flaxStart">
+          <el-select v-model="currentId" style="width: 350px;" @change="showBackupHistory">
+            <el-option 
+              v-for="plan in topicList" 
+              v-bind:key="`filterBackupFile-${plan.id}`"
+              :label="`${plan.id} | ${plan.database} | ${plan.stable}`" 
+              :value="plan.id"></el-option>
+          </el-select>
+        </div>
+        <el-table style="margin-top: 20px" :data="historyList" default-expand-all>
+          <el-table-column :label="$t('taosuser.backupPoint')" prop="point">
+            <span slot-scope="scope">{{ parsinginZone(scope.row.point) }}</span>
+          </el-table-column>
+          <el-table-column width="180" :label="$t('taosuser.backupFileSize')" prop="file_size"></el-table-column>
+          <el-table-column width="180" :label="$t('taosuser.backupFileCount')" prop="file_count"></el-table-column>
+          <el-table-column width="100" :label="$t('taosuser.operation')">
+            <el-tooltip placement="top" :content="$t('taosuser.dataRestoration')" slot-scope="scope" effect="light">  
+              <el-button
+              plain
+              size="small"
+              @click="toRestoreBackup(scope.row.point)"
+              icon="el-icon-first-aid-kit"
+            ></el-button>
+            </el-tooltip>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+      <el-tab-pane :label="$t('taosuser.restoreTask')" name="restoreTask"></el-tab-pane>
+    </el-tabs>
+    
     <el-dialog
       align="center"
       :title="dialogTitle"
@@ -215,43 +249,11 @@
         </el-col>
       </el-row>
     </el-dialog>
-
-    <el-dialog
-      align="center"
-      :title="'备份历史'"
-      width="900px"
-      :visible.sync="dialogHistory"
-      :destroy-on-close='true'
-      :close-on-click-modal="false"
-    >
-      <el-table style="margin-top: 20px" 
-      row-key="id" 
-      :data="historyList" 
-      default-expand-all
-      :tree-props="{children: 'children', hasChildren: 'hasChildren'}">
-        <el-table-column width="150" :label="'ID'" prop="id"></el-table-column>
-        <el-table-column :label="'备份时间点'" prop="point">
-          <span slot-scope="scope">{{ parsinginZone(scope.row.point) }}</span>
-        </el-table-column>
-        <el-table-column width="150" :label="'累积文件大小'" prop="file_size"></el-table-column>
-        <el-table-column width="100" :label="'文件数量'" prop="file_count"></el-table-column>
-        <el-table-column width="100" :label="'操作'">
-          <el-tooltip placement="top" :content="$t('taosuser.dataRestoration')" effect="light">  
-            <el-button
-             plain
-             size="small"
-             @click="restoreBackup(scope.row)"
-             icon="el-icon-first-aid-kit"
-           ></el-button>
-          </el-tooltip>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
+    
     <el-dialog
       :title="$t('tips')"
       :visible.sync="deleteConfirmDialog"
-      width="300px"
-      :before-close="handleClose">
+      width="400px">
       <span><el-checkbox v-model="yesDeleteFile">{{ $t('taosuser.confirmDeleteBackupFile') }}</el-checkbox></span>
       <span slot="footer" class="dialog-footer">
           <el-button size="small" @click="deleteConfirmDialog = false" class="w100">{{
@@ -267,6 +269,53 @@
             >{{ $t("confirm") }}</el-button
           >
       </span>
+    </el-dialog>
+    <el-dialog
+      :title="$t('tips')"
+      :visible.sync="restoreConfirmDialog"
+      width="650px">
+      <div> 
+        <div style="margin-bottom: 10px;">
+          {{ $t('taosuser.confirmRestoreRange') }}
+          <el-select v-model="restoreRange.from" style="width: 230px;">
+            <el-option
+              v-for="item in restoreRangeList"
+              :key="item"
+              :label="parsinginZone(item)"
+              :value="item"
+            ></el-option>
+          </el-select>
+          <span> ~ </span>
+          {{ parsinginZone(restoreRange.to) }}
+        </div>
+        <div>
+          {{ $t('taosuser.restoreToDatabase') }}
+          <el-select v-model="ruleForm.database" style="width: 230px;">
+            <el-option
+              v-for="db in dblist"
+              :key="db['node-key']"
+              :label="db.name"
+              :value="db.name"
+            >
+            </el-option>
+          </el-select>
+        </div>
+      </div>
+      
+      <div slot="footer" class="dialog-footer">
+          <el-button size="small" @click="restoreConfirmDialog = false" class="w100">{{
+            $t("cancel")
+          }}</el-button>
+ 
+          <el-button
+            size="small"
+            @click="restoreBackup()"
+            v-loading="requestIng"
+            class="w100"
+            type="primary"
+            >{{ $t("confirm") }}</el-button
+          >
+        </div>
     </el-dialog>
   </div>
 </template>
@@ -292,10 +341,17 @@ export default {
       dblist: [],
       stableList: [],
       historyList: [],
+      restoreRangeList: [],
+      backupActiveTab: "backupPlan",
+      restoreRange: {
+        from: "",
+        to: "",
+      },
       dialogHistory: false,
       deleteConfirmDialog: false,
+      restoreConfirmDialog: false,
       yesDeleteFile: false,
-      dialogTitle: "Create New Backup",
+      dialogTitle: "",
       viewOnly: false,
       pageSize: 10,
       currentPage: 1,
@@ -316,7 +372,7 @@ export default {
         retry_interval: 5,
         backup_max_size_value: "1",
         backup_max_size_unit: "GB",
-        compression_level: "best",
+        compression_level: "fastest",
         created_at: "",
       },
       rules: {
@@ -360,40 +416,73 @@ export default {
     async getSTbaleList() {
       this.stableList = await getStables(this.ruleForm.database);
     },
-    restoreBackupPoint(point) {
-      restoreBackups(this.backupDirectory, [point]);
+    toRestoreBackup(toPoint) {
+      this.restoreRangeList = this.historyList.map(item => item.point).filter(item => item <= toPoint);
+      this.restoreRange.from = toPoint;
+      this.restoreRange.to =  toPoint;
+      this.restoreConfirmDialog = true;
+    },
+    async restoreBackup() {
+      if (!this.ruleForm.database) {
+        Message.warn(this.$t('taosuser.selectDatabase'));
+        return;
+      }
+      let backupDirectory = null;
+      for (let i = 0; i < this.topicList.length; i++) {
+        if (this.topicList[i].id === this.currentId) {
+          backupDirectory = this.topicList[i].directory;
+          break;
+        }
+      }
+
+      try {
+        let res = await restoreBackups({
+          from: this.restoreRange.from,
+          to: this.restoreRange.to,
+          database: this.ruleForm.database,
+          backupDirectory,
+        });
+
+        if (res && res.code) {
+          Message.error(res.message);
+          return;
+        }
+
+        Message.success(this.$t('operateSucc'));
+        this.restoreConfirmDialog = false;
+      } catch (err) {
+        Message.error(err);
+      }
     }, 
     getTimezoneAddition() {
       return getTimezoneAddition();
     },
-    async showBackupHistory(backData) {
-      const id = backData.id;
-      this.backupDirectory = backData.directory;
+    async activeBackupFileOf(id) {
+      this.currentId = id;
+      this.backupActiveTab = "backupFile";
+      this.historyList = await getBackupHistory(this.currentId);
+    },
+    async showBackupHistory() {
+      this.historyList = await getBackupHistory(this.currentId);
 
-      const res = await getBackupHistory(id);
-      if (res && res.length === 0) {
-        this.historyList = [];
-        return ;
-      }
+      // let currentItem = {"id": 0, "point": res[0].point, "file_size": 0, "file_count": 0, "hasChildren":true, "children": []};
+      // const groupedList = [currentItem];
 
-      let currentItem = {"id": 0, "point": res[0].point, "file_size": 0, "file_count": 0, "hasChildren":true, "children": []};
-      const groupedList = [currentItem];
-
-      for (let i = 0; i < res.length; i++) {
-        let item = res[i];
-        if (item.point === currentItem.point) {
-          currentItem.file_size = item.file_size;
-          currentItem.file_count += item.file_count;
-          currentItem.children.push(item);
-          currentItem.children.push(item);
-        } else {
-          currentItem = {"id": i, "point": item.point, "hasChildren":true, "file_size": item.file_size, "file_count": item.file_count, "children": [item]};
-          groupedList.push(currentItem);
-        }
-      }
-      this.historyList = groupedList;
-      console.log('this.historyList', groupedList);
-      this.dialogHistory = true;
+      // for (let i = 0; i < res.length; i++) {
+      //   let item = res[i];
+      //   if (item.point === currentItem.point) {
+      //     currentItem.file_size = item.file_size;
+      //     currentItem.file_count += item.file_count;
+      //     currentItem.children.push(item);
+      //     currentItem.children.push(item);
+      //   } else {
+      //     currentItem = {"id": i, "point": item.point, "hasChildren":true, "file_size": item.file_size, "file_count": item.file_count, "children": [item]};
+      //     groupedList.push(currentItem);
+      //   }
+      // }
+      // this.historyList = groupedList;
+      // console.log('this.historyList', groupedList);
+      // this.dialogHistory = true;
     },
     closeDialog(){
       this.$refs.ruleForm.clearValidate()
@@ -412,7 +501,7 @@ export default {
       this.deleteConfirmDialog = true;
       this.yesDeleteFile = false;
     },
-    
+
     del() {
       excuteDel(this.currentId, this.yesDeleteFile).then((res) => {
         if (res && Object.hasOwnProperty.call(res, "id")) {
@@ -431,7 +520,7 @@ export default {
       });
     },
     add() {
-      this.dialogTitle = `${this.$t('create')}${this.$t('taosuser.backupPlan')}`;
+      this.dialogTitle = `${this.$t('create')} ${this.$t('taosuser.backupPlan')}`;
       this.dialog = true;
       this.viewOnly = false;
       this.ruleForm = {
@@ -447,7 +536,7 @@ export default {
         backup_max_size: "1GB",
         backup_max_size_value: "1",
         backup_max_size_unit: "GB",
-        compression_level: "best",
+        compression_level: "fastest",
       }
       this.currentId = null;
       this.$refs.ruleForm.clearValidate();
@@ -459,13 +548,13 @@ export default {
       this.copy(data);
       this.ruleForm.database = data.database;
       this.ruleForm.stable = data.stable;
-      this.dialogTitle = `${this.$t('change')}${this.$t('taosuser.backupPlan')}`;
+      this.dialogTitle = `${this.$t('change')} ${this.$t('taosuser.backupPlan')}`;
       this.currentId = data.id;
     },
     copy(data) {
       this.currentId = null;
       this.viewOnly = false;
-      this.dialogTitle = `${this.$t('create')}${this.$t('taosuser.backupPlan')}`;
+      this.dialogTitle = `${this.$t('create')} ${this.$t('taosuser.backupPlan')}`;
       this.dialog = true;
       this.ruleForm.database = "";
       this.ruleForm.stable = "";
@@ -758,6 +847,6 @@ export default {
   position: absolute; left:0; right:0; top:50px; bottom:0;z-index:10;
 }
 .w100 {
-  width: 100px;
+  width: 80px;
 }
 </style>
