@@ -107,7 +107,7 @@
             <el-option 
               v-for="plan in topicList" 
               v-bind:key="`filterBackupFile-${plan.id}`"
-              :label="`${plan.id} | ${plan.database} | ${plan.stable}`" 
+              :label="`${plan.id} | ${plan.database} ${plan.stable ? '| ' + plan.stable : ''}`" 
               :value="plan.id"></el-option>
           </el-select>
         </div>
@@ -147,7 +147,7 @@
         :rules="rules"
         ref="ruleForm"
         size="mini"
-        label-width="120px"
+        :label-width="$i18n.locale=='zh'? '120px': '180px'"
         class="demo-ruleForm"
       >
         <el-form-item :label="$t('taosuser.database')" prop="database">
