@@ -711,6 +711,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowCompactDetailsStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
+      code = makeNode(type, sizeof(SShowTransactionDetailsStmt), &pNode);
+      break;
     case QUERY_NODE_KILL_QUERY_STMT:
       code = makeNode(type, sizeof(SKillQueryStmt), &pNode);
       break;
@@ -1539,6 +1542,11 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
       SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;
       nodesDestroyNode(pStmt->pCompactId);
+      break;
+    }
+    case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT: {
+      SShowTransactionDetailsStmt* pStmt = (SShowTransactionDetailsStmt*)pNode;
+      nodesDestroyNode(pStmt->pTransactionId);
       break;
     }
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
