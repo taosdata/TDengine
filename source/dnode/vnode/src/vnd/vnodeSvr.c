@@ -2433,7 +2433,7 @@ static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pRe
     return terrno = TSDB_CODE_INVALID_MSG;
   }
 
-  code = metaAddIndexToSTable(pVnode->pMeta, ver, &req);
+  code = metaAddIndexToSuperTable(pVnode->pMeta, ver, &req);
   if (code) {
     pRsp->code = code;
     goto _err;

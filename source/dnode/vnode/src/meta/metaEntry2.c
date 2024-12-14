@@ -18,6 +18,11 @@ int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const S
 void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
 int     tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
+static int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **childList);
+static int32_t metaFetchTagIdxKey(SMeta *pMeta, const SMetaEntry *pEntry, const SSchema *pTagColumn,
+                                  STagIdxKey **ppTagIdxKey, int32_t *pTagIdxKeySize);
+static void    metaFetchTagIdxKeyFree(STagIdxKey **ppTagIdxKey);
+
 #define metaErr(VGID, ERRNO)                                                                                     \
   do {                                                                                                           \
     metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " type:%d uid:%" PRId64 " name:%s", VGID, \
@@ -263,6 +268,168 @@ static int32_t metaSchemaTableInsert(SMeta *pMeta, const SMetaHandleParam *pPara
   return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_INSERT);
 }
 
+static int32_t metaAddOrDropTagIndexOfSuperTable(SMeta *pMeta, const SMetaHandleParam *pParam,
+                                                 const SSchema *pOldColumn, const SSchema *pNewColumn) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry *pEntry = pParam->pEntry;
+  const SMetaEntry *pOldEntry = pParam->pOldEntry;
+  enum { ADD_INDEX, DROP_INDEX } action;
+
+  if (pOldColumn && pNewColumn) {
+    if (IS_IDX_ON(pOldColumn) && IS_IDX_ON(pNewColumn)) {
+      return TSDB_CODE_SUCCESS;
+    } else if (IS_IDX_ON(pOldColumn) && !IS_IDX_ON(pNewColumn)) {
+      action = DROP_INDEX;
+    } else if (!IS_IDX_ON(pOldColumn) && IS_IDX_ON(pNewColumn)) {
+      action = ADD_INDEX;
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
+  } else if (pOldColumn) {
+    if (IS_IDX_ON(pOldColumn)) {
+      action = DROP_INDEX;
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    if (IS_IDX_ON(pNewColumn)) {
+      action = ADD_INDEX;
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  // fetch all child tables
+  SArray *childTables = 0;
+  code = metaGetChildUidsOfSuperTable(pMeta, pEntry->uid, &childTables);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    return code;
+  }
+
+  // do drop or add index
+  for (int32_t i = 0; i < taosArrayGetSize(childTables); i++) {
+    int64_t uid = *(int64_t *)taosArrayGet(childTables, i);
+
+    // fetch child entry
+    SMetaEntry *pChildEntry = NULL;
+    code = metaFetchEntryByUid(pMeta, uid, &pChildEntry);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      taosArrayDestroy(childTables);
+      return code;
+    }
+
+    STagIdxKey *pTagIdxKey = NULL;
+    int32_t     tagIdxKeySize = 0;
+
+    if (action == ADD_INDEX) {
+      code = metaFetchTagIdxKey(pMeta, pChildEntry, pNewColumn, &pTagIdxKey, &tagIdxKeySize);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        taosArrayDestroy(childTables);
+        metaFetchEntryFree(&pChildEntry);
+        return code;
+      }
+
+      code = tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, tagIdxKeySize, &pChildEntry->uid, sizeof(pChildEntry->uid),
+                         pMeta->txn);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        taosArrayDestroy(childTables);
+        metaFetchEntryFree(&pChildEntry);
+        metaFetchTagIdxKeyFree(&pTagIdxKey);
+        return code;
+      }
+    } else {
+      code = metaFetchTagIdxKey(pMeta, pChildEntry, pOldColumn, &pTagIdxKey, &tagIdxKeySize);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        taosArrayDestroy(childTables);
+        metaFetchEntryFree(&pChildEntry);
+        return code;
+      }
+
+      code = tdbTbDelete(pMeta->pTagIdx, pTagIdxKey, tagIdxKeySize, pMeta->txn);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        taosArrayDestroy(childTables);
+        metaFetchEntryFree(&pChildEntry);
+        metaFetchTagIdxKeyFree(&pTagIdxKey);
+        return code;
+      }
+    }
+
+    metaFetchTagIdxKeyFree(&pTagIdxKey);
+    metaFetchEntryFree(&pChildEntry);
+  }
+
+  taosArrayDestroy(childTables);
+  return code;
+}
+
+static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandleParam *pParam) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  const SMetaEntry     *pEntry = pParam->pEntry;
+  const SMetaEntry     *pOldEntry = pParam->pOldEntry;
+  const SSchemaWrapper *pNewTagSchema = &pEntry->stbEntry.schemaTag;
+  const SSchemaWrapper *pOldTagSchema = &pOldEntry->stbEntry.schemaTag;
+
+  int32_t iOld = 0, iNew = 0;
+  for (; iOld < pOldTagSchema->nCols && iNew < pNewTagSchema->nCols;) {
+    SSchema *pOldColumn = pOldTagSchema->pSchema + iOld;
+    SSchema *pNewColumn = pNewTagSchema->pSchema + iNew;
+
+    if (pOldColumn->colId == pNewColumn->colId) {
+      code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, pOldColumn, pNewColumn);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        return code;
+      }
+
+      iOld++;
+      iNew++;
+    } else if (pOldColumn->colId < pNewColumn->colId) {
+      code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, pOldColumn, NULL);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        return code;
+      }
+
+      iOld++;
+    } else {
+      code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, NULL, pNewColumn);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        return code;
+      }
+
+      iNew++;
+    }
+  }
+
+  for (; iOld < pOldTagSchema->nCols; iOld++) {
+    SSchema *pOldColumn = pOldTagSchema->pSchema + iOld;
+    code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, pOldColumn, NULL);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+  }
+
+  for (; iNew < pNewTagSchema->nCols; iNew++) {
+    SSchema *pNewColumn = pNewTagSchema->pSchema + iNew;
+    code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, NULL, pNewColumn);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+  }
+
+  return code;
+}
+
 static int32_t metaSchemaTableUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -273,29 +440,30 @@ static int32_t metaSchemaTableUpdate(SMeta *pMeta, const SMetaHandleParam *pPara
     return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
   }
 
-  if (pEntry->type == TSDB_NORMAL_TABLE &&
-      pOldEntry->ntbEntry.schemaRow.version != pEntry->ntbEntry.schemaRow.version) {
-    code = metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
-    if (code) {
-      metaErr(TD_VID(pMeta->pVnode), code);
-      return code;
+  if (pEntry->type == TSDB_NORMAL_TABLE) {
+    // check row schema
+    if (pOldEntry->ntbEntry.schemaRow.version != pEntry->ntbEntry.schemaRow.version) {
+      return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
+    }
+  } else if (pEntry->type == TSDB_SUPER_TABLE) {
+    // check row schema
+    if (pOldEntry->stbEntry.schemaRow.version != pEntry->stbEntry.schemaRow.version) {
+      return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
     }
 
-    if (pOldEntry->ntbEntry.schemaRow.nCols != pEntry->ntbEntry.schemaRow.nCols) {
-      pMeta->pVnode->config.vndStats.numOfNTimeSeries +=
-          (pEntry->ntbEntry.schemaRow.nCols - pOldEntry->ntbEntry.schemaRow.nCols);
+    // check tag schema
+    if (pOldEntry->stbEntry.schemaTag.version != pEntry->stbEntry.schemaTag.version) {
+      code = metaUpdateSuperTableTagSchema(pMeta, pParam);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        return code;
+      }
     }
+  } else {
+    return TSDB_CODE_INVALID_PARA;
   }
 
-  if (pEntry->type == TSDB_SUPER_TABLE && pOldEntry->stbEntry.schemaRow.version != pEntry->stbEntry.schemaRow.version) {
-    return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
-  }
-
-  if (pParam->pEntry->type == TSDB_CHILD_TABLE) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t metaSchemaTableDelete(SMeta *pMeta, const SMetaHandleParam *pEntry) {
@@ -1413,6 +1581,58 @@ static int32_t metaHandleChildTableUpdateImpl(SMeta *pMeta, const SMetaHandlePar
 #endif
 }
 
+static int32_t metaHandleSuperTableUpdateImpl(SMeta *pMeta, SMetaHandleParam *pParam) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const SMetaEntry *pEntry = pParam->pEntry;
+  const SMetaEntry *pOldEntry = pParam->pOldEntry;
+
+  SMetaTableOp ops[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_UPDATA},   //
+      {META_UID_IDX, META_TABLE_OP_UPDATA},       //
+      {META_SCHEMA_TABLE, META_TABLE_OP_UPDATA},  //
+  };
+
+  for (int i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+    SMetaTableOp *op = &ops[i];
+    code = metaTableOpFn[op->table][op->op](pMeta, pParam);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+  }
+
+  return code;
+}
+
+static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SMetaEntry *pOldEntry = NULL;
+
+  code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    return code;
+  }
+
+  SMetaHandleParam param = {
+      .pEntry = pEntry,
+      .pOldEntry = pOldEntry,
+  };
+  metaWLock(pMeta);
+  code = metaHandleSuperTableUpdateImpl(pMeta, &param);
+  metaULock(pMeta);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    metaFetchEntryFree(&pOldEntry);
+    return code;
+  }
+
+  metaFetchEntryFree(&pOldEntry);
+  return code;
+}
+
 static int32_t metaHandleChildTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1589,7 +1809,7 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
     switch (type) {
       case TSDB_SUPER_TABLE: {
         if (isExist) {
-          // code = metaHandleSuperTableUpdate(pMeta, pEntry);
+          code = metaHandleSuperTableUpdate(pMeta, pEntry);
         } else {
           code = metaHandleSuperTableCreate(pMeta, pEntry);
         }
