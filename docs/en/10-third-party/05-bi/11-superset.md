@@ -19,7 +19,7 @@ Both TDengine Enterprise Edition and Community Edition are supported, with versi
 
 ## Install TDengine Python Connector
 
-The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.17 and later, which will be automatically installed in the Superset directory and provide data source services  
+The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.18 and later, which will be automatically installed in the Superset directory and provide data source services  
 The connection uses the WebSocket protocol, so it is necessary to install the taos ws py component of TDengine separately. The complete installation script is as follows:  
 ```bash
 pip3 install taospy

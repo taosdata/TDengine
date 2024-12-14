@@ -16,7 +16,7 @@ TDengine 企业版及社区版均可支持，版本要求在 3.0 及以上
 
 ## 安装 TDengine Python 连接器
 
-TDengine Python 连接器从 `v2.1.17` 开始自带 Superset 连接驱动，安装程序会把连接驱动安装到 Superset 相应目录下并向 Superset 提供数据源服务   
+TDengine Python 连接器从 `v2.1.18` 开始自带 Superset 连接驱动，安装程序会把连接驱动安装到 Superset 相应目录下并向 Superset 提供数据源服务   
 Superset 与 TDengine 之间使用 WebSocket 协议连接，所以需另安装支持 WebSocket 连接协议的组件 `taos-ws-py` , 全部安装脚本如下：   
 ```bash
 pip3 install taospy
