@@ -22,6 +22,7 @@
 #include "transLog.h"
 #include "trpc.h"
 #include "tversion.h"
+#include "thttp.h"
 using namespace std;
 
 const char *label = "APP";
@@ -526,4 +527,13 @@ TEST_F(TransEnv, noResp) {
   }
   taosMsleep(10000);
   // no resp
+}
+
+TEST_F(TransEnv, http) {
+  STelemAddrMgmt mgt;
+  taosTelemetryMgtInit(&mgt, "telemetry.tdengine.com");
+  int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+  taosMsleep(10000);
+  
+  taosTelemetryDestroy(&mgt); 
 }

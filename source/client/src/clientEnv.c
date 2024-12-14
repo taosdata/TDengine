@@ -166,7 +166,8 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
   ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "type", cJSON_CreateNumber(reqType)));
   ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(
       json, "rows_num", cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows)));
-  if (pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen) {
+  if (pRequest->sqlstr != NULL &&
+      strlen(pRequest->sqlstr) > pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen) {
     char tmp = pRequest->sqlstr[pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen];
     pRequest->sqlstr[pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen] = '\0';
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", cJSON_CreateString(pRequest->sqlstr)));
@@ -816,6 +817,8 @@ static void *tscCrashReportThreadFp(void *param) {
   if (-1 != atomic_val_compare_exchange_32(&clientStop, -1, 0)) {
     return NULL;
   }
+  STelemAddrMgmt mgt;
+  taosTelemetryMgtInit(&mgt, tsTelemServer);
 
   while (1) {
     if (clientStop > 0) break;
@@ -826,7 +829,7 @@ static void *tscCrashReportThreadFp(void *param) {
 
     taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
     if (pMsg && msgLen > 0) {
-      if (taosSendHttpReport(tsTelemServer, tsClientCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
+      if (taosSendTelemReport(&mgt, tsClientCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
         tscError("failed to send crash report");
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
@@ -860,6 +863,7 @@ static void *tscCrashReportThreadFp(void *param) {
     taosMsleep(sleepTime);
     loopTimes = 0;
   }
+  taosTelemetryDestroy(&mgt);
 
   clientStop = -2;
   return NULL;
@@ -1099,7 +1103,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  */
 uint64_t generateRequestId() {
   static uint32_t hashId = 0;
-  static int32_t requestSerialId = 0;
+  static int32_t  requestSerialId = 0;
 
   if (hashId == 0) {
     int32_t code = taosGetSystemUUIDU32(&hashId);

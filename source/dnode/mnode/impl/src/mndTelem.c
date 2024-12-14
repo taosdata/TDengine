@@ -132,6 +132,8 @@ _OVER:
 }
 
 static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
+  int32_t     code = 0;
+  int32_t     line = 0;
   SMnode*     pMnode = pReq->info.node;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
   if (!tsEnableTelem) return 0;
@@ -140,15 +142,18 @@ static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
   char* pCont = mndBuildTelemetryReport(pMnode);
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  if (pCont != NULL) {
-    if (taosSendHttpReport(tsTelemServer, tsTelemUri, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
-      mError("failed to send telemetry report");
-    } else {
-      mInfo("succeed to send telemetry report");
-    }
-    taosMemoryFree(pCont);
+  if (pCont == NULL) {
+    return 0;
   }
-  return 0;
+  code = taosSendTelemReport(&pMgmt->addrMgt, tsTelemUri, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT);
+  taosMemoryFree(pCont);
+  return code;
+_end:
+  if (code != 0) {
+    mError("%s failed to send at line %d since %s", __func__, line, tstrerror(code));
+  }
+  taosMemoryFree(pCont);
+  return code;
 }
 
 int32_t mndInitTelem(SMnode* pMnode) {
@@ -158,6 +163,7 @@ int32_t mndInitTelem(SMnode* pMnode) {
   (void)taosThreadMutexInit(&pMgmt->lock, NULL);
   if ((code = taosGetEmail(pMgmt->email, sizeof(pMgmt->email))) != 0)
     mWarn("failed to get email since %s", tstrerror(code));
+  taosTelemetryMgtInit(&pMgmt->addrMgt, tsTelemServer);
   mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 
   return 0;
@@ -165,5 +171,6 @@ int32_t mndInitTelem(SMnode* pMnode) {
 
 void mndCleanupTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
+  taosTelemetryDestroy(&pMgmt->addrMgt);
   (void)taosThreadMutexDestroy(&pMgmt->lock);
 }
