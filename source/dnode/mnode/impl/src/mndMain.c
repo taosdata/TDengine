@@ -410,11 +410,9 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndStreamConsensusChkpt(pMnode);
   }
 
-#ifndef TD_ENTERPRISE
-  if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
+  if (sec % tsTelemInterval == (TMIN(86400, (tsTelemInterval - 1)))) {
     mndPullupTelem(pMnode);
   }
-#endif
 
   if (sec % tsGrantHBInterval == 0) {
     mndPullupGrant(pMnode);
