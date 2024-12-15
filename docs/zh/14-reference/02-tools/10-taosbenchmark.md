@@ -10,7 +10,7 @@ taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine �
 
 taosBenchmark 提供两种安装方式:
 
-- taosBenchmark 是 TDengine 安装包中默认安装组件， 安装 TDengine 安装包后即可使用，安装 TDengine 可参考[TDengine 安装](../../../get-started/)。
+- taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，如何安装 TDengine 可参考[TDengine 安装](../../../get-started/)。
 
 - 单独编译 taos-tools 并安装, 参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
@@ -148,7 +148,7 @@ SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.187
  - real : 写入总耗时（调用引擎），此耗时已抛去测试框架准备数据时间，纯统计在引擎调用上花费的时间，花费为 8.117379 秒，8.527298 - 8.117379 = 0.409919 秒则为测试框架准备数据消耗时间
  - rows : 写入总行数，为 1000 万条数据
  - threads: 写入线程数，这里是 8 个线程同时写入
- - records/second 写入速度 = `写入总耗时`/ `写入总行数` ， 括号中 real 同前，表示纯引擎写入速度
+ - records/second 写入速度 = `写入总耗时`/ `写入总行数` ， 括号中 `real` 同前，表示纯引擎写入速度
 第二行单个写入延时统计：
  - min : 写入最小延时
  - avg : 写入平时延时
@@ -159,16 +159,19 @@ SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.187
 通过此系列指标，可观察到写入请求延时分布情况
 
 #### 查询指标 
+
 查询性能测试主要输出查询请求速度 QPS 指标, 输出格式如下：
 ``` bash
 complete query with 3 threads and 10000 query delay avg: 	0.002686s min: 	0.001182s max: 	0.012189s p90: 	0.002977s p95: 	0.003493s p99: 	0.004645s SQL command: select ...
 INFO: Total specified queries: 30000
 INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all threads:   1113.049
 ```
-第一行表示 3 个线程每个线程执行 10000 次查询，后面是查询请求延时百分位分布情况，单位为秒，SQL command 表示执行的是哪个查询语句  
-第二行表示总共完成了 10000 * 3 = 30000 次查询总数  
-第三行表示查询总耗时为 26.9653 秒，每秒查询率(QPS)为：1113.049 次/秒
+- 第一行表示 3 个线程每个线程执行 10000 次查询及查询请求延时百分位分布情况，`SQL command` 为测试的查询语句  
+- 第二行表示总共完成了 10000 * 3 = 30000 次查询总数  
+- 第三行表示查询总耗时为 26.9653 秒，每秒查询率(QPS)为：1113.049 次/秒
+
 #### 订阅指标
+
 订阅性能测试主要输出消费者消费速度指标，输出格式如下：
 ``` bash
 INFO: consumer id 0 has poll total msgs: 376, period rate: 37.592 msgs/s, total rows: 3760000, period rate: 375924.815 rows/s
@@ -179,9 +182,9 @@ INFO: consumerId: 1, consume msgs: 1000, consume rows: 10000000
 INFO: consumerId: 2, consume msgs: 1000, consume rows: 10000000
 INFO: Consumed total msgs: 3000, total rows: 30000000
 ```
-1 ~ 3 行实时输出每个消费者当前的消费速度，msgs/s 表示消费消息个数，每个消息中包含多行数据，rows/s 表示按行数统计的消费速度  
-4 ~ 6 行是测试完成后每个消费者总体统计，统计共消费了多少条消息，共计多少行  
-第 7 行所有消费者总体统计，msgs 表示共消费了多少条消息， rows 表示共消费了多少行数据
+- 1 ~ 3 行实时输出每个消费者当前的消费速度，`msgs/s` 表示消费消息个数，每个消息中包含多行数据，`rows/s` 表示按行数统计的消费速度  
+- 4 ~ 6 行是测试完成后每个消费者总体统计，统计共消费了多少条消息，共计多少行  
+- 第 7 行所有消费者总体统计，`msgs` 表示共消费了多少条消息， `rows` 表示共消费了多少行数据
 
 ## 配置文件参数详解
 
