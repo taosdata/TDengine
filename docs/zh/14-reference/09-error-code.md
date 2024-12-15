@@ -75,6 +75,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000133 | Invalid operation                 | 无效的或不支持的操作                   | 1. 修改确认当前操作为合法有效支持的操作，检查参数有效性 2. 如果问题还未解决，保留现场和日志，github上报issue                                       |
 | 0x80000134 | Invalid value                     | 无效值                                 | 保留现场和日志，github上报issue                                                                                                                    |
 | 0x80000135 | Invalid fqdn                      | 无效FQDN                               | 检查配置或输入的FQDN值是否正确                                                                                                                     |
+| 0x8000013C | Invalid disk id                   | 不合法的disk id                         | 建议用户检查挂载磁盘是否失效或者使用参数 diskIDCheckEnabled 来跳过磁盘检查                                                                             |
 
 
 
@@ -136,7 +137,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000350 | User already exists                                                                          | Create user, 重复创建                         | 确认操作是否正确                                                                                |
 | 0x80000351 | Invalid user                                                                                 | 用户不存在                                    | 确认操作是否正确                                                                                |
 | 0x80000352 | Invalid user format                                                                          | 格式不正确                                    | 确认操作是否正确                                                                                |
-| 0x80000353 | Invalid password format                                                                      | 格式不正确                                    | 确认操作是否正确                                                                                |
+| 0x80000353 | Invalid password format                                                                      | 密码长度必须为 8 到 16 位，并且至少包含大写字母、小写字母、数字、特殊字符中的三类 | 确认密码字符串的格式                                                   |
 | 0x80000354 | Can not get user from conn                                                                   | 内部错误                                      | 上报issue                                                                                       |
 | 0x80000355 | Too many users                                                                               | （仅企业版）用户数量超限                      | 调整配置                                                                                        |
 | 0x80000357 | Authentication failure                                                                       | 密码不正确                                    | 确认操作是否正确                                                                                |
@@ -261,6 +262,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000529 | Vnode is stopped                                   | Vnode 已经关闭                 | 上报问题           |
 | 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误         | 上报问题           |
 | 0x80000531 | Vnode query is busy                                | 查询忙碌                       | 上报问题           |
+| 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                       | 上报问题           |
 
 
 ## tsdb
@@ -294,6 +296,9 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000729 | Task message error                   | 查询消息错误                               | 保留现场和日志，github上报issue                        |
 | 0x8000072B | Task status error                    | 子查询状态错误                             | 保留现场和日志，github上报issue                        |
 | 0x8000072F | Job not exist                        | 查询JOB已经不存在                          | 保留现场和日志，github上报issue                        |
+| 0x80000739 | Query memory upper limit is reached  | 单个查询达到内存使用上限                    | 设置合理的内存上限或调整 SQL 语句                      |
+| 0x8000073A | Query memory exhausted               | dnode查询内存到达使用上限                  | 设置合理的内存上限或调整并发查询量或增大系统内存       |
+| 0x8000073B | Timeout for long time no fetch       | 查询被长时间中断未恢复                     | 调整应用实现尽快 fetch 数据                            |
 
 ## grant
 

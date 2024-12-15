@@ -25,19 +25,17 @@ extern "C" {
 int32_t mndInitCompactDetail(SMnode *pMnode);
 void    mndCleanupCompactDetail(SMnode *pMnode);
 
-void    tFreeCompactDetailObj(SCompactDetailObj *pCompact);
-int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDetailObj *pObj);
-int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailObj *pObj);
+void tFreeCompactDetailObj(SCompactDetailObj *pCompact);
 
-SSdbRaw* mndCompactDetailActionEncode(SCompactDetailObj *pCompact);
-SSdbRow* mndCompactDetailActionDecode(SSdbRaw *pRaw);
+SSdbRaw *mndCompactDetailActionEncode(SCompactDetailObj *pCompact);
+SSdbRow *mndCompactDetailActionDecode(SSdbRaw *pRaw);
 
 int32_t mndCompactDetailActionInsert(SSdb *pSdb, SCompactDetailObj *pCompact);
 int32_t mndCompactDetailActionDelete(SSdb *pSdb, SCompactDetailObj *pCompact);
 int32_t mndCompactDetailActionUpdate(SSdb *pSdb, SCompactDetailObj *pOldCompact, SCompactDetailObj *pNewCompact);
 
-int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SVgObj *pVgroup, 
-                                    SVnodeGid *pVgid, int32_t index);
+int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompact, SVgObj *pVgroup,
+                                  SVnodeGid *pVgid, int32_t index);
 
 int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 

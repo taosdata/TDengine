@@ -180,7 +180,7 @@ int32_t dmInitVars(SDnode *pDnode) {
 
       //code = taosGetCryptKey(tsAuthCode, pData->machineId, tsCryptKey);
       code = 0;
-      strncpy(tsEncryptKey, tsAuthCode, 16);
+      tstrncpy(tsEncryptKey, tsAuthCode, 16);
 
       if (code != 0) {
         if(code == -1){
@@ -221,6 +221,7 @@ int32_t dmInitVars(SDnode *pDnode) {
 }
 
 extern SMonVloadInfo tsVinfo;
+
 void dmClearVars(SDnode *pDnode) {
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
