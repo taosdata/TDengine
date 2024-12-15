@@ -1014,14 +1014,6 @@ int32_t taosTelemetryMgtInit(STelemAddrMgmt* mgt, char* defaultAddr) {
   mgt->recvBufRid = 0;
   return 0;
 }
-int32_t taosTelemetryMgtGetAddr(STelemAddrMgmt* mgt, char* addr) {
-  if (mgt->cachedAddr[0] == 0) {
-    tstrncpy(addr, mgt->defaultAddr, TD_FQDN_LEN);
-  } else {
-    tstrncpy(addr, mgt->cachedAddr, TD_FQDN_LEN);
-  }
-  return 0;
-}
 void taosTelemetryDestroy(STelemAddrMgmt* mgt) {
   if (mgt == NULL || mgt->recvBufRid <= 0) {
     return;
@@ -1030,7 +1022,7 @@ void taosTelemetryDestroy(STelemAddrMgmt* mgt) {
   mgt->recvBufRid = 0;
 }
 // TODO: parse http response head By LIB
-int32_t taosGetValueFromHttpResp(const char* response, const char* key, char* val) {
+static int32_t taosTelemetryGetValueFromHttpResp(const char* response, const char* key, char* val) {
   if (key == NULL || val == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1079,7 +1071,7 @@ static int32_t taosGetAddrFromHttpResp(int64_t recvBufRid, char* telemAddr) {
     return code;
   }
 
-  code = taosGetValueFromHttpResp(pRecv, "report_url", telemAddr);
+  code = taosTelemetryGetValueFromHttpResp(pRecv, "report_url", telemAddr);
   taosMemoryFree(pRecv);
   return code;
 }
