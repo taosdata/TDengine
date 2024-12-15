@@ -111,6 +111,16 @@ typedef struct SDatabaseOptions {
   SValueNode* s3KeepLocalStr;
   int8_t      s3Compact;
   int8_t      withArbitrator;
+  // for auto-compact
+  int8_t      compactTimeOffset;  // hours
+  int32_t     compactInterval;    // minutes
+  int32_t     compactStartTime;   // minutes
+  int32_t     compactEndTime;     // minutes
+  SValueNode* pCompactTimeOffsetNode;
+  SValueNode* pCompactIntervalNode;
+  SNodeList*  pCompactTimeRangeList;
+  // for cache
+  SDbCfgInfo* pDbCfg;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -159,6 +169,14 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pStart;
   SNode*    pEnd;
 } SCompactDatabaseStmt;
+
+typedef struct SCompactVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SCompactVgroupsStmt;
 
 typedef struct STableOptions {
   ENodeType  type;
