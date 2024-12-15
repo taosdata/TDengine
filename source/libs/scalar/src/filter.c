@@ -4556,25 +4556,6 @@ typedef struct SRewriteGetInOperContext {
   bool hasInOper;
 } SRewriteGetInOperContext;
 
-static EDealRes rewriteInOperForTimerange(SNode **ppNode, void *pContext) {
-  SRewriteGetInOperContext *pCxt = pContext;
-  if (nodeType(*ppNode) == QUERY_NODE_OPERATOR && ((SOperatorNode *)(*ppNode))->opType == OP_TYPE_BIT_OR) {
-    return DEAL_RES_IGNORE_CHILD;
-  }
-  if (nodeType(*ppNode) == QUERY_NODE_OPERATOR && ((SOperatorNode *)(*ppNode))->opType == OP_TYPE_IN) {
-    pCxt->hasInOper = true;
-    return DEAL_RES_END;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-bool hasAndTypeInOperator(SNode *pNode) {
-  SRewriteGetInOperContext cxt = {.hasInOper = false};
-  nodesRewriteExpr(&pNode, rewriteInOperForTimerange, &cxt);
-
-  return cxt.hasInOper;
-}
-
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
@@ -4605,11 +4586,7 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
         FLT_ERR_JRET(fltSclGetTimeStampDatum(endPt, &end));
         win->skey = start.i;
         win->ekey = end.i;
-        if (optNode->opType == OP_TYPE_IN || hasAndTypeInOperator(info->sclCtx.node)) {
-          *isStrict = false;
-        } else {
-          *isStrict = true;
-        }
+        *isStrict = info->isStrict;
         goto _return;
       } else if (taosArrayGetSize(points) == 0) {
         *win = TSWINDOW_DESC_INITIALIZER;
@@ -5108,8 +5085,76 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t fltInOpertoArray(SArray **sclInOper, SFltSclOperator *pInOper) {
+  if (*sclInOper == NULL) {
+    *sclInOper = taosArrayInit(4, sizeof(SFltSclOperator *));
+    if (NULL == *sclInOper) {
+      FLT_ERR_RET(terrno);
+    }
+  }
+  if (NULL == taosArrayPush(*sclInOper, &pInOper)) {
+    FLT_ERR_RET(terrno);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hasValidInOper(SArray *sclInOper, SArray *colRangeList, bool* has) {
+  SFltSclOperator **ppSclOper = NULL;
+  *has = false;
+  for (int32_t i = 0; i < taosArrayGetSize(sclInOper); ++i) {
+    ppSclOper = taosArrayGet(sclInOper, i);
+    if (NULL == ppSclOper) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    if(*ppSclOper == NULL) {
+      qError("func: hasValidInOper, invalid in operator");
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    SFltSclColumnRange *colRange = NULL;
+    SFltSclOperator * pSclOper = *ppSclOper;
+    for (int32_t i = 0; i < taosArrayGetSize(colRangeList); ++i) {
+      colRange = taosArrayGet(colRangeList, i);
+      if (NULL == colRange) {
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      if (nodesEqualNode((SNode *)colRange->colNode, (SNode *)pSclOper->colNode)) {
+        SFltSclPoint *startPt = taosArrayGet(colRange->points, 0);
+        SFltSclPoint *endPt = taosArrayGet(colRange->points, 1);
+        if (NULL == startPt || NULL == endPt) {
+          return TSDB_CODE_OUT_OF_RANGE;
+        }
+        SNodeListNode *listNode = (SNodeListNode *)pSclOper->valNode;
+        SListCell     *cell = listNode->pNodeList->pHead;
+        for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
+          SValueNode  *valueNode = (SValueNode *)cell->pNode;
+          SFltSclDatum valDatum;
+          FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, valueNode));
+          if (valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT ||
+              valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
+            if (startPt->val.d != endPt->val.d && (valDatum.d >= startPt->val.d || valDatum.d <= endPt->val.d)) {
+              *has = true;
+              return TSDB_CODE_SUCCESS;
+            }
+          } else {
+            if (startPt->val.d != endPt->val.d && (valDatum.i >= startPt->val.i || valDatum.i <= endPt->val.i)) {
+              *has = true;
+              return TSDB_CODE_SUCCESS;
+            }
+          }
+          cell = cell->pNext;
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 // TODO: process DNF composed of CNF
-int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
+static int32_t fltSclProcessCNF(SFilterInfo *pInfo, SArray *sclOpListCNF, SArray *colRangeList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  pInfo->isStrict = true;
+  SArray *sclInOper = NULL;
   size_t sz = taosArrayGetSize(sclOpListCNF);
   for (int32_t i = 0; i < sz; ++i) {
     SFltSclOperator    *sclOper = taosArrayGet(sclOpListCNF, i);
@@ -5133,12 +5178,27 @@ int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
       taosArrayDestroy(points);
       colRange->points = merged;
       if(merged->size == 0) {
-        break;
+        goto _exit;
       }
     } else {
       taosArrayDestroy(colRange->points);
       colRange->points = points;
     }
+    if (sclOper->type == OP_TYPE_IN) {
+      fltInOpertoArray(&sclInOper, sclOper);
+    }
+  }
+  bool hasInOper = false;
+  code = hasValidInOper(sclInOper, colRangeList, &hasInOper);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+  if (hasInOper) {
+    pInfo->isStrict = false;
+  }
+_exit:
+  if (sclInOper) {
+    taosArrayDestroy(sclInOper);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5240,7 +5300,7 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
   if (NULL == colRangeList) {
     FLT_ERR_JRET(terrno);
   }
-  FLT_ERR_JRET(fltSclProcessCNF(sclOpList, colRangeList));
+  FLT_ERR_JRET(fltSclProcessCNF(pInfo, sclOpList, colRangeList));
   pInfo->sclCtx.fltSclRange = colRangeList;
 
   for (int32_t i = 0; i < taosArrayGetSize(sclOpList); ++i) {

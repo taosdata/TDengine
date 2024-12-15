@@ -267,6 +267,7 @@ struct SFilterInfo {
   int8_t           *blkUnitRes;
   void             *pTable;
   SArray           *blkList;
+  bool             isStrict;
 
   SFilterPCtx pctx;
 };

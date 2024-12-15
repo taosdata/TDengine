@@ -294,10 +294,10 @@ class TDTestCase:
         tdSql.prepare()
         tdSql.execute(f"create database if not exists {self.dbname}")
         
-        #self.ts5757()
-        #self.ts5760()
-        #self.ts5758()
-        #self.ts5759()
+        self.ts5757()
+        self.ts5760()
+        self.ts5758()
+        self.ts5759()
         self.operOnTime()
         
 
