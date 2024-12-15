@@ -411,11 +411,17 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   char keep0Str[128] = {0};
   char keep1Str[128] = {0};
   char keep2Str[128] = {0};
+  char compactIntervalStr[13] = {0};
+  char compactStartTimeStr[13] = {0};
+  char compactEndTimeStr[13] = {0};
 
   int32_t lenDuration = formatDurationOrKeep(durationStr, sizeof(durationStr), pCfg->daysPerFile);
   int32_t lenKeep0 = formatDurationOrKeep(keep0Str, sizeof(keep0Str), pCfg->daysToKeep0);
   int32_t lenKeep1 = formatDurationOrKeep(keep1Str, sizeof(keep1Str), pCfg->daysToKeep1);
   int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pCfg->daysToKeep2);
+  UNUSED(formatDurationOrKeep(compactIntervalStr, sizeof(compactIntervalStr), pCfg->compactInterval));
+  UNUSED(formatDurationOrKeep(compactStartTimeStr, sizeof(compactStartTimeStr), pCfg->compactStartTime));
+  UNUSED(formatDurationOrKeep(compactEndTimeStr, sizeof(compactEndTimeStr), pCfg->compactEndTime));
 
   if (IS_SYS_DBNAME(dbName)) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
@@ -428,13 +434,15 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
                   "PRECISION '%s' REPLICA %d "
                   "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
                   "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
-                  " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' S3_CHUNKPAGES %d S3_KEEPLOCAL %dm S3_COMPACT %d",
+                  " KEEP_TIME_OFFSET %dh ENCRYPT_ALGORITHM '%s' S3_CHUNKPAGES %d S3_KEEPLOCAL %dm S3_COMPACT %d "
+                  "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %"PRIi8 "h",
                   dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, durationStr,
                   pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str, keep1Str, keep2Str,
                   pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
                   1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
                   pCfg->walRetentionSize, pCfg->keepTimeOffset, encryptAlgorithmStr(pCfg->encryptAlgorithm),
-                  pCfg->s3ChunkSize, pCfg->s3KeepLocal, pCfg->s3Compact);
+                  pCfg->s3ChunkSize, pCfg->s3KeepLocal, pCfg->s3Compact, compactIntervalStr, compactStartTimeStr,
+                  compactEndTimeStr, pCfg->compactTimeOffset);
 
     if (pRetentions) {
       len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,

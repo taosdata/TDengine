@@ -370,6 +370,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_FILESETS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_FILESETS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -3809,7 +3816,8 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
   FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
-      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode) : DEAL_RES_IGNORE_CHILD;
+      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
+                                                        : DEAL_RES_IGNORE_CHILD;
     }
     if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
@@ -4122,7 +4130,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 
 static bool sysTableFromVnode(const char* pTable) {
   return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE));
+          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE) ||
+          (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -4195,7 +4204,8 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   if (TSDB_CODE_SUCCESS == code &&
       ((0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
        0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
-       (0 == strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) && !hasUserDbCond))) {
+       (0 == strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) && !hasUserDbCond) ||
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS))) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &pVgs);
   }
 
@@ -4295,7 +4305,8 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
     return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE);
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
 }
@@ -5439,7 +5450,8 @@ static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNod
   int32_t        fillNo = 0;
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
-  if (!pFillValues) return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
+  if (!pFillValues)
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   FOREACH(pProject, pProjectionList) {
     if (needFill(pProject)) {
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
@@ -6292,7 +6304,7 @@ static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
 }
 
 static EDealRes hasRowTsOriginFuncWalkNode(SNode* pNode, void* ctx) {
-  bool *hasRowTsOriginFunc = ctx;
+  bool* hasRowTsOriginFunc = ctx;
   if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (fmIsRowTsOriginFunc(pFunc->funcId)) {
@@ -6307,10 +6319,12 @@ static int32_t checkInterpForStream(STranslateContext* pCxt, SSelectStmt* pSelec
   if (pCxt->createStream) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     if (pFill->mode == FILL_MODE_NEAR) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "FILL NEAR is not supported by stream");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "FILL NEAR is not supported by stream");
     }
     if (pSelect->pRangeAround) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "RANGE with around is not supported by stream");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "RANGE with around is not supported by stream");
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -6335,24 +6349,25 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   nodesWalkExprs(pSelect->pProjectionList, hasRowTsOriginFuncWalkNode, &hasRowTsOriginFunc);
   if (hasRowTsOriginFunc && pCxt->createStream) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                "_irowts_origin is not supported by stream");
+                                   "_irowts_origin is not supported by stream");
   }
   if (TSDB_CODE_SUCCESS == code) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     if (pSelect->pRangeAround) {
       if (pFill->mode != FILL_MODE_PREV && pFill->mode != FILL_MODE_NEXT && pFill->mode != FILL_MODE_NEAR) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
-            "Range with interval can only used with fill PREV/NEXT/NEAR");
+                                       "Range with interval can only used with fill PREV/NEXT/NEAR");
       }
-      if (TSDB_CODE_SUCCESS == code)
-        code = doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
+      if (TSDB_CODE_SUCCESS == code) code = doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
     } else {
       if (FILL_MODE_PREV == pFill->mode || FILL_MODE_NEXT == pFill->mode || FILL_MODE_NEAR == pFill->mode) {
         if (pFill->pValues) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Can't specify fill values");
         }
       } else {
-        if (hasRowTsOriginFunc) return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC, "_irowts_origin can only be used with FILL PREV/NEXT/NEAR");
+        if (hasRowTsOriginFunc)
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+                                      "_irowts_origin can only be used with FILL PREV/NEXT/NEAR");
       }
       code = checkFillValues(pCxt, pFill, pSelect->pProjectionList);
     }
@@ -6370,7 +6385,8 @@ static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSele
       if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE) {
         SValueNode* pVal = (SValueNode*)pAround->pInterval;
         if (pVal->datum.i == 0) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Range interval cannot be 0");
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+                                      "Range interval cannot be 0");
         }
         int8_t unit = pVal->unit;
         if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
@@ -6423,7 +6439,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
           // single point interp every can be omitted
         } else {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-              "Missing RANGE clause, EVERY clause or FILL clause");
+                                         "Missing RANGE clause, EVERY clause or FILL clause");
         }
       }
     } else {
@@ -6432,8 +6448,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                        "Range clause with around interval can't be used with EVERY clause");
       }
       if (!pSelect->pFill) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                       "Missing FILL clause");
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE, "Missing FILL clause");
       }
     }
   }
@@ -7755,6 +7770,12 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
   tstrncpy(pReq->dnodeListStr, pStmt->pOptions->dnodeListStr, TSDB_DNODE_LIST_LEN);
 
+  // auto-compact options
+  pReq->compactInterval = pStmt->pOptions->compactInterval;
+  pReq->compactStartTime = pStmt->pOptions->compactStartTime;
+  pReq->compactEndTime = pStmt->pOptions->compactEndTime;
+  pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
+
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -7768,8 +7789,8 @@ static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const cha
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, int32_t val, int32_t minVal,
-                                  int32_t maxVal) {
+static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, int64_t val, int64_t minVal,
+                                  int64_t maxVal) {
   return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_DB_OPTION, pName, val, minVal, maxVal, true);
 }
 
@@ -8081,6 +8102,16 @@ static int32_t checkDbTbPrefixSuffixOptions(STranslateContext* pCxt, int32_t tbP
   return TSDB_CODE_SUCCESS;
 }
 
+static FORCE_INLINE int32_t translateGetDbCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo** ppDbCfg) {
+  if (*ppDbCfg) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!(*ppDbCfg = taosMemoryCalloc(1, sizeof(SDbCfgInfo)))) {
+    return terrno;
+  }
+  return getDBCfg(pCxt, pDbName, *ppDbCfg);
+}
+
 static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t daysPerFile = pOptions->daysPerFile;
   int32_t s3KeepLocal = pOptions->s3KeepLocal;
@@ -8088,13 +8119,9 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   if (-1 == daysPerFile && -1 == daysToKeep0) {
     return TSDB_CODE_SUCCESS;
   } else if (-1 == daysPerFile || -1 == daysToKeep0) {
-    SDbCfgInfo dbCfg = {0};
-    int32_t    code = getDBCfg(pCxt, pDbName, &dbCfg);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-    daysPerFile = (-1 == daysPerFile ? dbCfg.daysPerFile : daysPerFile);
-    daysToKeep0 = (-1 == daysToKeep0 ? dbCfg.daysToKeep0 : daysToKeep0);
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+    daysPerFile = (-1 == daysPerFile ? pOptions->pDbCfg->daysPerFile : daysPerFile);
+    daysToKeep0 = (-1 == daysToKeep0 ? pOptions->pDbCfg->daysToKeep0 : daysToKeep0);
   }
   if (daysPerFile > daysToKeep0 / 3) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
@@ -8116,6 +8143,126 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
+  int32_t code = 0;
+  int64_t interval = 0;
+  int32_t keep2 = pOptions->keep[2];
+
+  if (NULL != pOptions->pCompactIntervalNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactIntervalNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_MINUTE != pOptions->pCompactIntervalNode->unit &&
+        TIME_UNIT_HOUR != pOptions->pCompactIntervalNode->unit &&
+        TIME_UNIT_DAY != pOptions->pCompactIntervalNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_interval unit: %c, only %c, %c, %c allowed",
+                                     pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR,
+                                     TIME_UNIT_DAY);
+    }
+    interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
+    if (interval != 0) {
+      if (keep2 == -1) {  // alter db
+        TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+        keep2 = pOptions->pDbCfg->daysToKeep2;
+      }
+      code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+    }
+  } else if (pOptions->compactInterval > 0) {
+    interval = pOptions->compactInterval * 1440;  // convert to minutes
+    if (keep2 == -1) {                            // alter db
+      TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+      keep2 = pOptions->pDbCfg->daysToKeep2;
+    }
+    code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+  }
+  if (code == 0) pOptions->compactInterval = interval;
+  return code;
+}
+
+static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
+  if (NULL == pOptions->pCompactTimeRangeList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (LIST_LENGTH(pOptions->pCompactTimeRangeList) != 2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range, should have 2 values");
+  }
+
+  SValueNode* pStart = (SValueNode*)nodesListGetNode(pOptions->pCompactTimeRangeList, 0);
+  SValueNode* pEnd = (SValueNode*)nodesListGetNode(pOptions->pCompactTimeRangeList, 1);
+  if (DEAL_RES_ERROR == translateValue(pCxt, pStart)) {
+    return pCxt->errCode;
+  }
+  if (DEAL_RES_ERROR == translateValue(pCxt, pEnd)) {
+    return pCxt->errCode;
+  }
+  if (IS_DURATION_VAL(pStart->flag)) {
+    if (TIME_UNIT_MINUTE != pStart->unit && TIME_UNIT_HOUR != pStart->unit && TIME_UNIT_DAY != pStart->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_range start unit: %c, only %c, %c, %c allowed",
+                                     pStart->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+    }
+  } else {
+    pStart->datum.i *= 1440;
+  }
+  if (IS_DURATION_VAL(pEnd->flag)) {
+    if (TIME_UNIT_MINUTE != pEnd->unit && TIME_UNIT_HOUR != pEnd->unit && TIME_UNIT_DAY != pEnd->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_range end unit: %c, only %c, %c, %c allowed",
+                                     pEnd->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+    }
+  } else {
+    pEnd->datum.i *= 1440;
+  }
+  pOptions->compactStartTime = getBigintFromValueNode(pStart);
+  pOptions->compactEndTime = getBigintFromValueNode(pEnd);
+
+  if (pOptions->compactStartTime >= pOptions->compactEndTime) {
+    return generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+        "Invalid option compact_time_range: %dm,%dm, start time should be less than end time",
+        pOptions->compactStartTime, pOptions->compactEndTime);
+  }
+
+  int32_t keep2 = pOptions->keep[2];
+  int32_t days = pOptions->daysPerFile;
+  if (keep2 == -1 || days == -1) {  // alter db
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+    keep2 = pOptions->pDbCfg->daysToKeep2;
+    days = pOptions->pDbCfg->daysPerFile;
+  }
+  if (pOptions->compactStartTime < -keep2 || pOptions->compactStartTime > -days) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%dm, %dm]",
+                                   pOptions->compactStartTime, -keep2, -days);
+  }
+  if (pOptions->compactEndTime < -keep2 || pOptions->compactEndTime > -days) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range: %dm, end time should be in range: [%dm, %dm]",
+                                   pOptions->compactEndTime, -keep2, -days);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbCompactTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (pOptions->pCompactTimeOffsetNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactTimeOffsetNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_HOUR != pOptions->pCompactTimeOffsetNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_offset unit: %c, only %c allowed",
+                                     pOptions->pCompactTimeOffsetNode->unit, TIME_UNIT_HOUR);
+    }
+    pOptions->compactTimeOffset = getBigintFromValueNode(pOptions->pCompactTimeOffsetNode) / 60;
+  }
+  return checkDbRangeOption(pCxt, "compact_time_offset", pOptions->compactTimeOffset, TSDB_MIN_COMPACT_TIME_OFFSET,
+                            TSDB_MAX_COMPACT_TIME_OFFSET);
 }
 
 static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
@@ -8233,6 +8380,15 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "s3_compact", pOptions->s3Compact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactIntervalOption(pCxt, pDbName, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactTimeRangeOption(pCxt, pDbName, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactTimeOffsetOption(pCxt, pOptions);
   }
   return code;
 }
@@ -8470,14 +8626,17 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->s3KeepLocal = pStmt->pOptions->s3KeepLocal;
   pReq->s3Compact = pStmt->pOptions->s3Compact;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
+  pReq->compactInterval = pStmt->pOptions->compactInterval;
+  pReq->compactStartTime = pStmt->pOptions->compactStartTime;
+  pReq->compactEndTime = pStmt->pOptions->compactEndTime;
+  pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
   return code;
 }
 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
   if (pStmt->pOptions->walLevel == 0) {
-    SDbCfgInfo dbCfg = {0};
-    int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
-    if (TSDB_CODE_SUCCESS == code && dbCfg.replications > 1) {
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pStmt->dbName, &pStmt->pOptions->pDbCfg));
+    if (pStmt->pOptions->pDbCfg->replications > 1) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }
@@ -9913,6 +10072,9 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
   return code;
 }
 
+#define MIN_MAX_COMPACT_TASKS 1
+#define MAX_MAX_COMPACT_TASKS 100
+
 static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pStmt) {
   SMCfgDnodeReq cfgReq = {0};
   cfgReq.dnodeId = pStmt->dnodeId;
@@ -9920,7 +10082,12 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   tstrncpy(cfgReq.value, pStmt->value, TSDB_DNODE_VALUE_LEN);
 
   int32_t code = 0;
-  if (0 == strncasecmp(cfgReq.config, "encrypt_key", 12)) {
+
+  const char* validConfigs[] = {
+      "encrypt_key",
+      tsAlterCompactTaskKeywords,
+  };
+  if (0 == strncasecmp(cfgReq.config, validConfigs[0], strlen(validConfigs[0]) + 1)) {
     int32_t klen = strlen(cfgReq.value);
     if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
       tFreeSMCfgDnodeReq(&cfgReq);
@@ -9929,6 +10096,28 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
                                      ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
     }
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_KEY, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  } else if (0 == strncasecmp(cfgReq.config, validConfigs[1], strlen(validConfigs[1]) + 1)) {
+    char*   endptr = NULL;
+    int32_t maxCompactTasks = taosStr2Int32(cfgReq.value, &endptr, 10);
+    int32_t minMaxCompactTasks = MIN_MAX_COMPACT_TASKS;
+    int32_t maxMaxCompactTasks = MAX_MAX_COMPACT_TASKS;
+
+    // check format
+    if (endptr == cfgReq.value || endptr[0] != '\0') {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,
+                                     "Invalid max compact tasks: %s", cfgReq.value);
+    }
+
+    // check range
+    if (maxCompactTasks < minMaxCompactTasks || maxCompactTasks > maxMaxCompactTasks) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,
+                                     "Invalid max compact tasks: %d, valid range [%d,%d]", maxCompactTasks,
+                                     minMaxCompactTasks, maxMaxCompactTasks);
+    }
+
+    code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
   } else {
     code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
   }
@@ -10620,27 +10809,28 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
   return code;
 }
 
-static int32_t translateCompactRange(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt, SCompactDbReq* pReq) {
+static int32_t translateCompactRange(STranslateContext* pCxt, const char* dbName, SNode* pStart, SNode* pEnd,
+                                     STimeWindow* timeRange) {
   SDbCfgInfo dbCfg = {0};
-  int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pStart) {
-    ((SValueNode*)pStmt->pStart)->node.resType.precision = dbCfg.precision;
-    ((SValueNode*)pStmt->pStart)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pStart);
+  int32_t    code = getDBCfg(pCxt, dbName, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code && NULL != pStart) {
+    ((SValueNode*)pStart)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pStart)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pStart);
   }
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pEnd) {
-    ((SValueNode*)pStmt->pEnd)->node.resType.precision = dbCfg.precision;
-    ((SValueNode*)pStmt->pEnd)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pEnd);
+  if (TSDB_CODE_SUCCESS == code && NULL != pEnd) {
+    ((SValueNode*)pEnd)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pEnd)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pEnd);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    pReq->timeRange.skey = NULL != pStmt->pStart ? ((SValueNode*)pStmt->pStart)->datum.i : INT64_MIN;
-    pReq->timeRange.ekey = NULL != pStmt->pEnd ? ((SValueNode*)pStmt->pEnd)->datum.i : INT64_MAX;
+    timeRange->skey = NULL != pStart ? ((SValueNode*)pStart)->datum.i : INT64_MIN;
+    timeRange->ekey = NULL != pEnd ? ((SValueNode*)pEnd)->datum.i : INT64_MAX;
   }
   return code;
 }
 
-static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
+static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
   SCompactDbReq compactReq = {0};
   SName         name;
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -10648,11 +10838,90 @@ static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* p
   if (TSDB_CODE_SUCCESS != code) return code;
 
   (void)tNameGetFullDbName(&name, compactReq.db);
-  code = translateCompactRange(pCxt, pStmt, &compactReq);
+  code = translateCompactRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &compactReq.timeRange);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
   }
   tFreeSCompactDbReq(&compactReq);
+  return code;
+}
+
+static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupList, SArray** ppVgroups) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SHashObj* pHash = NULL;
+  int32_t   numOfVgroups = LIST_LENGTH(vgroupList);
+
+  (*ppVgroups) = taosArrayInit(numOfVgroups, sizeof(int64_t));
+  if (NULL == *ppVgroups) {
+    return terrno;
+  }
+
+  pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (NULL == pHash) {
+    code = terrno;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, vgroupList) {
+      SValueNode* pVal = (SValueNode*)pNode;
+      if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+        code = TSDB_CODE_VND_INVALID_VGROUP_ID;
+        break;
+      }
+
+      int64_t vgroupId = getBigintFromValueNode(pVal);
+
+      if (NULL != taosHashGet(pHash, &vgroupId, sizeof(vgroupId))) {
+        code = TSDB_CODE_PAR_INVALID_VGID_LIST;
+        break;
+      }
+
+      code = taosHashPut(pHash, &vgroupId, sizeof(vgroupId), NULL, 0);
+      if (code) {
+        break;
+      }
+
+      if (NULL == taosArrayPush(*ppVgroups, &vgroupId)) {
+        code = terrno;
+        break;
+      }
+    }
+  }
+
+  taosHashCleanup(pHash);
+  if (code) {
+    taosArrayDestroy(*ppVgroups);
+    *ppVgroups = NULL;
+  }
+  return code;
+}
+
+static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsStmt* pStmt) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SName         name;
+  SCompactDbReq req = {0};
+
+  code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+                        strlen(((SValueNode*)pStmt->pDbName)->literal));
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)tNameGetFullDbName(&name, req.db);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        translateCompactRange(pCxt, ((SValueNode*)pStmt->pDbName)->literal, pStmt->pStart, pStmt->pEnd, &req.timeRange);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateVgroupList(pCxt, pStmt->vgidList, &req.vgroupIds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &req);
+  }
+
+  tFreeSCompactDbReq(&req);
   return code;
 }
 
@@ -13079,7 +13348,10 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateDescribe(pCxt, (SDescribeStmt*)pNode);
       break;
     case QUERY_NODE_COMPACT_DATABASE_STMT:
-      code = translateCompact(pCxt, (SCompactDatabaseStmt*)pNode);
+      code = translateCompactDb(pCxt, (SCompactDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
+      code = translateCompactVgroups(pCxt, (SCompactVgroupsStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
@@ -13406,6 +13678,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return extractShowVariablesResultSchema(numOfCols, pSchema);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
     default:
       break;
@@ -16800,6 +17073,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

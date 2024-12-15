@@ -442,6 +442,10 @@ typedef struct {
   int8_t  s3Compact;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
+  int8_t  compactTimeOffset;  // hour
+  int32_t compactInterval;    // minute
+  int32_t compactStartTime;   // minute
+  int32_t compactEndTime;     // minute
 } SDbCfg;
 
 typedef struct {
@@ -865,6 +869,8 @@ typedef struct {
   int64_t startTime;
   int32_t newNumberFileset;
   int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
 } SCompactDetailObj;
 
 typedef struct {
