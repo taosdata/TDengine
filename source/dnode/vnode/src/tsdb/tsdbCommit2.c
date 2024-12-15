@@ -757,3 +757,5 @@ _exit:
   }
   return code;
 }
+
+static void test() { return; }
