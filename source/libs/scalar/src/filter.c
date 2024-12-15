@@ -5159,44 +5159,45 @@ static int32_t fltSclProcessCNF(SFilterInfo *pInfo, SArray *sclOpListCNF, SArray
   for (int32_t i = 0; i < sz; ++i) {
     SFltSclOperator    *sclOper = taosArrayGet(sclOpListCNF, i);
     if (NULL == sclOper) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
     }
     SFltSclColumnRange *colRange = NULL;
-    FLT_ERR_RET(fltSclGetOrCreateColumnRange(sclOper->colNode, colRangeList, &colRange));
+    FLT_ERR_JRET(fltSclGetOrCreateColumnRange(sclOper->colNode, colRangeList, &colRange));
     SArray             *points = taosArrayInit(4, sizeof(SFltSclPoint));
     if (NULL == points) {
-      FLT_ERR_RET(terrno);
+      FLT_ERR_JRET(terrno);
     }
-    FLT_ERR_RET(fltSclBuildRangePoints(sclOper, points));
+    FLT_ERR_JRET(fltSclBuildRangePoints(sclOper, points));
     if (taosArrayGetSize(colRange->points) != 0) {
       SArray *merged = taosArrayInit(4, sizeof(SFltSclPoint));
       if (NULL == merged) {
-        FLT_ERR_RET(terrno);
+        FLT_ERR_JRET(terrno);
       }
-      FLT_ERR_RET(fltSclIntersect(colRange->points, points, merged));
+      FLT_ERR_JRET(fltSclIntersect(colRange->points, points, merged));
       taosArrayDestroy(colRange->points);
       taosArrayDestroy(points);
       colRange->points = merged;
       if(merged->size == 0) {
-        goto _exit;
+        goto _return;
       }
     } else {
       taosArrayDestroy(colRange->points);
       colRange->points = points;
     }
     if (sclOper->type == OP_TYPE_IN) {
-      fltInOpertoArray(&sclInOper, sclOper);
+      code = fltInOpertoArray(&sclInOper, sclOper);
+      FLT_ERR_JRET(code);
     }
   }
   bool hasInOper = false;
   code = hasValidInOper(sclInOper, colRangeList, &hasInOper);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+    goto _return;
   }
   if (hasInOper) {
     pInfo->isStrict = false;
   }
-_exit:
+_return:
   if (sclInOper) {
     taosArrayDestroy(sclInOper);
   }
