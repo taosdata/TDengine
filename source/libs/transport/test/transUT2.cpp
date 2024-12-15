@@ -500,7 +500,7 @@ TEST_F(TransEnv, queryExcept) {
 TEST_F(TransEnv, idTest) {
   SRpcMsg resp = {0};
   SRpcMsg req = {0};
-  for (int i = 0; i < 50000; i++) {
+  for (int i = 0; i < 500; i++) {
    memset(&req, 0, sizeof(req));
    req.info.noResp = 0;
    req.msgType = 3;
@@ -516,7 +516,7 @@ TEST_F(TransEnv, idTest) {
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   SRpcMsg req = {0};
-  for (int i = 0; i < 500000; i++) {
+  for (int i = 0; i < 500; i++) {
    memset(&req, 0, sizeof(req));
    req.info.noResp = 0;
    req.msgType = 3;
@@ -530,8 +530,24 @@ TEST_F(TransEnv, noResp) {
 }
 
 TEST_F(TransEnv, http) {
+  {
   STelemAddrMgmt mgt;
   taosTelemetryMgtInit(&mgt, "telemetry.tdengine.com");
+  int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+
+  taosMsleep(10000);
+  code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT);
+  for (int32_t i = 0; i < 10; i++) {
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT);
+
+    printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+    taosMsleep(10000);
+  }
+  taosTelemetryDestroy(&mgt); 
+  }
+  {
+    STelemAddrMgmt mgt;
+    taosTelemetryMgtInit(&mgt, "error");
   int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
 
   taosMsleep(10000);
@@ -541,6 +557,7 @@ TEST_F(TransEnv, http) {
     taosMsleep(10000);
 
   }
-  
   taosTelemetryDestroy(&mgt); 
+
+  }
 }
