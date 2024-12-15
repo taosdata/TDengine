@@ -964,7 +964,7 @@ void taosDestroyHttpChan(int64_t chanId) {
   TAOS_UNUSED(taosReleaseRef(httpRefMgt, chanId));
   TAOS_UNUSED(taosRemoveRef(httpRefMgt, chanId));
 }
-int32_t taosAllocHttpRecvHandle(int64_t* rid) {
+static int32_t taosAllocHttpRecvHandle(int64_t* rid) {
   TAOS_UNUSED(taosThreadOnce(&transHttpInit, transHttpEnvInit));
   SHttpRecvBuf* p = taosMemoryCalloc(1, sizeof(SHttpRecvBuf));
   if (p == NULL) {
@@ -980,14 +980,14 @@ int32_t taosAllocHttpRecvHandle(int64_t* rid) {
   *rid = id;
   return 0;
 }
-void taosFreeHttpRecvHandle(int64_t rid) {
+static void taosFreeHttpRecvHandle(int64_t rid) {
   if (rid <= 0) {
     return;
   }
   taosReleaseRef(httpRecvRefMgt, rid);
   taosRemoveRef(httpRecvRefMgt, rid);
 }
-int32_t taosGetHttpRecvById(int64_t rid, char** pRecv, int32_t* len) {
+static int32_t taosGetHttpRecvById(int64_t rid, char** pRecv, int32_t* len) {
   int32_t       code = 0;
   SHttpRecvBuf* p = taosAcquireRef(httpRecvRefMgt, rid);
   if (p == NULL) {

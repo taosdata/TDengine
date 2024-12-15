@@ -36,10 +36,6 @@ int32_t taosSendHttpReportByChan(const char* server, const char* uri, uint16_t p
                                  EHttpCompFlag flag, int64_t chanId, const char* qid);
 void    taosDestroyHttpChan(int64_t chanId);
 
-int32_t taosAllocHttpRecvHandle(int64_t* rid);
-void    taosFreeHttpRecvHandle(int64_t rid);
-int32_t taosGetHttpRecvBufByHandle(int64_t rid, char** pRecv, int32_t* recvLen);
-
 int32_t taosSendRecvHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag, const char* qid, int64_t recvBufId);
 
