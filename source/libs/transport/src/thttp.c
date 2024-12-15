@@ -457,7 +457,7 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
           }
         }
         taosWUnLockLatch(&p->latch);
-        taosReleaseRef(httpRecvRefMgt, cli->recvBufRid);
+        TAOS_UNUSED(taosReleaseRef(httpRecvRefMgt, cli->recvBufRid));
       } else {
         tWarn("http-report failed to acquire recv buf since %s", tstrerror(terrno));
       }
@@ -984,8 +984,8 @@ static void taosFreeHttpRecvHandle(int64_t rid) {
   if (rid <= 0) {
     return;
   }
-  taosReleaseRef(httpRecvRefMgt, rid);
-  taosRemoveRef(httpRecvRefMgt, rid);
+  TAOS_UNUSED(taosReleaseRef(httpRecvRefMgt, rid));
+  TAOS_UNUSED(taosRemoveRef(httpRecvRefMgt, rid));
 }
 static int32_t taosGetHttpRecvById(int64_t rid, char** pRecv, int32_t* len) {
   int32_t       code = 0;
@@ -1003,7 +1003,7 @@ static int32_t taosGetHttpRecvById(int64_t rid, char** pRecv, int32_t* len) {
     code = TSDB_CODE_INVALID_PARA;
   }
   taosWUnLockLatch(&p->latch);
-  taosReleaseRef(httpRecvRefMgt, rid);
+  TAOS_UNUSED(taosReleaseRef(httpRecvRefMgt, rid));
 
   return code;
 }
