@@ -10381,7 +10381,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       char  name[TSDB_COL_NAME_LEN] = {0};
       char *tmp = NULL;
       TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &tmp));
-      strncpy(name, tmp, TSDB_COL_NAME_LEN - 1);
+      tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
       if (taosArrayPush(pReq->ctb.tagName, name) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
@@ -12417,7 +12417,7 @@ void setFieldWithOptions(SFieldWithOptions *fieldWithOptions, SField *field) {
   fieldWithOptions->bytes = field->bytes;
   fieldWithOptions->flags = field->flags;
   fieldWithOptions->type = field->type;
-  strncpy(fieldWithOptions->name, field->name, TSDB_COL_NAME_LEN);
+  tstrncpy(fieldWithOptions->name, field->name, TSDB_COL_NAME_LEN);
 }
 int32_t tSerializeTableTSMAInfoReq(void *buf, int32_t bufLen, const STableTSMAInfoReq *pReq) {
   SEncoder encoder = {0};
