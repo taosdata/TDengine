@@ -35,13 +35,16 @@ typedef struct SVnodeMgmt {
   SWWorkerPool          fetchPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
-  SHashObj             *hash;
+  SHashObj             *runngingHash;
+  SHashObj             *closedHash;
+  SHashObj             *creatingHash;
   TdThreadRwlock        lock;
+  TdThreadMutex         mutex;
   SVnodesStat           state;
   STfs                 *pTfs;
   TdThread              thread;
   bool                  stop;
-  TdThreadMutex         createLock;
+  TdThreadMutex         fileLock;
 } SVnodeMgmt;
 
 typedef struct {
@@ -77,6 +80,7 @@ typedef struct {
 typedef struct {
   int32_t      vnodeNum;
   int32_t      opened;
+  int32_t      dropped;
   int32_t      failed;
   bool         updateVnodesList;
   int32_t      threadIndex;
@@ -93,7 +97,9 @@ SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict);
 void       vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
-void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal);
+void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed);
+void       vmCleanPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
+void       vmCloseFailedVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
@@ -110,6 +116,8 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt);
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
+int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
+int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
 
 // vmWorker.c
 int32_t vmStartWorker(SVnodeMgmt *pMgmt);

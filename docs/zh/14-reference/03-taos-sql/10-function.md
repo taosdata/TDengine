@@ -1065,7 +1065,7 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
+**功能说明**：将时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
 
 **返回结果数据类型**：VARCHAR 类型。
 
@@ -1109,7 +1109,7 @@ return_timestamp: {
 }
 ```
 
-**功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
+**功能说明**：将日期时间格式的字符串转换成为时间戳。
 
 **返回结果数据类型**：BIGINT, TIMESTAMP。
 
@@ -1257,8 +1257,8 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
-- `expr1`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
-- `expr2`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr1`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr2`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 - `time_unit`：见使用说明。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
@@ -1301,7 +1301,7 @@ use_current_timezone: {
 
 **返回结果数据类型**：TIMESTAMP。
 
-**应用字段**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**应用字段**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **适用于**：表和超级表。
 
@@ -1364,7 +1364,7 @@ WEEK(expr [, mode])
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：
-- `expr`：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+- `expr`：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 - `mode`：0 - 7 之间的整数。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
@@ -1424,7 +1424,7 @@ WEEKOFYEAR(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1451,14 +1451,14 @@ WEEKDAY(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示 表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
 **适用于**: 表和超级表。
 
 **使用说明**：
-- 返回值 0 代表周日，1 代表周一 ... 6 代表周六。
+- 返回值 0 代表周一，1 代表周二 ... 6 代表周日。
 - 若 `expr` 为 NULL，返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定, 若未指定表, 则精度为毫秒.
 
@@ -1478,7 +1478,7 @@ DAYOFWEEK(expr)
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
+**适用数据类型**：表示时间戳的 BIGINT, TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR, NCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1569,7 +1569,7 @@ COUNT({* | expr})
 ELAPSED(ts_primary_key [, time_unit])
 ```
 
-**功能说明**：elapsed函数表达了统计周期内连续的时间长度，和twa函数配合使用可以计算统计曲线下的面积。在通过INTERVAL子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有INTERVAL子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED返回的并不是时间范围的绝对值，而是绝对值除以time_unit所得到的单位个数。
+**功能说明**：elapsed 函数表达了统计周期内连续的时间长度，和 twa 函数配合使用可以计算统计曲线下的面积。在通过 INTERVAL 子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有 INTERVAL 子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED 返回的并不是时间范围的绝对值，而是绝对值除以 time_unit 所得到的单位个数。流计算仅在 FORCE_WINDOW_CLOSE 模式下支持该函数。
 
 **返回结果类型**：DOUBLE。
 
@@ -1578,15 +1578,15 @@ ELAPSED(ts_primary_key [, time_unit])
 **适用于**: 表，超级表，嵌套查询的外层查询
 
 **说明**：
-- ts_primary_key参数只能是表的第一列，即 TIMESTAMP 类型的主键列。
-- 按time_unit参数指定的时间单位返回，最小是数据库的时间分辨率。time_unit 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 time_unit 如下：
+- ts_primary_key 参数只能是表的第一列，即 TIMESTAMP 类型的主键列。
+- 按 time_unit 参数指定的时间单位返回，最小是数据库的时间分辨率。time_unit 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 time_unit 如下：
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
-- 可以和interval组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
-- order by asc/desc不影响差值的计算结果。
-- 对于超级表，需要和group by tbname子句组合使用，不可以直接使用。
-- 对于普通表，不支持和group by子句组合使用。
-- 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如select elapsed(ts) from (select diff(value) from sub1)语句，diff函数会让内层查询输出隐式时间戳列，此为主键列，可以用于elapsed函数的第一个参数。相反，例如select elapsed(ts) from (select * from sub1) 语句，ts列输出到外层时已经没有了主键列的含义，无法使用elapsed函数。此外，elapsed函数作为一个与时间线强依赖的函数，形如select elapsed(ts) from (select diff(value) from st group by tbname)尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
-- 不支持与leastsquares、diff、derivative、top、bottom、last_row、interp等函数混合使用。
+- 可以和 interval 组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
+- order by asc/desc 不影响差值的计算结果。
+- 对于超级表，需要和 group by tbname 子句组合使用，不可以直接使用。
+- 对于普通表，不支持和 group by 子句组合使用。
+- 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如 select elapsed(ts) from (select diff(value) from sub1) 语句，diff 函数会让内层查询输出隐式时间戳列，此为主键列，可以用于 elapsed 函数的第一个参数。相反，例如 select elapsed(ts) from (select * from sub1) 语句，ts 列输出到外层时已经没有了主键列的含义，无法使用 elapsed 函数。此外，elapsed 函数作为一个与时间线强依赖的函数，形如 select elapsed(ts) from (select diff(value) from st group by tbname)尽 管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
+- 不支持与 leastsquares、diff、derivative、top、bottom、last_row、interp 等函数混合使用。
 
 
 ### LEASTSQUARES
@@ -1817,7 +1817,7 @@ ignore_null_values: {
 }
 ```
 
-**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值, 缺省值为0。
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值, 缺省值为 0。
 
 **返回数据类型**：同字段类型。
 
@@ -1829,15 +1829,18 @@ ignore_null_values: {
 
 - INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
 - INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
-- INTERP 需要同时与 RANGE，EVERY 和 FILL 关键字一起使用。
-- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2)字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP SQL 查询需要同时与 RANGE，EVERY 和 FILL 关键字一起使用；流计算不能使用 RANGE，需要 EVERY 和 FILL 关键字一起使用。
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值.
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
 - INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如：SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
 - INTERP 作用于超级表时, 会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
-- INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.2.0版本以后支持)。
-- INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.3.0版本以后支持)。
+- INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.2.0 版本以后支持)。
+- INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.3.0 版本以后支持)。
 - INTERP 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
+- INTERP 查询支持 NEAR FILL 模式, 即当需要 FILL 时, 使用距离当前时间点最近的数据进行插值, 当前后时间戳与当前时间断面一样近时, FILL 前一行的值. 此模式在流计算中和窗口查询中不支持。例如: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)(3.3.4.9 版本及以后支持)。
+- INTERP 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`。`_irowts_origin`在 3.3.4.9 版本及以后支持。
+- INTERP `RANGE`子句支持时间范围的扩展(3.3.4.9 版本及以后支持), 如`RANGE('2023-01-01 00:00:00', 10s)`表示在时间点 '2023-01-01 00:00:00' 查找前后 10s 的数据进行插值, FILL PREV/NEXT/NEAR 分别表示从时间点向前/向后/前后查找数据, 若时间点周围没有数据, 则使用 FILL 指定的值进行插值, 因此此时 FILL 子句必须指定值。例如: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1)。目前仅支持时间点和时间范围的组合, 不支持时间区间和时间范围的组合, 即不支持 RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h)。所指定的时间范围规则与 EVERY 类似, 单位不能是年或月, 值不能为 0, 不能带引号。使用该扩展时, 不支持除FILL PREV/NEXT/NEAR外的其他 FILL 模式, 且不能指定 EVERY 子句。
 
 ### LAST
 
@@ -1988,7 +1991,7 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**功能说明**：返回该列数据首次出现的值。该函数功能与 distinct 相似。对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
+**功能说明**：返回该列数据去重后的值。该函数功能与 distinct 相似。对于相同的数据，返回时间戳最小的一条，对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
 
 **返回数据类型**：同应用的字段。
 
@@ -2180,7 +2183,7 @@ STATEDURATION(expr, oper, val, unit)
 TWA(expr)
 ```
 
-**功能说明**：时间加权平均函数。统计表中某列在一段时间内的时间加权平均。对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算。
+**功能说明**：时间加权平均函数。统计表中某列在一段时间内的时间加权平均。对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算。流计算仅在 FORCE_WINDOW_CLOSE 模式下支持该函数。
 
 **返回数据类型**：DOUBLE。
 

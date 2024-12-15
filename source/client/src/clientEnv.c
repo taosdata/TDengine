@@ -36,9 +36,14 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
+#include "tconv.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#endif
+
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "tao"
 #endif
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -70,6 +75,7 @@ int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 int32_t  clientStop = -1;
+SHashObj* pTimezoneMap = NULL;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -114,10 +120,10 @@ static void concatStrings(SArray *list, char *buf, int size) {
       db = dot + 1;
     }
     if (i != 0) {
-      (void)strcat(buf, ",");
+      (void)strncat(buf, ",", size - 1 - len);
       len += 1;
     }
-    int ret = snprintf(buf + len, size - len, "%s", db);
+    int ret = tsnprintf(buf + len, size - len, "%s", db);
     if (ret < 0) {
       tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
       break;
@@ -166,11 +172,11 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
   ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "type", cJSON_CreateNumber(reqType)));
   ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(
       json, "rows_num", cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows)));
-  if (pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen) {
-    char tmp = pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen];
-    pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = '\0';
+  if (pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen) {
+    char tmp = pRequest->sqlstr[pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen];
+    pRequest->sqlstr[pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen] = '\0';
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", cJSON_CreateString(pRequest->sqlstr)));
-    pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = tmp;
+    pRequest->sqlstr[pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen] = tmp;
   } else {
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", cJSON_CreateString(pRequest->sqlstr)));
   }
@@ -284,7 +290,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if (pTscObj->pAppInfo->monitorParas.tsEnableMonitor) {
+  if (pTscObj->pAppInfo->serverCfg.monitorParas.tsEnableMonitor) {
     if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
       sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
@@ -294,15 +300,14 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if ((duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL ||
-       duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
-      checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->monitorParas.tsSlowLogExceptDb)) {
+  if ((duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThreshold * 1000000UL) &&
+      checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogExceptDb)) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
-    if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
+    if (pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogScope & reqType) {
       taosPrintSlowLog("PID:%d, Conn:%u,QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
-      if (pTscObj->pAppInfo->monitorParas.tsEnableMonitor) {
+      if (pTscObj->pAppInfo->serverCfg.monitorParas.tsEnableMonitor) {
         slowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
         if (TSDB_CODE_SUCCESS != generateWriteSlowLog(pTscObj, pRequest, reqType, duration)) {
           tscError("failed to generate write slow log");
@@ -370,9 +375,12 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 1000);
   rpcInit.connLimitNum = connLimitNum;
+  rpcInit.shareConnLimit = tsShareConnLimit;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
 
-  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("invalid version string.");
     return code;
@@ -553,6 +561,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->metric.start = taosGetTimestampUs();
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
+  (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
 
@@ -680,13 +689,13 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("begin to destroy request 0x%" PRIx64 " p:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
   int32_t code = taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to remove request from hash, code:%s", tstrerror(code));
+    tscWarn("failed to remove request from hash, code:%s", tstrerror(code));
   }
   schedulerFreeJob(&pRequest->body.queryJob, 0);
 
@@ -722,7 +731,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 
@@ -946,34 +955,35 @@ void taos_init_imp(void) {
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == appInfo.pInstMap || NULL == appInfo.pInstMapByClusterId) {
     (void)printf("failed to allocate memory when init appInfo\n");
-    tscInitRes = TSDB_CODE_OUT_OF_MEMORY;
+    tscInitRes = terrno;
     return;
   }
   taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
-  deltaToUtcInitOnce();
 
-  char logDirName[64] = {0};
-#ifdef CUS_PROMPT
-  snprintf(logDirName, 64, "%slog", CUS_PROMPT);
-#else
-  (void)snprintf(logDirName, 64, "taoslog");
-#endif
-  if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, tsAcoreOS ? LOG_MODE_BOTH : LOG_MODE_TAOSC) !=
-      0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
-    tscInitRes = -1;
+  const char *logName = CUS_PROMPT "slog";
+  ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
+  if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, tsAcoreOS ? LOG_MODE_BOTH : LOG_MODE_TAOSC) != 0) {
+    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
+    tscInitRes = terrno;
     return;
   }
 
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, tsAcoreOS ? 0 : 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
-  ENV_ERR_RET(taosConvInit(), "failed to init conv");
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
+    tscInitRes = terrno;
+    tscError("failed to init conv");
+    return;
+  }
+#ifndef WINDOWS
+  ENV_ERR_RET(tzInit(), "failed to init timezone");
+#endif
   ENV_ERR_RET(monitorInit(), "failed to init monitor");
   ENV_ERR_RET(rpcInit(), "failed to init rpc");
 
   if (InitRegexCache() != 0) {
-    tscInitRes = -1;
+    tscInitRes = terrno;
     (void)printf("failed to init regex cache\n");
     return;
   }
@@ -981,6 +991,7 @@ void taos_init_imp(void) {
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   ENV_ERR_RET(catalogInit(&cfg), "failed to init catalog");
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
+  ENV_ERR_RET(initClientId(), "failed to init clientId");
 
   tscDebug("starting to initialize TAOS driver");
 
@@ -1095,18 +1106,14 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  * @return
  */
 uint64_t generateRequestId() {
-  static uint64_t hashId = 0;
-  static uint32_t requestSerialId = 0;
+  static uint32_t hashId = 0;
+  static int32_t requestSerialId = 0;
 
   if (hashId == 0) {
-    char    uid[64] = {0};
-    int32_t code = taosGetSystemUUID(uid, tListLen(uid));
+    int32_t code = taosGetSystemUUIDU32(&hashId);
     if (code != TSDB_CODE_SUCCESS) {
       tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead",
-               tstrerror(TAOS_SYSTEM_ERROR(errno)));
-
-    } else {
-      hashId = MurmurHash3_32(uid, strlen(uid));
+               tstrerror(code));
     }
   }
 
@@ -1118,7 +1125,7 @@ uint64_t generateRequestId() {
     uint32_t val = atomic_add_fetch_32(&requestSerialId, 1);
     if (val >= 0xFFFF) atomic_store_32(&requestSerialId, 0);
 
-    id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
+    id = (((uint64_t)(hashId & 0x0FFF)) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
     if (id) {
       break;
     }
@@ -1133,27 +1140,27 @@ static setConfRet taos_set_config_imp(const char *config){
   static bool setConfFlag = false;
   if (setConfFlag) {
     ret.retCode = SET_CONF_RET_ERR_ONLY_ONCE;
-    strcpy(ret.retMsg, "configuration can only set once");
+    tstrncpy(ret.retMsg, "configuration can only set once", RET_MSG_LENGTH);
     return ret;
   }
   taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
   if (root == NULL){
     ret.retCode = SET_CONF_RET_ERR_JSON_PARSE;
-    strcpy(ret.retMsg, "parse json error");
+    tstrncpy(ret.retMsg, "parse json error", RET_MSG_LENGTH);
     return ret;
   }
 
   int size = cJSON_GetArraySize(root);
   if(!cJSON_IsObject(root) || size == 0) {
     ret.retCode = SET_CONF_RET_ERR_JSON_INVALID;
-    strcpy(ret.retMsg, "json content is invalid, must be not empty object");
+    tstrncpy(ret.retMsg, "json content is invalid, must be not empty object", RET_MSG_LENGTH);
     return ret;
   }
 
   if(size >= 1000) {
     ret.retCode = SET_CONF_RET_ERR_TOO_LONG;
-    strcpy(ret.retMsg, "json object size is too long");
+    tstrncpy(ret.retMsg, "json object size is too long", RET_MSG_LENGTH);
     return ret;
   }
 
@@ -1161,7 +1168,7 @@ static setConfRet taos_set_config_imp(const char *config){
     cJSON *item = cJSON_GetArrayItem(root, i);
     if(!item) {
       ret.retCode = SET_CONF_RET_ERR_INNER;
-      strcpy(ret.retMsg, "inner error");
+      tstrncpy(ret.retMsg, "inner error", RET_MSG_LENGTH);
       return ret;
     }
     if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){

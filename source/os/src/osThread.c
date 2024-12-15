@@ -18,6 +18,8 @@
 #include "os.h"
 
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg) {
+  OS_PARAM_CHECK(tid);
+  OS_PARAM_CHECK(start);
   int32_t code = pthread_create(tid, attr, start, arg);
   if (code) {
     taosThreadClear(tid);
@@ -28,6 +30,7 @@ int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)
 }
 
 int32_t taosThreadAttrDestroy(TdThreadAttr *attr) { 
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_destroy(attr); 
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -37,6 +40,8 @@ int32_t taosThreadAttrDestroy(TdThreadAttr *attr) {
 }
 
 int32_t taosThreadAttrGetDetachState(const TdThreadAttr *attr, int32_t *detachstate) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(detachstate);
   int32_t code = pthread_attr_getdetachstate(attr, detachstate);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -46,6 +51,8 @@ int32_t taosThreadAttrGetDetachState(const TdThreadAttr *attr, int32_t *detachst
 }
 
 int32_t taosThreadAttrGetInheritSched(const TdThreadAttr *attr, int32_t *inheritsched) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(inheritsched);
   int32_t code = pthread_attr_getinheritsched(attr, inheritsched);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -55,6 +62,8 @@ int32_t taosThreadAttrGetInheritSched(const TdThreadAttr *attr, int32_t *inherit
 }
 
 int32_t taosThreadAttrGetSchedParam(const TdThreadAttr *attr, struct sched_param *param) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(param);
   int32_t code = pthread_attr_getschedparam(attr, param);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -64,6 +73,8 @@ int32_t taosThreadAttrGetSchedParam(const TdThreadAttr *attr, struct sched_param
 }
 
 int32_t taosThreadAttrGetSchedPolicy(const TdThreadAttr *attr, int32_t *policy) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(policy);
   int32_t code = pthread_attr_getschedpolicy(attr, policy);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -73,6 +84,8 @@ int32_t taosThreadAttrGetSchedPolicy(const TdThreadAttr *attr, int32_t *policy) 
 }
 
 int32_t taosThreadAttrGetScope(const TdThreadAttr *attr, int32_t *contentionscope) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(contentionscope);
   int32_t code = pthread_attr_getscope(attr, contentionscope);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -82,6 +95,8 @@ int32_t taosThreadAttrGetScope(const TdThreadAttr *attr, int32_t *contentionscop
 }
 
 int32_t taosThreadAttrGetStackSize(const TdThreadAttr *attr, size_t *stacksize) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(stacksize);
   int32_t code = pthread_attr_getstacksize(attr, stacksize);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -90,7 +105,8 @@ int32_t taosThreadAttrGetStackSize(const TdThreadAttr *attr, size_t *stacksize) 
   return code;
 }
 
-int32_t taosThreadAttrInit(TdThreadAttr *attr) { 
+int32_t taosThreadAttrInit(TdThreadAttr *attr) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_init(attr); 
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -100,6 +116,7 @@ int32_t taosThreadAttrInit(TdThreadAttr *attr) {
 }
 
 int32_t taosThreadAttrSetDetachState(TdThreadAttr *attr, int32_t detachstate) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setdetachstate(attr, detachstate);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -109,6 +126,7 @@ int32_t taosThreadAttrSetDetachState(TdThreadAttr *attr, int32_t detachstate) {
 }
 
 int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setinheritsched(attr, inheritsched);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -118,6 +136,7 @@ int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched) 
 }
 
 int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param *param) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setschedparam(attr, param);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -127,6 +146,7 @@ int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param
 }
 
 int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr *attr, int32_t policy) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setschedpolicy(attr, policy);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -136,6 +156,7 @@ int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr *attr, int32_t policy) {
 }
 
 int32_t taosThreadAttrSetScope(TdThreadAttr *attr, int32_t contentionscope) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setscope(attr, contentionscope);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -145,6 +166,7 @@ int32_t taosThreadAttrSetScope(TdThreadAttr *attr, int32_t contentionscope) {
 }
 
 int32_t taosThreadAttrSetStackSize(TdThreadAttr *attr, size_t stacksize) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setstacksize(attr, stacksize);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -163,6 +185,7 @@ int32_t taosThreadCancel(TdThread thread) {
 }
 
 int32_t taosThreadCondDestroy(TdThreadCond *cond) {
+  OS_PARAM_CHECK(cond);
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
@@ -176,6 +199,7 @@ int32_t taosThreadCondDestroy(TdThreadCond *cond) {
 }
 
 int32_t taosThreadCondInit(TdThreadCond *cond, const TdThreadCondAttr *attr) {
+  OS_PARAM_CHECK(cond);
 #ifdef __USE_WIN_THREAD
   InitializeConditionVariable(cond);
   return 0;
@@ -190,6 +214,7 @@ int32_t taosThreadCondInit(TdThreadCond *cond, const TdThreadCondAttr *attr) {
 }
 
 int32_t taosThreadCondSignal(TdThreadCond *cond) {
+  OS_PARAM_CHECK(cond);
 #ifdef __USE_WIN_THREAD
   WakeConditionVariable(cond);
   return 0;
@@ -204,6 +229,7 @@ int32_t taosThreadCondSignal(TdThreadCond *cond) {
 }
 
 int32_t taosThreadCondBroadcast(TdThreadCond *cond) {
+  OS_PARAM_CHECK(cond);
 #ifdef __USE_WIN_THREAD
   WakeAllConditionVariable(cond);
   return 0;
@@ -218,6 +244,8 @@ int32_t taosThreadCondBroadcast(TdThreadCond *cond) {
 }
 
 int32_t taosThreadCondWait(TdThreadCond *cond, TdThreadMutex *mutex) {
+  OS_PARAM_CHECK(cond);
+  OS_PARAM_CHECK(mutex);
 #ifdef __USE_WIN_THREAD
   if (!SleepConditionVariableCS(cond, mutex, INFINITE)) {
     return EINVAL;
@@ -234,20 +262,25 @@ int32_t taosThreadCondWait(TdThreadCond *cond, TdThreadMutex *mutex) {
 }
 
 int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const struct timespec *abstime) {
+  if (!abstime) return 0;
+  OS_PARAM_CHECK(cond);
+  OS_PARAM_CHECK(mutex);
 #ifdef __USE_WIN_THREAD
-  if (!abstime) return EINVAL;
   if (SleepConditionVariableCS(cond, mutex, (DWORD)(abstime->tv_sec * 1e3 + abstime->tv_nsec / 1e6))) return 0;
-  if (GetLastError() == ERROR_TIMEOUT) {
-    return ETIMEDOUT;
+  DWORD error = GetLastError();
+  if (error == ERROR_TIMEOUT) {
+    return TSDB_CODE_TIMEOUT_ERROR;
   }
-  return EINVAL;
+  return TAOS_SYSTEM_WINAPI_ERROR(error);
 #else
   int32_t code = pthread_cond_timedwait(cond, mutex, abstime);
-  if (code && code != ETIMEDOUT) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+  if(code == ETIMEDOUT) {
+    return TSDB_CODE_TIMEOUT_ERROR;
+  } else if (code) {
+    return TAOS_SYSTEM_ERROR(code);
+  } else {
+    return 0;
   }
-  return code;
 #endif
 }
 
@@ -255,6 +288,7 @@ int32_t taosThreadCondAttrDestroy(TdThreadCondAttr *attr) {
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_condattr_destroy(attr);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -265,10 +299,12 @@ int32_t taosThreadCondAttrDestroy(TdThreadCondAttr *attr) {
 }
 
 int32_t taosThreadCondAttrGetPshared(const TdThreadCondAttr *attr, int32_t *pshared) {
+  OS_PARAM_CHECK(pshared);
 #ifdef __USE_WIN_THREAD
   if (pshared) *pshared = PTHREAD_PROCESS_PRIVATE;
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_condattr_getpshared(attr, pshared);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -282,6 +318,7 @@ int32_t taosThreadCondAttrInit(TdThreadCondAttr *attr) {
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_condattr_init(attr);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -297,6 +334,7 @@ int32_t taosThreadCondAttrSetclock(TdThreadCondAttr *attr, int clockId) {
 #elif defined(__APPLE__)
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_condattr_setclock(attr, clockId);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -307,6 +345,7 @@ int32_t taosThreadCondAttrSetclock(TdThreadCondAttr *attr, int clockId) {
 }
 
 int32_t taosThreadCondAttrSetPshared(TdThreadCondAttr *attr, int32_t pshared) {
+  OS_PARAM_CHECK(attr);
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
@@ -333,10 +372,12 @@ int32_t taosThreadEqual(TdThread t1, TdThread t2) {
 }
 
 void taosThreadExit(void *valuePtr) { 
-  return pthread_exit(valuePtr); 
+  if(valuePtr) return pthread_exit(valuePtr); 
 }
 
 int32_t taosThreadGetSchedParam(TdThread thread, int32_t *policy, struct sched_param *param) {
+  OS_PARAM_CHECK(policy);
+  OS_PARAM_CHECK(param);
   int32_t code = pthread_getschedparam(thread, policy, param);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -359,6 +400,7 @@ int32_t taosThreadJoin(TdThread thread, void **valuePtr) {
 }
 
 int32_t taosThreadKeyCreate(TdThreadKey *key, void (*destructor)(void *)) {
+  OS_PARAM_CHECK(key);
   int32_t code = pthread_key_create(key, destructor);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -390,6 +432,7 @@ int32_t taosThreadKill(TdThread thread, int32_t sig) {
 // }
 
 int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) {
+  OS_PARAM_CHECK(mutex);
 #ifdef __USE_WIN_THREAD
   DeleteCriticalSection(mutex);
   return 0;
@@ -404,6 +447,7 @@ int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) {
 }
 
 int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr) {
+  OS_PARAM_CHECK(mutex);
 #ifdef __USE_WIN_THREAD
   /**
    * Windows Server 2003 and Windows XP:  In low memory situations, InitializeCriticalSection can raise a
@@ -423,6 +467,7 @@ int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr)
 }
 
 int32_t taosThreadMutexLock(TdThreadMutex *mutex) {
+  OS_PARAM_CHECK(mutex);
 #ifdef __USE_WIN_THREAD
   EnterCriticalSection(mutex);
   return 0;
@@ -441,6 +486,7 @@ int32_t taosThreadMutexLock(TdThreadMutex *mutex) {
 // }
 
 int32_t taosThreadMutexTryLock(TdThreadMutex *mutex) {
+  OS_PARAM_CHECK(mutex);
 #ifdef __USE_WIN_THREAD
   if (TryEnterCriticalSection(mutex)) return 0;
   return EBUSY;
@@ -454,6 +500,7 @@ int32_t taosThreadMutexTryLock(TdThreadMutex *mutex) {
 }
 
 int32_t taosThreadMutexUnlock(TdThreadMutex *mutex) {
+  OS_PARAM_CHECK(mutex);
 #ifdef __USE_WIN_THREAD
   LeaveCriticalSection(mutex);
   return 0;
@@ -471,6 +518,7 @@ int32_t taosThreadMutexAttrDestroy(TdThreadMutexAttr *attr) {
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_destroy(attr);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -481,10 +529,12 @@ int32_t taosThreadMutexAttrDestroy(TdThreadMutexAttr *attr) {
 }
 
 int32_t taosThreadMutexAttrGetPshared(const TdThreadMutexAttr *attr, int32_t *pshared) {
+  OS_PARAM_CHECK(pshared);
 #ifdef __USE_WIN_THREAD
   if (pshared) *pshared = PTHREAD_PROCESS_PRIVATE;
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_getpshared(attr, pshared);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -499,10 +549,12 @@ int32_t taosThreadMutexAttrGetPshared(const TdThreadMutexAttr *attr, int32_t *ps
 // }
 
 int32_t taosThreadMutexAttrGetType(const TdThreadMutexAttr *attr, int32_t *kind) {
+  OS_PARAM_CHECK(kind);
 #ifdef __USE_WIN_THREAD
   if (kind) *kind = PTHREAD_MUTEX_NORMAL;
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_gettype(attr, kind);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -516,6 +568,7 @@ int32_t taosThreadMutexAttrInit(TdThreadMutexAttr *attr) {
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_init(attr);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -529,6 +582,7 @@ int32_t taosThreadMutexAttrSetPshared(TdThreadMutexAttr *attr, int32_t pshared) 
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_setpshared(attr, pshared);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -546,6 +600,7 @@ int32_t taosThreadMutexAttrSetType(TdThreadMutexAttr *attr, int32_t kind) {
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_settype(attr, kind);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -571,6 +626,7 @@ int32_t taosThreadRwlockDestroy(TdThreadRwlock *rwlock) {
    */
   return 0;
 #else
+    OS_PARAM_CHECK(rwlock);
   int32_t code = pthread_rwlock_destroy(rwlock);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -581,6 +637,7 @@ int32_t taosThreadRwlockDestroy(TdThreadRwlock *rwlock) {
 }
 
 int32_t taosThreadRwlockInit(TdThreadRwlock *rwlock, const TdThreadRwlockAttr *attr) {
+  OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
   memset(rwlock, 0, sizeof(*rwlock));
   InitializeSRWLock(&rwlock->lock);
@@ -596,6 +653,7 @@ int32_t taosThreadRwlockInit(TdThreadRwlock *rwlock, const TdThreadRwlockAttr *a
 }
 
 int32_t taosThreadRwlockRdlock(TdThreadRwlock *rwlock) {
+  OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
   AcquireSRWLockShared(&rwlock->lock);
   return 0;
@@ -618,6 +676,7 @@ int32_t taosThreadRwlockRdlock(TdThreadRwlock *rwlock) {
 // }
 
 int32_t taosThreadRwlockTryRdlock(TdThreadRwlock *rwlock) {
+  OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
   if (!TryAcquireSRWLockShared(&rwlock->lock)) return EBUSY;
   return 0;
@@ -632,6 +691,7 @@ int32_t taosThreadRwlockTryRdlock(TdThreadRwlock *rwlock) {
 }
 
 int32_t taosThreadRwlockTryWrlock(TdThreadRwlock *rwlock) {
+  OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
   if (!TryAcquireSRWLockExclusive(&rwlock->lock)) return EBUSY;
   atomic_store_8(&rwlock->excl, 1);
@@ -647,6 +707,7 @@ int32_t taosThreadRwlockTryWrlock(TdThreadRwlock *rwlock) {
 }
 
 int32_t taosThreadRwlockUnlock(TdThreadRwlock *rwlock) {
+  OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
   if (1 == atomic_val_compare_exchange_8(&rwlock->excl, 1, 0)) {
     ReleaseSRWLockExclusive(&rwlock->lock);
@@ -665,6 +726,7 @@ int32_t taosThreadRwlockUnlock(TdThreadRwlock *rwlock) {
 }
 
 int32_t taosThreadRwlockWrlock(TdThreadRwlock *rwlock) {
+  OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
   AcquireSRWLockExclusive(&rwlock->lock);
   atomic_store_8(&rwlock->excl, 1);
@@ -683,6 +745,7 @@ int32_t taosThreadRwlockAttrDestroy(TdThreadRwlockAttr *attr) {
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_rwlockattr_destroy(attr);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -693,6 +756,7 @@ int32_t taosThreadRwlockAttrDestroy(TdThreadRwlockAttr *attr) {
 }
 
 int32_t taosThreadRwlockAttrGetPshared(const TdThreadRwlockAttr *attr, int32_t *pshared) {
+  OS_PARAM_CHECK(pshared);
 #ifdef __USE_WIN_THREAD
   if (pshared) *pshared = PTHREAD_PROCESS_PRIVATE;
   return 0;
@@ -710,6 +774,7 @@ int32_t taosThreadRwlockAttrInit(TdThreadRwlockAttr *attr) {
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_rwlockattr_init(attr);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -723,6 +788,7 @@ int32_t taosThreadRwlockAttrSetPshared(TdThreadRwlockAttr *attr, int32_t pshared
 #ifdef __USE_WIN_THREAD
   return 0;
 #else
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_rwlockattr_setpshared(attr, pshared);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -753,6 +819,7 @@ int32_t taosThreadSetCancelType(int32_t type, int32_t *oldtype) {
 }
 
 int32_t taosThreadSetSchedParam(TdThread thread, int32_t policy, const struct sched_param *param) {
+  OS_PARAM_CHECK(param);
   int32_t code = pthread_setschedparam(thread, policy, param);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -762,6 +829,7 @@ int32_t taosThreadSetSchedParam(TdThread thread, int32_t policy, const struct sc
 }
 
 int32_t taosThreadSetSpecific(TdThreadKey key, const void *value) { 
+  OS_PARAM_CHECK(value);
   int32_t code = pthread_setspecific(key, value); 
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -771,6 +839,7 @@ int32_t taosThreadSetSpecific(TdThreadKey key, const void *value) {
 }
 
 int32_t taosThreadSpinDestroy(TdThreadSpinlock *lock) {
+  OS_PARAM_CHECK(lock);
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_destroy((pthread_mutex_t *)lock);
 #else
@@ -784,6 +853,7 @@ int32_t taosThreadSpinDestroy(TdThreadSpinlock *lock) {
 }
 
 int32_t taosThreadSpinInit(TdThreadSpinlock *lock, int32_t pshared) {
+  OS_PARAM_CHECK(lock);
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   if (pshared != 0) return TSDB_CODE_INVALID_PARA;
   return pthread_mutex_init((pthread_mutex_t *)lock, NULL);
@@ -798,6 +868,7 @@ int32_t taosThreadSpinInit(TdThreadSpinlock *lock, int32_t pshared) {
 }
 
 int32_t taosThreadSpinLock(TdThreadSpinlock *lock) {
+  OS_PARAM_CHECK(lock);
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_lock((pthread_mutex_t *)lock);
 #else
@@ -811,6 +882,7 @@ int32_t taosThreadSpinLock(TdThreadSpinlock *lock) {
 }
 
 int32_t taosThreadSpinTrylock(TdThreadSpinlock *lock) {
+  OS_PARAM_CHECK(lock);
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_trylock((pthread_mutex_t *)lock);
 #else
@@ -823,6 +895,7 @@ int32_t taosThreadSpinTrylock(TdThreadSpinlock *lock) {
 }
 
 int32_t taosThreadSpinUnlock(TdThreadSpinlock *lock) {
+  OS_PARAM_CHECK(lock);
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_unlock((pthread_mutex_t *)lock);
 #else
@@ -840,6 +913,7 @@ void taosThreadTestCancel(void) {
 }
 
 void taosThreadClear(TdThread *thread) { 
+  if (!thread) return;
   (void)memset(thread, 0, sizeof(TdThread)); 
 }
 

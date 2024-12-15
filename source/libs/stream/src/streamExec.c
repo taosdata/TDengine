@@ -154,7 +154,7 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
 
     if ((code = qExecTask(pExecutor, &output, &ts)) < 0) {
       if (code == TSDB_CODE_QRY_IN_EXEC) {
-        resetTaskInfo(pExecutor);
+        qResetTaskInfoCode(pExecutor);
       }
 
       if (code == TSDB_CODE_OUT_OF_MEMORY || code == TSDB_CODE_INVALID_PARA || code == TSDB_CODE_FILE_CORRUPTED) {
@@ -188,14 +188,12 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
       continue;  // checkpoint block not dispatch to downstream tasks
     }
 
-    SSDataBlock block = {0};
+    SSDataBlock block = {.info.childId = pTask->info.selfChildId};
     code = assignOneDataBlock(&block, output);
     if (code) {
       stError("s-task:%s failed to build result block due to out of memory", pTask->id.idStr);
       continue;
     }
-
-    block.info.childId = pTask->info.selfChildId;
 
     size += blockDataGetSize(output) + sizeof(SSDataBlock) + sizeof(SColumnInfoData) * blockDataGetNumOfCols(&block);
     numOfBlocks += 1;
@@ -524,7 +522,10 @@ static int32_t doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int
   if (pItem->type == STREAM_INPUT__GET_RES) {
     const SStreamTrigger* pTrigger = (const SStreamTrigger*)pInput;
     code = qSetMultiStreamInput(pExecutor, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
-
+    if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      stDebug("s-task:%s set force_window_close as source block, skey:%"PRId64, id, pTrigger->pBlock->info.window.skey);
+      (*pVer) = pTrigger->pBlock->info.window.skey;
+    }
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     const SStreamDataSubmit* pSubmit = (const SStreamDataSubmit*)pInput;
     code = qSetMultiStreamInput(pExecutor, &pSubmit->submit, 1, STREAM_INPUT__DATA_SUBMIT);
@@ -673,7 +674,7 @@ static int32_t doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock
 
   doRecordThroughput(&pTask->execInfo, totalBlocks, totalSize, blockSize, st, pTask->id.idStr);
 
-  // update the currentVer if processing the submit blocks.
+  // update the currentVer if processing the submitted blocks.
   if (!(pInfo->checkpointVer <= pInfo->nextProcessVer && ver >= pInfo->checkpointVer)) {
     stError("s-task:%s invalid info, checkpointVer:%" PRId64 ", nextProcessVer:%" PRId64 " currentVer:%" PRId64, id,
             pInfo->checkpointVer, pInfo->nextProcessVer, ver);
@@ -687,6 +688,34 @@ static int32_t doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock
     pInfo->processedVer = ver;
   }
 
+  return code;
+}
+
+// do nothing after sync executor state to storage backend, untill checkpoint is completed.
+static int32_t doHandleChkptBlock(SStreamTask* pTask) {
+  int32_t     code = 0;
+  const char* id = pTask->id.idStr;
+
+  streamMutexLock(&pTask->lock);
+  SStreamTaskState pState = streamTaskGetStatus(pTask);
+  if (pState.state == TASK_STATUS__CK) {  // todo other thread may change the status
+    stDebug("s-task:%s checkpoint block received, set status:%s", id, pState.name);
+    code = streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
+  } else {                                    // todo refactor
+    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+      code = streamTaskSendCheckpointSourceRsp(pTask);
+    } else {
+      code = streamTaskSendCheckpointReadyMsg(pTask);
+    }
+
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo: let's retry send rsp to upstream/mnode
+      stError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%d, code:%s", id, 0,
+              tstrerror(code));
+    }
+  }
+
+  streamMutexUnlock(&pTask->lock);
   return code;
 }
 
@@ -794,7 +823,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-      int32_t code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
+      code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
       if (code != 0) {
         stError("s-task:%s failed to process checkpoint-trigger block, code:%s", pTask->id.idStr, tstrerror(code));
       }
@@ -834,36 +863,16 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       }
     }
 
-    if (type != STREAM_INPUT__CHECKPOINT) {
+    if (type == STREAM_INPUT__CHECKPOINT) {
+      code = doHandleChkptBlock(pTask);
+      streamFreeQitem(pInput);
+      return code;
+    } else {
       code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
       streamFreeQitem(pInput);
       if (code) {
         return code;
       }
-    } else {  // todo other thread may change the status
-      // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
-      streamMutexLock(&pTask->lock);
-      SStreamTaskState pState = streamTaskGetStatus(pTask);
-      if (pState.state == TASK_STATUS__CK) {
-        stDebug("s-task:%s checkpoint block received, set status:%s", id, pState.name);
-        code = streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
-      } else {                                    // todo refactor
-        if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-          code = streamTaskSendCheckpointSourceRsp(pTask);
-        } else {
-          code = streamTaskSendCheckpointReadyMsg(pTask);
-        }
-
-        if (code != TSDB_CODE_SUCCESS) {
-          // todo: let's retry send rsp to upstream/mnode
-          stError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%d, code:%s", id, 0,
-                  tstrerror(code));
-        }
-      }
-
-      streamMutexUnlock(&pTask->lock);
-      streamFreeQitem(pInput);
-      return code;
     }
   }
 }

@@ -150,7 +150,7 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
 #endif
 }
 
-const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len) {
+const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len) {
   const char *r = inet_ntop(AF_INET, &ipInt, dstStr, len);
   if (NULL == r) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -233,13 +233,19 @@ int32_t taosBlockSIGPIPE() {
 }
 
 int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
+  int32_t code = 0;
+  OS_PARAM_CHECK(fqdn);
+  OS_PARAM_CHECK(ip);
+  int64_t limitMs = 1000;
+  int64_t st = taosGetTimestampMs(), cost = 0;
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
   int     iResult;
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult != 0) {
-    return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
+    code = TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
+    goto _err;
   }
 #endif
 
@@ -258,12 +264,12 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
         inRetry = true;
         continue;
       } else if (EAI_SYSTEM == ret) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return terrno;
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto _err;
       }
 
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return terrno;
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
     }
 
     struct sockaddr    *sa = result->ai_addr;
@@ -273,8 +279,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
     *ip = ia.s_addr;
 
     freeaddrinfo(result);
-
-    return 0;
+    goto _err;
   }
 #else
   struct addrinfo hints = {0};
@@ -290,7 +295,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
     struct in_addr      ia = si->sin_addr;
     *ip = ia.s_addr;
     freeaddrinfo(result);
-    return 0;
+    goto _err;
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
@@ -303,12 +308,20 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
 #endif
 
     *ip = 0xFFFFFFFF;
-    return TSDB_CODE_RPC_FQDN_ERROR;
+    code = TSDB_CODE_RPC_FQDN_ERROR;
+    goto _err;
   }
 #endif
+_err:
+  cost = taosGetTimestampMs() - st;
+  if (cost >= limitMs) {
+    uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
+  }
+  return code;
 }
 
 int32_t taosGetFqdn(char *fqdn) {
+  OS_PARAM_CHECK(fqdn);
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
@@ -332,8 +345,8 @@ int32_t taosGetFqdn(char *fqdn) {
   // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
   // immediately
   // hints.ai_family = AF_INET;
-  strcpy(fqdn, hostname);
-  strcpy(fqdn + strlen(hostname), ".local");
+  tstrncpy(fqdn, hostname, TD_FQDN_LEN);
+  tstrncpy(fqdn + strlen(hostname), ".local", TD_FQDN_LEN - strlen(hostname));
 #else  // linux
 
 #endif  // linux
@@ -361,7 +374,7 @@ int32_t taosGetFqdn(char *fqdn) {
     break;
   }
 
-  (void)strcpy(fqdn, result->ai_canonname);
+  tstrncpy(fqdn, result->ai_canonname, TD_FQDN_LEN);
 
   freeaddrinfo(result);
 
@@ -375,7 +388,7 @@ int32_t taosGetFqdn(char *fqdn) {
     // fprintf(stderr, "failed to get fqdn, code:%d, hostname:%s, reason:%s\n", ret, hostname, gai_strerror(ret));
     return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
   }
-  strcpy(fqdn, result->ai_canonname);
+  tstrncpy(fqdn, result->ai_canonname, TD_FQDN_LEN);
   freeaddrinfo(result);
 
 #endif
@@ -383,8 +396,19 @@ int32_t taosGetFqdn(char *fqdn) {
   return 0;
 }
 
-void tinet_ntoa(char *ipstr, uint32_t ip) {
-  (void)sprintf(ipstr, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
+void taosInetNtoa(char *ipstr, uint32_t ip) {
+  if (ipstr == NULL) {
+    return;
+  }
+  unsigned char *bytes = (unsigned char *) &ip;
+  (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
+}
+
+uint32_t taosInetAddr(const char *ipstr){
+  if (ipstr == NULL) {
+    return 0;
+  }
+  return inet_addr(ipstr);
 }
 
 int32_t taosIgnSIGPIPE() {
@@ -481,4 +505,19 @@ uint64_t taosNtoh64(uint64_t val) {
     return val;
   }
 #endif
+}
+
+int32_t taosSetSockOpt2(int32_t fd) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return 0;
+#else
+  int32_t ret = setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  } else {
+    return 0;
+  }
+#endif
+  return 0;
 }

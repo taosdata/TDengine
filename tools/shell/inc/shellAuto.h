@@ -16,6 +16,10 @@
 #ifndef __SHELL_AUTO__
 #define __SHELL_AUTO__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "shellInt.h"
 
 #define TAB_KEY 0x09
@@ -46,5 +50,16 @@ void showAD(bool end);
 
 // show all commands help
 void showHelp();
+
+
+//
+//  for unit test 
+//
+bool fieldOptionsArea(char* p);
+bool isCreateFieldsArea(char* p);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

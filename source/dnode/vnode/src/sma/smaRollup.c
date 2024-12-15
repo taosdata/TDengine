@@ -238,22 +238,28 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
 }
 
 static void tdRSmaTaskInit(SStreamMeta *pMeta, SRSmaInfoItem *pItem, SStreamTaskId *pId) {
-  STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
+  STaskId      id = {.streamId = pId->streamId, .taskId = pId->taskId};
+  SStreamTask *pTask = NULL;
+
   streamMetaRLock(pMeta);
-  SStreamTask **ppTask = (SStreamTask **)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-  if (ppTask && *ppTask) {
-    pItem->submitReqVer = (*ppTask)->chkInfo.checkpointVer;
-    pItem->fetchResultVer = (*ppTask)->info.delaySchedParam;
+
+  int32_t code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
+  if (code == 0) {
+    pItem->submitReqVer = pTask->chkInfo.checkpointVer;
+    pItem->fetchResultVer = pTask->info.delaySchedParam;
+    streamMetaReleaseTask(pMeta, pTask);
   }
+
   streamMetaRUnLock(pMeta);
 }
 
 static void tdRSmaTaskRemove(SStreamMeta *pMeta, int64_t streamId, int32_t taskId) {
+  streamMetaWLock(pMeta);
+
   int32_t code = streamMetaUnregisterTask(pMeta, streamId, taskId);
   if (code != 0) {
     smaError("vgId:%d, rsma task:%" PRIi64 ",%d drop failed since %s", pMeta->vgId, streamId, taskId, tstrerror(code));
   }
-  streamMetaWLock(pMeta);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
@@ -302,7 +308,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     if (!pStreamTask->exec.qmsg) {
       TAOS_RETURN(terrno);
     }
-    (void)sprintf(pStreamTask->exec.qmsg, "%s", RSMA_EXEC_TASK_FLAG);
+    TAOS_UNUSED(snprintf(pStreamTask->exec.qmsg, strlen(RSMA_EXEC_TASK_FLAG) + 1, "%s", RSMA_EXEC_TASK_FLAG));
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
 
@@ -1546,7 +1552,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
       _resume_delete:
         version = RSMA_EXEC_MSG_VER(msg);
         if ((code = tqExtractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
-                                          &packData.pDataBlock, 1))) {
+                                          &packData.pDataBlock, 1, STREAM_DELETE_DATA))) {
           taosFreeQitem(msg);
           TAOS_CHECK_EXIT(code);
         }

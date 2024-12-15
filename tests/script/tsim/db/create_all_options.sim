@@ -128,6 +128,12 @@ endi
 if $data21_db != 3000 then  # wal_fsync_period
   return -1
 endi
+if $data30_db != 525600m then  # s3_keeplocal
+  return -1
+endi
+if $data31_db != 1 then  # s3_compact
+  return -1
+endi
 
 sql drop database db
 

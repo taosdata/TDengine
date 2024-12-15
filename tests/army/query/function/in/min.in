@@ -1,16 +1,28 @@
-select MIN(id) from ts_4893.meters;
-select MIN(current) from ts_4893.meters;
-select MIN(voltage) from ts_4893.meters;
-select MIN(name) from ts_4893.meters;
-select MIN(nch1) from ts_4893.meters;
-select MIN(nch2) from ts_4893.meters;
-select MIN(var1) from ts_4893.meters;
-select MIN(var2) from ts_4893.meters;
-select MIN(id) from ts_4893.meters interval(60d);
-select MIN(current) from ts_4893.meters interval(60d);
-select MIN(voltage) from ts_4893.meters interval(60d);
-select MIN(name) from ts_4893.meters interval(60d);
-select MIN(nch1) from ts_4893.meters interval(60d);
-select MIN(nch2) from ts_4893.meters interval(60d);
-select MIN(var1) from ts_4893.meters interval(60d);
-select MIN(var2) from ts_4893.meters interval(60d);
+select MIN(id) from ts_4893.meters
+select MIN(current) from ts_4893.meters
+select MIN(voltage) from ts_4893.meters
+select MIN(name) from ts_4893.meters
+select MIN(nch1) from ts_4893.meters
+select MIN(nch2) from ts_4893.meters
+select MIN(var1) from ts_4893.meters
+select MIN(var2) from ts_4893.meters
+select MIN(id) from ts_4893.meters interval(60d)
+select MIN(current) from ts_4893.meters interval(60d)
+select MIN(voltage) from ts_4893.meters interval(60d)
+select MIN(name) from ts_4893.meters interval(60d)
+select MIN(nch1) from ts_4893.meters interval(60d)
+select MIN(nch2) from ts_4893.meters interval(60d)
+select MIN(var1) from ts_4893.meters interval(60d)
+select MIN(var2) from ts_4893.meters interval(60d)
+select min(null) from ts_4893.meters
+select min(id) from ts_4893.meters where id > 0
+select min(id) from ts_4893.meters where id <= 0
+select min(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+select min(voltage) from ts_4893.meters where voltage is not null
+select min(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+select round(min(current), 2) from ts_4893.meters
+select pow(min(current), 2) from ts_4893.meters
+select log(min(voltage) + 1) from ts_4893.meters
+select groupid, min(voltage) from ts_4893.meters group by groupid order by groupid
+select location, min(current) from ts_4893.meters group by location order by location
+select location, min(id) from ts_4893.meters group by location order by location

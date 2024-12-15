@@ -24,7 +24,7 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
   char   *timeStr = valueNode->datum.p;
   int64_t value = 0;
-  int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value);
+  int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value, valueNode->tz, valueNode->charsetCxt);  //todo tz
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -51,7 +51,6 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
 
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     colDataDestroy(pColumnData);
     taosMemoryFree(pColumnData);
     return terrno;
@@ -80,7 +79,8 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
-
+  setTzCharset(&in, pValueNode->tz, pValueNode->charsetCxt);
+  setTzCharset(out, pValueNode->tz, pValueNode->charsetCxt);
   code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);
 
 _exit:
@@ -586,9 +586,11 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   SCL_ERR_JRET(sclSetOperatorValueType(node, ctx));
 
   SCL_ERR_JRET(sclInitParam(node->pLeft, &paramList[0], ctx, rowNum));
+  setTzCharset(&paramList[0], node->tz, node->charsetCxt);
   if (paramNum > 1) {
     TSWAP(ctx->type.selfType, ctx->type.peerType);
     SCL_ERR_JRET(sclInitParam(node->pRight, &paramList[1], ctx, rowNum));
+    setTzCharset(&paramList[1], node->tz, node->charsetCxt);
   }
 
   *pParams = paramList;
@@ -628,8 +630,8 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
        cell = cell->pNext) {
     pWhenThen = (SWhenThenNode *)node;
 
-    SCL_ERR_RET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
-    SCL_ERR_RET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
+    SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
+    SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
 
     SCL_ERR_JRET(vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
 
@@ -646,6 +648,10 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
 
       goto _return;
     }
+    sclFreeParam(pWhen);
+    sclFreeParam(pThen);
+    taosMemoryFreeClear(pWhen);
+    taosMemoryFreeClear(pThen);
   }
 
   if (pElse) {
@@ -672,8 +678,8 @@ _return:
 
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
-  taosMemoryFree(pWhen);
-  taosMemoryFree(pThen);
+  taosMemoryFreeClear(pWhen);
+  taosMemoryFreeClear(pThen);
 
   SCL_RET(code);
 }
@@ -752,6 +758,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       paramNum = 0;
   int32_t       code = 0;
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
+  setTzCharset(params, node->tz, node->charsetCxt);
 
   if (fmIsUserDefinedFunc(node->funcId)) {
     code = callUdfScalarFunc(node->functionName, params, paramNum, output);
@@ -954,7 +961,11 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
     sclError("invalid when/then in whenThen list");
     SCL_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
-
+  setTzCharset(pCase, node->tz, node->charsetCxt);
+  setTzCharset(pWhen, node->tz, node->charsetCxt);
+  setTzCharset(pThen, node->tz, node->charsetCxt);
+  setTzCharset(pElse, node->tz, node->charsetCxt);
+  setTzCharset(output, node->tz, node->charsetCxt);
   if (pCase) {
     SCL_ERR_JRET(vectorCompare(pCase, pWhen, &comp, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
 
@@ -1207,7 +1218,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  (void)strcpy(res->node.aliasName, node->node.aliasName);
+  tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType.type = output.columnData->info.type;
   res->node.resType.bytes = output.columnData->info.bytes;
   res->node.resType.scale = output.columnData->info.scale;
@@ -1223,7 +1234,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
         sclError("calloc %d failed", len);
         sclFreeParam(&output);
         nodesDestroyNode((SNode *)res);
-        ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+        ctx->code = terrno;
         return DEAL_RES_ERROR;
       }
       (void)memcpy(res->datum.p, output.columnData->pData, len);
@@ -1234,10 +1245,9 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
         sclError("calloc %d failed", (int)(varDataTLen(output.columnData->pData) + 1));
         sclFreeParam(&output);
         nodesDestroyNode((SNode *)res);
-        ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+        ctx->code = terrno;
         return DEAL_RES_ERROR;
       }
-      res->node.resType.bytes = varDataTLen(output.columnData->pData);
       (void)memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
@@ -1282,7 +1292,7 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   res->node.resType = node->node.resType;
   res->translate = true;
 
-  (void)strcpy(res->node.aliasName, node->node.aliasName);
+  tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   int32_t type = output.columnData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
     res->datum.p = output.columnData->pData;
@@ -1352,7 +1362,7 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  (void)strcpy(res->node.aliasName, node->node.aliasName);
+  tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
@@ -1415,7 +1425,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  (void)strcpy(res->node.aliasName, node->node.aliasName);
+  tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
@@ -1429,7 +1439,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
         sclError("calloc %d failed", (int)(varDataTLen(output.columnData->pData) + 1));
         sclFreeParam(&output);
         nodesDestroyNode((SNode *)res);
-        ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+        ctx->code = terrno;
         return DEAL_RES_ERROR;
       }
       (void)memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
@@ -1483,7 +1493,7 @@ EDealRes sclWalkFunction(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
@@ -1502,7 +1512,7 @@ EDealRes sclWalkLogic(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
@@ -1521,7 +1531,7 @@ EDealRes sclWalkOperator(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
@@ -1602,7 +1612,7 @@ EDealRes sclWalkCaseWhen(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     return DEAL_RES_ERROR;
   }
 

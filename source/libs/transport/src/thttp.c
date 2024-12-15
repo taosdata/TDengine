@@ -223,8 +223,8 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
     tError("http-report failed to resolving domain names %s, reason: %s", server, tstrerror(code));
     return TSDB_CODE_RPC_FQDN_ERROR;
   }
-  char buf[256] = {0};
-  tinet_ntoa(buf, ip);
+  char buf[TD_IP_LEN] = {0};
+  taosInetNtoa(buf, ip);
   int ret = uv_ip4_addr(buf, port, dest);
   if (ret != 0) {
     tError("http-report failed to get addr, reason:%s", uv_err_name(ret));

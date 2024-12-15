@@ -28,6 +28,8 @@ typedef struct SDnodeMgmt {
   const char                  *path;
   const char                  *name;
   TdThread                     statusThread;
+  TdThread                     configThread;
+  TdThread                     statusInfoThread;
   TdThread                     notifyThread;
   TdThread                     monitorThread;
   TdThread                     auditThread;
@@ -49,6 +51,8 @@ typedef struct SDnodeMgmt {
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
+void    dmSendConfigReq(SDnodeMgmt *pMgmt);
+void    dmUpdateStatusInfo(SDnodeMgmt *pMgmt);
 void    dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
@@ -62,7 +66,10 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
+int32_t dmStartConfigThread(SDnodeMgmt *pMgmt);
+int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
+void    dmStopStatusInfoThread(SDnodeMgmt *pMgmt);
 int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
 void    dmStopNotifyThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);

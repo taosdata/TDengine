@@ -127,6 +127,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->deployFps[sdbType] = table.deployFp;
   pSdb->encodeFps[sdbType] = table.encodeFp;
   pSdb->decodeFps[sdbType] = table.decodeFp;
+  pSdb->prepareFps[sdbType] = table.prepareFp;
   pSdb->validateFps[sdbType] = table.validateFp;
 
   int32_t hashType = 0;
@@ -168,11 +169,10 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
 }
 
 void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
-#if 1
-  mTrace("mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
-         " term:%" PRId64 " config:%" PRId64,
-         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
-#endif
+  mInfo("vgId:1, mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
+        " term:%" PRId64 " config:%" PRId64,
+        pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
+
   pSdb->applyIndex = index;
   pSdb->applyTerm = term;
   pSdb->applyConfig = config;

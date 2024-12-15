@@ -27,7 +27,7 @@ while [ -n "$PID" ]; do
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
 done
 
-PID=`ps -ef|grep -w taos | grep -v grep | awk '{print $2}'`
+PID=`ps -ef|grep -w taos | grep -v grep | grep -v taosanode|awk '{print $2}'`
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 taos

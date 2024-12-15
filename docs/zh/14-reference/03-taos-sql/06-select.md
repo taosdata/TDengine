@@ -62,7 +62,8 @@ window_clause: {
   | COUNT_WINDOW(count_val[, sliding_val])
 
 interp_clause:
-    RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
+      RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
+    | RANGE(ts_val, surrounding_time_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
@@ -253,6 +254,13 @@ select _rowts, max(current) from meters;
 
 ```sql
 select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+```
+
+**\_IROWTS\_ORIGIN**
+`_irowts_origin` 伪列只能与 interp 函数一起使用，不支持在流计算中使用, 仅适用于FILL类型为PREV/NEXT/NEAR, 用于返回 interp 函数所使用的原始数据的时间戳列。若范围内无值, 则返回 NULL。
+
+```sql
+select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(NEXT);
 ```
 
 ## 查询对象

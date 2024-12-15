@@ -37,7 +37,7 @@ static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
   char* pStr = NULL;
   code = nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    planDebugL("qid:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
+    planDebugL("QID:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
     taosMemoryFree(pStr);
   }
   return code;
@@ -123,7 +123,7 @@ int32_t qContinuePlanPostQuery(void* pPostPlan) {
 }
 
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
-  planDebug("qid:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);
+  planDebug("QID:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
@@ -143,7 +143,7 @@ static void clearSubplanExecutionNode(SPhysiNode* pNode) {
 }
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan) {
-  planDebug("qid:0x%" PRIx64 " clear subplan execution node, groupId:%d", pSubplan->id.queryId, pSubplan->id.groupId);
+  planDebug("QID:0x%" PRIx64 " clear subplan execution node, groupId:%d", pSubplan->id.queryId, pSubplan->id.groupId);
   clearSubplanExecutionNode(pSubplan->pNode);
 }
 

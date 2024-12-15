@@ -5,7 +5,7 @@ FIND_PATH(HEADER_GTEST_INCLUDE_DIR gtest.h /usr/include/gtest /usr/local/include
 FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64)
 FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64)
 
-IF (HEADER_GTEST_INCLUDE_DIR AND (LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
+IF(HEADER_GTEST_INCLUDE_DIR AND(LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
     MESSAGE(STATUS "gTest library found, build unit test")
 
     INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
@@ -20,20 +20,25 @@ IF (HEADER_GTEST_INCLUDE_DIR AND (LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
     LIST(APPEND SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
     ADD_EXECUTABLE(hashTest ${SOURCE_LIST})
     TARGET_LINK_LIBRARIES(hashTest util common os gtest pthread)
-    
+
     LIST(APPEND BIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
     ADD_EXECUTABLE(trefTest ${BIN_SRC})
     TARGET_LINK_LIBRARIES(trefTest common util)
-
 ENDIF()
 
-#IF (TD_LINUX)
-#    ADD_EXECUTABLE(trefTest ./trefTest.c)
-#    TARGET_LINK_LIBRARIES(trefTest util common)
-#ENDIF ()
-
+# IF (TD_LINUX)
+# ADD_EXECUTABLE(trefTest ./trefTest.c)
+# TARGET_LINK_LIBRARIES(trefTest util common)
+# ENDIF ()
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
+
+add_executable(heapTest "heapTest.cpp")
+target_link_libraries(heapTest os util gtest_main)
+add_test(
+    NAME heapTest
+    COMMAND heapTest
+)
 
 # arrayTest
 add_executable(arrayTest "arrayTest.cpp")
@@ -46,8 +51,8 @@ add_test(
 # # freelistTest
 # add_executable(freelistTest "")
 # target_sources(freelistTest
-#     PRIVATE
-#     "freelistTest.cpp"
+# PRIVATE
+# "freelistTest.cpp"
 # )
 # target_link_libraries(freelistTest os util gtest gtest_main)
 
@@ -57,7 +62,7 @@ add_test(
 
 # cfgTest
 add_executable(cfgTest "cfgTest.cpp")
-target_link_libraries(cfgTest os util gtest_main)   
+target_link_libraries(cfgTest os util gtest_main)
 add_test(
     NAME cfgTest
     COMMAND cfgTest
@@ -65,7 +70,7 @@ add_test(
 
 # bloomFilterTest
 add_executable(bloomFilterTest "bloomFilterTest.cpp")
-target_link_libraries(bloomFilterTest os util gtest_main)   
+target_link_libraries(bloomFilterTest os util gtest_main)
 add_test(
     NAME bloomFilterTest
     COMMAND bloomFilterTest
@@ -73,7 +78,7 @@ add_test(
 
 # taosbsearchTest
 add_executable(taosbsearchTest "taosbsearchTest.cpp")
-target_link_libraries(taosbsearchTest os util gtest_main)   
+target_link_libraries(taosbsearchTest os util gtest_main)
 add_test(
     NAME taosbsearchTest
     COMMAND taosbsearchTest
@@ -81,7 +86,7 @@ add_test(
 
 # trbtreeTest
 add_executable(rbtreeTest "trbtreeTest.cpp")
-target_link_libraries(rbtreeTest os util gtest_main)   
+target_link_libraries(rbtreeTest os util gtest_main)
 add_test(
     NAME rbtreeTest
     COMMAND rbtreeTest
@@ -120,20 +125,27 @@ add_test(
 )
 
 add_executable(regexTest "regexTest.cpp")
-target_link_libraries(regexTest os util gtest_main )
+target_link_libraries(regexTest os util gtest_main)
 add_test(
     NAME regexTest
     COMMAND regexTest
 )
 
-#add_executable(decompressTest "decompressTest.cpp")
-#target_link_libraries(decompressTest os util common gtest_main)
-#add_test(
-#    NAME decompressTest 
-#    COMMAND decompressTest
-#)
+add_executable(logTest "log.cpp")
+target_link_libraries(logTest os util common gtest_main)
+add_test(
+    NAME logTest
+    COMMAND logTest
+)
 
-if (${TD_LINUX})
+add_executable(decompressTest "decompressTest.cpp")
+target_link_libraries(decompressTest os util common gtest_main)
+add_test(
+    NAME decompressTest
+    COMMAND decompressTest
+)
+
+if(${TD_LINUX})
     # terrorTest
     add_executable(terrorTest "terrorTest.cpp")
     target_link_libraries(terrorTest os util common gtest_main)
@@ -147,4 +159,13 @@ if (${TD_LINUX})
     add_custom_command(TARGET terrorTest POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ERR_TBL_FILE} $<TARGET_FILE_DIR:terrorTest>
     )
-endif ()
+
+    # memPoolTest
+    add_executable(memPoolTest "memPoolTest.cpp")
+    target_link_libraries(memPoolTest os util common gtest_main)
+    add_test(
+        NAME memPoolTest
+        COMMAND memPoolTest
+    )
+
+endif()

@@ -602,14 +602,14 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
     SSttLvl *lvl;
     code = tsdbSttLvlInitRef(pTsdb, lvl1, &lvl);
     if (code) {
-      taosMemoryFree(lvl);
+      tsdbSttLvlClear(&lvl);
       tsdbTFileSetClear(fset);
       return code;
     }
 
     code = TARRAY2_APPEND(fset[0]->lvlArr, lvl);
     if (code) {
-      taosMemoryFree(lvl);
+      tsdbSttLvlClear(&lvl);
       tsdbTFileSetClear(fset);
       return code;
     }

@@ -188,17 +188,17 @@ do {                                                                \
 #define EXPLAIN_ROW_NEW(level, ...)                                                                               \
   do {                                                                                                            \
     if (isVerboseLine) {                                                                                          \
-      tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s", (level) * 3 + 3, "");       \
+      tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s", (level) * 3 + 3, "");       \
     } else {                                                                                                      \
-      tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s%s", (level) * 3, "", "-> ");  \
+      tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s%s", (level) * 3, "", "-> ");  \
     }                                                                                                             \
-    tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__);         \
+    tlen += tsnprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__);         \
   } while (0)
 
-#define EXPLAIN_ROW_APPEND(...) tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__)
+#define EXPLAIN_ROW_APPEND(...) tlen += tsnprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__)
 #define EXPLAIN_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; isVerboseLine = true; } while (0)
 
-#define EXPLAIN_SUM_ROW_NEW(...) tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, __VA_ARGS__)
+#define EXPLAIN_SUM_ROW_NEW(...) tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, __VA_ARGS__)
 #define EXPLAIN_SUM_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; } while (0)
 
 #define EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, sl) do {                                            \

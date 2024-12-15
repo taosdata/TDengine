@@ -29,6 +29,8 @@ extern "C" {
 #define TSDB_INS_TABLE_QNODES            "ins_qnodes"
 #define TSDB_INS_TABLE_BNODES            "ins_bnodes"  // no longer used
 #define TSDB_INS_TABLE_SNODES            "ins_snodes"
+#define TSDB_INS_TABLE_ANODES            "ins_anodes"
+#define TSDB_INS_TABLE_ANODES_FULL       "ins_anodes_full"
 #define TSDB_INS_TABLE_ARBGROUPS         "ins_arbgroups"
 #define TSDB_INS_TABLE_CLUSTER           "ins_cluster"
 #define TSDB_INS_TABLE_DATABASES         "ins_databases"
@@ -59,6 +61,8 @@ extern "C" {
 #define TSDB_INS_TABLE_MACHINES          "ins_machines"
 #define TSDB_INS_TABLE_ENCRYPTIONS       "ins_encryptions"
 #define TSDB_INS_TABLE_TSMAS             "ins_tsmas"
+#define TSDB_INS_DISK_USAGE              "ins_disk_usage"
+#define TSDB_INS_TABLE_FILESETS          "ins_filesets"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS        "perf_smas"

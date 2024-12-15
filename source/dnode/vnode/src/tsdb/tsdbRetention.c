@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cos.h"
+#include "tcs.h"
 #include "tsdb.h"
 #include "tsdbFS2.h"
 #include "vnd.h"
@@ -426,35 +426,6 @@ static int32_t tsdbS3FidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3Kee
   }
 }
 
-static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile *to) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  char      fname[TSDB_FILENAME_LEN];
-  TdFilePtr fdFrom = NULL;
-  // TdFilePtr fdTo = NULL;
-
-  tsdbTFileName(rtner->tsdb, to, fname);
-
-  fdFrom = taosOpenFile(from->fname, TD_FILE_READ);
-  if (fdFrom == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _exit);
-  }
-
-  char *object_name = taosDirEntryBaseName(fname);
-  TAOS_CHECK_GOTO(s3PutObjectFromFile2(from->fname, object_name, 1), &lino, _exit);
-
-_exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed at line %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(code));
-  }
-  if (taosCloseFile(&fdFrom) != 0) {
-    tsdbTrace("vgId:%d, failed to close file", TD_VID(rtner->tsdb->pVnode));
-  }
-  return code;
-}
-
 static int32_t tsdbMigrateDataFileLCS3(SRTNer *rtner, const STFileObj *fobj, int64_t size, int64_t chunksize) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -519,7 +490,7 @@ static int32_t tsdbMigrateDataFileLCS3(SRTNer *rtner, const STFileObj *fobj, int
     snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", cn);
     int64_t c_offset = chunksize * (cn - fobj->f->lcn);
 
-    TAOS_CHECK_GOTO(s3PutObjectFromFileOffset(fname, object_name_prefix, c_offset, chunksize), &lino, _exit);
+    TAOS_CHECK_GOTO(tcsPutObjectFromFileOffset(fname, object_name_prefix, c_offset, chunksize), &lino, _exit);
   }
 
   // copy last chunk
@@ -618,7 +589,7 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, int64
     snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", cn);
     int64_t c_offset = chunksize * (cn - 1);
 
-    TAOS_CHECK_GOTO(s3PutObjectFromFileOffset(fobj->fname, object_name_prefix, c_offset, chunksize), &lino, _exit);
+    TAOS_CHECK_GOTO(tcsPutObjectFromFileOffset(fobj->fname, object_name_prefix, c_offset, chunksize), &lino, _exit);
   }
 
   // copy last chunk
@@ -689,7 +660,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
   int32_t lcn = fobj->f->lcn;
 
   if (/*lcn < 1 && */ taosCheckExistFile(fobj->fname)) {
-    int32_t mtime = 0;
+    int64_t mtime = 0;
     int64_t size = 0;
     int32_t r = taosStatFile(fobj->fname, &size, &mtime, NULL);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
@@ -716,7 +687,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
     tsdbTFileLastChunkName(rtner->tsdb, fobj->f, fname1);
 
     if (taosCheckExistFile(fname1)) {
-      int32_t mtime = 0;
+      int64_t mtime = 0;
       int64_t size = 0;
       if (taosStatFile(fname1, &size, &mtime, NULL) != 0) {
         tsdbError("vgId:%d, %s failed at %s:%d ", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, __LINE__);
@@ -741,8 +712,6 @@ _exit:
 int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   int32_t code = 0;
 
-  extern int8_t tsS3EnabledCfg;
-
   int32_t expired = grantCheck(TSDB_GRANT_OBJECT_STORAGE);
   if (expired && tsS3Enabled) {
     tsdbWarn("s3 grant expired: %d", expired);
@@ -762,5 +731,32 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   if (code) {
     tsdbError("vgId:%d, %s failed, reason:%s", TD_VID(tsdb->pVnode), __func__, tstrerror(code));
   }
+  return code;
+}
+
+static int32_t tsdbGetS3SizeImpl(STsdb *tsdb, int64_t *size) {
+  int32_t code = 0;
+
+  SVnodeCfg *pCfg = &tsdb->pVnode->config;
+  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
+    if (fobj) {
+      int32_t lcn = fobj->f->lcn;
+      if (lcn > 1) {
+        *size += ((lcn - 1) * chunksize);
+      }
+    }
+  }
+
+  return code;
+}
+int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
+  int32_t code = 0;
+  (void)taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbGetS3SizeImpl(tsdb, size);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }

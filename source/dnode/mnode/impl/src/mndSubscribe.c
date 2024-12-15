@@ -187,12 +187,12 @@ static void mndSplitSubscribeKey(const char *key, char *topic, char *cgroup, boo
   (void)memcpy(cgroup, key, i);
   cgroup[i] = 0;
   if (fullName) {
-    (void)strcpy(topic, &key[i + 1]);
+    tstrncpy(topic, &key[i + 1], TSDB_TOPIC_FNAME_LEN);
   } else {
     while (key[i] != '.') {
       i++;
     }
-    (void)strcpy(topic, &key[i + 1]);
+    tstrncpy(topic, &key[i + 1], TSDB_CGROUP_LEN);
   }
 }
 
@@ -1361,7 +1361,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
 
     // consumer id
     char consumerIdHex[TSDB_CONSUMER_ID_LEN] = {0};
-    (void)sprintf(varDataVal(consumerIdHex), "0x%" PRIx64, consumerId);
+    (void)snprintf(varDataVal(consumerIdHex), TSDB_CONSUMER_ID_LEN - VARSTR_HEADER_SIZE, "0x%" PRIx64, consumerId);
     varDataSetLen(consumerIdHex, strlen(varDataVal(consumerIdHex)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1398,7 +1398,8 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
       // vg id
       char buf[TSDB_OFFSET_LEN * 2 + VARSTR_HEADER_SIZE] = {0};
       (void)tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &data->offset);
-      (void)sprintf(varDataVal(buf) + strlen(varDataVal(buf)), "/%" PRId64, data->ever);
+      (void)snprintf(varDataVal(buf) + strlen(varDataVal(buf)),
+                     sizeof(buf) - VARSTR_HEADER_SIZE - strlen(varDataVal(buf)), "/%" PRId64, data->ever);
       varDataSetLen(buf, strlen(varDataVal(buf)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       MND_TMQ_NULL_CHECK(pColInfo);

@@ -218,14 +218,15 @@ void destroyPriorityQueue(PriorityQueue* pq) {
   if (pq->deleteFn)
     taosArrayDestroyP(pq->container, pq->deleteFn);
   else
-    taosArrayDestroy(pq->container);
+    taosArrayDestroyP(pq->container, NULL);
   taosMemoryFree(pq);
 }
 
 static size_t pqParent(size_t i) { return (--i) >> 1; /* (i - 1) / 2 */ }
 static size_t pqLeft(size_t i) { return (i << 1) | 1; /* i * 2 + 1 */ }
 static size_t pqRight(size_t i) { return (++i) << 1; /* (i + 1) * 2 */ }
-static void   pqSwapPQNode(PriorityQueueNode* a, PriorityQueueNode* b) {
+
+static void pqSwapPQNode(PriorityQueueNode* a, PriorityQueueNode* b) {
   void* tmp = a->data;
   a->data = b->data;
   b->data = tmp;
@@ -307,7 +308,11 @@ PriorityQueueNode* taosPQPush(PriorityQueue* pq, const PriorityQueueNode* node) 
 
 void taosPQPop(PriorityQueue* pq) {
   PriorityQueueNode* top = taosPQTop(pq);
-  if (pq->deleteFn) pq->deleteFn(top->data);
+  if (pq->deleteFn) {
+    pq->deleteFn(top->data);
+  } else {
+    taosMemoryFree(top->data);
+  }
   pqRemove(pq, 0);
 }
 
@@ -341,6 +346,13 @@ BoundedQueue* createBoundedQueue(uint32_t maxSize, pq_comp_fn fn, FDelete delete
 
 void taosBQSetFn(BoundedQueue* q, pq_comp_fn fn) { taosPQSetFn(q->queue, fn); }
 
+void taosBQClear(BoundedQueue* q) {
+  if (q->queue->deleteFn)
+    taosArrayClearEx(q->queue->container, q->queue->deleteFn);
+  else
+    taosArrayClear(q->queue->container);
+}
+
 void destroyBoundedQueue(BoundedQueue* q) {
   if (!q) return;
   destroyPriorityQueue(q->queue);
@@ -355,8 +367,10 @@ PriorityQueueNode* taosBQPush(BoundedQueue* q, PriorityQueueNode* n) {
     } else {
       void* p = top->data;
       top->data = n->data;
-      n->data = p;
-      if (q->queue->deleteFn) q->queue->deleteFn(n->data);
+      if (q->queue->deleteFn) {
+        n->data = p;
+        q->queue->deleteFn(n->data);
+      }
     }
     return pqHeapify(q->queue, 0, taosBQSize(q));
   } else {

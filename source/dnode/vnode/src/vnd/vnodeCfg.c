@@ -45,6 +45,7 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                            .retentionPeriod = -1,
                                            .rollPeriod = 0,
                                            .segSize = 0,
+                                           .committed = 0,
                                            .retentionSize = -1,
                                            .level = TAOS_WAL_WRITE,
                                            .clearFiles = 0,
@@ -264,7 +265,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -291,7 +292,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif

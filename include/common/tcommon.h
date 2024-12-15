@@ -89,32 +89,6 @@ typedef struct {
   int32_t  exprIdx;
 } STupleKey;
 
-typedef struct STuplePos {
-  union {
-    struct {
-      int32_t pageId;
-      int32_t offset;
-    };
-    SWinKey streamTupleKey;
-  };
-} STuplePos;
-
-typedef struct SFirstLastRes {
-  bool hasResult;
-  // used for last_row function only, isNullRes in SResultRowEntry can not be passed to downstream.So,
-  // this attribute is required
-  bool      isNull;
-  int32_t   bytes;
-  int64_t   ts;
-  char*     pkData;
-  int32_t   pkBytes;
-  int8_t    pkType;
-  STuplePos pos;
-  STuplePos nullTuplePos;
-  bool      nullTupleSaved;
-  char      buf[];
-} SFirstLastRes;
-
 static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   STupleKey* pTuple1 = (STupleKey*)pKey1;
   STupleKey* pTuple2 = (STupleKey*)pKey2;
@@ -180,6 +154,8 @@ typedef enum EStreamType {
   STREAM_TRANS_STATE,
   STREAM_MID_RETRIEVE,
   STREAM_PARTITION_DELETE_DATA,
+  STREAM_GET_RESULT,
+  STREAM_DROP_CHILD_TABLE,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -242,9 +218,9 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
-  SColumnDataAgg*  pBlockAgg;
-  SArray*          pDataBlock;  // SArray<SColumnInfoData>
-  SDataBlockInfo   info;
+  SColumnDataAgg* pBlockAgg;
+  SArray*         pDataBlock;  // SArray<SColumnInfoData>
+  SDataBlockInfo  info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -275,6 +251,7 @@ typedef struct SQueryTableDataCond {
   int32_t      type;       // data block load type:
   bool         skipRollup;
   STimeWindow  twindows;
+  STimeWindow  extTwindows[2];
   int64_t      startVersion;
   int64_t      endVersion;
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
@@ -324,6 +301,15 @@ typedef struct STableBlockDistInfo {
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
 int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo);
+
+typedef struct SDBBlockUsageInfo {
+  uint64_t dataInDiskSize;
+  uint64_t walInDiskSize;
+  uint64_t rawDataSize;
+} SDBBlockUsageInfo;
+
+int32_t tSerializeBlockDbUsage(void* buf, int32_t bufLen, const SDBBlockUsageInfo* pInfo);
+int32_t tDeserializeBlockDbUsage(void* buf, int32_t bufLen, SDBBlockUsageInfo* pInfo);
 
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,
@@ -409,6 +395,10 @@ typedef struct STUidTagInfo {
 #define TABLE_NAME_COLUMN_INDEX         6
 #define PRIMARY_KEY_COLUMN_INDEX        7
 
+//steam get result block column
+#define DATA_TS_COLUMN_INDEX            0
+#define DATA_VERSION_COLUMN_INDEX       1
+
 // stream create table block column
 #define UD_TABLE_NAME_COLUMN_INDEX 0
 #define UD_GROUPID_COLUMN_INDEX    1
@@ -417,11 +407,13 @@ typedef struct STUidTagInfo {
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
 int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
 
-#define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
-#define MD5_OUTPUT_LEN 32
-#define TSMA_RES_STB_EXTRA_COLUMN_NUM 4 // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
+#define TSMA_RES_STB_POSTFIX          "_tsma_res_stb_"
+#define MD5_OUTPUT_LEN                32
+#define TSMA_RES_STB_EXTRA_COLUMN_NUM 4  // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
 
 static inline bool isTsmaResSTb(const char* stbName) {
+  static bool showTsmaTables = false;
+  if (showTsmaTables) return false;
   const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
   if (pos && strlen(stbName) == (pos - stbName) + strlen(TSMA_RES_STB_POSTFIX)) {
     return true;

@@ -68,14 +68,14 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
         return DEAL_RES_ERROR;
       }
       pCol->node.resType = pExpr->resType;
-      strcpy(pCol->colName, pExpr->aliasName);
+      tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
       if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
         SFunctionNode* pFunc = (SFunctionNode*)pNode;
         if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
           SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
           if (NULL != pVal) {
-            strcpy(pCol->tableAlias, pVal->literal);
-            strcpy(pCol->tableName, pVal->literal);
+            tstrncpy(pCol->tableAlias, pVal->literal, TSDB_TABLE_NAME_LEN);
+            tstrncpy(pCol->tableName, pVal->literal, TSDB_TABLE_NAME_LEN);
           }
         }
       }
@@ -256,6 +256,15 @@ static int32_t adjustCountDataRequirement(SWindowLogicNode* pWindow, EDataOrderL
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustAnomalyDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  if (requirement <= pWindow->node.resultDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pWindow->node.resultDataOrder = requirement;
+  pWindow->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
   switch (pWindow->winType) {
     case WINDOW_TYPE_INTERVAL:
@@ -268,6 +277,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustEventDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_COUNT:
       return adjustCountDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_ANOMALY:
+      return adjustAnomalyDataRequirement(pWindow, requirement);
     default:
       break;
   }
@@ -318,6 +329,15 @@ static int32_t adjustInterpDataRequirement(SInterpFuncLogicNode* pInterp, EDataO
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustForecastDataRequirement(SForecastFuncLogicNode* pForecast, EDataOrderLevel requirement) {
+  if (requirement <= pForecast->node.requireDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pForecast->node.resultDataOrder = requirement;
+  pForecast->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requirement) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -354,6 +374,9 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       break;
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       code = adjustInterpDataRequirement((SInterpFuncLogicNode*)pNode, requirement);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      code = adjustForecastDataRequirement((SForecastFuncLogicNode*)pNode, requirement);
       break;
     default:
       break;
@@ -613,9 +636,9 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
   SFunctionNode* pFunc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (pFunc) {
-    strcpy(pFunc->functionName, "_group_key");
-    strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
-    strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
+    tstrncpy(pFunc->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
+    tstrncpy(pFunc->node.aliasName, pGroupCol->node.aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.userAlias, pGroupCol->node.userAlias, TSDB_COL_NAME_LEN);
     SNode* pNew = NULL;
     code = nodesCloneNode((SNode*)pGroupCol, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
@@ -630,9 +653,9 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-      int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+      int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
       (void)taosHashBinary(name, len);
-      strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+      tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {

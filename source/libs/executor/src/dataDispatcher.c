@@ -43,16 +43,78 @@ typedef struct SDataDispatchHandle {
   SDataSinkHandle     sink;
   SDataSinkManager*   pManager;
   SDataBlockDescNode* pSchema;
+  SDataSinkNode*      pSinkNode;
   STaosQueue*         pDataBlocks;
   SDataDispatchBuf    nextOutput;
+  int32_t             outPutColCounts;
   int32_t             status;
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  uint64_t            flags;
   void*               pCompressBuf;
   int32_t             bufSize;
   TdThreadMutex       mutex;
 } SDataDispatchHandle;
+
+static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* pInput)  {
+  if(tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pInput == NULL || pInput->pData == NULL || pInput->pData->info.rows <= 0) {
+    qError("invalid input data");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  SDataBlockDescNode* pSchema = pHandle->pSchema;
+  if (pSchema == NULL || pSchema->totalRowSize != pInput->pData->info.rowSize) {
+    qError("invalid schema");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  if (pHandle->outPutColCounts > taosArrayGetSize(pInput->pData->pDataBlock)) {
+    qError("invalid column number, schema:%d, input:%zu", pHandle->outPutColCounts, taosArrayGetSize(pInput->pData->pDataBlock));
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  SNode*  pNode;
+  int32_t colNum = 0;
+  FOREACH(pNode, pHandle->pSchema->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pInput->pData->pDataBlock, colNum);
+      if (pColInfoData == NULL) {
+        return -1;
+      }
+      if (pColInfoData->info.bytes < 0) {
+        qError("invalid column bytes, schema:%d, input:%d", pSlotDesc->dataType.bytes, pColInfoData->info.bytes);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
+      if (!IS_VAR_DATA_TYPE(pColInfoData->info.type) &&
+          TYPE_BYTES[pColInfoData->info.type] != pColInfoData->info.bytes) {
+        qError("invalid column bytes, schema:%d, input:%d", TYPE_BYTES[pColInfoData->info.type],
+               pColInfoData->info.bytes);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
+      if (pColInfoData->info.type != pSlotDesc->dataType.type) {
+        qError("invalid column type, schema:%d, input:%d", pSlotDesc->dataType.type, pColInfoData->info.type);
+        return TSDB_CODE_QRY_INVALID_INPUT;
+      }
+      if (pColInfoData->info.bytes != pSlotDesc->dataType.bytes) {
+        qError("invalid column bytes, schema:%d, input:%d", pSlotDesc->dataType.bytes, pColInfoData->info.bytes);
+        return TSDB_CODE_QRY_INVALID_INPUT;
+      }
+
+      if (IS_INVALID_TYPE(pColInfoData->info.type)) {
+        qError("invalid column type, type:%d", pColInfoData->info.type);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
+      ++colNum;
+    }
+  }
+
+
+  return TSDB_CODE_SUCCESS;
+}
 
 // clang-format off
 // data format:
@@ -66,6 +128,12 @@ typedef struct SDataDispatchHandle {
 static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   int32_t numOfCols = 0;
   SNode*  pNode;
+
+  int32_t code = inputSafetyCheck(pHandle, pInput);
+  if (code) {
+    qError("failed to check input data, code:%d", code);
+    return code;
+  }
 
   FOREACH(pNode, pHandle->pSchema->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
@@ -84,17 +152,18 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
   pBuf->useSize = sizeof(SDataCacheEntry);
 
   {
+    // allocate additional 8 bytes to avoid invalid write if compress failed to reduce the size
+    size_t dataEncodeBufSize = pBuf->allocSize + 8;
     if ((pBuf->allocSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pHandle->pManager->cfg.compress) {
       if (pHandle->pCompressBuf == NULL) {
-        // allocate additional 8 bytes to avoid invalid write if compress failed to reduce the size
-        pHandle->pCompressBuf = taosMemoryMalloc(pBuf->allocSize + 8);
+        pHandle->pCompressBuf = taosMemoryMalloc(dataEncodeBufSize);
         if (NULL == pHandle->pCompressBuf) {
           QRY_RET(terrno);
         }
-        pHandle->bufSize = pBuf->allocSize + 8;
+        pHandle->bufSize = dataEncodeBufSize;
       } else {
-        if (pHandle->bufSize < pBuf->allocSize + 8) {
-          pHandle->bufSize = pBuf->allocSize + 8;
+        if (pHandle->bufSize < dataEncodeBufSize) {
+          pHandle->bufSize = dataEncodeBufSize;
           void* p = taosMemoryRealloc(pHandle->pCompressBuf, pHandle->bufSize);
           if (p != NULL) {
             pHandle->pCompressBuf = p;
@@ -105,7 +174,7 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
         }
       }
 
-      int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, numOfCols);
+      int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, dataEncodeBufSize, numOfCols);
       if(dataLen < 0) {
         qError("failed to encode data block, code: %d", dataLen);
         return terrno;
@@ -123,7 +192,7 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
         TAOS_MEMCPY(pEntry->data, pHandle->pCompressBuf, dataLen);
       }
     } else {
-      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
+      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data,  pBuf->allocSize, numOfCols);
       if(pEntry->dataLen < 0) {
         qError("failed to encode data block, code: %d", pEntry->dataLen);
         return terrno;
@@ -288,6 +357,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDispatcher->cachedSize);
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);
+  nodesDestroyNode((SNode*)pDispatcher->pSinkNode);
 
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
@@ -314,8 +384,68 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
+static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
+  SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
+
+  *pFlags = atomic_load_64(&pDispatcher->flags);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t blockDescNodeCheck(SDataBlockDescNode* pInputDataBlockDesc)  {
+  if(tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pInputDataBlockDesc == NULL) {
+    qError("invalid schema");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  SNode*  pNode;
+  int32_t realOutputRowSize = 0;
+  FOREACH(pNode, pInputDataBlockDesc->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      realOutputRowSize += pSlotDesc->dataType.bytes;
+    } else {
+      // Slots must be sorted, and slots with 'output' set to true must come first
+      break;
+    }
+  }
+  if (realOutputRowSize !=  pInputDataBlockDesc->outputRowSize) {
+    qError("invalid schema, realOutputRowSize:%d, outputRowSize:%d", realOutputRowSize, pInputDataBlockDesc->outputRowSize);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getOutputColCounts(SDataBlockDescNode* pInputDataBlockDesc) {
+  if (pInputDataBlockDesc == NULL) {
+    qError("invalid schema");
+    return 0;
+  }
+  SNode*  pNode;
+  int32_t numOfCols = 0;
+  FOREACH(pNode, pInputDataBlockDesc->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      ++numOfCols;
+    } else {
+      // Slots must be sorted, and slots with 'output' set to true must come first
+      break;
+    }
+  }
+  return numOfCols;
+}
+
+int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle) {
   int32_t code;
+  SDataSinkNode* pDataSink = *ppDataSink;
+  code = blockDescNodeCheck(pDataSink->pInputDataBlockDesc);
+  if (code) {
+    qError("failed to check input data block desc, code:%d", code);
+    goto _return;
+  }
 
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
@@ -329,10 +459,13 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;
   dispatcher->sink.fGetCacheSize = getCacheSize;
-
+  dispatcher->sink.fGetFlags = getSinkFlags;
   dispatcher->pManager = pManager;
   pManager = NULL;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
+  dispatcher->pSinkNode = pDataSink;
+  *ppDataSink = NULL;
+  dispatcher->outPutColCounts = getOutputColCounts(dispatcher->pSchema);
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
   code = taosOpenQueue(&dispatcher->pDataBlocks);
@@ -346,6 +479,8 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
     goto _return;
   }
 
+  dispatcher->flags = DS_FLAG_USE_MEMPOOL;
+
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
 
@@ -356,5 +491,9 @@ _return:
   if (dispatcher) {
     dsDestroyDataSinker(dispatcher);
   }
+
+  nodesDestroyNode((SNode *)*ppDataSink);
+  *ppDataSink = NULL;
+  
   return terrno;
 }

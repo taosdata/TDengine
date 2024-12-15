@@ -63,6 +63,12 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
   pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;
+
+  // file set iterate
+  pReader->fileSetReaderOpen = tsdbFileSetReaderOpen;
+  pReader->fileSetReadNext = tsdbFileSetReaderNext;
+  pReader->fileSetGetEntryField = tsdbFileSetGetEntryField;
+  pReader->fileSetReaderClose = tsdbFileSetReaderClose;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -105,6 +111,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->pauseCtbCursor = metaPauseCtbCursor;
   pMeta->closeCtbCursor = metaCloseCtbCursor;
   pMeta->ctbCursorNext = metaCtbCursorNext;
+  pMeta->getDBSize = vnodeGetDBSize;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {
@@ -147,6 +154,7 @@ void initStateStoreAPI(SStateStore* pStore) {
 
   pStore->streamStatePutParName = streamStatePutParName;
   pStore->streamStateGetParName = streamStateGetParName;
+  pStore->streamStateDeleteParName = streamStateDeleteParName;
 
   pStore->streamStateAddIfNotExist = streamStateAddIfNotExist;
   pStore->streamStateReleaseBuf = streamStateReleaseBuf;
@@ -162,10 +170,14 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSaveInfo = streamStateSaveInfo;
   pStore->streamStateGetInfo = streamStateGetInfo;
   pStore->streamStateSetNumber = streamStateSetNumber;
+  pStore->streamStateGetPrev = streamStateGetPrev;
 
   pStore->streamStateFillPut = streamStateFillPut;
   pStore->streamStateFillGet = streamStateFillGet;
+  pStore->streamStateFillAddIfNotExist = streamStateFillAddIfNotExist;
   pStore->streamStateFillDel = streamStateFillDel;
+  pStore->streamStateFillGetNext = streamStateFillGetNext;
+  pStore->streamStateFillGetPrev = streamStateFillGetPrev;
 
   pStore->streamStateCurNext = streamStateCurNext;
   pStore->streamStateCurPrev = streamStateCurPrev;
@@ -176,8 +188,11 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateFillSeekKeyPrev = streamStateFillSeekKeyPrev;
   pStore->streamStateFreeCur = streamStateFreeCur;
 
-  pStore->streamStateGetGroupKVByCur = streamStateGetGroupKVByCur;
+  pStore->streamStateFillGetGroupKVByCur = streamStateFillGetGroupKVByCur;
   pStore->streamStateGetKVByCur = streamStateGetKVByCur;
+
+  pStore->streamStateSetFillInfo = streamStateSetFillInfo;
+  pStore->streamStateClearExpiredState = streamStateClearExpiredState;
 
   pStore->streamStateSessionAddIfNotExist = streamStateSessionAddIfNotExist;
   pStore->streamStateSessionPut = streamStateSessionPut;
@@ -213,6 +228,11 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateCountSeekKeyPrev = streamStateCountSeekKeyPrev;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
   pStore->streamStateSessionSeekKeyCurrentNext = streamStateSessionSeekKeyCurrentNext;
+
+  pStore->streamStateGroupPut = streamStateGroupPut;
+  pStore->streamStateGroupGetCur = streamStateGroupGetCur;
+  pStore->streamStateGroupCurNext = streamStateGroupCurNext;
+  pStore->streamStateGroupGetKVByCur = streamStateGroupGetKVByCur;
 
   pStore->streamFileStateDestroy = streamFileStateDestroy;
   pStore->streamFileStateClear = streamFileStateClear;

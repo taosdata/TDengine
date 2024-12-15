@@ -200,6 +200,7 @@ void* taosArrayPop(SArray* pArray) {
 void* taosArrayGet(const SArray* pArray, size_t index) {
   if (NULL == pArray) {
     terrno = TSDB_CODE_INVALID_PARA;
+    uError("failed to return value from array of null ptr");
     return NULL;
   }
 
@@ -393,8 +394,14 @@ void taosArrayClearP(SArray* pArray, void (*fp)(void*)) {
   //   fp(TARRAY_GET_ELEM(pArray, i));
   // }
   if (pArray) {
-    for (int32_t i = 0; i < pArray->size; i++) {
-      fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+    if (NULL == fp) {
+      for (int32_t i = 0; i < pArray->size; i++) {
+        taosMemoryFree(*(void**)TARRAY_GET_ELEM(pArray, i));
+      }
+    } else {
+      for (int32_t i = 0; i < pArray->size; i++) {
+        fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+      }
     }
   }
   taosArrayClear(pArray);
@@ -409,8 +416,14 @@ void taosArrayDestroy(SArray* pArray) {
 
 void taosArrayDestroyP(SArray* pArray, FDelete fp) {
   if (pArray) {
-    for (int32_t i = 0; i < pArray->size; i++) {
-      fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+    if (NULL == fp) {
+      for (int32_t i = 0; i < pArray->size; i++) {
+        taosMemoryFree(*(void**)TARRAY_GET_ELEM(pArray, i));
+      }
+    } else {
+      for (int32_t i = 0; i < pArray->size; i++) {
+        fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+      }
     }
     taosArrayDestroy(pArray);
   }

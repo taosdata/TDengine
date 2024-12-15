@@ -47,7 +47,7 @@ for test:
 
 
 class TDTestCase(TBase):
-    index = eutil.cpuRand(20) + 1
+    index = eutil.cpuRand(40) + 1
     bucketName = f"ci-bucket{index}"
     updatecfgDict = {
         "supportVnodes":"1000",
@@ -62,6 +62,10 @@ class TDTestCase(TBase):
 
     tdLog.info(f"assign bucketName is {bucketName}\n")
     maxFileSize = (128 + 10) * 1014 * 1024 # add 10M buffer
+
+    def exit(self, log):
+        self.dropDb(True)
+        tdLog.exit(log)
 
     def insertData(self):
         tdLog.info(f"insert data.")
@@ -107,8 +111,8 @@ class TDTestCase(TBase):
         loop = 0
         rets = []
         overCnt = 0
-        while loop < 200:
-            time.sleep(3)
+        while loop < 150:
+            time.sleep(2)
 
             # check upload to s3
             rets = eos.runRetList(cmd)
@@ -134,7 +138,7 @@ class TDTestCase(TBase):
                 
         # check can pass
         if overCnt > 0:
-            tdLog.exit(f"s3 have {overCnt} files over size.")
+            self.exit(f"s3 have {overCnt} files over size.")
 
 
     def doAction(self):
@@ -159,7 +163,7 @@ class TDTestCase(TBase):
                 return True
             time.sleep(1)
             
-        tdLog.exit(f"stream count is not expect . expect = 100000 or 100001 real={count} . sql={sql}")
+        self.exit(f"stream count is not expect . expect = 100000 or 100001 real={count} . sql={sql}")
 
 
     def checkCreateDb(self, keepLocal, chunkSize, compact):
@@ -168,13 +172,13 @@ class TDTestCase(TBase):
         if keepLocal is not None:
             kw1 = f"s3_keeplocal {keepLocal}"
         if chunkSize is not None:
-            kw2 = f"s3_chunksize {chunkSize}"
+            kw2 = f"s3_chunkpages {chunkSize}"
         if compact is not None:
             kw3 = f"s3_compact {compact}"    
 
         sql = f" create database db1 vgroups 1 duration 1h {kw1} {kw2} {kw3}"
         tdSql.execute(sql, show=True)
-        #sql = f"select name,s3_keeplocal,s3_chunksize,s3_compact from information_schema.ins_databases where name='db1';"
+        #sql = f"select name,s3_keeplocal,s3_chunkpages,s3_compact from information_schema.ins_databases where name='db1';"
         sql = f"select * from information_schema.ins_databases where name='db1';"
         tdSql.query(sql)
         # 29 30 31 -> chunksize keeplocal compact
@@ -194,9 +198,9 @@ class TDTestCase(TBase):
             f"create database db2 s3_keeplocal -1",
             f"create database db2 s3_keeplocal 0",
             f"create database db2 s3_keeplocal 365001",
-            f"create database db2 s3_chunksize -1",
-            f"create database db2 s3_chunksize 0",
-            f"create database db2 s3_chunksize 900000000",
+            f"create database db2 s3_chunkpages -1",
+            f"create database db2 s3_chunkpages 0",
+            f"create database db2 s3_chunkpages 900000000",
             f"create database db2 s3_compact -1",
             f"create database db2 s3_compact 100",
             f"create database db2 duration 1d s3_keeplocal 1d"

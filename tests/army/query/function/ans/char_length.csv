@@ -1,93 +1,259 @@
-5
-11
-12
-18
-12
-6.000000000000000
-4.000000000000000
-5
-5
-5
-5
-5
-6.000000000000000
-1.000000000000000e+01
-5
-10
-6
-7
-5
-5
-6
-5
-5
-10
-10
-16
-11
-12
-15
-5
-10
-6
-7
-5
-25.000000000000000
-100.000000000000000
-36.000000000000000
-49.000000000000000
-25.000000000000000
-2.236067977499790
-3.162277660168380
-2.449489742783178
-2.645751311064591
-2.236067977499790
-5
-10
-6
-7
-5
-4
-2
-6
-5
-5
-10
-6
-7
-5
-5
-5
-10
-5
-5
-5
-10
-6
-7
-5
-5
-5
-10
-5
-5
-5
-6
-5
-5
-10
-6
-7
-6
-7
-5
-5
-6
-5
-5
-10
-6
-7
-6
-7
-5
+
+taos> select CHAR_LENGTH('hello')
+ char_length('hello')  |
+========================
+                     5 |
+
+taos> select CHAR_LENGTH('hello world')
+ char_length('hello world') |
+=============================
+                         11 |
+
+taos> select CHAR_LENGTH('hello world!')
+ char_length('hello world!') |
+==============================
+                          12 |
+
+taos> select CHAR_LENGTH('hello,world.你好，世界。')
+ char_length('hello,world.你好，世界。') |
+================================================
+                                            18 |
+
+taos> select CHAR_LENGTH('北京涛思数据科技有限公司')
+ char_length('北京涛思数据科技有限公司') |
+======================================================
+                                                  12 |
+
+taos> select CHAR_LENGTH('hello') + 1
+ char_length('hello') + 1  |
+============================
+         6.000000000000000 |
+
+taos> select CHAR_LENGTH('hello') - 1
+ char_length('hello') - 1  |
+============================
+         4.000000000000000 |
+
+taos> select CHAR_LENGTH('hello') from ts_4893.meters limit 5
+ char_length('hello')  |
+========================
+                     5 |
+                     5 |
+                     5 |
+                     5 |
+                     5 |
+
+taos> select CHAR_LENGTH('hello') + 1 from ts_4893.meters limit 1
+ char_length('hello') + 1  |
+============================
+         6.000000000000000 |
+
+taos> select CHAR_LENGTH('hello') + CHAR_LENGTH('hello') from ts_4893.meters limit 1
+ char_length('hello') + char_length('hello') |
+==============================================
+                       1.000000000000000e+01 |
+
+taos> select CHAR_LENGTH(nch1) from ts_4893.meters order by ts limit 5
+   char_length(nch1)   |
+========================
+                     5 |
+                    10 |
+                     6 |
+                     7 |
+                     5 |
+
+taos> select CHAR_LENGTH(var1) from ts_4893.meters order by ts limit 5
+   char_length(var1)   |
+========================
+                     5 |
+                     6 |
+                     5 |
+                     5 |
+                    10 |
+
+taos> select CHAR_LENGTH(concat(nch1,var1)) from ts_4893.meters order by ts limit 5
+ char_length(concat(nch1,var1)) |
+=================================
+                             10 |
+                             16 |
+                             11 |
+                             12 |
+                             15 |
+
+taos> select CHAR_LENGTH(cast(nch1 as varchar)) from ts_4893.meters order by ts limit 5
+ char_length(cast(nch1 as varchar)) |
+=====================================
+                                  5 |
+                                 10 |
+                                  6 |
+                                  7 |
+                                  5 |
+
+taos> select pow(CHAR_LENGTH(nch1), 2) from ts_4893.meters order by ts limit 5
+ pow(char_length(nch1), 2) |
+============================
+        25.000000000000000 |
+       100.000000000000000 |
+        36.000000000000000 |
+        49.000000000000000 |
+        25.000000000000000 |
+
+taos> select sqrt(CHAR_LENGTH(nch1)) from ts_4893.meters order by ts limit 5
+  sqrt(char_length(nch1))  |
+============================
+         2.236067977499790 |
+         3.162277660168380 |
+         2.449489742783178 |
+         2.645751311064591 |
+         2.236067977499790 |
+
+taos> select cast(CHAR_LENGTH(nch1) as int) from ts_4893.meters order by ts limit 5
+ cast(char_length(nch1) as int) |
+=================================
+                              5 |
+                             10 |
+                              6 |
+                              7 |
+                              5 |
+
+taos> select char_length('taos')
+  char_length('taos')  |
+========================
+                     4 |
+
+taos> select char_length('涛思')
+ char_length('涛思') |
+========================
+                     2 |
+
+taos> select char_length('涛思taos')
+ char_length('涛思taos') |
+============================
+                         6 |
+
+taos> select char_length('tao\'s')
+ char_length('tao\'s') |
+========================
+                     5 |
+
+taos> select char_length(nch1) from ts_4893.d0 limit 10
+   char_length(nch1)   |
+========================
+                     5 |
+                    10 |
+                     6 |
+                     7 |
+                     5 |
+                     5 |
+                     5 |
+                    10 |
+                     5 |
+                     5 |
+
+taos> select char_length(nch1) from ts_4893.meters limit 10
+   char_length(nch1)   |
+========================
+                     5 |
+                    10 |
+                     6 |
+                     7 |
+                     5 |
+                     5 |
+                     5 |
+                    10 |
+                     5 |
+                     5 |
+
+taos> select char_length(var1) from ts_4893.d0 limit 10
+   char_length(var1)   |
+========================
+                     5 |
+                     6 |
+                     5 |
+                     5 |
+                    10 |
+                     6 |
+                     7 |
+                     6 |
+                     7 |
+                     5 |
+
+taos> select char_length(var1) from ts_4893.meters limit 10
+   char_length(var1)   |
+========================
+                     5 |
+                     6 |
+                     5 |
+                     5 |
+                    10 |
+                     6 |
+                     7 |
+                     6 |
+                     7 |
+                     5 |
+
+taos> select char_length(null)
+   char_length(null)   |
+========================
+ NULL                  |
+
+taos> select char_length('')
+    char_length('')    |
+========================
+                     0 |
+
+taos> select char_length('あいうえお')
+ char_length('あいうえお') |
+=================================
+                              5 |
+
+taos> select min(char_length(name)) from ts_4893.meters
+ min(char_length(name)) |
+=========================
+                      1 |
+
+taos> select max(char_length(name)) from ts_4893.meters
+ max(char_length(name)) |
+=========================
+                      4 |
+
+taos> select trim(name), char_length(trim(name)) from ts_4893.meters limit 1
+           trim(name)           | char_length(trim(name)) |
+===========================================================
+ lili                           |                       4 |
+
+taos> select upper(name), char_length(upper(name)) from ts_4893.meters limit 1
+          upper(name)           | char_length(upper(name)) |
+============================================================
+ LILI                           |                        4 |
+
+taos> select concat(name, ' - ', location), char_length(concat(name, ' - ', location)) from ts_4893.meters limit 1
+ concat(name, ' - ', location)  | char_length(concat(name, ' - ', location)) |
+==============================================================================
+ lili - beijing                 |                                         14 |
+
+taos> select substring(name, 1, 5), char_length(substring(name, 1, 5)) from ts_4893.meters limit 1
+     substring(name, 1, 5)      | char_length(substring(name, 1, 5)) |
+======================================================================
+ lili                           |                                  4 |
+
+taos> select name, char_length(name) from ts_4893.meters limit 1
+              name              |   char_length(name)   |
+=========================================================
+ lili                           |                     4 |
+
+taos> select nch1, char_length(nch1) from ts_4893.meters limit 1
+              nch1              |   char_length(nch1)   |
+=========================================================
+ novel                          |                     5 |
+
+taos> select groupid, max(char_length(name)) from ts_4893.meters group by groupid order by ts
+ groupid | max(char_length(name)) |
+===================================
+       1 |                      4 |
+
+taos> select location, avg(char_length(name)) from ts_4893.meters group by location order by location
+      location      |  avg(char_length(name))   |
+=================================================
+ beijing            |         3.244600000000000 |
+

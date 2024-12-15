@@ -9,7 +9,7 @@ import java.util.List;
 
 public class SubTableMetaGenerator {
 
-    // 创建tableSize张子表，使用tablePrefix作为子表名的前缀，使用superTableMeta的元数据
+    // Create tableSize sub-tables, using tablePrefix as the prefix for sub-table names, and using the metadata from superTableMeta
     // create table xxx using XXX tags(XXX)
     public static List<SubTableMeta> generate(SuperTableMeta superTableMeta, int tableSize, String tablePrefix) {
         List<SubTableMeta> subTableMetaList = new ArrayList<>();

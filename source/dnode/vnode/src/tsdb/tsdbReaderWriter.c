@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cos.h"
 #include "crypt.h"
+#include "tcs.h"
 #include "tsdb.h"
 #include "tsdbDef.h"
 #include "vnd.h"
@@ -175,7 +175,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
         opts.result = PacketData;
         opts.unitLen = 128;
         // strncpy(opts.key, tsEncryptKey, 16);
-        strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+        tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
         NewLen = CBC_Encrypt(&opts);
 
@@ -249,7 +249,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
       opts.result = PacketData;
       opts.unitLen = 128;
       // strncpy(opts.key, tsEncryptKey, 16);
-      strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
       NewLen = CBC_Decrypt(&opts);
 
@@ -391,7 +391,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
 
       snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", chunkno);
 
-      code = s3GetObjectBlock(object_name_prefix, cOffset, nRead, check, &pBlock);
+      code = tcsGetObjectBlock(object_name_prefix, cOffset, nRead, check, &pBlock);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       memcpy(buf + n, pBlock, nRead);

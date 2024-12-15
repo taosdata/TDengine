@@ -61,7 +61,6 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
 static int32_t doSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
-    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -93,7 +92,6 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
   if (pReq == NULL) {
     mError("failed to malloc in resume stream, size:%" PRIzu ", code:%s", sizeof(SVResumeStreamTaskReq),
            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -106,19 +104,18 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
   bool    hasEpset = false;
   int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
   if (code != TSDB_CODE_SUCCESS || (!hasEpset)) {
-    terrno = code;
     taosMemoryFree(pReq);
-    return terrno;
+    return code;
   }
 
   code = setTransAction(pTrans, pReq, sizeof(SVResumeStreamTaskReq), TDMT_STREAM_TASK_RESUME, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != 0) {
     taosMemoryFree(pReq);
-    return terrno;
+    return code;
   }
 
   mDebug("set the resume action for trans:%d", pTrans->id);
-  return 0;
+  return code;
 }
 
 static int32_t doSetDropActionFromId(SMnode *pMnode, STrans *pTrans, SOrphanTask* pTask) {
@@ -234,6 +231,7 @@ static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask
   code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
   if (code != TSDB_CODE_SUCCESS || !hasEpset) {
     mError("failed to extract epset during create update epset, code:%s", tstrerror(code));
+    taosMemoryFree(pBuf);
     return code;
   }
 
@@ -297,7 +295,7 @@ static int32_t doSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamTas
   return code;
 }
 
-static int32_t doSetResetAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
+static int32_t doSetResetAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t chkptId) {
   SVResetStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVResetStreamTaskReq));
   if (pReq == NULL) {
     mError("failed to malloc in reset stream, size:%" PRIzu ", code:%s", sizeof(SVResetStreamTaskReq),
@@ -308,6 +306,7 @@ static int32_t doSetResetAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
   pReq->streamId = pTask->id.streamId;
+  pReq->chkptId = chkptId;
 
   SEpSet  epset = {0};
   bool    hasEpset = false;
@@ -546,7 +545,7 @@ int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray* p
   return 0;
 }
 
-int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream, int64_t chkptId) {
   SStreamTaskIter *pIter = NULL;
 
   taosWLockLatch(&pStream->lock);
@@ -566,7 +565,7 @@ int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *
       return code;
     }
 
-    code = doSetResetAction(pMnode, pTrans, pTask);
+    code = doSetResetAction(pMnode, pTrans, pTask, chkptId);
     if (code != TSDB_CODE_SUCCESS) {
       destroyStreamTaskIter(pIter);
       taosWUnLockLatch(&pStream->lock);
@@ -608,7 +607,7 @@ int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* p
   tEncoderInit(&encoder, abuf, tlen);
   code = tEncodeRestoreCheckpointInfo(&encoder, &req);
   tEncoderClear(&encoder);
-  if (code == -1) {
+  if (code < 0) {
     taosMemoryFree(pBuf);
     return code;
   }

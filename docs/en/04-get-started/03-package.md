@@ -1,326 +1,247 @@
 ---
-title: Quick Install from Package
-sidebar_label: Package
-description: This document describes how to install TDengine on Linux, Windows, and macOS and perform queries and inserts.
+sidebar_label: Deploy from Package
+title: Get Started with TDengine Using an Installation Package
+description: Quick experience with TDengine using the installation package
+slug: /get-started/deploy-from-package
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import PkgListV3 from "/components/PkgListV3";
 
-This document describes how to install TDengine on Linux/Windows/macOS and perform queries and inserts.
+You can install TDengine on a local machine and perform some basic tests to verify its performance. The TDengine OSS server can be installed on Linux and macOS, and the TDengine OSS client can be installed on Linux, macOS, and Windows.
 
-- The easiest way to explore TDengine is through [TDengine Cloud](https://cloud.tdengine.com). 
-- To get started with TDengine on Docker, see [Quick Install on Docker](../../get-started/docker).
-- If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
+To install TDengine in a Docker container instead of on your machine, see [Get Started with TDengine in Docker](../deploy-in-docker/).
 
-The full package of TDengine includes the TDengine Server (`taosd`), TDengine Client (`taosc`), taosAdapter for connecting with third-party systems and providing a RESTful interface, a command-line interface (CLI, taos), and some tools. Note that taosAdapter supports Linux only. In addition to client libraries for multiple languages, TDengine also provides a [REST API](../../reference/connectors/rest-api) through [taosAdapter](../../reference/components/taosadapter).
+## Before You Begin
 
-The standard server installation package includes `taos`, `taosd`, `taosAdapter`, `taosBenchmark`, and sample code. You can also download the Lite package that includes only `taosd` and the C/C++ client library.
+- Verify that your machine meets the minimum system requirements for TDengine. For more information, see [Supported Platforms](../../tdengine-reference/supported-platforms/) and [System Requirements](../../operations-and-maintenance/system-requirements/).
+- **(Windows only)** Verify that the latest version of the Microsoft Visual C++ Redistributable is installed on your machine. To download the redistributable package, see [Microsoft Visual C++ Redistributable latest supported downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
 
-TDengine OSS is released as Deb and RPM packages. The Deb package can be installed on Debian, Ubuntu, and derivative systems. The RPM package can be installed on CentOS, RHEL, SUSE, and derivative systems. A .tar.gz package is also provided for enterprise customers, and you can install TDengine over `apt-get` as well. The .tar.tz package includes `taosdump` and the TDinsight installation script. If you want to use these utilities with the Deb or RPM package, download and install taosTools separately. TDengine can also be installed on x64 Windows and x64/m1 macOS.
+## Procedure
 
-## Operating environment requirements
-In the Linux system, the minimum requirements for the operating environment are as follows:
+The TDengine OSS installation package is provided for Linux users in .deb, .rpm, and .tar.gz format and can also be installed via APT from our repository. Installation packages are also provided for macOS (client and server) and Windows (client only).
 
-linux core version - 3.10.0-1160.83.1.el7.x86_64;
+1. Select the appropriate package for your machine and follow the steps to install TDengine.
 
-glibc version - 2.17;
+   <Tabs>
+   <TabItem label=".deb" value="debinst">
 
-If compiling and installing through clone source code, it is also necessary to meet the following requirements:
+   1. Download the .deb installation package:
+      <PkgListV3 type={6}/>
+   2. Run the following command to install TDengine:
 
-cmake version - 3.26.4 or above;
+      ```bash
+      sudo dpkg -i TDengine-server-<version>-Linux-x64.deb
+      ```
 
-gcc version - 9.3.1 or above;
+      Replace `<version>` with the version of the package that you downloaded.
 
-## Installation
+   </TabItem>
 
-**Note**
+   <TabItem label=".rpm" value="rpminst">
 
-Since TDengine 3.0.6.0, we don't provide standalone taosTools pacakge for downloading. However, all the tools included in the taosTools pacakge can be found in TDengine-server pacakge.
+   1. Download the .rpm installation package:
+      <PkgListV3 type={5}/>
+   2. Run the following command to install TDengine:
 
-<Tabs>
-<TabItem label=".deb" value="debinst">
+      ```bash
+      sudo rpm -ivh TDengine-server-<version>-Linux-x64.rpm
+      ```
 
-1. Download the Deb installation package.
-   <PkgListV3 type={6}/>
-2. In the directory where the package is located, use `dpkg` to install the package:
+      Replace `<version>` with the version of the package that you downloaded.
 
-> Please replace `<version>` with the corresponding version of the package downloaded
+   </TabItem>
 
-```bash
-sudo dpkg -i TDengine-server-<version>-Linux-x64.deb
-```
+   <TabItem label=".tar.gz" value="tarinst">
 
-</TabItem>
+   1. Download the desired .tar.gz package from the following list:
+      <PkgListV3 type={0}/>
+   2. Run the following command to decompress the package:
 
-<TabItem label=".rpm" value="rpminst">
+      ```bash
+      tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
+      ```
 
-1. Download the .rpm installation package.
-   <PkgListV3 type={5}/>
-2. In the directory where the package is located, use rpm to install the package:
+      Replace `<version>` with the version of the package that you downloaded.
+   3. In the directory where you decompressed the package, run the following command to install TDengine:
 
-> Please replace `<version>` with the corresponding version of the package downloaded
+      ```bash
+      sudo ./install.sh
+      ```
 
-```bash
-sudo rpm -ivh TDengine-server-<version>-Linux-x64.rpm
-```
+      :::note
 
-</TabItem>
+      The `install.sh` script requires you to enter configuration information in the terminal. For a non-interactive installation, run `./install.sh -e no`. You can run `./install.sh -h` for detailed information about all parameters.
 
-<TabItem label=".tar.gz" value="tarinst">
+      :::
 
-1. Download the .tar.gz installation package.
-   <PkgListV3 type={0}/>
-2. In the directory where the package is located, use `tar` to decompress the package:
+   </TabItem>
 
-> Please replace `<version>` with the corresponding version of the package downloaded
+   <TabItem label="APT" value="apt-get">
 
-```bash
-tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
-```
+   1. Configure the package repository:
 
-In the directory to which the package was decompressed, run `install.sh`:
+      ```bash
+      wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+      echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+      ```
 
-```bash
-sudo ./install.sh
-```
+   2. Update the list of available packages and install TDengine.
 
-:::info
-Users will be prompted to enter some configuration information when install.sh is executing. The interactive mode can be disabled by executing `./install.sh -e no`. `./install.sh -h` can show all parameters with detailed explanation.
-:::
+      ```bash
+      sudo apt-get update
+      apt-cache policy tdengine
+      sudo apt-get install tdengine
+      ```
 
-</TabItem>
+   </TabItem>
 
-<TabItem value="apt-get" label="apt-get">
-You can use `apt-get` to install TDengine from the official package repository.
+   <TabItem label="Windows" value="windows">
 
-**Configure the package repository**
+   :::note
 
-```bash
-wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
-echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
-```
+   This procedure installs the TDengine OSS client on Windows. The TDengine OSS server does not support Windows.
 
-You can install beta versions by configuring the following repository:
+   :::
 
-```bash
-wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
-echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
-```
+   1. Download the Windows installation package:
+      <PkgListV3 type={3}/>
+   2. Run the installation package to install TDengine.
 
-**Install TDengine with `apt-get`**
+   </TabItem>
 
-```bash
-sudo apt-get update
-apt-cache policy tdengine
-sudo apt-get install tdengine
-```
+   <TabItem label="macOS" value="macos">
 
-:::tip
-This installation method is supported only for Debian and Ubuntu.
-:::
-</TabItem>
-<TabItem label="Windows" value="windows">
+   1. Download the desired installation package from the following list:
+      <PkgListV3 type={7}/>
+   2. Run the installation package to install TDengine.
 
-**Note**
-- TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the Windows platform.
-- Since TDengine 3.1.0.0, we wonly provide client package for Windows. If you need to run TDenginer server on Windows, please contact TDengine sales team to upgrade to TDengine Enterprise. 
-- To run on Windows, the Microsoft Visual C++ Runtime library is required. If the Microsoft Visual C++ Runtime Library is missing on your platform, you can download and install it from [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170). 
+      :::note
 
-Follow the steps below:
+      If the installation is blocked, right-click on the package and choose **Open**.
 
-1. Download the Windows installation package.
-   <PkgListV3 type={3}/>
-2. Run the downloaded package to install TDengine.
-Note: From version 3.0.1.7, only TDengine client pacakge can be downloaded for Windows platform. If you want to run TDengine servers on Windows, please contact our sales team to upgrade to TDengine Enterprise. 
+      :::
 
+   </TabItem>
+   </Tabs>
 
-</TabItem>
-<TabItem label="macOS" value="macos">
+2. When installing the first node and prompted with `Enter FQDN:`, you do not need to input anything. Only when installing the second or subsequent nodes do you need to input the FQDN of any available node in the existing cluster to join the new node to the cluster. Alternatively, you can configure it in the new node's configuration file before starting.
 
-1. Download the macOS installation package.
-   <PkgListV3 type={7}/>
-2. Run the downloaded package to install TDengine. If the installation is blocked, you can right-click or ctrl-click on the installation package and select `Open`.
+3. Select your operating system and follow the steps to start TDengine services.
 
-</TabItem>
-</Tabs>
+   <Tabs>
+   <TabItem label="Linux" value="linux">
 
-:::info
-For information about TDengine other releases, check [Release History](../../releases/tdengine).
-:::
+   Run the following command to start all TDengine services:
 
-:::note
-On the first node in your TDengine cluster, leave the `Enter FQDN:` prompt blank and press **Enter**. On subsequent nodes, you can enter the endpoint of the first dnode in the cluster. You can also configure this setting after you have finished installing TDengine.
+   ```bash
+   sudo start-all.sh 
+   ```
 
-:::
+   Alternatively, you can manage specific TDengine services through systemd:
 
-## Quick Launch
+   ```bash
+   sudo systemctl start taosd
+   sudo systemctl start taosadapter
+   sudo systemctl start taoskeeper
+   sudo systemctl start taos-explorer
+   ```
 
-<Tabs>
-<TabItem label="Linux" value="linux">
+   :::note
 
-After the installation is complete, run the following command to start the TDengine service:
+   If your machine does not support systemd, you can manually run the TDengine services located in the `/usr/local/taos/bin` directory.
 
-```bash
-systemctl start taosd
-systemctl start taosadapter
-systemctl start taoskeeper
-systemctl start taos-explorer
-```
+   :::
 
-Or you can run a scrip to start all the above services together
+   </TabItem>
 
-```bash
-start-all.sh 
-```
+   <TabItem label="macOS" value="macos">
 
-systemctl can also be used to stop, restart a specific service or check its status, like below using `taosd` as example:
+   Run the following command to start all TDengine services:
 
-```bash
-systemctl start taosd
-systemctl stop taosd
-systemctl restart taosd
-systemctl status taosd
-```
+   ```bash
+   sudo start-all.sh
+   ```
 
-:::info
+   Alternatively, you can manage specific TDengine services with the `launchctl` command:
 
-- The `systemctl` command requires _root_ privileges. If you are not logged in as the _root_ user, use the `sudo` command.
-- The `systemctl stop taosd` command does not instantly stop TDengine Server. The server is stopped only after all data in memory is flushed to disk. The time required depends on the cache size.
-- If your system does not include `systemd`, you can run `/usr/local/taos/bin/taosd` to start TDengine manually.
+   ```bash
+   sudo launchctl start com.tdengine.taosd
+   sudo launchctl start com.tdengine.taosadapter
+   sudo launchctl start com.tdengine.taoskeeper
+   sudo launchctl start com.tdengine.taos-explorer
+   ```
 
-:::
+   </TabItem>
+   </Tabs>
 
-</TabItem>
+   You can now work with TDengine on your local machine. For example, you can run the `taos` command to open the TDengine command-line interface.
 
-<TabItem label="Windows" value="windows">
+## What to Do Next
 
-After the installation is complete, please run `sc start taosd` or run `C:\TDengine\taosd.exe` with administrator privilege to start TDengine Server. Please run `sc start taosadapter` or run `C:\TDengine\taosadapter.exe` with administrator privilege to start taosAdapter to provide http/REST service.
+### Test Data Ingestion
 
-</TabItem>
+Your TDengine installation includes taosBenchmark, a tool specifically designed to test TDengine’s performance. taosBenchmark can simulate data generated by many devices with a wide range of configuration options so that you can perform tests on sample data similar to your real-world use cases. For more information about taosBenchmark, see [taosBenchmark](../../tdengine-reference/tools/taosbenchmark/).
 
-<TabItem label="macOS" value="macos">
+Perform the following steps to use taosBenchmark to test TDengine's ingestion performance on your machine:
 
-After the installation is complete, double-click the /applications/TDengine to start the program, or run `sudo launchctl start ` to start TDengine services.
+1. Run taosBenchmark with the default settings:
 
-```bash
-sudo launchctl start com.tdengine.taosd
-sudo launchctl start com.tdengine.taosadapter
-sudo launchctl start com.tdengine.taoskeeper
-sudo launchctl start com.tdengine.taos-explorer
-```
+   ```bash
+   taosBenchmark -y
+   ```
 
-Or you can run a scrip to start all the above services together
-```bash
-start-all.sh 
-```
+taosBenchmark automatically creates the `test` database and the `meters` supertable inside that database. This supertable contains 10,000 subtables, named `d0` to `d9999`, with each subtable containing 10,000 records. Each record includes the following four metrics:
 
-The following `launchctl` commands can help you manage TDengine service, using `taosd` service as an example below:
+- `ts` (timestamp), ranging from `2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999`
+- `current`
+- `voltage`
+- `phase`
 
-```bash
-sudo launchctl start com.tdengine.taosd
-sudo launchctl stop com.tdengine.taosd
-sudo launchctl list | grep taosd
-sudo launchctl print system/com.tdengine.taosd
-```
+Each subtable also has the following two tags:
 
-:::info
-- Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.
-- The administrator privilege is required for service management to enhance security.
-- Troubleshooting:
-- The first column returned by the command `launchctl list | grep taosd` is the PID of the program. If it's `-`, that means the TDengine service is not running.
-- If the service is abnormal, please check the `launchd.log` file from the system log or the `taosdlog` from the `/var/log/taos directory` for more information.
+- `groupId`, ranging from `1` to `10`
+- `location`, indicating a city and state such as `California.Campbell` or `California.Cupertino`
 
-:::
+When the ingestion process is finished, taosBenchmark outputs the time taken to ingest the specified sample data. From this, you can estimate how TDengine would perform on your system in a production environment.
 
+### Test Data Querying
 
-</TabItem>
-</Tabs>
+After inserting data with taosBenchmark as described above, you can use the TDengine CLI to test TDengine's query performance on your machine:
 
+1. Start the TDengine CLI:
 
-## TDengine Command Line Interface
+   ```bash
+   taos
+   ```
 
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` (Linux/Mac) or `taos.exe` (Windows) in terminal. The prompt of TDengine CLI is like below:
+2. Query the total number of records in the `meters` supertable:
 
-```cmd
-taos>
-```
+   ```sql
+   SELECT COUNT(*) FROM test.meters;
+   ```
 
-Using TDengine CLI, you can create and delete databases and tables and run all types of queries. Each SQL command must be end with a semicolon (;). For example:
+3. Query the average, maximum, and minimum values of 100 million records:
 
-```sql
-CREATE DATABASE demo;
-USE demo;
-CREATE TABLE t (ts TIMESTAMP, speed INT);
-INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
-INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
-SELECT * FROM t;
+   ```sql
+   SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
+   ```
 
-           ts            |    speed    |
-========================================
- 2019-07-15 00:00:00.000 |          10 |
- 2019-07-15 01:00:00.000 |          20 |
+4. Query the total number of records where the value of the `location` tag is `California.SanFrancisco`:
 
-Query OK, 2 row(s) in set (0.003128s)
-```
+   ```sql
+   SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
+   ```
 
-You can also can monitor the deployment status, add and remove user accounts, and manage running instances. You can run the TDengine CLI on either machines. For more information, see [TDengine CLI](../../reference/components/taos-shell/).
+5. Query the average, maximum, and minimum values of all records where the value of the `groupId` tag is `10`:
 
-## TDengine Graphic User Interface
+   ```sql
+   SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
+   ```
 
-From TDengine 3.3.0.0, there is a new componenet called `taos-explorer` added in the TDengine docker image. You can use it to manage the databases, super tables, child tables, and data in your TDengine system. There are also some features only available in TDengine Enterprise Edition, please contact TDengine sales team in case you need these features.
+6. Calculate the average, maximum, and minimum values for the `d1001` table every 10 seconds:
 
-To use taos-explorer in the container, you need to access the host port mapped from container port 6060. Assuming the host name is abc.com, and the port used on host is 6060, you need to access `http://abc.com:6060`. taos-explorer uses port 6060 by default in the container. When you use it the first time, you need to register with your enterprise email, then can logon using your user name and password in the TDengine 
-
-## Test data insert performance
-
-After your TDengine Server is running normally, you can run the taosBenchmark utility to test its performance:
-
-Start TDengine service and execute `taosBenchmark` (formerly named `taosdemo`) in a terminal.
-
-```bash
-taosBenchmark
-```
-
-This command creates the `meters` supertable in the `test` database. In the `meters` supertable, it then creates 10,000 subtables named `d0` to `d9999`. Each table has 10,000 rows and each row has four columns: `ts`, `current`, `voltage`, and `phase`. The timestamps of the data in these columns range from 2017-07-14 10:40:00 000 to 2017-07-14 10:40:09 999. Each table is randomly assigned a `groupId` tag from 1 to 10 and a `location` tag of either `California.Campbell`, `California.Cupertino`, `California.LosAngeles`, `California.MountainView`, `California.PaloAlto`, `California.SanDiego`, `California.SanFrancisco`, `California.SanJose`, `California.SantaClara` or `California.Sunnyvale`.
-
-The `taosBenchmark` command creates a deployment with 100 million data points that you can use for testing purposes. The time required to create the deployment depends on your hardware. On most modern servers, the deployment is created in ten to twenty seconds.
-
-You can customize the test deployment that taosBenchmark creates by specifying command-line parameters. For information about command-line parameters, run the `taosBenchmark --help` command. For more information about taosBenchmark, see [taosBenchmark](../../reference/components/taosbenchmark).
-
-## Test data query performance
-
-After using `taosBenchmark` to create your test deployment, you can run queries in the TDengine CLI to test its performance:
-
-From the TDengine CLI (taos) query the number of rows in the `meters` supertable:
-
-```sql
-SELECT COUNT(*) FROM test.meters;
-```
-
-Query the average, maximum, and minimum values of all 100 million rows of data:
-
-```sql
-SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
-```
-
-Query the number of rows whose `location` tag is `California.SanFrancisco`:
-
-```sql
-SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
-```
-
-Query the average, maximum, and minimum values of all rows whose `groupId` tag is `10`:
-
-```sql
-SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
-```
-
-Query the average, maximum, and minimum values for table `d10` in 10 second intervals:
-
-```sql
-SELECT FIRST(ts), AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(10s);
-```
-
-In the query above you are selecting the first timestamp (ts) in the interval, another way of selecting this would be `\_wstart` which will give the start of the time window. For more information about windowed queries, see [Time-Series Extensions](../../reference/taos-sql/distinguished/).
+   ```sql
+   SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
+   ```

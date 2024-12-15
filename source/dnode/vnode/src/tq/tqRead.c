@@ -263,7 +263,7 @@ bool tqGetTablePrimaryKey(STqReader* pReader) { return pReader->hasPrimaryKey; }
 
 void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid) {
   bool            ret = false;
-  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1);
+  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1, NULL);
   if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     ret = true;
   }
@@ -366,8 +366,8 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
     } else if (pCont->msgType == TDMT_VND_DELETE) {
       void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
       int32_t len = pCont->bodyLen - sizeof(SMsgHead);
-
-      code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0);
+      EStreamType blockType = STREAM_DELETE_DATA;
+      code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0, blockType);
       if (code == TSDB_CODE_SUCCESS) {
         if (*pItem == NULL) {
           tqDebug("s-task:%s empty delete msg, discard it, len:%d, ver:%" PRId64, id, len, ver);
@@ -382,6 +382,20 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
         return code;
       }
 
+    } else if (pCont->msgType == TDMT_VND_DROP_TABLE && pReader->cond.scanDropCtb) {
+      void* pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
+      int32_t len = pCont->bodyLen - sizeof(SMsgHead);
+      code = tqExtractDropCtbDataBlock(pBody, len, ver, (void**)pItem, 0);
+      if (TSDB_CODE_SUCCESS == code) {
+        if (!*pItem) {
+          continue;
+        } else {
+          tqDebug("s-task:%s drop ctb msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
+        }
+      } else {
+        terrno = code;
+        return code;
+      }
     } else {
       tqError("s-task:%s invalid msg type:%d, ver:%" PRId64, id, pCont->msgType, ver);
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -562,9 +576,18 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   return 0;
 }
 
-static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, const SArray* pColIdList) {
+static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, const SArray* pColIdList) {
+  SSDataBlock* pBlock = pReader->pResBlock;
   if (blockDataGetNumOfCols(pBlock) > 0) {
-    return TSDB_CODE_SUCCESS;
+      blockDataDestroy(pBlock);
+      int32_t code = createDataBlock(&pReader->pResBlock);
+      if (code) {
+        return code;
+      }
+      pBlock = pReader->pResBlock;
+
+      pBlock->info.id.uid = pReader->cachedSchemaUid;
+      pBlock->info.version = pReader->msg.ver;
   }
 
   int32_t numOfCols = taosArrayGetSize(pColIdList);
@@ -660,7 +683,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
       (pReader->cachedSchemaVer != sversion)) {
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
 
-    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
+    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, NULL);
     if (pReader->pSchemaWrapper == NULL) {
       tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64
              "version %d, possibly dropped table",
@@ -678,10 +701,10 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
               vgId, suid, uid, sversion, pReader->pSchemaWrapper->version);
       return TSDB_CODE_TQ_INTERNAL_ERROR;
     }
-    if (blockDataGetNumOfCols(pBlock) == 0) {
-      code = buildResSDataBlock(pReader->pResBlock, pReader->pSchemaWrapper, pReader->pColIdList);
-      TSDB_CHECK_CODE(code, line, END);
-    }
+    code = buildResSDataBlock(pReader, pReader->pSchemaWrapper, pReader->pColIdList);
+    TSDB_CHECK_CODE(code, line, END);
+    pBlock = pReader->pResBlock;
+    *pRes = pBlock;
   }
 
   int32_t numOfRows = 0;
@@ -952,10 +975,8 @@ END:
   return code;
 }
 
-int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
-  tqDebug("tq reader retrieve data block %p, %d", pReader->msg.msgStr, pReader->nextBlk);
-  SSDataBlock* block = NULL;
-
+int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet, int64_t *createTime) {
+  tqTrace("tq reader retrieve data block %p, %d", pReader->msg.msgStr, pReader->nextBlk);
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   if (pSubmitTbData == NULL) {
     return terrno;
@@ -971,7 +992,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
   pReader->lastBlkUid = uid;
 
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
-  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
+  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, createTime);
   if (pReader->pSchemaWrapper == NULL) {
     tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
            pReader->pWalReader->pWal->cfg.vgId, uid, pReader->cachedSchemaVer);
@@ -1106,12 +1127,20 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
       break;
     }
 
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
-      int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
-      if (code != 0) {
-        tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);
-        continue;
+    int64_t      refId = *(int64_t*)pIter;
+    SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, refId);
+    if (pTask != NULL) {
+      int32_t taskId = pTask->id.taskId;
+
+      if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
+        int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
+        if (code != 0) {
+          tqError("vgId:%d, s-task:0x%x update qualified table error for stream task", vgId, taskId);
+        }
+      }
+      int32_t ret = taosReleaseRef(streamTaskRefPool, refId);
+      if (ret) {
+        tqError("vgId:%d release task refId failed, refId:%" PRId64, vgId, refId);
       }
     }
   }

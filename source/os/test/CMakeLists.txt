@@ -5,12 +5,11 @@ FIND_PATH(HEADER_GTEST_INCLUDE_DIR gtest.h /usr/include/gtest /usr/local/include
 FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64)
 FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64)
 
-IF (HEADER_GTEST_INCLUDE_DIR AND (LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
+IF(HEADER_GTEST_INCLUDE_DIR AND(LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
     MESSAGE(STATUS "gTest library found, build os test")
 
     INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
-
 ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
@@ -72,12 +71,31 @@ add_test(
     COMMAND osTimeTests
 )
 
+
+if(TD_LINUX)
+
 add_executable(osAtomicTests "osAtomicTests.cpp")
 target_link_libraries(osAtomicTests os util gtest_main)
 add_test(
     NAME osAtomicTests
     COMMAND osAtomicTests
 )
+
+add_executable(osDirTests "osDirTests.cpp")
+target_link_libraries(osDirTests os util gtest_main)
+add_test(
+    NAME osDirTests
+    COMMAND osDirTests
+)
+
+add_executable(osEnvTests "osEnvTests.cpp")
+target_link_libraries(osEnvTests os util gtest_main)
+add_test(
+    NAME osEnvTests
+    COMMAND osEnvTests
+)
+
+endif()
 
 add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
 target_link_libraries(osSemaphoreTests os util gtest_main)

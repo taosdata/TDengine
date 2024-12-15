@@ -13,6 +13,9 @@ public class DataBaseMonitor {
     public DataBaseMonitor init() throws SQLException {
         if (conn == null) {
             String jdbcURL = System.getenv("TDENGINE_JDBC_URL");
+            if (jdbcURL == null || jdbcURL == ""){
+                jdbcURL = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
+            }
             conn = DriverManager.getConnection(jdbcURL);
             stmt = conn.createStatement();
         }

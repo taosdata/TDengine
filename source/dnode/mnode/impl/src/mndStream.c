@@ -21,7 +21,6 @@
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTrans.h"
-#include "mndVgroup.h"
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
@@ -454,17 +453,16 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     pObj->outputSchema.pSchema = pFullSchema;
   }
 
-  bool         hasKey = hasDestPrimaryKey(&pObj->outputSchema);
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
       .streamQuery = true,
-      .triggerType = pObj->conf.trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->conf.trigger,
+      .triggerType = (pObj->conf.trigger == STREAM_TRIGGER_MAX_DELAY)? STREAM_TRIGGER_WINDOW_CLOSE : pObj->conf.trigger,
       .watermark = pObj->conf.watermark,
       .igExpired = pObj->conf.igExpired,
       .deleteMark = pObj->deleteMark,
       .igCheckUpdate = pObj->igCheckUpdate,
-      .destHasPrimaryKey = hasKey,
+      .destHasPrimaryKey = hasDestPrimaryKey(&pObj->outputSchema),
   };
 
   // using ast and param to build physical plan
@@ -795,12 +793,22 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   if (createReq.sql != NULL) {
-    sqlLen = strlen(createReq.sql);
-    sql = taosMemoryMalloc(sqlLen + 1);
+    sql = taosStrdup(createReq.sql);
     TSDB_CHECK_NULL(sql, code, lino, _OVER, terrno);
+  }
 
-    memset(sql, 0, sqlLen + 1);
-    memcpy(sql, createReq.sql, sqlLen);
+  SDbObj *pSourceDb = mndAcquireDb(pMnode, createReq.sourceDB);
+  if (pSourceDb == NULL) {
+    code = terrno;
+    mInfo("stream:%s failed to create, acquire source db %s failed, code:%s", createReq.name, createReq.sourceDB,
+          tstrerror(code));
+    goto _OVER;
+  }
+
+  code = mndCheckForSnode(pMnode, pSourceDb);
+  mndReleaseDb(pMnode, pSourceDb);
+  if (code != 0) {
+    goto _OVER;
   }
 
   // build stream obj from request
@@ -1284,9 +1292,10 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
     void* p = taosArrayPush(pList, &in);
     if (p) {
       int32_t currentSize = taosArrayGetSize(pList);
-      mDebug("stream:%s (uid:0x%" PRIx64 ") checkpoint interval beyond threshold: %ds(%" PRId64
-             "s) beyond concurrently launch threshold:%d",
-             pStream->name, pStream->uid, tsStreamCheckpointInterval, duration / 1000, currentSize);
+      mDebug("stream:%s (uid:0x%" PRIx64 ") total %d stream(s) beyond chpt interval threshold: %ds(%" PRId64
+             "s), concurrently launch threshold:%d",
+             pStream->name, pStream->uid, currentSize, tsStreamCheckpointInterval, duration / 1000,
+             tsMaxConcurrentCheckpoint);
     } else {
       mError("failed to record the checkpoint interval info, stream:0x%" PRIx64, pStream->uid);
     }
@@ -1338,7 +1347,7 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
       code = mndProcessStreamCheckpointTrans(pMnode, p, checkpointId, 1, true);
       sdbRelease(pSdb, p);
 
-      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      if (code == 0 || code == TSDB_CODE_ACTION_IN_PROGRESS) {
         started += 1;
 
         if (started >= capacity) {
@@ -1346,6 +1355,8 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
                  (started + numOfCheckpointTrans));
           break;
         }
+      } else {
+        mError("failed to start checkpoint trans, code:%s", tstrerror(code));
       }
     }
   }
@@ -1598,6 +1609,13 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
+    int32_t precision = TSDB_TIME_PRECISION_MILLI;
+    SDbObj *pSourceDb = mndAcquireDb(pMnode, pStream->sourceDb);
+    if (pSourceDb != NULL) {
+      precision = pSourceDb->cfg.precision;
+      mndReleaseDb(pMnode, pSourceDb);
+    }
+
     // add row for each task
     SStreamTaskIter *pIter = NULL;
     code = createStreamTaskIter(pStream, &pIter);
@@ -1616,7 +1634,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         break;
       }
 
-      code = setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows);
+      code = setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows, precision);
       if (code == TSDB_CODE_SUCCESS) {
         numOfRows++;
       }
@@ -1783,7 +1801,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
-  int32_t code = 0;
+  int32_t     code = 0;
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     return code;
@@ -1811,6 +1829,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     return 0;
   }
 
+  mInfo("stream:%s,%" PRId64 " start to resume stream from pause", resumeReq.name, pStream->uid);
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
@@ -1912,11 +1931,6 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
         sdbCancelFetch(pSdb, pIter);
         return terrno = code;
       }
-
-      code = mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_UPDATE_NAME, pStream->uid);
-      if (code) {
-        mError("failed to register trans, transId:%d, and continue", pTrans->id);
-      }
     }
 
     if (!includeAllNodes) {
@@ -1931,6 +1945,12 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
 
     mDebug("stream:0x%" PRIx64 " %s involved node changed, create update trans, transId:%d", pStream->uid,
            pStream->name, pTrans->id);
+
+    // NOTE: for each stream, we register one trans entry for task update
+    code = mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_UPDATE_NAME, pStream->uid);
+    if (code) {
+      mError("failed to register trans, transId:%d, and continue", pTrans->id);
+    }
 
     code = mndStreamSetUpdateEpsetAction(pMnode, pStream, pChangeInfo, pTrans);
 
@@ -2421,7 +2441,12 @@ static void doAddReportStreamTask(SArray *pList, int64_t reportChkptId, const SC
         mDebug("s-task:0x%x expired checkpoint-report msg in checkpoint-report list update from %" PRId64 "->%" PRId64,
                pReport->taskId, p->checkpointId, pReport->checkpointId);
 
-        memcpy(p, pReport, sizeof(STaskChkptInfo));
+        // update the checkpoint report info
+        p->checkpointId = pReport->checkpointId;
+        p->ts = pReport->checkpointTs;
+        p->version = pReport->checkpointVer;
+        p->transId = pReport->transId;
+        p->dropHTask = pReport->dropHTask;
       } else {
         mWarn("taskId:0x%x already in checkpoint-report list", pReport->taskId);
       }

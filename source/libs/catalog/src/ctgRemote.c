@@ -34,9 +34,10 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
   SBatchRspMsg* pRsp = NULL;
 
   if (TSDB_CODE_SUCCESS == rspCode && pMsg->pData && (pMsg->len > 0)) {
-    if (tDeserializeSBatchRsp(pMsg->pData, pMsg->len, &batchRsp) < 0) {
+    code = tDeserializeSBatchRsp(pMsg->pData, pMsg->len, &batchRsp);
+    if (code < 0) {
       ctgError("tDeserializeSBatchRsp failed, msgLen:%d", pMsg->len);
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(code);
     }
 
     msgNum = taosArrayGetSize(batchRsp.pRsps);
@@ -47,7 +48,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     msgNum = 0;
   }
 
-  ctgDebug("qid:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId,
+  ctgDebug("QID:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId,
            TMSG_INFO(cbParam->reqType + 1));
 
   SHashObj* pBatchs = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -114,7 +115,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
 
     pMsgCtx->pBatchs = pBatchs;
 
-    ctgDebug("qid:0x%" PRIx64 " ctg task %d idx %d start to handle rsp %s, pBatchs: %p", pJob->queryId, pTask->taskId,
+    ctgDebug("QID:0x%" PRIx64 " ctg task %d idx %d start to handle rsp %s, pBatchs: %p", pJob->queryId, pTask->taskId,
              pRsp->msgIdx, TMSG_INFO(taskMsg.msgType + 1), pBatchs);
 
     (void)(*gCtgAsyncFps[pTask->type].handleRspFp)(
@@ -454,7 +455,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    qDebug("qid:0x%" PRIx64 " ctg task %d start to handle rsp %s", pJob->queryId, pTask->taskId,
+    qDebug("QID:0x%" PRIx64 " ctg task %d start to handle rsp %s", pJob->queryId, pTask->taskId,
            TMSG_INFO(cbParam->reqType + 1));
 
 #if CTG_BATCH_FETCH
@@ -673,7 +674,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
     newBatch.batchId = atomic_add_fetch_32(&pJob->batchId, 1);
 
     if (0 != taosHashPut(pBatchs, &vgId, sizeof(vgId), &newBatch, sizeof(newBatch))) {
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     ctgDebug("task %d %s req added to batch %d, target vgId %d", pTask->taskId, TMSG_INFO(msgType), newBatch.batchId,
@@ -702,7 +703,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
     if (TDMT_VND_TABLE_CFG == msgType) {
       SCtgTbCfgCtx* ctx = (SCtgTbCfgCtx*)pTask->taskCtx;
       pName = ctx->pName;
-    } else if (TDMT_VND_TABLE_META == msgType  || TDMT_VND_TABLE_NAME == msgType) {
+    } else if (TDMT_VND_TABLE_META == msgType || TDMT_VND_TABLE_NAME == msgType) {
       if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
         SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
         SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
@@ -778,7 +779,7 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
   int32_t msgSize = tSerializeSBatchReq(NULL, 0, &batchReq);
   if (msgSize < 0) {
     qError("tSerializeSBatchReq failed");
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(msgSize);
   }
 
   *msg = taosMemoryCalloc(1, msgSize);
@@ -786,9 +787,10 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
     qError("calloc batchReq msg failed, size:%d", msgSize);
     CTG_ERR_RET(terrno);
   }
-  if (tSerializeSBatchReq(*msg, msgSize, &batchReq) < 0) {
+  msgSize = tSerializeSBatchReq(*msg, msgSize, &batchReq);
+  if (msgSize < 0) {
     qError("tSerializeSBatchReq failed");
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(msgSize);
   }
 
   *pSize = msgSize;
@@ -808,7 +810,7 @@ int32_t ctgLaunchBatchs(SCatalog* pCtg, SCtgJob* pJob, SHashObj* pBatchs) {
     SCtgBatch* pBatch = (SCtgBatch*)p;
     int32_t    msgSize = 0;
 
-    ctgDebug("qid:0x%" PRIx64 " ctg start to launch batch %d", pJob->queryId, pBatch->batchId);
+    ctgDebug("QID:0x%" PRIx64 " ctg start to launch batch %d", pJob->queryId, pBatch->batchId);
 
     CTG_ERR_JRET(ctgBuildBatchReqMsg(pBatch, *vgId, &msg, &msgSize));
     code = ctgAsyncSendMsg(pCtg, &pBatch->conn, pJob, pBatch->pTaskIds, pBatch->batchId, pBatch->pMsgIdxs,
@@ -835,7 +837,7 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SArray
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_QNODE_LIST;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   ctgDebug("try to get qnode list from mnode, mgmtEpInUse:%d", pConn->mgmtEps.inUse);
 
@@ -892,7 +894,7 @@ int32_t ctgGetDnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SArray
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_DNODE_LIST;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   ctgDebug("try to get dnode list from mnode, mgmtEpInUse:%d", pConn->mgmtEps.inUse);
 
@@ -946,7 +948,7 @@ int32_t ctgGetDBVgInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SBuildU
   int32_t   msgLen = 0;
   int32_t   reqType = TDMT_MND_USE_DB;
   SCtgTask* pTask = tReq ? tReq->pTask : NULL;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   ctgDebug("try to get db vgInfo from mnode, dbFName:%s", input->db);
 
@@ -1001,7 +1003,7 @@ int32_t ctgGetDBCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_GET_DB_CFG;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   ctgDebug("try to get db cfg from mnode, dbFName:%s", dbFName);
 
@@ -1059,7 +1061,7 @@ int32_t ctgGetIndexInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_GET_INDEX;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   ctgDebug("try to get index from mnode, indexName:%s", indexName);
 
@@ -1117,17 +1119,18 @@ int32_t ctgGetTbIndexFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* n
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_GET_TABLE_INDEX;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
   char tbFName[TSDB_TABLE_FNAME_LEN];
 
   ctgDebug("try to get tb index from mnode, tbFName:%s", tbFName);
 
   int32_t code = tNameExtractFullName(name, tbFName);
   if (code) {
-    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), name->type, name->dbname, name->tname);
+    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), name->type,
+             name->dbname, name->tname);
     CTG_ERR_RET(code);
   }
-  
+
   code = queryBuildMsg[TMSG_INDEX(reqType)]((void*)tbFName, &msg, 0, &msgLen, mallocFp);
   if (code) {
     ctgError("Build get index msg failed, code:%s, tbFName:%s", tstrerror(code), tbFName);
@@ -1182,7 +1185,7 @@ int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const ch
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_RETRIEVE_FUNC;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   ctgDebug("try to get udf info from mnode, funcName:%s", funcName);
 
@@ -1240,7 +1243,7 @@ int32_t ctgGetUserDbAuthFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_GET_USER_AUTH;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   ctgDebug("try to get user auth from mnode, user:%s", user);
 
@@ -1302,8 +1305,8 @@ int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, const
   int32_t          msgLen = 0;
   int32_t          reqType = TDMT_MND_TABLE_META;
   char             tbFName[TSDB_TABLE_FNAME_LEN];
-  (void)sprintf(tbFName, "%s.%s", dbFName, tbName);
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   ctgDebug("try to get table meta from mnode, tbFName:%s", tbFName);
 
@@ -1368,8 +1371,8 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   (void)tNameGetFullDbName(pTableName, dbFName);
   int32_t reqType = (pTask && pTask->type == CTG_TASK_GET_TB_NAME ? TDMT_VND_TABLE_NAME : TDMT_VND_TABLE_META);
   char    tbFName[TSDB_TABLE_FNAME_LEN];
-  (void)sprintf(tbFName, "%s.%s", dbFName, pTableName->tname);
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, pTableName->tname);
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   SEp* pEp = &vgroupInfo->epSet.eps[vgroupInfo->epSet.inUse];
   ctgDebug("try to get table meta from vnode, vgId:%d, ep num:%d, ep %s:%d, tbFName:%s", vgroupInfo->vgId,
@@ -1442,15 +1445,15 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
   int32_t msgLen = 0;
   int32_t reqType = TDMT_VND_TABLE_CFG;
   char    tbFName[TSDB_TABLE_FNAME_LEN];
-
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
   char dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(pTableName, dbFName);
   SBuildTableInput bInput = {.vgId = vgroupInfo->vgId, .dbFName = dbFName, .tbName = (char*)pTableName->tname};
 
   int32_t code = tNameExtractFullName(pTableName, tbFName);
   if (code) {
-    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pTableName->type, pTableName->dbname, pTableName->tname);
+    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pTableName->type,
+             pTableName->dbname, pTableName->tname);
     CTG_ERR_RET(code);
   }
 
@@ -1516,14 +1519,15 @@ int32_t ctgGetTableCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_TABLE_CFG;
   char    tbFName[TSDB_TABLE_FNAME_LEN];
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
   char dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(pTableName, dbFName);
   SBuildTableInput bInput = {.vgId = 0, .dbFName = dbFName, .tbName = (char*)pTableName->tname};
 
   int32_t code = tNameExtractFullName(pTableName, tbFName);
   if (code) {
-    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pTableName->type, pTableName->dbname, pTableName->tname);
+    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pTableName->type,
+             pTableName->dbname, pTableName->tname);
     CTG_ERR_RET(code);
   }
 
@@ -1577,7 +1581,7 @@ int32_t ctgGetSvrVerFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, char** ou
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_SERVER_VERSION;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   qDebug("try to get svr ver from mnode");
 
@@ -1631,11 +1635,12 @@ int32_t ctgGetViewInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* 
   int32_t   msgLen = 0;
   int32_t   reqType = TDMT_MND_VIEW_META;
   SCtgTask* pTask = tReq ? tReq->pTask : NULL;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
-  char fullName[TSDB_TABLE_FNAME_LEN];
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
+  char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t code = tNameExtractFullName(pName, fullName);
   if (code) {
-    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pName->type, pName->dbname, pName->tname);
+    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pName->type,
+             pName->dbname, pName->tname);
     CTG_ERR_RET(code);
   }
 
@@ -1692,11 +1697,12 @@ int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   char*     msg = NULL;
   int32_t   msgLen = 0;
   SCtgTask* pTask = tReq ? tReq->pTask : NULL;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
-  char tbFName[TSDB_TABLE_FNAME_LEN];
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
+  char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t code = tNameExtractFullName(name, tbFName);
   if (code) {
-    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), name->type, name->dbname, name->tname);
+    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), name->type,
+             name->dbname, name->tname);
     CTG_ERR_RET(code);
   }
 
@@ -1757,12 +1763,13 @@ int32_t ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, c
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t code = tNameExtractFullName(pTbName, tbFName);
   if (code) {
-    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pTbName->type, pTbName->dbname, pTbName->tname);
+    ctgError("tNameExtractFullName failed, code:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pTbName->type,
+             pTbName->dbname, pTbName->tname);
     CTG_ERR_RET(code);
   }
-  
+
   SCtgTask* pTask = tReq ? tReq->pTask : NULL;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
 
   SEp* pEp = &vgroupInfo->epSet.eps[vgroupInfo->epSet.inUse];
   ctgDebug("try to get stream progress from vnode, vgId:%d, ep num:%d, ep %s:%d, target:%s", vgroupInfo->vgId,

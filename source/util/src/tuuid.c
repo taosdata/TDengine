@@ -15,19 +15,42 @@
 
 #include "tuuid.h"
 
-static int64_t tUUIDHashId = 0;
+static uint32_t tUUIDHashId = 0;
 static int32_t tUUIDSerialNo = 0;
+
+int32_t taosGetSystemUUIDU32(uint32_t *uuid) {
+  if (uuid == NULL) return TSDB_CODE_APP_ERROR;
+  char    uid[37] = {0};
+  int32_t code = taosGetSystemUUIDLimit36(uid, sizeof(uid));
+  uid[36] = 0;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  } else {
+    *uuid = MurmurHash3_32(uid, strlen(uid));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t taosGetSystemUUIDU64(uint64_t *uuid) {
+  if (uuid == NULL) return TSDB_CODE_APP_ERROR;
+  char    uid[37] = {0};
+  int32_t code = taosGetSystemUUIDLimit36(uid, sizeof(uid));
+  uid[36] = 0;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  } else {
+    *uuid = MurmurHash3_64(uid, strlen(uid));
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t tGenIdPI32(void) {
   if (tUUIDHashId == 0) {
-    char    uid[65] = {0};
-    int32_t code = taosGetSystemUUID(uid, sizeof(uid));
-    uid[64] = 0;
-
+    int32_t code = taosGetSystemUUIDU32(&tUUIDHashId);
     if (code != TSDB_CODE_SUCCESS) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-    } else {
-      tUUIDHashId = MurmurHash3_32(uid, strlen(uid));
+      terrno = code;
     }
   }
 
@@ -41,12 +64,9 @@ int32_t tGenIdPI32(void) {
 
 int64_t tGenIdPI64(void) {
   if (tUUIDHashId == 0) {
-    char    uid[65] = {0};
-    int32_t code = taosGetSystemUUID(uid, 64);
+    int32_t code = taosGetSystemUUIDU32(&tUUIDHashId);
     if (code != TSDB_CODE_SUCCESS) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-    } else {
-      tUUIDHashId = MurmurHash3_32(uid, strlen(uid));
+      terrno = code;
     }
   }
 
@@ -57,7 +77,7 @@ int64_t tGenIdPI64(void) {
     uint64_t pid = taosGetPId();
     int32_t  val = atomic_add_fetch_32(&tUUIDSerialNo, 1);
 
-    id = ((tUUIDHashId & 0x07FF) << 52) | ((pid & 0x0F) << 48) | ((ts & 0x3FFFFFF) << 20) | (val & 0xFFFFF);
+    id = (((uint64_t)(tUUIDHashId & 0x07FF)) << 52) | ((pid & 0x0F) << 48) | ((ts & 0x3FFFFFF) << 20) | (val & 0xFFFFF);
     if (id) {
       break;
     }

@@ -55,7 +55,7 @@ void flttInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  (void)strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, PATH_MAX);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, LOG_MODE_TAOSD) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
@@ -74,7 +74,7 @@ int32_t flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   if (IS_VAR_DATA_TYPE(dataType)) {
     vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     if (NULL == vnode->datum.p) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataLen(value);
@@ -101,7 +101,7 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
   rnode->node.resType.bytes = dataBytes;
   rnode->dataBlockId = 0;
 
-  sprintf(rnode->dbName, "%" PRIu64, dbidx++);
+  snprintf(rnode->dbName, TSDB_DB_NAME_LEN, "%" PRIu64, dbidx++);
 
   if (NULL == block) {
     rnode->slotId = 2;
@@ -666,7 +666,7 @@ TEST(columnTest, binary_column_like_binary) {
   int32_t rowNum = sizeof(leftv) / sizeof(leftv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);
 
-  sprintf(&rightv[2], "%s", "__0");
+  snprintf(&rightv[2], sizeof(rightv) - 2, "%s", "__0");
   varDataSetLen(rightv, strlen(&rightv[2]));
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_LIKE, TSDB_DATA_TYPE_BOOL, pLeft, pRight);

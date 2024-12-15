@@ -1,18 +1,36 @@
-select MOD(10.55, 3);
-select MOD(10.55, 2);
-select MOD(10.55, 1);
-select MOD(10.55, -1);
-select MOD(10.55, -10);
-select MOD(-10.55, 1);
-select MOD(99, 1);
-select MOD(10.55, 1) + 1;
-select MOD(MOD(MOD(MOD(MOD(MOD(MOD(123.123456789, 9), 8), 7), 6), 5), 4), 3);
-select MOD(MOD(MOD(MOD(MOD(MOD(MOD(123456789.123456789, -1), -2), -3), -4), -5), -6), -7);
-select MOD(87654321.123456789, id + 1) from ts_4893.meters order by ts limit 10;
-select MOD(current, id + 1) from ts_4893.meters order by ts limit 10;
-select MOD(current, 1) from ts_4893.meters order by ts limit 10;
-select MOD(sqrt(current), abs(id + 1)) from ts_4893.meters order by ts limit 10;
-select mod(10, -3);
-select mod(10, 3);
-select mod(id, 3) from ts_4893.d0 order by ts limit 10;
-select mod(id, 3) from ts_4893.meters order by ts limit 10;
+select MOD(10.55, 3)
+select MOD(10.55, 2)
+select MOD(10.55, 1)
+select MOD(10.55, -1)
+select MOD(10.55, -10)
+select MOD(-10.55, 1)
+select MOD(99, 1)
+select MOD(10.55, 1) + 1
+select MOD(MOD(MOD(MOD(MOD(MOD(MOD(123.123456789, 9), 8), 7), 6), 5), 4), 3)
+select MOD(MOD(MOD(MOD(MOD(MOD(MOD(123456789.123456789, -1), -2), -3), -4), -5), -6), -7)
+select MOD(87654321.123456789, id + 1) from ts_4893.meters order by ts limit 10
+select MOD(current, id + 1) from ts_4893.meters order by ts limit 10
+select MOD(current, 1) from ts_4893.meters order by ts limit 10
+select MOD(sqrt(current), abs(id + 1)) from ts_4893.meters order by ts limit 10
+select mod(10, -3)
+select mod(10, 3)
+select mod(id, 3) from ts_4893.d0 order by ts limit 10
+select mod(id, 3) from ts_4893.meters order by ts limit 10
+select mod(null, 2)
+select mod(10, null)
+select mod(10, 0)
+select mod(-10, 0)
+select mod(5, 0)
+select mod(0, 1)
+select mod(1, 1)
+select mod(5, 2)
+select mod(5, -3)
+select mod(15, 4)
+select mod(-5, 3)
+select mod(voltage, 2) from ts_4893.meters limit 1
+select mod(current, 10) from ts_4893.meters limit 1
+select mod(current, log(100)) from ts_4893.meters limit 1
+select mod(phase, 4) from ts_4893.meters limit 1
+select mod(abs(voltage), 3) from ts_4893.meters limit 1
+select mod(phase, sqrt(16)) from ts_4893.meters limit 1
+select mod(round(voltage), 5) from ts_4893.meters limit 1

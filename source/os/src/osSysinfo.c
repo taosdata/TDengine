@@ -154,6 +154,7 @@ static void taosGetProcIOnfos() {
 #endif
 
 static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
+  OS_PARAM_CHECK(cpuInfo);
   int32_t code = 0;
 #ifdef WINDOWS
   FILETIME pre_idleTime = {0};
@@ -206,6 +207,7 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 }
 
 static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
+  OS_PARAM_CHECK(cpuInfo);
   int32_t code = 0;
 
 #ifdef WINDOWS
@@ -287,6 +289,7 @@ void taosGetSystemInfo() {
 }
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
+  OS_PARAM_CHECK(email);
 #ifdef WINDOWS
   return 0;
 #elif defined(_TD_DARWIN_64)
@@ -330,6 +333,7 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 
 #ifdef WINDOWS
 bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
+  if(releaseName == NULL) return false;
   TCHAR          szFileName[MAX_PATH];
   DWORD             dwHandle;
   DWORD             dwLen;
@@ -367,6 +371,7 @@ bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
 #endif
 
 int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t maxLen) {
+  OS_PARAM_CHECK(releaseName);
 #ifdef WINDOWS
   if (!getWinVersionReleaseName(releaseName, maxLen)) {
     snprintf(releaseName, maxLen, "Windows");
@@ -389,10 +394,10 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
   }
   if (major >= 20) {
       major -= 9; // macOS 11 and newer
-      sprintf(releaseName, "macOS %u.%u", major, minor);
+      snprintf(releaseName, maxLen, "macOS %u.%u", major, minor);
   } else {
       major -= 4; // macOS 10.1.1 and newer
-      sprintf(releaseName, "macOS 10.%d.%d", major, minor);
+      snprintf(releaseName, maxLen, "macOS 10.%d.%d", major, minor);
   }
 
   return 0;
@@ -437,6 +442,8 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
 }
 
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
+  OS_PARAM_CHECK(cpuModel);
+  OS_PARAM_CHECK(numOfCores);
 #ifdef WINDOWS
   char  value[100];
   DWORD bufferSize = sizeof(value);
@@ -474,7 +481,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   if (taosGetsCmd(pCmd, sizeof(buf) - 1, buf) > 0) {
     code = 0;
     done |= 2;
-    *numOfCores = atof(buf);
+    *numOfCores = taosStr2Float(buf, NULL);
   }
   taosCloseCmd(&pCmd);
 
@@ -498,7 +505,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
       done |= 1;
     } else if (((done & 2) == 0) && strncmp(line, "cpu cores", 9) == 0) {
       const char *v = strchr(line, ':') + 2;
-      *numOfCores = atof(v);
+      *numOfCores = taosStr2Float(v, NULL);
       done |= 2;
     }
     if (strncmp(line, "processor", 9) == 0) coreCount += 1;
@@ -541,6 +548,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 
 // Returns the container's CPU quota if successful, otherwise returns the physical CPU cores
 static int32_t taosCntrGetCpuCores(float *numOfCores) {
+  OS_PARAM_CHECK(numOfCores);
 #ifdef WINDOWS
   return TSDB_CODE_UNSUPPORT_OS;
 #elif defined(_TD_DARWIN_64)
@@ -600,6 +608,7 @@ _end:
 }
 
 int32_t taosGetCpuCores(float *numOfCores, bool physical) {
+  OS_PARAM_CHECK(numOfCores);
 #ifdef WINDOWS
   SYSTEM_INFO info;
   GetSystemInfo(&info);
@@ -702,6 +711,7 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma, ch
 }
 
 int32_t taosGetTotalMemory(int64_t *totalKB) {
+  OS_PARAM_CHECK(totalKB);
 #ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
@@ -723,6 +733,7 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
 }
 
 int32_t taosGetProcMemory(int64_t *usedKB) {
+  OS_PARAM_CHECK(usedKB);
 #ifdef WINDOWS
   unsigned bytes_used = 0;
 
@@ -768,7 +779,61 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
 #endif
 }
 
+int32_t taosGetSysAvailMemory(int64_t *availSize) {
+#ifdef WINDOWS
+  MEMORYSTATUSEX memsStat;
+  memsStat.dwLength = sizeof(memsStat);
+  if (!GlobalMemoryStatusEx(&memsStat)) {
+    return -1;
+  }
+
+  int64_t nMemFree = memsStat.ullAvailPhys;
+  int64_t nMemTotal = memsStat.ullTotalPhys;
+
+  *availSize = nMemTotal - nMemFree;
+  return 0;
+#elif defined(_TD_DARWIN_64)
+  *availSize = 0;
+  return 0;
+#else
+  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
+    return terrno;
+  }
+
+  ssize_t bytes = 0;
+  char    line[128] = {0};
+  int32_t expectedSize = 13; //"MemAvailable:"
+  while (!taosEOFFile(pFile)) {
+    bytes = taosGetsFile(pFile, sizeof(line), line);
+    if (bytes < 0) {
+      break;
+    }
+    if (line[0] != 'M' && line[3] != 'A') {
+      line[0] = 0;
+      continue;
+    }
+    if (0 == strncmp(line, "MemAvailable:", expectedSize)) {
+      break;
+    }
+  }
+
+  if (0 == line[0]) {
+    return TSDB_CODE_UNSUPPORT_OS;
+  }
+  
+  char tmp[32];
+  (void)sscanf(line, "%s %" PRId64, tmp, availSize);
+
+  *availSize *= 1024;
+  
+  (void)taosCloseFile(&pFile);
+  return 0;
+#endif
+}
+
 int32_t taosGetSysMemory(int64_t *usedKB) {
+  OS_PARAM_CHECK(usedKB);
 #ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
@@ -794,6 +859,8 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
 }
 
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
+  OS_PARAM_CHECK(dataDir);
+  OS_PARAM_CHECK(diskSize);
 #if defined(WINDOWS)
   unsigned _int64 i64FreeBytesToCaller;
   unsigned _int64 i64TotalBytes;
@@ -839,21 +906,25 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 }
 
 int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
+  OS_PARAM_CHECK(rchars);
+  OS_PARAM_CHECK(wchars);
+  OS_PARAM_CHECK(read_bytes);
+  OS_PARAM_CHECK(write_bytes);
 #ifdef WINDOWS
   IO_COUNTERS io_counter;
   if (GetProcessIoCounters(GetCurrentProcess(), &io_counter)) {
-    if (rchars) *rchars = io_counter.ReadTransferCount;
-    if (wchars) *wchars = io_counter.WriteTransferCount;
-    if (read_bytes) *read_bytes = 0;
-    if (write_bytes) *write_bytes = 0;
+    *rchars = io_counter.ReadTransferCount;
+    *wchars = io_counter.WriteTransferCount;
+    *read_bytes = 0;
+    *write_bytes = 0;
     return 0;
   }
   return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
 #elif defined(_TD_DARWIN_64)
-  if (rchars) *rchars = 0;
-  if (wchars) *wchars = 0;
-  if (read_bytes) *read_bytes = 0;
-  if (write_bytes) *write_bytes = 0;
+  *rchars = 0;
+  *wchars = 0;
+  *read_bytes = 0;
+  *write_bytes = 0;
   return 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsProcIOFile, TD_FILE_READ | TD_FILE_STREAM);
@@ -900,6 +971,9 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
 }
 
 int32_t taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
+  if (rchars == NULL || wchars == NULL || read_bytes == NULL || write_bytes == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   static int64_t last_rchars = -1;
   static int64_t last_wchars = -1;
   static int64_t last_read_bytes = -1;
@@ -932,13 +1006,15 @@ int32_t taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes
   return 0;
 }
 void taosSetDefaultProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
-  *rchars = 0;
-  *wchars = 0;
-  *read_bytes = 0;
-  *write_bytes = 0;
+  if(rchars) *rchars = 0;
+  if(wchars) *wchars = 0;
+  if(read_bytes) *read_bytes = 0;
+  if(write_bytes) *write_bytes = 0;
 }
 
 int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
+  OS_PARAM_CHECK(receive_bytes);
+  OS_PARAM_CHECK(transmit_bytes);
   *receive_bytes = 0;
   *transmit_bytes = 0;
 
@@ -994,6 +1070,8 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 }
 
 int32_t taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
+  OS_PARAM_CHECK(receive_bytes);
+  OS_PARAM_CHECK(transmit_bytes);
   static int64_t last_receive_bytes = -1;
   static int64_t last_transmit_bytes = -1;
   int64_t cur_receive_bytes = 0;
@@ -1017,8 +1095,8 @@ int32_t taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
   return 0;
 }
 void taosSetDefaultCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
-  *receive_bytes = 0;
-  *transmit_bytes = 0;
+  if (receive_bytes) *receive_bytes = 0;
+  if (transmit_bytes) *transmit_bytes = 0;
 }
 
 void taosKillSystem() {
@@ -1035,14 +1113,16 @@ void taosKillSystem() {
 #endif
 }
 
-int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
+#define UUIDLEN (36)
+int32_t taosGetSystemUUIDLimit36(char *uid, int32_t uidlen) {
+  OS_PARAM_CHECK(uid);
 #ifdef WINDOWS
   GUID guid;
   HRESULT h = CoCreateGuid(&guid);
   if (h != S_OK) {
     return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
   }
-  snprintf(uid, uidlen, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3,
+  (void)snprintf(uid, uidlen, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3,
            guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6],
            guid.Data4[7]);
 
@@ -1054,7 +1134,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
-  int n = snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
+  (void)snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);
   return 0;
 #else
   int64_t len = 0;
@@ -1070,14 +1150,30 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
       return terrno;
     }
   }
-
-  if (len >= 36) {
-    uid[36] = 0;
-    return 0;
+  if (len >= UUIDLEN + 1) {
+    uid[len - 1] = 0;
+  } else {
+    uid[uidlen - 1] = 0;
   }
 
   return 0;
 #endif
+}
+
+int32_t taosGetSystemUUIDLen(char *uid, int32_t uidlen) {
+  if (uid == NULL || uidlen <= 0) {
+    return TSDB_CODE_APP_ERROR;
+  }
+  int num = (uidlen % UUIDLEN == 0) ? (uidlen / UUIDLEN) : (uidlen / UUIDLEN + 1);
+  int left = uidlen;
+  for (int i = 0; i < num; ++i) {
+    int32_t code = taosGetSystemUUIDLimit36(uid + i * UUIDLEN, left);
+    if (code != 0) {
+      return code;
+    }
+    left -= UUIDLEN;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 char *taosGetCmdlineByPID(int pid) {
@@ -1095,7 +1191,7 @@ char *taosGetCmdlineByPID(int pid) {
   return cmdline;
 #else
   static char cmdline[1024];
-  (void)sprintf(cmdline, "/proc/%d/cmdline", pid);
+  (void)snprintf(cmdline, sizeof(cmdline), "/proc/%d/cmdline", pid);
 
   // int fd = open(cmdline, O_RDONLY);
   TdFilePtr pFile = taosOpenFile(cmdline, TD_FILE_READ);
@@ -1317,6 +1413,7 @@ int32_t getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
 #endif
 
 int32_t taosGetlocalhostname(char *hostname, size_t maxLen) {
+  OS_PARAM_CHECK(hostname);
 #ifdef _TD_DARWIN_64
   int res = getMacLocalHostNameBySCD(hostname, maxLen);
   if (res != 0) {

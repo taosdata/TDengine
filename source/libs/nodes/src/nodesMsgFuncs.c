@@ -1761,13 +1761,16 @@ static int32_t downstreamSourceNodeInlineToMsg(const void* pObj, STlvEncoder* pE
     code = tlvEncodeValueU64(pEncoder, pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeValueU64(pEncoder, pNode->schedId);
+    code = tlvEncodeValueU64(pEncoder, pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI32(pEncoder, pNode->execId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI32(pEncoder, pNode->fetchMsgType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueU64(pEncoder, pNode->clientId);
   }
 
   return code;
@@ -1785,13 +1788,16 @@ static int32_t msgToDownstreamSourceNodeInlineToMsg(STlvDecoder* pDecoder, void*
     code = tlvDecodeValueU64(pDecoder, &pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueU64(pDecoder, &pNode->schedId);
+    code = tlvDecodeValueU64(pDecoder, &pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI32(pDecoder, &pNode->execId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI32(pDecoder, &pNode->fetchMsgType);
+  }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueU64(pDecoder, &pNode->clientId);
   }
 
   return code;
@@ -3190,7 +3196,7 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeBool(pEncoder, PHY_WINDOW_CODE_MERGE_DATA_BLOCK, pNode->mergeDataBlock);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY, pNode->destHasPrimayKey);
+    code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY, pNode->destHasPrimaryKey);
   }
 
   return code;
@@ -3234,7 +3240,7 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
         break;
       case PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY:
-        code = tlvDecodeI8(pTlv, &pNode->destHasPrimayKey);
+        code = tlvDecodeI8(pTlv, &pNode->destHasPrimaryKey);
         break;
       default:
         break;
@@ -3244,7 +3250,7 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_INTERVAL_CODE_WINDOW = 1, PHY_INTERVAL_CODE_INLINE_ATTRS };
+enum { PHY_INTERVAL_CODE_WINDOW = 1, PHY_INTERVAL_CODE_INLINE_ATTRS, PHY_INTERVAL_CODE_TIME_RANGE };
 
 static int32_t physiIntervalNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
@@ -3272,6 +3278,9 @@ static int32_t physiIntervalNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   int32_t code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_INLINE_ATTRS, physiIntervalNodeInlineToMsg, pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_TIME_RANGE, timeWindowToMsg, &pNode->timeRange);
   }
 
   return code;
@@ -3310,6 +3319,8 @@ static int32_t msgToPhysiIntervalNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_INTERVAL_CODE_INLINE_ATTRS:
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiIntervalNodeInline, pNode);
         break;
+      case PHY_INTERVAL_CODE_TIME_RANGE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, &pNode->timeRange);
       default:
         break;
     }
@@ -3326,7 +3337,8 @@ enum {
   PHY_FILL_CODE_WSTART,
   PHY_FILL_CODE_VALUES,
   PHY_FILL_CODE_TIME_RANGE,
-  PHY_FILL_CODE_INPUT_TS_ORDER
+  PHY_FILL_CODE_INPUT_TS_ORDER,
+  PHY_FILL_CODE_FILL_NULL_EXPRS,
 };
 
 static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3350,6 +3362,9 @@ static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_TIME_RANGE, timeWindowToMsg, &pNode->timeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_FILL_NULL_EXPRS, nodeListToMsg, pNode->pFillNullExprs);
   }
 
   return code;
@@ -3382,6 +3397,9 @@ static int32_t msgToPhysiFillNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_FILL_CODE_TIME_RANGE:
         code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, (void**)&pNode->timeRange);
+        break;
+      case PHY_FILL_CODE_FILL_NULL_EXPRS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFillNullExprs);
         break;
       default:
         break;
@@ -3530,6 +3548,46 @@ static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_COUNT_CODE_WINDOW_SLIDING:
         code = tlvDecodeI64(pTlv, &pNode->windowSliding);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum { PHY_ANOMALY_CODE_WINDOW = 1, PHY_ANOMALY_CODE_KEY, PHY_ANOMALY_CODE_WINDOW_OPTION };
+
+static int32_t physiAnomalyWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SAnomalyWindowPhysiNode* pNode = (const SAnomalyWindowPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_KEY, nodeToMsg, pNode->pAnomalyKey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_ANOMALY_CODE_WINDOW_OPTION, pNode->anomalyOpt);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiAnomalyWindowNode(STlvDecoder* pDecoder, void* pObj) {
+  SAnomalyWindowPhysiNode* pNode = (SAnomalyWindowPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_ANOMALY_CODE_WINDOW:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
+        break;
+      case PHY_ANOMALY_CODE_KEY:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pAnomalyKey);
+        break;
+      case PHY_ANOMALY_CODE_WINDOW_OPTION:
+        code = tlvDecodeCStr(pTlv, pNode->anomalyOpt, sizeof(pNode->anomalyOpt));
         break;
       default:
         break;
@@ -3693,7 +3751,9 @@ enum {
   PHY_INERP_FUNC_CODE_INTERVAL_UNIT,
   PHY_INERP_FUNC_CODE_FILL_MODE,
   PHY_INERP_FUNC_CODE_FILL_VALUES,
-  PHY_INERP_FUNC_CODE_TIME_SERIES
+  PHY_INERP_FUNC_CODE_TIME_SERIES,
+  PHY_INTERP_FUNC_CODE_RANGE_INTERVAL,
+  PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT,
 };
 
 static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3723,6 +3783,12 @@ static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_INERP_FUNC_CODE_TIME_SERIES, nodeToMsg, pNode->pTimeSeries);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_INTERP_FUNC_CODE_RANGE_INTERVAL, pNode->rangeInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT, pNode->rangeIntervalUnit);
   }
 
   return code;
@@ -3761,6 +3827,56 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_INERP_FUNC_CODE_TIME_SERIES:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeSeries);
+        break;
+      case PHY_INTERP_FUNC_CODE_RANGE_INTERVAL:
+        code = tlvDecodeI64(pTlv, &pNode->rangeInterval);
+        break;
+      case PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT:
+        code = tlvDecodeI8(pTlv, &pNode->rangeIntervalUnit);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum {
+  PHY_FORECAST_FUNC_CODE_BASE_NODE = 1,
+  PHY_FORECAST_FUNC_CODE_EXPR,
+  PHY_FORECAST_FUNC_CODE_FUNCS,
+};
+
+static int32_t physiForecastFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SForecastFuncPhysiNode* pNode = (const SForecastFuncPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_EXPR, nodeListToMsg, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_FUNCS, nodeListToMsg, pNode->pFuncs);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiForecastFuncNode(STlvDecoder* pDecoder, void* pObj) {
+  SForecastFuncPhysiNode* pNode = (SForecastFuncPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_FORECAST_FUNC_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_FORECAST_FUNC_CODE_EXPR:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pExprs);
+        break;
+      case PHY_FORECAST_FUNC_CODE_FUNCS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFuncs);
         break;
       default:
         break;
@@ -4536,6 +4652,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       code = physiCountWindowNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
+      code = physiAnomalyWindowNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = physiPartitionNodeToMsg(pObj, pEncoder);
       break;
@@ -4546,7 +4665,11 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = physiIndefRowsFuncNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       code = physiInterpFuncNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      code = physiForecastFuncNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = physiDispatchNodeToMsg(pObj, pEncoder);
@@ -4698,6 +4821,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       code = msgToPhysiCountWindowNode(pDecoder, pObj);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
+      code = msgToPhysiAnomalyWindowNode(pDecoder, pObj);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = msgToPhysiPartitionNode(pDecoder, pObj);
       break;
@@ -4708,7 +4834,11 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToPhysiIndefRowsFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       code = msgToPhysiInterpFuncNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      code = msgToPhysiForecastFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = msgToPhysiDispatchNode(pDecoder, pObj);

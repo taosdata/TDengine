@@ -26,7 +26,7 @@
 
 TEST(testCase, linear_hash_Tests) {
   taosSeedRand(taosGetTimestampSec());
-  strcpy(tsTempDir, "/tmp/");
+  tstrncpy((char*)tsTempDir, "/tmp/", sizeof(tsTempDir));
 
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
 

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "geosWrapper.h"
 #include "os.h"
 #include "parInsertUtil.h"
 #include "parInt.h"
@@ -122,7 +123,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
 }
 
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                           TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
+                           TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SMsgBuf        pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -182,7 +183,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         goto end;
       }
       memcpy(tmp, bind[c].buffer, colLen);
-      code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
+      code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf, charsetCxt);
       taosMemoryFree(tmp);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
@@ -192,6 +193,12 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+          if (initCtxAsText() || checkWKB(bind[c].buffer, colLen)) {
+            code = buildSyntaxErrMsg(&pBuf, "invalid geometry tag", bind[c].buffer);
+            goto end;
+          }
+        }
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -201,7 +208,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
           code = terrno;
           goto end;
         }
-        if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output)) {
+        if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
           if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
             taosMemoryFree(p);
             code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
@@ -217,6 +224,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         val.nData = output;
       } else {
         memcpy(&val.i64, bind[c].buffer, colLen);
+      }
+      if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        goto end;
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
         code = terrno;
@@ -238,7 +249,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   }
 
   code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
-                      pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
+                             pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   pTag = NULL;
 
 end:
@@ -255,7 +266,7 @@ end:
   return code;
 }
 
-int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND* src, TAOS_MULTI_BIND* dst) {
+int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND* src, TAOS_MULTI_BIND* dst, void* charsetCxt) {
   int32_t output = 0;
   int32_t newBuflen = (pSchema->bytes - VARSTR_HEADER_SIZE) * src->num;
   if (dst->buffer_length < newBuflen) {
@@ -281,7 +292,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
     }
 
     if (!taosMbsToUcs4(((char*)src->buffer) + src->buffer_length * i, src->length[i],
-                       (TdUcs4*)(((char*)dst->buffer) + dst->buffer_length * i), dst->buffer_length, &output)) {
+                       (TdUcs4*)(((char*)dst->buffer) + dst->buffer_length * i), dst->buffer_length, &output, charsetCxt)) {
       if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
@@ -301,7 +312,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
 }
 
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                              STSchema** pTSchema, SBindInfo* pBindInfos) {
+                              STSchema** pTSchema, SBindInfo* pBindInfos, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -338,7 +349,7 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
     }
 
     if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-      code = convertStmtNcharCol(&pBuf, pColSchema, bind + c, &ncharBind);
+      code = convertStmtNcharCol(&pBuf, pColSchema, bind + c, &ncharBind, charsetCxt);
       if (code) {
         goto _return;
       }
@@ -369,7 +380,7 @@ _return:
   return code;
 }
 
-int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
+int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -395,7 +406,7 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
     }
 
     if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-      code = convertStmtNcharCol(&pBuf, pColSchema, bind + c, &ncharBind);
+      code = convertStmtNcharCol(&pBuf, pColSchema, bind + c, &ncharBind, charsetCxt);
       if (code) {
         goto _return;
       }
@@ -405,7 +416,8 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
     }
 
     code = tColDataAddValueByBind(pCol, pBind,
-                                  IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+                                  IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                  initCtxAsText, checkWKB);
     if (code) {
       goto _return;
     }
@@ -422,7 +434,7 @@ _return:
 }
 
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                int32_t colIdx, int32_t rowNum) {
+                                int32_t colIdx, int32_t rowNum, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -447,7 +459,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
   }
 
   if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-    code = convertStmtNcharCol(&pBuf, pColSchema, bind, &ncharBind);
+    code = convertStmtNcharCol(&pBuf, pColSchema, bind, &ncharBind, charsetCxt);
     if (code) {
       goto _return;
     }
@@ -457,7 +469,8 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
   }
 
   code = tColDataAddValueByBind(pCol, pBind,
-                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                initCtxAsText, checkWKB);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
@@ -470,7 +483,7 @@ _return:
 }
 
 int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen) {
+                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SMsgBuf        pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -530,7 +543,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         goto end;
       }
       memcpy(tmp, bind[c].buffer, colLen);
-      code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
+      code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf, charsetCxt);
       taosMemoryFree(tmp);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
@@ -540,6 +553,12 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+          if (initCtxAsText() || checkWKB(bind[c].buffer, colLen)) {
+            code = buildSyntaxErrMsg(&pBuf, "invalid geometry tag", bind[c].buffer);
+            goto end;
+          }
+        }
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -549,7 +568,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
           code = terrno;
           goto end;
         }
-        if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output)) {
+        if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
           if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
             taosMemoryFree(p);
             code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
@@ -565,6 +584,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         val.nData = output;
       } else {
         memcpy(&val.i64, bind[c].buffer, colLen);
+      }
+      if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        goto end;
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
         code = terrno;
@@ -586,7 +609,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   }
 
   code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
-                      pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
+                             pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   pTag = NULL;
 
 end:
@@ -603,7 +626,7 @@ end:
   return code;
 }
 
-static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STMT2_BIND* src, TAOS_STMT2_BIND* dst) {
+static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STMT2_BIND* src, TAOS_STMT2_BIND* dst, void *charsetCxt) {
   int32_t       output = 0;
   const int32_t max_buf_len = pSchema->bytes - VARSTR_HEADER_SIZE;
 
@@ -625,7 +648,7 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
       continue;
     }
 
-    if (!taosMbsToUcs4(src_buf, src->length[i], (TdUcs4*)dst_buf, max_buf_len, &output)) {
+    if (!taosMbsToUcs4(src_buf, src->length[i], (TdUcs4*)dst_buf, max_buf_len, &output, charsetCxt)) {
       if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
@@ -647,7 +670,7 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
 }
 
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                               STSchema** pTSchema, SBindInfo2* pBindInfos) {
+                               STSchema** pTSchema, SBindInfo2* pBindInfos, void *charsetCxt) {
   STableDataCxt*  pDataBlock = (STableDataCxt*)pBlock;
   SSchema*        pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*  boundInfo = &pDataBlock->boundColsInfo;
@@ -658,9 +681,23 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
   int32_t         code = 0;
   int16_t         lastColId = -1;
   bool            colInOrder = true;
+  int             ncharColNums = 0;
 
   if (NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
+  }
+
+  for (int c = 0; c < boundInfo->numOfBound; ++c) {
+    if (TSDB_DATA_TYPE_NCHAR == pSchema[boundInfo->pColIndex[c]].type) {
+      ncharColNums++;
+    }
+  }
+  if (ncharColNums > 0) {
+    ncharBinds = taosArrayInit(ncharColNums, sizeof(ncharBind));
+    if (!ncharBinds) {
+      code = terrno;
+      goto _return;
+    }
   }
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
@@ -683,16 +720,9 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
     }
 
     if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-      code = convertStmtStbNcharCol2(&pBuf, pColSchema, bind + c, &ncharBind);
+      code = convertStmtStbNcharCol2(&pBuf, pColSchema, bind + c, &ncharBind, charsetCxt);
       if (code) {
         goto _return;
-      }
-      if (!ncharBinds) {
-        ncharBinds = taosArrayInit(1, sizeof(ncharBind));
-        if (!ncharBinds) {
-          code = terrno;
-          goto _return;
-        }
       }
       if (!taosArrayPush(ncharBinds, &ncharBind)) {
         code = terrno;
@@ -725,7 +755,7 @@ _return:
   return code;
 }
 
-static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STMT2_BIND* src, TAOS_STMT2_BIND* dst) {
+static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STMT2_BIND* src, TAOS_STMT2_BIND* dst, void *charsetCxt) {
   int32_t       output = 0;
   const int32_t max_buf_len = pSchema->bytes - VARSTR_HEADER_SIZE;
 
@@ -755,7 +785,7 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
 
     /*if (!taosMbsToUcs4(((char*)src->buffer) + src->buffer_length * i, src->length[i],
       (TdUcs4*)(((char*)dst->buffer) + dst->buffer_length * i), dst->buffer_length, &output)) {*/
-    if (!taosMbsToUcs4(src_buf, src->length[i], (TdUcs4*)dst_buf, max_buf_len, &output)) {
+    if (!taosMbsToUcs4(src_buf, src->length[i], (TdUcs4*)dst_buf, max_buf_len, &output, charsetCxt)) {
       if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
@@ -776,7 +806,7 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen) {
+int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -789,6 +819,10 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
     SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[c]];
     SColData* pCol = taosArrayGet(pCols, c);
+    if (pCol == NULL || pColSchema == NULL) {
+      code = buildInvalidOperationMsg(&pBuf, "get column schema or column data failed");
+      goto _return;
+    }
 
     if (bind[c].num != rowNum) {
       code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
@@ -802,7 +836,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
     }
 
     if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-      code = convertStmtNcharCol2(&pBuf, pColSchema, bind + c, &ncharBind);
+      code = convertStmtNcharCol2(&pBuf, pColSchema, bind + c, &ncharBind, charsetCxt);
       if (code) {
         goto _return;
       }
@@ -812,7 +846,8 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
     }
 
     code = tColDataAddValueByBind2(pCol, pBind,
-                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                   initCtxAsText, checkWKB);
     if (code) {
       goto _return;
     }
@@ -829,7 +864,7 @@ _return:
 }
 
 int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                 int32_t colIdx, int32_t rowNum) {
+                                 int32_t colIdx, int32_t rowNum, void *charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -854,7 +889,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-    code = convertStmtNcharCol2(&pBuf, pColSchema, bind, &ncharBind);
+    code = convertStmtNcharCol2(&pBuf, pColSchema, bind, &ncharBind, charsetCxt);
     if (code) {
       goto _return;
     }
@@ -864,7 +899,8 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   code = tColDataAddValueByBind2(pCol, pBind,
-                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                 initCtxAsText, checkWKB);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
@@ -878,7 +914,7 @@ _return:
 
 int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSchema, int32_t* fieldNum,
                          TAOS_FIELD_E** fields, uint8_t timePrec) {
-  if (fields) {
+  if (fields != NULL) {
     *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_E));
     if (NULL == *fields) {
       return terrno;
@@ -891,9 +927,82 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 
     for (int32_t i = 0; i < numOfBound; ++i) {
       schema = &pSchema[boundColumns[i]];
-      strcpy((*fields)[i].name, schema->name);
+      tstrncpy((*fields)[i].name, schema->name, 65);
       (*fields)[i].type = schema->type;
       (*fields)[i].bytes = schema->bytes;
+    }
+  }
+
+  *fieldNum = numOfBound;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_STB** fields,
+                            STableMeta* pMeta, void* boundTags, bool preCtbname) {
+  SBoundColInfo* tags = (SBoundColInfo*)boundTags;
+  int32_t numOfBound = boundColsInfo.numOfBound + (tags->mixTagsCols ? 0 : tags->numOfBound) + (preCtbname ? 1 : 0);
+  int32_t idx = 0;
+  if (fields != NULL) {
+    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_STB));
+    if (NULL == *fields) {
+      return terrno;
+    }
+
+    if (preCtbname && numOfBound != boundColsInfo.numOfBound) {
+      (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
+      tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
+      (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
+      (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
+      idx++;
+    }
+
+    if (tags->numOfBound > 0 && !tags->mixTagsCols) {
+      SSchema* tagSchema = getTableTagSchema(pMeta);
+
+      for (int32_t i = 0; i < tags->numOfBound; ++i) {
+        (*fields)[idx].field_type = TAOS_FIELD_TAG;
+
+        SSchema* schema = &tagSchema[tags->pColIndex[i]];
+        tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[i].name));
+        (*fields)[idx].type = schema->type;
+        (*fields)[idx].bytes = schema->bytes;
+        if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
+          (*fields)[idx].precision = pMeta->tableInfo.precision;
+        }
+        idx++;
+      }
+    }
+
+    if (boundColsInfo.numOfBound > 0) {
+      SSchema* schema = &pSchema[boundColsInfo.pColIndex[0]];
+
+      for (int32_t i = 0; i < boundColsInfo.numOfBound; ++i) {
+        int16_t idxCol = boundColsInfo.pColIndex[i];
+
+        if (idxCol == pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) {
+          (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
+          tstrncpy((*fields)[i].name, "tbname", sizeof((*fields)[idx].name));
+          (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
+          (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
+
+          idx++;
+          continue;
+        } else if (idxCol < pMeta->tableInfo.numOfColumns) {
+          (*fields)[idx].field_type = TAOS_FIELD_COL;
+        } else {
+          (*fields)[idx].field_type = TAOS_FIELD_TAG;
+        }
+
+        schema = &pSchema[idxCol];
+        tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[idx].name));
+        (*fields)[idx].type = schema->type;
+        (*fields)[idx].bytes = schema->bytes;
+        if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
+          (*fields)[idx].precision = pMeta->tableInfo.precision;
+        }
+        idx++;
+      }
     }
   }
 
@@ -908,11 +1017,11 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   if (NULL == tags) {
     return TSDB_CODE_APP_ERROR;
   }
-  /*
+
   if (pDataBlock->pMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pMeta->tableType != TSDB_CHILD_TABLE) {
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
-  */
+
   SSchema* pSchema = getTableTagSchema(pDataBlock->pMeta);
   if (tags->numOfBound <= 0) {
     *fieldNum = 0;
@@ -931,7 +1040,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
   SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
   if (pDataBlock->boundColsInfo.numOfBound <= 0) {
     *fieldNum = 0;
-    if (fields) {
+    if (fields != NULL) {
       *fields = NULL;
     }
 
@@ -940,6 +1049,25 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
 
   CHECK_CODE(buildBoundFields(pDataBlock->boundColsInfo.numOfBound, pDataBlock->boundColsInfo.pColIndex, pSchema,
                               fieldNum, fields, pDataBlock->pMeta->tableInfo.precision));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool preCtbname, int32_t* fieldNum,
+                               TAOS_FIELD_STB** fields) {
+  STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
+  SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  if (pDataBlock->boundColsInfo.numOfBound <= 0) {
+    *fieldNum = 0;
+    if (fields != NULL) {
+      *fields = NULL;
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CHECK_CODE(buildStbBoundFields(pDataBlock->boundColsInfo, pSchema, fieldNum, fields, pDataBlock->pMeta, boundTags,
+                                 preCtbname));
 
   return TSDB_CODE_SUCCESS;
 }

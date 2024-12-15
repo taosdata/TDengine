@@ -22,6 +22,7 @@
 #include "tstream.h"
 #include "ttimer.h"
 #include "wal.h"
+#include "streamMsg.h"
 
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
 static int32_t streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated);
@@ -103,8 +104,9 @@ static SStreamUpstreamEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
   return pEpInfo;
 }
 
-int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
-                       SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5, SStreamTask** p) {
+int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int32_t trigger,
+                       int64_t triggerParam, SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5,
+                       SStreamTask** p) {
   *p = NULL;
 
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
@@ -120,6 +122,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
 
   pTask->info.taskLevel = taskLevel;
   pTask->info.fillHistory = fillHistory;
+  pTask->info.trigger = trigger;
   pTask->info.delaySchedParam = triggerParam;
   pTask->subtableWithoutMd5 = subtableWithoutMd5;
 
@@ -211,22 +214,23 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   return 0;
 }
 
-void tFreeStreamTask(SStreamTask* pTask) {
-  char*   p = NULL;
-  int32_t taskId = pTask->id.taskId;
+void tFreeStreamTask(void* pParam) {
+  char*        p = NULL;
+  SStreamTask* pTask = pParam;
+  int32_t      taskId = pTask->id.taskId;
 
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
   streamMutexLock(&pTask->lock);
   if (pTask->status.pSM != NULL) {
-    SStreamTaskState pStatus = streamTaskGetStatus(pTask);
-    p = pStatus.name;
-    status1 = pStatus.state;
+    SStreamTaskState status = streamTaskGetStatus(pTask);
+    p = status.name;
+    status1 = status.state;
   }
   streamMutexUnlock(&pTask->lock);
 
-  stDebug("start to free s-task:0x%x %p, state:%s", taskId, pTask, p);
+  stDebug("start to free s-task:0x%x %p, state:%s, refId:%" PRId64, taskId, pTask, p, pTask->id.refId);
 
   SCheckpointInfo* pCkInfo = &pTask->chkInfo;
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
@@ -234,12 +238,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
           " nextProcessVer:%" PRId64 ", checkpointCount:%d",
           taskId, pStatis->created, pStatis->checkTs, pStatis->readyTs, pStatis->updateCount, pStatis->latestUpdateTs,
           pCkInfo->checkpointId, pCkInfo->checkpointVer, pCkInfo->nextProcessVer, pStatis->checkpoint);
-
-  // remove the ref by timer
-  while (pTask->status.timerActive > 0) {
-    stDebug("s-task:%s wait for task stop timer activities, ref:%d", pTask->id.idStr, pTask->status.timerActive);
-    taosMsleep(100);
-  }
 
   if (pTask->schedInfo.pDelayTimer != NULL) {
     streamTmrStop(pTask->schedInfo.pDelayTimer);
@@ -258,10 +256,12 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   if (pTask->inputq.queue) {
     streamQueueClose(pTask->inputq.queue, pTask->id.taskId);
+    pTask->inputq.queue = NULL;
   }
 
   if (pTask->outputq.queue) {
     streamQueueClose(pTask->outputq.queue, pTask->id.taskId);
+    pTask->outputq.queue = NULL;
   }
 
   if (pTask->exec.qmsg) {
@@ -275,6 +275,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   if (pTask->exec.pWalReader != NULL) {
     walCloseReader(pTask->exec.pWalReader);
+    pTask->exec.pWalReader = NULL;
   }
 
   streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
@@ -286,7 +287,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->outputInfo.tbSink.pTSchema);
-    tSimpleHashCleanup(pTask->outputInfo.tbSink.pTblInfo);
+    tSimpleHashCleanup(pTask->outputInfo.tbSink.pTbInfo);
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pTagSchema);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
@@ -425,8 +426,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return code;
   }
 
-  pTask->refCnt = 1;
-
+  pTask->id.refId = 0;
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
@@ -438,7 +438,6 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   }
 
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->status.timerActive = 0;
 
   code = streamCreateStateMachine(pTask);
   if (pTask->status.pSM == NULL || code != TSDB_CODE_SUCCESS) {
@@ -834,28 +833,31 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
   int32_t      code = 0;
   SStreamMeta* pMeta = pTask->pMeta;
-  STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
+  SStreamTask* pStreamTask = NULL;
+
   if (pTask->info.fillHistory == 0) {
     return code;
   }
 
-  SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
-  if (ppStreamTask != NULL) {
+  code = streamMetaAcquireTaskUnsafe(pMeta, &pTask->streamTaskId, &pStreamTask);
+  if (code == 0) {
     stDebug("s-task:%s clear the related stream task:0x%x attr to fill-history task", pTask->id.idStr,
-            (int32_t)sTaskId.taskId);
+            (int32_t)pTask->streamTaskId.taskId);
 
-    streamMutexLock(&(*ppStreamTask)->lock);
-    CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
+    streamMutexLock(&(pStreamTask->lock));
+    CLEAR_RELATED_FILLHISTORY_TASK(pStreamTask);
 
     if (resetRelHalt) {
       stDebug("s-task:0x%" PRIx64 " set the persistent status attr to be ready, prev:%s, status in sm:%s",
-              sTaskId.taskId, streamTaskGetStatusStr((*ppStreamTask)->status.taskStatus),
-              streamTaskGetStatus(*ppStreamTask).name);
-      (*ppStreamTask)->status.taskStatus = TASK_STATUS__READY;
+              pTask->streamTaskId.taskId, streamTaskGetStatusStr(pStreamTask->status.taskStatus),
+              streamTaskGetStatus(pStreamTask).name);
+      pStreamTask->status.taskStatus = TASK_STATUS__READY;
     }
 
-    code = streamMetaSaveTask(pMeta, *ppStreamTask);
-    streamMutexUnlock(&(*ppStreamTask)->lock);
+    code = streamMetaSaveTask(pMeta, pStreamTask);
+    streamMutexUnlock(&(pStreamTask->lock));
+
+    streamMetaReleaseTask(pMeta, pStreamTask);
   }
 
   return code;
@@ -884,7 +886,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
 }
 
 int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
-  int32_t                code;
+  int32_t                code = 0;
   int32_t                tlen = 0;
   int32_t                vgId = pTask->pMeta->vgId;
   const char*            id = pTask->id.idStr;
@@ -1245,13 +1247,13 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   taosMemoryFree(pInfo);
 }
 
-//NOTE: clear the checkpoint id, and keep the failed id
+// NOTE: clear the checkpoint id, and keep the failed id
+// failedId for a task will increase as the checkpoint I.D. increases.
 void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->activeId = 0;
   pInfo->transId = 0;
   pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
-//  pInfo->failedId = 0;
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);
@@ -1278,4 +1280,202 @@ const char* streamTaskGetExecType(int32_t type) {
     default:
       return "invalid-exec-type";
   }
+}
+
+int32_t streamTaskAllocRefId(SStreamTask* pTask, int64_t** pRefId) {
+  *pRefId = taosMemoryMalloc(sizeof(int64_t));
+  if (*pRefId != NULL) {
+    **pRefId = pTask->id.refId;
+    int32_t code = metaRefMgtAdd(pTask->pMeta->vgId, *pRefId);
+    if (code != 0) {
+      stError("s-task:%s failed to add refId:%" PRId64 " into refId-mgmt, code:%s", pTask->id.idStr, pTask->id.refId,
+              tstrerror(code));
+    }
+    return code;
+  } else {
+    stError("s-task:%s failed to alloc new ref id, code:%s", pTask->id.idStr, tstrerror(terrno));
+    return terrno;
+  }
+}
+
+void streamTaskFreeRefId(int64_t* pRefId) {
+  if (pRefId == NULL) {
+    return;
+  }
+
+  metaRefMgtRemove(pRefId);
+}
+
+
+int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->ver));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->id.streamId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->id.taskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->info.trigger));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->info.taskLevel));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->outputInfo.type));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pTask->msgInfo.msgType));
+
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->status.taskStatus));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->status.schedStatus));
+
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->info.selfChildId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->info.nodeId));
+  TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pTask->info.epSet));
+  TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pTask->info.mnodeEpset));
+
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->chkInfo.checkpointId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->chkInfo.checkpointVer));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->info.fillHistory));
+
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->hTaskInfo.id.streamId));
+  int32_t taskId = pTask->hTaskInfo.id.taskId;
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, taskId));
+
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->streamTaskId.streamId));
+  taskId = pTask->streamTaskId.taskId;
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, taskId));
+
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTask->dataRange.range.minVer));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTask->dataRange.range.maxVer));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->dataRange.window.skey));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->dataRange.window.ekey));
+
+  int32_t epSz = taosArrayGetSize(pTask->upstreamInfo.pList);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, epSz));
+  for (int32_t i = 0; i < epSz; i++) {
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    TAOS_CHECK_EXIT(tEncodeStreamEpInfo(pEncoder, pInfo));
+  }
+
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTask->exec.qmsg));
+  }
+
+  if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->outputInfo.tbSink.stbUid));
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTask->outputInfo.tbSink.stbFullName));
+    TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pEncoder, pTask->outputInfo.tbSink.pSchemaWrapper));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SMA) {
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->outputInfo.smaSink.smaId));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__FETCH) {
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->outputInfo.fetchSink.reserved));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->outputInfo.fixedDispatcher.taskId));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->outputInfo.fixedDispatcher.nodeId));
+    TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pTask->outputInfo.fixedDispatcher.epSet));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    TAOS_CHECK_EXIT(tSerializeSUseDbRspImp(pEncoder, &pTask->outputInfo.shuffleDispatcher.dbInfo));
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTask->outputInfo.shuffleDispatcher.stbFullName));
+  }
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->info.delaySchedParam));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->subtableWithoutMd5));
+  TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1));
+
+  tEndEncode(pEncoder);
+_exit:
+  return code;
+}
+
+int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
+  int32_t taskId = 0;
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->ver));
+  if (pTask->ver <= SSTREAM_TASK_INCOMPATIBLE_VER || pTask->ver > SSTREAM_TASK_VER) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->id.streamId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->id.taskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->info.trigger));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->info.taskLevel));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->outputInfo.type));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTask->msgInfo.msgType));
+
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->status.taskStatus));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->status.schedStatus));
+
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->info.selfChildId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->info.nodeId));
+  TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pTask->info.epSet));
+  TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pTask->info.mnodeEpset));
+
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->chkInfo.checkpointId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->chkInfo.checkpointVer));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->info.fillHistory));
+
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->hTaskInfo.id.streamId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &taskId));
+  pTask->hTaskInfo.id.taskId = taskId;
+
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->streamTaskId.streamId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &taskId));
+  pTask->streamTaskId.taskId = taskId;
+
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, (uint64_t*)&pTask->dataRange.range.minVer));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, (uint64_t*)&pTask->dataRange.range.maxVer));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->dataRange.window.skey));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->dataRange.window.ekey));
+
+  int32_t epSz = -1;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &epSz) < 0);
+
+  if ((pTask->upstreamInfo.pList = taosArrayInit(epSz, POINTER_BYTES)) == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  for (int32_t i = 0; i < epSz; i++) {
+    SStreamUpstreamEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamUpstreamEpInfo));
+    if (pInfo == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    if ((code = tDecodeStreamEpInfo(pDecoder, pInfo)) < 0) {
+      taosMemoryFreeClear(pInfo);
+      goto _exit;
+    }
+    if (taosArrayPush(pTask->upstreamInfo.pList, &pInfo) == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pTask->exec.qmsg));
+  }
+
+  if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->outputInfo.tbSink.stbUid));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->outputInfo.tbSink.stbFullName));
+    pTask->outputInfo.tbSink.pSchemaWrapper = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+    if (pTask->outputInfo.tbSink.pSchemaWrapper == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pDecoder, pTask->outputInfo.tbSink.pSchemaWrapper));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SMA) {
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->outputInfo.smaSink.smaId));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__FETCH) {
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->outputInfo.fetchSink.reserved));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->outputInfo.fixedDispatcher.taskId));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->outputInfo.fixedDispatcher.nodeId));
+    TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pTask->outputInfo.fixedDispatcher.epSet));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    TAOS_CHECK_EXIT(tDeserializeSUseDbRspImp(pDecoder, &pTask->outputInfo.shuffleDispatcher.dbInfo));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName));
+  }
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->info.delaySchedParam));
+  if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->subtableWithoutMd5));
+  }
+  TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->reserve));
+
+  tEndDecode(pDecoder);
+
+_exit:
+  return code;
 }

@@ -16,13 +16,17 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "mnode.h"
+#include "osFile.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "version.h"
+#include "tconv.h"
 #ifdef TD_JEMALLOC_ENABLED
 #include "jemalloc/jemalloc.h"
 #endif
 #include "dmUtil.h"
+#include "tcs.h"
+#include "qworker.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -47,6 +51,7 @@
 #define DM_ENV_CMD       "The env cmd variable string to use when configuring the server, such as: -e 'TAOS_FQDN=td1'."
 #define DM_ENV_FILE      "The env variable file path to use when configuring the server, default is './.env', .env text can be 'TAOS_FQDN=td1'."
 #define DM_MACHINE_CODE  "Get machine code."
+#define DM_LOG_OUTPUT    "Specify log output. Options:\n\r\t\t\t   stdout, stderr, /dev/null, <directory>, <directory>/<filename>, <filename>\n\r\t\t\t   * If OUTPUT contains an absolute directory, logs will be stored in that directory instead of logDir.\n\r\t\t\t   * If OUTPUT contains a relative directory, logs will be stored in the directory combined with logDir and the relative directory."
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
@@ -186,6 +191,8 @@ static void dmSetSignalHandle() {
 #endif
 }
 
+extern bool generateNewMeta;
+
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
 
@@ -224,6 +231,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+    } else if (strcmp(argv[i], "-r") == 0) {
+      generateNewMeta = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -237,6 +246,32 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+#if defined(LINUX)
+    } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--log-output") == 0 ||
+               strncmp(argv[i], "--log-output=", 13) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--log-output=", 13) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 13 ? strlen(argv[++i]) : klen - 13;
+        const char *val = argv[i];
+        if (klen >= 13) val += 13;
+        if (vlen <= 0 || vlen >= PATH_MAX) {
+          printf("failed to set log output since invalid vlen:%d, valid range: [1, %d)\n", vlen, PATH_MAX);
+          return TSDB_CODE_INVALID_CFG;
+        }
+        tsLogOutput = taosMemoryMalloc(PATH_MAX);
+        if (!tsLogOutput) {
+          printf("failed to set log output: '%s' since %s\n", val, tstrerror(terrno));
+          return terrno;
+        }
+        if (taosExpandDir(val, tsLogOutput, PATH_MAX) != 0) {
+          printf("failed to expand log output: '%s' since %s\n", val, tstrerror(terrno));
+          return terrno;
+        }
+      } else {
+        printf("'%s' requires a parameter\n", argv[i]);
+        return TSDB_CODE_INVALID_CFG;
+      }
+#endif
     } else if (strcmp(argv[i], "-y") == 0) {
       global.generateCode = true;
       if (i < argc - 1) {
@@ -249,7 +284,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
           printf("ERROR: Encrypt key overflow, it should be at most %d characters\n", ENCRYPT_KEY_LEN);
           return TSDB_CODE_INVALID_CFG;
         }
-        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
+        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN + 1);
       } else {
         printf("'-y' requires a parameter\n");
         return TSDB_CODE_INVALID_CFG;
@@ -284,9 +319,9 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
   taosGetCwd(path, sizeof(path));
 
   char    args[1024] = {0};
-  int32_t arglen = snprintf(args, sizeof(args), "%s", argv[0]);
+  int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
   for (int32_t i = 1; i < argc; ++i) {
-    arglen = arglen + snprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+    arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
   }
 
   dInfo("startup path:%s args:%s", path, args);
@@ -295,12 +330,13 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
-  printf("%s\n%sd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, version, compatible_version);
-  printf("git: %s\n", gitinfo);
+  printf("%s\n%sd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, td_version,
+         td_compatible_version);
+  printf("git: %s\n", td_gitinfo);
 #ifdef TD_ENTERPRISE
-  printf("gitOfInternal: %s\n", gitinfoOfInternal);
+  printf("gitOfInternal: %s\n", td_gitinfoOfInternal);
 #endif
-  printf("build: %s\n", buildinfo);
+  printf("build: %s\n", td_buildinfo);
 }
 
 static void dmPrintHelp() {
@@ -313,6 +349,9 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
+#if defined(LINUX)
+  printf("%s%s%s%s\n", indent, "-o, --log-output=OUTPUT", indent, DM_LOG_OUTPUT);
+#endif
   printf("%s%s%s%s\n", indent, "-y,", indent, DM_SET_ENCRYPTKEY);
   printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
@@ -329,17 +368,19 @@ static int32_t dmCheckS3() {
   int32_t  code = 0;
   SConfig *pCfg = taosGetCfg();
   cfgDumpCfgS3(pCfg, 0, true);
-#if defined(USE_S3)
-  extern int32_t s3CheckCfg();
 
-  code = s3CheckCfg();
+#if defined(USE_S3)
+  code = tcsCheckCfg();
 #endif
   return code;
 }
 
 static int32_t dmInitLog() {
-  return taosCreateLog(CUS_PROMPT "dlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs,
-                       LOG_MODE_TAOSD);
+  const char *logName = CUS_PROMPT "dlog";
+
+  TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
+
+  return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, LOG_MODE_TAOSD);
 }
 
 static void taosCleanupArgs() {
@@ -423,6 +464,9 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
     int ret = dmUpdateEncryptKey(global.encryptKey, toLogFile);
+    if (taosCloseFile(&pFile) != 0) {
+      encryptError("failed to close file:%p", pFile);
+    }
     taosCloseLog();
     taosCleanupArgs();
     return ret;
@@ -442,8 +486,15 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return code;
   }
+  
+  if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
+    dError("failed to init memPool, error:0x%x", code);
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
 
-  if ((code = taosConvInit()) != 0) {
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();

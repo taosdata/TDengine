@@ -144,8 +144,9 @@ public class GeometryDemo {
 
     private void executeQuery(String sql) {
         long start = System.currentTimeMillis();
-        try (Statement statement = connection.createStatement()) {
-            ResultSet resultSet = statement.executeQuery(sql);
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(sql)) {
+
             long end = System.currentTimeMillis();
             printSql(sql, true, (end - start));
 

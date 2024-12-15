@@ -1,30 +1,49 @@
-select ROUND(10.55, 3);
-select ROUND(10.55, 2);
-select ROUND(10.55, 1);
-select ROUND(10.55, 0);
-select ROUND(10.55);
-select ROUND(10.55, -1);
-select ROUND(10.55, -10);
-select ROUND(-10.55, 1);
-select ROUND(99, 1);
-select ROUND(111.1111);
-select ROUND(111.5111);
-select ROUND(10.55) + 1;
-select ROUND(10.55, 1) + 1;
-select ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(123.123456789, 9), 8), 7), 6), 5), 4));
-select ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(123456789.123456789, -1), -2), -3), -4), -5), -6));
-select ROUND(current) from ts_4893.meters order by ts limit 20;
-select ROUND(87654321.123456789, id) from ts_4893.meters order by ts limit 10;
-select ROUND(current, id) from ts_4893.meters order by ts limit 10;
-select ROUND(current, 1) from ts_4893.meters order by ts limit 10;
-select round(10.55, 3);
-select round(10.55, 2);
-select round(10.55, 1);
-select round(10.55, 0);
-select round(10.55);
-select round(10.55, -1);
-select round(10.55, -10);
-select round(-10.55, 1);
-select round(99, 1);
-select round(current) from ts_4893.d0 order by ts limit 10;
-select round(current) from ts_4893.meters order by ts limit 10;
+select ROUND(10.55, 3)
+select ROUND(10.55, 2)
+select ROUND(10.55, 1)
+select ROUND(10.55, 0)
+select ROUND(10.55)
+select ROUND(10.55, -1)
+select ROUND(10.55, -10)
+select ROUND(-10.55, 1)
+select ROUND(99, 1)
+select ROUND(111.1111)
+select ROUND(111.5111)
+select ROUND(10.55) + 1
+select ROUND(10.55, 1) + 1
+select ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(123.123456789, 9), 8), 7), 6), 5), 4))
+select ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(123456789.123456789, -1), -2), -3), -4), -5), -6))
+select ROUND(current) from ts_4893.meters order by ts limit 20
+select ROUND(87654321.123456789, id) from ts_4893.meters order by ts limit 10
+select ROUND(current, id) from ts_4893.meters order by ts limit 10
+select ROUND(current, 1) from ts_4893.meters order by ts limit 10
+select round(10.55, 3)
+select round(10.55, 2)
+select round(10.55, 1)
+select round(10.55, 0)
+select round(10.55)
+select round(10.55, -1)
+select round(10.55, -10)
+select round(-10.55, 1)
+select round(99, 1)
+select round(current) from ts_4893.d0 order by ts limit 10
+select round(current) from ts_4893.meters order by ts limit 10
+select round(10, null)
+select round(null, 2)
+select round(123.456, null)
+select round(100)
+select round(0.00123, -2)
+select round(123.456, 0)
+select round(123.456, -5)
+select round(12345.6789, -2)
+select round(-123.456, 2)
+select round(-1234.5678, 2)
+select round(voltage, 0) from ts_4893.meters limit 1
+select round(current, 1) from ts_4893.meters limit 1
+select round(phase, 3) from ts_4893.meters limit 1
+select round(voltage, -1) from ts_4893.meters limit 1
+select round(current * voltage, 2) from ts_4893.meters limit 1
+select round(abs(voltage), 2) from ts_4893.meters limit 1
+select round(pi() * phase, 3) from ts_4893.meters limit 1
+select round(sqrt(voltage), 2) from ts_4893.meters limit 1
+select round(log(current), 2) from ts_4893.meters limit 1

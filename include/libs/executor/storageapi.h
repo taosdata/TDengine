@@ -39,8 +39,10 @@ extern "C" {
 #define META_READER_LOCK   0x0
 #define META_READER_NOLOCK 0x1
 
-#define STREAM_STATE_BUFF_HASH 1
-#define STREAM_STATE_BUFF_SORT 2
+#define STREAM_STATE_BUFF_HASH        1
+#define STREAM_STATE_BUFF_SORT        2
+#define STREAM_STATE_BUFF_HASH_SORT   3
+#define STREAM_STATE_BUFF_HASH_SEARCH 4
 
 typedef struct SMeta SMeta;
 typedef TSKEY (*GetTsFun)(void*);
@@ -169,6 +171,8 @@ typedef union {
 
 typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param);
 
+struct SFileSetReader;
+
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
@@ -189,6 +193,13 @@ typedef struct TsdReader {
 
   void         (*tsdSetFilesetDelimited)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
+
+  // for fileset query
+  int32_t (*fileSetReaderOpen)(void *pVnode, struct SFileSetReader **ppReader);
+  int32_t (*fileSetReadNext)(struct SFileSetReader *);
+  int32_t (*fileSetGetEntryField)(struct SFileSetReader *, const char *, void *);
+  void (*fileSetReaderClose)(struct SFileSetReader **);
+  
 } TsdReader;
 
 typedef struct SStoreCacheReader {
@@ -279,6 +290,7 @@ typedef struct SStoreMeta {
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);
+  int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
 
   SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock);
   int32_t (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
@@ -325,18 +337,24 @@ typedef struct {
   int64_t number;
   void*   pStreamFileState;
   int32_t buffIndex;
+  int32_t hashIter;
+  void*   pHashData;
+  int64_t minGpId;
 } SStreamStateCur;
 
 typedef struct SStateStore {
   int32_t (*streamStatePutParName)(SStreamState* pState, int64_t groupId, const char* tbname);
   int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache,
                                    int32_t* pWinCode);
+  int32_t (*streamStateDeleteParName)(SStreamState* pState, int64_t groupId);
 
   int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
                                       int32_t* pWinCode);
   void (*streamStateReleaseBuf)(SStreamState* pState, void* pVal, bool used);
   void (*streamStateClearBuff)(SStreamState* pState, void* pVal);
   void (*streamStateFreeVal)(void* val);
+  int32_t (*streamStateGetPrev)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
+                                int32_t* pVLen, int32_t* pWinCode);
 
   int32_t (*streamStatePut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
   int32_t (*streamStateGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode);
@@ -349,8 +367,15 @@ typedef struct SStateStore {
   int32_t (*streamStateGetInfo)(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
 
   int32_t (*streamStateFillPut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
-  int32_t (*streamStateFillGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
+  int32_t (*streamStateFillGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+                                int32_t* pWinCode);
+  int32_t (*streamStateFillAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+                                          int32_t* pWinCode);
   void (*streamStateFillDel)(SStreamState* pState, const SWinKey* key);
+  int32_t (*streamStateFillGetNext)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
+                                    int32_t* pVLen, int32_t* pWinCode);
+  int32_t (*streamStateFillGetPrev)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
+                                    int32_t* pVLen, int32_t* pWinCode);
 
   void (*streamStateCurNext)(SStreamState* pState, SStreamStateCur* pCur);
   void (*streamStateCurPrev)(SStreamState* pState, SStreamStateCur* pCur);
@@ -361,8 +386,11 @@ typedef struct SStateStore {
   SStreamStateCur* (*streamStateFillSeekKeyPrev)(SStreamState* pState, const SWinKey* key);
   void (*streamStateFreeCur)(SStreamStateCur* pCur);
 
-  int32_t (*streamStateGetGroupKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
+  int32_t (*streamStateFillGetGroupKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
   int32_t (*streamStateGetKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
+
+  void (*streamStateSetFillInfo)(SStreamState* pState);
+  void (*streamStateClearExpiredState)(SStreamState* pState);
 
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                              int32_t* pVLen, int32_t* pWinCode);
@@ -382,7 +410,8 @@ typedef struct SStateStore {
 
   int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
                                               void** ppVal, int32_t* pVLen, int32_t* pWinCode);
-  int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen);
+  int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal,
+                                    int32_t* pVLen);
 
   int32_t (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp, int8_t pkType,
                             int32_t pkLen, SUpdateInfo** ppInfo);
@@ -400,8 +429,8 @@ typedef struct SStateStore {
                              SUpdateInfo** ppInfo);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);
   void (*updateInfoDestoryColseWinSBF)(SUpdateInfo* pInfo);
-  int32_t (*updateInfoSerialize)(void* buf, int32_t bufLen, const SUpdateInfo* pInfo, int32_t* pLen);
-  int32_t (*updateInfoDeserialize)(void* buf, int32_t bufLen, SUpdateInfo* pInfo);
+  int32_t (*updateInfoSerialize)(SEncoder* pEncoder, const SUpdateInfo* pInfo);
+  int32_t (*updateInfoDeserialize)(SDecoder* pDeCoder, SUpdateInfo* pInfo);
 
   SStreamStateCur* (*streamStateSessionSeekKeyNext)(SStreamState* pState, const SSessionKey* key);
   SStreamStateCur* (*streamStateCountSeekKeyPrev)(SStreamState* pState, const SSessionKey* pKey, COUNT_TYPE count);
@@ -411,6 +440,11 @@ typedef struct SStateStore {
   int32_t (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                  GetTsFun fp, void* pFile, TSKEY delMark, const char* id, int64_t ckId, int8_t type,
                                  struct SStreamFileState** ppFileState);
+
+  int32_t (*streamStateGroupPut)(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
+  SStreamStateCur* (*streamStateGroupGetCur)(SStreamState* pState);
+  void (*streamStateGroupCurNext)(SStreamStateCur* pCur);
+  int32_t (*streamStateGroupGetKVByCur)(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
 
   void (*streamFileStateDestroy)(struct SStreamFileState* pFileState);
   void (*streamFileStateClear)(struct SStreamFileState* pFileState);

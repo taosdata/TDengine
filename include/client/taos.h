@@ -65,6 +65,15 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef enum {
+  TSDB_OPTION_CONNECTION_CLEAR = -1,     // means clear all option in this connection
+  TSDB_OPTION_CONNECTION_CHARSET,        // charset, Same as the scope supported by the system
+  TSDB_OPTION_CONNECTION_TIMEZONE,       // timezone, Same as the scope supported by the system
+  TSDB_OPTION_CONNECTION_USER_IP,        // user ip
+  TSDB_OPTION_CONNECTION_USER_APP,       // user app, max lengthe is 23, truncated if longer than 23
+  TSDB_MAX_OPTIONS_CONNECTION
+} TSDB_OPTION_CONNECTION;
+
+typedef enum {
   TSDB_SML_UNKNOWN_PROTOCOL = 0,
   TSDB_SML_LINE_PROTOCOL = 1,
   TSDB_SML_TELNET_PROTOCOL = 2,
@@ -81,6 +90,13 @@ typedef enum {
   TSDB_SML_TIMESTAMP_NANO_SECONDS,
 } TSDB_SML_TIMESTAMP_TYPE;
 
+typedef enum TAOS_FIELD_T {
+  TAOS_FIELD_COL = 1,
+  TAOS_FIELD_TAG,
+  TAOS_FIELD_QUERY,
+  TAOS_FIELD_TBNAME,
+} TAOS_FIELD_T;
+
 typedef struct taosField {
   char    name[65];
   int8_t  type;
@@ -94,6 +110,15 @@ typedef struct TAOS_FIELD_E {
   uint8_t scale;
   int32_t bytes;
 } TAOS_FIELD_E;
+
+typedef struct TAOS_FIELD_STB {
+  char         name[65];
+  int8_t       type;
+  uint8_t      precision;
+  uint8_t      scale;
+  int32_t      bytes;
+  uint8_t      field_type;
+} TAOS_FIELD_STB;
 
 #ifdef WINDOWS
 #define DLL_EXPORT __declspec(dllexport)
@@ -158,11 +183,12 @@ typedef struct TAOS_STMT_OPTIONS {
 
 DLL_EXPORT void       taos_cleanup(void);
 DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT int        taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 DLL_EXPORT setConfRet taos_set_config(const char *config);
 DLL_EXPORT int        taos_init(void);
 DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
-DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
-DLL_EXPORT void  taos_close(TAOS *taos);
+DLL_EXPORT TAOS      *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT void       taos_close(TAOS *taos);
 
 DLL_EXPORT const char *taos_data_type(int type);
 
@@ -195,13 +221,6 @@ DLL_EXPORT int       taos_stmt_affected_rows_once(TAOS_STMT *stmt);
 
 typedef void TAOS_STMT2;
 
-typedef enum TAOS_FIELD_T {
-  TAOS_FIELD_COL = 1,
-  TAOS_FIELD_TAG,
-  TAOS_FIELD_QUERY,
-  TAOS_FIELD_TBNAME,
-} TAOS_FIELD_T;
-
 typedef struct TAOS_STMT2_OPTION {
   int64_t           reqid;
   bool              singleStbInsert;
@@ -232,7 +251,9 @@ DLL_EXPORT int         taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int         taos_stmt2_close(TAOS_STMT2 *stmt);
 DLL_EXPORT int         taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);
 DLL_EXPORT int  taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields);
+DLL_EXPORT int  taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields);
 DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields);
+DLL_EXPORT void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields);
 DLL_EXPORT TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt);
 DLL_EXPORT char     *taos_stmt2_error(TAOS_STMT2 *stmt);
 
@@ -251,16 +272,17 @@ DLL_EXPORT int64_t  taos_affected_rows64(TAOS_RES *res);
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int         taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
-DLL_EXPORT void        taos_stop_query(TAOS_RES *res);
-DLL_EXPORT bool        taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
-DLL_EXPORT int         taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows);
-DLL_EXPORT bool        taos_is_update_query(TAOS_RES *res);
-DLL_EXPORT int         taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
-DLL_EXPORT int         taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows);
-DLL_EXPORT int         taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData);
-DLL_EXPORT int        *taos_get_column_data_offset(TAOS_RES *res, int columnIndex);
-DLL_EXPORT int         taos_validate_sql(TAOS *taos, const char *sql);
-DLL_EXPORT void        taos_reset_current_db(TAOS *taos);
+DLL_EXPORT int  taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
+DLL_EXPORT void taos_stop_query(TAOS_RES *res);
+DLL_EXPORT bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
+DLL_EXPORT int  taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows);
+DLL_EXPORT bool taos_is_update_query(TAOS_RES *res);
+DLL_EXPORT int  taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
+DLL_EXPORT int  taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows);
+DLL_EXPORT int  taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData);
+DLL_EXPORT int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex);
+DLL_EXPORT int  taos_validate_sql(TAOS *taos, const char *sql);
+DLL_EXPORT void taos_reset_current_db(TAOS *taos);
 
 DLL_EXPORT int      *taos_fetch_lengths(TAOS_RES *res);
 DLL_EXPORT TAOS_ROW *taos_result_block(TAOS_RES *res);
@@ -389,7 +411,7 @@ DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
 DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES *res);
 DLL_EXPORT const char *tmq_err2str(int32_t code);
 
-/* ------------------------------ TAOSX -----------------------------------*/
+/* ------------------------------ TAOSX INTERFACE -----------------------------------*/
 typedef struct tmq_raw_data {
   void    *raw;
   uint32_t raw_len;

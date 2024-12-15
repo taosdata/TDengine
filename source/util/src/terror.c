@@ -53,12 +53,17 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_PORT_EADDRINUSE,          "Port already in use")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_BROKEN_LINK,              "Conn is broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED,   "some vnode/qnode/mnode(s) out of service")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_BROKEN_LINK,     "some vnode/qnode/mnode(s) conn is broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MAX_SESSIONS,             "rpc open too many session")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_ERROR,            "rpc network error")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_BUSY,          "rpc network busy")
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_MODULE_QUIT,         "http-report already quit")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_BUSY,             "rpc network busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_MODULE_QUIT,             "http-report already quit")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MODULE_QUIT,              "rpc module already quit")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_MODULE_QUIT,              "rpc async module already quit")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_MODULE_QUIT,        "rpc async module already quit")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_IN_PROCESS,         "rpc async in process")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NO_STATE,                 "rpc no state")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_STATE_DROPED,             "rpc state already dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MSG_EXCCED_LIMIT,          "rpc msg exceed limit")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -113,6 +118,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been proc
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_BUFFER,                "Out of buffer")
 TAOS_DEFINE_ERROR(TSDB_CODE_INTERNAL_ERROR,               "Internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_ERROR,                   "Internal error in time")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DISK_ID,              "Internal error invalid disk id")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -161,7 +167,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_ENCODE_PARAM_NULL,        "Not found compress pa
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_PARAM_ERROR,     "Invalid compress param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR,     "Invalid compress level param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FAIL_GENERATE_JSON,       "failed to generate JSON")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR,   "bind number out of range or not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
 
@@ -189,7 +196,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_DROPPING,             "Object is dropping")
 // mnode-dnode-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ALREADY_EXIST,      "Dnode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_EXIST,          "Dnode does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         "Vgroup does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         "Vgroup does not exist or not in db")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CANT_DROP_LEADER,         "Cannot drop mnode which is leader")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_DNODES,         "Out of dnodes")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CLUSTER_CFG,      "Cluster cfg inconsistent")
@@ -265,6 +272,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_CREATING,           "Database in creating 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not allowed to be changed after database is created")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_WAL_LEVEL,        "Invalid option, wal_level 0 should be used with replica 1")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_LIST_FMT,   "Invalid dnode list format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_LIST_REPEAT,        "Duplicate items in the dnode list")
 
 // mnode-node
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_ALREADY_EXIST,      "Mnode already exists")
@@ -314,7 +323,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CLOG_IS_NULL,       "Transaction commitlog
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL,   "Unable to establish connection While execute transaction and will continue in the background")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED,  "Last Transaction not finished")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_SYNC_TIMEOUT,       "Sync timeout While execute transaction and will continue in the background")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CTX_SWITCH,         "Transaction context switch")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CTX_SWITCH,         "Wrong transaction execution context")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT_COMPACT,   "Transaction not completed due to conflict with compact")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
 
@@ -344,6 +353,25 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_MUST_BE_DELETED,   "Stream must be droppe
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB,  "Stream temporarily does not support source db having replica > 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TARGET_TABLE,     "Cannot write the same stable as other stream")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_ALREADY_EXIST,      "Anode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_NOT_EXIST,          "Anode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_URL,       "Anode too long url")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_INVALID_PROTOCOL,   "Anode invalid protocol")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE,  "Anode invalid algorithm type")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_INVALID_VERSION,    "Anode invalid version")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO,      "Anode too many algorithm")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME, "Anode too long algorithm name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algorithm type")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_RSP_IS_NULL,         "Analysis service response is NULL")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_CANT_ACCESS,         "Analysis service can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_FOUND,          "Analysis algorithm is missing")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -391,7 +419,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_CHARSET,        "charset not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_LOCALE,         "locale not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_TTL_CHG_ON_WR,  "ttlChangeOnWrite not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_EN_WHITELIST,   "enableWhiteList not match")
-TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,   "Mnode stopped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -416,6 +445,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_ARB_NOT_SYNCED,           "Vgroup peer is not sy
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_WRITE_DISABLED,           "Vnode write is disabled for snapshot")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Same with old param")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TTL_FLUSH_INCOMPLETION,   "Failed to flush all ttl modification to tdb")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH,   "Vnode already exist but Dbid not match")
 
 
 // tsdb
@@ -486,6 +516,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE,  "Not supported range t
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_WRONG_OPTR_TYPE,   "Wrong operator type")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_RANGE_ERROR,       "Wrong filter range")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_INVALID_TYPE,      "Invalid filter type")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_REACH_QMEM_THRESHOLD,     "Query memory upper limit is reached")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED,      "Query memory exhausted")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_FETCH_TIMEOUT,         "Timeout for long time no fetch")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status from success to partial success")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -597,6 +631,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SCH_INTERNAL_ERROR,           "scheduler internal er
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_TIMEOUT_ERROR,            "Task timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_JOB_IS_DROPPING,          "Job is dropping")
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_JOB_NOT_EXISTS,           "Job no longer exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCH_DATA_SRC_EP_MISS,         "No valid epSet for data source node")
 
 // parser
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYNTAX_ERROR,              "syntax error near")
@@ -708,7 +743,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Pseudo tag tbname n
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_DUPLICATED,          "Table name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_NAME_DUPLICATED,        "Tag name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC,  "Some functions cannot appear in the select list at the same time")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,   "Syntax error in regular expression")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,   "ANOMALY_WINDOW only support mathable column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,    "ANOMALY_WINDOW not support on tag column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,    "ANOMALY_WINDOW option should include algo field")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FORECAST_CLAUSE,    "Invalid forecast clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,  "Syntax error in regular expression")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VGID_LIST,          "Invalid vgid list")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -735,6 +776,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_SETUP_ERROR,              "Function set up fail
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_RES_LENGTH,       "Function result exceed max length")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_HISTOGRAM_ERROR,          "Function failed to calculate histogram")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_PERCENTILE_ERROR,         "Function failed to calculate percentile")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_RANGE,       "Invalid function para range")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS,      "Function parameter should be primary timestamp")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_PK,          "Function parameter should be primary key")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_HAS_COL,     "Function parameter should have column")
+
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
@@ -773,6 +819,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_UNSUPPORTED_FUNC,          "Tsma func not suppo
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_MUST_BE_DROPPED,           "Tsma must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NAME_TOO_LONG,             "Tsma name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_RECURSIVE_INTERVAL,"Invalid recursive tsma interval")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_AUTO_OFFSET,       "Tsma optimization cannot be applied with INTERVAL AUTO offset")
 
 //rsma
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")
@@ -818,7 +865,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,        "Invalid task status
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_CONFLICT_EVENT,          "Stream conflict event")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INTERNAL_ERROR,          "Stream internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_LEADER,              "Stream task not on leader vnode")
-TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INPUTQ_FULL,              "Task input queue is full")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INPUTQ_FULL,             "Task input queue is full")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVLD_CHKPT,             "Invalid checkpoint trigger msg")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
@@ -832,6 +880,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD,   "Failed to send out audit record")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_GENERATE_JSON,       "Failed to generate json")
+
 #ifdef TAOS_ERROR_C
 };
 #endif

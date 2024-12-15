@@ -241,7 +241,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   clusterObj.createdTime = taosGetTimestampMs();
   clusterObj.updateTime = clusterObj.createdTime;
 
-  int32_t code = taosGetSystemUUID(clusterObj.name, TSDB_CLUSTER_ID_LEN);
+  int32_t code = taosGetSystemUUIDLen(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
     (void)strcpy(clusterObj.name, "tdengine3.0");
     mError("failed to get name from system, set to default val %s", clusterObj.name);
@@ -457,7 +457,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
 _exit:
   tFreeSMCfgClusterReq(&cfgReq);
   if (code != 0) {
-    mError("cluster: failed to config:%s %s since %s", cfgReq.config, cfgReq.value, terrstr());
+    mError("cluster: failed to config:%s %s since %s", cfgReq.config, cfgReq.value, tstrerror(code));
   } else {
     mInfo("cluster: success to config:%s %s", cfgReq.config, cfgReq.value);
   }

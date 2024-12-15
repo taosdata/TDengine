@@ -54,7 +54,7 @@
 
 namespace {
 
-extern "C" int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg,
+extern "C" int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t sId, int32_t execId, SDataBuf *pMsg,
                                         int32_t rspCode);
 extern "C" int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t rspCode);
 
@@ -203,6 +203,10 @@ void schtBuildQueryDag(SQueryPlan *dag) {
     return;
   }
   scanPlan->msgType = TDMT_SCH_QUERY;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&scanPlan->pDataSink);
+  if (NULL == scanPlan->pDataSink) {
+    return;
+  }
 
   mergePlan->id.queryId = qId;
   mergePlan->id.groupId = schtMergeTemplateId;
@@ -223,6 +227,10 @@ void schtBuildQueryDag(SQueryPlan *dag) {
     return;
   }
   mergePlan->msgType = TDMT_SCH_QUERY;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&mergePlan->pDataSink);
+  if (NULL == mergePlan->pDataSink) {
+    return;
+  }
 
   merge->pNodeList = NULL;
   code = nodesMakeList(&merge->pNodeList);
@@ -234,6 +242,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   if (NULL == scan->pNodeList) {
     return;
   }
+
 
   (void)nodesListAppend(merge->pNodeList, (SNode *)mergePlan);
   (void)nodesListAppend(scan->pNodeList, (SNode *)scanPlan);
@@ -250,7 +259,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   int32_t  scanPlanNum = 20;
 
   dag->queryId = qId;
-  dag->numOfSubplans = 2;
+  dag->numOfSubplans = scanPlanNum + 1;
   dag->pSubplans = NULL;
   int32_t code = nodesMakeList(&dag->pSubplans);
   if (NULL == dag->pSubplans) {
@@ -289,6 +298,10 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   if (NULL == mergePlan->pChildren) {
     return;
   }
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&mergePlan->pDataSink);
+  if (NULL == mergePlan->pDataSink) {
+    return;
+  }
 
   for (int32_t i = 0; i < scanPlanNum; ++i) {
     SSubplan *scanPlan = NULL;
@@ -322,6 +335,10 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
       return;
     }
     scanPlan->msgType = TDMT_SCH_QUERY;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&scanPlan->pDataSink);
+    if (NULL == scanPlan->pDataSink) {
+      return;
+    }
 
     (void)nodesListAppend(scanPlan->pParents, (SNode *)mergePlan);
     (void)nodesListAppend(mergePlan->pChildren, (SNode *)scanPlan);
@@ -574,7 +591,7 @@ void *schtSendRsp(void *param) {
     msg.msgType = TDMT_VND_SUBMIT_RSP;
     msg.pData = rmsg;
 
-    (void)schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+    (void)schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }
@@ -604,7 +621,7 @@ void *schtCreateFetchRspThread(void *param) {
   msg.msgType = TDMT_SCH_MERGE_FETCH_RSP;
   msg.pData = rmsg;
 
-  code = schHandleResponseMsg(pJob, pJob->fetchTask, pJob->fetchTask->execId, &msg, 0);
+  code = schHandleResponseMsg(pJob, pJob->fetchTask, pJob->fetchTask->seriousId, pJob->fetchTask->execId, &msg, 0);
 
   (void)schReleaseJob(job);
 
@@ -908,7 +925,7 @@ TEST(queryTest, normalCase) {
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
-    code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -924,7 +941,7 @@ TEST(queryTest, normalCase) {
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
-      code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
       ASSERT_EQ(code, 0);
     }
@@ -1023,7 +1040,7 @@ TEST(queryTest, readyFirstCase) {
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
-    code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -1040,7 +1057,7 @@ TEST(queryTest, readyFirstCase) {
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
-      code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
       ASSERT_EQ(code, 0);
     }
@@ -1146,7 +1163,7 @@ TEST(queryTest, flowCtrlCase) {
         msg.msgType = TDMT_SCH_QUERY_RSP;
         msg.pData = rmsg;
 
-        code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+        code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
         ASSERT_EQ(code, 0);
       }

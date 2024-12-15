@@ -86,11 +86,13 @@ static void destroyGroupOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
-  if (pInfo->pOperator) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+
+  if (pInfo->pOperator != NULL) {
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      false);
     pInfo->pOperator = NULL;
   }
+
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
   taosMemoryFreeClear(param);
@@ -612,7 +614,6 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
   if (pDataBlock->pBlockAgg) {
     pDstBlock->pBlockAgg = taosMemoryCalloc(numOfCols, sizeof(SColumnDataAgg));
     if (pDstBlock->pBlockAgg == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       blockDataDestroy(pDstBlock);
       return NULL;
     }
@@ -1159,7 +1160,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   }
 
   uint32_t defaultPgsz = 0;
-  uint32_t defaultBufsz = 0;
+  int64_t defaultBufsz = 0;
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pPartNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
@@ -1261,7 +1262,10 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   QUERY_CHECK_CONDITION((hasRemainPartion(pInfo)), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->parIte;
   blockDataCleanup(pDest);
-  int32_t      rows = taosArrayGetSize(pParInfo->rowIds);
+  int32_t rows = taosArrayGetSize(pParInfo->rowIds);
+  code = blockDataEnsureCapacity(pDest, rows);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   SSDataBlock* pSrc = pInfo->pInputDataBlock;
   for (int32_t i = 0; i < rows; i++) {
     int32_t rowIndex = *(int32_t*)taosArrayGet(pParInfo->rowIds, i);
@@ -1321,7 +1325,6 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   int32_t winCode = TSDB_CODE_SUCCESS;
   code = pAPI->streamStateGetParName(pState, groupId, &pValue, true, &winCode);
   QUERY_CHECK_CODE(code, lino, _end);
-
   if (winCode != TSDB_CODE_SUCCESS) {
     SSDataBlock* pTmpBlock = NULL;
     code = blockCopyOneRow(pSrcBlock, rowId, &pTmpBlock);
@@ -1503,6 +1506,7 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_RETRIEVE:
       case STREAM_CHECKPOINT:
+      case STREAM_GET_RESULT:
       case STREAM_GET_ALL: {
         (*ppRes) = pBlock;
         return code;

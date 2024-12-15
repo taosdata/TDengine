@@ -906,7 +906,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   if (gCtgMgmt.queue.stopQueue) {
     ctgFreeQNode(node);
     CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
-    CTG_RET(TSDB_CODE_CTG_EXIT);
+    CTG_ERR_JRET(TSDB_CODE_CTG_EXIT);
   }
 
   gCtgMgmt.queue.tail->next = node;
@@ -924,7 +924,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   code = tsem_post(&gCtgMgmt.queue.reqSem);
   if (TSDB_CODE_SUCCESS != code) {
     qError("tsem_post failed, code:%x", code);
-    CTG_RET(code);
+    CTG_ERR_JRET(code);
   }
 
   if (syncOp) {
@@ -935,9 +935,15 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
     if (!operation->unLocked) {
       CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
     }
-    taosMemoryFree(operation);
+    TAOS_UNUSED(tsem_destroy(&operation->rspSem));
+    taosMemoryFreeClear(operation);
   }
+  return code;
 
+_return:
+  if (syncOp && operation) {
+    TAOS_UNUSED(tsem_destroy(&operation->rspSem));
+  }
   return code;
 }
 
@@ -3723,7 +3729,7 @@ int32_t ctgGetTbNamesFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbNa
   for (int32_t i = 0; i < tbNum; ++i) {
     CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
     if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
   }
 
@@ -3857,7 +3863,7 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
       taosMemoryFree(pViewMeta->querySql);
       taosMemoryFree(pViewMeta->user);
       taosMemoryFree(pViewMeta);
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
     pViewMeta->pSchema = taosMemoryMalloc(pViewMeta->numOfCols * sizeof(SSchema));
     if (pViewMeta->pSchema == NULL) {

@@ -48,6 +48,7 @@ typedef struct SGroupResInfo {
 } SGroupResInfo;
 
 typedef struct SResultRow {
+  int32_t                    version;
   int32_t                    pageId;  // pageId & rowId is the position of current result in disk-based output buffer
   int32_t                    offset : 29;  // row index in buffer page
   bool                       startInterp;  // the time window start timestamp has done the interpolation already.
@@ -151,6 +152,9 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
 }
+
+int32_t getResultRowFromBuf(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
+int32_t putResultRowToBuf(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
 
 int32_t initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);

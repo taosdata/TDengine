@@ -5,7 +5,9 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/include/libs/monitorfw"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
 if(${TD_DARWIN})
-    target_compile_options(monitorfw PRIVATE -Wno-error=deprecated-pragma)
+  target_compile_options(monitorfw PRIVATE -Wno-error=deprecated-pragma)
 endif(${TD_DARWIN})
+
 target_link_libraries(monitorfw os util common transport)

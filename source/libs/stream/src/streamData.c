@@ -14,6 +14,43 @@
  */
 
 #include "streamInt.h"
+#include "ttime.h"
+
+static int32_t streamMergedSubmitNew(SStreamMergedSubmit** pSubmit) {
+  *pSubmit = NULL;
+
+  int32_t code = taosAllocateQitem(sizeof(SStreamMergedSubmit), DEF_QITEM, 0, (void**)pSubmit);
+  if (code) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pSubmit)->submits = taosArrayInit(0, sizeof(SPackedData));
+  if ((*pSubmit)->submits == NULL) {
+    taosFreeQitem(*pSubmit);
+    *pSubmit = NULL;
+    return terrno;
+  }
+
+  (*pSubmit)->type = STREAM_INPUT__MERGED_SUBMIT;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubmit) {
+  void* p = taosArrayPush(pMerged->submits, &pSubmit->submit);
+  if (p == NULL) {
+    return terrno;
+  }
+
+  if (pSubmit->ver > pMerged->ver) {
+    pMerged->ver = pSubmit->ver;
+  }
+  return 0;
+}
+
+static void freeItems(void* param) {
+  SSDataBlock* pBlock = param;
+  taosArrayDestroy(pBlock->pDataBlock);
+}
 
 int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg, SStreamDataBlock** pRes) {
   SStreamDataBlock* pData = NULL;
@@ -179,37 +216,6 @@ void streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit) {
   }
 }
 
-int32_t streamMergedSubmitNew(SStreamMergedSubmit** pSubmit) {
-  *pSubmit = NULL;
-
-  int32_t code = taosAllocateQitem(sizeof(SStreamMergedSubmit), DEF_QITEM, 0, (void**)pSubmit);
-  if (code) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pSubmit)->submits = taosArrayInit(0, sizeof(SPackedData));
-  if ((*pSubmit)->submits == NULL) {
-    taosFreeQitem(*pSubmit);
-    *pSubmit = NULL;
-    return terrno;
-  }
-
-  (*pSubmit)->type = STREAM_INPUT__MERGED_SUBMIT;
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubmit) {
-  void* p = taosArrayPush(pMerged->submits, &pSubmit->submit);
-  if (p == NULL) {
-    return terrno;
-  }
-
-  if (pSubmit->ver > pMerged->ver) {
-    pMerged->ver = pSubmit->ver;
-  }
-  return 0;
-}
-
 // todo handle memory error
 int32_t streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem, SStreamQueueItem** pRes) {
   *pRes = NULL;
@@ -267,11 +273,6 @@ int32_t streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem
   }
 }
 
-static void freeItems(void* param) {
-  SSDataBlock* pBlock = param;
-  taosArrayDestroy(pBlock->pDataBlock);
-}
-
 void streamFreeQitem(SStreamQueueItem* data) {
   int8_t type = data->type;
   if (type == STREAM_INPUT__GET_RES) {
@@ -305,4 +306,57 @@ void streamFreeQitem(SStreamQueueItem* data) {
     taosArrayDestroyEx(pBlock->blocks, freeItems);
     taosFreeQitem(pBlock);
   }
+}
+
+int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t interval, SInterval* pInterval,
+                                       STimeWindow* pLatestWindow, const char* id) {
+  QRY_PARAM_CHECK(pTrigger);
+
+  SStreamTrigger* p = NULL;
+  int64_t         ts = taosGetTimestamp(pInterval->precision);
+  int64_t         skey = pLatestWindow->skey + interval;
+
+  int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
+  if (code) {
+    stError("s-task:%s failed to create force_window trigger, code:%s", id, tstrerror(code));
+    return code;
+  }
+
+  p->type = STREAM_INPUT__GET_RES;
+  p->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (p->pBlock == NULL) {
+    taosFreeQitem(p);
+    return terrno;
+  }
+
+  p->pBlock->info.window.skey = skey;
+  p->pBlock->info.window.ekey = TMAX(ts, skey + interval);
+  p->pBlock->info.type = STREAM_GET_RESULT;
+
+  stDebug("s-task:%s force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, id,
+          p->pBlock->info.window.skey, p->pBlock->info.window.ekey);
+
+  *pTrigger = p;
+  return code;
+}
+
+int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger) {
+  QRY_PARAM_CHECK(pTrigger);
+  SStreamTrigger* p = NULL;
+
+  int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
+  if (code) {
+    return code;
+  }
+
+  p->type = STREAM_INPUT__GET_RES;
+  p->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (p->pBlock == NULL) {
+    taosFreeQitem(p);
+    return terrno;
+  }
+
+  p->pBlock->info.type = STREAM_GET_ALL;
+  *pTrigger = p;
+  return code;
 }

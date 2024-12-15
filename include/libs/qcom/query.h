@@ -194,6 +194,7 @@ typedef struct SBoundColInfo {
   int32_t  numOfCols;
   int32_t  numOfBound;
   bool     hasBoundCols;
+  bool     mixTagsCols;
 } SBoundColInfo;
 
 typedef struct STableColsData {
@@ -336,8 +337,8 @@ char*   jobTaskStatusStr(int32_t status);
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 void    destroyQueryExecRes(SExecResult* pRes);
-int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
-void    parseTagDatatoJson(void* p, char** jsonStr);
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
+void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
@@ -364,7 +365,7 @@ void* getTaskPoolWorkerCb();
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
 #define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) \
-  ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER)
+  ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER || (_code) == TSDB_CODE_SCH_DATA_SRC_EP_MISS)
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
@@ -407,29 +408,29 @@ void* getTaskPoolWorkerCb();
 #define IS_AUDIT_CTB_NAME(_ctbname) \
   ((*(_ctbname) == 't') && (0 == strncmp(_ctbname, TSDB_AUDIT_CTB_OPERATION, TSDB_AUDIT_CTB_OPERATION_LEN)))
 
-#define qFatal(...)                                                     \
-  do {                                                                  \
-    if (qDebugFlag & DEBUG_FATAL) {                                     \
-      taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+#define qFatal(...)                                                                           \
+  do {                                                                                        \
+    if (qDebugFlag & DEBUG_FATAL) {                                                           \
+      taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                         \
   } while (0)
-#define qError(...)                                                     \
-  do {                                                                  \
-    if (qDebugFlag & DEBUG_ERROR) {                                     \
-      taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+#define qError(...)                                                                           \
+  do {                                                                                        \
+    if (qDebugFlag & DEBUG_ERROR) {                                                           \
+      taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                         \
   } while (0)
-#define qWarn(...)                                                    \
-  do {                                                                \
-    if (qDebugFlag & DEBUG_WARN) {                                    \
-      taosPrintLog("QRY WARN ", DEBUG_WARN, qDebugFlag, __VA_ARGS__); \
-    }                                                                 \
+#define qWarn(...)                                                                          \
+  do {                                                                                      \
+    if (qDebugFlag & DEBUG_WARN) {                                                          \
+      taosPrintLog("QRY WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                       \
   } while (0)
-#define qInfo(...)                                               \
-  do {                                                           \
-    if (qDebugFlag & DEBUG_INFO) {                               \
-      taosPrintLog("QRY ", DEBUG_INFO, qDebugFlag, __VA_ARGS__); \
-    }                                                            \
+#define qInfo(...)                                                                     \
+  do {                                                                                 \
+    if (qDebugFlag & DEBUG_INFO) {                                                     \
+      taosPrintLog("QRY ", DEBUG_INFO, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                  \
   } while (0)
 #define qDebug(...)                                               \
   do {                                                            \

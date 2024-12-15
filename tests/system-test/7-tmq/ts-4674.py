@@ -24,45 +24,6 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-
-    # def consume_TS_4674_Test(self):
-    #
-    #     os.system("nohup taosBenchmark -y -B 1 -t 4 -S 1000 -n 1000000 -i 1000 -v 1 -a 3 > /dev/null 2>&1 &")
-    #     time.sleep()
-    #     tdSql.execute(f'create topic topic_all with meta as database test')
-    #     consumer_dict = {
-    #         "group.id": "g1",
-    #         "td.connect.user": "root",
-    #         "td.connect.pass": "taosdata",
-    #         "auto.offset.reset": "earliest",
-    #     }
-    #     consumer = Consumer(consumer_dict)
-    #
-    #     try:
-    #         consumer.subscribe(["topic_all"])
-    #     except TmqError:
-    #         tdLog.exit(f"subscribe error")
-    #
-    #     try:
-    #         while True:
-    #             res = consumer.poll(5)
-    #             if not res:
-    #                 print(f"null")
-    #                 continue
-    #             val = res.value()
-    #             if val is None:
-    #                 print(f"null")
-    #                 continue
-    #             cnt = 0;
-    #             for block in val:
-    #                 cnt += len(block.fetchall())
-    #
-    #             print(f"block {cnt} rows")
-    #
-    #     finally:
-    #         consumer.close()
-
     def get_leader(self):
         tdLog.debug("get leader")
         tdSql.query("show vnodes")
@@ -74,21 +35,24 @@ class TDTestCase:
 
     def balance_vnode(self):
         leader_before = self.get_leader()
-
+        
         while True:
             leader_after = -1
-            tdSql.query("balance vgroup leader")
+            tdLog.debug("balancing vgroup leader")
+            tdSql.execute("balance vgroup leader")
             while True:
+                tdLog.debug("get new vgroup leader")
                 leader_after = self.get_leader()
                 if leader_after != -1 :
-                    break;
+                    break
                 else:
                     time.sleep(1)
             if leader_after != leader_before:
                 tdLog.debug("leader changed")
-                break;
+                break
             else :
                 time.sleep(1)
+                tdLog.debug("leader not changed")
 
 
     def consume_TS_4674_Test(self):
@@ -115,7 +79,7 @@ class TDTestCase:
         except TmqError:
             tdLog.exit(f"subscribe error")
 
-        cnt = 0;
+        cnt = 0
         balance = False
         try:
             while True:

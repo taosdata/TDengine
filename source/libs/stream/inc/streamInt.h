@@ -21,6 +21,7 @@
 #include "streamBackendRocksdb.h"
 #include "trpc.h"
 #include "tstream.h"
+#include "tref.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +37,7 @@ extern "C" {
 #define META_HB_CHECK_INTERVAL             200
 #define META_HB_SEND_IDLE_COUNTER          25  // send hb every 5 sec
 #define STREAM_TASK_KEY_LEN                ((sizeof(int64_t)) << 1)
-#define STREAM_TASK_QUEUE_CAPACITY         20480
+#define STREAM_TASK_QUEUE_CAPACITY         5120
 #define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (30)
 
 // clang-format off
@@ -70,7 +71,7 @@ struct SActiveCheckpointInfo {
   SStreamTmrInfo chkptReadyMsgTmr;
 };
 
-int32_t streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, SStreamTask* pTask);
+void streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, void* param);
 
 typedef struct {
   int8_t       type;
@@ -164,7 +165,6 @@ extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 extern int32_t taskDbWrapperId;
-extern int32_t streamMetaId;
 
 int32_t streamTimerInit();
 void    streamTimerCleanUp();
@@ -192,7 +192,6 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
-void    streamTaskSetFailedCheckpointId(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask);
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
@@ -226,6 +225,8 @@ void    destroyMetaHbInfo(SMetaHbInfo* pInfo);
 void    streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
 void    streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
 int32_t streamMetaSendHbHelper(SStreamMeta* pMeta);
+int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid);
+void    metaRefMgtRemove(int64_t* pRefId);
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
@@ -239,7 +240,12 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
                                int64_t checkpointId, SRpcMsg* pMsg);
 
 int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
+int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
+int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
+                                       STimeWindow* pLatestWindow, const char* id);
 
+// inject stream errors
+void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 
 #ifdef __cplusplus
 }

@@ -1,43 +1,129 @@
-M
-M
-d
-M
-M
-M
-M
-M
-MNOPQ
-MNOPQ
-MNOPQ
-MNOPQ
-MNOPQ
-MM
-MM
-MM
-MM
-MM
-MN
-MN
-MN
-MN
-MN
-1
-M
-N
-O
-P
-Q
-MMM
-NNN
-OOO
-PPP
-QQQ
-MMMMM
-NNNNN
-OOOOO
-PPPPP
-QQQQQ
-M
-MM
-{
-M{
+
+taos> select CHAR(77)
+ char(77) |
+===========
+ M        |
+
+taos> select CHAR(77.5)
+ char(77.5) |
+=============
+ M          |
+
+taos> select CHAR(100)
+ char(100) |
+============
+ d         |
+
+taos> select CHAR(77) from ts_4893.meters limit 5
+ char(77) |
+===========
+ M        |
+ M        |
+ M        |
+ M        |
+ M        |
+
+taos> select CHAR(77,78,79,80,81) from ts_4893.meters limit 5
+  char(77,78,79,80,81)  |
+=========================
+ MNOPQ                  |
+ MNOPQ                  |
+ MNOPQ                  |
+ MNOPQ                  |
+ MNOPQ                  |
+
+taos> select CHAR(77*256+77) from ts_4893.meters limit 5
+ char(77*256+77) |
+==================
+ MM              |
+ MM              |
+ MM              |
+ MM              |
+ MM              |
+
+taos> select concat(CHAR(77),CHAR(78)) from ts_4893.meters limit 5
+ concat(char(77),char(78)) |
+============================
+ MN                        |
+ MN                        |
+ MN                        |
+ MN                        |
+ MN                        |
+
+taos> select cast(CHAR(49) as int)
+ cast(char(49) as int) |
+========================
+                     1 |
+
+taos> select CHAR(id + 77) from ts_4893.meters order by ts limit 5;
+ char(id + 77) |
+================
+ M             |
+ N             |
+ O             |
+ P             |
+ Q             |
+
+taos> select CONCAT(CHAR(id + 77),CHAR(id + 77),CHAR(id + 77)) from ts_4893.meters limit 5
+ concat(char(id + 77),char(id + 77),char(id + 77)) |
+====================================================
+ MMM                                               |
+ NNN                                               |
+ OOO                                               |
+ PPP                                               |
+ QQQ                                               |
+
+taos> select CHAR(id+77, id+77, id+77, id+77, id+77) from ts_4893.meters limit 5
+ char(id+77, id+77, id+77, id+77, id+77) |
+==========================================
+ MMMMM                                   |
+ NNNNN                                   |
+ OOOOO                                   |
+ PPPPP                                   |
+ QQQQQ                                   |
+
+taos> select char(77)
+ char(77) |
+===========
+ M        |
+
+taos> select char(77 * 256 + 77)
+ char(77 * 256 + 77) |
+======================
+ MM                  |
+
+taos> select char('123')
+ char('123') |
+==============
+ {           |
+
+taos> select char(77, NULL, '123')
+ char(77, null, '123') |
+========================
+ M{                    |
+
+taos> select char(null)
+ char(null) |
+=============
+            |
+
+taos> select char('ustc')
+ char('ustc') |
+===============
+              |
+
+taos> select char(65.99)
+ char(65.99) |
+==============
+ A           |
+
+taos> select char(65, 66, 67)
+ char(65, 66, 67) |
+===================
+ ABC              |
+
+taos> select char(72, 101, 108, 108, 111)
+ char(72, 101, 108, 108, 111) |
+===============================
+ Hello                        |
+
