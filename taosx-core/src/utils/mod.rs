@@ -1,7 +1,6 @@
-use std::{io::BufRead, path::Path, thread::JoinHandle};
-
 use anyhow::bail;
 use chrono::{DateTime, FixedOffset};
+use std::{io::BufRead, path::Path, thread::JoinHandle};
 use taos::*;
 
 pub mod breakpoints;
@@ -201,6 +200,14 @@ pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {
         if path.exists() {
             tokio::fs::remove_dir_all(path).await?;
         }
+    }
+    Ok(())
+}
+
+pub async fn clear_local_dir(dir: &str) -> anyhow::Result<()> {
+    let path = Path::new(dir);
+    if path.exists() {
+        tokio::fs::remove_dir_all(path).await?;
     }
     Ok(())
 }

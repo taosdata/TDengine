@@ -463,7 +463,7 @@ impl TaskScheduler {
             Oneshot => {
                 let task = task.clone();
                 let global = self.global_state.clone();
-                tracing::debug!("add one shot job in scheduler");
+                tracing::debug!("add oneshot job in scheduler");
                 Job::new_one_shot_async(Duration::from_secs(0), move |jid, _| {
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?

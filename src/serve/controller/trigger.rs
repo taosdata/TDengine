@@ -196,6 +196,22 @@ serde_with::serde_conv!(
     }
 );
 
+impl FromStr for Strategy {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(trigger) = serde_json::from_str::<Strategy>(s) {
+            Ok(trigger)
+        } else {
+            debug_assert!(s.starts_with("schedule:"));
+            Ok(Strategy {
+                schedule: Some(s.trim_start_matches("schedule:").to_string()),
+                ..Default::default()
+            })
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum Schedule {
     /// 任务按照 cron 表达式周期执行
@@ -353,9 +369,13 @@ impl Strategy {
 
     pub fn schedule(&self) -> Schedule {
         if let Some(schedule) = self.schedule.as_deref() {
-            return Schedule::Cron(schedule.to_string());
+            return match schedule.to_lowercase().as_str() {
+                "oneshot" => Schedule::Oneshot,
+                _ => Schedule::Cron(schedule.to_string()),
+            };
         }
 
+        // repeatable job with start datetime, e.g. create a backup job which starts at 2021-01-01T02:00:00Z
         if let (Some((_raw, interval)), Some(upcoming)) =
             (self.interval.as_ref(), self.upcoming.as_ref())
         {
@@ -405,22 +425,6 @@ impl Strategy {
             ResumeStrategy::Retries(num) => {
                 StopCondition::Repeated(Arc::new(AtomicU64::new(num as _)))
             }
-        }
-    }
-}
-
-impl FromStr for Strategy {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(trigger) = serde_json::from_str::<Strategy>(s) {
-            Ok(trigger)
-        } else {
-            debug_assert!(s.starts_with("schedule:"));
-            Ok(Strategy {
-                schedule: Some(s.trim_start_matches("schedule:").to_string()),
-                ..Default::default()
-            })
         }
     }
 }
@@ -491,5 +495,10 @@ mod tests {
         assert_eq!(s.healthy.fadeout, Duration::from_secs(60));
         assert_eq!(s.upcoming, None);
         assert_eq!(s.interval, Some(("1s".to_string(), Duration::from_secs(1))));
+
+        let s = r#"{"schedule": "oneshot", "resume": "never"}"#;
+        let s: Strategy = serde_json::from_str(s).unwrap();
+        assert_eq!(s.schedule, Some("oneshot".to_string()));
+        assert_eq!(s.resume, ResumeStrategy::Never);
     }
 }

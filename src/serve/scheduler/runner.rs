@@ -160,6 +160,7 @@ async fn run_task(
         }
     });
     let res = opts.run(&global.port_pool).in_current_span().await;
+
     logging_abort.abort();
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {

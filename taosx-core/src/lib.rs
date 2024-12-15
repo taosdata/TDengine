@@ -47,7 +47,7 @@ mod local_to_taos;
 mod parquets;
 pub mod taoz;
 pub mod tmq;
-mod tmq_to_local;
+pub mod tmq_to_local;
 mod tmq_to_td;
 pub mod types;
 

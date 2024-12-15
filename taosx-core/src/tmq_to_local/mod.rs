@@ -1,27 +1,17 @@
-use crate::tmq_to_local::conf::{
-    BackupConfig, BackupConfigBuilder, BackupConsumer, BackupPointGenMode,
-};
-use crate::{
-    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
-    tmq::tmq_metric::TmqMetrics,
-};
-use crate::{
-    taoz::{RawType, ZFile},
-    tmq::*,
-};
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Local, Utc};
 use dashmap::DashMap;
+use scc::HashMap;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::fmt::Debug;
 use std::sync::atomic::Ordering::SeqCst;
+use std::sync::RwLock;
 use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
 };
-use taos::taos_query::tmq::Assignment;
+use taos::taos_query::tmq::{Assignment, VGroupId};
 use taos::*;
 use taos_query::common::RawData;
 use tokio::select;
@@ -30,18 +20,36 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-mod conf;
+use crate::tmq_to_local::conf::{BackupConfig, BackupConfigBuilder, BackupPointGenMode};
+use crate::{
+    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
+    tmq::tmq_metric::TmqMetrics,
+};
+use crate::{
+    taoz::{RawType, ZFile},
+    tmq::*,
+};
+
+pub mod conf;
 
 struct ZFileMan {
+    /// taosx 的版本号
     api_version: String,
+    /// taosd 的版本号
     server_version: String,
-    path: PathBuf,
+    /// 存放备份文件的目录
+    backup_dir: PathBuf,
+    /// 增量备份对应的 topic
     topic: String,
+    /// 压缩级别
+    compression_level: async_compression::Level,
+    /// 文件的最大大小
+    max_file_size: u64,
+    /// 在文件写满后，将文件移动到 move_to 目录
+    move_to: Option<PathBuf>,
+
     sync: tokio::sync::Mutex<()>,
     writers: DashMap<i32, tokio::sync::Mutex<ZFile>>,
-    max_file_size: u64,
-    move_to: Option<PathBuf>,
-    compression_level: async_compression::Level,
 }
 
 impl Debug for ZFileMan {
@@ -49,11 +57,11 @@ impl Debug for ZFileMan {
         f.debug_struct("ZFileMan")
             .field("api_version", &self.api_version)
             .field("server_version", &self.server_version)
-            .field("path", &self.path)
+            .field("path", &self.backup_dir)
             .field("topic", &self.topic)
+            .field("compress_level", &self.compression_level)
             .field("max_file_size", &self.max_file_size)
             .field("move_to", &self.move_to)
-            .field("compress_level", &self.compression_level)
             .finish()
     }
 }
@@ -84,16 +92,16 @@ impl ZFileMan {
         if !self.writers.contains_key(&vgroup) {
             let _ = self.sync.lock().await;
             if !self.writers.contains_key(&vgroup) {
-                let prefix = self.path.join(format!("{}-{}", self.topic, vgroup));
-                let mut file = ZFile::new(
-                    prefix,
-                    self.compression_level,
+                let file = ZFile::new(
                     &self.api_version,
                     &self.server_version,
+                    &self.backup_dir,
+                    (&self.topic, None, vgroup, 1),
+                    self.compression_level,
+                    self.max_file_size,
+                    self.move_to.clone(),
                 )
                 .await?;
-                file.set_max_file_size(self.max_file_size);
-                file.set_move_to(self.move_to.clone());
                 let _ = self.writers.insert(vgroup, tokio::sync::Mutex::new(file));
             }
         }
@@ -230,7 +238,6 @@ impl ZFileMan {
         self.assert_vgroup(vgroup).await?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
         entry.value().lock().await.flush().await?;
-
         Ok(())
     }
 }
@@ -275,20 +282,149 @@ impl LocalConfig {
     }
 }
 
+/// full or incremental backup from TMQ to local file
+/// @param from: DSN of TMQ
+/// @param to: DSN of local
+/// @param jobs: 子任务的数量，如果
+/// @param force: 如果 force 为 true，表示强制使用 from 中配置的 group_id；如果 force 为 false，
+/// 检查 from 中的 group_id 是否和上次备份的 group_id 一致，不一致则报错。
+/// @param cancel: 取消信号，用于取消备份任务
+/// @param task_id: task id
+#[instrument]
+#[async_backtrace::framed]
+pub async fn tmq_to_local(
+    from: Dsn,
+    to: Dsn,
+    jobs: usize,
+    _force: bool,
+    cancel: CancellationToken,
+    task_id: Option<String>,
+) -> Result<()> {
+    tracing::info!("tmq_to_local start");
+
+    // 解析备份需要的参数
+    let mut config = BackupConfigBuilder::new(task_id.clone(), &from, &to)
+        .build()
+        .await
+        .context(format!(
+            "parse backup config error, from: {}, to: {}",
+            &from, &to
+        ))?;
+
+    // 如果是初始备份
+    if config.is_initial_backup().await? {
+        // 在 TDengine 创建备份的 topic
+        config.create_topic().await?;
+        // 在本地创建备份目录
+        config.create_backup_dir().await?;
+        // 初始备份，不能通过 position 获取 curren_offset
+        config.set_backup_point_gen_mode(BackupPointGenMode::ByTimeout);
+    }
+
+    // 根据 jobs 创建 consumer
+    let consumers = config.create_consumer(jobs).await?;
+
+    // 创建 ZFileMan
+    let man = Arc::new(ZFileMan {
+        api_version: crate::build::PKG_VERSION.to_owned(),
+        server_version: config.server_version.clone(),
+        backup_dir: config.backup_dir.clone(),
+        topic: config.topic.clone(),
+        compression_level: config.backup_comp_level.clone(),
+        max_file_size: config.backup_max_size,
+        move_to: config.move_to.clone(),
+        sync: tokio::sync::Mutex::new(()),
+        writers: Default::default(),
+    });
+
+    let mut join_set = JoinSet::new();
+    for (idx, consumer) in consumers.into_iter().enumerate() {
+        // 创建 worker
+        let task = BackupWorker {
+            id: idx,
+            config: config.clone(),
+            consumer,
+            assignments: Arc::new(RwLock::new(HashMap::new())),
+            man: man.clone(),
+            cancel: cancel.clone(),
+        };
+
+        join_set.spawn(async move { task.run().await }.in_current_span());
+    }
+
+    // 等待所有 worker 完成
+    while let Some(res) = join_set.join_next().await {
+        if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
+            tracing::error!("abort all workers since error: {:#}", err);
+            join_set.abort_all();
+            // TODO: 如果出现错误，要清理文件
+            return Err(err);
+        }
+    }
+
+    // 关闭 writer
+    man.shutdown().await?;
+
+    tracing::info!("tmq_to_local finish");
+    Ok(())
+}
+
 #[derive(Debug)]
 struct BackupWorker {
     id: usize,
     config: BackupConfig,
-    consumer: BackupConsumer,
+    consumer: Consumer,
+    assignments: Arc<RwLock<HashMap<(String, VGroupId), i64>>>,
     man: Arc<ZFileMan>,
     cancel: CancellationToken,
 }
 
 impl BackupWorker {
+    /// 如果当前时间比 upcoming 早，等待到 upcoming
+    async fn wait_for_upcoming_impl(upcoming: Option<DateTime<Utc>>) -> Result<()> {
+        if let Some(upcoming) = upcoming {
+            let now = Utc::now();
+            if now < upcoming.clone() {
+                let duration = upcoming - now;
+                tracing::info!("tmq_to_local worker wait for upcoming: {}", upcoming);
+                tokio::time::sleep(duration.to_std().map_err(|err| {
+                    anyhow::Error::from(err)
+                        .context(format!("failed to convert: {:?} to std duration", duration))
+                })?)
+                .await;
+            }
+        }
+        Ok(())
+    }
+
+    async fn assign(&self) -> Result<()> {
+        let assignments = self.consumer.assignments().await;
+        if let Some(assigns) = assignments {
+            for (topic, assign) in assigns {
+                for a in assign {
+                    let vg_id = a.vgroup_id();
+                    let end_offset = a.end();
+                    tracing::info!(
+                        "set end offset of topic: {}, vg_id: {}, offset: {}",
+                        topic,
+                        vg_id,
+                        end_offset
+                    );
+                    self.set_end_offset(topic.clone(), vg_id, end_offset).await;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     async fn run(&self) -> Result<()> {
-        self.wait_for_upcoming().await?;
-        tracing::info!("tmq_to_local worker: {} start", self.id);
-        let run_impl = self.run_impl();
+        Self::wait_for_upcoming_impl(self.config.upcoming.clone()).await?;
+
+        tracing::info!("tmq_to_local worker: {:?} start", self.id);
+        self.assign().await?;
+
+        let run_impl = self.run_impl().in_current_span();
         loop {
             select! {
                 _ = self.cancel.cancelled() => {
@@ -313,35 +449,35 @@ impl BackupWorker {
         Ok(())
     }
 
-    async fn wait_for_upcoming(&self) -> Result<()> {
-        Self::wait_for_upcoming_impl(self.config.upcoming.clone()).await
-    }
-
-    async fn wait_for_upcoming_impl(upcoming: Option<DateTime<Utc>>) -> Result<()> {
-        if let Some(upcoming) = upcoming {
-            let now = Utc::now();
-            if now < upcoming.clone() {
-                let duration = upcoming - now;
-                tracing::info!("tmq_to_local worker wait for upcoming: {}", upcoming);
-                tokio::time::sleep(duration.to_std().map_err(|err| {
-                    anyhow::Error::from(err)
-                        .context(format!("failed to convert: {:?} to std duration", duration))
-                })?)
-                .await;
-            }
-        }
-        Ok(())
-    }
-
     async fn run_impl(&self) -> Result<()> {
-        let mut stream = self.consumer.consumer.stream();
+        tracing::debug!("tmq_to_local worker run with config: {:?}", self.config);
 
-        let end_offset = self.consumer.end_offset;
-
+        let mut stream = self.consumer.stream();
         while let Some((offset, message)) = stream.try_next().await? {
+            // 通过 topic, vg_id 可以获取到当前的 offset
             let vg_id = offset.vgroup_id();
 
-            // handle message
+            if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
+                let topic = offset.topic();
+                let cur_offset = self.consumer.position(topic, vg_id).await?;
+                // 获取 topic, vgroup 对应的 end_offset
+                let end_offset =
+                    self.get_end_offset(topic.to_string(), vg_id)
+                        .await
+                        .ok_or(anyhow::anyhow!(
+                            "failed to get end offset of topic: {topic}, vg_id: {vg_id}"
+                        ))?;
+                // 如果 cur_offset == end_offset，表示当前 vgroup 已经备份完成
+                if cur_offset == end_offset {
+                    self.set_complete(topic.to_string(), vg_id).await;
+                }
+                // 如果所有 vgroup 都备份完成，退出
+                if self.is_all_complete().await {
+                    break;
+                }
+            }
+
+            // 处理 message，写入本地文件
             match message {
                 MessageSet::Meta(meta) => {
                     let raw = meta.as_raw_meta().await?;
@@ -365,108 +501,34 @@ impl BackupWorker {
                     self.man.flush_vgroup(vg_id).await?;
                 }
             }
-            self.consumer.consumer.commit(offset).await?;
-
-            // 通过 topic, vg_id 可以获取到当前的 offset
-            if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
-                assert_eq!(vg_id, self.consumer.vgroup_id);
-
-                let cur_offset = self
-                    .consumer
-                    .consumer
-                    .position(self.consumer.topic.as_str(), vg_id)
-                    .await?;
-                if cur_offset == end_offset {
-                    break;
-                }
-            }
+            self.consumer.commit(offset).await?;
         }
 
         Ok(())
     }
+
+    async fn set_end_offset(&self, topic: String, vg_id: VGroupId, offset: i64) {
+        let assign_map = self.assignments.write().unwrap();
+        assign_map.insert((topic, vg_id), offset).unwrap();
+    }
+
+    async fn get_end_offset(&self, topic: String, vg_id: VGroupId) -> Option<i64> {
+        let assign_map = self.assignments.read().unwrap();
+        assign_map.get(&(topic, vg_id)).map(|s| *s)
+    }
+
+    async fn set_complete(&self, topic: String, vg_id: VGroupId) {
+        let assign_map = self.assignments.write().unwrap();
+        assign_map.remove(&(topic, vg_id)).unwrap();
+    }
+
+    async fn is_all_complete(&self) -> bool {
+        let assign_map = self.assignments.read().unwrap();
+        assign_map.is_empty()
+    }
 }
 
-/// full or incremental backup from TMQ to local file
-/// @param from: DSN of TMQ
-/// @param to: DSN of local
-/// @param jobs: 子任务的数量，如果
-/// @param force: 如果 force 为 true，表示强制使用 from 中配置的 group_id；如果 force 为 false，
-/// 检查 from 中的 group_id 是否和上次备份的 group_id 一致，不一致则报错。
-/// @param cancel: 取消信号，用于取消备份任务
-/// @param task_id: task id
-pub async fn tmq_to_local(
-    from: Dsn,
-    to: Dsn,
-    _jobs: usize,
-    _force: bool,
-    cancel: CancellationToken,
-    task_id: Option<String>,
-) -> Result<()> {
-    tracing::info!(
-        "tmq_to_local task: {:?}, from: {}, to: {}",
-        task_id,
-        from,
-        to
-    );
-
-    let config = BackupConfigBuilder::new(task_id.clone(), &from, &to)
-        .build()
-        .await
-        .context(format!(
-            "parse backup config error, from: {}, to: {}",
-            &from, &to
-        ))?;
-
-    if config.is_initial_backup().await? {
-        // 在 TDengine 创建备份的 topic
-        config.create_topic().await?;
-        // 在本地创建备份目录
-        config.create_backup_dir().await?;
-    }
-
-    let consumers = config.create_consumer().await?;
-
-    let man = Arc::new(ZFileMan {
-        api_version: crate::build::PKG_VERSION.to_owned(),
-        server_version: config.server_version.clone(),
-        path: config.backup_dir.clone(),
-        topic: config.topic.clone(),
-        sync: tokio::sync::Mutex::new(()),
-        writers: Default::default(),
-        max_file_size: config.backup_max_size,
-        move_to: config.move_to.clone(),
-        compression_level: config.backup_comp_level.clone(),
-    });
-
-    // 订阅 topic，按照 jobs 的数量创建 TmqConsumer, 每个 TmqConsumer 一个线程，负责从 Tmq 拉取数据，
-    // 发送给 LocalWriter，LocalWriter 负责将数据写入本地文件
-    let mut join_set = JoinSet::new();
-    for (idx, consumer) in consumers.into_iter().enumerate() {
-        let task = BackupWorker {
-            id: idx,
-            config: config.clone(),
-            consumer,
-            man: man.clone(),
-            cancel: cancel.clone(),
-        };
-        join_set.spawn(async move { task.run().await });
-    }
-
-    // 等待所有 worker 完成
-    while let Some(res) = join_set.join_next().await {
-        if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
-            tracing::error!("abort all workers since error: {:#}", err);
-            join_set.abort_all();
-            // TODO: 清理文件
-            return Err(err);
-        }
-    }
-
-    tracing::info!("tmq_to_local task: {:?} finished", task_id);
-    Ok(())
-}
-
-#[allow(unused)]
+#[deprecated(since = "20241230", note = "use the new tmq_to_local instead")]
 pub async fn tmq_to_local_v1(
     from: Dsn,
     to: Dsn,
@@ -606,7 +668,7 @@ pub async fn tmq_to_local_v1(
         let man = Arc::new(ZFileMan {
             api_version: crate::build::PKG_VERSION.to_owned(),
             server_version: version.clone(),
-            path: backup_dir.to_owned(),
+            backup_dir: backup_dir.to_owned(),
             topic: topic.name.clone(),
             sync: tokio::sync::Mutex::new(()),
             writers: Default::default(),
@@ -678,14 +740,9 @@ fn parse_stop_at(dsn: &Dsn) -> Result<Option<StopAt>> {
 }
 
 fn parse_max_file_size(dsn: &Dsn) -> Result<Option<u64>> {
-    let max_file_size = dsn.params.get("max.file.size").and_then(|s| {
-        if s.is_empty() {
-            return None;
-        }
-        Some(s.to_string())
-    });
-
-    max_file_size
+    dsn.params
+        .get("max.file.size")
+        .filter(|s| !s.is_empty())
         .map(|s| {
             s.parse::<u64>().map_err(|err| {
                 anyhow::anyhow!("failed to parse max.file.size: {}, cause: {:?}", s, err)
@@ -695,17 +752,10 @@ fn parse_max_file_size(dsn: &Dsn) -> Result<Option<u64>> {
 }
 
 fn parse_move_to(dsn: &Dsn) -> Result<Option<PathBuf>> {
-    let move_to = dsn.params.get("move.to").and_then(|s| {
-        if s.is_empty() {
-            return None;
-        }
-        Some(s.to_string())
-    });
-
+    let move_to = dsn.params.get("move.to").filter(|s| !s.is_empty());
     if move_to.is_none() {
         return Ok(None);
     }
-
     let move_to = move_to.unwrap();
     let path = Path::new(&move_to);
     if !path.exists() {
@@ -745,24 +795,13 @@ fn new_local_config(from: &Dsn, to: &Dsn, topics: Vec<Topic>) -> LocalConfig {
         .params
         .get("group.id")
         .cloned()
-        .unwrap_or_else(|| generate_group_id(from, to));
+        .unwrap_or_else(|| group_id_hash_by(from, to));
     let client_id = from
         .params
         .get("client.id")
         .cloned()
         .unwrap_or("taosx".to_string());
     LocalConfig::new(topics, group_id, client_id)
-}
-
-/// generate group.id by sha256(from + to)
-fn generate_group_id(from: &Dsn, to: &Dsn) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(from.to_string());
-    hasher.update(to.to_string());
-    let id = hasher.finalize();
-    let mut group_id = format!("x{:x}", id);
-    group_id.truncate(12);
-    group_id
 }
 
 #[instrument(skip_all)]

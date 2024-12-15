@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_backtrace::framed;
 use taos::Dsn;
 
@@ -79,13 +79,13 @@ impl<'a> LicenseValidator<'a> {
                         .len();
 
                     return Ok(match license.number {
-                        0 => LicenseKind::Connector(anyhow!(
+                        0 => LicenseKind::Connector(anyhow::anyhow!(
                             "Number of {:?} has reached the licensed upper limit.",
                             license.r#type
                         )),
                         n if n > 0 => {
                             if used > n as usize {
-                                LicenseKind::Connector(anyhow!(
+                                LicenseKind::Connector(anyhow::anyhow!(
                                     "Number of {:?} has reached the licensed upper limit.",
                                     license.r#type
                                 ))

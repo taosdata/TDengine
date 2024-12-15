@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use taos::*;
+use tracing::Instrument;
 
 #[derive(Debug, Clone)]
 pub struct BackupConfig {
@@ -45,10 +46,20 @@ pub struct BackupConfig {
     pub backup_comp_level: async_compression::Level,
 }
 
-impl BackupConfig {}
-
 impl BackupConfig {
-    /// 是否是初始备份, 如果 topic 在 taosd 中不存在，则是初始备份，反之则不是
+    pub fn group_id(task_id: &Option<String>, from: &Dsn, to: &Dsn) -> String {
+        if let Some(oneshot_topic) = from.get("use.topic.name") {
+            return oneshot_topic.to_string();
+        }
+
+        let mut salt = vec![from.to_string(), to.to_string()];
+        if let Some(task_id) = task_id {
+            salt.push(task_id.to_string());
+        }
+        generate_hash(salt)
+    }
+
+    /// 如果 topic 在 taosd 中不存在，则是初始备份，反之则不是
     pub async fn is_initial_backup(&self) -> anyhow::Result<bool> {
         let taos = connect(&self.raw_from).await?;
         let topics = taos.topics().await?;
@@ -59,9 +70,9 @@ impl BackupConfig {
     /// 在 taosd 中创建 topic
     pub async fn create_topic(&self) -> anyhow::Result<()> {
         let sql = self.create_topic_sql();
+        tracing::debug!("create topic with sql: {}", sql);
 
         let taos = connect(&self.raw_from).await?;
-
         taos.exec(&sql).await.map_err(|err| {
             anyhow::Error::from(err).context(format!(
                 "failed to create topic: {}, sql: {}",
@@ -108,14 +119,25 @@ impl BackupConfig {
         }
     }
 
+    pub fn set_backup_point_gen_mode(&mut self, mode: BackupPointGenMode) {
+        self.backup_point_gen_mode = mode;
+    }
+
     pub fn to_tmq_dsn(&self) -> Dsn {
         let mut dsn = Dsn {
             subject: Some(self.topic.clone()),
             ..self.raw_from.clone()
         };
-
+        // 设置 group.id 为 topic
         dsn.params
             .insert("group.id".to_string(), self.topic.clone());
+        // ru guo
+        if self.raw_from.get("auto.offset.reset").is_none() {
+            dsn.set("auto.offset.reset", "earliest");
+        }
+        if self.raw_from.get("experimental.snapshot.enable").is_none() {
+            dsn.set("experimental.snapshot.enable", "true");
+        }
 
         dsn
     }
@@ -140,56 +162,63 @@ impl BackupConfig {
     }
 
     /// 按照 jobs 数量创建 consumer
-    pub async fn create_consumer(&self) -> anyhow::Result<Vec<BackupConsumer>> {
+    pub async fn create_consumer(&self, mut jobs: usize) -> anyhow::Result<Vec<Consumer>> {
         let from = self.to_tmq_dsn();
+        tracing::info!("create consumer with dsn: {}", &from);
 
-        // 按照 vgroups 的数量，创建 consumer 并发起订阅
-        let vgroups = self.get_vgroups().await?;
-        let mut handlers = Vec::with_capacity(vgroups);
-        for id in 0..vgroups {
+        // 如果 jobs 为 0，则使用 vgroups 数量创建 consumer
+        if jobs == 0 {
+            jobs = self.get_vgroups().await?;
+        }
+
+        let mut handlers = Vec::with_capacity(jobs);
+        for id in 0..jobs {
             let tmq = TmqBuilder::from_dsn(&from)?;
             let mut consumer = tmq.build().await.map_err(|err| {
                 anyhow::Error::from(err)
                     .context(format!("failed to create consumer with dsn: {}", &from))
             })?;
             let topic = self.topic.clone();
-            handlers.push(tokio::spawn(async move {
-                // 订阅 topic
-                tracing::debug!("Subscribe consumer {id}");
-                consumer.subscribe([topic.as_str()]).await.map_err(|err| {
-                    anyhow::Error::from(err)
-                        .context(format!("failed to subscribe topic: {}", &topic))
-                })?;
-                anyhow::Ok(consumer)
-            }));
+            handlers.push(tokio::spawn(
+                async move {
+                    // 订阅 topic
+                    tracing::info!("consumer {id} subscribe topic: {}", &topic);
+                    consumer.subscribe([topic.as_str()]).await.map_err(|err| {
+                        anyhow::Error::from(err)
+                            .context(format!("failed to subscribe topic: {}", &topic))
+                    })?;
+                    anyhow::Ok(consumer)
+                }
+                .in_current_span(),
+            ));
         }
 
-        // 等待所有 consumer 创建完成，并检查 assignment
-        let mut consumers = Vec::with_capacity(vgroups);
-        for (idx, h) in handlers.into_iter().enumerate() {
+        // 等待所有 consumer 创建完成
+        let mut consumers = Vec::with_capacity(jobs);
+        for h in handlers {
             let consumer = h.await??;
-
-            // check assignments
-            let assign = consumer.assignments().await;
-            if assign.is_none() {
-                tracing::warn!("consumer {} no assignments", idx);
-                continue;
-            }
-            let assign = assign.unwrap();
-            let (topic, assign) = assign.first().unwrap();
-            assert_eq!(assign.len(), 1);
-            let assign = assign.first().unwrap();
-            consumers.push(BackupConsumer {
-                topic: topic.clone(),
-                vgroup_id: assign.vgroup_id(),
-                begin_offset: assign.begin(),
-                end_offset: assign.end(),
-                current_offset: assign.current_offset(),
-                consumer,
-            });
+            consumers.push(consumer);
         }
 
         Ok(consumers)
+    }
+
+    /// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
+    pub fn parse_backup_dir(dsn: &Dsn, task_id: &Option<String>) -> anyhow::Result<PathBuf> {
+        let p = dsn
+            .path
+            .as_ref()
+            .ok_or(anyhow::anyhow!("backup dir is required"))?;
+
+        let mut dir = PathBuf::from(p)
+            .canonicalize()
+            .map_err(|err| anyhow::Error::new(err).context(format!("invalid backup dir: {p}")))?;
+
+        if let Some(task_id) = task_id {
+            dir = dir.join(task_id);
+        }
+
+        Ok(dir)
     }
 }
 
@@ -211,18 +240,6 @@ impl BackupPointGenMode {
             None => Ok(Self::ByTimeout),
         }
     }
-}
-
-#[derive(Debug)]
-pub struct BackupConsumer {
-    pub topic: String,
-    pub vgroup_id: i32,
-    #[allow(unused)]
-    pub begin_offset: i64,
-    pub end_offset: i64,
-    #[allow(unused)]
-    pub current_offset: i64,
-    pub consumer: Consumer,
 }
 
 /// 通过 dsn 连接 taosd 且不指定 database 和任何参数
@@ -288,14 +305,11 @@ impl BackupConfigBuilder {
             }
         }
 
-        let interval = Self::parse_duration_in_dsn(&self.from, "interval")?;
         // TODO: 如果 interval >= WAL_RETENTION_PERIOD 报错，可能会造成数据丢失
+        let interval = Self::parse_duration_in_dsn(&self.from, "interval")?;
 
-        let mut salt = vec![self.from.to_string(), self.to.to_string()];
-        if let Some(task_id) = &self.task_id {
-            salt.push(task_id.to_string());
-        }
-        let topic = generate_hash(salt);
+        // topic 与 group.id 相同
+        let topic = BackupConfig::group_id(&self.task_id, &self.from, &self.to);
 
         Ok(BackupConfig {
             task_id: self.task_id.clone(),
@@ -313,7 +327,7 @@ impl BackupConfigBuilder {
             error_retry_max: Self::parse_max_retry(&self.from)?.unwrap_or(10),
             error_retry_interval: Self::parse_duration_in_dsn(&self.from, "retry_interval")?
                 .unwrap_or(Duration::from_secs(5)),
-            backup_dir: Self::parse_backup_dir(&self.to)?,
+            backup_dir: BackupConfig::parse_backup_dir(&self.to, &self.task_id)?,
             move_to: Self::parse_directory_param(&self.to, "move.to")?,
             backup_max_size: Self::parse_backup_max_size(&self.to)?.unwrap_or(1024 * 1024 * 1024),
             backup_comp_level: Self::parse_compression_level(&self.to)?
@@ -401,20 +415,6 @@ impl BackupConfigBuilder {
             .transpose()
     }
 
-    /// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
-    fn parse_backup_dir(dsn: &Dsn) -> anyhow::Result<PathBuf> {
-        let p = dsn
-            .path
-            .as_ref()
-            .ok_or(anyhow::anyhow!("backup dir is required"))?;
-
-        let dir = Path::new(p)
-            .canonicalize()
-            .map_err(|err| anyhow::Error::new(err).context(format!("invalid backup dir: {p}")))?;
-
-        Ok(dir)
-    }
-
     /// 解析 dsn 中的备份文件最大字节数，默认为 1G
     fn parse_backup_max_size(dsn: &Dsn) -> anyhow::Result<Option<u64>> {
         dsn.get("backup_max_size")
@@ -477,6 +477,16 @@ mod tests {
             .unwrap_err()
             .to_string()
             .starts_with("failed to parse upcoming: abc, cause: "));
+    }
+
+    #[test]
+    fn test_parse_backup_dir() {
+        let dsn = "local:/tmp".into_dsn().unwrap();
+        let task_id = Some("123".to_string());
+        let backup_dir = BackupConfig::parse_backup_dir(&dsn, &task_id).unwrap();
+
+        let cur_dir = Path::new("/tmp").canonicalize().unwrap().join("123");
+        assert_eq!(backup_dir, cur_dir);
     }
 
     #[test]

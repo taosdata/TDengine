@@ -1,184 +1,28 @@
 use anyhow::{bail, Context, Result};
-use std::path::PathBuf;
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
 use taos::*;
 use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio::sync::Semaphore;
 
-use crate::{
-    taoz::{ZCodec, ZMessage},
-    tmq_to_local::LocalConfig,
-    utils::constants::{VERSION_3_0_0, VERSION_3_3_0},
-};
-
-#[async_backtrace::framed]
-async fn restore(
-    id: usize,
-    path: impl AsRef<Path>,
-    taos: &Taos,
-    table: Option<&str>,
-) -> Result<()> {
-    let path = path.as_ref();
-    tracing::info!("[{}] restore with file: {:?}", id, path.display());
-    let reader = tokio::fs::File::open(path).await?;
-    let reader = tokio::io::BufReader::new(reader);
-    let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
-    let mut reader = ZCodec::new(reader);
-    let header = reader.header_async().await?;
-    tracing::debug!("[{id}] parse header: {:?}", header);
-
-    let target_version = taos
-        .server_version()
-        .await
-        .context("get server version error")?;
-
-    let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
-    if target_version < VERSION_3_0_0 {
-        bail!("Backup source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
-    }
-    if let Some(source_version) = header.server_version() {
-        let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
-        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
-            bail!("Backup source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
-        }
-    }
-
-    let mut rows = 0;
-    loop {
-        let res = reader.read_message_async().await;
-        match res {
-            Ok(message) => {
-                match message {
-                    ZMessage::Meta(meta) => {
-                        // dbg!(&meta);
-                        if let Err(err) = taos.write_raw_meta(&meta).await {
-                            let code: i32 = err.code().into();
-                            match code {
-                                0x0603 => {
-                                    tracing::debug!("Table already exists");
-                                }
-                                0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
-                                    tracing::debug!("Found recoverable error: {err:#}, retry once");
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                    let res = taos.write_raw_meta(&meta).await;
-                                    if res.is_ok() {
-                                        tracing::debug!("Retry success");
-                                    } else {
-                                        tracing::debug!(
-                                            "Retry failed: {:#}, continue",
-                                            res.unwrap_err()
-                                        );
-                                    }
-                                }
-                                0x2603 => {
-                                    tracing::debug!("Found 0x2603 error: {err:#}, retry once");
-                                    taos.write_raw_meta(&meta)
-                                        .await
-                                        .context("restore meta error")?;
-                                }
-                                _ => {
-                                    Err(err).context("write raw error while restore")?;
-                                }
-                            }
-                        };
-                    }
-                    ZMessage::Data(data) => {
-                        for mut raw in data {
-                            if let Some(name) = table {
-                                raw.with_table_name(name);
-                            }
-                            rows += raw.nrows();
-                            if let Err(err) = taos.write_raw_block(&raw).await {
-                                if err.to_string().contains("[0x2603]") {
-                                    // table not exists
-                                    if let Some(meta) = raw.to_create() {
-                                        if let Err(err) = taos.exec(format!("{}", meta)).await {
-                                            if err.to_string().contains("0x032C") {
-                                                // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                                            } else {
-                                                Err(err).context("create table error")?;
-                                            }
-                                        };
-                                        taos.write_raw_block(&raw)
-                                            .await
-                                            .context("write_raw block error")?;
-                                    } else {
-                                        Err(err).context("write_raw block error")?;
-                                    }
-                                } else {
-                                    Err(err).context("write raw block error")?;
-                                }
-                            };
-                        }
-                        tracing::debug!("[{id}] current rows: {}", rows);
-                    }
-                    ZMessage::Raw(raw_type, raw) => {
-                        let meta = raw.into();
-                        if let Err(err) = taos.write_raw_meta(&meta).await {
-                            let code: i32 = err.code().into();
-                            match code {
-                                0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
-                                    tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {}", err);
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                    let _ = taos.write_raw_meta(&meta).await;
-                                }
-                                0x2603 => {
-                                    let mut tries = 0;
-                                    let max_retries = 3;
-                                    loop {
-                                        tracing::debug!(raw.r#type = ?raw_type, "Found 0x2603 error: {}, retry", err);
-                                        tokio::time::sleep(Duration::from_millis(100)).await;
-                                        match taos.write_raw_meta(&meta).await {
-                                            Ok(_) => break,
-                                            Err(err) => {
-                                                if tries >= max_retries {
-                                                    Err(err).with_context(|| {
-                                                        format!(
-                                                            "write raw({:?}) error while restore",
-                                                            raw_type
-                                                        )
-                                                    })?;
-                                                }
-                                                tries += 1;
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    Err(err).context("write raw error while restore")?;
-                                }
-                            }
-                        };
-                    }
-                }
-            }
-            Err(err) => {
-                if err.kind() == std::io::ErrorKind::UnexpectedEof {
-                    tracing::info!("[{id}] reading file {} done", path.display());
-                    break;
-                }
-                tracing::debug!("[{id}] Reading data error: {}", &err);
-                break;
-            }
-        }
-    }
-    let mut zo = path.to_path_buf();
-    zo.set_extension("zo");
-    tokio::fs::write(zo, "").await?;
-    drop(reader);
-
-    tracing::info!(
-        "[{}] totally write {} rows from file {}",
-        id,
-        rows,
-        path.display()
-    );
-    Ok(())
-}
+use crate::taoz::{ZCodec, ZMessage};
+use crate::tmq_to_local::LocalConfig;
+use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
 
 #[tracing::instrument]
 #[async_backtrace::framed]
-pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
+pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Result<()> {
+    tracing::info!("local_to_taos start");
+
+    tracing::info!("local_to_taos finish");
+    Ok(())
+}
+
+#[allow(unused)]
+#[deprecated(since = "20241230", note = "use new local_to_taos")]
+pub async fn local_to_taos_v1(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
     // local dir
     let local_dir = from
         .path
@@ -188,6 +32,7 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
             "invalid local dsn: {}, Please use a local path DSN like `local:./path/to/backup`",
             from
         ))?;
+
     if !local_dir.exists() {
         bail!("local path: {} not found", from);
     }
@@ -362,6 +207,171 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
     Ok(())
 }
 
+#[async_backtrace::framed]
+async fn restore(
+    id: usize,
+    path: impl AsRef<Path>,
+    taos: &Taos,
+    table: Option<&str>,
+) -> Result<()> {
+    let path = path.as_ref();
+    tracing::info!("[{}] restore with file: {:?}", id, path.display());
+    let reader = tokio::fs::File::open(path).await?;
+    let reader = tokio::io::BufReader::new(reader);
+    let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
+    let mut reader = ZCodec::new(reader);
+    let header = reader.header_async().await?;
+    tracing::debug!("[{id}] parse header: {:?}", header);
+
+    let target_version = taos
+        .server_version()
+        .await
+        .context("get server version error")?;
+
+    let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
+    if target_version < VERSION_3_0_0 {
+        bail!("Backup source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
+    }
+    if let Some(source_version) = header.server_version() {
+        let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
+        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+            bail!("Backup source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
+        }
+    }
+
+    let mut rows = 0;
+    loop {
+        let res = reader.read_message_async().await;
+        match res {
+            Ok(message) => {
+                match message {
+                    ZMessage::Meta(meta) => {
+                        // dbg!(&meta);
+                        if let Err(err) = taos.write_raw_meta(&meta).await {
+                            let code: i32 = err.code().into();
+                            match code {
+                                0x0603 => {
+                                    tracing::debug!("Table already exists");
+                                }
+                                0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
+                                    tracing::debug!("Found recoverable error: {err:#}, retry once");
+                                    tokio::time::sleep(Duration::from_millis(100)).await;
+                                    let res = taos.write_raw_meta(&meta).await;
+                                    if res.is_ok() {
+                                        tracing::debug!("Retry success");
+                                    } else {
+                                        tracing::debug!(
+                                            "Retry failed: {:#}, continue",
+                                            res.unwrap_err()
+                                        );
+                                    }
+                                }
+                                0x2603 => {
+                                    tracing::debug!("Found 0x2603 error: {err:#}, retry once");
+                                    taos.write_raw_meta(&meta)
+                                        .await
+                                        .context("restore meta error")?;
+                                }
+                                _ => {
+                                    Err(err).context("write raw error while restore")?;
+                                }
+                            }
+                        };
+                    }
+                    ZMessage::Data(data) => {
+                        for mut raw in data {
+                            if let Some(name) = table {
+                                raw.with_table_name(name);
+                            }
+                            rows += raw.nrows();
+                            if let Err(err) = taos.write_raw_block(&raw).await {
+                                if err.to_string().contains("[0x2603]") {
+                                    // table not exists
+                                    if let Some(meta) = raw.to_create() {
+                                        if let Err(err) = taos.exec(format!("{}", meta)).await {
+                                            if err.to_string().contains("0x032C") {
+                                                // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                            } else {
+                                                Err(err).context("create table error")?;
+                                            }
+                                        };
+                                        taos.write_raw_block(&raw)
+                                            .await
+                                            .context("write_raw block error")?;
+                                    } else {
+                                        Err(err).context("write_raw block error")?;
+                                    }
+                                } else {
+                                    Err(err).context("write raw block error")?;
+                                }
+                            };
+                        }
+                        tracing::debug!("[{id}] current rows: {}", rows);
+                    }
+                    ZMessage::Raw(raw_type, raw) => {
+                        let meta = raw.into();
+                        if let Err(err) = taos.write_raw_meta(&meta).await {
+                            let code: i32 = err.code().into();
+                            match code {
+                                0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
+                                    tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {}", err);
+                                    tokio::time::sleep(Duration::from_millis(100)).await;
+                                    let _ = taos.write_raw_meta(&meta).await;
+                                }
+                                0x2603 => {
+                                    let mut tries = 0;
+                                    let max_retries = 3;
+                                    loop {
+                                        tracing::debug!(raw.r#type = ?raw_type, "Found 0x2603 error: {}, retry", err);
+                                        tokio::time::sleep(Duration::from_millis(100)).await;
+                                        match taos.write_raw_meta(&meta).await {
+                                            Ok(_) => break,
+                                            Err(err) => {
+                                                if tries >= max_retries {
+                                                    Err(err).with_context(|| {
+                                                        format!(
+                                                            "write raw({:?}) error while restore",
+                                                            raw_type
+                                                        )
+                                                    })?;
+                                                }
+                                                tries += 1;
+                                            }
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    Err(err).context("write raw error while restore")?;
+                                }
+                            }
+                        };
+                    }
+                }
+            }
+            Err(err) => {
+                if err.kind() == std::io::ErrorKind::UnexpectedEof {
+                    tracing::info!("[{id}] reading file {} done", path.display());
+                    break;
+                }
+                tracing::debug!("[{id}] Reading data error: {}", &err);
+                break;
+            }
+        }
+    }
+    let mut zo = path.to_path_buf();
+    zo.set_extension("zo");
+    tokio::fs::write(zo, "").await?;
+    drop(reader);
+
+    tracing::info!(
+        "[{}] totally write {} rows from file {}",
+        id,
+        rows,
+        path.display()
+    );
+    Ok(())
+}
+
 pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
     if dsn.driver != "local" {
         return DataSourceValidation::invalid(
@@ -401,53 +411,59 @@ pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-#[tokio::test]
-#[ignore]
-async fn test() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let out = Path::new("local_to_taos_out");
-    if out.exists() {
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[tokio::test]
+    #[ignore]
+    async fn test() -> Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
+        let out = Path::new("local_to_taos_out");
+        if out.exists() {
+            std::fs::remove_dir_all(out)?;
+        }
+        let local: Dsn = format!("local:./{}", out.display()).parse()?;
+        let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
+        taos.exec_many([
+            "DROP TOPIC IF EXISTS local_to_taos",
+            "DROP DATABASE IF EXISTS local_to_taos",
+            "CREATE DATABASE local_to_taos",
+            "USE local_to_taos",
+            "CREATE STABLE stb1 (ts TIMESTAMP, v1 BOOL) TAGS(j1 json)",
+            "CREATE TABLE tb1 USING stb1 TAGS('{\"id\":\"1\"}')",
+            "INSERT INTO tb1 VALUES (now, true) (now+1s, false) (now+2s, NULL)",
+            "CREATE TOPIC local_to_taos WITH META AS DATABASE local_to_taos",
+        ])
+        .await?;
+        crate::tmq_to_local(
+            "tmq:///local_to_taos".parse()?,
+            local.clone(),
+            1,
+            true,
+            Default::default(),
+            None,
+        )
+        .await?;
+
+        taos.exec_many([
+            "DROP TOPIC local_to_taos",
+            "DROP DATABASE local_to_taos",
+            "CREATE DATABASE local_to_taos",
+        ])
+        .await?;
+
+        local_to_taos(local.clone(), "taos:///".parse()?, 1, true).await?;
+
+        let count: usize = taos.query_one("SELECT count(*) from tb1").await?.unwrap();
+        assert_eq!(count, 3, "restored");
+
         std::fs::remove_dir_all(out)?;
+
+        taos.exec_many(["DROP DATABASE local_to_taos"]).await?;
+
+        Ok(())
     }
-    let local: Dsn = format!("local:./{}", out.display()).parse()?;
-    let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
-    taos.exec_many([
-        "DROP TOPIC IF EXISTS local_to_taos",
-        "DROP DATABASE IF EXISTS local_to_taos",
-        "CREATE DATABASE local_to_taos",
-        "USE local_to_taos",
-        "CREATE STABLE stb1 (ts TIMESTAMP, v1 BOOL) TAGS(j1 json)",
-        "CREATE TABLE tb1 USING stb1 TAGS('{\"id\":\"1\"}')",
-        "INSERT INTO tb1 VALUES (now, true) (now+1s, false) (now+2s, NULL)",
-        "CREATE TOPIC local_to_taos WITH META AS DATABASE local_to_taos",
-    ])
-    .await?;
-    crate::tmq_to_local(
-        "tmq:///local_to_taos".parse()?,
-        local.clone(),
-        1,
-        true,
-        Default::default(),
-        None,
-    )
-    .await?;
-
-    taos.exec_many([
-        "DROP TOPIC local_to_taos",
-        "DROP DATABASE local_to_taos",
-        "CREATE DATABASE local_to_taos",
-    ])
-    .await?;
-
-    local_to_taos(local.clone(), "taos:///".parse()?, 1, true).await?;
-
-    let count: usize = taos.query_one("SELECT count(*) from tb1").await?.unwrap();
-    assert_eq!(count, 3, "restored");
-
-    std::fs::remove_dir_all(out)?;
-
-    taos.exec_many(["DROP DATABASE local_to_taos"]).await?;
-
-    Ok(())
 }
