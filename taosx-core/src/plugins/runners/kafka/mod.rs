@@ -1436,7 +1436,7 @@ impl ConsumerContext for CustomContext {
             let commits = self
                 .commits
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            tracing::info!(commits, "{:?}, Committing offsets: {:?}", tpl, result);
+            tracing::debug!(commits, "{:?}, Committing offsets: {:?}", tpl, result);
         }
     }
 
