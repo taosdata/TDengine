@@ -797,6 +797,7 @@ void stopAllQueries(SRequestObj *pRequest) {
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
 
 static void *tscCrashReportThreadFp(void *param) {
+  int32_t code = 0;
   setThreadName("client-crashReport");
   char filepath[PATH_MAX] = {0};
   (void)snprintf(filepath, sizeof(filepath), "%s%s.taosCrashLog", tsLogDir, TD_DIRSEP);
@@ -818,7 +819,11 @@ static void *tscCrashReportThreadFp(void *param) {
     return NULL;
   }
   STelemAddrMgmt mgt;
-  taosTelemetryMgtInit(&mgt, tsTelemServer);
+  code = taosTelemetryMgtInit(&mgt, tsTelemServer);
+  if (code) {
+    tscError("failed to init telemetry management, code:%s", tstrerror(code));
+    return NULL;
+  }
 
   while (1) {
     if (clientStop > 0) break;

@@ -163,7 +163,11 @@ int32_t mndInitTelem(SMnode* pMnode) {
   (void)taosThreadMutexInit(&pMgmt->lock, NULL);
   if ((code = taosGetEmail(pMgmt->email, sizeof(pMgmt->email))) != 0)
     mWarn("failed to get email since %s", tstrerror(code));
-  taosTelemetryMgtInit(&pMgmt->addrMgt, tsTelemServer);
+  code = taosTelemetryMgtInit(&pMgmt->addrMgt, tsTelemServer);
+  if (code != 0) {
+    mError("failed to init telemetry management since %s", tstrerror(code));
+    return code;
+  }
   mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 
   return 0;

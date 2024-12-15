@@ -232,6 +232,7 @@ static void *dmAuditThreadFp(void *param) {
 }
 
 static void *dmCrashReportThreadFp(void *param) {
+  int32_t     code = 0;
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-crashReport");
@@ -246,7 +247,11 @@ static void *dmCrashReportThreadFp(void *param) {
   int32_t   loopTimes = reportPeriodNum;
 
   STelemAddrMgmt mgt = {0};
-  taosTelemetryMgtInit(&mgt, tsTelemServer);
+  code = taosTelemetryMgtInit(&mgt, tsTelemServer);
+  if (code != 0) {
+    dError("failed to init telemetry since %s", tstrerror(code));
+    return NULL;
+  }
 
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
