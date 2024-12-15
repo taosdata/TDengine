@@ -309,6 +309,8 @@ int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4)
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
+
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
 
 // 0: Mbs --> Ucs4
@@ -394,6 +396,7 @@ void taosConvDestroy() {
   gConvMaxNum[1 - M2C] = -1;
 #endif
 }
+#endif
 
 iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
