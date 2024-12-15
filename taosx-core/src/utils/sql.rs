@@ -132,6 +132,29 @@ async fn test_precision_with_taos() {
 }
 
 #[tracing::instrument(skip_all)]
+pub async fn get_database(taos: &mut Option<TaosConnection>) -> Result<String, TaosError> {
+    const SQL_SELECT_DATABASE: &str = "select database();";
+    if taos.is_none() {
+        return Err(TaosError::new(0xFFFF, "Connection is not established"));
+    }
+
+    match taos
+        .as_ref()
+        .unwrap()
+        .query_one::<_, String>(SQL_SELECT_DATABASE)
+        .in_current_span()
+        .await
+    {
+        Ok(n) => {
+            return n.ok_or_else(|| TaosError::new(0xFFFF, "database name empty"));
+        }
+        Err(err) => {
+            return Err(err.context("get database error"));
+        }
+    }
+}
+
+#[tracing::instrument(skip_all)]
 pub async fn get_minimum_timestamp(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,

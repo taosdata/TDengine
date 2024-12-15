@@ -12,7 +12,7 @@ use std::{
     borrow::{Borrow, Cow},
     ops::Range,
     str::FromStr,
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 
 use arrow::{
@@ -45,6 +45,7 @@ use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
 use crate::global::SQL_TAG_CACHE_CAPACITY;
+use crate::global::TABLE_TAG_CACHE;
 use crate::plugins::transform::parse::ArrayForTaos;
 
 use super::expr;
@@ -1549,8 +1550,6 @@ impl FromStr for NullValues {
     }
 }
 
-static TABLE_TAG_CACHE: OnceLock<scc::HashSet<String>> = OnceLock::new();
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TableOptions {
     // TODO: support case insensitive identifier, including table name and column name.
@@ -1892,12 +1891,18 @@ impl MessageArrowRecords {
         }
     }
 
+    pub fn get_full_table_name(&self, database_name: &str) -> String {
+        let table_name = self.opts.canonical_table_name(self.table.name.as_str());
+        format!("{}.{}", database_name, table_name)
+    }
+
     pub fn sql_insert_part(
         &self,
         precision: taos::Precision,
         with_meta: bool,
         with_field_names: bool,
-    ) -> Vec<(String, usize)> {
+        database_name: Option<&str>,
+    ) -> Vec<(String, usize, Option<String>)> {
         let primary_key_null_count = self.records.column(0).null_count();
         if primary_key_null_count == self.records.num_rows() {
             return vec![];
@@ -1919,12 +1924,13 @@ impl MessageArrowRecords {
             with_field_names,
         )
         .expect("Sql values should be recognizable");
+
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
         col_values
             .into_iter()
             .map(|(col_values, rows)| {
                 if !with_meta || self.table.using.is_none() {
-                    return (format!("`{}` {}", tbname, col_values), rows);
+                    return (format!("`{}` {}", tbname, col_values), rows, None);
                 }
                 let using = self.table.using.as_ref().unwrap();
 
@@ -1952,20 +1958,24 @@ impl MessageArrowRecords {
                         .map(|c| c.taos_value(0).to_sql_value())
                         .join(",");
 
-                    if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } {
+                    if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } && database_name.is_some() {
+                        // 根据 database.tablename 来判断缓存，如果缓存在则不需要带 using
                         let table_existed = TABLE_TAG_CACHE.get_or_init(|| {
                             tracing::info!("Init tag cache with capacity: {}", unsafe {
                                 SQL_TAG_CACHE_CAPACITY
                             });
                             scc::HashSet::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
                         });
-                        let tag_key = format!("{}.{}", using, tbname);
+                        let tag_key = format!("{}.{}", database_name.unwrap(), tbname);
                         if table_existed.contains(&tag_key) {
-                            return (format!("`{}` {}", tbname, col_values), rows);
+                            return (format!("`{}` {}", tbname, col_values), rows, None);
                         }
-                        // FIXME： 应该在写入成功后，再缓存
-                        let _ = table_existed.insert(tag_key);
                     }
+                    let full_name_to_cache = if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } {
+                        Some(format!("{}.{}", database_name.unwrap(), tbname))
+                    } else {
+                        None
+                    };
 
                     (
                         format!(
@@ -1973,6 +1983,7 @@ impl MessageArrowRecords {
                             tbname, using, names, tag_values, col_values
                         ),
                         rows,
+                        full_name_to_cache,
                     )
                 } else {
                     let tag_values = self
@@ -1990,6 +2001,7 @@ impl MessageArrowRecords {
                             tbname, using, tag_values, col_values
                         ),
                         rows,
+                        None,
                     )
                 }
             })
@@ -2215,8 +2227,8 @@ fn test_indices_to_ranges() {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::plugins::transform::modeler::Modeler;
     use super::Parser;
+    use crate::plugins::transform::modeler::Modeler;
 
     #[test]
     fn test_parser_serde() {
@@ -2275,20 +2287,23 @@ mod parser_tests {
 
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        
+
         let raw_data = arrow_array::record_batch!(
             ("topic", Utf8, ["test", "test", "test"]),
-            ("value", Utf8, [
-                r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val": 12, "DEV_ID": "2212"}"#,
-                r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val": 13, "DEV_ID": "2213"}"#,
-                r#"{"_ts": "2024-12-02T18:00:01+08:00", "_val": 14, "DEV_ID": "2212"}"#
-            ])
-        ).unwrap();
+            (
+                "value",
+                Utf8,
+                [
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val": 12, "DEV_ID": "2212"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val": 13, "DEV_ID": "2213"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:01+08:00", "_val": 14, "DEV_ID": "2212"}"#
+                ]
+            )
+        )
+        .unwrap();
 
         let records = parser.parse_message_from_records(&raw_data, false).unwrap();
         assert_eq!(records.len(), 2);
         dbg!(records);
-
     }
-
 }

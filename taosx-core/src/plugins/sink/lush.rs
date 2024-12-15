@@ -435,7 +435,9 @@ pub async fn write(
     let sqls = if skip_null {
         message_to_sql(super_table_name, &messages, target_precision)
     } else {
-        super::flat::message_to_sql(&messages, target_precision, true, false)
+        let (sqls_flat, _) =
+            super::flat::message_to_sql(&messages, target_precision, true, false, None);
+        sqls_flat
     }; //
     let gen_sql_time = timer.elapsed();
     let timer = std::time::Instant::now();
