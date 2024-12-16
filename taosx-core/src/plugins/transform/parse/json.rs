@@ -1296,4 +1296,42 @@ mod tests {
         dbg!(batch);
         Ok(())
     }
+
+    #[test]
+    fn parse_array_null_test() -> anyhow::Result<()> {
+        let json: Json = serde_json::from_value(serde_json::json!({"json": ""})).unwrap();
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"ts": 100, "value": 0.1}"#,
+            r#"{"ts": 100, "value": null}"#,
+        ]));
+        let (batch, _) = json.parse_array(&Field::new("payload", DataType::Utf8, false), &array)?;
+        assert_eq!(
+            arrow::util::pretty::pretty_format_batches(&[batch])?.to_string(),
+            "\
++-----+-------+
+| ts  | value |
++-----+-------+
+| 100 | 0.1   |
+| 100 |       |
++-----+-------+"
+        );
+
+        let json: Json = serde_json::from_value(serde_json::json!({"json": ""})).unwrap();
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"ts": 100, "value": "0.1"}"#,
+            r#"{"ts": 100, "value": null}"#,
+        ]));
+        let (batch, _) = json.parse_array(&Field::new("payload", DataType::Utf8, false), &array)?;
+        assert_eq!(
+            arrow::util::pretty::pretty_format_batches(&[batch])?.to_string(),
+            "\
++-----+-------+
+| ts  | value |
++-----+-------+
+| 100 | 0.1   |
+| 100 | null  |
++-----+-------+"
+        );
+        Ok(())
+    }
 }

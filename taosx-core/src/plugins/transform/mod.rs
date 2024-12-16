@@ -10,6 +10,7 @@
 
 use std::{
     borrow::{Borrow, Cow},
+    collections::BTreeMap,
     ops::Range,
     str::FromStr,
     sync::Arc,
@@ -19,16 +20,16 @@ use anyhow::Context;
 use arrow::{
     array::{
         Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float16Array, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int8Array, LargeBinaryArray, LargeStringArray,
-        NullArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-        TimestampNanosecondArray, TimestampSecondArray, UInt64Array,
+        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
+        LargeStringArray, NullArray, StringArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt64Array,
     },
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
 };
 use arrow_compute_ext::RecordBatchExt;
-use arrow_schema::TimeUnit;
+use arrow_schema::{FieldRef, TimeUnit};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use datafusion::{
@@ -1116,8 +1117,7 @@ impl Parser {
         let transformed_batch = &transformed_batches[0];
         // tracing::info!("Parse message {:?}", batch);
 
-        let pivot_name_field = transformed_batch
-            .schema_ref()
+        let pivot_fields = schema
             .fields()
             .iter()
             .filter_map(|f| {
@@ -1126,7 +1126,7 @@ impl Parser {
                     .and_then(|name| name.strip_suffix("}"))
                     .map(|name| (name, f.name().as_str()))
             })
-            .next();
+            .collect_vec();
 
         let json_batches = to_json_valid_batches(&transformed_batches);
 
@@ -1151,6 +1151,24 @@ impl Parser {
             if let Some(using) = using.as_ref() {
                 template.add_template("using", using).unwrap();
             }
+            let ts_field_name = table
+                .columns
+                .as_ref()
+                .and_then(|v| v.first())
+                .context("ts field not found")?;
+            let ts_field = schema
+                .field_with_name(ts_field_name)
+                .context("ts field not found")?;
+            let normal_cols = table
+                .columns
+                .as_ref()
+                .map(|cols| {
+                    cols.iter()
+                        .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
+                        .map(|s| s.as_str())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
 
             let mut columns_indices = Vec::from_iter(0..transformed_batch.num_columns());
             let spec_columns = table.columns.as_ref().map(|cols| {
@@ -1272,143 +1290,8 @@ impl Parser {
                     (_, None) => None,
                 };
 
-                // 对一个子表的 batch 进行 pivot 转换
-                if let Some((pivot_name, pivot_value)) = pivot_name_field {
-                    let batches = ranges
-                        .into_iter()
-                        .map(|range| transformed_batch.slice(range.start, range.len()))
-                        .collect_vec();
-                    let batch = arrow::compute::concat_batches(
-                        &transformed_batch.schema(),
-                        batches.iter(),
-                    )?;
-                    let df = SessionContext::new()
-                        .read_batch(batch.clone())
-                        .context("build datafusion context error")?;
-                    let ts_field = columns.schema_ref().field(0);
-                    let ts_field_name = ts_field.name();
-                    let window = row_number()
-                        .partition_by(vec![col(ts_field_name)])
-                        .order_by(vec![col(ts_field_name).sort(true, true)])
-                        .build()
-                        .unwrap()
-                        .alias("row_number");
-
-                    let window_func = df.window(vec![window]).context("add window func error")?;
-                    let batches = futures::executor::block_on(window_func.collect())
-                        .context("exec partition error")?;
-
-                    for batch in batches {
-                        let row_numbers = batch
-                            .column_by_name("row_number")
-                            .context("row_number column not found")?;
-                        let row_numbers = row_numbers
-                            .as_any()
-                            .downcast_ref::<UInt64Array>()
-                            .context("row_number column not uint64")?;
-                        let mut ranges = Vec::new();
-                        let mut start = None;
-                        for (idx, value) in row_numbers
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(idx, v)| v.map(|v| (idx, v)))
-                        {
-                            if value == 1 {
-                                if let Some(s) = start {
-                                    ranges.push(s..idx);
-                                }
-                                start = Some(idx);
-                            }
-                        }
-                        if let Some(s) = start {
-                            ranges.push(s..batch.num_rows());
-                        }
-                        let meta = MessageTableMeta::new(name.clone(), using.clone(), tags.clone());
-                        for range in ranges {
-                            // 一个分区，生成一行数据，这行数据，是一个 recordbatch
-                            let batch = batch.slice(range.start, range.len());
-                            if let (Some(name_column), Some(value_column)) = (
-                                batch.column_by_name(pivot_name),
-                                batch.column_by_name(pivot_value),
-                            ) {
-                                let name_column = name_column.as_string::<i32>();
-
-                                let ts_array =
-                                    batch.column_by_name(&ts_field_name).unwrap().slice(0, 1);
-
-                                let mut fields = Vec::new();
-                                fields.push(Arc::new(ts_field.clone()));
-                                let mut arrays = vec![ts_array.clone()];
-
-                                macro_rules! value_array {
-                                    ($array_type: ty, $row: ident) => {{
-                                        let value_column = value_column
-                                            .as_any()
-                                            .downcast_ref::<$array_type>()
-                                            .unwrap();
-                                        let value = value_column.value($row);
-                                        Arc::new(<$array_type>::from(vec![value]))
-                                    }};
-                                }
-
-                                // 每一行的 name 和 value 转换为一列
-                                for row in 0..batch.num_rows() {
-                                    let name = name_column.value(row);
-                                    fields.push(Arc::new(Field::new(name, DataType::Utf8, false)));
-                                    let value_array: ArrayRef = match value_column.data_type() {
-                                        DataType::Null => Arc::new(NullArray::new(1)),
-                                        DataType::Boolean => value_array!(BooleanArray, row),
-                                        DataType::Int8 => value_array!(Int8Array, row),
-                                        DataType::Int16 => value_array!(Int16Array, row),
-                                        DataType::Int32 => value_array!(Int32Array, row),
-                                        DataType::Int64 => value_array!(Int32Array, row),
-                                        DataType::UInt8 => value_array!(Int8Array, row),
-                                        DataType::UInt16 => value_array!(Int16Array, row),
-                                        DataType::UInt32 => value_array!(Int32Array, row),
-                                        DataType::UInt64 => value_array!(Int32Array, row),
-                                        DataType::Float16 => value_array!(Float16Array, row),
-                                        DataType::Float32 => value_array!(Float32Array, row),
-                                        DataType::Float64 => value_array!(Float64Array, row),
-                                        DataType::Timestamp(TimeUnit::Second, _) => {
-                                            value_array!(TimestampSecondArray, row)
-                                        }
-                                        DataType::Timestamp(TimeUnit::Millisecond, _) => {
-                                            value_array!(TimestampMillisecondArray, row)
-                                        }
-                                        DataType::Timestamp(TimeUnit::Microsecond, _) => {
-                                            value_array!(TimestampMicrosecondArray, row)
-                                        }
-                                        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-                                            value_array!(TimestampNanosecondArray, row)
-                                        }
-                                        DataType::Binary => value_array!(BinaryArray, row),
-                                        DataType::LargeBinary => {
-                                            value_array!(LargeBinaryArray, row)
-                                        }
-                                        DataType::Utf8 => value_array!(StringArray, row),
-                                        DataType::LargeUtf8 => value_array!(LargeStringArray, row),
-                                        t => {
-                                            return Err(anyhow::anyhow!(
-                                                "unsupported pivot value tyep: {t}"
-                                            )
-                                            .into())
-                                        }
-                                    };
-
-                                    arrays.push(value_array);
-                                }
-                                let batch =
-                                    RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays)
-                                        .context("build pivot recordbatch error")?;
-                                data.push(MessageArrowRecords {
-                                    table: meta.clone(),
-                                    records: batch,
-                                    opts: self.global.clone(),
-                                });
-                            }
-                        }
-                    }
-                } else {
+                // without pivot
+                if pivot_fields.is_empty() {
                     let sub_table_batches = ranges
                         .iter()
                         .map(|range| columns.slice(range.start, range.len()))
@@ -1424,6 +1307,25 @@ impl Parser {
                         opts: self.global.clone(),
                     };
                     data.push(item);
+                    continue;
+                }
+
+                let meta = MessageTableMeta::new(name.clone(), using.clone(), tags.clone());
+
+                let batches = ranges
+                    .iter()
+                    .map(|range| transformed_batch.slice(range.start, range.len()))
+                    .collect_vec();
+                let pivot_batch =
+                    arrow::compute::concat_batches(transformed_batch.schema_ref(), batches.iter())?;
+
+                let pivot_batches = pivot(pivot_batch, ts_field, &pivot_fields, &normal_cols)?;
+                for batch in pivot_batches {
+                    data.push(MessageArrowRecords {
+                        table: meta.clone(),
+                        records: batch,
+                        opts: self.global.clone(),
+                    })
                 }
             }
         }
@@ -1545,6 +1447,193 @@ fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
 //     }
 // }
 
+pub fn pivot(
+    batch: RecordBatch,
+    ts_field: &Field,
+    pivot_fields: &[(&str, &str)],
+    common_fields: &[&str],
+) -> anyhow::Result<Vec<RecordBatch>> {
+    let ts_field_name = ts_field.name();
+    let df = SessionContext::new()
+        .read_batch(batch)
+        .context("build datafusion context error")?;
+    let window = row_number()
+        .partition_by(vec![col(ts_field_name)])
+        .order_by(vec![col(ts_field_name).sort(true, true)])
+        .build()
+        .unwrap()
+        .alias("row_number");
+
+    let window_func = df.window(vec![window]).context("add window func error")?;
+    let batches =
+        futures::executor::block_on(window_func.collect()).context("exec partition error")?;
+    let Some(batch) = batches
+        .first()
+        .map(|batch| arrow::compute::concat_batches(batch.schema_ref(), &batches))
+        .transpose()?
+    else {
+        return Ok(vec![]);
+    };
+    let row_numbers = batch
+        .column_by_name("row_number")
+        .context("row_number column not found")?;
+    let row_numbers = row_numbers
+        .as_any()
+        .downcast_ref::<UInt64Array>()
+        .context("row_number column not uint64")?;
+    let partitions = partition_by_row_number(row_numbers);
+
+    let mut records = Vec::with_capacity(partitions.len());
+    // 一个分区，生成一行数据，这行数据，是一个 recordbatch
+    for partition in partitions {
+        let mut fields = common_fields
+            .iter()
+            .filter_map(|f| {
+                batch
+                    .schema_ref()
+                    .field_with_name(f)
+                    .ok()
+                    .map(|r| Arc::new(r.clone()))
+            })
+            .collect::<Vec<_>>();
+
+        let mut arrays = common_fields
+            .iter()
+            .filter_map(|f| batch.column_by_name(f).map(|s| s.slice(partition.start, 1)))
+            .collect::<Vec<_>>();
+
+        // 对 pivot name 和 pivot value 进行逐行处理
+        for (pivot_name, pivot_value) in pivot_fields {
+            let batch = batch.slice(partition.start, partition.len());
+            if let (Some(name_column), Some(value_column)) = (
+                batch.column_by_name(pivot_name),
+                batch.column_by_name(pivot_value),
+            ) {
+                let name_column = name_column.as_string::<i32>();
+
+                macro_rules! value_array {
+                    ($name: ident, $array_type: ty, $row: ident) => {{
+                        let value_column =
+                            value_column.as_any().downcast_ref::<$array_type>().unwrap();
+                        if value_column.is_null($row) {
+                            (
+                                Arc::new(Field::new($name, value_column.data_type().clone(), true)),
+                                Arc::new(<$array_type>::new_null(1)),
+                            )
+                        } else {
+                            (
+                                Arc::new(Field::new($name, value_column.data_type().clone(), true)),
+                                Arc::new(<$array_type>::from(vec![value_column.value($row)])),
+                            )
+                        }
+                    }};
+                }
+
+                // 每一行的 name 和 value 转换为一列
+                let mut pivot_fields = BTreeMap::new();
+                for row in 0..batch.num_rows() {
+                    let name = name_column.value(row);
+                    let value_array: (FieldRef, ArrayRef) = match value_column.data_type() {
+                        DataType::Null => (
+                            Arc::new(Field::new(name, DataType::Null, true)),
+                            Arc::new(NullArray::new(1)),
+                        ),
+                        DataType::Boolean => {
+                            value_array!(name, BooleanArray, row)
+                        }
+                        DataType::Int8 => {
+                            value_array!(name, Int8Array, row)
+                        }
+                        DataType::Int16 => {
+                            value_array!(name, Int16Array, row)
+                        }
+                        DataType::Int32 => {
+                            value_array!(name, Int32Array, row)
+                        }
+                        DataType::Int64 => {
+                            value_array!(name, Int64Array, row)
+                        }
+                        DataType::UInt8 => {
+                            value_array!(name, Int8Array, row)
+                        }
+                        DataType::UInt16 => {
+                            value_array!(name, Int16Array, row)
+                        }
+                        DataType::UInt32 => {
+                            value_array!(name, Int32Array, row)
+                        }
+                        DataType::UInt64 => {
+                            value_array!(name, Int32Array, row)
+                        }
+                        DataType::Float16 => {
+                            value_array!(name, Float16Array, row)
+                        }
+                        DataType::Float32 => {
+                            value_array!(name, Float32Array, row)
+                        }
+                        DataType::Float64 => {
+                            value_array!(name, Float64Array, row)
+                        }
+                        DataType::Timestamp(TimeUnit::Second, _) => {
+                            value_array!(name, TimestampSecondArray, row)
+                        }
+                        DataType::Timestamp(TimeUnit::Millisecond, _) => {
+                            value_array!(name, TimestampMillisecondArray, row)
+                        }
+                        DataType::Timestamp(TimeUnit::Microsecond, _) => {
+                            value_array!(name, TimestampMicrosecondArray, row)
+                        }
+                        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                            value_array!(name, TimestampNanosecondArray, row)
+                        }
+                        DataType::Binary => value_array!(name, BinaryArray, row),
+                        DataType::LargeBinary => {
+                            value_array!(name, LargeBinaryArray, row)
+                        }
+                        DataType::Utf8 => value_array!(name, StringArray, row),
+                        DataType::LargeUtf8 => {
+                            value_array!(name, LargeStringArray, row)
+                        }
+                        t => return Err(anyhow::anyhow!("unsupported pivot value tyep: {t}")),
+                    };
+
+                    pivot_fields.insert(name, value_array);
+                }
+                for (field, array) in pivot_fields.into_values() {
+                    fields.push(field);
+                    arrays.push(array);
+                }
+            }
+        }
+        let batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays)
+            .context("build pivot recordbatch error")?;
+        records.push(batch);
+    }
+
+    Ok(records)
+}
+
+fn partition_by_row_number(row_numbers: &UInt64Array) -> Vec<Range<usize>> {
+    let mut partitions = Vec::new();
+    let mut start = None;
+    for (idx, value) in row_numbers
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, v)| v.map(|v| (idx, v)))
+    {
+        if value == 1 {
+            if let Some(s) = start {
+                partitions.push(s..idx);
+            }
+            start = Some(idx);
+        }
+    }
+    if let Some(s) = start {
+        partitions.push(s..row_numbers.len());
+    }
+    partitions
+}
+
 #[derive(Debug)]
 pub struct MessageTable {
     pub name: Arc<String>,
@@ -1569,6 +1658,13 @@ impl STable {
         match self {
             STable::Name(name) => name,
             STable::Model(model) => model.name(),
+        }
+    }
+
+    pub fn model(&self) -> Option<&SModel> {
+        match self {
+            STable::Name(_) => None,
+            STable::Model(model) => Some(model),
         }
     }
 }
@@ -2482,17 +2578,11 @@ mod parser_tests {
                 "columns": [
                     {
                         "name": "ts",
-                        "type": "TIMESTAMP",
-                        "encode": null,
-                        "compress": null,
-                        "level": null
+                        "type": "TIMESTAMP"
                     },
                     {
                         "name": "`value`",
-                        "type": "${data_type}",
-                        "encode": null,
-                        "compress": null,
-                        "level": null
+                        "type": "${data_type}"
                     }
                 ]
             },
@@ -2634,17 +2724,11 @@ mod parser_tests {
                 "columns": [
                     {
                         "name": "ts",
-                        "type": "TIMESTAMP",
-                        "encode": null,
-                        "compress": null,
-                        "level": null
+                        "type": "TIMESTAMP"
                     },
                     {
-                        "name": "`value`",
-                        "type": "${data_type}",
-                        "encode": null,
-                        "compress": null,
-                        "level": null
+                        "name": "${point_name}",
+                        "type": "${data_type}"
                     }
                 ]
             },
@@ -2744,39 +2828,6 @@ mod parser_tests {
 
         let table = message.table;
         assert_eq!(table.name, Arc::new("site_controller_1".to_string()));
-        assert_eq!(
-            table.using,
-            Some(Arc::new(STable::Model(json::from_value(json::json!({
-                "name": "site",
-                "columns":[
-                    {
-                        "name": "ts",
-                        "type": "TIMESTAMP",
-                    },{
-                        "name": "`value`",
-                        "type": "varchar(128)",
-                    }
-                ],
-                "tags": [
-                    {
-                        "name": "site_controller_id",
-                        "type": "VARCHAR(128)"
-                    }
-                ]
-            }))?)))
-        );
-        assert_eq!(
-            table
-                .tags
-                .as_ref()
-                .context("tags not found")?
-                .column_by_name("site_controller_id")
-                .cloned(),
-            {
-                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_1"]));
-                Some(array)
-            }
-        );
 
         let message = records.remove(0);
 
@@ -2868,7 +2919,7 @@ mod parser_tests {
     }
 
     #[test]
-    fn parse_multi_float_columns_message_from_records_test() -> anyhow::Result<()> {
+    fn parse_multi_pivot_columns_message_from_records_test() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -2887,16 +2938,14 @@ mod parser_tests {
                     {
                         "name": "ts",
                         "type": "TIMESTAMP",
-                        "encode": null,
-                        "compress": null,
-                        "level": null
                     },
                     {
-                        "name": "`value`",
+                        "name": "${point_name}",
                         "type": "${data_type}",
-                        "encode": null,
-                        "compress": null,
-                        "level": null
+                    },
+                    {
+                        "name": "${controller_name}",
+                        "type": "${data_type}",
                     }
                 ]
             },
@@ -2908,7 +2957,8 @@ mod parser_tests {
                 ],
                 "columns": [
                     "ts",
-                    "${point_name}"
+                    "${point_name}",
+                    "${controller_name}"
                 ]
             },
             "mutate": [
@@ -2930,7 +2980,11 @@ mod parser_tests {
                             "as": "TIMESTAMP(ns)"
                         },
                         "${point_name}": {
-                            "cast": "value",
+                            "cast": "value1",
+                            "as": "VARCHAR"
+                        },
+                        "${controller_name}": {
+                            "cast": "value2",
                             "as": "VARCHAR"
                         },
                         "site_controller_id": {
@@ -2953,6 +3007,16 @@ mod parser_tests {
             "controller_1",
             "controller_1",
         ]));
+        let controller_names: ArrayRef = Arc::new(StringArray::from(vec![
+            "controller_name_1",
+            "controller_name_3",
+            "controller_name_5",
+            "controller_name_7",
+            "controller_name_2",
+            "controller_name_4",
+            "controller_name_6",
+            "controller_name_8",
+        ]));
         let points: ArrayRef = Arc::new(StringArray::from(vec![
             "point_3", "point_5", "point_4", "point_6", "point_1", "point_7", "point_2", "point_8",
         ]));
@@ -2962,15 +3026,34 @@ mod parser_tests {
         let timestamps: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
             100, 101, 100, 101, 100, 101, 100, 101,
         ]));
-        let values: ArrayRef = Arc::new(Float64Array::from(vec![
-            0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
+        let values_1: ArrayRef = Arc::new(Float64Array::from(vec![
+            Some(0.1),
+            None,
+            Some(0.3),
+            Some(0.4),
+            Some(0.5),
+            Some(0.6),
+            Some(0.7),
+            Some(0.8),
         ]));
-        let batch = RecordBatch::try_from_iter(vec![
-            ("site_controller_id", controllers),
-            ("point_name", points),
-            ("data_type", data_types),
-            ("ts", timestamps),
-            ("value", values),
+        let values_2: ArrayRef = Arc::new(StringArray::from(vec![
+            Some("0.11"),
+            Some("0.12"),
+            Some("0.13"),
+            Some("0.14"),
+            Some("0.15"),
+            None,
+            Some("0.17"),
+            Some("0.18"),
+        ]));
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("site_controller_id", controllers, false),
+            ("controller_name", controller_names, false),
+            ("point_name", points, false),
+            ("data_type", data_types, false),
+            ("ts", timestamps, false),
+            ("value1", values_1, true),
+            ("value2", values_2, true),
         ])?;
         let message = parser.parse_message_from_records(&batch, false)?;
         let Message::Records(mut records) = message else {
@@ -2987,11 +3070,11 @@ mod parser_tests {
                 .unwrap()
                 .to_string(),
             "\
-+-------------------------------+---------+---------+
-| ts                            | point_1 | point_2 |
-+-------------------------------+---------+---------+
-| 1970-01-01T00:00:00.000000100 | 0.5     | 0.7     |
-+-------------------------------+---------+---------+"
++-------------------------------+---------+---------+-------------------+-------------------+
+| ts                            | point_1 | point_2 | controller_name_2 | controller_name_6 |
++-------------------------------+---------+---------+-------------------+-------------------+
+| 1970-01-01T00:00:00.000000100 | 0.5     | 0.7     | 0.15              | 0.17              |
++-------------------------------+---------+---------+-------------------+-------------------+"
         );
 
         let table = message.table;
@@ -3016,11 +3099,11 @@ mod parser_tests {
                 .unwrap()
                 .to_string(),
             "\
-+-------------------------------+---------+---------+
-| ts                            | point_7 | point_8 |
-+-------------------------------+---------+---------+
-| 1970-01-01T00:00:00.000000101 | 0.6     | 0.8     |
-+-------------------------------+---------+---------+"
++-------------------------------+---------+---------+-------------------+-------------------+
+| ts                            | point_7 | point_8 | controller_name_4 | controller_name_8 |
++-------------------------------+---------+---------+-------------------+-------------------+
+| 1970-01-01T00:00:00.000000101 | 0.6     | 0.8     |                   | 0.18              |
++-------------------------------+---------+---------+-------------------+-------------------+"
         );
 
         let table = message.table;
@@ -3045,11 +3128,11 @@ mod parser_tests {
                 .unwrap()
                 .to_string(),
             "\
-+-------------------------------+---------+---------+
-| ts                            | point_3 | point_4 |
-+-------------------------------+---------+---------+
-| 1970-01-01T00:00:00.000000100 | 0.1     | 0.3     |
-+-------------------------------+---------+---------+"
++-------------------------------+---------+---------+-------------------+-------------------+
+| ts                            | point_3 | point_4 | controller_name_1 | controller_name_5 |
++-------------------------------+---------+---------+-------------------+-------------------+
+| 1970-01-01T00:00:00.000000100 | 0.1     | 0.3     | 0.11              | 0.13              |
++-------------------------------+---------+---------+-------------------+-------------------+"
         );
 
         let table = message.table;
@@ -3074,11 +3157,11 @@ mod parser_tests {
                 .unwrap()
                 .to_string(),
             "\
-+-------------------------------+---------+---------+
-| ts                            | point_5 | point_6 |
-+-------------------------------+---------+---------+
-| 1970-01-01T00:00:00.000000101 | 0.2     | 0.4     |
-+-------------------------------+---------+---------+"
++-------------------------------+---------+---------+-------------------+-------------------+
+| ts                            | point_5 | point_6 | controller_name_3 | controller_name_7 |
++-------------------------------+---------+---------+-------------------+-------------------+
+| 1970-01-01T00:00:00.000000101 |         | 0.4     | 0.12              | 0.14              |
++-------------------------------+---------+---------+-------------------+-------------------+"
         );
 
         let table = message.table;
@@ -3094,6 +3177,21 @@ mod parser_tests {
                 let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_2"]));
                 Some(array)
             }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn partition_by_row_number_test() -> anyhow::Result<()> {
+        let row_numbers = UInt64Array::from(vec![1, 2, 3, 1, 2, 1, 2, 3, 4]);
+        assert_eq!(
+            partition_by_row_number(&row_numbers),
+            vec![(0..3), (3..5), (5..9)]
+        );
+        let row_numbers = UInt64Array::from(vec![1, 1, 1]);
+        assert_eq!(
+            partition_by_row_number(&row_numbers),
+            vec![(0..1), (1..2), (2..3)]
         );
         Ok(())
     }

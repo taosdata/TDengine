@@ -119,6 +119,10 @@ impl TopicParser {
 #[cfg(test)]
 mod tests {
 
+    use std::{collections::HashSet, iter};
+
+    use anyhow::Context;
+
     use super::*;
 
     #[test]
@@ -197,6 +201,110 @@ mod tests {
                 StringArray::from(vec!["test", "topic"])
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    #[ignore]
+    fn parse_csv_topic_test() -> anyhow::Result<()> {
+        let reader = csv_lib::ReaderBuilder::new()
+            .has_headers(false)
+            .from_path("/root/longbow_recording.csv")?
+            .into_records();
+        let mut writers = [
+            csv_lib::Writer::from_path("/root/topics-6.csv")?,
+            csv_lib::Writer::from_path("/root/topics-7.csv")?,
+            csv_lib::Writer::from_path("/root/topics-8.csv")?,
+            csv_lib::Writer::from_path("/root/topics-9.csv")?,
+        ];
+        writers[0].write_record(["topic", "site_controller_id", "point_name", "data_type"])?;
+        writers[0].flush()?;
+
+        writers[1].write_record([
+            "topic",
+            "site_controller_id",
+            "source_device_type",
+            "source_device_id",
+            "point_name",
+            "data_type",
+        ])?;
+        writers[1].flush()?;
+
+        writers[2].write_record([
+            "topic",
+            "site_controller_id",
+            "unit_controller_id",
+            "point_name",
+            "data_type",
+        ])?;
+        writers[2].flush()?;
+
+        writers[3].write_record([
+            "topic",
+            "site_controller_id",
+            "unit_controller_id",
+            "source_device_type",
+            "source_device_id",
+            "point_name",
+            "data_type",
+        ])?;
+        writers[3].flush()?;
+        let patterns : [TopicPattern;4]= [
+            "_/_/site_controller_id/_/point_name/data_type".parse()?,
+            "_/_/site_controller_id/source_device_type/source_device_id/point_name/data_type".parse()?,
+            "_/_/site_controller_id/_/unit_controller_id/_/point_name/data_type".parse()?,
+            "_/_/site_controller_id/_/unit_controller_id/source_device_type/source_device_id/point_name/data_type".parse()?
+        ];
+        let mut topics = HashSet::new();
+        for record in reader {
+            let record = record?;
+            let topic = record.get(0).context("topic not found")?.to_string();
+            if !topic.starts_with("ems") {
+                continue;
+            }
+            topics.insert(topic);
+        }
+        println!("loaded {} topics", topics.len());
+        let mut count = 0;
+        for topic in topics {
+            match topic.split("/").count() {
+                6 => {
+                    let parts = patterns[0].parse_topic(&topic)?;
+                    writers[0].write_record(
+                        iter::once(topic.as_str()).chain(parts.iter().map(|v| v.1.as_str())),
+                    )?;
+                }
+                7 => {
+                    let parts = patterns[1].parse_topic(&topic)?;
+                    writers[1].write_record(
+                        iter::once(topic.as_str()).chain(parts.iter().map(|v| v.1.as_str())),
+                    )?;
+                }
+                8 => {
+                    let parts = patterns[2].parse_topic(&topic)?;
+                    writers[2].write_record(
+                        iter::once(topic.as_str()).chain(parts.iter().map(|v| v.1.as_str())),
+                    )?;
+                }
+                9 => {
+                    let parts = patterns[3].parse_topic(&topic)?;
+                    writers[3].write_record(
+                        iter::once(topic.as_str()).chain(parts.iter().map(|v| v.1.as_str())),
+                    )?;
+                }
+                _ => {
+                    panic!("topic: {topic}")
+                }
+            }
+            count += 1;
+            if count >= 1000 {
+                println!("write {count} topics");
+            }
+        }
+        for writer in writers.as_mut() {
+            writer.flush()?;
+        }
+        println!("write {count} topics");
         Ok(())
     }
 }

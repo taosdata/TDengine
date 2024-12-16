@@ -189,8 +189,6 @@ impl TransformExt for ParserImpl {
         if self.is_empty() {
             return Ok(records.clone());
         }
-        // dbg!("before parser------");
-        // dbg!(records);
 
         let schema = records.schema();
         let metadata = schema.metadata().clone();
@@ -278,9 +276,6 @@ impl TransformExt for ParserImpl {
         let rschema = Schema::new_with_metadata(rfields, metadata);
 
         let batch = RecordBatch::try_new(Arc::new(rschema), rcolumns)?;
-
-        // dbg!("after parser------");
-        // dbg!(&batch);
 
         Ok(batch)
     }

@@ -1,7 +1,7 @@
 use std::{
     any::Any,
     clone::Clone,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -117,6 +117,8 @@ pub enum FlatWriteError {
     ConnectionPoolError(#[from] deadpool::managed::PoolError<taos::Error>),
     #[error("Table not exists")]
     TableNotExits(String),
+    #[error("Invalid column")]
+    InvalidColumn,
     #[error("Container length too short: {0:#}")]
     ContainerLengthTooShort(String),
     #[error("Write SQL error: {0:#}")]
@@ -208,6 +210,7 @@ async fn write_stable_with_sql(
                 "flat message write sql encountered unrecoverable err: {err:#}"
             );
             match errno {
+                0x2602 => Err(FlatWriteError::InvalidColumn),
                 0x2603 | 0x0618 => {
                     // stable/table not exists
                     Err(FlatWriteError::TableNotExits(
@@ -287,6 +290,35 @@ pub async fn flat_write_with_sql(
                         metrics.add_failed_points((records.records() * cols) as u64);
                         error!(stable, "write stable with sql error: {err:#}");
                         match err {
+                            FlatWriteError::InvalidColumn => {
+                                let Some(stable) = messages
+                                    .first()
+                                    .and_then(|m| m.table.using.as_ref())
+                                    .and_then(|s| s.model())
+                                else {
+                                    return Err(anyhow::Error::new(err));
+                                };
+                                let taos = taos.as_ref().unwrap();
+                                let stable_name = stable.name();
+                                let desc = taos.describe(stable.name()).await?;
+                                let desc_columns =
+                                    desc.iter().filter(|c| !c.is_tag()).map(|v| v.field());
+                                let actual_columns = HashSet::<_>::from_iter(desc_columns);
+
+                                taos.exec_many(
+                                    stable
+                                        .columns()
+                                        .filter(|c| !actual_columns.contains(c.name.as_str()))
+                                        .map(|c| {
+                                            format!(
+                                                "ALTER TABLE {stable_name} ADD COLUMN {} {};",
+                                                c.name, c.r#type
+                                            )
+                                        }),
+                                )
+                                .await
+                                .context("add columns error")?;
+                            }
                             FlatWriteError::TableNotExits(_) => {
                                 if let Some(stable_sql) = messages[0].stable_sql() {
                                     qid.add_sub_batch_id();
@@ -482,7 +514,7 @@ pub async fn flat_write_with_raw_block(
                             }
                             Err(err) => {
                                 let code: i32 = err.code().into();
-                                if !matches!(code, 0x0218 | 0x2603 | 0x0618 | 0x0362) {
+                                if !matches!(code, 0x0218 | 0x2603 | 0x2602 | 0x0618 | 0x0362) {
                                     Err(err).with_context(|| {
                                         format!("Get table schema error for `{table_name}`")
                                     })?;
@@ -608,6 +640,37 @@ pub async fn flat_write_with_raw_block(
                                                             .await?;
                                                         }
                                                     }
+                                                } else if code == 0x2602 {
+                                                    let Some(stable) = messages
+                                                        .first()
+                                                        .and_then(|m| m.table.using.as_ref())
+                                                        .and_then(|s| s.model())
+                                                    else {
+                                                        return Err(anyhow::Error::new(err));
+                                                    };
+                                                    let taos = taos.as_ref().unwrap();
+                                                    let stable_name = stable.name();
+                                                    let desc = taos.describe(stable.name()).await?;
+                                                    let desc_columns = desc
+                                                        .iter()
+                                                        .filter(|c| !c.is_tag())
+                                                        .map(|v| v.field());
+                                                    let actual_columns =
+                                                        HashSet::<_>::from_iter(desc_columns);
+
+                                                    taos.exec_many(
+                                                        stable
+                                                        .columns()
+                                                        .filter(|c| {
+                                                            !actual_columns
+                                                                .contains(c.name.as_str())
+                                                        })
+                                                        .map(|c| {
+                                                            format!("ALTER TABLE {stable_name} ADD COLUMN {} {};",c.name, c.r#type)
+                                                        }),
+                                                    )
+                                                    .await
+                                                    .context("add columns error")?;
                                                 } else {
                                                     Err(err)?;
                                                 }

@@ -9,29 +9,33 @@ use crate::plugins::transform::TableOptions;
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SModel {
-    name: String,
-    columns: Vec<Column>,
-    tags: Vec<Tag>,
+    pub name: String,
+    pub columns: Vec<Column>,
+    pub tags: Vec<Tag>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Tag {
-    name: String,
-    r#type: String,
+    pub name: String,
+    pub r#type: String,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Column {
-    name: String,
-    r#type: String,
-    encode: Option<String>,
-    compress: Option<String>,
-    level: Option<String>,
+    pub name: String,
+    pub r#type: String,
+    pub encode: Option<String>,
+    pub compress: Option<String>,
+    pub level: Option<String>,
 }
 
 impl SModel {
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn columns(&self) -> impl Iterator<Item = &Column> {
+        self.columns.iter()
     }
 
     /// 每行一个 json map
@@ -214,7 +218,7 @@ impl SModel {
             .columns
             .iter()
             .map(|col| {
-                let mut res = format!("{} {}", col.name, col.r#type);
+                let mut res = format!("`{}` {}", col.name, col.r#type);
                 if let Some(encode) = col
                     .encode
                     .as_ref()
@@ -238,7 +242,7 @@ impl SModel {
         let tags = self
             .tags
             .iter()
-            .map(|tag| format!("{} {}", tag.name, tag.r#type))
+            .map(|tag| format!("`{}` {}", tag.name, tag.r#type))
             .join(", ");
         format!("CREATE STABLE IF NOT EXISTS `{name}` ({columns}) TAGS ({tags});")
     }
@@ -283,8 +287,9 @@ mod tests {
         assert_eq!(
             model.create_stable_sql(),
             "CREATE STABLE IF NOT EXISTS `abc` \
-            (col1 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
-            col2 VARCHAR(128) COMPRESS 'lz4') TAGS (tag1 INT, tag2 VARCHAR(128));"
+            (`col1` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
+            `col2` VARCHAR(128) COMPRESS 'lz4') \
+            TAGS (`tag1` INT, `tag2` VARCHAR(128));"
         );
         Ok(())
     }
@@ -342,9 +347,9 @@ mod tests {
                 .context("model not found")?
                 .create_stable_sql(),
             "CREATE STABLE IF NOT EXISTS `abc` \
-            (col1 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
-            col2 VARCHAR(128) COMPRESS 'lz4') \
-            TAGS (tag1 INT, tag2 VARCHAR(128));"
+            (`col1` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
+            `col2` VARCHAR(128) COMPRESS 'lz4') \
+            TAGS (`tag1` INT, `tag2` VARCHAR(128));"
         );
         Ok(())
     }
@@ -419,10 +424,10 @@ mod tests {
         assert_eq!(
             sql,
             "CREATE STABLE IF NOT EXISTS `abc` \
-            (col1 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
-            col2 VARCHAR(128) COMPRESS 'lz4', \
-            col11 TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium') \
-            TAGS (tag1 INT, tag2 VARCHAR(128));"
+            (`col1` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
+            `col2` VARCHAR(128) COMPRESS 'lz4', \
+            `col11` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium') \
+            TAGS (`tag1` INT, `tag2` VARCHAR(128));"
         );
         Ok(())
     }
