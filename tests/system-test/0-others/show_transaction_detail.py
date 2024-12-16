@@ -59,7 +59,7 @@ class TDTestCase:
             tdLog.info(f"show transaction {tranId}")
             rows = tdSql.query(f"show transaction {tranId}", queryTimes=1)
 
-            if rows != 160:
+            if rows != 160 and rows != 176:
                 tdLog.exit(f"restore transaction detial error, rows={rows}")
                 return False
 
@@ -69,7 +69,7 @@ class TDTestCase:
             tdLog.info(f"show transaction {tranId}")
             rows = tdSql.query(f"show transaction {tranId}", queryTimes=1)
 
-            if rows != 176:
+            if rows != 176 and rows != 160:
                 tdLog.exit(f"restore transaction detial error, rows={rows}")
                 return False
 

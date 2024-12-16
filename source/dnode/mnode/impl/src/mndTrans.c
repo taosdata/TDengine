@@ -14,15 +14,16 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndTrans.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndSubscribe.h"
 #include "mndSync.h"
-#include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "osTime.h"
 
 #define TRANS_VER1_NUMBER  1
 #define TRANS_VER2_NUMBER  2
@@ -2090,6 +2091,35 @@ void mndTransPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
+static char *formatTimestamp(char *buf, int64_t val, int precision) {
+  time_t tt;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+  }
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+  } else {
+    tt = (time_t)(val / 1000);
+  }
+
+  struct tm tm;
+  if (taosLocalTime(&tt, &tm, NULL, 0, NULL) == NULL) {
+    mError("failed to get local time");
+    return NULL;
+  }
+  size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
+
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
+  } else {
+    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+  }
+
+  return buf;
+}
+
 static void mndTransLogAction(STrans *pTrans) {
   char    detail[512] = {0};
   int32_t len = 0;
@@ -2112,10 +2142,10 @@ static void mndTransLogAction(STrans *pTrans) {
       STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
       if (pAction->actionType == TRANS_ACTION_MSG) {
         char bufStart[40] = {0};
-        taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+        (void)formatTimestamp(bufStart, pAction->startTime, TSDB_TIME_PRECISION_MILLI);
 
         char endStart[40] = {0};
-        taosFormatUtcTime(endStart, sizeof(endStart), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+        (void)formatTimestamp(endStart, pAction->endTime, TSDB_TIME_PRECISION_MILLI);
         len += snprintf(detail + len, sizeof(detail) - len,
                         "action:%d, %s:%d msgType:%s,"
                         "sent:%d, received:%d, startTime:%s, endTime:%s, ",
@@ -2215,13 +2245,13 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     char        killableVstr[10 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(killableVstr, killableStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)killableVstr, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)killableVstr, false), pTrans, &lino, _OVER);
 
     const char *killModeStr = pTrans->killMode == TRN_KILL_MODE_SKIP ? "skip" : "interrupt";
     char        killModeVstr[10 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(killModeVstr, killModeStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)killModeVstr, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)killModeVstr, false), pTrans, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false), pTrans, &lino,
@@ -2286,8 +2316,8 @@ _OVER:
   return code;
 }
 
-static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAction *pAction, int32_t transactionId,
-                                  int32_t curActionId, int32_t rows, int32_t numOfRows) {
+static void mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAction *pAction, int32_t transactionId,
+                               int32_t curActionId, int32_t rows, int32_t numOfRows) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t len = 0;
@@ -2295,7 +2325,7 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
 
   cols = 0;
 
-  mndShowTransCommonColumns(pShow, pBlock, pAction, transactionId, curActionId, numOfRows, &cols);
+  if (mndShowTransCommonColumns(pShow, pBlock, pAction, transactionId, curActionId, numOfRows, &cols) != 0) return;
 
   if (pAction->actionType == TRANS_ACTION_MSG) {
     int32_t len = 0;
@@ -2334,10 +2364,9 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
     char detail[TSDB_TRANS_DETAIL_LEN] = {0};
     len = 0;
     char bufStart[40] = {0};
-    if (pAction->startTime > 0)
-      taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+    if (pAction->startTime > 0) (void)formatTimestamp(bufStart, pAction->startTime, TSDB_TIME_PRECISION_MILLI);
     char bufEnd[40] = {0};
-    if (pAction->endTime > 0) taosFormatUtcTime(bufEnd, sizeof(bufEnd), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+    if (pAction->endTime > 0) (void)formatTimestamp(bufEnd, pAction->endTime, TSDB_TIME_PRECISION_MILLI);
     len += snprintf(detail + len, sizeof(detail) - len, "startTime:%s, endTime:%s, ", bufStart, bufEnd);
     char detailVStr[TSDB_TRANS_DETAIL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);
@@ -2386,7 +2415,6 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
 
 _OVER:
   if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  return code;
 }
 
 static SArray *mndTransGetAction(STrans *pTrans, ETrnStage stage) {
