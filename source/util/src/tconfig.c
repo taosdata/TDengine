@@ -475,7 +475,13 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
 
-  TAOS_CHECK_RETURN(cfgSetItemVal(pItem, name, value, stype));
+  code = cfgSetItemVal(pItem, name, value, stype);
+  if (code != TSDB_CODE_SUCCESS) {
+    if (lock) {
+      (void)taosThreadMutexUnlock(&pCfg->lock);
+    }
+    TAOS_RETURN(code);
+  }
 
   if (lock) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
