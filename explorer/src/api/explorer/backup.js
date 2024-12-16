@@ -4,10 +4,10 @@ import { decrypt } from '@/utils';
 
 let language=i18n.locale.includes('zh')?'zh':'en'
 //获取backup列表
-export function getBackupList(id) {
+export function getBackupList(id, type) {
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url: `/tasks?lang=${language}&detail=true&labels=type::backup,cluster-id::${id}`,
+        url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id}`,
         method: "get"
     });
 }
@@ -34,6 +34,7 @@ export function restoreBackups(restoreData) {
         method: "post",
         data: {
             "labels": ["type::restore", `cluster-id::${localStorage.getItem("local_clusterID")}`],
+            "trigger": {"schedule": "oneshot", "resume": "never"},
             "from": `local:${restoreData.backupDirectory}?from=${restoreData.from}&to=${restoreData.to}`,
             "to": dsn
         }

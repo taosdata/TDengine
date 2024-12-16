@@ -1,7 +1,7 @@
 <template>
   <div class="dnode-block">
     
-    <el-tabs v-model="backupActiveTab">
+    <el-tabs v-model="backupActiveTab" :lazy="true">
       <el-tab-pane :label="$t('taosuser.backupPlan')" name="backupPlan">
         <div class="flexEnd">
           <el-button
@@ -401,6 +401,7 @@ export default {
         ],
       },
       topicList: [],
+      restoreList: [],
       parsinginZone
     };
   },
@@ -582,7 +583,8 @@ export default {
       this.ruleForm.created_at = data.created_at;
       this.viewOnly = true;
     },
-    parseData(data, targetData) {
+    parseBackup(data) {
+      let targetData = {};
       targetData.id = data.id;
       targetData["database"] = data.from.split("/").at(-1);
       let params_start = targetData["database"].indexOf("?");
@@ -606,6 +608,7 @@ export default {
       targetData.backup_max_size = data.to_expand.params.max_size;
       targetData.compression_level = data.to_expand.params.compression_level;
       targetData.created_at = parsinginZone(data.created_at);
+      return targetData;
     },
 
     async start(val, data) {
@@ -748,17 +751,34 @@ export default {
         return Promise.reject(err);
       }
     },
+    
+    parseRestore(data) {
+      return {};
+    },
+
+    async getRestoreTasks() {
+      try {
+        this.requestIng = true;
+        let id = localStorage.getItem("local_clusterID");
+        let result = await getBackupList(id, "restore");
+        this.restoreList = result.map((item) => this.parseRestore(item));
+        this.$parent.$parent.$parent.taosxDisabled = false;
+        this.requestIng = false;
+      } catch (error) {
+        if (error.response.status == 404) {
+          this.$parent.$parent.$parent.taosxDisabled = true;
+        }
+        if (error.response.status === 500) {
+          this.$parent.$parent.$parent.taosxDisabled = true;
+        }
+      }
+    },
     async getBackData() {
       try {
         this.requestIng = true;
         let id = localStorage.getItem("local_clusterID");
-        await getBackupList(id).then((result) => {
-          this.topicList = result.map((item) => {
-            let targetData = {};
-            this.parseData(item, targetData);
-            return targetData;
-          });
-        });
+        let result = await getBackupList(id, "backup");
+        this.topicList = result.map((item) => this.parseBackup(item));
         this.$parent.$parent.$parent.taosxDisabled = false;
         this.requestIng = false;
       } catch (error) {
@@ -832,6 +852,7 @@ export default {
     } else {
       this.getDatabases();
       this.getBackData();
+      this.getRestoreTasks();
     }
   },
 };
