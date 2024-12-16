@@ -68,6 +68,6 @@ TDengine 数据源与其它数据源使用上无差别，这里简单介绍下�
 
   ![superset-demo1](./superset-demo1.jpeg)
 
-1. "RAW RECORDS" 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值  
+2. "RAW RECORDS" 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值  
 
   ![superset-demo2](./superset-demo2.jpeg)  
