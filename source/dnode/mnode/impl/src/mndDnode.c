@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndDnode.h"
 #include <stdio.h>
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDb.h"
-#include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
@@ -1076,7 +1076,6 @@ static void getSlowLogScopeString(int32_t scope, char *result) {
     }
   }
 }
-
 
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;

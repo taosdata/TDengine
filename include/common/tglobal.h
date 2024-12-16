@@ -112,6 +112,9 @@ extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
 
+extern const char *tsAlterCompactTaskKeywords;
+extern int32_t     tsNumOfCompactThreads;
+
 // sync raft
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
