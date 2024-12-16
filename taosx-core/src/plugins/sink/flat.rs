@@ -1189,10 +1189,11 @@ async fn consume_flat_record_with_sink(
     record: &FlatMessage,
     count: &mut usize,
     parser: &Parser,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let batch = message.record();
-        let batch = parser.parse_message_from_records(batch, true)?;
+        let batch = parser.parse_message_from_records(task_id, batch, true)?;
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -1218,6 +1219,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -1280,9 +1282,14 @@ pub async fn ipc_flat_stream_worker_vgroup(
                         std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
                     })
                     .unwrap();
-                    let res =
-                        consume_flat_record_with_sink(&flat_sink, &record, &mut written, &parser)
-                            .await;
+                    let res = consume_flat_record_with_sink(
+                        &flat_sink,
+                        &record,
+                        &mut written,
+                        &parser,
+                        task_id,
+                    )
+                    .await;
                     worker_written += written;
                     count.fetch_add(written, Ordering::SeqCst);
                     match res {
@@ -1395,6 +1402,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -1441,8 +1449,14 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
                 })
                 .unwrap();
-                let res =
-                    consume_flat_record_with_sink(&flat_sink, &record, &mut written, parser).await;
+                let res = consume_flat_record_with_sink(
+                    &flat_sink,
+                    &record,
+                    &mut written,
+                    parser,
+                    task_id,
+                )
+                .await;
                 count.fetch_add(written, Ordering::SeqCst);
                 match res {
                     Err(err) => {
@@ -1531,6 +1545,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     tokio::pin!(stream);
     let count = Arc::new(AtomicUsize::new(0));
@@ -1604,6 +1619,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         context.target_precision,
                         metrics,
                         Some(&notifier),
+                        task_id,
                     )
                     .await;
                     worker_written += written;

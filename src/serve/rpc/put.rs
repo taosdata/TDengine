@@ -212,6 +212,7 @@ async fn ipc_stream_writer(
                             metrics_arc,
                             tables_messages_in_progress,
                             None,
+                            task_id,
                         )
                         .await
                     {

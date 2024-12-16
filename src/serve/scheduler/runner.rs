@@ -25,8 +25,9 @@ use taosx_core::{
         TaskMetrics, GLOBAL_METRICS,
     },
     dsv::DataSourceValidation,
+    plugins,
     sink::ipc_metric::IpcMetrics,
-    utils::{get_main_version_from_server_version, get_server_version},
+    utils::{get_main_version_from_server_version, get_server_version, sql::get_maximum_timestamp},
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
@@ -106,15 +107,44 @@ async fn task_opts_init(
 
     let (notify, notify_rx) = flume::unbounded();
 
+    let parser: Option<plugins::Parser> = task
+        .parser
+        .as_ref()
+        .map(|v| serde_json::from_value(v.clone()).unwrap());
+    let parser = if let Some(parser) = parser {
+        let pool = {
+            let builder = taos::TaosBuilder::from_dsn(&to_dsn)?;
+            let mut pool_config = builder.default_pool_config();
+            pool_config.timeouts.wait = Some(Duration::from_secs(30));
+            builder.with_pool_config(pool_config)?
+        };
+        let maximum_timestamp = get_maximum_timestamp(&pool, &mut None, 3, &cancel).await?;
+        let minimum_timestamp = get_maximum_timestamp(&pool, &mut None, 3, &cancel).await?;
+        let parser = match parser {
+            plugins::Parser::Inner(parser) => {
+                let mut parser = parser;
+                parser.set_maximum_timestamp(maximum_timestamp);
+                parser.set_minimum_timestamp(minimum_timestamp);
+                plugins::Parser::Inner(parser)
+            }
+            plugins::Parser::WithSample { parser, input } => {
+                let mut parser = parser;
+                parser.set_maximum_timestamp(maximum_timestamp);
+                parser.set_minimum_timestamp(minimum_timestamp);
+                plugins::Parser::WithSample { parser, input }
+            }
+        };
+        Some(parser)
+    } else {
+        None
+    };
+
     Ok((
         TaskOpts {
             transform: vec![],
             from: from.clone(),
             to: to_dsn.clone(),
-            parser: task
-                .parser
-                .as_ref()
-                .map(|v| serde_json::from_value(v.clone()).unwrap()),
+            parser,
             jobs: 0,
             compression_level: None,
             force: true,

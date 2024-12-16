@@ -20,6 +20,7 @@ use arrow::{
         Array, BinaryArray, BooleanArray, StringArray, TimestampMicrosecondArray,
         TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray,
     },
+    compute::concat_batches,
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -28,7 +29,9 @@ use arrow_compute_ext::RecordBatchExt;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use either::Either;
+use handling_strategy::{HandlingResult, ProcessOnAbnormal};
 use itertools::Itertools;
+use scc::HashSet;
 use serde::{Deserialize, Serialize};
 use taos::{
     taos_query::{
@@ -44,7 +47,7 @@ pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
-use crate::plugins::transform::parse::ArrayForTaos;
+use crate::{plugins::transform::parse::ArrayForTaos, utils::files::write_to_parquet_file};
 
 use super::expr;
 
@@ -67,6 +70,8 @@ pub(crate) mod map;
 pub(crate) mod modeler;
 pub(crate) mod mutate;
 pub mod sample;
+
+pub mod handling_strategy;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Pipeline {
@@ -969,6 +974,14 @@ impl Parser {
     pub fn modeler(&self) -> &Modeler {
         &self.model
     }
+
+    pub fn set_maximum_timestamp(&mut self, ts: DateTime<Utc>) {
+        Arc::make_mut(&mut self.global).maximum_timestamp = Some(ts);
+    }
+
+    pub fn set_minimum_timestamp(&mut self, ts: DateTime<Utc>) {
+        Arc::make_mut(&mut self.global).maximum_timestamp = Some(ts);
+    }
 }
 
 #[derive(Debug, Error)]
@@ -1100,6 +1113,7 @@ impl Parser {
     #[instrument(skip_all)]
     pub fn parse_message_from_records(
         &self,
+        task_id: i64,
         records: &RecordBatch,
         filter_ts: bool,
     ) -> Result<Message, Error> {
@@ -1107,10 +1121,8 @@ impl Parser {
         let schema = batch.schema();
         let batches = vec![batch];
         let batch = &batches[0];
-        // tracing::info!("Parse message {:?}", batch);
 
         let json_batches = Parser::to_json_valid_batches(&batches);
-
         let json: Vec<_> = json_batches
             .iter()
             .map(|batch| batch.to_json_rows())
@@ -1118,7 +1130,176 @@ impl Parser {
             .try_collect()?;
 
         let mut data = vec![];
-        for table in &self.model {
+
+        'table: for table in &self.model {
+            let archive_indices = HashSet::new();
+            let skip_indices = HashSet::new();
+            let use_current_time_indices = HashSet::new();
+
+            // get the columns and tags
+            let mut columns_indices = Vec::from_iter(0..batch.num_columns());
+            let spec_columns = if let Some(cols) = &table.columns {
+                let mut indices = Vec::new();
+                for name in cols {
+                    if let Some((index, _)) =
+                        Self::get_schema_column_with_name(&schema, name.as_str())
+                    {
+                        indices.push(index);
+                    } else {
+                        tracing::warn!("Selected column {name} not found in stream message");
+                    }
+                }
+                indices
+            } else {
+                Vec::new()
+            };
+            let (tags, columns) = if let Some(tags) = &table.tags {
+                let mut indices = vec![];
+                for name in tags {
+                    let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
+                        .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
+                    indices.push(i);
+                    columns_indices[i] = usize::MAX;
+                }
+                let tags = batch.project(&indices)?;
+                let cols = if spec_columns.is_empty() {
+                    columns_indices
+                        .into_iter()
+                        .filter(|v| *v != usize::MAX)
+                        .collect_vec()
+                } else {
+                    spec_columns
+                };
+                (Some(tags), batch.project(&cols).unwrap())
+            } else {
+                let cols = if spec_columns.is_empty() {
+                    columns_indices
+                } else {
+                    spec_columns
+                };
+                (None, batch.project(&cols).unwrap())
+            };
+
+            // check the field length of columns and tags
+            let all_fields: Vec<&Arc<arrow_schema::Field>> = if let Some(tags) = &tags {
+                columns
+                    .schema_ref()
+                    .fields()
+                    .iter()
+                    .chain(tags.schema_ref().fields().iter())
+                    .collect()
+            } else {
+                columns.schema_ref().fields().iter().collect()
+            };
+            for field in all_fields {
+                let field_name = field.name();
+                if field_name.len() > 64 {
+                    match self
+                        .global
+                        .process_on_abnormal
+                        .field_name_length_overflow
+                        .handle(
+                            field_name,
+                            64,
+                            format!("the length of field name '{field_name}' should not exceed 64"),
+                        ) {
+                        Ok(HandlingResult::Skip) => {
+                            tracing::warn!("skip the batch due to the length of field name '{field_name}' overflow");
+                            break 'table;
+                        }
+                        Ok(HandlingResult::Archive) => {
+                            tracing::warn!("archive and skip the batch due to the length of field name '{field_name}' overflow");
+                            archive_records(
+                                task_id,
+                                &self.global.process_on_abnormal.archive.location,
+                                batch,
+                            );
+                            break 'table;
+                        }
+                        Ok(HandlingResult::Modify(_)) => todo!(),
+                        Ok(HandlingResult::ModifyAndArchive(_)) => todo!(),
+                        Err(e) => {
+                            Err(Error::FieldNameLengthOverflowError(
+                                field_name.to_string(),
+                                e,
+                            ))?;
+                        }
+                    }
+                }
+            }
+
+            // check primary timestamp
+            if filter_ts {
+                for row in 0..columns.num_rows() {
+                    // primary timestamp null
+                    if columns.column(0).is_null(row) {
+                        match self
+                            .global
+                            .process_on_abnormal
+                            .primary_timestamp_null
+                            .handle("the primary timestamp should not be null".to_string())
+                        {
+                            Ok(HandlingResult::Skip) => {
+                                let _ = skip_indices.insert(row);
+                            }
+                            Ok(HandlingResult::Archive) => {
+                                let _ = skip_indices.insert(row);
+                                let _ = archive_indices.insert(row);
+                            }
+                            Ok(HandlingResult::Modify(_)) => {
+                                let _ = use_current_time_indices.insert(row);
+                            }
+                            Ok(HandlingResult::ModifyAndArchive(_)) => {
+                                let _ = use_current_time_indices.insert(row);
+                                let _ = archive_indices.insert(row);
+                            }
+                            Err(e) => {
+                                Err(Error::NullPrimaryKey(format!("{e:#}")))?;
+                            }
+                        }
+                    }
+                    // primary timestamp overflow;
+                    let ts = columns
+                        .column(0)
+                        .as_any()
+                        .downcast_ref::<TimestampMillisecondArray>()
+                        .unwrap()
+                        .value(row);
+                    let mut primary_timestamp_overflow_flag = false;
+                    if let Some(max_ts) = self.global.maximum_timestamp {
+                        if ts > max_ts.timestamp_millis() {
+                            primary_timestamp_overflow_flag = true;
+                        }
+                    }
+                    if let Some(min_ts) = self.global.minimum_timestamp {
+                        if ts < min_ts.timestamp_millis() {
+                            primary_timestamp_overflow_flag = true;
+                        }
+                    }
+                    if primary_timestamp_overflow_flag {
+                        match self
+                            .global
+                            .process_on_abnormal
+                            .primary_timestamp_overflow
+                            .handle(format!("the primary timestamp {ts} overflow"))
+                        {
+                            Ok(HandlingResult::Skip) => {
+                                let _ = skip_indices.insert(row);
+                            }
+                            Ok(HandlingResult::Archive) => {
+                                let _ = skip_indices.insert(row);
+                                let _ = archive_indices.insert(row);
+                            }
+                            Ok(HandlingResult::Modify(_)) => unreachable!(),
+                            Ok(HandlingResult::ModifyAndArchive(_)) => unreachable!(),
+                            Err(e) => {
+                                Err(Error::PrimaryTimestampOverflow(format!("{e:#}")))?;
+                            }
+                        }
+                    }
+                }
+            }
+
             let name = table.name.replace("${", "{");
             let mut template = TinyTemplate::new();
             template.add_template("name", &name).unwrap();
@@ -1126,111 +1307,112 @@ impl Parser {
                 template.add_template("using", using).unwrap();
             }
 
-            let mut columns_indices = Vec::from_iter(0..batch.num_columns());
-            let spec_columns = if let Some(cols) = table.columns.as_ref() {
-                //
-                let mut indices = Vec::new();
-                for name in cols {
-                    // if let Some((index, _)) = schema.column_with_name(name) {
-                    if let Some((index, _)) =
-                        Self::get_schema_column_with_name(&schema, name.as_str())
-                    {
-                        indices.push(index);
-                    } else {
-                        tracing::warn!("Selected column {} not found in stream message", name);
+            let tables = (0..batch.num_rows())
+                .filter(|row| !skip_indices.contains(row))
+                .map(|row| {
+                    match generate_table_name(
+                        self.global.process_on_abnormal.clone(),
+                        &table.name,
+                        &json[row],
+                    ) {
+                        Ok(HandlingResult::Skip) => {
+                            let _ = skip_indices.insert(row);
+                            Ok((String::default(), row))
+                        }
+                        Ok(HandlingResult::Archive) => {
+                            let _ = skip_indices.insert(row);
+                            let _ = archive_indices.insert(row);
+                            Ok((String::default(), row))
+                        }
+                        Ok(HandlingResult::Modify(name)) => Ok((name, row)),
+                        Ok(HandlingResult::ModifyAndArchive(name)) => {
+                            let _ = archive_indices.insert(row);
+                            Ok((name, row))
+                        }
+                        Err(e) => {
+                            anyhow::bail!("{:#}", e);
+                        }
                     }
-                }
-                Some(indices)
-            } else {
-                None
-            };
-            let (tags, columns) = if let Some(tags) = &table.tags {
-                let mut indices = vec![];
-                for name in tags {
-                    let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
-                        .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
-                    // let (i, _) = schema
-                    // .column_with_name(&name)
-                    // .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
-
-                    indices.push(i);
-                    columns_indices[i] = usize::MAX;
-                }
-                let tags = batches[0].project(&indices)?;
-                let cols = spec_columns.unwrap_or(
-                    columns_indices
-                        .into_iter()
-                        .filter(|v| *v != usize::MAX)
-                        .collect_vec(),
-                );
-                (Some(tags), batch.project(&cols).unwrap())
-            } else {
-                (
-                    None,
-                    batch
-                        .project(&spec_columns.unwrap_or(columns_indices))
-                        .unwrap(),
-                )
-            };
-
-            let tables = if filter_ts {
-                (0..batch.num_rows())
-                    .filter(|row| {
-                        let is_valid_primary_key = !columns.column(0).is_null(*row);
-                        if !is_valid_primary_key {
-                            let mut str = Vec::new();
-                            let mut cursor = std::io::Cursor::new(&mut str);
-                            let mut writer =
-                                arrow::json::writer::LineDelimitedWriter::new(&mut cursor);
-                            let _ = writer.write(&columns.slice(*row, 1));
-                            tracing::warn!(
-                                lost = %String::from_utf8_lossy(&str),
-                                "Primary key is null, skip row {}",
-                                row,
-                            );
-                        }
-                        is_valid_primary_key
-                    })
-                    .map(|row| {
-                        let result = template.render("name", &json[row]);
-                        match result {
-                            Ok(name) => (name, row),
-                            Err(e) => {
-                                // notice: we should set a useful name for the table
-                                tracing::error!("Error rendering template: {}", e);
-                                (String::new(), row)
-                            }
-                        }
-                    })
-                    .into_group_map()
-            } else {
-                (0..batch.num_rows())
-                    .map(|row| {
-                        let result = template.render("name", &json[row]);
-                        match result {
-                            Ok(name) => (name, row),
-                            Err(e) => {
-                                // notice: we should set a useful name for the table
-                                tracing::error!("Error rendering template: {}", e);
-                                (String::new(), row)
-                            }
-                        }
-                    })
-                    .into_group_map()
-            };
+                })
+                .try_collect::<_, Vec<_>, _>()?
+                .into_iter()
+                .into_group_map();
 
             for (name, indices) in tables {
-                // because we did not set a useful name, so we skip it
+                // 1. archive records
+                if !archive_indices.is_empty() {
+                    let archive_batches = indices
+                        .iter()
+                        .filter(|row| archive_indices.contains(*row))
+                        .map(|row| batch.slice(*row, 1))
+                        .collect_vec();
+                    let archive_batch = concat_batches(&batch.schema(), &archive_batches)?;
+                    archive_records(
+                        task_id,
+                        &self.global.process_on_abnormal.archive.location,
+                        &archive_batch,
+                    );
+                }
+
+                // 2. skip records
+                let indices = if skip_indices.is_empty() {
+                    indices
+                } else {
+                    indices
+                        .into_iter()
+                        .filter(|row| !skip_indices.contains(row))
+                        .collect_vec()
+                };
+
+                // 3. if we did not set a useful name or the indices is empty, skip this table
                 if name.is_empty() || indices.is_empty() {
                     continue;
                 }
+
+                // 4. modify records
+                let columns = if use_current_time_indices.is_empty() {
+                    columns.clone()
+                } else {
+                    let time_array: Vec<_> = (0..columns.num_rows())
+                        .map(|row| {
+                            if use_current_time_indices.contains(&row) {
+                                Utc::now().timestamp_nanos_opt()
+                            } else {
+                                columns.column(0).is_null(row).then(|| {
+                                    batch
+                                        .column(0)
+                                        .as_any()
+                                        .downcast_ref::<TimestampMillisecondArray>()
+                                        .unwrap()
+                                        .value(row)
+                                })
+                            }
+                        })
+                        .collect();
+                    RecordBatch::try_new(
+                        columns.schema(),
+                        columns
+                            .columns()
+                            .iter()
+                            .enumerate()
+                            .map(|(i, col)| {
+                                if i == 0 {
+                                    Arc::new(TimestampNanosecondArray::from(time_array.clone()))
+                                } else {
+                                    col.clone()
+                                }
+                            })
+                            .collect::<Vec<_>>(),
+                    )?
+                };
+
                 let ranges = indices_to_ranges(&indices);
                 let name_row = indices[0];
                 let batches = ranges
                     .into_iter()
                     .map(|range| columns.slice(range.start, range.len()))
                     .collect_vec();
-                let batch = arrow::compute::concat_batches(&columns.schema(), batches.iter())?;
+                let batch = concat_batches(&columns.schema(), batches.iter())?;
 
                 let using = if table.using.is_some() {
                     template.render("using", &json[name_row]).ok()
@@ -1303,6 +1485,74 @@ impl Parser {
             }
         }
         Ok(())
+    }
+}
+
+/// generate subtable name by template and record value
+///
+/// - process_on_abnormal: the configuration of abnormal handling method
+/// - template: such as 'table_{tag1}'
+/// - data: the record processed by mutate
+fn generate_table_name(
+    process_on_abnormal: ProcessOnAbnormal,
+    table_name_org: &str,
+    data: &serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<HandlingResult> {
+    // generate template
+    let table_name_org = table_name_org.replace("${", "{");
+    let mut template = TinyTemplate::new();
+    template.add_template("name", &table_name_org)?;
+    // render table name
+    match template.render("name", data) {
+        Ok(name) => {
+            // the length of table name should not exceed 192
+            if name.len() > 192 {
+                return process_on_abnormal.table_name_length_overflow.handle(
+                    &name,
+                    192,
+                    format!("the length of table name '{name}' should not exceed 192"),
+                );
+            }
+            // the table name should not contain illegal characters
+            if name.contains('.') {
+                return process_on_abnormal.table_name_contains_illegal_char.handle(
+                    &name,
+                    format!("the table name '{name}' should not contain illegal characters"),
+                );
+            }
+            Ok(HandlingResult::Modify(name))
+        }
+        Err(e) => {
+            // render table name failed
+            process_on_abnormal
+                .variable_not_exist_in_table_name_template
+                .handle(
+                    &table_name_org,
+                    data,
+                    format!("render table name '{table_name_org}' failed, e: {:?}", e),
+                )
+        }
+    }
+}
+
+/// write record batch to parquet file
+///
+/// - task_id: the id of task
+/// - location: the location of parquet file
+/// - batch: the record batch
+fn archive_records(task_id: i64, location: &String, batch: &RecordBatch) {
+    if batch.num_rows() > 0 {
+        match write_to_parquet_file(task_id, location, batch) {
+            Ok(_) => {
+                tracing::debug!("archive records success: {} rows", batch.num_rows());
+            }
+            Err(e) => {
+                tracing::error!(
+                    "archive records failed: {} rows, err: {e:#}",
+                    batch.num_rows()
+                );
+            }
+        }
     }
 }
 
@@ -1586,6 +1836,14 @@ pub struct TableOptions {
 
     /// How to deal with null values.
     null_values: Option<NullValues>,
+
+    pub minimum_timestamp: Option<DateTime<Utc>>,
+    pub maximum_timestamp: Option<DateTime<Utc>>,
+
+    /// How to process on abnormal.
+    #[serde(default)]
+    #[serde(flatten)]
+    process_on_abnormal: ProcessOnAbnormal,
 }
 
 impl Default for TableOptions {
@@ -1598,6 +1856,9 @@ impl Default for TableOptions {
             written_concurrent: None,
             workers_per_vgroup: None,
             null_values: None,
+            minimum_timestamp: None,
+            maximum_timestamp: None,
+            process_on_abnormal: ProcessOnAbnormal::default(),
         }
     }
 }
@@ -1900,10 +2161,7 @@ impl MessageArrowRecords {
             return vec![];
         }
         if primary_key_null_count > 0 {
-            tracing::warn!(
-                "Primary key column has null value, count: {}",
-                primary_key_null_count
-            );
+            tracing::warn!("Primary key column has null value, count: {primary_key_null_count}");
             let nulls = self.records.column(0).nulls().unwrap();
             let indices = nulls.valid_indices().collect_vec();
             // self.records
@@ -2165,6 +2423,10 @@ pub enum Error {
     NullPrimaryKey(String),
     #[error("Primary key({0}) must be or could be casted to timestamp: {1:#}")]
     PrimaryKeyCastError(String, arrow_schema::ArrowError),
+    #[error("Primary timestamp value overflow: {0}")]
+    PrimaryTimestampOverflow(String),
+    #[error("Field `{0}` name length overflow: {1:#}")]
+    FieldNameLengthOverflowError(String, anyhow::Error),
 }
 
 fn indices_to_ranges(indices: &[usize]) -> Vec<Range<usize>> {
@@ -2197,33 +2459,685 @@ fn test_indices_to_ranges() {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::plugins::transform::modeler::Modeler;
+    use std::sync::Arc;
+
+    use arrow::array::{ArrayRef, Int32Array, RecordBatch, StringArray, TimestampNanosecondArray};
+    use chrono::Utc;
+    use regex::Regex;
+    use tinytemplate::TinyTemplate;
+
+    use crate::plugins::transform::{
+        modeler::Modeler, mutate::Mutate, parse::ParserImpl, Message, ProcessOnAbnormal,
+        TableOptions,
+    };
 
     use super::Parser;
 
     #[test]
     fn test_parser_serde() {
+        let global = r#"{
+            "identifier_case_insensitive": false,
+            "replace_dot_in_table_name": "_",
+            "written_protocol": "auto",
+            "written_method": "concurrent",
+            "written_concurrent": 4,
+            "workers_per_vgroup": 4,
+            "null_values": "null",
+            "primary_timestamp_overflow": "break",
+            "primary_timestamp_null": "use_current_time",
+            "primary_key_null": "break",
+            "table_name_length_overflow": "truncate",
+            "table_name_contains_illegal_char": {"replace_to": "_"},
+            "variable_not_exist_in_table_name_template": "leave_blank",
+            "field_name_not_found": "break",
+            "field_name_length_overflow": "truncate",
+            "field_length_extend": true,
+            "field_length_overflow": "truncate_and_archive",
+            "ingesting_error": "archive",
+            "connection_timeout": 10,
+            "cache": {
+                "max_size": 1024,
+                "location": "cache",
+                "on_fail": "skip"
+            },
+            "archive": {
+                "keep_days": 10,
+                "max_size": 1024,
+                "location": "archive",
+                "on_fail": "rotate"
+            }
+        }"#;
+        let global: TableOptions = serde_json::from_str(global).unwrap();
+        dbg!(global);
+
+        let parser = r#"{
+            "payload": { "json": ["value::double"] },
+            "ts": { "as": "timestamp(ns)", "with": "%F %T%.f", "tz": "UTC" }
+        }"#;
+        let parser: ParserImpl = serde_json::from_str(parser).unwrap();
+        dbg!(parser);
+
         let model = r#"{
             "name": "{topic}",
             "using": "mqtt",
             "tags": ["topic"],
             "columns": ["ts", "value", "qos"]
         }"#;
-        let _: Modeler = serde_json::from_str(model).unwrap();
+        let model: Modeler = serde_json::from_str(model).unwrap();
+        dbg!(model);
+
+        let mutate = r#"[
+            { "filter": ["a > b && c != 0"] },
+            { "map": { "new1": { "sum": ["a","b"], "as": "INT" }, "new2": { "join": ["a","b"], "with":"&&" } } },
+            { "extract": { "payload": { "json": "" } } }
+        ]"#;
+        let mutates: Vec<Mutate> = serde_json::from_str(mutate).unwrap();
+        dbg!(mutates);
+
         let parser = r#"{
             "parse": {
                 "payload": { "json": ["value::double"] },
                 "ts": { "as": "timestamp(ns)", "with": "%F %T%.f", "tz": "UTC" }
             },
+            "mutate": [
+                { "filter": ["a > b && c != 0"] },
+                { "map": { "new1": { "sum": ["a","b"], "as": "INT" }, "new2": { "join": ["a","b"], "with":"&&" } } },
+                { "extract": { "payload": { "json": "" } } }
+            ],
             "model": {
                 "name": "{topic}",
                 "using": "mqtt",
                 "tags": ["topic"],
                 "columns": ["ts", "value", "qos"]
+            },
+            "global": {
+                "primary_timestamp_overflow": "break",
+                "primary_timestamp_null": "use_current_time",
+                "primary_key_null": "break"
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
         let json = serde_json::to_string_pretty(&parser).unwrap();
         println!("{}", json);
+    }
+
+    #[test]
+    fn test_process_on_abnormal_serde() {
+        let process_on_abnormal = ProcessOnAbnormal::default();
+        let json = serde_json::to_string_pretty(&process_on_abnormal).unwrap();
+        println!("{}", json);
+
+        let process = r#"{
+            "primary_timestamp_overflow": "break",
+            "primary_timestamp_null": "use_current_time",
+            "primary_key_null": "break",
+            "table_name_length_overflow": "truncate",
+            "table_name_contains_illegal_char": {"replace_to": "_"},
+            "variable_not_exist_in_table_name_template": "leave_blank",
+            "field_name_not_found": "break",
+            "field_name_length_overflow": "truncate",
+            "field_length_extend": true,
+            "field_length_overflow": "truncate_and_archive",
+            "ingesting_error": "archive",
+            "connection_timeout": 10,
+            "cache": {
+                "max_size": 1024,
+                "location": "cache",
+                "on_fail": "skip"
+            },
+            "archive": {
+                "keep_days": 10,
+                "max_size": 1024,
+                "location": "archive",
+                "on_fail": "rotate"
+            }
+        }"#;
+        let process: super::ProcessOnAbnormal = serde_json::from_str(process).unwrap();
+        dbg!(&process);
+    }
+
+    #[test]
+    fn test_parse_message_from_records() {
+        let parser = r#"{
+            "global": {
+                "table_name_length_overflow": "archive",
+                "table_name_contains_illegal_char": "break",
+                "variable_not_exist_in_table_name_template": "skip"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+
+        // test1: normal
+        let record = RecordBatch::try_from_iter([
+            ("str1", Arc::new(StringArray::from(vec!["a"])) as ArrayRef),
+            ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+        ])
+        .unwrap();
+        let result = parser.parse_message_from_records(1, &record, true);
+        assert!(result.is_ok());
+
+        // test2: the length of table name exceeds the limit, and the processing method is 'archive'
+        let record = RecordBatch::try_from_iter([
+            (
+                "str1",
+                Arc::new(StringArray::from(vec!["1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567"])) as ArrayRef,
+            ),
+            ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+        ])
+        .unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+
+        // test3: table name contains illegal characters, and the processing method is 'break'
+        let record = RecordBatch::try_from_iter([
+            ("str1", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
+            ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+        ])
+        .unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Transform error: the table name should not contain illegal characters: table_1.2"
+        );
+
+        // test4: table name variable mistake, and the processing method is 'skip'
+        let record = RecordBatch::try_from_iter([
+            ("str2", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
+            ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+        ])
+        .unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_table_name_length_overflow() {
+        let record = RecordBatch::try_from_iter([
+            (
+                "str1",
+                Arc::new(StringArray::from(vec!["1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567"])) as ArrayRef,
+            ),
+            ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+        ])
+        .unwrap();
+
+        // test1: archive
+        let parser = r#"{
+            "global": {
+                "table_name_length_overflow": "archive"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+
+        // test2: skip
+        let parser = r#"{
+            "global": {
+                "table_name_length_overflow": "skip"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+
+        // test3: break
+        let parser = r#"{
+            "global": {
+                "table_name_length_overflow": "break"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Transform error: the length of table name should not exceed 192: length = 193"
+        );
+
+        // test4: truncate
+        let parser = r#"{
+            "global": {
+                "table_name_length_overflow": "truncate"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec[0].table_name(), "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456");
+            }
+            _ => unreachable!(),
+        }
+
+        // test5: truncate and archive
+        let parser = r#"{
+            "global": {
+                "table_name_length_overflow": "truncate_and_archive"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec[0].table_name(), "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_table_name_contains_illegal_char() {
+        let record = RecordBatch::try_from_iter([
+            ("str1", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
+            ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+        ])
+        .unwrap();
+
+        // test1: archive
+        let parser = r#"{
+            "global": {
+                "table_name_contains_illegal_char": "archive"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+
+        // test2: skip
+        let parser = r#"{
+            "global": {
+                "table_name_contains_illegal_char": "skip"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+
+        // test3: break
+        let parser = r#"{
+            "global": {
+                "table_name_contains_illegal_char": "break"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Transform error: the table name should not contain illegal characters: table_1.2"
+        );
+
+        // test4: replace illegal char
+        let parser = r#"{
+            "global": {
+                "table_name_contains_illegal_char": {"replace_to": "_"}
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec[0].table_name(), "table_1_2");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_tiny_template() {
+        let mut template = TinyTemplate::new();
+        template.add_template("name", "table_{var1}").unwrap();
+
+        // test1: normal
+        let map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+            r#"{
+            "var1": "value1"
+        }"#,
+        )
+        .unwrap();
+        let result = template.render("name", &map);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "table_value1");
+
+        // test2: variable not found
+        let map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+            r#"{
+            "var2": "value1"
+        }"#,
+        )
+        .unwrap();
+        let result = template.render("name", &map);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to find value 'var1' from path 'var1'"));
+    }
+
+    #[test]
+    fn test_get_variables_from_template() {
+        let template = "table_{var1}_{var2}_{var3}";
+        let re = Regex::new(r"\{(\w+)\}").unwrap();
+
+        let variables = re
+            .captures_iter(template)
+            .map(|c| c.get(1).unwrap().as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(variables, vec!["var1", "var2", "var3"]);
+    }
+
+    #[test]
+    fn test_variable_not_exist_in_table_name_template() {
+        let record = RecordBatch::try_from_iter([
+            (
+                "str1",
+                Arc::new(StringArray::from(vec!["12345"])) as ArrayRef,
+            ),
+            ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+        ])
+        .unwrap();
+
+        // test1: skip
+        let parser = r#"{
+            "global": {
+                "variable_not_exist_in_table_name_template": "skip"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str2}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+
+        // test2: leave blank
+        let parser = r#"{
+            "global": {
+                "variable_not_exist_in_table_name_template": "leave_blank"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str2}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec[0].table_name(), "table_");
+            }
+            _ => unreachable!(),
+        }
+
+        // test3: replace to
+        let parser = r#"{
+            "global": {
+                "variable_not_exist_in_table_name_template": {"replace_to": "xyz"}
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str2}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, false);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec[0].table_name(), "table_xyz");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_primary_timestamp_null_use_current_time() {
+        let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampNanosecondArray::from(vec![None, None])) as ArrayRef,
+            ),
+            (
+                "str1",
+                Arc::new(StringArray::from(vec!["12345", "67890"])) as ArrayRef,
+            ),
+            ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
+        ])
+        .unwrap();
+
+        // test1: use current time
+        let parser = r#"{
+            "global": {
+                "primary_timestamp_null": "use_current_time"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, true);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 2);
+                let records = vec[0].records.clone();
+                assert_eq!(records.column(0).null_count(), 0);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_field_name_length_overflow() {
+        let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampNanosecondArray::from(vec![None, None])) as ArrayRef,
+            ),
+            (
+                "str1234567890123456789012345678901234567890123456789012345678901234567890",
+                Arc::new(StringArray::from(vec!["12345", "67890"])) as ArrayRef,
+            ),
+            ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
+        ])
+        .unwrap();
+
+        // test1: columns empty, use the others not in tags & skip
+        let parser = r#"{
+            "global": {
+                "field_name_length_overflow": "skip"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1234567890123456789012345678901234567890123456789012345678901234567890}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": []
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, true);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+
+        // test2: archive
+        let parser = r#"{
+            "global": {
+                "field_name_length_overflow": "archive"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1234567890123456789012345678901234567890123456789012345678901234567890}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1234567890123456789012345678901234567890123456789012345678901234567890"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let result = parser.parse_message_from_records(1, &record, true);
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Message::Records(vec) => {
+                assert_eq!(vec.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_modify_maximum_timestamp() {
+        let parser = r#"{
+            "global": {
+                "field_name_length_overflow": "archive"
+            },
+            "parse": {},
+            "model": {
+                "name": "table_{str1234567890123456789012345678901234567890123456789012345678901234567890}",
+                "using": "stable1",
+                "tags": ["int1"],
+                "columns": ["ts", "str1234567890123456789012345678901234567890123456789012345678901234567890"]
+            }
+        }"#;
+        let mut parser: Parser = serde_json::from_str(parser).unwrap();
+
+        parser.set_maximum_timestamp(Utc::now());
+        dbg!(parser);
     }
 }

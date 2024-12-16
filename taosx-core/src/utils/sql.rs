@@ -132,6 +132,16 @@ async fn test_precision_with_taos() {
 }
 
 #[tracing::instrument(skip_all)]
+pub async fn get_maximum_timestamp(
+    _pool: &TaosPool,
+    _taos: &mut Option<TaosConnection>,
+    _max_retries: u32,
+    _cancel: &CancellationToken,
+) -> Result<DateTime<Utc>, TaosError> {
+    Ok(chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600))
+}
+
+#[tracing::instrument(skip_all)]
 pub async fn get_minimum_timestamp(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
