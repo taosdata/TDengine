@@ -103,11 +103,11 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
         }
 
         code = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
-        if (code && code != TSDB_CODE_TIMEOUT_ERROR) {
-          TSDB_CHECK_CODE(code, lino, _exit);
+        // ignore timeout error and retry
+        if (code == TSDB_CODE_TIMEOUT_ERROR) {
+          code = TSDB_CODE_SUCCESS;
         }
-        
-        code = 0;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }

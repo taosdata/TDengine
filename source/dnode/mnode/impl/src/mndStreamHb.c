@@ -15,6 +15,8 @@
 
 #include "mndStream.h"
 #include "mndTrans.h"
+#include "mndMnode.h"
+#include "tmisce.h"
 
 typedef struct SFailedCheckpointInfo {
   int64_t streamUid;
@@ -31,8 +33,8 @@ static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList);
 static int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info);
 static bool    validateHbMsg(const SArray *pNodeList, int32_t vgId);
 static void    cleanupAfterProcessHbMsg(SStreamHbMsg *pReq, SArray *pFailedChkptList, SArray *pOrphanTasks);
-static void    doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, int32_t vgId, int32_t msgId);
-static void    checkforOrphanTask(SMnode *pMnode, STaskStatusEntry *p, SArray *pOrphanTasks);
+static void    doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SEpSet* pEpset, int32_t vgId, int32_t msgId);
+static void    checkforOrphanTask(SMnode* pMnode, STaskStatusEntry* p, SArray* pOrphanTasks);
 
 void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeList);
@@ -329,6 +331,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SArray      *pFailedChkpt = NULL;
   SArray      *pOrphanTasks = NULL;
   int32_t      code = 0;
+  SDecoder     decoder = {0};
+  SEpSet       mnodeEpset = {0};
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     if (suspendAllStreams(pMnode, &pReq->info) < 0) {
@@ -336,7 +340,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     }
   }
 
-  SDecoder decoder = {0};
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
 
   if (tDecodeStreamHbMsg(&decoder, &req) < 0) {
@@ -357,13 +360,15 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     TAOS_RETURN(terrno);
   }
 
+  mndGetMnodeEpSet(pMnode, &mnodeEpset);
+
   streamMutexLock(&execInfo.lock);
 
   mndInitStreamExecInfo(pMnode, &execInfo);
   if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
     mError("vgId:%d not exists in nodeList buf, discarded", req.vgId);
 
-    doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
+    doSendHbMsgRsp(terrno, &pReq->info, &mnodeEpset, req.vgId, req.msgId);
 
     streamMutexUnlock(&execInfo.lock);
     cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
@@ -383,9 +388,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     if ((pEntry->lastHbMsgId == req.msgId) && (pEntry->lastHbMsgTs == req.ts)) {
       mError("vgId:%d HbMsgId:%d already handled, bh msg discard, and send HbRsp", pEntry->nodeId, req.msgId);
 
-      // return directly and after the vnode to continue to send the next HbMsg.
+      // return directly and allow the vnode to continue to send the next HbMsg.
       terrno = TSDB_CODE_SUCCESS;
-      doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
+      doSendHbMsgRsp(terrno, &pReq->info, &mnodeEpset, req.vgId, req.msgId);
 
       streamMutexUnlock(&execInfo.lock);
       cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
@@ -529,7 +534,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   streamMutexUnlock(&execInfo.lock);
 
-  doSendHbMsgRsp(TSDB_CODE_SUCCESS, &pReq->info, req.vgId, req.msgId);
+  doSendHbMsgRsp(TSDB_CODE_SUCCESS, &pReq->info, &mnodeEpset, req.vgId, req.msgId);
   cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
 
   return code;
@@ -552,12 +557,13 @@ void cleanupAfterProcessHbMsg(SStreamHbMsg *pReq, SArray *pFailedChkptList, SArr
   taosArrayDestroy(pOrphanTasks);
 }
 
-void doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, int32_t vgId, int32_t msgId) {
+void doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SEpSet* pMndEpset, int32_t vgId, int32_t msgId) {
   int32_t ret = 0;
   int32_t tlen = 0;
   void   *buf = NULL;
 
-  const SMStreamHbRspMsg msg = {.msgId = msgId};
+  SMStreamHbRspMsg msg = {.msgId = msgId};//, .mndEpset = *pMndEpset};
+  epsetAssign(&msg.mndEpset, pMndEpset);
 
   tEncodeSize(tEncodeStreamHbRsp, &msg, tlen, ret);
   if (ret < 0) {

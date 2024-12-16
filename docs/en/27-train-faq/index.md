@@ -286,4 +286,14 @@ This connection only reports the most basic information that does not involve an
 This feature is an optional configuration item, which is enabled by default in the open-source version. The specific parameter is telemetryReporting, as explained in the [official documentation](../tdengine-reference/components/taosd/).
 You can disable this parameter at any time by modifying telemetryReporting to 0 in taos.cfg, then restarting the database service.
 Code located at: [https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c](https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c).
-Additionally, for the highly secure enterprise version, TDengine Enterprise, this parameter will not be operational.
+Additionally, for the highly secure enterprise version, TDengine Enterprise, this parameter will not be operational.  
+
+### 31 What should I do if I encounter 'Sync leader is unreachable' when connecting to the cluster for the first time?  
+
+Reporting this error indicates that the first connection to the cluster was successful, but the IP address accessed for the first time was not the leader of mnode. An error occurred when the client attempted to establish a connection with the leader. The client searches for the leader node through EP, which specifies the fqdn and port number. There are two common reasons for this error:
+
+- The ports of other dnodes in the cluster are not open
+- The client's hosts file is not configured correctly
+  
+Therefore, first, check whether all ports on the server and cluster (default 6030 for native connections and 6041 for HTTP connections) are open; Next, check if the client's hosts file has configured the fqdn and IP information for all dnodes in the cluster.
+If the issue still cannot be resolved, it is necessary to contact Taos technical personnel for support.

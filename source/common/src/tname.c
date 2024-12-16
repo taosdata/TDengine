@@ -81,7 +81,7 @@ SName* tNameDup(const SName* name) {
 }
 
 int32_t tNameGetDbName(const SName* name, char* dst) {
-  strncpy(dst, name->dbname, tListLen(name->dbname));
+  tstrncpy(dst, name->dbname, tListLen(name->dbname));
   return 0;
 }
 

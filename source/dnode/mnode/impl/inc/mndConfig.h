@@ -13,27 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CRYPT_H_
-#define _CRYPT_H_
-#include "tdef.h"
+#ifndef _TD_MND_CONFIG_H_
+#define _TD_MND_CONFIG_H_
+
+#include "mndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+int32_t mndInitConfig(SMnode *pMnode);
 
-typedef struct SCryptOpts {
-  int32_t len;
-  char*   source;
-  char*   result;
-  int32_t unitLen;
-  char    key[17];
-} SCryptOpts;
+SSdbRaw       *mnCfgActionEncode(SConfigObj *pCfg);
+SSdbRow       *mndCfgActionDecode(SSdbRaw *pRaw);
+static int32_t mndCfgActionInsert(SSdb *pSdb, SConfigObj *obj);
+static int32_t mndCfgActionDelete(SSdb *pSdb, SConfigObj *obj);
+static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *oldItem, SConfigObj *newObj);
+static int32_t mndCfgActionDeploy(SMnode *pMnode);
+static int32_t mndCfgActionPrepare(SMnode *pMnode);
 
-int32_t CBC_Decrypt(SCryptOpts* opts);
-int32_t CBC_Encrypt(SCryptOpts* opts);
-
+static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // _CRYPT_H_
+#endif /*_TD_MND_ARBGROUP_H_*/
