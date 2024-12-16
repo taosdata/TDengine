@@ -2449,13 +2449,21 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
   SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (IS_VAR_DATA_TYPE(type)) {
-    pInfo->bytes = varDataTLen(pData);
+    if (type == TSDB_DATA_TYPE_JSON) {
+      pInfo->bytes = getJsonValueLen(pData);
+    } else {
+      pInfo->bytes = varDataTLen(pData);
+    }
   }
 
   (void)memcpy(pInfo->buf, pData, pInfo->bytes);
   if (pkData != NULL) {
     if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
-      pInfo->pkBytes = varDataTLen(pkData);
+      if (pInfo->pkType == TSDB_DATA_TYPE_JSON) {
+        pInfo->pkBytes = getJsonValueLen(pkData);
+      } else {
+        pInfo->pkBytes = varDataTLen(pkData);
+      }
     }
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
@@ -2985,7 +2993,11 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
     pInfo->isNull = false;
 
     if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
-      pInfo->bytes = varDataTLen(pData);
+      if (pInputCol->info.type == TSDB_DATA_TYPE_JSON) {
+        pInfo->bytes = getJsonValueLen(pData);
+      } else {
+        pInfo->bytes = varDataTLen(pData);
+      }
     }
 
     (void)memcpy(pInfo->buf, pData, pInfo->bytes);
@@ -2994,7 +3006,11 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
   if (pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, rowIndex)) {
     char* pkData = colDataGetData(pkCol, rowIndex);
     if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
-      pInfo->pkBytes = varDataTLen(pkData);
+      if (pInfo->pkType == TSDB_DATA_TYPE_JSON) {
+        pInfo->pkBytes = getJsonValueLen(pkData);
+      } else {
+        pInfo->pkBytes = varDataTLen(pkData);
+      }
     }
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
@@ -5872,7 +5888,11 @@ void modeFunctionCleanupExt(SqlFunctionCtx* pCtx) {
 
 static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo *pInfo, STuplePos* pPos) {
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
-    (void)memcpy(pInfo->buf, data, varDataTLen(data));
+    if (pInfo->colType == TSDB_DATA_TYPE_JSON) {
+      (void)memcpy(pInfo->buf, data, getJsonValueLen(data));
+    } else {
+      (void)memcpy(pInfo->buf, data, varDataTLen(data));
+    }
   } else {
     (void)memcpy(pInfo->buf, data, pInfo->colBytes);
   }
@@ -5882,7 +5902,16 @@ static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo *pI
 
 static int32_t doModeAdd(SModeInfo* pInfo, int32_t rowIndex, SqlFunctionCtx* pCtx, char* data) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t hashKeyBytes = IS_STR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
+  int32_t hashKeyBytes;
+  if (IS_VAR_DATA_TYPE(pInfo->colType)) {
+    if (pInfo->colType == TSDB_DATA_TYPE_JSON) {
+      hashKeyBytes = getJsonValueLen(data);
+    } else {
+      hashKeyBytes = varDataTLen(data);
+    }
+  } else {
+    hashKeyBytes = pInfo->colBytes;
+  }
 
   SModeItem* pHashItem = (SModeItem *)taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
@@ -6654,14 +6683,32 @@ static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char*
     pRateInfo->firstValue = v;
     pRateInfo->firstKey = ts;
     if (pRateInfo->firstPk) {
-      int32_t pkBytes = IS_VAR_DATA_TYPE(pRateInfo->pkType) ? varDataTLen(pk) : pRateInfo->pkBytes;
+      int32_t pkBytes;
+      if (IS_VAR_DATA_TYPE(pRateInfo->pkType)) {
+        if (pRateInfo->pkType == TSDB_DATA_TYPE_JSON) {
+          pkBytes = getJsonValueLen(pk);
+        } else {
+          pkBytes = varDataTLen(pk);
+        }
+      } else {
+        pkBytes = pRateInfo->pkBytes;
+      }
       (void)memcpy(pRateInfo->firstPk, pk, pkBytes);
     }
   } else {
     pRateInfo->lastValue = v;
     pRateInfo->lastKey = ts;
     if (pRateInfo->lastPk) {
-      int32_t pkBytes = IS_VAR_DATA_TYPE(pRateInfo->pkType) ? varDataTLen(pk) : pRateInfo->pkBytes;
+      int32_t pkBytes;
+      if (IS_VAR_DATA_TYPE(pRateInfo->pkType)) {
+        if (pRateInfo->pkType == TSDB_DATA_TYPE_JSON) {
+          pkBytes = getJsonValueLen(pk);
+        } else {
+          pkBytes = varDataTLen(pk);
+        }
+      } else {
+        pkBytes = pRateInfo->pkBytes;
+      }
       (void)memcpy(pRateInfo->lastPk, pk, pkBytes);
     }
   }

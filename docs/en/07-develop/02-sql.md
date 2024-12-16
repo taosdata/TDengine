@@ -83,14 +83,14 @@ Next, create a supertable (STABLE) named `meters`, whose table structure include
 
 Create Database
 
-```bash
+```shell
 curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 --data 'CREATE DATABASE IF NOT EXISTS power'
 ```
 
 Create Table, specify the database as `power` in the URL
 
-```bash
+```shell
 curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 --data 'CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))'
 ```
@@ -167,7 +167,7 @@ NOW is an internal system function, defaulting to the current time of the client
 
 Write data
 
-```bash
+```shell
 curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 --data 'INSERT INTO power.d1001 USING power.meters TAGS(2,'\''California.SanFrancisco'\'') VALUES (NOW + 1a, 10.30000, 219, 0.31000) (NOW + 2a, 12.60000, 218, 0.33000) (NOW + 3a, 12.30000, 221, 0.31000) power.d1002 USING power.meters TAGS(3, '\''California.SanFrancisco'\'') VALUES (NOW + 1a, 10.30000, 218, 0.25000)'
 ```
@@ -247,7 +247,7 @@ Rust connector also supports using **serde** for deserializing to get structured
 
 Query Data
 
-```bash
+```shell
 curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 --data 'SELECT ts, current, location FROM power.meters limit 100'
 ```
@@ -329,7 +329,7 @@ Below are code examples of setting reqId to execute SQL in various language conn
 
 Query data, specify reqId as 3
 
-```bash
+```shell
 curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql?req_id=3' \
 --data 'SELECT ts, current, location FROM power.meters limit 1'
 ```

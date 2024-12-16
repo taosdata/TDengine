@@ -34,7 +34,7 @@ class TDTestCase:
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         # time.sleep(2)
-        tdSql.query("create user testpy pass 'testpy'")
+        tdSql.query("create user testpy pass 't123#$estpy'")
 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
