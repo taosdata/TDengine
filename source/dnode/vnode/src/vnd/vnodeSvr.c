@@ -968,7 +968,7 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
     return;
   }
 
-  strcpy(pMetaRsp->dbFName, pVnode->config.dbname);
+  tstrncpy(pMetaRsp->dbFName, pVnode->config.dbname, TSDB_DB_FNAME_LEN);
   pMetaRsp->dbId = pVnode->config.dbId;
   pMetaRsp->vgId = TD_VID(pVnode);
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
@@ -1093,7 +1093,7 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
     expiredTb.suid = *uid;
     terrno = metaReaderGetTableEntryByUid(&mr, *uid);
     if (terrno < 0) goto _end;
-    strncpy(buf, mr.me.name, TSDB_TABLE_NAME_LEN);
+    tstrncpy(buf, mr.me.name, TSDB_TABLE_NAME_LEN);
     void *p = taosArrayPush(pNames, buf);
     if (p == NULL) {
       goto _end;
@@ -1216,7 +1216,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
         rcode = -1;
         goto _exit;
       }
-      strcpy(str, pCreateReq->name);
+      tstrncpy(str, pCreateReq->name, TSDB_TABLE_FNAME_LEN);
       if (taosArrayPush(tbNames, &str) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         rcode = -1;
@@ -1225,7 +1225,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     }
 
     // validate hash
-    sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
+    (void)tsnprintf(tbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
       cRsp.code = TSDB_CODE_VND_HASH_MISMATCH;
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
@@ -1321,7 +1321,7 @@ _exit:
   taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
   tEncoderClear(&encoder);
-  taosArrayDestroyP(tbNames, taosMemoryFree);
+  taosArrayDestroyP(tbNames, NULL);
   return rcode;
 }
 
@@ -1518,7 +1518,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
         pRsp->code = terrno;
         goto _exit;
       }
-      strcpy(str, pDropTbReq->name);
+      tstrncpy(str, pDropTbReq->name, TSDB_TABLE_FNAME_LEN);
       if (taosArrayPush(tbNames, &str) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         pRsp->code = terrno;

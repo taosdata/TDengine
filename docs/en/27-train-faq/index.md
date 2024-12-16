@@ -90,7 +90,7 @@ Batch insertion. Each insert statement can insert multiple records into one tabl
 
 When inserting nchar type data containing Chinese characters on Windows, first ensure that the system's regional settings are set to China (this can be set in the Control Panel). At this point, the `taos` client in cmd should already be working properly; if developing a Java application in an IDE, such as Eclipse or IntelliJ, ensure that the file encoding in the IDE is set to GBK (which is the default encoding type for Java), then initialize the client configuration when creating the Connection, as follows:
 
-```JAVA
+```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
 Properties properties = new Properties();
 properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
@@ -145,7 +145,7 @@ Version 3.0 of TDengine includes a standalone component developed in Go called `
 
 The Go language version requirement is 1.14 or higher. If there are Go compilation errors, often due to issues accessing Go mod in China, they can be resolved by setting Go environment variables:
 
-```sh
+```shell
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
@@ -196,7 +196,7 @@ Here are the solutions:
 
 1. Create a file /Library/LaunchDaemons/limit.maxfiles.plist, write the following content (the example changes limit and maxfiles to 100,000, modify as needed):
 
-```plist
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -286,4 +286,14 @@ This connection only reports the most basic information that does not involve an
 This feature is an optional configuration item, which is enabled by default in the open-source version. The specific parameter is telemetryReporting, as explained in the [official documentation](../tdengine-reference/components/taosd/).
 You can disable this parameter at any time by modifying telemetryReporting to 0 in taos.cfg, then restarting the database service.
 Code located at: [https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c](https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c).
-Additionally, for the highly secure enterprise version, TDengine Enterprise, this parameter will not be operational.
+Additionally, for the highly secure enterprise version, TDengine Enterprise, this parameter will not be operational.  
+
+### 31 What should I do if I encounter 'Sync leader is unreachable' when connecting to the cluster for the first time?  
+
+Reporting this error indicates that the first connection to the cluster was successful, but the IP address accessed for the first time was not the leader of mnode. An error occurred when the client attempted to establish a connection with the leader. The client searches for the leader node through EP, which specifies the fqdn and port number. There are two common reasons for this error:
+
+- The ports of other dnodes in the cluster are not open
+- The client's hosts file is not configured correctly
+  
+Therefore, first, check whether all ports on the server and cluster (default 6030 for native connections and 6041 for HTTP connections) are open; Next, check if the client's hosts file has configured the fqdn and IP information for all dnodes in the cluster.
+If the issue still cannot be resolved, it is necessary to contact Taos technical personnel for support.

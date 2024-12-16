@@ -1315,7 +1315,7 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       continue;
     }
     char dbNameInGroup[TSDB_DB_FNAME_LEN];
-    strncpy(dbNameInGroup, pVgObj->dbName, TSDB_DB_FNAME_LEN);
+    tstrncpy(dbNameInGroup, pVgObj->dbName, TSDB_DB_FNAME_LEN);
     sdbRelease(pSdb, pVgObj);
 
     char dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};

@@ -131,11 +131,18 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   int32_t itemSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize + pInfo->anomalyKey.bytes;
   pInfo->anomalySup.pResultRow = taosMemoryCalloc(1, itemSize);
+  if (pInfo->anomalySup.pResultRow == NULL) {
+    code = terrno;
+    goto _error;
+  }
   pInfo->anomalySup.blocks = taosArrayInit(16, sizeof(SSDataBlock*));
+  if (pInfo->anomalySup.blocks == NULL) {
+    code = terrno;
+    goto _error;
+  }
   pInfo->anomalySup.windows = taosArrayInit(16, sizeof(STimeWindow));
-
-  if (pInfo->anomalySup.windows == NULL || pInfo->anomalySup.blocks == NULL || pInfo->anomalySup.pResultRow == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  if (pInfo->anomalySup.windows == NULL) {
+    code = terrno;
     goto _error;
   }
 
@@ -269,8 +276,8 @@ static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock*
   int32_t      code = createOneDataBlock(pSrc, true, &pDst);
 
   if (code != 0) return code;
-  if (pDst == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  if (taosArrayPush(pInfo->anomalySup.blocks, &pDst) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pDst == NULL) return code;
+  if (taosArrayPush(pInfo->anomalySup.blocks, &pDst) == NULL) return terrno;
 
   return 0;
 }

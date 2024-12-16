@@ -606,6 +606,13 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       code = terrno;
       goto end;
     }
+  } else {
+    SVCreateTbReq* tmp = pDataBlock->pData->pCreateTbReq;
+    taosMemoryFreeClear(tmp->name);
+    taosMemoryFreeClear(tmp->ctb.pTag);
+    taosMemoryFreeClear(tmp->ctb.stbName);
+    taosArrayDestroy(tmp->ctb.tagName);
+    tmp->ctb.tagName = NULL;
   }
 
   code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
@@ -1017,11 +1024,11 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   if (NULL == tags) {
     return TSDB_CODE_APP_ERROR;
   }
-  /*
+
   if (pDataBlock->pMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pMeta->tableType != TSDB_CHILD_TABLE) {
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
-  */
+
   SSchema* pSchema = getTableTagSchema(pDataBlock->pMeta);
   if (tags->numOfBound <= 0) {
     *fieldNum = 0;

@@ -303,24 +303,24 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 ## INS_STREAMS
 
-| #   |   **列名**   | **数据类型** | **说明**                                                                                                             |
-| --- | :----------: | ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| 1   | stream_name  | VARCHAR(64)   | 流计算名称                                                                                                           |
-| 2   | create_time  | TIMESTAMP    | 创建时间                                                                                                             |
-| 3   |     sql      | VARCHAR(1024) | 创建流计算时提供的 SQL 语句                                                                                          |
-| 4   |    status    | VARCHAR(20)   | 流当前状态                                                                                                           |
-| 5   |  source_db   | VARCHAR(64)   | 源数据库                                                                                                             |
-| 6   |  target_db   | VARCHAR(64)   | 目的数据库                                                                                                           |
-| 7   | target_table | VARCHAR(192)  | 流计算写入的目标表                                                                                                   |
-| 8   |  watermark   | BIGINT       | watermark，详见 SQL 手册流式计算。需要注意，`watermark` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。      |
-| 9   |   trigger    | INT          | 计算结果推送模式，详见 SQL 手册流式计算。需要注意，`trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| #   |   **列名** | **数据类型** | **说明** |
+|:----|:-----------|:------------|:--------|
+| 1   | stream_name  | VARCHAR(64)   | 流计算名称                |
+| 2   | create_time  | TIMESTAMP     | 创建时间                  |
+| 3   |     sql      | VARCHAR(1024) | 创建流计算时提供的 SQL 语句 |
+| 4   |    status    | VARCHAR(20)   | 流当前状态                |
+| 5   |  source_db   | VARCHAR(64)   | 源数据库                  |
+| 6   |  target_db   | VARCHAR(64)   | 目的数据库                |
+| 7   | target_table | VARCHAR(192)  | 流计算写入的目标表         |
+| 8   |  watermark   | BIGINT        | watermark，详见 SQL 手册流式计算。需要注意，`watermark` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。  |
+| 9   |   trigger    | INT           | 计算结果推送模式，详见 SQL 手册流式计算。需要注意，`trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。|
 
 ## INS_USER_PRIVILEGES
 
 注：SYSINFO 属性为 0 的用户不能查看此表。
 
-| #   |   **列名**    | **数据类型** | **说明**                                                                                                             |
-| --- | :----------: | ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| #   |   **列名** | **数据类型** | **说明** |
+|:----|:-----------|:------------|:--------|
 | 1   | user_name    | VARCHAR(24)       | 用户名
 | 2   | privilege    | VARCHAR(10)       | 权限描述
 | 3   | db_name      | VARCHAR(65)       | 数据库名称
@@ -329,17 +329,31 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 ## INS_DISK_USAGE
 
-| #   |   **列名**    | **数据类型** | **说明**                                                                                                             |
-| --- | :----------: | ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| 1   | db_name      | VARCHAR(32)       | 数据库名称 
-| 2   | vgroup_id    | INT       | vgroup 的 ID 
-| 3   | wal          | BIGINT    | wal 文件大小, 单位为 K
-| 4   | data1        | BIGINT    | 一级存储上数据文件的大小,单位为KB 
-| 5   | data2        | BIGINT    | 二级存储上数据文件的大小,单位为 KB
-| 6   | data3        | BIGINT    | 三级存储上数据文件的大小, 单位为KB 
-| 7   | cache_rdb    | BIGINT    | last/last_row 文件的大小,单位为KB
-| 8   | table_meta   | BIGINT    | meta 文件的大小, 单位为KB 
-| 9   | s3           | BIGINT    | s3 上占用的大小, 单位为KB
-| 10   | raw_data  | BIGINT    | 预估的原始数据的大小, 单位为KB 
+| #   |   **列名** | **数据类型** | **说明** |
+|:----|:-----------|:------------|:--------|
+| 1   | db_name    | VARCHAR(32) | 数据库名称                      |
+| 2   | vgroup_id  | INT         | vgroup 的 ID                   |
+| 3   | wal        | BIGINT      | wal 文件大小, 单位为 K           |
+| 4   | data1      | BIGINT      | 一级存储上数据文件的大小,单位为KB   |
+| 5   | data2      | BIGINT      | 二级存储上数据文件的大小,单位为 KB  |
+| 6   | data3      | BIGINT      | 三级存储上数据文件的大小, 单位为KB  |
+| 7   | cache_rdb  | BIGINT      | last/last_row 文件的大小,单位为KB |
+| 8   | table_meta | BIGINT      | meta 文件的大小, 单位为KB         |
+| 9   | s3         | BIGINT      | s3 上占用的大小, 单位为KB          |
+| 10  | raw_data   | BIGINT      | 预估的原始数据的大小, 单位为KB      | 
 
 
+## INS_FILESETS
+
+提供当前数据存储的文件组的相关信息。
+
+| #   |   **列名**    | **数据类型** | **说明**                                |
+| --- | :-----------: | ------------ | --------------------------------------- |
+| 1   |    db_name    | VARCHAR(65)  | 数据库名                                |
+| 2   |   vgroup_id   | INT          | vgroup id                               |
+| 3   |  fileset_id   | INT          | 文件组 id                               |
+| 4   |  start_time   | TIMESTAMP    | 文件组的覆盖数据的开始时间              |
+| 5   |   end_time    | TIMESTAMP    | 文件组的覆盖数据的结束时间              |
+| 6   |  total_size   | BIGINT       | 文件组的总大小                          |
+| 7   | last_compact  | TIMESTAMP    | 最后一次压缩的时间                      |
+| 8   | shold_compact | bool         | 是否需要压缩，true：需要，false：不需要 |

@@ -292,7 +292,6 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     *rid = pObj->id;
@@ -424,7 +423,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
 
   void *pReq = taosMemoryMalloc(msgLen);
   if (pReq == NULL) {
-    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    fp(param, terrno, taos, 0, NULL);
     releaseTscObj(connId);
     return;
   }
@@ -438,7 +437,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
 
   SFetchWhiteListInfo *pParam = taosMemoryMalloc(sizeof(SFetchWhiteListInfo));
   if (pParam == NULL) {
-    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    fp(param, terrno, taos, 0, NULL);
     taosMemoryFree(pReq);
     releaseTscObj(connId);
     return;
@@ -449,7 +448,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   pParam->userParam = param;
   SMsgSendInfo *pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pSendInfo == NULL) {
-    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    fp(param, terrno, taos, 0, NULL);
     taosMemoryFree(pParam);
     taosMemoryFree(pReq);
     releaseTscObj(connId);

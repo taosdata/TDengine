@@ -341,6 +341,12 @@ struct SVnodeCfg {
 #define TABLE_IS_COL_COMPRESSED(FLG)  (((FLG) & (TABLE_COL_COMPRESSED)) != 0)
 #define TABLE_SET_COL_COMPRESSED(FLG) ((FLG) |= TABLE_COL_COMPRESSED)
 
+struct SFileSetReader;
+int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader);
+int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader);
+int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value);
+void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
+
 #ifdef __cplusplus
 }
 #endif
