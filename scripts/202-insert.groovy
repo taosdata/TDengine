@@ -10,7 +10,8 @@ def sync_source(tdinternal_branch_name, community_branch_name, internal_root) {
     sh '''
         cd ''' + internal_root + '''
         git reset --hard
-        git clean -dfx
+        // git clean -dfx
+        git clean -f
         git fetch || git fetch
         git checkout ''' + tdinternal_branch_name + ''' -f
         git branch
@@ -85,7 +86,7 @@ def build_package(internal_root, new_version) {
 		rm ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
 		rm ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
 		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
-		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/* 
+		#rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/* 
 		cd ${INTERNAL_ROOT}/community/tests/ci
         time ./container_build_newmachine.sh -w ${WORK_DIR} -e
 		cd ${INTERNAL_ROOT}/community/tests/parallel_test
