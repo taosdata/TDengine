@@ -50,7 +50,7 @@ int32_t taosEnvNameToCfgName(const char *envNameStr, char *cfgNameStr, int32_t c
   return strlen(cfgNameStr);
 }
 
-int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
+int32_t taosEnvToCfg(const char *envStr, char *cfgStr,int32_t cfgStrLen) {
   if (envStr == NULL || cfgStr == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
