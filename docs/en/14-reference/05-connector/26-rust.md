@@ -7,8 +7,8 @@ slug: /tdengine-reference/client-libraries/rust
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-import Preparation from "./_preparation.mdx";
-import RequestId from "./_request_id.mdx";
+import Preparation from "../../assets/resources/_preparation.mdx"
+import RequestId from "../../assets/resources/_request_id.mdx";
 
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
@@ -27,17 +27,17 @@ Supports Rust 1.70 and above.
 
 ## Version History
 
-| Rust Connector Version |                                             Major Changes                                             | TDengine Version  |
-| -------------------- | --------------------------------------------------------------------------------------------------- | --------------- |
-|        v0.12.3         | 1. Optimized WebSocket query and insert performance. <br/> 2. Supported VARBINARY and GEOMETRY types. | 3.3.0.0 and higher |
-|        v0.12.0         |                                    WebSocket supports compression.                                    | 3.2.3.0 and higher |
-|        v0.11.0         |                                       TMQ feature optimization.                                       | 3.2.0.0 and higher |
-|        v0.10.0         |                                      WebSocket endpoint change.                                       | 3.1.0.0 and higher |
-|         v0.9.2         |                            STMT: WebSocket to get tag_fields, col_fields.                             | 3.0.7.0 and higher |
-|        v0.8.12         |      Message subscription: get consumption progress and start consuming at a specified progress.      | 3.0.5.0 and higher |
-|         v0.8.0         |                                     Supports schema-less writing.                                     | 3.0.4.0 and higher |
-|         v0.7.6         |                                  Supports using req_id in requests.                                   | 3.0.3.0 and higher |
-|         v0.6.0         |                                         Basic functionality.                                          | 3.0.0.0 and higher |
+| Rust Connector Version | Major Changes                                                                                         | TDengine Version   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------- | ------------------ |
+| v0.12.3                | 1. Optimized WebSocket query and insert performance. <br/> 2. Supported VARBINARY and GEOMETRY types. | 3.3.0.0 and higher |
+| v0.12.0                | WebSocket supports compression.                                                                       | 3.2.3.0 and higher |
+| v0.11.0                | TMQ feature optimization.                                                                             | 3.2.0.0 and higher |
+| v0.10.0                | WebSocket endpoint change.                                                                            | 3.1.0.0 and higher |
+| v0.9.2                 | STMT: WebSocket to get tag_fields, col_fields.                                                        | 3.0.7.0 and higher |
+| v0.8.12                | Message subscription: get consumption progress and start consuming at a specified progress.           | 3.0.5.0 and higher |
+| v0.8.0                 | Supports schema-less writing.                                                                         | 3.0.4.0 and higher |
+| v0.7.6                 | Supports using req_id in requests.                                                                    | 3.0.3.0 and higher |
+| v0.6.0                 | Basic functionality.                                                                                  | 3.0.0.0 and higher |
 
 ## Exceptions and Error Codes
 

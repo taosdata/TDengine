@@ -6,7 +6,7 @@ slug: /tdengine-reference/client-libraries/java
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import RequestId from "./_request_id.mdx";
+import RequestId from "../../assets/resources/_request_id.mdx";
 
 `taos-jdbcdriver` is the official Java connector for TDengine, allowing Java developers to develop applications that access the TDengine database. `taos-jdbcdriver` implements the interfaces of the JDBC driver standard.
 

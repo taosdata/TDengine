@@ -6,7 +6,7 @@ slug: /tdengine-reference/client-libraries/node
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import RequestId from "./_request_id.mdx";
+import RequestId from "../../assets/resources/_request_id.mdx";
 
 `@tdengine/websocket` is the official Node.js language connector for TDengine. Node.js developers can use it to develop applications that access the TDengine database.
 

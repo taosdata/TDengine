@@ -6,7 +6,7 @@ slug: /tdengine-reference/client-libraries/python
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import RequestId from "./_request_id.mdx";
+import RequestId from "../../assets/resources/_request_id.mdx";
 
 `taopsy` is the official connector provided by TDengine database for Python language, which provides multiple access interfaces for database writing, querying, subscribing, etc.
 
@@ -145,7 +145,7 @@ Example program source code can be found at:
 ## About Nanosecond (nanosecond)
 
 Due to the current imperfect support for nanoseconds in Python (see the links below), the current implementation returns an integer when nanosecond precision is used, rather than the datetime type returned for ms and us. Application developers need to handle this themselves, and it is recommended to use pandas' to_datetime(). If Python officially fully supports nanoseconds in the future, the Python connector may modify the relevant interfaces.
-  
+
 ## Common Questions
 
 Feel free to [ask questions or report issues](https://github.com/taosdata/taos-connector-python/issues).
