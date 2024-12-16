@@ -1745,6 +1745,11 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
     return code;
   }
 
+  if (tsdbCacheDropSubTables(pMeta->pVnode->pTsdb, childList, pEntry->uid) < 0) {
+    metaError("vgId:%d, failed to drop stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pEntry->name,
+              pEntry->uid, tstrerror(terrno));
+  }
+
   // loop to drop all child tables
   for (int32_t i = 0; i < taosArrayGetSize(childList); i++) {
     SMetaEntry childEntry = {
