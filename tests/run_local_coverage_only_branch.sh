@@ -85,7 +85,7 @@ function pullTDengine() {
     git checkout -- .
     git checkout $branch
     git checkout -- .
-    git clean -dfx
+    git clean -f
     git pull
 
     # pull tdengine code
@@ -96,7 +96,7 @@ function pullTDengine() {
     git checkout -- .
     git checkout $branch
     git checkout -- .
-    git clean -dfx
+    git clean -f
     git pull
 
     print_color "$GREEN" "TDengine pull end"
