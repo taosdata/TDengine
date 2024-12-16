@@ -109,8 +109,10 @@ static timezone_t setConnnectionTz(const char* val){
 
   time_t    tx1 = taosGetTimestampSec();
   char output[TD_TIMEZONE_LEN] = {0};
-  taosFormatTimezoneStr(tx1, val, tz, output);
-  code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
+  code = taosFormatTimezoneStr(tx1, val, tz, output);
+  if (code == 0){
+    code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
+  }
   if (code != 0){
     tscError("failed to put timezone %s to map", val);
   }
