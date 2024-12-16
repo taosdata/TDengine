@@ -194,12 +194,21 @@ cargo nextest run --workspace <case-name>
 
 ## 8. Releasing
 
-taosx and related components are released with TDengine Enterprise, which can be found on the corporate NAS server:
+taosx and related components, which are released with TDengine Enterprise, don't have separate installer. TDengine Enterprise installer can be found on the corporate NAS server:
 
 - NAS Server URL： http://192.168.1.252:5000/
 - Directory: /Release/TDengine/
 
-All the released versions can be found here.
+NAS server write permission is enabled on `192.168.1.131`. To release taosx agent, please follow steps below, take v3.3.4.0 for example:
+
+```bash
+# create the release directory first
+ssh root@192.168.1.131
+mkdir -p /pkgs/TDengine/3.3/v3.3.4.0/enterprise
+
+# copy the installer to release directory
+scp <agent_installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
+```
 
 ## 9. CI/CD
 
