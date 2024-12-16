@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndDnode.h"
 #include <stdio.h>
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDb.h"
+#include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
@@ -1051,20 +1051,20 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static void getSlowLogScopeString(int32_t scope, char *result) {
+void getSlowLogScopeString(int32_t scope, char *result) {
   if (scope == SLOW_LOG_TYPE_NULL) {
-    (void)strcat(result, "NONE");
+    (void)strncat(result, "NONE", 64);
     return;
   }
   while (scope > 0) {
     if (scope & SLOW_LOG_TYPE_QUERY) {
-      (void)strcat(result, "QUERY");
+      (void)strncat(result, "QUERY", 64);
       scope &= ~SLOW_LOG_TYPE_QUERY;
     } else if (scope & SLOW_LOG_TYPE_INSERT) {
-      (void)strcat(result, "INSERT");
+      (void)strncat(result, "INSERT", 64);
       scope &= ~SLOW_LOG_TYPE_INSERT;
     } else if (scope & SLOW_LOG_TYPE_OTHERS) {
-      (void)strcat(result, "OTHERS");
+      (void)strncat(result, "OTHERS", 64);
       scope &= ~SLOW_LOG_TYPE_OTHERS;
     } else {
       (void)printf("invalid slow log scope:%d", scope);
@@ -1072,7 +1072,7 @@ static void getSlowLogScopeString(int32_t scope, char *result) {
     }
 
     if (scope > 0) {
-      (void)strcat(result, "|");
+      (void)strncat(result, "|", 64);
     }
   }
 }
@@ -1112,7 +1112,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   }
 
   char obj[200] = {0};
-  (void)sprintf(obj, "%s:%d", createReq.fqdn, createReq.port);
+  (void)tsnprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
 
   auditRecord(pReq, pMnode->clusterId, "createDnode", "", obj, createReq.sql, createReq.sqlLen);
 
@@ -1296,7 +1296,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj1[30] = {0};
-  (void)sprintf(obj1, "%d", dropReq.dnodeId);
+  (void)tsnprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropDnode", "", obj1, dropReq.sql, dropReq.sqlLen);
 
@@ -1406,8 +1406,8 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
   const STraceId *trace = &pReq->info.traceId;
   SDCfgDnodeReq   dcfgReq = {0};
   if (strncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
-    strcpy(dcfgReq.config, cfgReq.config);
-    strcpy(dcfgReq.value, cfgReq.value);
+    tstrncpy(dcfgReq.config, cfgReq.config, sizeof(dcfgReq.config));
+    tstrncpy(dcfgReq.value, cfgReq.value, sizeof(dcfgReq.value));
     tFreeSMCfgDnodeReq(&cfgReq);
     return mndProcessCreateEncryptKeyReqImpl(pReq, cfgReq.dnodeId, &dcfgReq);
   } else {

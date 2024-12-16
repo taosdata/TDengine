@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 int32_t taosEnvNameToCfgName(const char *envNameStr, char *cfgNameStr, int32_t cfgNameMaxLen);
-int32_t taosEnvToCfg(const char *envStr, char *cfgStr);
+int32_t taosEnvToCfg(const char *envStr, char *cfgStr,int32_t cfgStrLen);
 
 #ifdef __cplusplus
 }

@@ -735,7 +735,7 @@ SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
   if (pObj == NULL) {
     return NULL;
   }
-  strncpy(pObj->name, pItem->name, CFG_NAME_MAX_LEN);
+  tstrncpy(pObj->name, pItem->name, CFG_NAME_MAX_LEN);
   pObj->dtype = pItem->dtype;
   switch (pItem->dtype) {
     case CFG_DTYPE_NONE:
@@ -776,7 +776,7 @@ int32_t mndUpdateObj(SConfigObj *pObjNew, const char *name, char *value) {
       if (strcasecmp(value, "true") == 0) {
         tmp = true;
       }
-      if (atoi(value) > 0) {
+      if (taosStr2Int32(value, NULL, 10) > 0) {
         tmp = true;
       }
       pObjNew->bval = tmp;

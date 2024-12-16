@@ -1201,7 +1201,7 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
 
     tstrncpy(line, *pEnv, sizeof(line));
     pEnv++;
-    if (taosEnvToCfg(line, line) < 0) {
+    if (taosEnvToCfg(line, line, 1024) < 0) {
       uTrace("failed to convert env to cfg:%s", line);
     }
 
@@ -1246,7 +1246,7 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
   while (envCmd[index] != NULL) {
     tstrncpy(buf, envCmd[index], sizeof(buf));
     buf[sizeof(buf) - 1] = 0;
-    if (taosEnvToCfg(buf, buf) < 0) {
+    if (taosEnvToCfg(buf, buf, 1024) < 0) {
       uTrace("failed to convert env to cfg:%s", buf);
     }
     index++;
@@ -1320,7 +1320,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
       break;
     }
     if (line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-    if (taosEnvToCfg(line, line) < 0) {
+    if (taosEnvToCfg(line, line, 1024) < 0) {
       uTrace("failed to convert env to cfg:%s", line);
     }
 
