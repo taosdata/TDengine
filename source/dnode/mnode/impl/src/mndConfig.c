@@ -418,7 +418,7 @@ static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   }
 
   size_t optLen = p - pMCfgReq->config;
-  tstrncpy(pDCfgReq->config, pMCfgReq->config, optLen);
+  tstrncpy(pDCfgReq->config, pMCfgReq->config, sizeof(pDCfgReq->config));
   pDCfgReq->config[optLen] = 0;
 
   if (' ' == pMCfgReq->config[optLen]) {
