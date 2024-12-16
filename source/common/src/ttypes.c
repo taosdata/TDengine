@@ -18,7 +18,7 @@
 #include "tcompression.h"
 
 const int32_t TYPE_BYTES[21] = {
-    -1,                      // TSDB_DATA_TYPE_NULL
+    2,                      // TSDB_DATA_TYPE_NULL
     CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
     CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
     SHORT_BYTES,             // TSDB_DATA_TYPE_SMALLINT
@@ -42,7 +42,7 @@ const int32_t TYPE_BYTES[21] = {
 };
 
 tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
-    {TSDB_DATA_TYPE_NULL, 6, 1, "NOTYPE", 0, 0, NULL, NULL},
+    {TSDB_DATA_TYPE_NULL, 6, 2, "NOTYPE", 0, 0, NULL, NULL},
     {TSDB_DATA_TYPE_BOOL, 4, CHAR_BYTES, "BOOL", false, true, tsCompressBool, tsDecompressBool},
     {TSDB_DATA_TYPE_TINYINT, 7, CHAR_BYTES, "TINYINT", INT8_MIN, INT8_MAX, tsCompressTinyint, tsDecompressTinyint},
     {TSDB_DATA_TYPE_SMALLINT, 8, SHORT_BYTES, "SMALLINT", INT16_MIN, INT16_MAX, tsCompressSmallint,

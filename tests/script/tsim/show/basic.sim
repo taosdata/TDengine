@@ -254,5 +254,7 @@ if $rows <= 0 then
   return -1
 endi
 
+system taos -P7100 -d db -s " show create table db.t0"
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
