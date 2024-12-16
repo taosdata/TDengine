@@ -26,11 +26,12 @@ pip3 install taos-ws-py
 ## Superset 中配置 TDengine 连接
 
 第1步，进入新建数据库连接页面 Superset -> Setting-> Database Connections -> +DATABASE   
-第2步，选择 TDengine 数据库连接。`SUPPORTED DATABASES` 下拉列表中选择 `TDengine` 项，若下拉列表中无 `TDengine` 项，请检查安装顺序，确保 `TDengine  Python 连接器` 在 `Superset` 安装之后再安装。  
-第3步，`DISPLAY NAME` 中填写连接名称，任意填写即可。   
-第4步，`SQLALCHEMY URL` 项为关键连接信息串，务必填写正确。   
+第2步，选择 TDengine 数据库连接。"SUPPORTED DATABASES" 下拉列表中选择 "TDengine" 项。  
+- 若下拉列表中无 "TDengine" 项，请检查安装顺序，确保 `TDengine Python 连接器` 在 `Superset` 安装之后再安装。  
+第3步，"DISPLAY NAME" 中填写连接名称，任意填写即可。   
+第4步，"SQLALCHEMY URL" 项为关键连接信息串，务必填写正确。   
 ```bash
-连接串格式： taosws://用户名:密码@主机名:端口号
+taosws://用户名:密码@主机名:端口号
 ```
 | 参数名称 | 参数说明                            |
 |:------- |:--------------------------------  |
@@ -40,20 +41,20 @@ pip3 install taos-ws-py
 | 端口号   | 提供 WebSocket 服务的端口，默认：6041 |  
 
 示例：  
-本机安装 TDengine 数据库，WebSocket 服务端口 6041，使用默认用户名密码，连接串为：    
+本机安装 TDengine 数据库，WebSocket 服务端口 6041，使用默认用户名密码，"SQLALCHEMY URL" 应为：
 ```bash
 taosws://root:taosdata@localhost:6041  
 ```
-第5步，配置好连接串，点击 `TEST CONNECTION` 测试连接是否成功，测试通过后点击 `CONNECT` 按钮，完成连接。
+第5步，配置好连接串，点击 “TEST CONNECTION” 测试连接是否成功，测试通过后点击 “CONNECT” 按钮，完成连接。
        
 
 ## 开始使用
 
 TDengine 数据源与其它数据源使用上无差别，这里简单介绍下数据查询：    
-1. Superset 界面点击右上角 “+” 号按钮，选择 `SQL query`, 进入查询界面  
-2. 左上角 DATABASE 下拉列表中选择前面已创建好的 `TDengine` 数据源  
-3. SCHEMA 下拉列表，选择要操作的数据库名（系统库不显示）  
-4. SEE TABLE SCHEMA 选择要操作的超级表名或普通表名（子表不显示）  
+1. Superset 界面点击右上角 “+” 号按钮，选择 “SQL query”, 进入查询界面  
+2. 左上角 “DATABASE” 下拉列表中选择前面已创建好的 “TDengine” 数据源  
+3. “SCHEMA” 下拉列表，选择要操作的数据库名（系统库不显示）  
+4. “SEE TABLE SCHEMA” 选择要操作的超级表名或普通表名（子表不显示）  
 5. 随后会在下方显示选定表的 SCHEMA 信息  
 6. 在 SQL 编辑器区域可输入符合 TDengine 语法的任意 SQL 语句执行
 
@@ -61,10 +62,10 @@ TDengine 数据源与其它数据源使用上无差别，这里简单介绍下�
 
 我们选择 Superset Chart 模板中较流行的两个模板做了效果展示，以智能电表数据为例：  
 
-第一个为 Aggregate 类型，展示在第 4 组中指定时间段内每分钟采集电压值(voltage) 最大值  
+1. Aggregate 类型，展示在第 4 组中指定时间段内每分钟采集电压值(voltage)最大值  
 
 ![superset-demo1](./superset-demo1.jpeg)
 
-第二个为 RAW RECORDS 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值  
+2. RAW RECORDS 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值  
 
 ![superset-demo2](./superset-demo2.jpeg)  

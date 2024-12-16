@@ -11,7 +11,7 @@ Through the Python connector of TDengine, Superset can support TDengine data sou
 
 ## Install Apache Superset
 
-Ensure that Apache Superset v2.1.0 or above is installed. If not, please visit [official website]（https://superset.apache.org/）to install  
+Ensure that Apache Superset v2.1.0 or above is installed. If not, please visit [official website](https://superset.apache.org/) to install  
 
 ## Install TDengine
 
@@ -19,8 +19,8 @@ Both TDengine Enterprise Edition and Community Edition are supported, with versi
 
 ## Install TDengine Python Connector
 
-The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.18 and later, which will be automatically installed in the Superset directory and provide data source services  
-The connection uses the WebSocket protocol, so it is necessary to install the taos ws py component of TDengine separately. The complete installation script is as follows:  
+The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.18 and later, which will be automatically installed in the Superset directory and provide data source services.  
+The connection uses the WebSocket protocol, so it is necessary to install the `taos-ws-py` component of TDengine separately. The complete installation script is as follows:  
 ```bash
 pip3 install taospy
 pip3 install taos-ws-py
@@ -28,14 +28,13 @@ pip3 install taos-ws-py
 
 ## Configure TDengine Connection In Superset
 
-Step 1, enter the new database connection page  
-Superset -> Setting-> Database Connections -> +DATABASE   
-Step 2, select TDengine database connection  
-Select the "TDengine" option from the drop-down list of Supported DATABASES. If there is no TDengine option in the drop-down list, please confirm that the steps of installing Superset first and then installing the Python connector are correct  
-Step 3, give the connection a name in the PLAY NAME and fill it in freely  
-Step 4: The SQLALCHEMY URL * field is a key connection information string, and it must be filled in correctly  
+Step 1, enter the new database connection page, Superset -> Setting-> Database Connections -> +DATABASE   
+Step 2, select TDengine database connection, select the "TDengine" option from the drop-down list of "SUPPORTED DATABASES". 
+- If there is no TDengine option in the drop-down list, please confirm that the steps of installing Superset first and then installing the Python connector are correct.  
+Step 3, "DISPLAY NAME" give the connection a name in the PLAY NAME and fill it in freely  
+Step 4: The "SQLALCHEMY URL" field is a key connection information string, and it must be filled in correctly  
 ```bash
-    Connection string format： taosws://user:password@host:port
+taosws://user:password@host:port
 ```
 | Parameter  | Parameter Description |
 |:---------- |:---------             |
@@ -45,20 +44,20 @@ Step 4: The SQLALCHEMY URL * field is a key connection information string, and i
 |port        | The port that provides WebSocket services, default is 6041  |
 
 Example:  
-The TDengine database installed on this machine provides WebSocket service port 6041, using the default username and password, and the connection string is:  
+The TDengine database installed on this machine provides WebSocket service port 6041, using the default username and password, "SQLALCHEMY URL" is:
 ```bash
 taosws://root:taosdata@localhost:6041  
 ```
-Step 5, configure the connection string, click "TEST CONNECTION" to test if the connection can be successful. After passing the test, click the CONNECT button to complete the connection  
+Step 5, configure the connection string, click "TEST CONNECTION" to test if the connection can be successful. After passing the test, click the "CONNECT" button to complete the connection  
        
 
 ## Start
 
 There is no difference in the use of TDengine data source compared to other data sources. Here is a brief introduction to basic data queries:  
-1. Click the "+" button in the upper right corner of the Superset interface, select SQL query, and enter the query interface  
-2. Select the TDengine data source that has been created earlier from the dropdown list in the upper left corner  
-3. Select the name of the database to be operated on from the drop-down list of schema (system libraries are not displayed)  
-4. SEE TABLE Schematic: Select the name of the super table or regular table to be operated on (sub tables are not displayed)  
+1. Click the "+" button in the upper right corner of the Superset interface, select "SQL query", and enter the query interface  
+2. Select the "TDengine" data source that has been created earlier from the dropdown list of "DATABASES" in the upper left corner
+3. Select the name of the database to be operated on from the drop-down list of "SCHEMA" (system libraries are not displayed)  
+4. "SEE TABLE SCHEMA" select the name of the super table or regular table to be operated on (sub tables are not displayed)  
 5. Subsequently, the schema information of the selected table will be displayed in the following area  
 6. In the SQL editor area, any SQL statement that conforms to TDengine syntax can be entered for execution  
 
@@ -66,10 +65,10 @@ There is no difference in the use of TDengine data source compared to other data
 
 We chose two popular templates from the Superset Chart template to showcase their effects, using smart meter data as an example:  
 
-The first type is Aggregate, which displays the maximum voltage value collected per minute during the specified time period in Group 4  
+1. "Aggregate", which displays the maximum voltage value collected per minute during the specified time period in Group 4  
 
 ![superset-demo1](./superset-demo1.jpeg)  
 
-The second type is RAW RECORDS, which displays the collected values of current and voltage during the specified time period in Group 4  
+2. "RAW RECORDS", which displays the collected values of current and voltage during the specified time period in Group 4  
 
 ![superset-demo2](./superset-demo2.jpeg)  
