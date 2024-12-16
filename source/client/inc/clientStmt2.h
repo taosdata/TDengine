@@ -150,6 +150,7 @@ typedef struct {
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
 
+  char         *db;
   int64_t       reqid;
   int32_t       errCode;
   tsem_t        asyncQuerySem;

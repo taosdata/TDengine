@@ -692,7 +692,7 @@ int32_t syncGetArbToken(int64_t rid, char* outToken) {
 
   memset(outToken, 0, TSDB_ARB_TOKEN_SIZE);
   (void)taosThreadMutexLock(&pSyncNode->arbTokenMutex);
-  strncpy(outToken, pSyncNode->arbToken, TSDB_ARB_TOKEN_SIZE);
+  tstrncpy(outToken, pSyncNode->arbToken, TSDB_ARB_TOKEN_SIZE);
   (void)taosThreadMutexUnlock(&pSyncNode->arbTokenMutex);
 
   syncNodeRelease(pSyncNode);
