@@ -116,7 +116,8 @@ _return:
   SCL_RET(code);
 }
 
-int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
+// processType = 0 means all type. 1 means number, 2 means var
+int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_t processType) {
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   if (NULL == pObj) {
     sclError("taosHashInit failed, size:%d", 256);
@@ -137,6 +138,19 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
 
   for (int32_t i = 0; i < nodeList->pNodeList->length; ++i) {
     SValueNode *valueNode = (SValueNode *)cell->pNode;
+
+    if (IS_VAR_DATA_TYPE(valueNode->node.resType.type)){
+      if (processType == 1) {
+        cell = cell->pNext;
+        continue;
+      }
+    } else{
+      if (processType == 2)
+      {
+        cell = cell->pNext;
+        continue;
+      }
+    }
 
     if (valueNode->node.resType.type != type) {
       out.columnData->info.type = type;
@@ -187,6 +201,9 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     cell = cell->pNext;
   }
 
+  if (taosHashGetSize(pObj) == 0) {
+    goto _return;
+  }
   *data = pObj;
 
   colDataDestroy(out.columnData);
@@ -369,12 +386,14 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      int32_t type = vectorGetConvertType(ctx->type.selfType, ctx->type.peerType);
-      if (type == 0) {
-        type = nodeList->node.resType.type;
+      int32_t type = ctx->type.peerType;
+      if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(ctx->type.peerType)){
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, 1));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilterVar, node, ctx->type.selfType, 2));
+      } else {
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, 0));
       }
 
-      SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type));
       param->hashValueType = type;
       param->colAlloced = true;
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
@@ -587,7 +606,6 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
 
   SCL_ERR_JRET(sclInitParam(node->pLeft, &paramList[0], ctx, rowNum));
   if (paramNum > 1) {
-    TSWAP(ctx->type.selfType, ctx->type.peerType);
     SCL_ERR_JRET(sclInitParam(node->pRight, &paramList[1], ctx, rowNum));
   }
 

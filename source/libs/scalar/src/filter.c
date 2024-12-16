@@ -2210,7 +2210,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == OP_TYPE_IN) {
-      FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type));
+      FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
         FLT_ERR_RET(TSDB_CODE_APP_ERROR);
@@ -4767,7 +4767,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    if (node->opType == OP_TYPE_NOT_IN || node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL ||
+    if (node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL ||
         node->opType == OP_TYPE_NOT_EQUAL) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
@@ -4841,7 +4841,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         }
       }
 
-      if (OP_TYPE_IN == node->opType && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {
+      if ((OP_TYPE_IN == node->opType || OP_TYPE_NOT_IN == node->opType) && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {
         fltError("invalid IN operator node, rightType:%d", nodeType(node->pRight));
         stat->code = TSDB_CODE_APP_ERROR;
         return DEAL_RES_ERROR;
@@ -4850,7 +4850,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       SColumnNode *refNode = (SColumnNode *)node->pLeft;
       int32_t      type = refNode->node.resType.type;
       SExprNode   *exprNode = NULL;
-      if (OP_TYPE_IN != node->opType) {
+      if (OP_TYPE_IN != node->opType && OP_TYPE_NOT_IN != node->opType) {
         SValueNode  *valueNode = (SValueNode *)node->pRight;
         if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) &&
             TSDB_DATA_TYPE_UBIGINT == valueNode->node.resType.type && valueNode->datum.u <= INT64_MAX) {
@@ -4869,16 +4869,14 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
           SValueNode *valueNode = (SValueNode *)cell->pNode;
           cell = cell->pNext;
-          if (IS_NUMERIC_TYPE(valueNode->node.resType.type) && IS_NUMERIC_TYPE(type)) {
-            int32_t tmp = vectorGetConvertType(type, valueNode->node.resType.type);
-            if (tmp != 0){
-              type = tmp;
-            }
+          int32_t tmp = vectorGetConvertType(type, valueNode->node.resType.type);
+          if (tmp != 0){
+            type = tmp;
           }
         }
         exprNode->resType.type = type;
       }
-      if (0 != type && type != refNode->node.resType.type) {
+      if ((0 != type && type != refNode->node.resType.type) || OP_TYPE_NOT_IN == node->opType) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
