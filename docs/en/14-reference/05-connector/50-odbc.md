@@ -20,7 +20,7 @@ TDengine ODBC provides both 64-bit and 32-bit drivers. However, the 32-bit versi
 
 ## ODBC Version Compatibility
 
-- Supports all ODBC versions.
+Supports all ODBC versions.
 
 ## Installation
 
@@ -119,37 +119,37 @@ In addition to this, the WebSocket connection method also supports 32-bit applic
 
 ## Version History
 
-| taos_odbc Version | Major Changes                                                                                             |   TDengine Version    |
-| -----------  | --------------------------------------------------------------------------------------------------  | ----------------  |
-|      v1.1.0   | 1. Supports view functionality. <br/>2. Supports VARBINARY/GEOMETRY data types. <br/>3. Supports ODBC 32-bit WebSocket connection method (Enterprise edition only). <br/>4. Supports ODBC data source configuration dialog settings for compatibility adaptation options for industrial software like KingSCADA, Kepware, etc. (Enterprise edition only). | 3.3.3.0 and higher |
-|      v1.0.2   | Supports CP1252 character encoding.                                                                                 | 3.2.3.0 and higher |
-|      v1.0.1   | 1. Supports DSN settings for BI mode, in BI mode TDengine database does not return system database and supertable subtable information. <br/>2. Refactored character set conversion module, improving read and write performance. <br/> 3. Default connection method in ODBC data source configuration dialog changed to "WebSocket". <br/>4. Added "Test Connection" control in ODBC data source configuration dialog. <br/>5. ODBC data source configuration supports Chinese/English interface. |         -          |
-|    v1.0.0.0   | Initial release, supports interacting with Tdengine database to read and write data, refer to the "API Reference" section for details.                                | 3.2.2.0 and higher |
+| taos_odbc Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | TDengine Version   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| v1.1.0            | 1. Supports view functionality. <br/>2. Supports VARBINARY/GEOMETRY data types. <br/>3. Supports ODBC 32-bit WebSocket connection method (Enterprise edition only). <br/>4. Supports ODBC data source configuration dialog settings for compatibility adaptation options for industrial software like KingSCADA, Kepware, etc. (Enterprise edition only).                                                                                                                                          | 3.3.3.0 and higher |
+| v1.0.2            | Supports CP1252 character encoding.                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 3.2.3.0 and higher |
+| v1.0.1            | 1. Supports DSN settings for BI mode, in BI mode TDengine database does not return system database and supertable subtable information. <br/>2. Refactored character set conversion module, improving read and write performance. <br/> 3. Default connection method in ODBC data source configuration dialog changed to "WebSocket". <br/>4. Added "Test Connection" control in ODBC data source configuration dialog. <br/>5. ODBC data source configuration supports Chinese/English interface. | -                  |
+| v1.0.0.0          | Initial release, supports interacting with Tdengine database to read and write data, refer to the "API Reference" section for details.                                                                                                                                                                                                                                                                                                                                                             | 3.2.2.0 and higher |
 
 ## Data Type Mapping
 
 The table below explains how the ODBC connector maps server data types to default SQL and C data types.
 
-| TDengine Type      | SQL Type          | C Type            |
-|--------------------|-------------------|-------------------|
-| TIMESTAMP          | SQL_TYPE_TIMESTAMP| SQL_C_TIMESTAMP   |
-| INT                | SQL_INTEGER       | SQL_C_SLONG       |
-| INT UNSIGNED       | SQL_INTEGER       | SQL_C_ULONG       |
-| BIGINT             | SQL_BIGINT        | SQL_C_SBIGINT     |
-| BIGINT UNSIGNED    | SQL_BIGINT        | SQL_C_UBIGINT     |
-| FLOAT              | SQL_REAL          | SQL_C_FLOAT       |
-| DOUBLE             | SQL_REAL          | SQL_C_DOUBLE      |
-| BINARY             | SQL_BINARY        | SQL_C_BINARY      |
-| SMALLINT           | SQL_SMALLINT      | SQL_C_SSHORT      |
-| SMALLINT UNSIGNED  | SQL_SMALLINT      | SQL_C_USHORT      |
-| TINYINT            | SQL_TINYINT       | SQL_C_STINYINT    |
-| TINYINT UNSIGNED   | SQL_TINYINT       | SQL_C_UTINYINT    |
-| BOOL               | SQL_BIT           | SQL_C_BIT         |
-| NCHAR              | SQL_VARCHAR       | SQL_C_CHAR        |
-| JSON               | SQL_VARCHAR       | SQL_C_CHAR        |
-| VARCHAR            | SQL_VARCHAR       | SQL_C_CHAR        |
-| GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
-| VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
+| TDengine Type     | SQL Type           | C Type          |
+| ----------------- | ------------------ | --------------- |
+| TIMESTAMP         | SQL_TYPE_TIMESTAMP | SQL_C_TIMESTAMP |
+| INT               | SQL_INTEGER        | SQL_C_SLONG     |
+| INT UNSIGNED      | SQL_INTEGER        | SQL_C_ULONG     |
+| BIGINT            | SQL_BIGINT         | SQL_C_SBIGINT   |
+| BIGINT UNSIGNED   | SQL_BIGINT         | SQL_C_UBIGINT   |
+| FLOAT             | SQL_REAL           | SQL_C_FLOAT     |
+| DOUBLE            | SQL_REAL           | SQL_C_DOUBLE    |
+| BINARY            | SQL_BINARY         | SQL_C_BINARY    |
+| SMALLINT          | SQL_SMALLINT       | SQL_C_SSHORT    |
+| SMALLINT UNSIGNED | SQL_SMALLINT       | SQL_C_USHORT    |
+| TINYINT           | SQL_TINYINT        | SQL_C_STINYINT  |
+| TINYINT UNSIGNED  | SQL_TINYINT        | SQL_C_UTINYINT  |
+| BOOL              | SQL_BIT            | SQL_C_BIT       |
+| NCHAR             | SQL_VARCHAR        | SQL_C_CHAR      |
+| JSON              | SQL_VARCHAR        | SQL_C_CHAR      |
+| VARCHAR           | SQL_VARCHAR        | SQL_C_CHAR      |
+| GEOMETRY          | SQL_VARBINARY      | SQL_C_BINARY    |
+| VARBINARY         | SQL_VARBINARY      | SQL_C_BINARY    |
 
 ## API Reference
 
