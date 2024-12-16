@@ -164,7 +164,7 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
     metaReaderClear(&mr);
     return code;
   }
-  strncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
+  tstrncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
   metaReaderClear(&mr);
 
   return 0;
@@ -1328,7 +1328,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
           TAOS_CHECK_GOTO(terrno, NULL, END);
         }
 
-        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize)) {
+        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize, NULL)) {
           TAOS_CHECK_GOTO(terrno, NULL, END);
         }
 

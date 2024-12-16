@@ -267,7 +267,7 @@ bool isSmlColAligned(SSmlHandle *info, int cnt, SSmlKv *kv) {
     goto END;
   }
   // bind data
-  int32_t ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kv, cnt + 1);
+  int32_t ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kv, cnt + 1, info->taos->optionInfo.charsetCxt);
   if (unlikely(ret != TSDB_CODE_SUCCESS)) {
     uDebug("smlBuildCol error, retry");
     goto END;
@@ -411,8 +411,8 @@ int32_t smlParseEndTelnetJsonFormat(SSmlHandle *info, SSmlLineInfo *elements, SS
   int32_t code = 0;
   int32_t lino = 0;
   uDebug("SML:0x%" PRIx64 " %s format true, ts:%" PRId64, info->id, __FUNCTION__ , kvTs->i);
-  SML_CHECK_CODE(smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kvTs, 0));
-  SML_CHECK_CODE(smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kv, 1));
+  SML_CHECK_CODE(smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kvTs, 0, info->taos->optionInfo.charsetCxt));
+  SML_CHECK_CODE(smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kv, 1, info->taos->optionInfo.charsetCxt));
   SML_CHECK_CODE(smlBuildRow(info->currTableDataCtx));
 
 END:
@@ -438,13 +438,13 @@ END:
 int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs) {
   if (info->dataFormat) {
     uDebug("SML:0x%" PRIx64 " %s format true, ts:%" PRId64, info->id, __FUNCTION__, kvTs->i);
-    int32_t ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kvTs, 0);
+    int32_t ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kvTs, 0, info->taos->optionInfo.charsetCxt);
     if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildRow(info->currTableDataCtx);
     }
 
     clearColValArraySml(info->currTableDataCtx->pValues);
-    taosArrayClearP(info->escapedStringList, taosMemoryFree);
+    taosArrayClearP(info->escapedStringList, NULL);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       uError("SML:0x%" PRIx64 " %s smlBuildCol error:%d", info->id, __FUNCTION__, ret);
       return ret;
@@ -1270,7 +1270,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosArrayDestroy(info->valueJsonArray);
 
   taosArrayDestroyEx(info->preLineTagKV, freeSSmlKv);
-  taosArrayDestroyP(info->escapedStringList, taosMemoryFree);
+  taosArrayDestroyP(info->escapedStringList, NULL);
 
   if (!info->dataFormat) {
     for (int i = 0; i < info->lineNum; i++) {
@@ -1486,7 +1486,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
 
     SML_CHECK_CODE(smlBindData(info->pQuery, info->dataFormat, tableData->tags, (*pMeta)->cols, tableData->cols,
                        (*pMeta)->tableMeta, tableData->childTableName, measure, measureLen, info->ttl, info->msgBuf.buf,
-                       info->msgBuf.len));
+                       info->msgBuf.len, info->taos->optionInfo.charsetCxt));
     taosMemoryFreeClear(measure);
     oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, oneTable);
   }
@@ -1536,7 +1536,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
     SML_CHECK_NULL(info->lines);
   }
 
-  taosArrayClearP(info->escapedStringList, taosMemoryFree);
+  taosArrayClearP(info->escapedStringList, NULL);
   if(info->protocol == TSDB_SML_JSON_PROTOCOL)  {
     taosMemoryFreeClear(info->preLine.tags);
   }
