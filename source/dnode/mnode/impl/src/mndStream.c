@@ -301,7 +301,7 @@ static int32_t createSchemaByFields(const SArray *pFields, SSchemaWrapper *pWrap
       pWrapper->pSchema[index].bytes = pField->bytes;
     }
     pWrapper->pSchema[index].colId = index + 1;
-    strcpy(pWrapper->pSchema[index].name, pField->name);
+    tstrncpy(pWrapper->pSchema[index].name, pField->name);
     pWrapper->pSchema[index].flags = pField->flags;
     index += 1;
   }

@@ -384,7 +384,7 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq)
   app.appId = pReq->appId;
   app.ip = clientIp;
   app.pid = pReq->pid;
-  (void)strcpy(app.name, pReq->name);
+  tstrncpy(app.name, pReq->name, TSDB_APP_NAME_LEN);
   app.startTime = pReq->startTime;
   (void)memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
   app.lastAccessTimeMs = taosGetTimestampMs();

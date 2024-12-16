@@ -1406,8 +1406,8 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
   const STraceId *trace = &pReq->info.traceId;
   SDCfgDnodeReq   dcfgReq = {0};
   if (strncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
-    strcpy(dcfgReq.config, cfgReq.config);
-    strcpy(dcfgReq.value, cfgReq.value);
+    tstrncpy(dcfgReq.config, cfgReq.config, TSDB_DNODE_CONFIG_LEN);
+    tstrncpy(dcfgReq.value, cfgReq.value, TSDB_DNODE_VALUE_LEN);
     tFreeSMCfgDnodeReq(&cfgReq);
     return mndProcessCreateEncryptKeyReqImpl(pReq, cfgReq.dnodeId, &dcfgReq);
   } else {
