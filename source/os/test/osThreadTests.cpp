@@ -29,37 +29,90 @@
 #include "os.h"
 #include "tlog.h"
 
-static void *funcPtr0(void *param) { return NULL; }
-static void *funcPtr1(void *param) {
-  taosMsleep(1000);
+static int32_t globalVar = 0;
+
+static void *funcPtr100(void *param) {
+  taosMsleep(100);
   return NULL;
 }
 
-TEST(osThreadTests, invalidParameter) {
-  TdThread     tid1 = {0};
-  TdThread     tid2 = {0};
-  int32_t      reti = 0;
-  TdThreadAttr attr = {0};
-  TdThreadAttr attr2 = {0};
-  int32_t      param = 0;
-  (void)taosThreadAttrInit(&attr);
+static void *funcPtr500(void *param) {
+  taosMsleep(500);
+  return NULL;
+}
 
-  reti = taosThreadCreate(NULL, NULL, funcPtr0, NULL);
+static void *funcPtrExit1(void *param) {
+  taosThreadExit(NULL);
+  return NULL;
+}
+
+static void *funcPtrExit2(void *param) {
+  taosThreadExit(&globalVar);
+  return NULL;
+}
+
+static void funcPtrKey(void *param) { taosMsleep(100); }
+
+TEST(osThreadTests, thread) {
+  TdThread tid1 = {0};
+  TdThread tid2 = {0};
+  int32_t  reti = 0;
+
+  reti = taosThreadCreate(NULL, NULL, funcPtr100, NULL);
   EXPECT_NE(reti, 0);
   reti = taosThreadCreate(&tid1, NULL, NULL, NULL);
   EXPECT_NE(reti, 0);
-  reti = taosThreadCreate(&tid1, NULL, funcPtr1, NULL);
+  reti = taosThreadCreate(&tid1, NULL, funcPtr100, NULL);
   EXPECT_EQ(reti, 0);
   reti = taosThreadCancel(tid1);
+
   EXPECT_EQ(reti, 0);
-  reti = taosThreadCreate(&tid2, NULL, funcPtr0, NULL);
+  reti = taosThreadCreate(&tid2, NULL, funcPtr500, NULL);
   EXPECT_EQ(reti, 0);
   taosMsleep(1000);
   reti = taosThreadCancel(tid2);
   EXPECT_EQ(reti, 0);
 
+  taosThreadDetach(tid1);
+  reti = taosThreadCreate(&tid2, NULL, funcPtr500, NULL);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadDetach(tid2);
+
+  reti = taosThreadEqual(tid1, tid2);
+  EXPECT_NE(reti, 0);
+
+  reti = taosThreadCreate(&tid2, NULL, funcPtrExit1, NULL);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadCreate(&tid2, NULL, funcPtrExit2, NULL);
+  EXPECT_EQ(reti, 0);
+
+  reti = taosThreadCreate(&tid2, NULL, funcPtr500, NULL);
+  EXPECT_EQ(reti, 0);
+  taosThreadKill(tid2, SIGINT);
+
+  int32_t            policy;
+  struct sched_param param;
+  taosThreadGetSchedParam(tid2, &policy, &param);
+  taosThreadGetSchedParam(tid2, NULL, &param);
+  taosThreadGetSchedParam(tid2, &policy, NULL);
+
+  TdThreadKey key;
+  taosThreadKeyCreate(&key, funcPtrKey);
+  taosThreadGetSpecific(key);
+  taosThreadKeyDelete(key);
+}
+
+TEST(osThreadTests, attr) {
+  int32_t      reti = 0;
+  TdThreadAttr attr = {0};
+  int32_t      param = 0;
+
+  reti = taosThreadAttrInit(NULL);
+  EXPECT_NE(reti, 0);
   reti = taosThreadAttrDestroy(NULL);
   EXPECT_NE(reti, 0);
+
+  (void)taosThreadAttrInit(&attr);
 
   reti = taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_JOINABLE);
   EXPECT_EQ(reti, 0);
@@ -141,21 +194,22 @@ TEST(osThreadTests, invalidParameter) {
   EXPECT_NE(reti, 0);
   reti = taosThreadAttrGetStackSize(&attr, NULL);
   EXPECT_NE(reti, 0);
+}
 
-  reti = taosThreadAttrInit(NULL);
-  EXPECT_NE(reti, 0);
+TEST(osThreadTests, cond) {
+  int32_t reti = 0;
 
-  reti = taosThreadCondDestroy(NULL);
-  EXPECT_NE(reti, 0);
   reti = taosThreadCondInit(NULL, NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadCondDestroy(NULL);
   EXPECT_NE(reti, 0);
   reti = taosThreadCondSignal(NULL);
   EXPECT_NE(reti, 0);
   reti = taosThreadCondBroadcast(NULL);
   EXPECT_NE(reti, 0);
 
-  TdThreadCond  cond;
-  TdThreadMutex mutex;
+  TdThreadCond  cond{0};
+  TdThreadMutex mutex = {0};
   reti = taosThreadCondWait(&cond, NULL);
   EXPECT_NE(reti, 0);
   reti = taosThreadCondWait(NULL, &mutex);
@@ -169,7 +223,7 @@ TEST(osThreadTests, invalidParameter) {
   reti = taosThreadCondTimedWait(&cond, &mutex, NULL);
   EXPECT_NE(reti, 0);
 
-  TdThreadCondAttr condattr;
+  TdThreadCondAttr condattr = {0};
   (void)taosThreadCondAttrInit(&condattr);
   reti = taosThreadCondAttrInit(NULL);
   EXPECT_NE(reti, 0);
@@ -191,4 +245,36 @@ TEST(osThreadTests, invalidParameter) {
   EXPECT_NE(reti, 0);
   reti = taosThreadCondAttrDestroy(&condattr);
   EXPECT_EQ(reti, 0);
+}
+
+TEST(osThreadTests, spinlock) {
+  int32_t reti = 0;
+
+  TdThreadSpinlock lock = {0};
+  reti = taosThreadSpinInit(&lock, -1);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinLock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinTrylock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinUnlock(&lock);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinDestroy(&lock);
+  EXPECT_NE(reti, 0);
+
+  reti = taosThreadSpinInit(NULL, 0);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinLock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinTrylock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinUnlock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadSpinDestroy(NULL);
+  EXPECT_NE(reti, 0);
+}
+
+TEST(osThreadTests, others) {
+  taosThreadTestCancel();
+  taosThreadClear(NULL);
 }
