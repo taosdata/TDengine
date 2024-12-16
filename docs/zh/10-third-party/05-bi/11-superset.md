@@ -33,8 +33,8 @@ pip3 install taos-ws-py
 ```bash
 taosws://用户名:密码@主机名:端口号
 ```
-| 参数名称 | 参数说明 |
-|:------- |:-------------------------------- :|
+| 参数名称 | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;参数说明 |
+|:------- |:--------------------------------  |
 | 用户名   | 登录 TDengine 数据库用户名           |  
 | 密码     | 登录 TDengine 数据库密码            |
 | 主机名   | TDengine 数据库所在主机名称          |

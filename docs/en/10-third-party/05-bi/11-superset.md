@@ -36,7 +36,7 @@ Step 4: The "SQLALCHEMY URL" field is a key connection information string, and i
 ```bash
 taosws://user:password@host:port
 ```
-| Parameter  | <div align=center>Parameter Description</div> |
+| Parameter  | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Parameter Description |
 |:---------- |:---------------------------------------------------------   |
 |user        | Username for logging into TDengine database                 |   
 |password    | Password for logging into TDengine database                 |
