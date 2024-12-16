@@ -291,7 +291,7 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info) {
 
     if (pStream->status != STREAM_STATUS__PAUSE) {
       SMPauseStreamReq reqPause = {0};
-      strcpy(reqPause.name, pStream->name);
+      tstrncpy(reqPause.name, pStream->name, TSDB_STREAM_FNAME_LEN);
       reqPause.igNotExists = 1;
 
       int32_t contLen = tSerializeSMPauseStreamReq(NULL, 0, &reqPause);

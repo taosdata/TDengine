@@ -1381,7 +1381,7 @@ _OVER:
 }
 
 static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
-  (void)strcpy(cfgRsp->db, pDb->name);
+  tstrncpy(cfgRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
   cfgRsp->dbId = pDb->uid;
   cfgRsp->cfgVersion = pDb->cfgVersion;
   cfgRsp->numOfVgroups = pDb->cfg.numOfVgroups;

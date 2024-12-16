@@ -1077,7 +1077,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         char buf1[20] = {0};
         char role[20] = "offline";
         if (!exist) {
-          strcpy(role, "dropping");
+          tstrncpy(role, "dropping", 20);
         } else if (online) {
           char *star = "";
           if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER ||

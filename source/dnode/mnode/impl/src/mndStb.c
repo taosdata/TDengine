@@ -3157,7 +3157,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       }
 
       tstrncpy(indexRsp.dbFName, pStbVersion->dbFName, TSDB_DB_FNAME_LEN);
-      tstrncpy(indexRsp.tbName, pStbVersion->stbName);
+      tstrncpy(indexRsp.tbName, pStbVersion->stbName, TSDB_TABLE_NAME_LEN);
 
       if (taosArrayPush(hbRsp.pIndexRsp, &indexRsp) == NULL) {
         code = terrno;

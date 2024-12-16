@@ -857,28 +857,28 @@ int32_t mndResetChkptReportInfo(SHashObj* pHash, int64_t streamId) {
 static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
   int8_t status = atomic_load_8(&pStream->status);
   if (status == STREAM_STATUS__NORMAL) {
-    strcpy(dst, "ready");
+    tstrncpy(dst, "ready", 20);
   } else if (status == STREAM_STATUS__STOP) {
-    strcpy(dst, "stop");
+    tstrncpy(dst, "stop", 20);
   } else if (status == STREAM_STATUS__FAILED) {
-    strcpy(dst, "failed");
+    tstrncpy(dst, "failed", 20);
   } else if (status == STREAM_STATUS__RECOVER) {
-    strcpy(dst, "recover");
+    tstrncpy(dst, "recover", 20);
   } else if (status == STREAM_STATUS__PAUSE) {
-    strcpy(dst, "paused");
+    tstrncpy(dst, "paused", 20);
   }
 }
 
 static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
   int8_t trigger = pStream->conf.trigger;
   if (trigger == STREAM_TRIGGER_AT_ONCE) {
-    strcpy(dst, "at once");
+    tstrncpy(dst, "at once", 20);
   } else if (trigger == STREAM_TRIGGER_WINDOW_CLOSE) {
-    strcpy(dst, "window close");
+    tstrncpy(dst, "window close", 20);
   } else if (trigger == STREAM_TRIGGER_MAX_DELAY) {
-    strcpy(dst, "max delay");
+    tstrncpy(dst, "max delay", 20);
   } else if (trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-    strcpy(dst, "force window close");
+    tstrncpy(dst, "force window close", 20);
   }
 }
 
@@ -1027,7 +1027,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
 
   // history scan idle
   char scanHistoryIdle[20 + VARSTR_HEADER_SIZE] = {0};
-  strcpy(scanHistoryIdle, "100a");
+  tstrncpy(scanHistoryIdle, "100a", 20 + VARSTR_HEADER_SIZE);
 
   memset(dstStr, 0, tListLen(dstStr));
   STR_TO_VARSTR(dstStr, scanHistoryIdle)

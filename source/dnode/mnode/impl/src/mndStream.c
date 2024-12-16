@@ -417,7 +417,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
         pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
         pFullSchema[i].colId = i + 1;  // pObj->outputSchema.pSchema[dataIndex].colId;
         pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
-        strcpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name);
+        tstrncpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name, TSDB_COL_NAME_LEN);
         pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
         dataIndex++;
       } else {
@@ -435,7 +435,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
           pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
           pFullSchema[i].colId = i + 1;  // pObj->outputSchema.pSchema[dataIndex].colId;
           pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
-          strcpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name);
+          tstrncpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name, TSDB_COL_NAME_LEN);
           pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
           dataIndex++;
         } else {
@@ -637,7 +637,7 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     SField *pField = taosArrayGet(createReq.pTags, 0);
     TSDB_CHECK_NULL(pField, code, lino, _OVER, terrno);
 
-    strcpy(pField->name, "group_id");
+    tstrncpy(pField->name, "group_id", TSDB_COL_NAME_LEN);
     pField->type = TSDB_DATA_TYPE_UBIGINT;
     pField->flags = 0;
     pField->bytes = 8;
