@@ -1050,7 +1050,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t tsdbCacheNewTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWrapper *pSchemaRow) {
+int32_t tsdbCacheNewTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, const SSchemaWrapper *pSchemaRow) {
   int32_t code = 0;
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
