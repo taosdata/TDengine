@@ -1261,12 +1261,7 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   SColumnInfoData *pRightCol = NULL;
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
-
-  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pRight))) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pLeft))) ||
-      (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BOOL) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP &&
-       GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BOOL)) {  // timestamp plus duration
+  if(checkOperatorRestypeIsTimestamp(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight))) {  // timestamp plus duration
     int64_t             *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft;
     _getBigintValue_fn_t getVectorBigintValueFnRight;
@@ -1398,11 +1393,7 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
- if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pRight))) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pLeft))) ||
-      (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BOOL) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP &&
-       GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BOOL)) { // timestamp minus duration
+ if (checkOperatorRestypeIsTimestamp(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight))) { // timestamp minus duration
     int64_t             *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft;
     _getBigintValue_fn_t getVectorBigintValueFnRight;
@@ -2304,4 +2295,14 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
     default:
       return NULL;
   }
+}
+
+bool checkOperatorRestypeIsTimestamp(int32_t lType, int32_t rType) {
+  if ((TSDB_DATA_TYPE_TIMESTAMP == lType && IS_INTEGER_TYPE(rType) && rType != TSDB_DATA_TYPE_UBIGINT) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rType && IS_INTEGER_TYPE(lType) && lType != TSDB_DATA_TYPE_UBIGINT) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_BOOL == rType) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rType && TSDB_DATA_TYPE_BOOL == lType)) {
+    return true;
+  }
+  return false;
 }

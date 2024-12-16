@@ -1693,10 +1693,7 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && IS_INTEGER_TYPE(rdt.type)) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && IS_INTEGER_TYPE(ldt.type)) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_BOOL == rdt.type) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && TSDB_DATA_TYPE_BOOL == ldt.type)) {
+  if (checkOperatorRestypeIsTimestamp(ldt.type, rdt.type)) {
     pOp->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
   } else {
