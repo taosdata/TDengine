@@ -68,13 +68,13 @@ class TDTestCase:
         for symbol in self.symbol:
             for param in self.error_values:
                 tdSql.error(f'select now() {symbol}{param} from {tbname}')
-            for param in self.test_values:
-                tdSql.query(f'select now() {symbol}{param} from {tbname}')
-                tdSql.query(f'select 1 {symbol}{param} from {tbname}')
             tdSql.query(f'select now(){symbol}null from {tbname}')
             self.tbtype_check(tb_type)
             for i in range(len(self.values_list)):
                 tdSql.checkData(i,0,None)
+            for param in self.test_values:
+                tdSql.query(f'select now() {symbol}{param} from {tbname}')
+                tdSql.query(f'select 1 {symbol}{param} from {tbname}')
 
     def now_check_ntb(self):
         for time_unit in self.db_percision:
