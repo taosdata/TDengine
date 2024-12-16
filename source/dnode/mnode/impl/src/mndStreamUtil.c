@@ -1377,8 +1377,8 @@ int32_t mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, cons
     return TSDB_CODE_INVALID_PARA;
   }
 
-  pInfo->pUpdateNodeList = taosArrayInit(4, sizeof(SNodeUpdateInfo)),
-      pInfo->pDBMap = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+  pInfo->pUpdateNodeList = taosArrayInit(4, sizeof(SNodeUpdateInfo));
+  pInfo->pDBMap = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
 
   if (pInfo->pUpdateNodeList == NULL || pInfo->pDBMap == NULL) {
     mndDestroyVgroupChangeInfo(pInfo);

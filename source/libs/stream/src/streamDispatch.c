@@ -1872,6 +1872,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     }
   }
 
+#if 0
+    // inject errors, and always refuse the upstream dispatch msg and trigger the task nodeEpset update trans.
+    status = TASK_INPUT_STATUS__REFUSED;
+#endif
+
   {
     // do send response with the input status
     int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
