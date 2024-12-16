@@ -3776,7 +3776,7 @@ mod tests {
             .filter_level(log::LevelFilter::Debug)
             .try_init();
         // prepare
-        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let taos = TaosBuilder::from_dsn("taos+ws:///")?.build().await?;
         taos.exec_many([
             "drop database if exists `x-sync-2`",
             "create database `x-sync-2`",
