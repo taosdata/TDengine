@@ -189,6 +189,8 @@ import {
   generateFormInitData,
   getDsnData,
   NoNeedAgentType,
+  getAdvancedHealth,
+  advancedField
 } from "../utils";
 import BlockHeader from "../components/blockHeader.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
@@ -574,7 +576,9 @@ export default {
               `cluster-id::${id}`,
               `user::${localStorage.getItem("username")}`,
             ],
-            // trigger: { "resume": this.resume }
+            trigger: {  
+              "health": getAdvancedHealth(this.sourceForm.data[advancedField])
+            }
           };
           if (this.sourceForm.agent) {
             params["via"] = this.sourceForm.agent;
