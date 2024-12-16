@@ -1574,13 +1574,14 @@ int32_t metaAddIndexToSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
-  if (pEntry->stbEntry.schemaTag.version >= pReq->schemaTag.version) {
-    metaError("vgId:%d, %s failed at %s:%d since table %s tag schema version %d is not less than %d, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pEntry->stbEntry.schemaTag.version,
-              pReq->schemaTag.version, version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
-  }
+  // if (pEntry->stbEntry.schemaTag.version >= pReq->schemaTag.version) {
+  //   metaError("vgId:%d, %s failed at %s:%d since table %s tag schema version %d is not less than %d, version:%"
+  //   PRId64,
+  //             TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pEntry->stbEntry.schemaTag.version,
+  //             pReq->schemaTag.version, version);
+  //   metaFetchEntryFree(&pEntry);
+  //   TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  // }
 
   // do change the entry
   SSchemaWrapper *pOldTagSchema = &pEntry->stbEntry.schemaTag;
@@ -1601,13 +1602,14 @@ int32_t metaAddIndexToSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
-  if (pOldTagSchema->version >= pNewTagSchema->version) {
-    metaError("vgId:%d, %s failed at %s:%d since table %s tag schema version %d is not less than %d, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pOldTagSchema->version,
-              pNewTagSchema->version, version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
-  }
+  // if (pOldTagSchema->version >= pNewTagSchema->version) {
+  //   metaError("vgId:%d, %s failed at %s:%d since table %s tag schema version %d is not less than %d, version:%"
+  //   PRId64,
+  //             TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pOldTagSchema->version,
+  //             pNewTagSchema->version, version);
+  //   metaFetchEntryFree(&pEntry);
+  //   TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  // }
 
   int32_t numOfChangedTags = 0;
   for (int32_t i = 0; i < pOldTagSchema->nCols; i++) {
@@ -1670,7 +1672,7 @@ int32_t metaDropIndexFromSuperTable(SMeta *pMeta, int64_t version, SDropIndexReq
   }
 
   SMetaEntry *pEntry = NULL;
-  code = metaFetchEntryByName(pMeta, pReq->stb, &pEntry);
+  code = metaFetchEntryByUid(pMeta, pReq->stbUid, &pEntry);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->stb, version);

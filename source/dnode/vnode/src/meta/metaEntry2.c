@@ -452,13 +452,12 @@ static int32_t metaSchemaTableUpdate(SMeta *pMeta, const SMetaHandleParam *pPara
     }
 
     // check tag schema
-    if (pOldEntry->stbEntry.schemaTag.version != pEntry->stbEntry.schemaTag.version) {
-      code = metaUpdateSuperTableTagSchema(pMeta, pParam);
-      if (code) {
-        metaErr(TD_VID(pMeta->pVnode), code);
-        return code;
-      }
+    code = metaUpdateSuperTableTagSchema(pMeta, pParam);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
     }
+
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
