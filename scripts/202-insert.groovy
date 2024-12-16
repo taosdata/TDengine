@@ -10,7 +10,6 @@ def sync_source(tdinternal_branch_name, community_branch_name, internal_root) {
     sh '''
         cd ''' + internal_root + '''
         git reset --hard
-        // git clean -dfx
         git clean -f
         git fetch || git fetch
         git checkout ''' + tdinternal_branch_name + ''' -f
@@ -36,7 +35,7 @@ def sync_source(tdinternal_branch_name, community_branch_name, internal_root) {
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
         [ -e release ] && rm -rf release/*.tar.gz > /dev/null
         git reset --hard
-        git clean -dfx
+        git clean -f
         git fetch || git fetch
         git checkout ''' + community_branch_name + ''' -f
         git branch
