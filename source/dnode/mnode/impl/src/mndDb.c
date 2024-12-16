@@ -889,19 +889,19 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static void mndBuildAuditDetailInt32(char *detail, char *tmp, char *format, int32_t para) {
+static void mndBuildAuditDetailInt32(char *detail, int detailLen, char *tmp, char *format, int32_t para) {
   if (para > 0) {
-    if (strlen(detail) > 0) (void)strcat(detail, ", ");
+    if (strlen(detail) > 0) (void)strncat(detail, ", ", detailLen);
     (void)sprintf(tmp, format, para);
-    (void)strcat(detail, tmp);
+    (void)strncat(detail, tmp, detailLen);
   }
 }
 
-static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int64_t para) {
+static void mndBuildAuditDetailInt64(char *detail, int detailLen, char *tmp, char *format, int64_t para) {
   if (para > 0) {
-    if (strlen(detail) > 0) (void)strcat(detail, ", ");
+    if (strlen(detail) > 0) (void)strncat(detail, ", ", detailLen);
     (void)sprintf(tmp, format, para);
-    (void)strcat(detail, tmp);
+    (void)strncat(detail, tmp, detailLen);
   }
 }
 

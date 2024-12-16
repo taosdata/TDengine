@@ -1053,18 +1053,18 @@ _OVER:
 
 static void getSlowLogScopeString(int32_t scope, char *result) {
   if (scope == SLOW_LOG_TYPE_NULL) {
-    (void)strcat(result, "NONE");
+    (void)strncat(result, "NONE", 64);
     return;
   }
   while (scope > 0) {
     if (scope & SLOW_LOG_TYPE_QUERY) {
-      (void)strcat(result, "QUERY");
+      (void)strncat(result, "QUERY", 64);
       scope &= ~SLOW_LOG_TYPE_QUERY;
     } else if (scope & SLOW_LOG_TYPE_INSERT) {
-      (void)strcat(result, "INSERT");
+      (void)strncat(result, "INSERT", 64);
       scope &= ~SLOW_LOG_TYPE_INSERT;
     } else if (scope & SLOW_LOG_TYPE_OTHERS) {
-      (void)strcat(result, "OTHERS");
+      (void)strncat(result, "OTHERS", 64);
       scope &= ~SLOW_LOG_TYPE_OTHERS;
     } else {
       (void)printf("invalid slow log scope:%d", scope);
@@ -1072,7 +1072,7 @@ static void getSlowLogScopeString(int32_t scope, char *result) {
     }
 
     if (scope > 0) {
-      (void)strcat(result, "|");
+      (void)strncat(result, "|", 64);
     }
   }
 }
