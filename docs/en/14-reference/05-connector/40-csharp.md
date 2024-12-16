@@ -6,7 +6,7 @@ slug: /tdengine-reference/client-libraries/csharp
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import RequestId from "./_request_id.mdx";
+import RequestId from "../../assets/resources/_request_id.mdx";
 
 `TDengine.Connector` is the C# language connector provided by TDengine. C# developers can use it to develop C# applications that access data in the TDengine cluster.
 
