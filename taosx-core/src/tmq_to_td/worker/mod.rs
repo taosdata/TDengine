@@ -1325,8 +1325,8 @@ pub async fn get_stable_name(
         let regex = regex::Regex::new(r"`\sUSING\s`(.+?)`\s").unwrap();
         for cap in regex.captures_iter(&sql_create_table) {
             let cap_str = cap.get(1);
-            if cap_str.is_some() {
-                return Ok(Some(cap_str.unwrap().as_str().to_string()));
+            if let Some(cap_str) = cap_str {
+                return Ok(Some(cap_str.as_str().to_string()));
             }
         }
         Ok(None)

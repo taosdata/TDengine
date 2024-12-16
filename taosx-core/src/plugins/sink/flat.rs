@@ -250,7 +250,7 @@ async fn write_stable_with_sql(
     }
 }
 
-fn cache_table_name(table_names: &Vec<String>) {
+fn cache_table_name(table_names: &[String]) {
     if table_names.is_empty() {
         return;
     }
@@ -261,7 +261,7 @@ fn cache_table_name(table_names: &Vec<String>) {
         });
         scc::HashSet::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
     });
-    table_names.into_iter().for_each(|table| {
+    table_names.iter().for_each(|table| {
         let _ = table_existed.insert(table.clone());
     });
 }

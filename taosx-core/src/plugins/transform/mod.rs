@@ -2327,11 +2327,11 @@ mod parser_tests {
                     );
                     assert_eq!(sql[0].1, 1);
                 } else {
-                    assert!(false);
+                    panic!("unknown table");
                 }
             }
         } else {
-            assert!(false);
+            panic!("not parsed as records");
         }
     }
 }

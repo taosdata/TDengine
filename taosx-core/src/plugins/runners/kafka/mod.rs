@@ -459,7 +459,7 @@ async fn execute(
         if unsafe { crate::global::DRY_RUN } {
             consumers.spawn_blocking(move || {
                 let _entered = ack_span.entered();
-                while let Ok(_) = rx.recv() {
+                while rx.recv().is_ok() {
                     if let Err(err) = ack_tx.send(LushAck::ok()) {
                         tracing::error!("Kafka ack send error: {err:#}");
                         break;
