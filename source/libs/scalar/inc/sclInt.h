@@ -149,7 +149,7 @@ int32_t vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarPara
                           int32_t _ord, int32_t optr);
 int32_t vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr);
 
-bool checkOperatorRestypeIsTimestamp(int32_t ldt, int32_t rdt);
+bool checkOperatorRestypeIsTimestamp(EOperatorType opType, int32_t ldt, int32_t rdt);
 
 #ifdef __cplusplus
 }
