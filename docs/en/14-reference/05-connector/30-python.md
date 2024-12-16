@@ -8,55 +8,71 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "../../assets/resources/_request_id.mdx";
 
-`taospy` is the official Python connector for TDengine. `taospy` provides a rich API, making it convenient for Python applications to use TDengine.
+`taopsy` is the official connector provided by TDengine database for Python language, which provides multiple access interfaces for database writing, querying, subscribing, etc.
 
-The source code for the Python connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
+The installation command is as follows:
+``` bash
+# Native connection and REST connection
+pip3 install taospy
+
+# WebSocket connection, optional installation
+pip3 install taos-ws-py
+```
+
+The connector code is open sourced and hosted on Github [Taos Connector Python](https://github.com/taosdata/taos-connector-python).
 
 ## Connection Methods
 
-`taospy` mainly provides three types of connectors. We generally recommend using **WebSocket Connection**.
+`taopsy` provides three connection methods, and we recommend using WebSocket connection.
 
-- **Native Connection**, corresponding to the `taos` module of the `taospy` package. Connects to a TDengine instance natively through the TDengine client driver (taosc), supporting data writing, querying, data subscription, schemaless interface, and parameter binding interface.
-- **REST Connection**, corresponding to the `taosrest` module of the `taospy` package. Connects to a TDengine instance through the HTTP interface provided by taosAdapter, does not support schemaless and data subscription features.
-- **WebSocket Connection**, corresponding to the `taos-ws-py` package, which is optional. Connects to a TDengine instance through the WebSocket interface provided by taosAdapter, with a feature set slightly different from the native connection.
+- **Native Connection**, Python connector loads TDengine client driver (libtaos.so/taos.dll), directly connects to TDengine instance, with high performance and fast speed.
+ Functionally, it supports functions such as data writing, querying, data subscription, schemaless interface, and parameter binding interface.
+- **REST Connection**, The Python connector connects to the TDengine instance through the HTTP interface provided by the taosAdapter, with minimal dependencies and no need to install the TDengine client driver.
+ Functionality does not support features such as schemaless and data subscription.
+- **WebSocket Connection**, The Python connector connects to the TDengine instance through the WebSocket interface provided by the taosAdapter, which combines the advantages of the first two types of connections, namely high performance and low dependency.
+ In terms of functionality, there are slight differences between the WebSocket connection implementation feature set and native connections.
 
-For a detailed introduction to connection methods, please refer to: [Connection Methods](../../../developer-guide/connecting-to-tdengine/)
+For a detailed introduction of the connection method, please refer to: [Connection Method](../../../developer-guide/connecting-to-tdengine/)
 
-In addition to encapsulating the native and REST interfaces, `taospy` also provides a programming interface compliant with [Python Data Access Standard (PEP 249)](https://peps.python.org/pep-0249/). This makes `taospy` easily integrated with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
+In addition to encapsulating Native and REST interfaces, `taopsy` also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
+This makes it easy to integrate `taopsy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
-The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "Native Connection"; the method of establishing a connection with the server using the REST interface or WebSocket interface provided by taosAdapter is referred to as "REST Connection" or "WebSocket Connection".
+The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "Native Connection" in the following text;
+The method of establishing a connection with the server using the REST interface or WebSocket interface provided by the taosAdapter is referred to as a "REST Connection" or "WebSocket connection" in the following text.
+
+## Python Version Compatibility
+
+Supports Python 3.0 and above.
 
 ## Supported Platforms
 
-- Native Connection [Supported Platforms](../../supported-platforms/) are consistent with the platforms supported by the TDengine client.
-- REST Connection supports all platforms that can run Python.
+-The platforms supported by native connections are consistent with those supported by the TDengine client driver.
+-WebSocket/REST connections support all platforms that can run Python.
 
-### Supported Features
+## Versions History
 
-- Native Connection supports all core features of TDengine, including: connection management, executing SQL, parameter binding, subscription, schemaless writing.
-- REST Connection supports features including: connection management, executing SQL. (Through executing SQL, you can: manage databases, manage tables and supertables, write data, query data, create continuous queries, etc.)
+Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
 
-## Version History
+|Python Connector Version | Major Changes                                                                           | TDengine Version|
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|2.7.18 | Support Apache SuperSet BI Tools.                                                                          | - |
+|2.7.16 | Add subscription configuration (session. timeout. ms, Max. roll. interval. ms).                            | - |
+|2.7.15 | Added support for VARBINRY and GEOMETRY types.                                                             | - |
+|2.7.14 | Fix Known Issues.                                                                                          | - |
+|2.7.13 | Added tmq synchronous submission offset interface.                                                         | - |
+|2.7.12 | 1. Added support for varbinary type (STMT currently does not support varbinary). <br/> 2 Query performance improvement (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209) ). | 3.1.1.2 and higher|
+|2.7.9  | Data subscription supports obtaining and resetting consumption progress.                                    | 3.0.2.6 and higher|
+|2.7.8  | Added 'executioner_many'.                                                                                   | 3.0.0.0 and higher|
 
-Regardless of the version of TDengine used, it is recommended to use the latest version of `taospy`.
+WebSocket Connector Historical Versions:
 
-|Python Connector Version|Main Changes|
-|:-------------------:|:----:|
-|2.7.16|Added subscription configuration (session.timeout.ms, max.poll.interval.ms)|
-|2.7.15|Added support for VARBINARY and GEOMETRY types|
-|2.7.14|Fixed known issues|
-|2.7.13|Added tmq synchronous commit offset interface|
-|2.7.12|1. Added support for varbinary type (STMT does not support varbinary yet) <br/> 2. Improved query performance (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209))|
-|2.7.9|Data subscription supports obtaining consumption progress and resetting consumption progress|
-|2.7.8|Added `execute_many`|
-
-|Python WebSocket Connector Version|Major Changes|
-|:----------------------------:|:-----:|
-|0.3.5|Added support for VARBINARY and GEOMETRY types, fixed known issues|
-|0.3.2|Optimized WebSocket SQL query and insertion performance, updated readme and documentation, fixed known issues|
-|0.2.9|Fixed known issues|
-|0.2.5|1. Data subscription supports obtaining and resetting consumption progress <br/> 2. Supports schemaless <br/> 3. Supports STMT|
-|0.2.4|Data subscription adds unsubscribe method|
+|WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
+| ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.3.5 | Added support for VARBINARY and GEOMETRY types, fixed known issues.                                                     | 3.3.0.0 and higher|
+|0.3.2 | Optimize WebSocket SQL query and insertion performance, modify readme and documentation, fix known issues.              | 3.2.3.0 and higher|
+|0.2.9 | Known issue fixes.                                                                                                      | - |
+|0.2.5 | 1. Data subscription supports obtaining and resetting consumption progress. <br/>2 Support schemaless. <br/>3 Support STMT. | - |
+|0.2.4 | Data Subscription Addition/Unsubscribe Method.                                                                          | 3.0.5.0 and higher|
 
 ## Exception Handling
 
@@ -69,7 +85,7 @@ The Python connector may generate 4 types of exceptions:
 - For other TDengine module errors, please refer to [Error Codes](../../error-codes/)
 
 |Error Type|Description|Suggested Actions|
-|:--------:|:---------:|:---------------:|
+|:---------|:----------|:----------------|
 |InterfaceError|taosc version too low, does not support the used interface|Please check the TDengine client version|
 |ConnectionError|Database connection error|Please check the TDengine server status and connection parameters|
 |DatabaseError|Database error|Please check the TDengine server version and upgrade the Python connector to the latest version|
@@ -94,7 +110,7 @@ All database operations in the Python Connector, if an exception occurs, will be
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Python type conversions are as follows:
 
 |TDengine DataType|Python DataType|
-|:---------------:|:-------------:|
+|:---------------|:--------------|
 |TIMESTAMP|datetime|
 |INT|int|
 |BIGINT|int|
