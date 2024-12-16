@@ -893,7 +893,7 @@ static void mndCompactPullup(SMnode *pMnode) {
   }
   taosArrayDestroy(pArray);
 }
-
+#ifdef TD_ENTERPRISE
 static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow *tw) {
   if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
     return 0;
@@ -995,6 +995,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   }
   return 0;
 }
+#endif
 
 static int32_t mndProcessCompactTimer(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
