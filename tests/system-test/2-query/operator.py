@@ -288,6 +288,41 @@ class TDTestCase:
             tdSql.checkData(0, 2, 1641024000000)
             tdSql.checkData(0, 3, 1641024000000)
             tdSql.checkData(0, 4, 1641024000002)
+ 
+        tdSql.query(f"SELECT sum(ts + c1), sum(ts+c2) from t2")
+        tdSql.checkData(0, 0, 1641024000002)
+        tdSql.checkData(0, 1, 1641024000002)
+        tdSql.query(f"SELECT sum(ts * c1), sum(ts*c2) from t2")
+        tdSql.checkData(0, 0, 1641024000001)
+        tdSql.checkData(0, 1, 1641024000001)
+        tdSql.query(f"SELECT sum(ts / c1), sum(ts/c2) from t2")
+        tdSql.checkData(0, 0, 1641024000001)
+        tdSql.checkData(0, 1, 1641024000001)
+        tdSql.execute(f"INSERT INTO {self.dbname}.t2(ts, c1, c2) VALUES (1641024000002, 2.0, 2.0);")  
+        tdSql.query(f"SELECT sum(ts + c1), sum(ts+c2) from t2")
+        tdSql.checkData(0, 0, 3282048000006)
+        tdSql.checkData(0, 1, 3282048000006)
+        tdSql.query(f"SELECT sum(ts - c1), sum(ts-c2) from t2")
+        tdSql.checkData(0, 0, 3282048000000)
+        tdSql.checkData(0, 1, 3282048000000)
+        tdSql.query(f"SELECT sum(ts * c1), sum(ts*c2) from t2")
+        tdSql.checkData(0, 0, 4923072000005)
+        tdSql.checkData(0, 1, 4923072000005)
+        tdSql.query(f"SELECT ts / c1, ts/c2 from t2 order by ts")
+        tdSql.checkData(0, 0, 1641024000001)
+        tdSql.checkData(0, 1, 1641024000001)
+        tdSql.checkData(1, 0,  820512000001)
+        tdSql.checkData(1, 1,  820512000001)
+        tdSql.query(f"SELECT sum(ts / c1), sum(ts/c2) from t2")
+        tdSql.checkData(0, 0, 2461536000002)
+        tdSql.checkData(0, 1, 2461536000002)
+        
+        # data overflow
+        tdSql.query(f"SELECT ts + 9223372036854775807 from t2 order by ts")
+        tdSql.query(f"SELECT ts - 9223372036854775808 from t2 order by ts")
+        
+        tdSql.query(f"SELECT ts + 8223372036854775807 from t2 order by ts")
+        tdSql.query(f"SELECT ts - 8223372036854775808 from t2 order by ts")
                
     def run(self):
         dbname = "db"
