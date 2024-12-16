@@ -1686,14 +1686,6 @@ int32_t metaDropIndexFromSuperTable(SMeta *pMeta, int64_t version, SDropIndexReq
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
 
-  if (pReq->stbUid != pEntry->uid) {
-    metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64 " is not equal to %" PRId64
-              ", version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->stb, pEntry->uid, pReq->stbUid, version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
-  }
-
   SSchemaWrapper *pTagSchema = &pEntry->stbEntry.schemaTag;
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     metaError("vgId:%d, %s failed at %s:%d since table %s has no tag, version:%" PRId64, TD_VID(pMeta->pVnode),

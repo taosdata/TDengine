@@ -333,8 +333,7 @@ static int32_t metaAddOrDropTagIndexOfSuperTable(SMeta *pMeta, const SMetaHandle
         return code;
       }
 
-      code = tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, tagIdxKeySize, &pChildEntry->uid, sizeof(pChildEntry->uid),
-                         pMeta->txn);
+      code = tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, tagIdxKeySize, NULL, 0, pMeta->txn);
       if (code) {
         metaErr(TD_VID(pMeta->pVnode), code);
         taosArrayDestroy(childTables);
