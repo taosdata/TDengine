@@ -69,8 +69,8 @@ We chose two popular templates from the Superset Chart template to showcase thei
 
 1. "Aggregate" Type, which displays the maximum voltage value collected per minute during the specified time period in Group 4  
 
-![superset-demo1](./superset-demo1.jpeg)  
+  ![superset-demo1](./superset-demo1.jpeg)  
 
 2. "RAW RECORDS" Type, which displays the collected values of current and voltage during the specified time period in Group 4  
 
-![superset-demo2](./superset-demo2.jpeg)  
+  ![superset-demo2](./superset-demo2.jpeg)  
