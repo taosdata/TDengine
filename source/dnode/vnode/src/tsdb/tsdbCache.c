@@ -1757,34 +1757,31 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   int32_t               code = 0, lino = 0;
   rocksdb_writebatch_t *wb = NULL;
   SArray               *pTmpColArray = NULL;
+  bool                  extraTS = false;
 
   SIdxKey *idxKey = taosArrayGet(remainCols, 0);
   if (idxKey->key.cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
     // ignore 'ts' loaded from cache and load it from tsdb
-    SLastCol *pLastCol = taosArrayGet(pLastArray, 0);
-    tsdbCacheUpdateLastColToNone(pLastCol, TSDB_LAST_CACHE_NO_CACHE);
+    // SLastCol *pLastCol = taosArrayGet(pLastArray, 0);
+    // tsdbCacheUpdateLastColToNone(pLastCol, TSDB_LAST_CACHE_NO_CACHE);
 
     SLastKey *key = &(SLastKey){.lflag = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
     if (!taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key})) {
       TAOS_RETURN(terrno);
     }
+
+    extraTS = true;
   }
 
   int      num_keys = TARRAY_SIZE(remainCols);
   int16_t *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
 
-  int16_t *lastColIds = NULL;
-  int16_t *lastSlotIds = NULL;
-  int16_t *lastrowColIds = NULL;
-  int16_t *lastrowSlotIds = NULL;
+  int16_t *lastColIds = NULL, *lastSlotIds = NULL, *lastrowColIds = NULL, *lastrowSlotIds = NULL;
   lastColIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
   lastSlotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
   lastrowColIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
   lastrowSlotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
-  SArray *lastTmpColArray = NULL;
-  SArray *lastTmpIndexArray = NULL;
-  SArray *lastrowTmpColArray = NULL;
-  SArray *lastrowTmpIndexArray = NULL;
+  SArray *lastTmpColArray = NULL, *lastTmpIndexArray = NULL, *lastrowTmpColArray = NULL, *lastrowTmpIndexArray = NULL;
 
   int lastIndex = 0;
   int lastrowIndex = 0;
@@ -1795,7 +1792,12 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
 
   for (int i = 0; i < num_keys; ++i) {
     SIdxKey *idxKey = taosArrayGet(remainCols, i);
-    slotIds[i] = pr->pSlotIds[idxKey->idx];
+    if (extraTS && !i) {
+      slotIds[i] = 0;
+    } else {
+      slotIds[i] = pr->pSlotIds[idxKey->idx];
+    }
+
     if (IS_LAST_KEY(idxKey->key)) {
       if (NULL == lastTmpIndexArray) {
         lastTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
@@ -1807,7 +1809,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
         TAOS_CHECK_EXIT(terrno);
       }
       lastColIds[lastIndex] = idxKey->key.cid;
-      lastSlotIds[lastIndex] = pr->pSlotIds[idxKey->idx];
+      if (extraTS && !i) {
+        lastSlotIds[lastIndex] = 0;
+      } else {
+        lastSlotIds[lastIndex] = pr->pSlotIds[idxKey->idx];
+      }
       lastIndex++;
     } else {
       if (NULL == lastrowTmpIndexArray) {
@@ -1820,7 +1826,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
         TAOS_CHECK_EXIT(terrno);
       }
       lastrowColIds[lastrowIndex] = idxKey->key.cid;
-      lastrowSlotIds[lastrowIndex] = pr->pSlotIds[idxKey->idx];
+      if (extraTS && !i) {
+        lastrowSlotIds[lastrowIndex] = 0;
+      } else {
+        lastrowSlotIds[lastrowIndex] = pr->pSlotIds[idxKey->idx];
+      }
       lastrowIndex++;
     }
   }
@@ -1867,7 +1877,9 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       pLastCol = &noneCol;
     }
 
-    taosArraySet(pLastArray, idxKey->idx, pLastCol);
+    if (!extraTS || i > 0) {
+      taosArraySet(pLastArray, idxKey->idx, pLastCol);
+    }
     // taosArrayRemove(remainCols, i);
 
     if (/*!pTmpColArray*/ lastTmpIndexArray && !lastTmpColArray) {
