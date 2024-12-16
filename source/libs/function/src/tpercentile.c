@@ -44,7 +44,7 @@ static int32_t loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx, SFi
     pIdList = *(SArray **)p;
   } else {
     taosMemoryFree(*buffer);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t offset = 0;
@@ -269,18 +269,16 @@ static void resetSlotInfo(tMemBucket *pBucket) {
 }
 
 int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup,
-                         tMemBucket **pBucket) {
+                         tMemBucket **pBucket, int32_t numOfElements) {
   *pBucket = (tMemBucket *)taosMemoryCalloc(1, sizeof(tMemBucket));
   if (*pBucket == NULL) {
     return terrno;
   }
 
   if (hasWindowOrGroup) {
-    // With window or group by, we need to shrink page size and reduce page num to save memory.
-    (*pBucket)->numOfSlots = DEFAULT_NUM_OF_SLOT / 8 ;  // 128 bucket
+    // With window or group by, we need to shrink page size to save memory.
     (*pBucket)->bufPageSize = 4096;  // 4k per page
   } else {
-    (*pBucket)->numOfSlots = DEFAULT_NUM_OF_SLOT;
     (*pBucket)->bufPageSize = 16384 * 4;  // 16k per page
   }
 
@@ -302,6 +300,8 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
   }
 
   (*pBucket)->elemPerPage = ((*pBucket)->bufPageSize - sizeof(SFilePage)) / (*pBucket)->bytes;
+  (*pBucket)->numOfSlots = TMIN((int16_t)(numOfElements / ((*pBucket)->elemPerPage * 6)) + 1, DEFAULT_NUM_OF_SLOT);
+
   (*pBucket)->comparFn = getKeyComparFunc((*pBucket)->type, TSDB_ORDER_ASC);
 
   (*pBucket)->hashFunc = getHashFunc((*pBucket)->type);
@@ -587,7 +587,7 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
         // try next round
         tMemBucket *tmpBucket = NULL;
         int32_t code = tMemBucketCreate(pMemBucket->bytes, pMemBucket->type, pSlot->range.dMinVal, pSlot->range.dMaxVal,
-                                            false, &tmpBucket);
+                                            false, &tmpBucket, pSlot->info.size);
         if (TSDB_CODE_SUCCESS != code) {
           tMemBucketDestroy(&tmpBucket);
           return code;

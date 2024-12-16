@@ -110,6 +110,7 @@ extern "C" {
 #include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
+#include "osMemPool.h"
 #include "osRand.h"
 #include "osSemaphore.h"
 #include "osSignal.h"
@@ -136,6 +137,14 @@ extern threadlocal bool tsEnableRandErr;
     (void)(expr);             \
     terrno = _code;           \
   }
+
+#define OS_PARAM_CHECK(_o)             \
+  do {                                 \
+    if ((_o) == NULL) {                \
+      terrno = TSDB_CODE_INVALID_PARA; \
+      return terrno;                   \
+    }                                  \
+  } while (0)
 
 #ifdef __cplusplus
 }

@@ -65,6 +65,15 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef enum {
+  TSDB_OPTION_CONNECTION_CLEAR = -1,     // means clear all option in this connection
+  TSDB_OPTION_CONNECTION_CHARSET,        // charset, Same as the scope supported by the system
+  TSDB_OPTION_CONNECTION_TIMEZONE,       // timezone, Same as the scope supported by the system
+  TSDB_OPTION_CONNECTION_USER_IP,        // user ip
+  TSDB_OPTION_CONNECTION_USER_APP,       // user app, max lengthe is 23, truncated if longer than 23
+  TSDB_MAX_OPTIONS_CONNECTION
+} TSDB_OPTION_CONNECTION;
+
+typedef enum {
   TSDB_SML_UNKNOWN_PROTOCOL = 0,
   TSDB_SML_LINE_PROTOCOL = 1,
   TSDB_SML_TELNET_PROTOCOL = 2,
@@ -108,7 +117,7 @@ typedef struct TAOS_FIELD_STB {
   uint8_t      precision;
   uint8_t      scale;
   int32_t      bytes;
-  TAOS_FIELD_T field_type;
+  uint8_t      field_type;
 } TAOS_FIELD_STB;
 
 #ifdef WINDOWS
@@ -174,11 +183,12 @@ typedef struct TAOS_STMT_OPTIONS {
 
 DLL_EXPORT void       taos_cleanup(void);
 DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT int        taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 DLL_EXPORT setConfRet taos_set_config(const char *config);
 DLL_EXPORT int        taos_init(void);
 DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
-DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
-DLL_EXPORT void  taos_close(TAOS *taos);
+DLL_EXPORT TAOS      *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT void       taos_close(TAOS *taos);
 
 DLL_EXPORT const char *taos_data_type(int type);
 

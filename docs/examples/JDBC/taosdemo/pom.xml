@@ -10,7 +10,7 @@
     <description>Demo project for TDengine</description>
 
     <properties>
-        <spring.version>5.3.27</spring.version>
+        <spring.version>5.3.39</spring.version>
     </properties>
 
     <dependencies>
@@ -130,6 +130,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
                 <configuration>
                     <source>8</source>
                     <target>8</target>

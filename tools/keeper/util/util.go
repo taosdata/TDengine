@@ -118,9 +118,7 @@ func GetQid(qidStr string) uint64 {
 }
 
 func GetQidOwn() uint64 {
-
 	id := atomic.AddUint64(&globalCounter64, 1)
-
 	if id > 0x00ffffffffffffff {
 		atomic.StoreUint64(&globalCounter64, 1)
 		id = 1

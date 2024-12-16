@@ -155,6 +155,7 @@ typedef enum EStreamType {
   STREAM_MID_RETRIEVE,
   STREAM_PARTITION_DELETE_DATA,
   STREAM_GET_RESULT,
+  STREAM_DROP_CHILD_TABLE,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -217,9 +218,9 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
-  SColumnDataAgg*  pBlockAgg;
-  SArray*          pDataBlock;  // SArray<SColumnInfoData>
-  SDataBlockInfo   info;
+  SColumnDataAgg* pBlockAgg;
+  SArray*         pDataBlock;  // SArray<SColumnInfoData>
+  SDataBlockInfo  info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -250,6 +251,7 @@ typedef struct SQueryTableDataCond {
   int32_t      type;       // data block load type:
   bool         skipRollup;
   STimeWindow  twindows;
+  STimeWindow  extTwindows[2];
   int64_t      startVersion;
   int64_t      endVersion;
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
@@ -299,6 +301,15 @@ typedef struct STableBlockDistInfo {
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
 int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo);
+
+typedef struct SDBBlockUsageInfo {
+  uint64_t dataInDiskSize;
+  uint64_t walInDiskSize;
+  uint64_t rawDataSize;
+} SDBBlockUsageInfo;
+
+int32_t tSerializeBlockDbUsage(void* buf, int32_t bufLen, const SDBBlockUsageInfo* pInfo);
+int32_t tDeserializeBlockDbUsage(void* buf, int32_t bufLen, SDBBlockUsageInfo* pInfo);
 
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,
@@ -396,11 +407,13 @@ typedef struct STUidTagInfo {
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
 int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
 
-#define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
-#define MD5_OUTPUT_LEN 32
-#define TSMA_RES_STB_EXTRA_COLUMN_NUM 4 // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
+#define TSMA_RES_STB_POSTFIX          "_tsma_res_stb_"
+#define MD5_OUTPUT_LEN                32
+#define TSMA_RES_STB_EXTRA_COLUMN_NUM 4  // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
 
 static inline bool isTsmaResSTb(const char* stbName) {
+  static bool showTsmaTables = false;
+  if (showTsmaTables) return false;
   const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
   if (pos && strlen(stbName) == (pos - stbName) + strlen(TSMA_RES_STB_POSTFIX)) {
     return true;

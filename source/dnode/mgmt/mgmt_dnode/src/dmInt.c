@@ -16,11 +16,15 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "libs/function/tudf.h"
-#include "tanal.h"
+#include "tanalytics.h"
 
 static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   int32_t code = 0;
   if ((code = dmStartStatusThread(pMgmt)) != 0) {
+    return code;
+  }
+
+  if ((code = dmStartConfigThread(pMgmt)) != 0) {
     return code;
   }
   if ((code = dmStartStatusInfoThread(pMgmt)) != 0) {
@@ -85,7 +89,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     dError("failed to start udfd since %s", tstrerror(code));
   }
 
-  if ((code = taosAnalInit()) != 0) {
+  if ((code = taosAnalyticsInit()) != 0) {
     dError("failed to init analysis env since %s", tstrerror(code));
   }
 

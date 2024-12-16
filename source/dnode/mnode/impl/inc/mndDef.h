@@ -106,8 +106,8 @@ typedef enum {
   TRN_CONFLICT_GLOBAL = 1,
   TRN_CONFLICT_DB = 2,
   TRN_CONFLICT_DB_INSIDE = 3,
-//  TRN_CONFLICT_TOPIC = 4,
-//  TRN_CONFLICT_TOPIC_INSIDE = 5,
+  //  TRN_CONFLICT_TOPIC = 4,
+  //  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
   TRN_CONFLICT_TSMA = 7,
 } ETrnConflct;
@@ -325,6 +325,25 @@ typedef struct {
 } SArbGroup;
 
 typedef struct {
+  char         name[CFG_NAME_MAX_LEN];
+  ECfgDataType dtype;
+  union {
+    bool    bval;
+    float   fval;
+    int32_t i32;
+    int64_t i64;
+    char*   str;
+  };
+} SConfigObj;
+
+int32_t     tEncodeSConfigObj(SEncoder* pEncoder, const SConfigObj* pObj);
+int32_t     tDecodeSConfigObj(SDecoder* pDecoder, SConfigObj* pObj);
+SConfigObj* mndInitConfigObj(SConfigItem* pItem);
+SConfigObj* mndInitConfigVersion();
+int32_t     mndUpdateObj(SConfigObj* pObj, const char* name, char* value);
+void        tFreeSConfigObj(SConfigObj* obj);
+
+typedef struct {
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxStbs;
@@ -431,6 +450,10 @@ typedef struct {
   int8_t  s3Compact;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
+  int8_t  compactTimeOffset;  // hour
+  int32_t compactInterval;    // minute
+  int32_t compactStartTime;   // minute
+  int32_t compactEndTime;     // minute
 } SDbCfg;
 
 typedef struct {
@@ -497,8 +520,8 @@ typedef struct {
   int64_t        dstTbUid;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
-  int8_t         timezone;
-  int32_t        dstVgId;  // for stream
+  int8_t         timezone;  // int8_t is not enough, timezone is unit of second
+  int32_t        dstVgId;   // for stream
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
@@ -657,12 +680,12 @@ typedef struct {
   int32_t maxPollIntervalMs;
 } SMqConsumerObj;
 
-int32_t         tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
-                           char *topic, SCMSubscribeReq *subscribe, SMqConsumerObj** ppConsumer);
-void            tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
-void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
-int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
-void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
+int32_t tNewSMqConsumerObj(int64_t consumerId, char* cgroup, int8_t updateType, char* topic, SCMSubscribeReq* subscribe,
+                           SMqConsumerObj** ppConsumer);
+void    tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
+void    tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
+int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
+void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
 typedef struct {
   int32_t vgId;
@@ -701,11 +724,11 @@ typedef struct {
   char*     qmsg;  // SubPlanToString
 } SMqSubscribeObj;
 
-int32_t          tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub);
-int32_t          tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj **ppSub);
-void             tDeleteSubscribeObj(SMqSubscribeObj* pSub);
-int32_t          tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
-void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
+int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
+int32_t tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
+void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
+int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
+void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
 
 // typedef struct {
 //   int32_t epoch;
@@ -854,6 +877,8 @@ typedef struct {
   int64_t startTime;
   int32_t newNumberFileset;
   int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
 } SCompactDetailObj;
 
 typedef struct {

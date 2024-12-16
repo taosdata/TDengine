@@ -273,3 +273,28 @@ TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集�
 
 ### 29 遇到报错 “some vnode/qnode/mnode(s) out of service” 怎么办？
 客户端未配置所有服务端的 FQDN 解析。比如服务端有 3 个节点，客户端只配置了 1 个节点的 FQDN 解析。FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
+
+### 30 为什么开源版 TDengine 的主进程会建立一个与公网的连接？
+这个连接只会上报不涉及任何用户数据的最基本信息，用于官方了解产品在世界范围内的分布情况，进而优化产品，提升用户体验，具体采集项目为：集群名、操作系统版本、cpu信息等。
+该特性为可选配置项，在开源版中默认开启，具体参数为 telemetryReporting , 在官方文档中有做说明，链接如下：
+https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B8%E5%85%B3
+您可以随时关闭该参数，只需要在taos.cfg 中修改telemetryReporting为 0，然后重启数据库服务即可。
+代码位于:https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c
+此外，对于安全性要求极高的企业版 TDengine Enterprise 来说，此参数不会工作。  
+### 31 第一次连接集群时遇到“Sync leader is unreachable”怎么办？
+报这个错，说明第一次向集群的连接是成功的，但第一次访问的IP不是mnode的leader节点，客户端试图与leader建立连接时发生错误。客户端通过EP，也就是指定的fqdn与端口号寻找leader节点，常见的报错原因有两个：  
+
+- 集群中其他节点的端口没有打开
+- 客户端的hosts未正确配置
+  
+因此用户首先要检查服务端，集群的所有端口（原生连接默认6030，http连接默认6041）有无打开；其次是客户端的hosts文件中是否配置了集群所有节点的fqdn与IP信息。
+如仍无法解决，则需要联系涛思技术人员支持。
+
+### 32 同一台服务器，数据库的数据目录 dataDir 不变，为什么原有数据库丢失且集群 ID 发生了变化？
+背景知识：TDengine 服务端进程（taosd）在启动时，若数据目录（dataDir，该目录在配置文件 taos.cfg 中指定）下不存在有效的数据文件子目录（如 mnode、dnode 和 vnode 等），则会自动创建这些目录。在创建新的 mnode 目录的同时，会分配一个新的集群 ID，从而产生一个新的集群。
+
+原因分析：taosd 的数据目录 dataDir 可以指向多个不同的挂载点。如果这些挂载点未在 fstab 文件中配置自动挂载，服务器重启后，dataDir 将仅作为一个本地磁盘的普通目录存在，而未能按预期指向挂载的磁盘。此时，若 taosd 服务启动，它将在 dataDir 下新建目录，从而产生一个新的集群。
+
+问题影响：服务器重启后，原有数据库丢失（注：并非真正丢失，只是原有的数据磁盘未挂载，暂时看不到）且集群 ID 发生变化，导致无法访问原有数据库。对于企业版用户，如果已针对集群 ID 进行授权，还会发现集群服务器的机器码未变，但原有的授权已失效。如果未针对该问题进行监控或者未及时发现并进行处理，则用户不会注意到原有数据库已经丢失，从而造成损失，增加运维成本。
+
+问题解决：应在 fstab 文件中配置 dataDir 目录的自动挂载，确保 dataDir 始终指向预期的挂载点和目录，此时，再重启服务器，会找回原有的数据库和集群。在后续的版本中，我们将开发一个功能，使 taosd 在检测到启动前后 dataDir 发生变化时，在启动阶段退出，同时提供相应的错误提示。

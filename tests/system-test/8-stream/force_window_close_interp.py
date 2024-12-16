@@ -93,6 +93,18 @@ class TDTestCase:
         tdSql.error(
             f"create stream itp_force_error_1  trigger force_window_close  IGNORE EXPIRED 1 IGNORE UPDATE 0 into itp_force_error_1 as  select _irowts,tbname,_isfilled,interp(c11,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
         )
+        tdSql.error(
+            f"create stream itp_1d_next_error_1  trigger force_window_close FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t1 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
+        )
+        tdSql.error(
+            f"create stream itp_1d_next_error_1  trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t1 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
+        )
+        tdSql.error(
+            f"create stream itp_1d_next_error_1  trigger window_close FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t1 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
+        )
+        tdSql.error(
+            f"create stream itp_1d_next_error_1  trigger max_delay 5s FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t1 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
+        )
 
         # function name : interp
         trigger_mode = "force_window_close"

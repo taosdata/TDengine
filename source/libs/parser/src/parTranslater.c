@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parTranslater.h"
 #include "parInt.h"
+#include "parTranslater.h"
 #include "tdatablock.h"
 
 #include "catalog.h"
@@ -24,7 +24,7 @@
 #include "parUtil.h"
 #include "scalar.h"
 #include "systable.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tcol.h"
 #include "tglobal.h"
 #include "ttime.h"
@@ -97,6 +97,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .showType = QUERY_NODE_SHOW_DNODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_DNODES,
+
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -355,8 +356,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  {
-    .showType = QUERY_NODE_SHOW_ANODES_STMT,
+  {  .showType = QUERY_NODE_SHOW_ANODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_ANODES,
     .numOfShowCols = 1,
@@ -366,6 +366,20 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .showType = QUERY_NODE_SHOW_ANODES_FULL_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_ANODES_FULL,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_USAGE_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_DISK_USAGE,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_FILESETS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_FILESETS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -1265,7 +1279,8 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
         FUNCTION_TYPE_LAST_ROW == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
-               FUNCTION_TYPE_IROWTS == pFunc->funcType || FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType) {
+               FUNCTION_TYPE_IROWTS == pFunc->funcType || FUNCTION_TYPE_IROWTS_ORIGIN == pFunc->funcType ||
+               FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType) {
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
@@ -1303,15 +1318,15 @@ static bool hasPkInTable(const STableMeta* pTableMeta) {
 
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
                                   SColumnNode* pCol) {
-  strcpy(pCol->dbName, pTable->table.dbName);
-  strcpy(pCol->tableAlias, pTable->table.tableAlias);
-  strcpy(pCol->tableName, pTable->table.tableName);
-  strcpy(pCol->colName, pColSchema->name);
+  tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->colName, pColSchema->name, TSDB_COL_NAME_LEN);
   if ('\0' == pCol->node.aliasName[0]) {
-    strcpy(pCol->node.aliasName, pColSchema->name);
+    tstrncpy(pCol->node.aliasName, pColSchema->name, TSDB_COL_NAME_LEN);
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    strcpy(pCol->node.userAlias, pColSchema->name);
+    tstrncpy(pCol->node.userAlias, pColSchema->name, TSDB_COL_NAME_LEN);
   }
   pCol->tableId = pTable->pMeta->uid;
   pCol->tableType = pTable->pMeta->tableType;
@@ -1342,7 +1357,7 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
     return terrno;
   }
 
-  strcpy(pCol->tableAlias, pTable->table.tableAlias);
+  tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
   pCol->isPrimTs = isPrimaryKeyImpl((SNode*)pExpr);
   pCol->colId = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
@@ -1350,12 +1365,12 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
     // strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
     // strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
   }
-  strcpy(pCol->colName, pExpr->aliasName);
+  tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
   if ('\0' == pCol->node.aliasName[0]) {
-    strcpy(pCol->node.aliasName, pCol->colName);
+    tstrncpy(pCol->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    strcpy(pCol->node.userAlias, pExpr->userAlias);
+    tstrncpy(pCol->node.userAlias, pExpr->aliasName, TSDB_COL_NAME_LEN);
   }
   pCol->node.resType = pExpr->resType;
   return TSDB_CODE_SUCCESS;
@@ -1505,6 +1520,17 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
         break;
       }
     }
+
+    if (pCxt->showRewrite && pMeta->tableType == TSDB_SYSTEM_TABLE) {
+      if (strncmp(pCol->dbName, TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB)) == 0 &&
+          strncmp(pCol->tableName, TSDB_INS_DISK_USAGE, strlen(TSDB_INS_DISK_USAGE)) == 0 &&
+          strncmp(pCol->colName, "db_name", strlen("db_name")) == 0) {
+        pCol->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+        pCol->node.resType.bytes = 8;
+        pCxt->skipCheck = true;
+        ((SSelectStmt*)pCxt->pCurrStmt)->mixSysTableAndActualTable = true;
+      }
+    }
   } else {
     STempTableNode* pTempTable = (STempTableNode*)pTable;
     SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
@@ -1632,7 +1658,7 @@ static void biMakeAliasNameInMD5(char* pExprStr, int32_t len, char* pAlias) {
   tMD5Final(&ctx);
   char* p = pAlias;
   for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
-    sprintf(p, "%02x", ctx.digest[i]);
+    snprintf(p, len + 1 - 2 * i, "%02x", ctx.digest[i]);
     p += 2;
   }
 }
@@ -1671,7 +1697,7 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
   if (TSDB_CODE_SUCCESS == code) {
     snprintf(tbNameFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias), (tableAlias) ? "%s.tbname" : "%stbname",
              (tableAlias) ? tableAlias : "");
-    strncpy(tbNameFunc->node.aliasName, tbNameFunc->functionName, TSDB_COL_NAME_LEN);
+    tstrncpy(tbNameFunc->node.aliasName, tbNameFunc->functionName, TSDB_COL_NAME_LEN);
     if (funcName == NULL) {
       *pOutNode = (SNode*)tbNameFunc;
       return code;
@@ -1689,7 +1715,7 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
         if (tsKeepColumnName) {
           snprintf(multiResFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias),
                    (tableAlias) ? "%s.tbname" : "%stbname", (tableAlias) ? tableAlias : "");
-          strcpy(multiResFunc->node.aliasName, tbNameFunc->functionName);
+          tstrncpy(multiResFunc->node.aliasName, tbNameFunc->functionName, TSDB_COL_NAME_LEN);
         } else {
           snprintf(multiResFunc->node.userAlias, sizeof(multiResFunc->node.userAlias),
                    tableAlias ? "%s(%s.tbname)" : "%s(%stbname)", funcName, tableAlias ? tableAlias : "");
@@ -1816,8 +1842,8 @@ int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRe
                                                      (SNode**)&tbnameFuncNode);
     if (TSDB_CODE_SUCCESS != code) return code;
     tbnameFuncNode->node.resType = pCol->node.resType;
-    strcpy(tbnameFuncNode->node.aliasName, pCol->node.aliasName);
-    strcpy(tbnameFuncNode->node.userAlias, pCol->node.userAlias);
+    tstrncpy(tbnameFuncNode->node.aliasName, pCol->node.aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(tbnameFuncNode->node.userAlias, pCol->node.userAlias, TSDB_COL_NAME_LEN);
 
     nodesDestroyNode(*ppNode);
     *ppNode = (SNode*)tbnameFuncNode;
@@ -1859,7 +1885,7 @@ static bool clauseSupportAlias(ESqlClause clause) {
   return SQL_CLAUSE_GROUP_BY == clause || SQL_CLAUSE_PARTITION_BY == clause || SQL_CLAUSE_ORDER_BY == clause;
 }
 
-static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnNode** pCol, bool *translateAsAlias) {
+static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnNode** pCol, bool* translateAsAlias) {
   *translateAsAlias = false;
   // count(*)/first(*)/last(*) and so on
   if (0 == strcmp((*pCol)->colName, "*")) {
@@ -1868,7 +1894,7 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
 
   if (pCxt->pParseCxt->biMode) {
     SNode** ppNode = (SNode**)pCol;
-    bool ret;
+    bool    ret;
     pCxt->errCode = biRewriteToTbnameFunc(pCxt, ppNode, &ret);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
     if (ret) {
@@ -1882,9 +1908,8 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
   } else {
     bool found = false;
     res = translateColumnWithoutPrefix(pCxt, pCol);
-    if (!(*pCol)->node.asParam &&
-        res != DEAL_RES_CONTINUE &&
-        res != DEAL_RES_END && pCxt->errCode != TSDB_CODE_PAR_AMBIGUOUS_COLUMN) {
+    if (!(*pCol)->node.asParam && res != DEAL_RES_CONTINUE && res != DEAL_RES_END &&
+        pCxt->errCode != TSDB_CODE_PAR_AMBIGUOUS_COLUMN) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
       *translateAsAlias = true;
     }
@@ -1955,7 +1980,7 @@ static int32_t parseTimeFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
     return TSDB_CODE_SUCCESS;
   } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_TIMESTAMP == pVal->node.resType.type) {
     if (TSDB_CODE_SUCCESS == taosParseTime(pVal->literal, &pVal->datum.i, pVal->node.resType.bytes,
-                                           pVal->node.resType.precision, tsDaylight)) {
+                                           pVal->node.resType.precision, pVal->tz)) {
       return TSDB_CODE_SUCCESS;
     }
     char* pEnd = NULL;
@@ -1982,8 +2007,11 @@ static int32_t parseBoolFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
 }
 
 static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal) {
-  if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                          pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
+  if (strncmp(pVal->literal, AUTO_DURATION_LITERAL, strlen(AUTO_DURATION_LITERAL) + 1) == 0) {
+    pVal->datum.i = AUTO_DURATION_VALUE;
+    pVal->unit = getPrecisionUnit(pVal->node.resType.precision);
+  } else if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
+                                 pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -2154,7 +2182,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
 
       int32_t len = 0;
       if (!taosMbsToUcs4(pVal->literal, strlen(pVal->literal), (TdUcs4*)varDataVal(pVal->datum.p),
-                         targetDt.bytes - VARSTR_HEADER_SIZE, &len)) {
+                         targetDt.bytes - VARSTR_HEADER_SIZE, &len, pCxt->pParseCxt->charsetCxt)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       varDataSetLen(pVal->datum.p, len);
@@ -2786,6 +2814,26 @@ static int32_t translateBlockDistFunc(STranslateContext* pCtx, SFunctionNode* pF
   }
   return TSDB_CODE_SUCCESS;
 }
+static int32_t translateDBUsageFunc(STranslateContext* pCtx, SFunctionNode* pFunc) {
+  if (!fmIsDBUsageFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isSelectStmt(pCtx->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCtx->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCtx->pCurrStmt;
+  SNode*       pTable = pSelect->pFromTable;
+  // if (NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+  //                        (TSDB_SUPER_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+  //                         TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+  //                         TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType))) {
+  //   return generateSyntaxErrMsgExt(&pCtx->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+  //                                  "%s is only supported on super table, child table or normal table",
+  //                                  pFunc->functionName);
+  // }
+  return TSDB_CODE_SUCCESS;
+}
 
 static bool isStarParam(SNode* pNode) { return nodesIsStar(pNode) || nodesIsTableStar(pNode); }
 
@@ -2801,7 +2849,8 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
     }
   }
   if (tsKeepColumnName && 1 == LIST_LENGTH(pFunc->pParameterList) && !pFunc->node.asAlias && !pFunc->node.asParam) {
-    strcpy(pFunc->node.userAlias, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->userAlias);
+    tstrncpy(pFunc->node.userAlias, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->userAlias,
+             TSDB_COL_NAME_LEN);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2876,8 +2925,8 @@ static int32_t rewriteFuncToValue(STranslateContext* pCxt, char** pLiteral, SNod
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  strcpy(pVal->node.aliasName, ((SExprNode*)*pNode)->aliasName);
-  strcpy(pVal->node.userAlias, ((SExprNode*)*pNode)->userAlias);
+  tstrncpy(pVal->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pVal->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
   pVal->node.resType = ((SExprNode*)*pNode)->resType;
   if (NULL == pLiteral || NULL == *pLiteral) {
     pVal->isNull = true;
@@ -2992,10 +3041,10 @@ static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode
     if (0 != LIST_LENGTH(pFunc->pParameterList)) {
       SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
       pCol->node.resType = pOldExpr->resType;
-      strcpy(pCol->tableAlias, pVal->literal);
-      strcpy(pCol->colName, pFunc->functionName);
-      strcpy(pCol->node.aliasName, pCol->colName);
-      strcpy(pCol->node.userAlias, pCol->colName);
+      tstrncpy(pCol->node.aliasName, pVal->literal, TSDB_COL_NAME_LEN);
+      tstrncpy(pCol->colName, pFunc->functionName, TSDB_COL_NAME_LEN);
+      tstrncpy(pCol->node.aliasName, pCol->colName, TSDB_COL_NAME_LEN);
+      tstrncpy(pCol->node.userAlias, pCol->colName, TSDB_COL_NAME_LEN);
       nodesDestroyNode(*ppNode);
       *ppNode = (SNode*)pCol;
 
@@ -3003,9 +3052,9 @@ static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode
     }
   }
   pCol->node.resType = pOldExpr->resType;
-  strcpy(pCol->node.aliasName, pOldExpr->aliasName);
-  strcpy(pCol->node.userAlias, pOldExpr->userAlias);
-  strcpy(pCol->colName, pOldExpr->aliasName);
+  tstrncpy(pCol->node.aliasName, pOldExpr->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, pOldExpr->userAlias, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->colName, pOldExpr->aliasName, TSDB_COL_NAME_LEN);
 
   nodesDestroyNode(*ppNode);
   *ppNode = (SNode*)pCol;
@@ -3143,6 +3192,10 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
   if (TSDB_CODE_SUCCESS == code) {
     code = translateBlockDistFunc(pCxt, pFunc);
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateDBUsageFunc(pCxt, pFunc);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     setFuncClassification(pCxt, pFunc);
   }
@@ -3260,7 +3313,7 @@ static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType d
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  strcpy(pFunc->functionName, "cast");
+  tstrncpy(pFunc->functionName, "cast", TSDB_FUNC_NAME_LEN);
   pFunc->node.resType = dt;
   if (TSDB_CODE_SUCCESS != nodesListMakeAppend(&pFunc->pParameterList, pExpr)) {
     nodesDestroyNode((SNode*)pFunc);
@@ -3317,26 +3370,28 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   } else {
     resultType = gDisplyTypes[type2][type1];
   }
-  
+
   if (resultType == -1) {
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
-  
+
   if (commonType->type == newType->type) {
     commonType->bytes = TMAX(commonType->bytes, newType->bytes);
     return TSDB_CODE_SUCCESS;
   }
 
-  if ((resultType == TSDB_DATA_TYPE_VARCHAR) && (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
+  if ((resultType == TSDB_DATA_TYPE_VARCHAR) &&
+      (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN);
-  } else if ((resultType == TSDB_DATA_TYPE_NCHAR) && (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
+  } else if ((resultType == TSDB_DATA_TYPE_NCHAR) &&
+             (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN * TSDB_NCHAR_SIZE);
   } else {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
   }
-  
+
   commonType->type = resultType;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3474,9 +3529,9 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
     pCxt->errCode = code;
     return DEAL_RES_ERROR;
   }
-  strcpy(pFunc->functionName, "_select_value");
-  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
-  strcpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias);
+  tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = getFuncInfo(pCxt, pFunc);
@@ -3498,9 +3553,9 @@ static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode
     return DEAL_RES_ERROR;
   }
 
-  strcpy(pFunc->functionName, "_group_key");
-  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
-  strcpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias);
+  tstrncpy(pFunc->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     *pNode = (SNode*)pFunc;
@@ -3517,9 +3572,9 @@ static EDealRes rewriteExprToSelectTagFunc(STranslateContext* pCxt, SNode** pNod
     return DEAL_RES_ERROR;
   }
 
-  strcpy(pFunc->functionName, "_group_const_value");
-  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
-  strcpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias);
+  tstrncpy(pFunc->functionName, "_group_const_value", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     *pNode = (SNode*)pFunc;
@@ -3767,7 +3822,8 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
   FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
-      return pSelect->hasAggFuncs ? rewriteExprToGroupKeyFunc(pCxt, pNode) : DEAL_RES_IGNORE_CHILD;
+      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
+                                                        : DEAL_RES_IGNORE_CHILD;
     }
     if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
@@ -4080,7 +4136,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 
 static bool sysTableFromVnode(const char* pTable) {
   return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)));
+          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE) ||
+          (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -4151,8 +4208,10 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   }
 
   if (TSDB_CODE_SUCCESS == code &&
-          (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
-      0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS)) {
+      ((0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
+       (0 == strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) && !hasUserDbCond) ||
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS))) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &pVgs);
   }
 
@@ -4251,7 +4310,9 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
   if (TSDB_SYSTEM_TABLE == tableType) {
     return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS);
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
 }
@@ -4278,7 +4339,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
     if (TSDB_CODE_SUCCESS == code && pRealTable->pTsmas &&
         (pRealTable->pMeta->tableType == TSDB_CHILD_TABLE || pRealTable->pMeta->tableType == TSDB_NORMAL_TABLE)) {
       if (pRealTable->tsmaTargetTbVgInfo) {
-        taosArrayDestroyP(pRealTable->tsmaTargetTbVgInfo, taosMemoryFree);
+        taosArrayDestroyP(pRealTable->tsmaTargetTbVgInfo, NULL);
         pRealTable->tsmaTargetTbVgInfo = NULL;
       }
       char buf[TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1];
@@ -4291,7 +4352,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         int32_t len = tsnprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName,
                                 pTsma->name, pRealTable->table.tableName);
         len = taosCreateMD5Hash(buf, len);
-        strncpy(tsmaTargetTbName.tname, buf, MD5_OUTPUT_LEN);
+        tstrncpy(tsmaTargetTbName.tname, buf, TSDB_TABLE_NAME_LEN);
         code = collectUseTable(&tsmaTargetTbName, pCxt->pTargetTables);
         if (TSDB_CODE_SUCCESS == code)
           code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &tsmaTargetTbName, &vgInfo, &exists);
@@ -4335,7 +4396,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
           }
         }
         if (code == TSDB_CODE_SUCCESS) {
-          sprintf(ctbInfo.tableName, "%s", tsmaTargetTbName.tname);
+          snprintf(ctbInfo.tableName, TSDB_TABLE_NAME_LEN, "%s", tsmaTargetTbName.tname);
           ctbInfo.uid = pTableMeta->uid;
           taosMemoryFree(pTableMeta);
         } else if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
@@ -4397,10 +4458,9 @@ static EDealRes doTranslateTbName(SNode** pNode, void* pContext) {
           return DEAL_RES_ERROR;
         }
         varDataSetLen(pVal->datum.p, tbLen);
-        strncpy(varDataVal(pVal->datum.p), pVal->literal, tbLen);
-        strcpy(pVal->node.userAlias, pFunc->node.userAlias);
-        strcpy(pVal->node.aliasName, pFunc->node.aliasName);
-
+        tstrncpy(varDataVal(pVal->datum.p), pVal->literal, tbLen + 1);
+        tstrncpy(pVal->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
+        tstrncpy(pVal->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
         nodesDestroyNode(*pNode);
         *pNode = (SNode*)pVal;
       }
@@ -4465,9 +4525,9 @@ static int32_t addPrimJoinEqCond(SNode** pCond, SRealTableNode* leftTable, SReal
   pLeft->tableId = pLMeta->uid;
   pLeft->colId = pLMeta->schema[0].colId;
   pLeft->colType = COLUMN_TYPE_COLUMN;
-  strcpy(pLeft->tableName, leftTable->table.tableName);
-  strcpy(pLeft->tableAlias, leftTable->table.tableAlias);
-  strcpy(pLeft->colName, pLMeta->schema[0].name);
+  tstrncpy(pLeft->tableName, leftTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pLeft->tableAlias, leftTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pLeft->colName, pLMeta->schema[0].name, TSDB_COL_NAME_LEN);
 
   pOp->pLeft = (SNode*)pLeft;
 
@@ -4482,9 +4542,9 @@ static int32_t addPrimJoinEqCond(SNode** pCond, SRealTableNode* leftTable, SReal
   pRight->tableId = pRMeta->uid;
   pRight->colId = pRMeta->schema[0].colId;
   pRight->colType = COLUMN_TYPE_COLUMN;
-  strcpy(pRight->tableName, rightTable->table.tableName);
-  strcpy(pRight->tableAlias, rightTable->table.tableAlias);
-  strcpy(pRight->colName, pRMeta->schema[0].name);
+  tstrncpy(pRight->tableName, rightTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pRight->tableAlias, rightTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pRight->colName, pRMeta->schema[0].name, TSDB_COL_NAME_LEN);
 
   pOp->pRight = (SNode*)pRight;
 
@@ -5087,29 +5147,29 @@ static int32_t createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr, SNo
   pFunc->node.resType = pExpr->resType;
   pFunc->funcId = pSrcFunc->funcId;
   pFunc->funcType = pSrcFunc->funcType;
-  strcpy(pFunc->functionName, pSrcFunc->functionName);
+  tstrncpy(pFunc->functionName, pSrcFunc->functionName, TSDB_FUNC_NAME_LEN);
   char    buf[TSDB_FUNC_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN + 3] = {0};
   int32_t len = 0;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pCol = (SColumnNode*)pExpr;
     if (tsKeepColumnName) {
-      strcpy(pFunc->node.userAlias, pCol->colName);
-      strcpy(pFunc->node.aliasName, pCol->colName);
+      tstrncpy(pFunc->node.userAlias, pCol->colName, TSDB_COL_NAME_LEN);
+      tstrncpy(pFunc->node.aliasName, pCol->colName, TSDB_COL_NAME_LEN);
     } else {
       len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
       (void)taosHashBinary(buf, len);
-      strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN - 1);
+      tstrncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN);
       len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
       // note: userAlias could be truncated here
-      strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
+      tstrncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN);
     }
   } else {
     len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
     (void)taosHashBinary(buf, len);
-    strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN - 1);
+    tstrncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN);
     len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
     // note: userAlias could be truncated here
-    strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
+    tstrncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN);
   }
   *ppNodeOut = (SNode*)pFunc;
   return code;
@@ -5392,14 +5452,12 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
   return code;
 }
 
-static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
-  if (FILL_MODE_VALUE != pFill->mode && FILL_MODE_VALUE_F != pFill->mode) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
   int32_t        fillNo = 0;
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
+  if (!pFillValues)
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   FOREACH(pProject, pProjectionList) {
     if (needFill(pProject)) {
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
@@ -5419,6 +5477,14 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeL
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
+  if (FILL_MODE_VALUE != pFill->mode && FILL_MODE_VALUE_F != pFill->mode) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return doCheckFillValues(pCxt, pFill, pProjectionList);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateFillValues(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow || QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow) ||
       NULL == ((SIntervalWindowNode*)pSelect->pWindow)->pFill) {
@@ -5433,9 +5499,9 @@ static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
   FOREACH(pProject, pProjectionList) {
     SExprNode* pExpr = (SExprNode*)pProject;
     if ('\0' == pExpr->userAlias[0]) {
-      strcpy(pExpr->userAlias, pExpr->aliasName);
+      tstrncpy(pExpr->userAlias, pExpr->aliasName, TSDB_COL_NAME_LEN);
     }
-    sprintf(pExpr->aliasName, "#expr_%d", no++);
+    snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN,"#expr_%d", no++);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5486,7 +5552,7 @@ static EDealRes translateGroupPartitionByImpl(SNode** pNode, void* pContext) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   STranslateContext*       pTransCxt = pCxt->pTranslateCxt;
   if (QUERY_NODE_VALUE == nodeType(*pNode)) {
-    SValueNode* pVal = (SValueNode*) *pNode;
+    SValueNode* pVal = (SValueNode*)*pNode;
     if (DEAL_RES_ERROR == translateValue(pTransCxt, pVal)) {
       return DEAL_RES_CONTINUE;
     }
@@ -5534,8 +5600,7 @@ static int32_t translateGroupByList(STranslateContext* pCxt, SSelectStmt* pSelec
   if (NULL == pSelect->pGroupByList) {
     return TSDB_CODE_SUCCESS;
   }
-  SReplaceGroupByAliasCxt cxt = {
-      .pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
+  SReplaceGroupByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
   nodesRewriteExprsPostOrder(pSelect->pGroupByList, translateGroupPartitionByImpl, &cxt);
 
   return pCxt->errCode;
@@ -5546,8 +5611,7 @@ static int32_t translatePartitionByList(STranslateContext* pCxt, SSelectStmt* pS
     return TSDB_CODE_SUCCESS;
   }
 
-  SReplaceGroupByAliasCxt cxt = {
-      .pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
+  SReplaceGroupByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
   nodesRewriteExprsPostOrder(pSelect->pPartitionByList, translateGroupPartitionByImpl, &cxt);
 
   return pCxt->errCode;
@@ -5623,7 +5687,11 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
   int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
-    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+    if (nodeType(pNew) == QUERY_NODE_VALUE) {
+      *pTimeRange = TSWINDOW_INITIALIZER;
+    } else {
+      code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+    }
   }
   return code;
 }
@@ -5797,7 +5865,13 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
 
   if (NULL != pInterval->pOffset) {
     SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
-    if (pOffset->datum.i <= 0) {
+    if (pOffset->datum.i == AUTO_DURATION_VALUE) {
+      if (pOffset->unit != getPrecisionUnit(precision)) {
+        parserError("invalid offset unit %d for auto offset with precision %u", pOffset->unit, precision);
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
+    else if (pOffset->datum.i < 0) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE);
     }
     if (pInter->unit == 'n' && pOffset->unit == 'y') {
@@ -5861,9 +5935,53 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   return TSDB_CODE_SUCCESS;
 }
 
+void tryCalcIntervalAutoOffset(SIntervalWindowNode *pInterval) {
+  SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
+  uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
+  SValueNode* pInter = (SValueNode*)pInterval->pInterval;
+  SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
+
+  if (pOffset == NULL || pOffset->datum.i != AUTO_DURATION_VALUE) {
+    return;
+  }
+
+  // ignore auto offset if not applicable
+  if (pInterval->timeRange.skey == INT64_MIN) {
+    pOffset->datum.i = 0;
+    return;
+  }
+
+  SInterval   interval = {.interval = pInter->datum.i,
+                          .sliding = (pSliding != NULL) ? pSliding->datum.i : pInter->datum.i,
+                          .intervalUnit = pInter->unit,
+                          .slidingUnit = (pSliding != NULL) ? pSliding->unit : pInter->unit,
+                          .offset = pOffset->datum.i,
+                          .precision = precision,
+                          .timezone  = pInterval->timezone,
+                          .timeRange = pInterval->timeRange};
+
+  /**
+   * Considering that the client and server may be in different time zones,
+   * these situations need to be deferred to the server for calculation.
+   */
+  if (IS_CALENDAR_TIME_DURATION(interval.intervalUnit) || interval.intervalUnit == 'd' ||
+      interval.intervalUnit == 'w' || IS_CALENDAR_TIME_DURATION(interval.slidingUnit) || interval.slidingUnit == 'd' ||
+      interval.slidingUnit == 'w') {
+    return;
+  }
+
+  calcIntervalAutoOffset(&interval);
+  pOffset->datum.i = interval.offset;
+}
+
 static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
-  int32_t              code = checkIntervalWindow(pCxt, pInterval);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  pInterval->timeRange = pSelect->timeRange;
+  tryCalcIntervalAutoOffset(pInterval);
+
+  code = checkIntervalWindow(pCxt, pInterval);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFill(pCxt, pSelect, pInterval);
   }
@@ -6129,7 +6247,7 @@ static int32_t createDefaultFillNode(STranslateContext* pCxt, SNode** pOutput) {
     return code;
   }
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME);
+  tstrncpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME, TSDB_COL_NAME_LEN);
   pFill->pWStartTs = (SNode*)pCol;
 
   *pOutput = (SNode*)pFill;
@@ -6191,6 +6309,33 @@ static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
   return code;
 }
 
+static EDealRes hasRowTsOriginFuncWalkNode(SNode* pNode, void* ctx) {
+  bool* hasRowTsOriginFunc = ctx;
+  if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (fmIsRowTsOriginFunc(pFunc->funcId)) {
+      *hasRowTsOriginFunc = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkInterpForStream(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pCxt->createStream) {
+    SFillNode* pFill = (SFillNode*)pSelect->pFill;
+    if (pFill->mode == FILL_MODE_NEAR) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "FILL NEAR is not supported by stream");
+    }
+    if (pSelect->pRangeAround) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "RANGE with around is not supported by stream");
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -6206,10 +6351,59 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
   }
+  bool hasRowTsOriginFunc = false;
+  nodesWalkExprs(pSelect->pProjectionList, hasRowTsOriginFuncWalkNode, &hasRowTsOriginFunc);
+  if (hasRowTsOriginFunc && pCxt->createStream) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "_irowts_origin is not supported by stream");
+  }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
+    SFillNode* pFill = (SFillNode*)pSelect->pFill;
+    if (pSelect->pRangeAround) {
+      if (pFill->mode != FILL_MODE_PREV && pFill->mode != FILL_MODE_NEXT && pFill->mode != FILL_MODE_NEAR) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+                                       "Range with interval can only used with fill PREV/NEXT/NEAR");
+      }
+      if (TSDB_CODE_SUCCESS == code) code = doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
+    } else {
+      if (FILL_MODE_PREV == pFill->mode || FILL_MODE_NEXT == pFill->mode || FILL_MODE_NEAR == pFill->mode) {
+        if (pFill->pValues) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Can't specify fill values");
+        }
+      } else {
+        if (hasRowTsOriginFunc)
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+                                      "_irowts_origin can only be used with FILL PREV/NEXT/NEAR");
+      }
+      code = checkFillValues(pCxt, pFill, pSelect->pProjectionList);
+    }
   }
 
+  return code;
+}
+
+static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = 0;
+  if (pSelect->pRangeAround) {
+    SRangeAroundNode* pAround = (SRangeAroundNode*)pSelect->pRangeAround;
+    code = translateExpr(pCxt, &pAround->pInterval);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE) {
+        SValueNode* pVal = (SValueNode*)pAround->pInterval;
+        if (pVal->datum.i == 0) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+                                      "Range interval cannot be 0");
+        }
+        int8_t unit = pVal->unit;
+        if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                         "Unsupported time unit in RANGE clause");
+        }
+      } else {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Invalid range interval");
+      }
+    }
+  }
   return code;
 }
 
@@ -6233,6 +6427,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
     }
   }
 
+  int32_t code = 0;
   if (pCxt->createStream) {
     if (NULL != pSelect->pRange) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
@@ -6244,22 +6439,38 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                      "Missing EVERY clause or FILL clause");
     }
   } else {
-    if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-      if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
-        // single point interp every can be omitted
-      } else {
+    if (!pSelect->pRangeAround) {
+      if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+        if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+          // single point interp every can be omitted
+        } else {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                         "Missing RANGE clause, EVERY clause or FILL clause");
+        }
+      }
+    } else {
+      if (pSelect->pEvery) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                       "Missing RANGE clause, EVERY clause or FILL clause");
+                                       "Range clause with around interval can't be used with EVERY clause");
+      }
+      if (!pSelect->pFill) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE, "Missing FILL clause");
       }
     }
   }
 
-  int32_t code = translateExpr(pCxt, &pSelect->pRange);
+  code = translateExpr(pCxt, &pSelect->pRange);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateInterpAround(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkInterpForStream(pCxt, pSelect);
   }
   return code;
 }
@@ -6644,7 +6855,7 @@ static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTa
       int32_t len = tsnprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
                               pRealTable->table.tableName);
       len = taosCreateMD5Hash(buf, len);
-      strncpy(tsmaTargetTbName.tname, buf, MD5_OUTPUT_LEN);
+      tstrncpy(tsmaTargetTbName.tname, buf, TSDB_TABLE_NAME_LEN);
       STsmaTargetTbInfo ctbInfo = {0};
       if (!pRealTable->tsmaTargetTbInfo) {
         pRealTable->tsmaTargetTbInfo = taosArrayInit(pRealTable->pTsmas->size, sizeof(STsmaTargetTbInfo));
@@ -6653,7 +6864,7 @@ static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTa
           break;
         }
       }
-      sprintf(ctbInfo.tableName, "%s", tsmaTargetTbName.tname);
+      snprintf(ctbInfo.tableName, TSDB_TABLE_NAME_LEN, "%s", tsmaTargetTbName.tname);
       ctbInfo.uid = pMeta->uid;
 
       if (NULL == taosArrayPush(pRealTable->tsmaTargetTbInfo, &ctbInfo)) {
@@ -6718,7 +6929,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
             code = terrno;
             break;
           }
-          sprintf(pNewTbName, "%s.%s_%s", pTsma->dbFName, pTsma->name, pTbName);
+          snprintf(pNewTbName, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1, "%s.%s_%s", pTsma->dbFName, pTsma->name, pTbName);
           int32_t len = taosCreateMD5Hash(pNewTbName, strlen(pNewTbName));
         }
         if (TSDB_CODE_SUCCESS == code) {
@@ -6736,7 +6947,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
             taosMemoryFreeClear(vgsInfo);
           }
         }
-        taosArrayDestroyP(pTbNames, taosMemoryFree);
+        taosArrayDestroyP(pTbNames, NULL);
         if (code) break;
       }
       if (TSDB_CODE_SUCCESS != code) {
@@ -6807,7 +7018,7 @@ static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* p
     return code;
   }
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME);
+  tstrncpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME, TSDB_COL_NAME_LEN);
   bool found = false;
   code = findAndSetColumn(pCxt, &pCol, pTable, &found, true);
   if (TSDB_CODE_SUCCESS != code || !found) {
@@ -6906,7 +7117,7 @@ static int32_t createPkColByTable(STranslateContext* pCxt, SRealTableNode* pTabl
     return code;
   }
   pCol->colId = pTable->pMeta->schema[1].colId;
-  strcpy(pCol->colName, pTable->pMeta->schema[1].name);
+  tstrncpy(pCol->colName, pTable->pMeta->schema[1].name, TSDB_COL_NAME_LEN);
   bool found = false;
   code = findAndSetColumn(pCxt, &pCol, (STableNode*)pTable, &found, true);
   if (TSDB_CODE_SUCCESS != code || !found) {
@@ -7565,6 +7776,12 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
   tstrncpy(pReq->dnodeListStr, pStmt->pOptions->dnodeListStr, TSDB_DNODE_LIST_LEN);
 
+  // auto-compact options
+  pReq->compactInterval = pStmt->pOptions->compactInterval;
+  pReq->compactStartTime = pStmt->pOptions->compactStartTime;
+  pReq->compactEndTime = pStmt->pOptions->compactEndTime;
+  pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
+
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -7578,8 +7795,8 @@ static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const cha
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, int32_t val, int32_t minVal,
-                                  int32_t maxVal) {
+static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, int64_t val, int64_t minVal,
+                                  int64_t maxVal) {
   return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_DB_OPTION, pName, val, minVal, maxVal, true);
 }
 
@@ -7891,6 +8108,16 @@ static int32_t checkDbTbPrefixSuffixOptions(STranslateContext* pCxt, int32_t tbP
   return TSDB_CODE_SUCCESS;
 }
 
+static FORCE_INLINE int32_t translateGetDbCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo** ppDbCfg) {
+  if (*ppDbCfg) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!(*ppDbCfg = taosMemoryCalloc(1, sizeof(SDbCfgInfo)))) {
+    return terrno;
+  }
+  return getDBCfg(pCxt, pDbName, *ppDbCfg);
+}
+
 static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t daysPerFile = pOptions->daysPerFile;
   int32_t s3KeepLocal = pOptions->s3KeepLocal;
@@ -7898,13 +8125,9 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   if (-1 == daysPerFile && -1 == daysToKeep0) {
     return TSDB_CODE_SUCCESS;
   } else if (-1 == daysPerFile || -1 == daysToKeep0) {
-    SDbCfgInfo dbCfg = {0};
-    int32_t    code = getDBCfg(pCxt, pDbName, &dbCfg);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-    daysPerFile = (-1 == daysPerFile ? dbCfg.daysPerFile : daysPerFile);
-    daysToKeep0 = (-1 == daysToKeep0 ? dbCfg.daysToKeep0 : daysToKeep0);
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+    daysPerFile = (-1 == daysPerFile ? pOptions->pDbCfg->daysPerFile : daysPerFile);
+    daysToKeep0 = (-1 == daysToKeep0 ? pOptions->pDbCfg->daysToKeep0 : daysToKeep0);
   }
   if (daysPerFile > daysToKeep0 / 3) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
@@ -7926,6 +8149,126 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
+  int32_t code = 0;
+  int64_t interval = 0;
+  int32_t keep2 = pOptions->keep[2];
+
+  if (NULL != pOptions->pCompactIntervalNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactIntervalNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_MINUTE != pOptions->pCompactIntervalNode->unit &&
+        TIME_UNIT_HOUR != pOptions->pCompactIntervalNode->unit &&
+        TIME_UNIT_DAY != pOptions->pCompactIntervalNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_interval unit: %c, only %c, %c, %c allowed",
+                                     pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR,
+                                     TIME_UNIT_DAY);
+    }
+    interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
+    if (interval != 0) {
+      if (keep2 == -1) {  // alter db
+        TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+        keep2 = pOptions->pDbCfg->daysToKeep2;
+      }
+      code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+    }
+  } else if (pOptions->compactInterval > 0) {
+    interval = pOptions->compactInterval * 1440;  // convert to minutes
+    if (keep2 == -1) {                            // alter db
+      TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+      keep2 = pOptions->pDbCfg->daysToKeep2;
+    }
+    code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+  }
+  if (code == 0) pOptions->compactInterval = interval;
+  return code;
+}
+
+static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
+  if (NULL == pOptions->pCompactTimeRangeList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (LIST_LENGTH(pOptions->pCompactTimeRangeList) != 2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range, should have 2 values");
+  }
+
+  SValueNode* pStart = (SValueNode*)nodesListGetNode(pOptions->pCompactTimeRangeList, 0);
+  SValueNode* pEnd = (SValueNode*)nodesListGetNode(pOptions->pCompactTimeRangeList, 1);
+  if (DEAL_RES_ERROR == translateValue(pCxt, pStart)) {
+    return pCxt->errCode;
+  }
+  if (DEAL_RES_ERROR == translateValue(pCxt, pEnd)) {
+    return pCxt->errCode;
+  }
+  if (IS_DURATION_VAL(pStart->flag)) {
+    if (TIME_UNIT_MINUTE != pStart->unit && TIME_UNIT_HOUR != pStart->unit && TIME_UNIT_DAY != pStart->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_range start unit: %c, only %c, %c, %c allowed",
+                                     pStart->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+    }
+  } else {
+    pStart->datum.i *= 1440;
+  }
+  if (IS_DURATION_VAL(pEnd->flag)) {
+    if (TIME_UNIT_MINUTE != pEnd->unit && TIME_UNIT_HOUR != pEnd->unit && TIME_UNIT_DAY != pEnd->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_range end unit: %c, only %c, %c, %c allowed",
+                                     pEnd->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+    }
+  } else {
+    pEnd->datum.i *= 1440;
+  }
+  pOptions->compactStartTime = getBigintFromValueNode(pStart);
+  pOptions->compactEndTime = getBigintFromValueNode(pEnd);
+
+  if (pOptions->compactStartTime >= pOptions->compactEndTime) {
+    return generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+        "Invalid option compact_time_range: %dm,%dm, start time should be less than end time",
+        pOptions->compactStartTime, pOptions->compactEndTime);
+  }
+
+  int32_t keep2 = pOptions->keep[2];
+  int32_t days = pOptions->daysPerFile;
+  if (keep2 == -1 || days == -1) {  // alter db
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
+    keep2 = pOptions->pDbCfg->daysToKeep2;
+    days = pOptions->pDbCfg->daysPerFile;
+  }
+  if (pOptions->compactStartTime < -keep2 || pOptions->compactStartTime > -days) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%dm, %dm]",
+                                   pOptions->compactStartTime, -keep2, -days);
+  }
+  if (pOptions->compactEndTime < -keep2 || pOptions->compactEndTime > -days) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range: %dm, end time should be in range: [%dm, %dm]",
+                                   pOptions->compactEndTime, -keep2, -days);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbCompactTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (pOptions->pCompactTimeOffsetNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactTimeOffsetNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_HOUR != pOptions->pCompactTimeOffsetNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option compact_time_offset unit: %c, only %c allowed",
+                                     pOptions->pCompactTimeOffsetNode->unit, TIME_UNIT_HOUR);
+    }
+    pOptions->compactTimeOffset = getBigintFromValueNode(pOptions->pCompactTimeOffsetNode) / 60;
+  }
+  return checkDbRangeOption(pCxt, "compact_time_offset", pOptions->compactTimeOffset, TSDB_MIN_COMPACT_TIME_OFFSET,
+                            TSDB_MAX_COMPACT_TIME_OFFSET);
 }
 
 static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
@@ -8043,6 +8386,15 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "s3_compact", pOptions->s3Compact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactIntervalOption(pCxt, pDbName, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactTimeRangeOption(pCxt, pDbName, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactTimeOffsetOption(pCxt, pOptions);
   }
   return code;
 }
@@ -8280,14 +8632,17 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->s3KeepLocal = pStmt->pOptions->s3KeepLocal;
   pReq->s3Compact = pStmt->pOptions->s3Compact;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
+  pReq->compactInterval = pStmt->pOptions->compactInterval;
+  pReq->compactStartTime = pStmt->pOptions->compactStartTime;
+  pReq->compactEndTime = pStmt->pOptions->compactEndTime;
+  pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
   return code;
 }
 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
   if (pStmt->pOptions->walLevel == 0) {
-    SDbCfgInfo dbCfg = {0};
-    int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
-    if (TSDB_CODE_SUCCESS == code && dbCfg.replications > 1) {
+    TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pStmt->dbName, &pStmt->pOptions->pDbCfg));
+    if (pStmt->pOptions->pDbCfg->replications > 1) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }
@@ -8372,7 +8727,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
       field.bytes = pCol->dataType.bytes;
     }
 
-    strcpy(field.name, pCol->colName);
+    tstrncpy(field.name, pCol->colName, TSDB_COL_NAME_LEN);
     if (pCol->pOptions) {
       setColEncode(&field.compress, columnEncodeVal(((SColumnOptions*)pCol->pOptions)->encode));
       setColCompress(&field.compress, columnCompressVal(((SColumnOptions*)pCol->pOptions)->compress));
@@ -8410,7 +8765,7 @@ static int32_t tagDefNodeToField(SNodeList* pList, SArray** pArray, bool calByte
     } else {
       field.bytes = pCol->dataType.bytes;
     }
-    strcpy(field.name, pCol->colName);
+    tstrncpy(field.name, pCol->colName, TSDB_COL_NAME_LEN);
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
     }
@@ -8815,7 +9170,7 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   pSchema->type = pCol->dataType.type;
   pSchema->bytes = calcTypeBytes(pCol->dataType);
   pSchema->flags = flags;
-  strcpy(pSchema->name, pCol->colName);
+  tstrncpy(pSchema->name, pCol->colName, TSDB_COL_NAME_LEN);
 }
 
 typedef struct SSampleAstInfo {
@@ -8852,8 +9207,8 @@ static int32_t addWstartToSampleProjects(SNodeList* pProjectionList) {
   if (NULL == pFunc) {
     return code;
   }
-  strcpy(pFunc->functionName, "_wstart");
-  strcpy(pFunc->node.userAlias, "_wstart");
+  tstrncpy(pFunc->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, "_wstart", TSDB_FUNC_NAME_LEN);
   return nodesListPushFront(pProjectionList, (SNode*)pFunc);
 }
 
@@ -8863,8 +9218,8 @@ static int32_t addWendToSampleProjects(SNodeList* pProjectionList) {
   if (NULL == pFunc) {
     return code;
   }
-  strcpy(pFunc->functionName, "_wend");
-  strcpy(pFunc->node.userAlias, "_wend");
+  tstrncpy(pFunc->functionName, "_wend", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, "_wend", TSDB_FUNC_NAME_LEN);
   return nodesListAppend(pProjectionList, (SNode*)pFunc);
 }
 
@@ -8874,8 +9229,8 @@ static int32_t addWdurationToSampleProjects(SNodeList* pProjectionList) {
   if (NULL == pFunc) {
     return code;
   }
-  strcpy(pFunc->functionName, "_wduration");
-  strcpy(pFunc->node.userAlias, "_wduration");
+  tstrncpy(pFunc->functionName, "_wduration", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, "_wduration", TSDB_FUNC_NAME_LEN);
   return nodesListAppend(pProjectionList, (SNode*)pFunc);
 }
 
@@ -8895,7 +9250,7 @@ static int32_t buildProjectsForSampleAst(SSampleAstInfo* pInfo, SNodeList** pLis
     SNode* pProject = NULL;
     if (pProjectionTotalLen) *pProjectionTotalLen = 0;
     FOREACH(pProject, pProjectionList) {
-      sprintf(((SExprNode*)pProject)->aliasName, "#%p", pProject);
+      snprintf(((SExprNode*)pProject)->aliasName, TSDB_COL_NAME_LEN, "#%p", pProject);
       if (pProjectionTotalLen) *pProjectionTotalLen += ((SExprNode*)pProject)->resType.bytes;
     }
     *pList = pProjectionList;
@@ -8914,6 +9269,13 @@ static int32_t buildIntervalForSampleAst(SSampleAstInfo* pInfo, SNode** pOutput)
   TSWAP(pInterval->pInterval, pInfo->pInterval);
   TSWAP(pInterval->pOffset, pInfo->pOffset);
   TSWAP(pInterval->pSliding, pInfo->pSliding);
+
+  SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
+  if (pOffset && pOffset->datum.i < 0) {
+    parserError("%s failed for invalid interval offset %" PRId64, __func__, pOffset->datum.i);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   pInterval->pCol = NULL;
   code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pInterval->pCol);
   if (NULL == pInterval->pCol) {
@@ -8921,7 +9283,7 @@ static int32_t buildIntervalForSampleAst(SSampleAstInfo* pInfo, SNode** pOutput)
     return code;
   }
   ((SColumnNode*)pInterval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(((SColumnNode*)pInterval->pCol)->colName, ROWTS_PSEUDO_COLUMN_NAME);
+  tstrncpy(((SColumnNode*)pInterval->pCol)->colName, ROWTS_PSEUDO_COLUMN_NAME, TSDB_COL_NAME_LEN);
   *pOutput = (SNode*)pInterval;
   return TSDB_CODE_SUCCESS;
 }
@@ -8933,7 +9295,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
   if (NULL == pSelect) {
     return code;
   }
-  sprintf(pSelect->stmtName, "%p", pSelect);
+  snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
 
   code = buildTableForSampleAst(pInfo, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
@@ -9001,7 +9363,7 @@ static int32_t createColumnFromDef(SColumnDefNode* pDef, SNode** ppCol) {
   if (NULL == pCol) {
     return code;
   }
-  strcpy(pCol->colName, pDef->colName);
+  tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
   *ppCol = (SNode*)pCol;
   return code;
 }
@@ -9094,9 +9456,9 @@ static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
   if (NULL == pFunc) {
     return code;
   }
-  strcpy(pFunc->functionName, "tbname");
-  strcpy(pFunc->node.aliasName, "tbname");
-  strcpy(pFunc->node.userAlias, "tbname");
+  tstrncpy(pFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, "tbname", TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, "tbname", TSDB_COL_NAME_LEN);
   *ppFunc = pFunc;
   return code;
 }
@@ -9293,7 +9655,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES: {
       TAOS_FIELD field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
-      strcpy(field.name, pStmt->colName);
+      tstrncpy(field.name, pStmt->colName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &field)) {
         return terrno;
       }
@@ -9302,12 +9664,12 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
       TAOS_FIELD oldField = {0};
-      strcpy(oldField.name, pStmt->colName);
+      tstrncpy(oldField.name, pStmt->colName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &oldField)) {
         return terrno;
       }
       TAOS_FIELD newField = {0};
-      strcpy(newField.name, pStmt->newColName);
+      tstrncpy(newField.name, pStmt->newColName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &newField)) {
         return terrno;
       }
@@ -9315,7 +9677,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     }
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
       TAOS_FIELD field = {0};
-      strcpy(field.name, pStmt->colName);
+      tstrncpy(field.name, pStmt->colName, 65);
       if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
       if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
@@ -9338,7 +9700,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       if (!pAlterReq->pFields) return terrno;
       SFieldWithOptions field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
       // TAOS_FIELD        field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
-      strcpy(field.name, pStmt->colName);
+      tstrncpy(field.name, pStmt->colName, TSDB_COL_NAME_LEN);
       if (pStmt->pColOptions != NULL) {
         if (!checkColumnEncodeOrSetDefault(pStmt->dataType.type, pStmt->pColOptions->encode))
           return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
@@ -9501,7 +9863,8 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 }
 
 static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
-  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType) {
+  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType ||
+      TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                    "Set tag value only available for child table");
   }
@@ -9578,12 +9941,12 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
     return code;
   }
-  strcpy(createReq.user, pStmt->userName);
+  tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   createReq.createType = 0;
   createReq.superUser = 0;
   createReq.sysInfo = pStmt->sysinfo;
   createReq.enable = 1;
-  strcpy(createReq.pass, pStmt->password);
+  tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
   createReq.isImport = pStmt->isImport;
   createReq.createDb = pStmt->createDb;
 
@@ -9622,7 +9985,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   if ((code = checkAlterUser(pCxt, pStmt))) {
     return code;
   }
-  strcpy(alterReq.user, pStmt->userName);
+  tstrncpy(alterReq.user, pStmt->userName, TSDB_USER_LEN);
   alterReq.alterType = pStmt->alterType;
   alterReq.superUser = 0;
   alterReq.enable = pStmt->enable;
@@ -9648,7 +10011,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
 
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
-  strcpy(dropReq.user, pStmt->userName);
+  tstrncpy(dropReq.user, pStmt->userName, TSDB_USER_LEN);
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
   tFreeSDropUserReq(&dropReq);
@@ -9658,7 +10021,7 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
 static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
   SMCreateAnodeReq createReq = {0};
   createReq.urlLen = strlen(pStmt->url) + 1;
-  if (createReq.urlLen > TSDB_ANAL_ANODE_URL_LEN) {
+  if (createReq.urlLen > TSDB_ANALYTIC_ANODE_URL_LEN) {
     return TSDB_CODE_MND_ANODE_TOO_LONG_URL;
   }
 
@@ -9694,7 +10057,7 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
 
 static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* pStmt) {
   SCreateDnodeReq createReq = {0};
-  strcpy(createReq.fqdn, pStmt->fqdn);
+  tstrncpy(createReq.fqdn, pStmt->fqdn, TSDB_FQDN_LEN);
   createReq.port = pStmt->port;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_DNODE, (FSerializeFunc)tSerializeSCreateDnodeReq, &createReq);
@@ -9705,7 +10068,7 @@ static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* p
 static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt) {
   SDropDnodeReq dropReq = {0};
   dropReq.dnodeId = pStmt->dnodeId;
-  strcpy(dropReq.fqdn, pStmt->fqdn);
+  tstrncpy(dropReq.fqdn, pStmt->fqdn, TSDB_FQDN_LEN);
   dropReq.port = pStmt->port;
   dropReq.force = pStmt->force;
   dropReq.unsafe = pStmt->unsafe;
@@ -9715,14 +10078,22 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
   return code;
 }
 
+#define MIN_MAX_COMPACT_TASKS 1
+#define MAX_MAX_COMPACT_TASKS 100
+
 static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pStmt) {
   SMCfgDnodeReq cfgReq = {0};
   cfgReq.dnodeId = pStmt->dnodeId;
-  strcpy(cfgReq.config, pStmt->config);
-  strcpy(cfgReq.value, pStmt->value);
+  tstrncpy(cfgReq.config, pStmt->config, TSDB_DNODE_CONFIG_LEN);
+  tstrncpy(cfgReq.value, pStmt->value, TSDB_DNODE_VALUE_LEN);
 
   int32_t code = 0;
-  if (0 == strncasecmp(cfgReq.config, "encrypt_key", 12)) {
+
+  const char* validConfigs[] = {
+      "encrypt_key",
+      tsAlterCompactTaskKeywords,
+  };
+  if (0 == strncasecmp(cfgReq.config, validConfigs[0], strlen(validConfigs[0]) + 1)) {
     int32_t klen = strlen(cfgReq.value);
     if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
       tFreeSMCfgDnodeReq(&cfgReq);
@@ -9731,6 +10102,28 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
                                      ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
     }
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_KEY, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  } else if (0 == strncasecmp(cfgReq.config, validConfigs[1], strlen(validConfigs[1]) + 1)) {
+    char*   endptr = NULL;
+    int32_t maxCompactTasks = taosStr2Int32(cfgReq.value, &endptr, 10);
+    int32_t minMaxCompactTasks = MIN_MAX_COMPACT_TASKS;
+    int32_t maxMaxCompactTasks = MAX_MAX_COMPACT_TASKS;
+
+    // check format
+    if (endptr == cfgReq.value || endptr[0] != '\0') {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,
+                                     "Invalid max compact tasks: %s", cfgReq.value);
+    }
+
+    // check range
+    if (maxCompactTasks < minMaxCompactTasks || maxCompactTasks > maxMaxCompactTasks) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,
+                                     "Invalid max compact tasks: %d, valid range [%d,%d]", maxCompactTasks,
+                                     minMaxCompactTasks, maxMaxCompactTasks);
+    }
+
+    code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
   } else {
     code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
   }
@@ -9766,8 +10159,8 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
 
 static int32_t translateAlterCluster(STranslateContext* pCxt, SAlterClusterStmt* pStmt) {
   SMCfgClusterReq cfgReq = {0};
-  strcpy(cfgReq.config, pStmt->config);
-  strcpy(cfgReq.value, pStmt->value);
+  tstrncpy(cfgReq.config, pStmt->config, TSDB_DNODE_CONFIG_LEN);
+  tstrncpy(cfgReq.value, pStmt->value, TSDB_CLUSTER_VALUE_LEN);
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_CLUSTER, (FSerializeFunc)tSerializeSMCfgClusterReq, &cfgReq);
   tFreeSMCfgClusterReq(&cfgReq);
@@ -9915,7 +10308,7 @@ static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt
   return code;
 }
 
-int32_t createIntervalFromCreateSmaIndexStmt(SCreateIndexStmt* pStmt, SInterval* pInterval) {
+int32_t createIntervalFromCreateSmaIndexStmt(SCreateIndexStmt* pStmt, SInterval* pInterval, void* timezone) {
   pInterval->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
   pInterval->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
   pInterval->offset = NULL != pStmt->pOptions->pOffset ? ((SValueNode*)pStmt->pOptions->pOffset)->datum.i : 0;
@@ -9924,6 +10317,11 @@ int32_t createIntervalFromCreateSmaIndexStmt(SCreateIndexStmt* pStmt, SInterval*
   pInterval->slidingUnit =
       NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->unit : pInterval->intervalUnit;
   pInterval->precision = pStmt->pOptions->tsPrecision;
+  if (pInterval->offset < 0) {
+    parserError("%s failed for invalid interval offset %" PRId64, __func__, pInterval->offset);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pInterval->timezone = timezone;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -9935,7 +10333,7 @@ int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, SS
   STranslateContext pCxt = {0};
   code = initTranslateContext(pParseCxt, NULL, &pCxt);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createIntervalFromCreateSmaIndexStmt(pStmt, &interval);
+    code = createIntervalFromCreateSmaIndexStmt(pStmt, &interval, pParseCxt->timezone);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -10238,9 +10636,9 @@ static int32_t checkCollectTopicTags(STranslateContext* pCxt, SCreateTopicStmt* 
     if (NULL == col) {
       return code;
     }
-    strcpy(col->colName, column->name);
-    strcpy(col->node.aliasName, col->colName);
-    strcpy(col->node.userAlias, col->colName);
+    tstrncpy(col->colName, column->name, TSDB_COL_NAME_LEN);
+    tstrncpy(col->node.aliasName, col->colName, TSDB_COL_NAME_LEN);
+    tstrncpy(col->node.userAlias, col->colName, TSDB_COL_NAME_LEN);
     code = addTagList(&colCxt.pTags, (SNode*)col);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyNode((SNode*)col);
@@ -10277,9 +10675,9 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&realTable);
     if (realTable) {
-      strcpy(realTable->table.dbName, pStmt->subDbName);
-      strcpy(realTable->table.tableName, pStmt->subSTbName);
-      strcpy(realTable->table.tableAlias, pStmt->subSTbName);
+      tstrncpy(realTable->table.dbName, pStmt->subDbName, TSDB_DB_NAME_LEN);
+      tstrncpy(realTable->table.tableName, pStmt->subSTbName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(realTable->table.tableAlias, pStmt->subSTbName, TSDB_TABLE_NAME_LEN);
       code = createSelectStmtImpl(true, pProjection, (SNode*)realTable, NULL, ppSelect);
     }
     if (TSDB_CODE_SUCCESS == code) {
@@ -10352,7 +10750,7 @@ static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pSt
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, dropReq.topic);
   dropReq.igNotExists = pStmt->ignoreNotExists;
-  strcpy(dropReq.cgroup, pStmt->cgroup);
+  tstrncpy(dropReq.cgroup, pStmt->cgroup, TSDB_CGROUP_LEN);
 
   return buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_CGROUP, (FSerializeFunc)tSerializeSMDropCgroupReq, &dropReq);
 }
@@ -10417,27 +10815,28 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
   return code;
 }
 
-static int32_t translateCompactRange(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt, SCompactDbReq* pReq) {
+static int32_t translateCompactRange(STranslateContext* pCxt, const char* dbName, SNode* pStart, SNode* pEnd,
+                                     STimeWindow* timeRange) {
   SDbCfgInfo dbCfg = {0};
-  int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pStart) {
-    ((SValueNode*)pStmt->pStart)->node.resType.precision = dbCfg.precision;
-    ((SValueNode*)pStmt->pStart)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pStart);
+  int32_t    code = getDBCfg(pCxt, dbName, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code && NULL != pStart) {
+    ((SValueNode*)pStart)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pStart)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pStart);
   }
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pEnd) {
-    ((SValueNode*)pStmt->pEnd)->node.resType.precision = dbCfg.precision;
-    ((SValueNode*)pStmt->pEnd)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pEnd);
+  if (TSDB_CODE_SUCCESS == code && NULL != pEnd) {
+    ((SValueNode*)pEnd)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pEnd)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pEnd);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    pReq->timeRange.skey = NULL != pStmt->pStart ? ((SValueNode*)pStmt->pStart)->datum.i : INT64_MIN;
-    pReq->timeRange.ekey = NULL != pStmt->pEnd ? ((SValueNode*)pStmt->pEnd)->datum.i : INT64_MAX;
+    timeRange->skey = NULL != pStart ? ((SValueNode*)pStart)->datum.i : INT64_MIN;
+    timeRange->ekey = NULL != pEnd ? ((SValueNode*)pEnd)->datum.i : INT64_MAX;
   }
   return code;
 }
 
-static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
+static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
   SCompactDbReq compactReq = {0};
   SName         name;
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -10445,11 +10844,90 @@ static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* p
   if (TSDB_CODE_SUCCESS != code) return code;
 
   (void)tNameGetFullDbName(&name, compactReq.db);
-  code = translateCompactRange(pCxt, pStmt, &compactReq);
+  code = translateCompactRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &compactReq.timeRange);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
   }
   tFreeSCompactDbReq(&compactReq);
+  return code;
+}
+
+static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupList, SArray** ppVgroups) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SHashObj* pHash = NULL;
+  int32_t   numOfVgroups = LIST_LENGTH(vgroupList);
+
+  (*ppVgroups) = taosArrayInit(numOfVgroups, sizeof(int64_t));
+  if (NULL == *ppVgroups) {
+    return terrno;
+  }
+
+  pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (NULL == pHash) {
+    code = terrno;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, vgroupList) {
+      SValueNode* pVal = (SValueNode*)pNode;
+      if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+        code = TSDB_CODE_VND_INVALID_VGROUP_ID;
+        break;
+      }
+
+      int64_t vgroupId = getBigintFromValueNode(pVal);
+
+      if (NULL != taosHashGet(pHash, &vgroupId, sizeof(vgroupId))) {
+        code = TSDB_CODE_PAR_INVALID_VGID_LIST;
+        break;
+      }
+
+      code = taosHashPut(pHash, &vgroupId, sizeof(vgroupId), NULL, 0);
+      if (code) {
+        break;
+      }
+
+      if (NULL == taosArrayPush(*ppVgroups, &vgroupId)) {
+        code = terrno;
+        break;
+      }
+    }
+  }
+
+  taosHashCleanup(pHash);
+  if (code) {
+    taosArrayDestroy(*ppVgroups);
+    *ppVgroups = NULL;
+  }
+  return code;
+}
+
+static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsStmt* pStmt) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SName         name;
+  SCompactDbReq req = {0};
+
+  code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+                        strlen(((SValueNode*)pStmt->pDbName)->literal));
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)tNameGetFullDbName(&name, req.db);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        translateCompactRange(pCxt, ((SValueNode*)pStmt->pDbName)->literal, pStmt->pStart, pStmt->pEnd, &req.timeRange);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateVgroupList(pCxt, pStmt->vgidList, &req.vgroupIds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &req);
+  }
+
+  tFreeSCompactDbReq(&req);
   return code;
 }
 
@@ -10467,7 +10945,7 @@ static int32_t translateKillCompact(STranslateContext* pCxt, SKillStmt* pStmt) {
 
 static int32_t translateKillQuery(STranslateContext* pCxt, SKillQueryStmt* pStmt) {
   SKillQueryReq killReq = {0};
-  strcpy(killReq.queryStrId, pStmt->queryId);
+  tstrncpy(killReq.queryStrId, pStmt->queryId, TSDB_QUERY_ID_LEN);
   return buildCmdMsg(pCxt, TDMT_MND_KILL_QUERY, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
 }
 
@@ -10523,11 +11001,12 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
 
 static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
   SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
-  strcpy(name.dbname, ((SRealTableNode*)(((SSelectStmt*)pStmt)->pFromTable))->table.dbName);
+  tstrncpy(name.dbname, ((SRealTableNode*)(((SSelectStmt*)pStmt)->pFromTable))->table.dbName, TSDB_DB_NAME_LEN);
   (void)tNameGetFullDbName(&name, pDbFName);
 }
 
-static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len, char* defaultName[]) {
+static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len,
+                                                char* defaultName[]) {
   for (int32_t i = 0; defaultName[i] != NULL; i++) {
     if (NULL == taosHashGet(pUserAliasSet, defaultName[i], strlen(defaultName[i]))) {
       snprintf(aliasName, len, "%s", defaultName[i]);
@@ -10553,8 +11032,8 @@ static int32_t setColumnDefNodePrimaryKey(SColumnDefNode* pNode, bool isPk) {
   return code;
 }
 
-static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
-                                                  SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
+static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect, SHashObj* pUserAliasSet,
+                                                SNodeList* pCols, SCMCreateStreamReq* pReq) {
   SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
   if (!pSelect->hasInterpFunc ||
       (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_irowts", ((SFunctionNode*)pProj)->functionName))) {
@@ -10581,7 +11060,7 @@ static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelect
     SColumnDefNode* pColDef = NULL;
     code = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef);
     if (TSDB_CODE_SUCCESS == code) {
-      strcpy(pColDef->colName, pFunc->node.aliasName);
+      tstrncpy(pColDef->colName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
       pColDef->dataType = pFunc->node.resType;
       pColDef->sma = true;
       code = setColumnDefNodePrimaryKey(pColDef, false);
@@ -10601,12 +11080,12 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
     return TSDB_CODE_SUCCESS;
   }
   SFunctionNode* pFunc = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (NULL == pFunc) {
     return code;
   }
-  strcpy(pFunc->functionName, "_wstart");
-  strcpy(pFunc->node.userAlias, "_irowts");
+  tstrncpy(pFunc->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, "_irowts", TSDB_COL_NAME_LEN);
   char* defaultName[] = {"_wstart", "ts", NULL};
   getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName);
   code = getFuncInfo(pCxt, pFunc);
@@ -10618,7 +11097,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
     SColumnDefNode* pColDef = NULL;
     code = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef);
     if (TSDB_CODE_SUCCESS == code) {
-      strcpy(pColDef->colName, pFunc->node.aliasName);
+      tstrncpy(pColDef->colName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
       pColDef->dataType = pFunc->node.resType;
       pColDef->sma = true;
       code = setColumnDefNodePrimaryKey(pColDef, false);
@@ -10633,7 +11112,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
 }
 
 static int32_t addTsKeyToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt, SNodeList* pCols,
-                                              SCMCreateStreamReq* pReq) {
+                                           SCMCreateStreamReq* pReq) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   SHashObj*    pUserAliasSet = NULL;
   int32_t      code = checkProjectAlias(pCxt, pSelect->pProjectionList, &pUserAliasSet);
@@ -10778,7 +11257,7 @@ static int32_t addColDefNodeByProj(SNodeList** ppCols, const SNode* pProject, in
   SColumnDefNode*  pColDef = NULL;
   int32_t          code = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef);
   if (TSDB_CODE_SUCCESS != code) return code;
-  strcpy(pColDef->colName, pExpr->userAlias);
+  tstrncpy(pColDef->colName, pExpr->userAlias, TSDB_COL_NAME_LEN);
   pColDef->dataType = pExpr->resType;
   pColDef->sma = flags & COL_SMA_ON;
   code = setColumnDefNodePrimaryKey(pColDef, flags & COL_IS_KEY);
@@ -10996,21 +11475,18 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
 
   if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
     if (pStmt->pOptions->fillHistory) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream unsupported Fill history");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream unsupported Fill history");
     }
 
     if (pStmt->pOptions->ignoreExpired != 1) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream must not set  ignore expired 0");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream must not set  ignore expired 0");
     }
 
     if (pStmt->pOptions->ignoreUpdate != 1) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream must not set  ignore update 0");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream must not set  ignore update 0");
     }
 
     if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
@@ -11082,7 +11558,7 @@ static int32_t adjustDataTypeOfProjections(STranslateContext* pCxt, const STable
     SColumnDefNode* pColDef = NULL;
     int32_t         code = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef);
     if (TSDB_CODE_SUCCESS != code) return code;
-    strcpy(pColDef->colName, pSchema->name);
+    tstrncpy(pColDef->colName, pSchema->name, TSDB_COL_NAME_LEN);
     pColDef->dataType = dt;
     pColDef->sma = pSchema->flags & COL_SMA_ON;
     code = setColumnDefNodePrimaryKey(pColDef, pSchema->flags & COL_IS_KEY);
@@ -11125,7 +11601,7 @@ static int32_t addProjToProjColPos(STranslateContext* pCxt, const SSchema* pSche
   if (!dataTypeEqual(&dt, &((SExprNode*)pNewProj)->resType)) {
     SNode* pFunc = NULL;
     code = createCastFunc(pCxt, pNewProj, dt, &pFunc);
-    strcpy(((SExprNode*)pFunc)->userAlias, ((SExprNode*)pNewProj)->userAlias);
+    tstrncpy(((SExprNode*)pFunc)->userAlias, ((SExprNode*)pNewProj)->userAlias, TSDB_COL_NAME_LEN);
     pNewProj = pFunc;
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -11219,9 +11695,6 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList** ppC
     code = nodesMakeList(&pNewProjections);
     if (TSDB_CODE_SUCCESS != code) return code;
     code = nodesMakeList(&pNewCols);
-    if (TSDB_CODE_SUCCESS != code) {
-      code = code;
-    }
     for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < num; ++i) {
       SProjColPos* pPos = taosArrayGet(pProjColPos, i);
       code = nodesListStrictAppend(pNewProjections, pPos->pProj);
@@ -11327,9 +11800,6 @@ static int32_t adjustOrderOfTags(STranslateContext* pCxt, SNodeList* pTags, cons
     int32_t        numOfTags = getNumOfTags(pMeta);
     const SSchema* pTagsSchema = getTableTagSchema(pMeta);
     code = nodesMakeList(&pNewTagExprs);
-    if (NULL == pNewTagExprs) {
-      code = code;
-    }
     for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < numOfTags; ++i) {
       const SSchema* pTagSchema = pTagsSchema + i;
       if (indexOfBoundTags < numOfBoundTags) {
@@ -11694,8 +12164,8 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   (void)tNameGetFullDbName(&name, pReq->name);
 
   if ('\0' != pStmt->targetTabName[0]) {
-    strcpy(name.dbname, pStmt->targetDbName);
-    strcpy(name.tname, pStmt->targetTabName);
+    tstrncpy(name.dbname, pStmt->targetDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(name.tname, pStmt->targetTabName, TSDB_TABLE_NAME_LEN);
     code = tNameExtractFullName(&name, pReq->targetStbFullName);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -11777,6 +12247,8 @@ static int32_t buildIntervalForCreateStream(SCreateStreamStmt* pStmt, SInterval*
   pInterval->slidingUnit =
       (NULL != pWindow->pSliding ? ((SValueNode*)pWindow->pSliding)->unit : pInterval->intervalUnit);
   pInterval->precision = ((SColumnNode*)pWindow->pCol)->node.resType.precision;
+  pInterval->timeRange = pWindow->timeRange;
+  pInterval->timezone = pWindow->timezone;
 
   return code;
 }
@@ -11826,7 +12298,7 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, SSDa
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
       pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit,
-                                        interval.precision);
+                                        interval.precision, pParseCxt->timezone);
     } else {
       pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
@@ -11921,7 +12393,7 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
     pStmt->createReq.precision = res.schemaRes.precision;
     pStmt->createReq.numOfCols = res.schemaRes.numOfCols;
     pStmt->createReq.pSchema = res.schemaRes.pSchema;
-    strncpy(pStmt->createReq.name, pStmt->viewName, sizeof(pStmt->createReq.name) - 1);
+    tstrncpy(pStmt->createReq.name, pStmt->viewName, TSDB_VIEW_NAME_LEN);
     tstrncpy(pStmt->createReq.dbFName, dbFName, sizeof(pStmt->createReq.dbFName));
     snprintf(pStmt->createReq.fullname, sizeof(pStmt->createReq.fullname) - 1, "%s.%s", pStmt->createReq.dbFName,
              pStmt->viewName);
@@ -11950,7 +12422,7 @@ static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) 
   int32_t        code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS == code) {
     (void)tNameGetFullDbName(&name, dropReq.dbFName);
-    strncpy(dropReq.name, pStmt->viewName, sizeof(dropReq.name) - 1);
+    tstrncpy(dropReq.name, pStmt->viewName, TSDB_VIEW_NAME_LEN);
     snprintf(dropReq.fullname, sizeof(dropReq.fullname) - 1, "%s.%s", dropReq.dbFName, dropReq.name);
     dropReq.sql = (char*)pCxt->pParseCxt->pSql;
     if (NULL == dropReq.sql) {
@@ -12017,7 +12489,7 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   }
 
   SCreateFuncReq req = {0};
-  strcpy(req.name, pStmt->funcName);
+  tstrncpy(req.name, pStmt->funcName, TSDB_FUNC_NAME_LEN);
   req.orReplace = pStmt->orReplace;
   req.igExists = pStmt->ignoreExists;
   req.funcType = pStmt->isAgg ? TSDB_FUNC_TYPE_AGGREGATE : TSDB_FUNC_TYPE_SCALAR;
@@ -12036,7 +12508,7 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
 
 static int32_t translateDropFunction(STranslateContext* pCxt, SDropFunctionStmt* pStmt) {
   SDropFuncReq req = {0};
-  strcpy(req.name, pStmt->funcName);
+  tstrncpy(req.name, pStmt->funcName, TSDB_FUNC_NAME_LEN);
   req.igNotExists = pStmt->ignoreNotExists;
   return buildCmdMsg(pCxt, TDMT_MND_DROP_FUNC, (FSerializeFunc)tSerializeSDropFuncReq, &req);
 }
@@ -12047,9 +12519,9 @@ static int32_t createRealTableForGrantTable(SGrantStmt* pStmt, SRealTableNode** 
   if (NULL == pRealTable) {
     return code;
   }
-  strcpy(pRealTable->table.dbName, pStmt->objName);
-  strcpy(pRealTable->table.tableName, pStmt->tabName);
-  strcpy(pRealTable->table.tableAlias, pStmt->tabName);
+  tstrncpy(pRealTable->table.dbName, pStmt->objName, TSDB_DB_NAME_LEN);
+  tstrncpy(pRealTable->table.tableName, pStmt->tabName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pRealTable->table.tableAlias, pStmt->tabName, TSDB_TABLE_NAME_LEN);
   *pTable = pRealTable;
   return TSDB_CODE_SUCCESS;
 }
@@ -12124,9 +12596,9 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   }
 #endif
 
-  strcpy(req.user, pStmt->userName);
-  sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-  sprintf(req.tabName, "%s", pStmt->tabName);
+  tstrncpy(req.user, pStmt->userName, TSDB_USER_LEN);
+  snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
+  snprintf(req.tabName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
   if (!req.isView) {
     code = translateGrantTagCond(pCxt, pStmt, &req);
   }
@@ -12160,9 +12632,9 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   }
 #endif
 
-  strcpy(req.user, pStmt->userName);
-  sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-  sprintf(req.tabName, "%s", pStmt->tabName);
+  tstrncpy(req.user, pStmt->userName, TSDB_USER_LEN);
+  snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
+  snprintf(req.tabName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
   tFreeSAlterUserReq(&req);
   return code;
@@ -12178,7 +12650,7 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
-  strcpy(req.db, pStmt->dbName);
+  tstrncpy(req.db, pStmt->dbName, TSDB_DB_FNAME_LEN);
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
   tFreeSBalanceVgroupLeaderReq(&req);
@@ -12345,14 +12817,14 @@ static int32_t buildTSMAAstStreamSubTable(SCreateTSMAStmt* pStmt, SMCreateSmaReq
   code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (TSDB_CODE_SUCCESS != code) goto _end;
 
-  sprintf(pMd5Func->functionName, "%s", "md5");
-  sprintf(pConcatFunc->functionName, "%s", "concat");
+  snprintf(pMd5Func->functionName, TSDB_FUNC_NAME_LEN, "%s", "md5");
+  snprintf(pConcatFunc->functionName, TSDB_FUNC_NAME_LEN, "%s", "concat");
   pVal->literal = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN + 1);
   if (!pVal->literal) {
     code = terrno;
     goto _end;
   }
-  sprintf(pVal->literal, "%s_", pReq->name);
+  snprintf(pVal->literal, TSDB_TABLE_FNAME_LEN + 1, "%s_", pReq->name);
   pVal->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
   pVal->node.resType.bytes = strlen(pVal->literal);
   code = nodesListMakeAppend(&pConcatFunc->pParameterList, (SNode*)pVal);
@@ -12396,10 +12868,8 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
     // append partition by tbname
     code = createTbnameFunction(&pTbnameFunc);
     if (pTbnameFunc) {
-      sprintf(pTbnameFunc->node.userAlias, "tbname");
+      snprintf(pTbnameFunc->node.userAlias, TSDB_COL_NAME_LEN, "tbname");
       code = nodesListMakeStrictAppend(&info.pPartitionByList, (SNode*)pTbnameFunc);
-    } else {
-      code = code;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -12464,7 +12934,7 @@ static int32_t createColumnBySchema(const SSchema* pSchema, SColumnNode** ppCol)
   (*ppCol)->colId = pSchema->colId;
   (*ppCol)->node.resType.type = pSchema->type;
   (*ppCol)->node.resType.bytes = pSchema->bytes;
-  strcpy((*ppCol)->colName, pSchema->name);
+  tstrncpy((*ppCol)->colName, pSchema->name, TSDB_COL_NAME_LEN);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -12697,7 +13167,7 @@ static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pSt
   return code;
 }
 
-static int32_t buildIntervalForCreateTSMA(SCreateTSMAStmt* pStmt, SInterval* pInterval) {
+static int32_t buildIntervalForCreateTSMA(SCreateTSMAStmt* pStmt, SInterval* pInterval, void* timezone) {
   int32_t code = TSDB_CODE_SUCCESS;
   pInterval->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
   pInterval->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
@@ -12705,6 +13175,7 @@ static int32_t buildIntervalForCreateTSMA(SCreateTSMAStmt* pStmt, SInterval* pIn
   pInterval->sliding = pInterval->interval;
   pInterval->slidingUnit = pInterval->intervalUnit;
   pInterval->precision = pStmt->pOptions->tsPrecision;
+  pInterval->timezone  = timezone;
   return code;
 }
 
@@ -12716,7 +13187,7 @@ int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSData
 
   int32_t code = initTranslateContext(pParseCxt, NULL, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildIntervalForCreateTSMA(pStmt, &interval);
+    code = buildIntervalForCreateTSMA(pStmt, &interval, pParseCxt->timezone);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -12726,7 +13197,7 @@ int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSData
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
       pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit,
-                                        interval.precision);
+                                        interval.precision,  pParseCxt->timezone);
     } else {
       pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
@@ -12883,7 +13354,10 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateDescribe(pCxt, (SDescribeStmt*)pNode);
       break;
     case QUERY_NODE_COMPACT_DATABASE_STMT:
-      code = translateCompact(pCxt, (SCompactDatabaseStmt*)pNode);
+      code = translateCompactDb(pCxt, (SCompactDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
+      code = translateCompactVgroups(pCxt, (SCompactVgroupsStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
@@ -13013,9 +13487,9 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
     }
     (*pSchema)[index].colId = index + 1;
     if ('\0' != pExpr->userAlias[0]) {
-      strcpy((*pSchema)[index].name, pExpr->userAlias);
+      tstrncpy((*pSchema)[index].name, pExpr->userAlias, TSDB_COL_NAME_LEN);
     } else {
-      strcpy((*pSchema)[index].name, pExpr->aliasName);
+      tstrncpy((*pSchema)[index].name, pExpr->aliasName, TSDB_COL_NAME_LEN);
     }
     index += 1;
   }
@@ -13033,7 +13507,7 @@ static int32_t extractExplainResultSchema(int32_t* numOfCols, SSchema** pSchema)
   }
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = TSDB_EXPLAIN_RESULT_ROW_SIZE;
-  strcpy((*pSchema)[0].name, TSDB_EXPLAIN_RESULT_COLUMN_NAME);
+  tstrncpy((*pSchema)[0].name, TSDB_EXPLAIN_RESULT_COLUMN_NAME, TSDB_COL_NAME_LEN);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13047,32 +13521,32 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = DESCRIBE_RESULT_FIELD_LEN;
-  strcpy((*pSchema)[0].name, "field");
+  tstrncpy((*pSchema)[0].name, "field", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[1].bytes = DESCRIBE_RESULT_TYPE_LEN;
-  strcpy((*pSchema)[1].name, "type");
+  tstrncpy((*pSchema)[1].name, "type", TSDB_COL_NAME_LEN);
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_INT;
   (*pSchema)[2].bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-  strcpy((*pSchema)[2].name, "length");
+  tstrncpy((*pSchema)[2].name, "length", TSDB_COL_NAME_LEN);
 
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
-  strcpy((*pSchema)[3].name, "note");
+  tstrncpy((*pSchema)[3].name, "note", TSDB_COL_NAME_LEN);
 
   if (pMeta && useCompress(pMeta->tableType)) {
     (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
     (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-    strcpy((*pSchema)[4].name, "encode");
+    tstrncpy((*pSchema)[4].name, "encode", TSDB_COL_NAME_LEN);
 
     (*pSchema)[5].type = TSDB_DATA_TYPE_BINARY;
     (*pSchema)[5].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-    strcpy((*pSchema)[5].name, "compress");
+    tstrncpy((*pSchema)[5].name, "compress", TSDB_COL_NAME_LEN);
 
     (*pSchema)[6].type = TSDB_DATA_TYPE_BINARY;
     (*pSchema)[6].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-    strcpy((*pSchema)[6].name, "level");
+    tstrncpy((*pSchema)[6].name, "level", TSDB_COL_NAME_LEN);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -13087,11 +13561,11 @@ static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = TSDB_DB_NAME_LEN;
-  strcpy((*pSchema)[0].name, "Database");
+  tstrncpy((*pSchema)[0].name, "Database", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[1].bytes = TSDB_MAX_BINARY_LEN;
-  strcpy((*pSchema)[1].name, "Create Database");
+  tstrncpy((*pSchema)[1].name, "Create Database", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -13105,11 +13579,11 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
-  strcpy((*pSchema)[0].name, "Table");
+  tstrncpy((*pSchema)[0].name, "Table", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
-  strcpy((*pSchema)[1].name, "Create Table");
+  tstrncpy((*pSchema)[1].name, "Create Table", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -13123,17 +13597,17 @@ static int32_t extractShowCreateViewResultSchema(int32_t* numOfCols, SSchema** p
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = SHOW_CREATE_VIEW_RESULT_FIELD1_LEN;
-  strcpy((*pSchema)[0].name, "View");
+  tstrncpy((*pSchema)[0].name, "View", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[1].bytes = SHOW_CREATE_VIEW_RESULT_FIELD2_LEN;
-  strcpy((*pSchema)[1].name, "Create View");
+  tstrncpy((*pSchema)[1].name, "Create View", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = 3;
+  *numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS;  // SHOW_VARIABLES_RESULT_COLS
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
@@ -13141,15 +13615,23 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = TSDB_CONFIG_OPTION_LEN;
-  strcpy((*pSchema)[0].name, "name");
+  tstrncpy((*pSchema)[0].name, "name", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = TSDB_CONFIG_VALUE_LEN;
-  strcpy((*pSchema)[1].name, "value");
+  (*pSchema)[1].bytes = TSDB_CONFIG_PATH_LEN;
+  tstrncpy((*pSchema)[1].name, "value", TSDB_COL_NAME_LEN);
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[2].bytes = TSDB_CONFIG_SCOPE_LEN;
-  strcpy((*pSchema)[2].name, "scope");
+  tstrncpy((*pSchema)[2].name, "scope", TSDB_COL_NAME_LEN);
+
+  (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[3].bytes = TSDB_CONFIG_CATEGORY_LEN;
+  strcpy((*pSchema)[3].name, "category");
+
+  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[4].bytes = TSDB_CONFIG_INFO_LEN;
+  strcpy((*pSchema)[4].name, "info");
 
   return TSDB_CODE_SUCCESS;
 }
@@ -13163,15 +13645,15 @@ static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchem
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = COMPACT_DB_RESULT_FIELD1_LEN;
-  strcpy((*pSchema)[0].name, "result");
+  tstrncpy((*pSchema)[0].name, "result", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_INT;
   (*pSchema)[1].bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-  strcpy((*pSchema)[1].name, "id");
+  tstrncpy((*pSchema)[1].name, "id", TSDB_COL_NAME_LEN);
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[2].bytes = COMPACT_DB_RESULT_FIELD3_LEN;
-  strcpy((*pSchema)[2].name, "reason");
+  tstrncpy((*pSchema)[2].name, "reason", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -13202,6 +13684,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return extractShowVariablesResultSchema(numOfCols, pSchema);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
     default:
       break;
@@ -13216,7 +13699,7 @@ static int32_t createStarCol(SNode** ppNode) {
   if (NULL == pCol) {
     return code;
   }
-  strcpy(pCol->colName, "*");
+  tstrncpy(pCol->colName, "*", TSDB_COL_NAME_LEN);
   *ppNode = (SNode*)pCol;
   return code;
 }
@@ -13270,7 +13753,7 @@ static int32_t createSimpleSelectStmtImpl(const char* pDb, const char* pTable, S
   if (NULL == pSelect) {
     return code;
   }
-  sprintf(pSelect->stmtName, "%p", pSelect);
+  snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
 
   SRealTableNode* pRealTable = NULL;
   code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRealTable);
@@ -13313,6 +13796,12 @@ static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) 
 
 static int32_t createSelectStmtForShowTableDist(SShowTableDistributedStmt* pStmt, SSelectStmt** pOutput) {
   return createSimpleSelectStmtFromCols(pStmt->dbName, pStmt->tableName, 0, NULL, pOutput);
+}
+static int32_t createSelectStmtForShowDBUsage(SShowStmt* pStmt, SSelectStmt** pOutput) {
+  int32_t                     type = nodeType(pStmt);
+  const SSysTableShowAdapter* pShow = &sysTableShowAdapter[type - SYSTABLE_SHOW_TYPE_OFFSET];
+  return createSimpleSelectStmtFromCols(pShow->pDbName, pShow->pTableName, pShow->numOfShowCols, pShow->pShowCols,
+                                        pOutput);
 }
 
 static int32_t createOperatorNode(EOperatorType opType, const char* pColName, const SNode* pRight, SNode** pOp) {
@@ -13360,8 +13849,8 @@ static int32_t createParOperatorNode(EOperatorType opType, const char* pLeftCol,
     nodesDestroyNode((SNode*)pOper);
     return code;
   }
-  strcpy(((SColumnNode*)pOper->pLeft)->colName, pLeftCol);
-  strcpy(((SColumnNode*)pOper->pRight)->colName, pRightCol);
+  tstrncpy(((SColumnNode*)pOper->pLeft)->colName, pLeftCol, TSDB_COL_NAME_LEN);
+  tstrncpy(((SColumnNode*)pOper->pRight)->colName, pRightCol, TSDB_COL_NAME_LEN);
 
   *ppResOp = (SNode*)pOper;
   return TSDB_CODE_SUCCESS;
@@ -13628,7 +14117,7 @@ static int32_t createShowCondition(const SShowStmt* pShow, SSelectStmt* pSelect)
   }
 
   if (NULL != pShow->pDbName) {
-    strcpy(((SRealTableNode*)pSelect->pFromTable)->qualDbName, ((SValueNode*)pShow->pDbName)->literal);
+    tstrncpy(((SRealTableNode*)pSelect->pFromTable)->qualDbName, ((SValueNode*)pShow->pDbName)->literal, TSDB_DB_NAME_LEN);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -13701,7 +14190,7 @@ static int32_t createTagsFunction(SFunctionNode** ppNode) {
   if (NULL == pFunc) {
     return code;
   }
-  strcpy(pFunc->functionName, "_tags");
+  tstrncpy(pFunc->functionName, "_tags", TSDB_FUNC_NAME_LEN);
   *ppNode = pFunc;
   return code;
 }
@@ -13799,8 +14288,8 @@ static int32_t createBlockDistInfoFunc(SFunctionNode** ppNode) {
     return code;
   }
 
-  strcpy(pFunc->functionName, "_block_dist_info");
-  strcpy(pFunc->node.aliasName, "_block_dist_info");
+  tstrncpy(pFunc->functionName, "_block_dist_info", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, "_block_dist_info", TSDB_COL_NAME_LEN);
   *ppNode = pFunc;
   return code;
 }
@@ -13812,8 +14301,8 @@ static int32_t createBlockDistFunc(SFunctionNode** ppNode) {
     return code;
   }
 
-  strcpy(pFunc->functionName, "_block_dist");
-  strcpy(pFunc->node.aliasName, "_block_dist");
+  tstrncpy(pFunc->functionName, "_block_dist", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, "_block_dist", TSDB_COL_NAME_LEN);
   SFunctionNode* pFuncNew = NULL;
   code = createBlockDistInfoFunc(&pFuncNew);
   if (TSDB_CODE_SUCCESS == code) {
@@ -13845,6 +14334,62 @@ static int32_t rewriteShowTableDist(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t createBlockDBUsageInfoFunc(SFunctionNode** ppNode) {
+  SFunctionNode* pFunc = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (NULL == pFunc) {
+    return code;
+  }
+
+  strcpy(pFunc->functionName, "_db_usage_info");
+  strcpy(pFunc->node.aliasName, "_db_usage_info");
+  *ppNode = pFunc;
+  return code;
+}
+static int32_t createDBUsageFunc(SFunctionNode** ppNode) {
+  SFunctionNode* pFunc = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (NULL == pFunc) {
+    return code;
+  }
+
+  strcpy(pFunc->functionName, "_db_usage");
+  strcpy(pFunc->node.aliasName, "_db_usage");
+  SFunctionNode* pFuncNew = NULL;
+  code = createBlockDBUsageInfoFunc(&pFuncNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pFuncNew);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+  *ppNode = pFunc;
+  return code;
+}
+static int32_t rewriteShowDBUsage(STranslateContext* pCtx, SQuery* pQuery) {
+  SSelectStmt* pStmt = NULL;
+  int32_t      code = createSelectStmtForShowDBUsage((SShowStmt*)pQuery->pRoot, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_DESTORY_LIST(pStmt->pProjectionList);
+    SFunctionNode* pFuncNew = NULL;
+    code = createDBUsageFunc(&pFuncNew);
+    if (TSDB_CODE_SUCCESS == code) code = nodesListMakeStrictAppend(&pStmt->pProjectionList, (SNode*)pFuncNew);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createShowCondition((SShowStmt*)pQuery->pRoot, pStmt);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pCtx->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
 typedef struct SVgroupCreateTableBatch {
   SVCreateTbBatchReq req;
   SVgroupInfo        info;
@@ -13855,7 +14400,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
                                         SVgroupCreateTableBatch* pBatch) {
   char  dbFName[TSDB_DB_FNAME_LEN] = {0};
   SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
-  (void)strcpy(name.dbname, pStmt->dbName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
   (void)tNameGetFullDbName(&name, dbFName);
 
   SVCreateTbReq req = {0};
@@ -13911,7 +14456,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
     ++index;
   }
   pBatch->info = *pVgroupInfo;
-  (void)strcpy(pBatch->dbName, pStmt->dbName);
+  tstrncpy(pBatch->dbName, pStmt->dbName, TSDB_DB_NAME_LEN);
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == pBatch->req.pArray) {
     tdDestroySVCreateTbReq(&req);
@@ -14087,7 +14632,7 @@ static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* db
   if (pTableBatch == NULL) {
     SVgroupCreateTableBatch tBatch = {0};
     tBatch.info = *pVgInfo;
-    strcpy(tBatch.dbName, dbName);
+    tstrncpy(tBatch.dbName, dbName, TSDB_DB_NAME_LEN);
 
     tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
     if (!tBatch.req.pArray) {
@@ -14171,7 +14716,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       if (pSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag);
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -14232,7 +14777,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag);
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -14428,7 +14973,7 @@ static int32_t fillVgroupInfo(SParseContext* pParseCxt, const SName* pName, SVgr
   return code;
 }
 
-static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt) {
+static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, timezone_t tz, void *charsetCxt) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int      sz = taosArrayGetSize(pParFileCxt->aTagIndexs);
   int32_t  numOfTags = getNumOfTags(pParFileCxt->pStbMeta);
@@ -14460,7 +15005,7 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt) 
       if (TSDB_CODE_SUCCESS == code) {
         SArray* aTagNames = pParFileCxt->tagNameFilled ? NULL : pParFileCxt->aTagNames;
         code = parseTagValue(pMsgBuf, &pParFileCxt->pSql, precision, (SSchema*)pTagSchema, &token, aTagNames,
-                             pParFileCxt->aTagVals, &pParFileCxt->pTag);
+                             pParFileCxt->aTagVals, &pParFileCxt->pTag, tz, charsetCxt);
       }
     } else {
       // parse tbname
@@ -14526,7 +15071,7 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
     (void)strtolower(pLine, pLine);
     pParFileCxt->pSql = pLine;
 
-    code = parseOneStbRow(pMsgBuf, pParFileCxt);
+    code = parseOneStbRow(pMsgBuf, pParFileCxt, pParseCxt->timezone, pParseCxt->charsetCxt);
 
     if (TSDB_CODE_SUCCESS == code) {
       code = fillVgroupInfo(pParseCxt, &pParFileCxt->ctbName, &pParFileCxt->vg);
@@ -14590,7 +15135,7 @@ static int32_t constructParseFileContext(SCreateSubTableFromFileClause* pStmt, S
   pParFileCxt->pTag = NULL;
   pParFileCxt->ctbName.type = TSDB_TABLE_NAME_T;
   pParFileCxt->ctbName.acctId = acctId;
-  strcpy(pParFileCxt->ctbName.dbname, pStmt->useDbName);
+  tstrncpy(pParFileCxt->ctbName.dbname, pStmt->useDbName, TSDB_DB_NAME_LEN);
 
   if (NULL == pParFileCxt->aTagNames) {
     pParFileCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
@@ -14664,8 +15209,8 @@ static int32_t prepareReadCsvFile(STranslateContext* pCxt, SCreateSubTableFromFi
     }
 
     pCreateInfo->ignoreExists = pCreateStmt->ignoreExists;
-    strncpy(pCreateInfo->useDbName, pCreateStmt->useDbName, TSDB_DB_NAME_LEN);
-    strncpy(pCreateInfo->useTableName, pCreateStmt->useTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pCreateInfo->useDbName, pCreateStmt->useDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pCreateInfo->useTableName, pCreateStmt->useTableName, TSDB_TABLE_NAME_LEN);
   }
 
   {
@@ -15185,24 +15730,88 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
   TAOS_RETURN(0);
 }
 
-static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                    SVAlterTbReq* pReq) {
-  SName   tbName = {0};
-  SArray* pTsmas = NULL;
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pCxt->pMetaCache) {
-    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
-    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
-    if (code != TSDB_CODE_SUCCESS) return code;
-    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
+static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                         char* colName, SMultiTagUpateVal* pReq) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  SSchema* pSchema = getTagSchema(pTableMeta, colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
   }
 
-  SSchema* pSchema = getTagSchema(pTableMeta, pStmt->colName);
-  if (NULL == pSchema) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s",
-                                   pStmt->colName);
+  pReq->tagName = taosStrdup(colName);
+  if (NULL == pReq->tagName) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
   }
-  pReq->tagName = taosStrdup(pStmt->colName);
+
+  pReq->pTagArray = taosArrayInit(1, sizeof(STagVal));
+  if (NULL == pReq->pTagArray) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
+  }
+  pReq->colId = pSchema->colId;
+  pReq->tagType = pSchema->type;
+
+  STag*       pTag = NULL;
+  SToken      token;
+  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  const char* tagStr = pStmt->pVal->literal;
+  NEXT_TOKEN_WITH_PREV(tagStr, token);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
+    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
+                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+    if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
+      pReq->tagFree = true;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && tagStr) {
+    NEXT_VALID_TOKEN(tagStr, token);
+    if (token.n != 0) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pSchema->type == TSDB_DATA_TYPE_JSON) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values ", token.z);
+    } else {
+      STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
+      if (pTagVal) {
+        pReq->isNull = false;
+        if (IS_VAR_DATA_TYPE(pSchema->type)) {
+          pReq->nTagVal = pTagVal->nData;
+          pReq->pTagVal = pTagVal->pData;
+        } else {
+          pReq->nTagVal = pSchema->bytes;
+          pReq->pTagVal = (uint8_t*)&pTagVal->i64;
+        }
+      } else {
+        pReq->isNull = true;
+      }
+    }
+  }
+_err:
+  if (code != 0) {
+    taosArrayDestroy(pReq->pTagArray);
+    taosMemoryFree(pReq->tagName);
+  }
+  return code;
+}
+static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                        char* colName, SVAlterTbReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SSchema* pSchema = getTagSchema(pTableMeta, colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
+  }
+
+  pReq->tagName = taosStrdup(colName);
   if (NULL == pReq->tagName) {
     return terrno;
   }
@@ -15227,7 +15836,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
 
   if (TSDB_CODE_SUCCESS == code) {
     code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
-                         pReq->pTagArray, &pTag);
+                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
       pReq->tagFree = true;
     }
@@ -15261,6 +15870,82 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     }
   }
 
+  return code;
+}
+static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                    SVAlterTbReq* pReq) {
+  SName   tbName = {0};
+  SArray* pTsmas = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pCxt->pMetaCache) {
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
+    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
+  }
+  return buildUpdateTagValReqImpl(pCxt, pStmt, pTableMeta, pStmt->colName, pReq);
+}
+
+static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                         SVAlterTbReq* pReq) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SName     tbName = {0};
+  SArray*   pTsmas = NULL;
+  SHashObj* pUnique = NULL;
+  if (pCxt->pMetaCache) {
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
+    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
+  }
+  SNodeList* pNodeList = pStmt->pNodeListTagValue;
+  if (pNodeList == NULL) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  int32_t nTagValues = pNodeList->length;
+  if (nTagValues == 1) {
+    SAlterTableStmt* head = (SAlterTableStmt*)pNodeList->pHead->pNode;
+    pReq->action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
+    return buildUpdateTagValReqImpl(pCxt, head, pTableMeta, head->colName, pReq);
+  } else {
+    pReq->pMultiTag = taosArrayInit(nTagValues, sizeof(SMultiTagUpateVal));
+    if (pReq->pMultiTag == NULL) {
+      return terrno;
+    }
+
+    pUnique = taosHashInit(nTagValues, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (pUnique == NULL) {
+      TAOS_CHECK_GOTO(terrno, NULL, _err);
+    }
+
+    SAlterTableStmt* pTagStmt = NULL;
+    SNode*           pNode = NULL;
+    int8_t           dummpy = 0;
+    FOREACH(pNode, pNodeList) {
+      SMultiTagUpateVal val = {0};
+      pTagStmt = (SAlterTableStmt*)pNode;
+
+      SMultiTagUpateVal* p = taosHashGet(pUnique, pTagStmt->colName, strlen(pTagStmt->colName));
+      if (p) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+        TAOS_CHECK_GOTO(code, NULL, _err);
+      }
+
+      code = taosHashPut(pUnique, pTagStmt->colName, strlen(pTagStmt->colName), &dummpy, sizeof(dummpy));
+      TAOS_CHECK_GOTO(code, NULL, _err);
+
+      code = buildUpdateTagValReqImpl2(pCxt, pTagStmt, pTableMeta, pTagStmt->colName, &val);
+      TAOS_CHECK_GOTO(code, NULL, _err);
+
+      if (taosArrayPush(pReq->pMultiTag, &val) == NULL) {
+        tfreeMultiTagUpateVal((void*)&val);
+        TAOS_CHECK_GOTO(terrno, NULL, _err);
+      }
+    }
+  }
+_err:
+  taosHashCleanup(pUnique);
   return code;
 }
 
@@ -15451,6 +16136,8 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+      return buildUpdateMultiTagValReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return buildUpdateTagValReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_ADD_COLUMN:
@@ -15552,6 +16239,10 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
       taosMemoryFreeClear(p->pData);
     }
   }
+  if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpateVal);
+  }
+
   taosArrayDestroy(pReq->pTagArray);
   if (pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }
@@ -15737,8 +16428,8 @@ static int32_t createParCaseWhenNode(SNode* pCase, SNodeList* pWhenThenList, SNo
   pCaseWhen->pWhenThenList = pWhenThenList;
   pCaseWhen->pElse = pElse;
   if (pAias) {
-    strcpy(pCaseWhen->node.aliasName, pAias);
-    strcpy(pCaseWhen->node.userAlias, pAias);
+    tstrncpy(pCaseWhen->node.aliasName, pAias, TSDB_COL_NAME_LEN);
+    tstrncpy(pCaseWhen->node.userAlias, pAias, TSDB_COL_NAME_LEN);
   }
   *ppResCaseWhen = (SNode*)pCaseWhen;
   return TSDB_CODE_SUCCESS;
@@ -15751,9 +16442,9 @@ static int32_t createParFunctionNode(const char* pFunName, const char* pAias, SN
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  strcpy(pFunc->functionName, pFunName);
-  strcpy(pFunc->node.aliasName, pAias);
-  strcpy(pFunc->node.userAlias, pAias);
+  tstrncpy(pFunc->functionName, pFunName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, pAias, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, pAias, TSDB_COL_NAME_LEN);
   pFunc->pParameterList = pParameterList;
   *ppResFunc = (SNode*)pFunc;
   return TSDB_CODE_SUCCESS;
@@ -15778,7 +16469,7 @@ static int32_t createParTempTableNode(SSelectStmt* pSubquery, SNode** ppResTempT
   }
   pTempTable->pSubquery = (SNode*)pSubquery;
   taosRandStr(pTempTable->table.tableAlias, 8);
-  strcpy(pSubquery->stmtName, pTempTable->table.tableAlias);
+  tstrncpy(pSubquery->stmtName, pTempTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
   pSubquery->isSubquery = true;
   *ppResTempTable = (SNode*)pTempTable;
   return TSDB_CODE_SUCCESS;
@@ -16194,7 +16885,7 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
 
   pStmt->pProjectionList = pProjList;
   pStmt->pFromTable = pTempTblNode;
-  sprintf(pStmt->stmtName, "%p", pStmt);
+  snprintf(pStmt->stmtName, TSDB_TABLE_NAME_LEN, "%p", pStmt);
 
   nodesDestroyNode(pQuery->pRoot);
   pQuery->pRoot = (SNode*)pStmt;
@@ -16238,6 +16929,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
       code = rewriteShow(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_USAGE_STMT:
+      code = rewriteShowDBUsage(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TAGS_STMT:
       code = rewriteShowTags(pCxt, pQuery);
@@ -16406,6 +17100,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

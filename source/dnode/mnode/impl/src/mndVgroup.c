@@ -1195,10 +1195,15 @@ int64_t mndGetVgroupMemory(SMnode *pMnode, SDbObj *pDbInput, SVgObj *pVgroup) {
 
   int64_t vgroupMemroy = 0;
   if (pDb != NULL) {
-    vgroupMemroy = (int64_t)pDb->cfg.buffer * 1024 * 1024 + (int64_t)pDb->cfg.pages * pDb->cfg.pageSize * 1024;
+    int64_t buffer = (int64_t)pDb->cfg.buffer * 1024 * 1024;
+    int64_t cache = (int64_t)pDb->cfg.pages * pDb->cfg.pageSize * 1024;
+    vgroupMemroy = buffer + cache;
+    int64_t cacheLast = (int64_t)pDb->cfg.cacheLastSize * 1024 * 1024;
     if (pDb->cfg.cacheLast > 0) {
-      vgroupMemroy += (int64_t)pDb->cfg.cacheLastSize * 1024 * 1024;
+      vgroupMemroy += cacheLast;
     }
+    mDebug("db:%s, vgroup:%d, buffer:%" PRId64 " cache:%" PRId64 " cacheLast:%" PRId64, pDb->name, pVgroup->vgId,
+           buffer, cache, cacheLast);
   }
 
   if (pDbInput == NULL) {
@@ -2712,20 +2717,29 @@ static int32_t mndCheckDnodeMemory(SMnode *pMnode, SDbObj *pOldDb, SDbObj *pNewD
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
     bool       inVgroup = false;
+    int64_t    oldMemUsed = 0;
+    int64_t    newMemUsed = 0;
+    mDebug("db:%s, vgId:%d, check dnode:%d, avail:%" PRId64 " used:%" PRId64, pNewVgroup->dbName, pNewVgroup->vgId,
+           pDnode->id, pDnode->memAvail, pDnode->memUsed);
     for (int32_t j = 0; j < pOldVgroup->replica; ++j) {
-      SVnodeGid *pVgId = &pOldVgroup->vnodeGid[i];
+      SVnodeGid *pVgId = &pOldVgroup->vnodeGid[j];
       if (pDnode->id == pVgId->dnodeId) {
-        pDnode->memUsed -= mndGetVgroupMemory(pMnode, pOldDb, pOldVgroup);
+        oldMemUsed = mndGetVgroupMemory(pMnode, pOldDb, pOldVgroup);
         inVgroup = true;
       }
     }
     for (int32_t j = 0; j < pNewVgroup->replica; ++j) {
-      SVnodeGid *pVgId = &pNewVgroup->vnodeGid[i];
+      SVnodeGid *pVgId = &pNewVgroup->vnodeGid[j];
       if (pDnode->id == pVgId->dnodeId) {
-        pDnode->memUsed += mndGetVgroupMemory(pMnode, pNewDb, pNewVgroup);
+        newMemUsed = mndGetVgroupMemory(pMnode, pNewDb, pNewVgroup);
         inVgroup = true;
       }
     }
+
+    mDebug("db:%s, vgId:%d, memory in dnode:%d, oldUsed:%" PRId64 ", newUsed:%" PRId64, pNewVgroup->dbName,
+           pNewVgroup->vgId, pDnode->id, oldMemUsed, newMemUsed);
+
+    pDnode->memUsed = pDnode->memUsed - oldMemUsed + newMemUsed;
     if (pDnode->memAvail - pDnode->memUsed <= 0) {
       mError("db:%s, vgId:%d, no enough memory in dnode:%d, avail:%" PRId64 " used:%" PRId64, pNewVgroup->dbName,
              pNewVgroup->vgId, pDnode->id, pDnode->memAvail, pDnode->memUsed);
@@ -3197,6 +3211,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   mInfo("trans:%d, used to split vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
 
   mndTransSetDbName(pTrans, pDb->name, NULL);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
 
   SVgObj newVg1 = {0};
   memcpy(&newVg1, pVgroup, sizeof(SVgObj));
@@ -3445,6 +3460,8 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
   }
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to balance vgroup", pTrans->id);
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
 
   while (1) {
     taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);

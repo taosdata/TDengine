@@ -143,7 +143,7 @@ bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnI
       // TODO: include endpoint
       SInterval* pInterval = &pFillInfo->interval;
       int64_t    windowEnd =
-          taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+          taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
       code = colDataSetVal(pDstColInfoData, rowIndex, (const char*)&windowEnd, false);
       QUERY_CHECK_CODE(code, lino, _end);
       return true;
@@ -264,7 +264,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
   //  setTagsValue(pFillInfo, data, index);
   SInterval* pInterval = &pFillInfo->interval;
   pFillInfo->currentKey =
-      taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision);
+      taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision, NULL);
   pBlock->info.rows += 1;
   pFillInfo->numOfCurrent++;
 
@@ -484,7 +484,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
       // set the tag value for final result
       SInterval* pInterval = &pFillInfo->interval;
       pFillInfo->currentKey =
-          taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision);
+          taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision, NULL);
 
       pBlock->info.rows += 1;
       pFillInfo->index += 1;

@@ -34,6 +34,7 @@ REST 连接支持所有能运行 Java 的平台。
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------: |
 |        3.4.0        | 1. 使用 jackson 库替换 fastjson 库；2. WebSocket 采用独立协议标识；3. 优化后台拉取线程使用，避免用户误用导致超时。     |       -        |
+|        3.3.4        | 1. 解决了 getInt 在数据类型为 float 报错     |       -        |
 |        3.3.3        | 1. 解决了 WebSocket statement 关闭导致的内存泄漏      |       -        |
 |        3.3.2        | 1. 优化 WebSocket 连接下的参数绑定性能；2. 优化了对 mybatis 的支持      |       -        |
 |        3.3.0        | 1. 优化 WebSocket 连接下的数据传输性能；2. 支持跳过 SSL 验证，默认关闭      |        3.3.2.0 及更高版本         |
@@ -171,7 +172,7 @@ WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/w
 
 **原因**：程序没有找到依赖的本地函数库 taos。
 
-**解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可，macOS 下需要建立软链 `ln -s /usr/local/lib/libtaos.dylib`。
+**解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可，macOS 下需要建立软链 `ln -s /usr/local/lib/libtaos.dylib /usr/lib/libtaos.dylib`。
 
 3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
 

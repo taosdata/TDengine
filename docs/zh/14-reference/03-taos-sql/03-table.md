@@ -171,7 +171,7 @@ ALTER TABLE [db_name.]tb_name alter_table_clause
 
 alter_table_clause: {
     alter_table_options
-  | SET TAG tag_name = new_tag_value
+  | SET TAG tag_name = new_tag_value, tag_name2=new_tag2_value ...
 }
 
 alter_table_options:
@@ -195,7 +195,7 @@ alter_table_option: {
 ### 修改子表标签值
 
 ```
-ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
 ### 修改表生命周期
@@ -227,7 +227,7 @@ DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
 如下 SQL 语句可以列出当前数据库中的所有表名。
 
 ```sql
-SHOW TABLES [LIKE tb_name_wildchar];
+SHOW TABLES [LIKE tb_name_wildcard];
 ```
 
 ### 显示表创建语句

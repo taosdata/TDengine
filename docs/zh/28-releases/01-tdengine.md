@@ -24,6 +24,14 @@ TDengine 3.x 各版本安装包下载链接如下：
 
 import Release from "/components/ReleaseV3";
 
+## 3.3.4.8
+
+<Release type="tdengine" version="3.3.4.8" />
+
+## 3.3.4.3
+
+<Release type="tdengine" version="3.3.4.3" />
+
 ## 3.3.3.0
 
 <Release type="tdengine" version="3.3.3.0" />

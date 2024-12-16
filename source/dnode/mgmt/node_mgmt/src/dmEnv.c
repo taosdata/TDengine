@@ -21,7 +21,7 @@
 #include "tgrant.h"
 #include "tcompare.h"
 #include "tcs.h"
-#include "tanal.h"
+#include "tanalytics.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \
@@ -209,7 +209,7 @@ void dmCleanup() {
     dError("failed to close udfc");
   }
   udfStopUdfd();
-  taosAnalCleanup();
+  taosAnalyticsCleanup();
   taosStopCacheRefreshWorker();
   (void)dmDiskClose();
   DestroyRegexCache();
@@ -220,6 +220,7 @@ void dmCleanup() {
 
   dInfo("dnode env is cleaned up");
 
+  taosMemPoolClose(gMemPoolHandle);
   taosCleanupCfg();
   taosCloseLog();
 }

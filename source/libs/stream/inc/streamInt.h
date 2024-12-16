@@ -37,7 +37,7 @@ extern "C" {
 #define META_HB_CHECK_INTERVAL             200
 #define META_HB_SEND_IDLE_COUNTER          25  // send hb every 5 sec
 #define STREAM_TASK_KEY_LEN                ((sizeof(int64_t)) << 1)
-#define STREAM_TASK_QUEUE_CAPACITY         20480
+#define STREAM_TASK_QUEUE_CAPACITY         5120
 #define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (30)
 
 // clang-format off
@@ -192,7 +192,6 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
-void    streamTaskSetFailedCheckpointId(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask);
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
@@ -244,6 +243,9 @@ int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpoi
 int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
 int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
                                        STimeWindow* pLatestWindow, const char* id);
+
+// inject stream errors
+void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 
 #ifdef __cplusplus
 }

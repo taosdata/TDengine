@@ -121,10 +121,10 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
           }
         } else {
           pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
-          qDebug("%s vgId:%d, taskId:0x%" PRIx64 " execId:%d index:%d completed, rowsOfSource:%" PRIu64
-                 ", totalRows:%" PRIu64 ", try next %d/%" PRIzu,
-                 GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pDataInfo->totalRows,
-                 pExchangeInfo->loadInfo.totalRows, i + 1, totalSources);
+          qDebug("%s vgId:%d, clientId:0x%" PRIx64 " taskId:0x%" PRIx64
+                 " execId:%d index:%d completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", try next %d/%" PRIzu,
+                 GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId, i,
+                 pDataInfo->totalRows, pExchangeInfo->loadInfo.totalRows, i + 1, totalSources);
           taosMemoryFreeClear(pDataInfo->pRsp);
         }
         break;
@@ -141,17 +141,17 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       if (pRsp->completed == 1) {
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
-        qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64
+        qDebug("%s fetch msg rsp from vgId:%d, clientId:0x%" PRIx64 " taskId:0x%" PRIx64
                " execId:%d index:%d completed, blocks:%d, numOfRows:%" PRId64 ", rowsOfSource:%" PRIu64
                ", totalRows:%" PRIu64 ", total:%.2f Kb, try next %d/%" PRIzu,
-               GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pRsp->numOfBlocks,
-               pRsp->numOfRows, pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0, i + 1,
-               totalSources);
+               GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId, i,
+               pRsp->numOfBlocks, pRsp->numOfRows, pDataInfo->totalRows, pLoadInfo->totalRows,
+               pLoadInfo->totalSize / 1024.0, i + 1, totalSources);
       } else {
-        qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d blocks:%d, numOfRows:%" PRId64
-               ", totalRows:%" PRIu64 ", total:%.2f Kb",
-               GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRsp->numOfBlocks,
-               pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0);
+        qDebug("%s fetch msg rsp from vgId:%d, clientId:0x%" PRIx64 " taskId:0x%" PRIx64
+               " execId:%d blocks:%d, numOfRows:%" PRId64 ", totalRows:%" PRIu64 ", total:%.2f Kb",
+               GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
+               pRsp->numOfBlocks, pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0);
       }
 
       taosMemoryFreeClear(pDataInfo->pRsp);
@@ -354,15 +354,15 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
 
   pInfo->pSources = taosArrayInit(numOfSources, sizeof(SDownstreamSourceNode));
   if (pInfo->pSources == NULL) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
   }
 
   if (pExNode->node.dynamicOp) {
     pInfo->pHashSources = tSimpleHashInit(numOfSources * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
     if (NULL == pInfo->pHashSources) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-      return TSDB_CODE_OUT_OF_MEMORY;
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
     }
   }
 
@@ -370,7 +370,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)nodesListGetNode((SNodeList*)pExNode->pSrcEndPoints, i);
     if (!pNode) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* tmp = taosArrayPush(pInfo->pSources, pNode);
     if (!tmp) {
@@ -640,16 +640,17 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   if (pSource->localExec) {
     SDataBuf pBuf = {0};
-    int32_t  code =
-        (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->schedId, pTaskInfo->id.queryId,
-                                    pSource->taskId, 0, pSource->execId, &pBuf.pData, pTaskInfo->localFetch.explainRes);
+    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
+                                               pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
+                                               pTaskInfo->localFetch.explainRes);
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
-    QUERY_CHECK_CODE(code, lino, _end);
     taosMemoryFree(pWrapper);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
-    req.sId = pSource->schedId;
+    req.sId = pSource->sId;
+    req.clientId = pSource->clientId;
     req.taskId = pSource->taskId;
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
@@ -667,7 +668,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
     if (msgSize < 0) {
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
@@ -675,14 +676,15 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     void* msg = taosMemoryCalloc(1, msgSize);
     if (NULL == msg) {
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      pTaskInfo->code = terrno;
       taosMemoryFree(pWrapper);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
 
-    if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+    msgSize = tSerializeSResFetchReq(msg, msgSize, &req);
+    if (msgSize < 0) {
+      pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
       taosMemoryFree(msg);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
@@ -691,9 +693,10 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     freeOperatorParam(req.pOpParam, OP_GET_PARAM);
 
-    qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", execId:%d, %p, %d/%" PRIzu,
-           GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->taskId,
-           pSource->execId, pExchangeInfo, sourceIndex, totalSources);
+    qDebug("%s build fetch msg and send to vgId:%d, ep:%s, clientId:0x%" PRIx64 " taskId:0x%" PRIx64
+           ", execId:%d, %p, %d/%" PRIzu,
+           GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->clientId,
+           pSource->taskId, pSource->execId, pExchangeInfo, sourceIndex, totalSources);
 
     // send the fetch remote task result reques
     SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -701,18 +704,19 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       taosMemoryFreeClear(msg);
       taosMemoryFree(pWrapper);
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      pTaskInfo->code = terrno;
       return pTaskInfo->code;
     }
 
     pMsgSendInfo->param = pWrapper;
-    pMsgSendInfo->paramFreeFp = taosMemoryFree;
+    pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
     pMsgSendInfo->msgInfo.pData = msg;
     pMsgSendInfo->msgInfo.len = msgSize;
     pMsgSendInfo->msgType = pSource->fetchMsgType;
     pMsgSendInfo->fp = loadRemoteDataCallback;
 
     int64_t transporterId = 0;
+    void* poolHandle = NULL;
     code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, sourceIndex);
@@ -896,7 +900,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       blockDataCleanup(pb);
     } else {
       code = createOneDataBlock(pExchangeInfo->pDummyBlock, false, &pb);
-      QUERY_CHECK_NULL(pb, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(pb, code, lino, _end, code);
     }
 
     int32_t compLen = *(int32_t*)pStart;
@@ -974,8 +978,9 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
 
     if (pDataInfo->code != TSDB_CODE_SUCCESS) {
-      qError("%s vgId:%d, taskID:0x%" PRIx64 " execId:%d error happens, code:%s", GET_TASKID(pTaskInfo),
-             pSource->addr.nodeId, pSource->taskId, pSource->execId, tstrerror(pDataInfo->code));
+      qError("%s vgId:%d, clientId:0x%" PRIx64 " taskID:0x%" PRIx64 " execId:%d error happens, code:%s",
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
+             tstrerror(pDataInfo->code));
       pOperator->pTaskInfo->code = pDataInfo->code;
       return pOperator->pTaskInfo->code;
     }
@@ -984,10 +989,10 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
 
     if (pRsp->numOfRows == 0) {
-      qDebug("%s vgId:%d, taskID:0x%" PRIx64 " execId:%d %d of total completed, rowsOfSource:%" PRIu64
-             ", totalRows:%" PRIu64 " try next",
-             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pExchangeInfo->current + 1,
-             pDataInfo->totalRows, pLoadInfo->totalRows);
+      qDebug("%s vgId:%d, clientId:0x%" PRIx64 " taskID:0x%" PRIx64
+             " execId:%d %d of total completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 " try next",
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
+             pExchangeInfo->current + 1, pDataInfo->totalRows, pLoadInfo->totalRows);
 
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       pExchangeInfo->current += 1;
@@ -1002,19 +1007,19 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
     if (pRsp->completed == 1) {
-      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64
+      qDebug("%s fetch msg rsp from vgId:%d, clientId:0x%" PRIx64 " taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64
              ", rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
-             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
-             pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize, pExchangeInfo->current + 1,
-             totalSources);
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
+             pRetrieveRsp->numOfRows, pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize,
+             pExchangeInfo->current + 1, totalSources);
 
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       pExchangeInfo->current += 1;
     } else {
-      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64 ", totalRows:%" PRIu64
-             ", totalBytes:%" PRIu64,
-             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
-             pLoadInfo->totalRows, pLoadInfo->totalSize);
+      qDebug("%s fetch msg rsp from vgId:%d, clientId:0x%" PRIx64 " taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64
+             ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64,
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
+             pRetrieveRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize);
     }
 
     updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, startTs, pOperator);
@@ -1052,7 +1057,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
 
     void* tmp = taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
     if (!tmp) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
     }
     pIdx->inUseIdx = taosArrayGetSize(pExchangeInfo->pSourceDataInfo) - 1;

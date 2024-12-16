@@ -1043,7 +1043,7 @@ _end:
   return code;
 }
 
-int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows) {
+int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows, int32_t precision) {
   SColumnInfoData *pColInfo = NULL;
   int32_t          cols = 0;
   int32_t          code = 0;
@@ -1103,14 +1103,11 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
   // level
   char level[20 + VARSTR_HEADER_SIZE] = {0};
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    memcpy(varDataVal(level), "source", 6);
-    varDataSetLen(level, 6);
+    STR_WITH_SIZE_TO_VARSTR(level, "source", 6);
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
-    memcpy(varDataVal(level), "agg", 3);
-    varDataSetLen(level, 3);
+    STR_WITH_SIZE_TO_VARSTR(level, "agg", 3);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    memcpy(varDataVal(level), "sink", 4);
-    varDataSetLen(level, 4);
+    STR_WITH_SIZE_TO_VARSTR(level, "sink", 4);
   }
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1234,10 +1231,17 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     const char *sinkStr = "%.2f MiB";
     snprintf(buf, tListLen(buf), sinkStr, pe->sinkDataSize);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    // offset info
-    const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
-    snprintf(buf, tListLen(buf), offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
+  } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) { // offset info
+    if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      int32_t ret = taosFormatUtcTime(buf, tListLen(buf), pe->processedVer, precision);
+      if (ret != 0) {
+        mError("failed to format processed timewindow, skey:%" PRId64, pe->processedVer);
+        memset(buf, 0, tListLen(buf));
+      }
+    } else {
+      const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
+      snprintf(buf, tListLen(buf), offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
+    }
   } else {
     memset(buf, 0, tListLen(buf));
   }
@@ -1520,75 +1524,5 @@ int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb) {
 
     mError("snode not existed when trying to create stream in db with multiple replica");
     return TSDB_CODE_SNODE_NOT_DEPLOYED;
-  }
-}
-
-uint32_t seed = 0;
-static SRpcMsg createRpcMsg(STransAction* pAction, int64_t traceId, int64_t signature) {
-  SRpcMsg rpcMsg = {.msgType = pAction->msgType, .contLen = pAction->contLen, .info.ahandle = (void *)signature};
-  rpcMsg.pCont = rpcMallocCont(pAction->contLen);
-  if (rpcMsg.pCont == NULL) {
-    return rpcMsg;
-  }
-
-  rpcMsg.info.traceId.rootId = traceId;
-  rpcMsg.info.notFreeAhandle = 1;
-
-  memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
-  return rpcMsg;
-}
-
-void streamTransRandomErrorGen(STransAction *pAction, STrans *pTrans, int64_t signature) {
-  if ((pAction->msgType == TDMT_STREAM_TASK_UPDATE_CHKPT && pAction->id > 2) ||
-      (pAction->msgType == TDMT_STREAM_CONSEN_CHKPT) ||
-      (pAction->msgType == TDMT_VND_STREAM_CHECK_POINT_SOURCE && pAction->id > 2)) {
-    if (seed == 0) {
-      seed = taosGetTimestampSec();
-    }
-
-    uint32_t v = taosRandR(&seed);
-    int32_t  choseItem = v % 5;
-
-    if (choseItem == 0) {
-      // 1. one of update-checkpoint not send, restart and send it again
-      taosMsleep(5000);
-      if (pAction->msgType == TDMT_STREAM_TASK_UPDATE_CHKPT) {
-        mError(
-            "***sleep 5s and core dump, following tasks will not recv update-checkpoint info, so the checkpoint will "
-            "rollback***");
-        exit(-1);
-      } else if (pAction->msgType == TDMT_STREAM_CONSEN_CHKPT) {  // pAction->msgType == TDMT_STREAM_CONSEN_CHKPT
-        mError(
-            "***sleep 5s and core dump, following tasks will not recv consen-checkpoint info, so the tasks will "
-            "not started***");
-      } else {  // pAction->msgType == TDMT_VND_STREAM_CHECK_POINT_SOURCE
-        mError(
-            "***sleep 5s and core dump, following tasks will not recv checkpoint-source info, so the tasks will "
-            "started after restart***");
-        exit(-1);
-      }
-    } else if (choseItem == 1) {
-      // 2. repeat send update chkpt msg
-      mError("***repeat send update-checkpoint/consensus/checkpoint trans msg 3times to vnode***");
-
-      mError("***repeat 1***");
-      SRpcMsg rpcMsg1 = createRpcMsg(pAction, pTrans->mTraceId, signature);
-      int32_t code = tmsgSendReq(&pAction->epSet, &rpcMsg1);
-
-      mError("***repeat 2***");
-      SRpcMsg rpcMsg2 = createRpcMsg(pAction, pTrans->mTraceId, signature);
-      code = tmsgSendReq(&pAction->epSet, &rpcMsg2);
-
-      mError("***repeat 3***");
-      SRpcMsg rpcMsg3 = createRpcMsg(pAction, pTrans->mTraceId, signature);
-      code = tmsgSendReq(&pAction->epSet, &rpcMsg3);
-    } else if (choseItem == 2) {
-      // 3. sleep 40s and then send msg
-      mError("***idle for 30s, and then send msg***");
-      taosMsleep(30000);
-    } else {
-      // do nothing
-      //      mInfo("no error triggered");
-    }
   }
 }

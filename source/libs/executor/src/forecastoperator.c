@@ -19,19 +19,19 @@
 #include "operator.h"
 #include "querytask.h"
 #include "storageapi.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tfill.h"
 #include "ttime.h"
 
-#ifdef USE_ANAL
+#ifdef USE_ANALYTICS
 
 typedef struct {
-  char     algoName[TSDB_ANAL_ALGO_NAME_LEN];
-  char     algoUrl[TSDB_ANAL_ALGO_URL_LEN];
-  char     algoOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+  char     algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
+  char     algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
+  char     algoOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
   int64_t  maxTs;
   int64_t  minTs;
   int64_t  numOfRows;
@@ -47,7 +47,7 @@ typedef struct {
   int16_t  inputValSlot;
   int8_t   inputValType;
   int8_t   inputPrecision;
-  SAnalBuf analBuf;
+  SAnalyticBuf analBuf;
 } SForecastSupp;
 
 typedef struct SForecastOperatorInfo {
@@ -74,12 +74,12 @@ static FORCE_INLINE int32_t forecastEnsureBlockCapacity(SSDataBlock* pBlock, int
 
 static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
   if (pSupp->cachedRows > ANAL_FORECAST_MAX_ROWS) {
-    return TSDB_CODE_ANAL_ANODE_TOO_MANY_ROWS;
+    return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
   }
 
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
-  SAnalBuf* pBuf = &pSupp->analBuf;
+  SAnalyticBuf* pBuf = &pSupp->analBuf;
 
   qDebug("block:%d, %p rows:%" PRId64, pSupp->numOfBlocks, pBlock, pBlock->info.rows);
   pSupp->numOfBlocks++;
@@ -108,7 +108,7 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
 }
 
 static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
-  SAnalBuf* pBuf = &pSupp->analBuf;
+  SAnalyticBuf* pBuf = &pSupp->analBuf;
   int32_t   code = 0;
 
   for (int32_t i = 0; i < 2; ++i) {
@@ -169,6 +169,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteOptInt(pBuf, "start", start);
   if (code != 0) return code;
 
+
   bool hasEvery = taosAnalGetOptInt(pSupp->algoOpt, "every", &every);
   if (!hasEvery) {
     qDebug("forecast every not found from %s, use %" PRId64, pSupp->algoOpt, every);
@@ -180,8 +181,8 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   return code;
 }
 
-static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock) {
-  SAnalBuf* pBuf = &pSupp->analBuf;
+static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
+  SAnalyticBuf* pBuf = &pSupp->analBuf;
   int32_t   resCurRow = pBlock->info.rows;
   int8_t    tmpI8;
   int16_t   tmpI16;
@@ -192,28 +193,45 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock) {
   int32_t   code = 0;
 
   SColumnInfoData* pResValCol = taosArrayGet(pBlock->pDataBlock, pSupp->resValSlot);
-  if (NULL == pResValCol) return TSDB_CODE_OUT_OF_RANGE;
+  if (NULL == pResValCol) {
+    return terrno;
+  }
 
   SColumnInfoData* pResTsCol = (pSupp->resTsSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resTsSlot) : NULL);
   SColumnInfoData* pResLowCol = (pSupp->resLowSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resLowSlot) : NULL);
   SColumnInfoData* pResHighCol =
       (pSupp->resHighSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resHighSlot) : NULL);
 
-  SJson* pJson = taosAnalSendReqRetJson(pSupp->algoUrl, ANAL_HTTP_TYPE_POST, pBuf);
-  if (pJson == NULL) return terrno;
+  SJson* pJson = taosAnalSendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf);
+  if (pJson == NULL) {
+    return terrno;
+  }
 
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
-  if (code < 0) goto _OVER;
-  if (rows <= 0) goto _OVER;
+  if (rows < 0 && code == 0) {
+    char pMsg[1024] = {0};
+    code = tjsonGetStringValue(pJson, "msg", pMsg);
+    if (code != 0) {
+      qError("%s failed to get msg from rsp, unknown error", pId);
+    } else {
+      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+    }
+
+    tjsonDelete(pJson);
+    return TSDB_CODE_ANA_WN_DATA;
+  }
+
+  if (code < 0) {
+    goto _OVER;
+  }
 
   SJson* res = tjsonGetObjectItem(pJson, "res");
   if (res == NULL) goto _OVER;
   int32_t ressize = tjsonGetArraySize(res);
   bool    returnConf = (pSupp->resHighSlot != -1 || pSupp->resLowSlot != -1);
-  if (returnConf) {
-    if (ressize != 4) goto _OVER;
-  } else if (ressize != 2) {
+
+  if ((returnConf && (ressize != 4)) || ((!returnConf) && (ressize != 2))) {
     goto _OVER;
   }
 
@@ -313,41 +331,25 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock) {
     resCurRow++;
   }
 
-  // for (int32_t i = rows; i < pSupp->optRows; ++i) {
-  //   colDataSetNNULL(pResValCol, rows, (pSupp->optRows - rows));
-  //   if (pResTsCol != NULL) {
-  //     colDataSetNNULL(pResTsCol, rows, (pSupp->optRows - rows));
-  //   }
-  //   if (pResLowCol != NULL) {
-  //     colDataSetNNULL(pResLowCol, rows, (pSupp->optRows - rows));
-  //   }
-  //   if (pResHighCol != NULL) {
-  //     colDataSetNNULL(pResHighCol, rows, (pSupp->optRows - rows));
-  //   }
-  // }
-
-  // if (rows == pSupp->optRows) {
-  //   pResValCol->hasNull = false;
-  // }
-
   pBlock->info.rows += rows;
 
   if (pJson != NULL) tjsonDelete(pJson);
   return 0;
 
 _OVER:
-  if (pJson != NULL) tjsonDelete(pJson);
+  tjsonDelete(pJson);
   if (code == 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
   }
-  qError("failed to perform forecast finalize since %s", tstrerror(code));
-  return TSDB_CODE_INVALID_JSON_FORMAT;
+
+  qError("%s failed to perform forecast finalize since %s", pId, tstrerror(code));
+  return code;
 }
 
-static int32_t forecastAggregateBlocks(SForecastSupp* pSupp, SSDataBlock* pResBlock) {
+static int32_t forecastAggregateBlocks(SForecastSupp* pSupp, SSDataBlock* pResBlock, const char* pId) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
-  SAnalBuf* pBuf = &pSupp->analBuf;
+  SAnalyticBuf* pBuf = &pSupp->analBuf;
 
   code = forecastCloseBuf(pSupp);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -355,10 +357,10 @@ static int32_t forecastAggregateBlocks(SForecastSupp* pSupp, SSDataBlock* pResBl
   code = forecastEnsureBlockCapacity(pResBlock, 1);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = forecastAnalysis(pSupp, pResBlock);
+  code = forecastAnalysis(pSupp, pResBlock, pId);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  uInfo("block:%d, forecast finalize", pSupp->numOfBlocks);
+  uInfo("%s block:%d, forecast finalize", pId, pSupp->numOfBlocks);
 
 _end:
   pSupp->numOfBlocks = 0;
@@ -373,9 +375,10 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SForecastOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*           pResBlock = pInfo->pRes;
   SForecastSupp*         pSupp = &pInfo->forecastSupp;
-  SAnalBuf*              pBuf = &pSupp->analBuf;
+  SAnalyticBuf*          pBuf = &pSupp->analBuf;
   int64_t                st = taosGetTimestampUs();
   int32_t                numOfBlocks = pSupp->numOfBlocks;
+  const char*            pId = GET_TASKID(pOperator->pTaskInfo);
 
   blockDataCleanup(pResBlock);
 
@@ -389,45 +392,46 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
       pSupp->cachedRows += pBlock->info.rows;
-      qDebug("group:%" PRId64 ", blocks:%d, rows:%" PRId64 ", total rows:%" PRId64, pSupp->groupId, numOfBlocks,
+      qDebug("%s group:%" PRId64 ", blocks:%d, rows:%" PRId64 ", total rows:%" PRId64, pId, pSupp->groupId, numOfBlocks,
              pBlock->info.rows, pSupp->cachedRows);
       code = forecastCacheBlock(pSupp, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      qDebug("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
-      code = forecastAggregateBlocks(pSupp, pResBlock);
+      qDebug("%s group:%" PRId64 ", read finish for new group coming, blocks:%d", pId, pSupp->groupId, numOfBlocks);
+      code = forecastAggregateBlocks(pSupp, pResBlock, pId);
       QUERY_CHECK_CODE(code, lino, _end);
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
       pSupp->cachedRows = pBlock->info.rows;
-      qDebug("group:%" PRId64 ", new group, rows:%" PRId64 ", total rows:%" PRId64, pSupp->groupId, pBlock->info.rows,
-             pSupp->cachedRows);
+      qDebug("%s group:%" PRId64 ", new group, rows:%" PRId64 ", total rows:%" PRId64, pId, pSupp->groupId,
+             pBlock->info.rows, pSupp->cachedRows);
       code = forecastCacheBlock(pSupp, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pResBlock->info.rows > 0) {
       (*ppRes) = pResBlock;
-      qDebug("group:%" PRId64 ", return to upstream, blocks:%d", pResBlock->info.id.groupId, numOfBlocks);
+      qDebug("%s group:%" PRId64 ", return to upstream, blocks:%d", pId, pResBlock->info.id.groupId, numOfBlocks);
       return code;
     }
   }
 
   if (numOfBlocks > 0) {
-    qDebug("group:%" PRId64 ", read finish, blocks:%d", pSupp->groupId, numOfBlocks);
-    code = forecastAggregateBlocks(pSupp, pResBlock);
+    qDebug("%s group:%" PRId64 ", read finish, blocks:%d", pId, pSupp->groupId, numOfBlocks);
+    code = forecastAggregateBlocks(pSupp, pResBlock, pId);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
-  qDebug("all groups finished, cost:%" PRId64 "us", cost);
+  qDebug("%s all groups finished, cost:%" PRId64 "us", pId, cost);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", pId, __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+
   (*ppRes) = (pResBlock->info.rows == 0) ? NULL : pResBlock;
   return code;
 }
@@ -498,7 +502,7 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs) {
           pSupp->inputPrecision = pTsNode->node.resType.precision;
           pSupp->inputValSlot = pValNode->slotId;
           pSupp->inputValType = pValNode->node.resType.type;
-          tstrncpy(pSupp->algoOpt, "algo=arima", TSDB_ANAL_ALGO_OPTION_LEN);
+          tstrncpy(pSupp->algoOpt, "algo=arima", TSDB_ANALYTIC_ALGO_OPTION_LEN);
         } else {
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
@@ -516,22 +520,22 @@ static int32_t forecastParseAlgo(SForecastSupp* pSupp) {
 
   if (!taosAnalGetOptStr(pSupp->algoOpt, "algo", pSupp->algoName, sizeof(pSupp->algoName))) {
     qError("failed to get forecast algorithm name from %s", pSupp->algoOpt);
-    return TSDB_CODE_ANAL_ALGO_NOT_FOUND;
+    return TSDB_CODE_ANA_ALGO_NOT_FOUND;
   }
 
   if (taosAnalGetAlgoUrl(pSupp->algoName, ANAL_ALGO_TYPE_FORECAST, pSupp->algoUrl, sizeof(pSupp->algoUrl)) != 0) {
     qError("failed to get forecast algorithm url from %s", pSupp->algoName);
-    return TSDB_CODE_ANAL_ALGO_NOT_LOAD;
+    return TSDB_CODE_ANA_ALGO_NOT_LOAD;
   }
 
   return 0;
 }
 
 static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
-  SAnalBuf* pBuf = &pSupp->analBuf;
+  SAnalyticBuf* pBuf = &pSupp->analBuf;
   int64_t   ts = 0;  // taosGetTimestampMs();
 
-  pBuf->bufType = ANAL_BUF_TYPE_JSON_COL;
+  pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
   snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%" PRId64, tsTempDir, ts);
   int32_t code = tsosAnalBufOpen(pBuf, 2);
   if (code != 0) goto _OVER;

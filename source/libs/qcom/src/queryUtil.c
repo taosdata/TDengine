@@ -59,6 +59,9 @@ const SSchema* tGetTbnameColumnSchema() {
 }
 
 static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
+  if (!pSchema) {
+    return false;
+  }
   int32_t rowLen = 0;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -100,7 +103,7 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
 }
 
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags) {
-  if (!VALIDNUMOFCOLS(numOfCols)) {
+  if (!pSchema || !VALIDNUMOFCOLS(numOfCols)) {
     return false;
   }
 
@@ -127,6 +130,7 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 static STaskQueue taskQueue = {0};
 
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
+  if(!pSchedMsg || !pSchedMsg->ahandle) return;
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
   (void)execFn(pSchedMsg->thandle);
   taosFreeQitem(pSchedMsg);
@@ -205,7 +209,11 @@ void destroyAhandle(void *ahandle) {
 }
 
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
-                                bool persistHandle, void* rpcCtx) {
+                                bool persistHandle, void* rpcCtx) {                         
+  QUERY_PARAM_CHECK(pTransporter);
+  QUERY_PARAM_CHECK(epSet);
+  QUERY_PARAM_CHECK(pInfo);
+
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
@@ -236,6 +244,7 @@ int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransp
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
 }
 int32_t asyncFreeConnById(void* pTransporter, int64_t pid) {
+  QUERY_PARAM_CHECK(pTransporter);
   return rpcFreeConnById(pTransporter, pid);
 }
 
@@ -314,6 +323,8 @@ void destroyQueryExecRes(SExecResult* pRes) {
 }
 // clang-format on
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
+  QUERY_PARAM_CHECK(str);
+  QUERY_PARAM_CHECK(buf);
   int32_t n = 0;
 
   switch (type) {
@@ -386,7 +397,7 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       }
 
       *str = '"';
-      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1);
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1, NULL);
       if (length <= 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -419,7 +430,11 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-void parseTagDatatoJson(void* p, char** jsonStr) {
+void parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt) {
+  if (!p || !jsonStr) {
+    qError("parseTagDatatoJson invalid input, line:%d", __LINE__);
+    return;
+  }
   char*   string = NULL;
   SArray* pTagVals = NULL;
   cJSON*  json = NULL;
@@ -460,9 +475,10 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
         if (tagJsonValue == NULL) {
           goto end;
         }
-        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
+        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue, charsetCxt);
         if (length < 0) {
-          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC,
+                 charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
                  pTagVal->pData);
           taosMemoryFree(tagJsonValue);
           goto end;
@@ -520,6 +536,7 @@ end:
 }
 
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
+  QUERY_PARAM_CHECK(pDst);
   if (NULL == pSrc) {
     *pDst = NULL;
     return TSDB_CODE_SUCCESS;
@@ -553,6 +570,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
 }
 
 void getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType) {
+  if(!pMeta || !pName || !pType) return;
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (0 == strcmp(pName, pMeta->schema[i].name)) {
@@ -576,6 +594,7 @@ void freeVgInfo(SDBVgInfo* vgInfo) {
 }
 
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
+  QUERY_PARAM_CHECK(pDst);
   if (NULL == pSrc) {
     *pDst = NULL;
     return TSDB_CODE_SUCCESS;
@@ -606,7 +625,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
         taosHashCancelIterate(pSrc->vgHash, pIter);
         freeVgInfo(*pDst);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       pIter = taosHashIterate(pSrc->vgHash, pIter);
@@ -617,6 +636,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 }
 
 int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
+  QUERY_PARAM_CHECK(pDst);
   if (NULL == pSrc) {
     *pDst = NULL;
     return TSDB_CODE_SUCCESS;
@@ -674,6 +694,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 _exit:
   tdDestroySVCreateTbReq(*pDst);
   taosMemoryFree(*pDst);
+  *pDst = NULL;
   return terrno;
 }
 

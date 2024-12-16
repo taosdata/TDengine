@@ -326,7 +326,7 @@ static int32_t walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
     }
 
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
-    int32_t mtime = 0;
+    int64_t mtime = 0;
     if (taosStatFile(fnameStr, NULL, &mtime, NULL) < 0) {
       wError("vgId:%d, failed to stat file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
 
@@ -371,7 +371,8 @@ static int32_t walLogEntriesComplete(const SWal* pWal) {
 }
 
 static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
-  int32_t       code = 0;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  TdFilePtr     pFile = NULL;
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
   if (!pFileInfo) {
     TAOS_RETURN(TSDB_CODE_FAILED);
@@ -384,7 +385,7 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   if (taosStatFile(fnameStr, &fileSize, NULL, NULL) != 0) {
     wError("vgId:%d, failed to stat file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
     code = terrno;
-    TAOS_RETURN(code);
+    goto _exit;
   }
   int64_t records = TMAX(0, pFileInfo->lastVer - pFileInfo->firstVer + 1);
   int64_t lastEndOffset = records * sizeof(SWalIdxEntry);
@@ -393,9 +394,10 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
-  TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
+  pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   if (pFile == NULL) {
-    TAOS_RETURN(terrno);
+    code = terrno;
+    goto _exit;
   }
 
   wInfo("vgId:%d, trim idx file. file: %s, size: %" PRId64 ", offset: %" PRId64, pWal->cfg.vgId, fnameStr, fileSize,
@@ -404,21 +406,22 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   code = taosFtruncateFile(pFile, lastEndOffset);
   if (code < 0) {
     wError("vgId:%d, failed to truncate file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
-    TAOS_RETURN(code);
+    goto _exit;
   }
-  (void)taosCloseFile(&pFile);
 
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+_exit:
+  (void)taosCloseFile(&pFile);
+  TAOS_RETURN(code);
 }
 
 static void printFileSet(int32_t vgId, SArray* fileSet, const char* str) {
   int32_t sz = taosArrayGetSize(fileSet);
   for (int32_t i = 0; i < sz; i++) {
     SWalFileInfo* pFileInfo = taosArrayGet(fileSet, i);
-    wInfo("vgId:%d, %s-%d, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64 ", syncedOffset:%" PRId64
-          ", createTs:%" PRId64 ", closeTs:%" PRId64,
-          vgId, str, i, pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize, pFileInfo->syncedOffset,
-          pFileInfo->createTs, pFileInfo->closeTs);
+    wTrace("vgId:%d, %s-%d, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64 ", syncedOffset:%" PRId64
+           ", createTs:%" PRId64 ", closeTs:%" PRId64,
+           vgId, str, i, pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize, pFileInfo->syncedOffset,
+           pFileInfo->createTs, pFileInfo->closeTs);
   }
 }
 

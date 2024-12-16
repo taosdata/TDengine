@@ -94,7 +94,7 @@ int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t
     SSDataBlock *res = NULL;
     int32_t      code = createDataBlock(&res);
     if (code != 0 || NULL == res->pDataBlock) {
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(code);
     }
 
     SColumnInfoData idata = {0};
@@ -121,7 +121,7 @@ int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t
     }
 
     if (NULL == taosArrayPush(pBlockList, &res)) {
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
     res->info.id.blockId = *dataBlockId;
@@ -161,7 +161,7 @@ int32_t scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   if (IS_VAR_DATA_TYPE(dataType)) {
     vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     if (NULL == vnode->datum.p) {
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataTLen(value);
@@ -1385,7 +1385,7 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
 
   SCL_ERR_RET(makeJsonArrow(&src, &opNode, json, (char *)key));
   if (NULL == taosArrayPush(blockList, &src)) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   SCL_ERR_RET(makeOperator(&opNode, blockList, opType, rightType, rightData, isReverse));
@@ -1450,7 +1450,7 @@ TEST(columnTest, json_column_arith_op) {
   SArray *tags = taosArrayInit(1, sizeof(STagVal));
   ASSERT_NE(tags, nullptr);
   STag   *row = NULL;
-  int32_t code = parseJsontoTagData(rightv, tags, &row, NULL);
+  int32_t code = parseJsontoTagData(rightv, tags, &row, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   const int32_t len = 8;
@@ -1606,7 +1606,7 @@ void *prepareNchar(char *rightData) {
   int32_t inputLen = strlen(rightData);
 
   char *t = (char *)taosMemoryCalloc(1, (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-  taosMbsToUcs4(rightData, inputLen, (TdUcs4 *)varDataVal(t), inputLen * TSDB_NCHAR_SIZE, &len);
+  taosMbsToUcs4(rightData, inputLen, (TdUcs4 *)varDataVal(t), inputLen * TSDB_NCHAR_SIZE, &len, NULL);
   varDataSetLen(t, len);
   return t;
 }
@@ -1623,7 +1623,7 @@ TEST(columnTest, json_column_logic_op) {
   SArray *tags = taosArrayInit(1, sizeof(STagVal));
   ASSERT_NE(tags, nullptr);
   STag   *row = NULL;
-  code = parseJsontoTagData(rightv, tags, &row, NULL);
+  code = parseJsontoTagData(rightv, tags, &row, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   const int32_t len0 = 6;
@@ -2483,7 +2483,7 @@ TEST(columnTest, greater_and_lower) {
 int32_t scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t num, bool setVal) {
   SScalarParam *input = (SScalarParam *)taosMemoryCalloc(1, sizeof(SScalarParam));
   if (NULL == input) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int32_t       bytes;
   switch (type) {
@@ -2515,7 +2515,7 @@ int32_t scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32
 
   input->columnData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (NULL == input->columnData) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   input->numOfRows = num;
 
