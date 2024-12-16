@@ -85,7 +85,7 @@ extern int32_t tsQueryConcurrentTaskNum;
 extern int32_t tsSingleQueryMaxMemorySize;
 extern int8_t  tsQueryUseMemoryPool;
 extern int8_t  tsMemPoolFullFunc;
-//extern int32_t tsQueryBufferPoolSize;
+// extern int32_t tsQueryBufferPoolSize;
 extern int32_t tsMinReservedMemorySize;
 extern int64_t tsCurrentAvailMemorySize;
 extern int8_t  tsNeedTrim;
@@ -283,7 +283,7 @@ extern int32_t tsS3MigrateIntervalSec;
 extern bool    tsS3MigrateEnabled;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
-
+extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern int     tsStreamAggCnt;
