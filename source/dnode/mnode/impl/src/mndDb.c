@@ -14,11 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndDb.h"
 #include "audit.h"
 #include "command.h"
 #include "mndArbGroup.h"
 #include "mndCluster.h"
+#include "mndConfig.h"
+#include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
 #include "mndPrivilege.h"
@@ -37,7 +38,7 @@
 #include "tjson.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 27
+#define DB_RESERVE_SIZE 14
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -151,6 +152,10 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.withArbitrator, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.encryptAlgorithm, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->tsmaVersion, _OVER);
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compactTimeOffset, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactStartTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactEndTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -250,6 +255,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.withArbitrator, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.encryptAlgorithm, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->tsmaVersion, _OVER);
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compactTimeOffset, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactStartTime, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -365,6 +374,10 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.s3KeepLocal = pNew->cfg.s3KeepLocal;
   pOld->cfg.s3Compact = pNew->cfg.s3Compact;
   pOld->cfg.withArbitrator = pNew->cfg.withArbitrator;
+  pOld->cfg.compactInterval = pNew->cfg.compactInterval;
+  pOld->cfg.compactStartTime = pNew->cfg.compactStartTime;
+  pOld->cfg.compactEndTime = pNew->cfg.compactEndTime;
+  pOld->cfg.compactTimeOffset = pNew->cfg.compactTimeOffset;
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   taosWUnLockLatch(&pOld->lock);
@@ -800,6 +813,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .tsdbPageSize = pCreate->tsdbPageSize,
       .withArbitrator = pCreate->withArbitrator,
       .encryptAlgorithm = pCreate->encryptAlgorithm,
+      .compactInterval = pCreate->compactInterval,
+      .compactStartTime = pCreate->compactStartTime,
+      .compactEndTime = pCreate->compactEndTime,
+      .compactTimeOffset = pCreate->compactTimeOffset,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -1143,6 +1160,34 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
+  if (pAlter->compactInterval >= TSDB_DEFAULT_COMPACT_INTERVAL && pAlter->compactInterval != pDb->cfg.compactInterval) {
+    pDb->cfg.compactInterval = pAlter->compactInterval;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->compactStartTime != pDb->cfg.compactStartTime &&
+      (pAlter->compactStartTime == TSDB_DEFAULT_COMPACT_START_TIME ||
+       pAlter->compactStartTime <= -pDb->cfg.daysPerFile)) {
+    pDb->cfg.compactStartTime = pAlter->compactStartTime;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->compactEndTime != pDb->cfg.compactEndTime &&
+      (pAlter->compactEndTime == TSDB_DEFAULT_COMPACT_END_TIME || pAlter->compactEndTime <= -pDb->cfg.daysPerFile)) {
+    pDb->cfg.compactEndTime = pAlter->compactEndTime;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->compactTimeOffset >= TSDB_MIN_COMPACT_TIME_OFFSET &&
+      pAlter->compactTimeOffset != pDb->cfg.compactTimeOffset) {
+    pDb->cfg.compactTimeOffset = pAlter->compactTimeOffset;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
   TAOS_RETURN(code);
 }
 
@@ -1376,6 +1421,18 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->s3Compact = pDb->cfg.s3Compact;
   cfgRsp->withArbitrator = pDb->cfg.withArbitrator;
   cfgRsp->encryptAlgorithm = pDb->cfg.encryptAlgorithm;
+  cfgRsp->compactInterval = pDb->cfg.compactInterval;
+  cfgRsp->compactStartTime = pDb->cfg.compactStartTime;
+  cfgRsp->compactEndTime = pDb->cfg.compactEndTime;
+  if (cfgRsp->compactInterval > 0) {
+    if (cfgRsp->compactStartTime == 0) {
+      cfgRsp->compactStartTime = -cfgRsp->daysToKeep2;
+    }
+    if (cfgRsp->compactEndTime == 0) {
+      cfgRsp->compactEndTime = -cfgRsp->daysPerFile;
+    }
+  }
+  cfgRsp->compactTimeOffset = pDb->cfg.compactTimeOffset;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {

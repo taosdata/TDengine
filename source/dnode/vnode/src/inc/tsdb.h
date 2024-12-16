@@ -379,7 +379,7 @@ struct STsdb {
   struct {
     SVHashTable *ht;
     SArray      *arr;
-  } * commitInfo;
+  } *commitInfo;
 };
 
 struct TSDBKEY {
@@ -1081,6 +1081,9 @@ void tsdbRemoveFile(const char *path);
       tsdbTrace("failed to close file"); \
     }                                    \
   } while (0)
+
+int32_t tsdbInit();
+void    tsdbCleanUp();
 
 #ifdef __cplusplus
 }

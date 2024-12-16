@@ -63,6 +63,12 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
   pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;
+
+  // file set iterate
+  pReader->fileSetReaderOpen = tsdbFileSetReaderOpen;
+  pReader->fileSetReadNext = tsdbFileSetReaderNext;
+  pReader->fileSetGetEntryField = tsdbFileSetGetEntryField;
+  pReader->fileSetReaderClose = tsdbFileSetReaderClose;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
