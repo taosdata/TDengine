@@ -981,6 +981,9 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
 
 int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex,
                                int32_t numOfRows) {
+  if (input->columnData == NULL && input->pHashFilterVar != NULL){
+    return TSDB_CODE_SUCCESS;
+  }
   output->numOfRows = input->numOfRows;
 
   SDataType t = {.type = type};
@@ -1011,36 +1014,18 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   int8_t  type = 0;
   int32_t code = 0;
 
-  SScalarParam *param1 = NULL, *paramOut1 = NULL;
-  SScalarParam *param2 = NULL, *paramOut2 = NULL;
+  SScalarParam *param1 = pLeft, *paramOut1 = pLeftOut;
+  SScalarParam *param2 = pRight, *paramOut2 = pRightOut;
 
   // always convert least data
   if (IS_VAR_DATA_TYPE(leftType) && IS_VAR_DATA_TYPE(rightType) && (pLeft->numOfRows != pRight->numOfRows) &&
       leftType != TSDB_DATA_TYPE_JSON && rightType != TSDB_DATA_TYPE_JSON) {
-    param1 = pLeft;
-    param2 = pRight;
-    paramOut1 = pLeftOut;
-    paramOut2 = pRightOut;
-
     if (pLeft->numOfRows > pRight->numOfRows) {
       type = leftType;
     } else {
       type = rightType;
     }
   } else {
-    // we only define half value in the convert-matrix, so make sure param1 always less equal than param2
-    if (leftType < rightType) {
-      param1 = pLeft;
-      param2 = pRight;
-      paramOut1 = pLeftOut;
-      paramOut2 = pRightOut;
-    } else {
-      param1 = pRight;
-      param2 = pLeft;
-      paramOut1 = pRightOut;
-      paramOut2 = pLeftOut;
-    }
-
     type = vectorGetConvertType(GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
     if (0 == type) {
       return TSDB_CODE_SUCCESS;
@@ -1738,19 +1723,24 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   return num;
 }
 
-void doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+void doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                      int32_t numOfRows, int32_t _ord, int32_t optr) {
   int32_t       i = 0;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   int32_t       lType = GET_PARAM_TYPE(pLeft);
   int32_t       rType = GET_PARAM_TYPE(pRight);
   __compar_fn_t fp = NULL;
+  __compar_fn_t fpVar = NULL;
   int32_t       compRows = 0;
 
   if (lType == rType) {
     fp = filterGetCompFunc(lType, optr);
   } else {
     fp = filterGetCompFuncEx(lType, rType, optr);
+  }
+
+  if (pLeftVar != NULL) {
+    fpVar = filterGetCompFunc(GET_PARAM_TYPE(pLeftVar), optr);
   }
 
   if (startIndex < 0) {
@@ -1772,6 +1762,10 @@ void doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
 
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
+      if (pLeftVar != NULL && !res){
+        pLeftData = colDataGetData(pLeftVar->columnData, i);
+        res = res || filterDoCompare(fpVar, optr, pLeftData, pRight->pHashFilterVar);
+      }
       colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
       if (res) {
         pOut->numOfQualified++;
@@ -1788,6 +1782,7 @@ void vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *
   SScalarParam  pRightOut = {0};
   SScalarParam *param1 = NULL;
   SScalarParam *param2 = NULL;
+  SScalarParam *param3 = NULL;
 
   if (noConvertBeforeCompare(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
     param1 = pLeft;
@@ -1798,9 +1793,12 @@ void vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *
     }
     param1 = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
     param2 = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
+    if (pRight->pHashFilterVar != NULL){
+      param3 = pLeft;
+    }
   }
 
-  doVectorCompare(param1, param2, pOut, startIndex, numOfRows, _ord, optr);
+  doVectorCompare(param1, param3, param2, pOut, startIndex, numOfRows, _ord, optr);
 
   sclFreeParam(&pLeftOut);
   sclFreeParam(&pRightOut);
