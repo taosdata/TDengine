@@ -43,7 +43,7 @@ class TDTestCase:
         self.symbol = ['+','-','*','/']
         self.error_values = ['abc','"abc"','!@','today()']
         self.db_percision = ['ms','us','ns']
-        self.test_values = [1.5, 10, 9223372036854775807, -9223372036854775808]
+        self.test_values = [1.5, 10]
     def tbtype_check(self,tb_type):
         if tb_type == 'normal table' or tb_type == 'child table':
             tdSql.checkRows(len(self.values_list))

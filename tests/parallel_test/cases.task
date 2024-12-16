@@ -1071,6 +1071,10 @@
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/stt.py -N 3
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
