@@ -6,11 +6,11 @@ slug: /tdengine-reference/components/taosadapter
 
 import Image from '@theme/IdealImage';
 import imgAdapter from '../../assets/taosadapter-01.png';
-import Prometheus from "../../10-third-party/01-collection/_prometheus.mdx"
-import CollectD from "../../10-third-party/01-collection/_collectd.mdx"
-import StatsD from "../../10-third-party/01-collection/_statsd.mdx"
-import Icinga2 from "../../10-third-party/01-collection/_icinga2.mdx"
-import TCollector from "../../10-third-party/01-collection/_tcollector.mdx"
+import Prometheus from "../../assets/resources/_prometheus.mdx"
+import CollectD from "../../assets/resources/_collectd.mdx"
+import StatsD from "../../assets/resources/_statsd.mdx"
+import Icinga2 from "../../assets/resources/_icinga2.mdx"
+import TCollector from "../../assets/resources/_tcollector.mdx"
 
 taosAdapter is a companion tool for TDengine, serving as a bridge and adapter between the TDengine cluster and applications. It provides an easy and efficient way to ingest data directly from data collection agents (such as Telegraf, StatsD, collectd, etc.). It also offers InfluxDB/OpenTSDB compatible data ingestion interfaces, allowing InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine.
 

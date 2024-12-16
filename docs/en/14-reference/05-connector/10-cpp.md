@@ -35,9 +35,9 @@ Please refer to the [Supported Platforms List](../#supported-platforms)
 
 ### Version History
 
-| TDengine Client Version |     Main Changes           |   TDengine Version    |
-| :------------------: | :---------------------------: | :----------------: |
-|        3.3.3.0        | First release, providing comprehensive support for SQL execution, parameter binding, schema-less writing, and data subscription.    |       3.3.2.0 and higher versions    |
+| TDengine Client Version |     Major Changes           |   TDengine Version    |
+| ------------------ | --------------------------- | ---------------- |
+|        3.3.3.0        | First release, providing comprehensive support for SQL execution, parameter binding, schema-less writing, and data subscription.    |       3.3.2.0 and higher    |
 
 ### Error Codes
 

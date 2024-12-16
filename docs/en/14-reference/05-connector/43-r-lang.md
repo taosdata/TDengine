@@ -6,7 +6,7 @@ slug: /tdengine-reference/client-libraries/r-lang
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import Rdemo from "../../07-develop/_connect_r.mdx"
+import Rdemo from "../../assets/resources/_connect_r.mdx"
 
 The RJDBC library in R language can enable R language programs to access TDengine data. Here are the installation process, configuration process, and R language example code.
 
