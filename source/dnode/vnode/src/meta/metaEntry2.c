@@ -1624,6 +1624,60 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
     return code;
   }
 
+  int     nCols = pEntry->stbEntry.schemaRow.nCols;
+  int     onCols = pOldEntry->stbEntry.schemaRow.nCols;
+  int32_t deltaCol = nCols - onCols;
+  bool    updStat = deltaCol != 0 && !metaTbInFilterCache(pMeta, pEntry->name, 1);
+
+  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+    STsdb  *pTsdb = pMeta->pVnode->pTsdb;
+    SArray *uids = NULL; /*taosArrayInit(8, sizeof(int64_t));
+     if (uids == NULL) {
+       metaErr(TD_VID(pMeta->pVnode), code);
+       metaFetchEntryFree(&pOldEntry);
+       return terrno;
+       }*/
+    if (deltaCol == 1) {
+      int16_t cid = pEntry->stbEntry.schemaRow.pSchema[nCols - 1].colId;
+      int8_t  col_type = pEntry->stbEntry.schemaRow.pSchema[nCols - 1].type;
+
+      code = metaGetChildUidsOfSuperTable(pMeta, pEntry->uid, &uids);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        metaFetchEntryFree(&pOldEntry);
+        return code;
+      }
+      // TAOS_CHECK_RETURN(metaGetSubtables(pMeta, pEntry->uid, uids));
+      TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type));
+    } else if (deltaCol == -1) {
+      int16_t cid = -1;
+      bool    hasPrimaryKey = false;
+      if (onCols >= 2) {
+        hasPrimaryKey = (pOldEntry->stbEntry.schemaRow.pSchema[1].flags & COL_IS_KEY) ? true : false;
+      }
+      for (int i = 0, j = 0; i < nCols && j < onCols; ++i, ++j) {
+        if (pEntry->stbEntry.schemaRow.pSchema[i].colId != pOldEntry->stbEntry.schemaRow.pSchema[j].colId) {
+          cid = pOldEntry->stbEntry.schemaRow.pSchema[j].colId;
+          break;
+        }
+      }
+
+      if (cid != -1) {
+        code = metaGetChildUidsOfSuperTable(pMeta, pEntry->uid, &uids);
+        if (code) {
+          metaErr(TD_VID(pMeta->pVnode), code);
+          metaFetchEntryFree(&pOldEntry);
+          return code;
+        }
+        // TAOS_CHECK_RETURN(metaGetSubtables(pMeta, pEntry->uid, uids));
+        TAOS_CHECK_RETURN(tsdbCacheDropSTableColumn(pTsdb, uids, cid, hasPrimaryKey));
+      }
+    }
+    if (uids) taosArrayDestroy(uids);
+
+    tsdbCacheInvalidateSchema(pTsdb, pEntry->uid, -1, pEntry->stbEntry.schemaRow.version);
+  }
+
   metaFetchEntryFree(&pOldEntry);
   return code;
 }
