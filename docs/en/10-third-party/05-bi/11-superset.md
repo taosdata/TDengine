@@ -38,7 +38,7 @@ If there is no TDengine option in the drop-down list, please confirm that the st
 ```bash
 taosws://user:password@host:port
 ```
-| Parameter  | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Parameter Description |
+| Parameter  | <center>Parameter Description</center>                      |
 |:---------- |:---------------------------------------------------------   |
 |user        | Username for logging into TDengine database                 |   
 |password    | Password for logging into TDengine database                 |
