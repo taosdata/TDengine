@@ -77,6 +77,7 @@ const DEFAULT_MAX_ERRORS_IN_WINDOW: usize = 10;
 const DEFAULT_BROADCAST_CAPACITY: usize = 64;
 
 #[derive(Debug, Clone, Copy, Builder, PartialEq, Deserialize, Serialize)]
+#[serde(default)]
 pub struct HealthOpts {
     /// The health check window in seconds.
     #[builder(default = DEFAULT_HEALTH_CHECK_WINDOW)]
