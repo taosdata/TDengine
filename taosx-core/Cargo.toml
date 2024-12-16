@@ -37,7 +37,7 @@ bitflags = "2"
 crossbeam = { version = "0.8.4" }
 rhai = { version = "1.18.0", features = ["sync"] }
 rhai-dylib = { version = "0.3.0", features = ["sync"] }
-strum = "0.26.3"
+strum = { version = "0.26.3", features = ["derive"] }
 paste = "1"
 half = "2.3"
 humantime = "2.1"
