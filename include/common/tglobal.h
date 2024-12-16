@@ -85,7 +85,7 @@ extern int32_t tsQueryConcurrentTaskNum;
 extern int32_t tsSingleQueryMaxMemorySize;
 extern int8_t  tsQueryUseMemoryPool;
 extern int8_t  tsMemPoolFullFunc;
-//extern int32_t tsQueryBufferPoolSize;
+// extern int32_t tsQueryBufferPoolSize;
 extern int32_t tsMinReservedMemorySize;
 extern int64_t tsCurrentAvailMemorySize;
 extern int8_t  tsNeedTrim;
@@ -178,7 +178,7 @@ extern bool     tsEnableCrashReport;
 extern char    *tsTelemUri;
 extern char    *tsClientCrashReportUri;
 extern char    *tsSvrCrashReportUri;
-extern int8_t   tsSafetyCheckLevel;
+extern int32_t  tsSafetyCheckLevel;
 enum {
   TSDB_SAFETY_CHECK_LEVELL_NEVER = 0,
   TSDB_SAFETY_CHECK_LEVELL_NORMAL = 1,
