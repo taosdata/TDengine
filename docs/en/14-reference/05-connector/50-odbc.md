@@ -20,7 +20,7 @@ TDengine ODBC provides both 64-bit and 32-bit drivers. However, the 32-bit versi
 
 ## ODBC Version Compatibility
 
-- Supports all ODBC versions.
+Supports all ODBC versions.
 
 ## Installation
 
