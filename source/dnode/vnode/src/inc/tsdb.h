@@ -250,6 +250,7 @@ void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
 void    tsdbTbDataIterOpen(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter *pIter);
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
 void    tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj *pTableMap, int64_t *rowsNum);
+int32_t tsdbMemTableSaveToCache(SMemTable *pMemTable, void *func);
 
 // STbData
 int32_t tsdbGetNRowsInTbData(STbData *pTbData);
@@ -335,7 +336,6 @@ struct STsdbFS {
 typedef struct {
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
-  rocksdb_cache_t                     *blockcache;
   rocksdb_block_based_table_options_t *tableoptions;
   rocksdb_options_t                   *options;
   rocksdb_flushoptions_t              *flushoptions;
@@ -347,6 +347,7 @@ typedef struct {
   tb_uid_t                             suid;
   tb_uid_t                             uid;
   STSchema                            *pTSchema;
+  SArray                              *ctxArray;
 } SRocksCache;
 
 typedef struct {
