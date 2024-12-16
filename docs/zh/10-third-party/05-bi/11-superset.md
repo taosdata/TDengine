@@ -66,12 +66,8 @@ TDengine 数据源与其它数据源使用上无差别，这里简单介绍下�
 
 1. "Aggregate" 类型，展示在第 4 组中指定时间段内每分钟采集电压值(voltage)最大值  
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
-
   ![superset-demo1](./superset-demo1.jpeg)
 
-2. "RAW RECORDS" 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值  
+1. "RAW RECORDS" 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值  
 
   ![superset-demo2](./superset-demo2.jpeg)  
