@@ -48,7 +48,7 @@ static int32_t buildParseSqlRes(SRequestObj* pRequest, SParseSqlRes* pRes) {
         pSchemaRes->precision = pQuery->precision;
         pSchemaRes->pSchema = taosMemoryMalloc(pQuery->numOfResCols * sizeof(SSchema));
         if (NULL == pSchemaRes->pSchema) {
-          code = terrno = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
         } else {
           TAOS_MEMCPY(pSchemaRes->pSchema, pQuery->pResSchema, pQuery->numOfResCols * sizeof(SSchema));
         }
@@ -66,7 +66,7 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
    SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
    SSyncQueryParam* syncParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
    if (NULL == syncParam) {
-     QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+     QRY_ERR_RET(terrno);
    }
    
    if (tsem_init(&syncParam->sem, 0, 0)) {
@@ -87,7 +87,7 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
      if (NULL == pNewRequest) {
         freeQueryParam(syncParam);
         destroyRequest(pNewRequest);
-        QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        QRY_ERR_RET(terrno);
      }
    }
 
@@ -96,7 +96,7 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
    if (NULL == pNewRequest->pDb) {
       freeQueryParam(syncParam);
       destroyRequest(pNewRequest);
-      QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      QRY_ERR_RET(terrno);
    }
    pNewRequest->parseOnly = parseOnly;
    pNewRequest->body.queryFp = syncQueryFn;
