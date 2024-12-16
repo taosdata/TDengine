@@ -819,10 +819,10 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
-  atomic_add_fetch_64(&gQueryMgmt.stat.taskRunNum, 1);
+  (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskRunNum, 1);
 
   uint64_t flags = 0;
-  dsGetSinkFlags(sinkHandle, &flags);
+  (void)dsGetSinkFlags(sinkHandle, &flags);
 
   ctx->level = plan->level;
   ctx->dynamicTask = qIsDynamicExecTask(pTaskInfo);
@@ -1353,7 +1353,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   ctx.sinkHandle = sinkHandle;
 
   uint64_t flags = 0;
-  dsGetSinkFlags(sinkHandle, &flags);
+  (void)dsGetSinkFlags(sinkHandle, &flags);
 
   ctx.sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
 
