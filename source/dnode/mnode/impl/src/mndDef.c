@@ -735,7 +735,7 @@ SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
   if (pObj == NULL) {
     return NULL;
   }
-  strncpy(pObj->name, pItem->name, CFG_NAME_MAX_LEN);
+  tstrncpy(pObj->name, pItem->name, CFG_NAME_MAX_LEN);
   pObj->dtype = pItem->dtype;
   switch (pItem->dtype) {
     case CFG_DTYPE_NONE:

@@ -424,11 +424,11 @@ static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   if (' ' == pMCfgReq->config[optLen]) {
     // 'key value'
     if (strlen(pMCfgReq->value) != 0) goto _err;
-    (void)strcpy(pDCfgReq->value, p + 1);
+    tstrncpy(pDCfgReq->value, p + 1, TSDB_DNODE_VALUE_LEN);
   } else {
     // 'key' 'value'
     if (strlen(pMCfgReq->value) == 0) goto _err;
-    (void)strcpy(pDCfgReq->value, pMCfgReq->value);
+    tstrncpy(pDCfgReq->value, pMCfgReq->value, TSDB_DNODE_VALUE_LEN);
   }
 
   TAOS_RETURN(code);
@@ -785,7 +785,7 @@ SArray *initVariablesFromItems(SArray *pItems) {
   for (int32_t i = 0; i < sz; ++i) {
     SConfigItem   *pItem = taosArrayGet(pItems, i);
     SVariablesInfo info = {0};
-    strcpy(info.name, pItem->name);
+    tstrncpy(info.name, pItem->name, TSDB_CONFIG_OPTION_LEN + 1);
 
     // init info value
     switch (pItem->dtype) {
@@ -816,28 +816,28 @@ SArray *initVariablesFromItems(SArray *pItems) {
     // init info scope
     switch (pItem->scope) {
       case CFG_SCOPE_SERVER:
-        strcpy(info.scope, "server");
+        tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
         break;
       case CFG_SCOPE_CLIENT:
-        strcpy(info.scope, "client");
+        tstrncpy(info.scope, "client", TSDB_CONFIG_SCOPE_LEN + 1);
         break;
       case CFG_SCOPE_BOTH:
-        strcpy(info.scope, "both");
+        tstrncpy(info.scope, "both", TSDB_CONFIG_SCOPE_LEN + 1);
         break;
       default:
-        strcpy(info.scope, "unknown");
+        tstrncpy(info.scope, "unknown", TSDB_CONFIG_SCOPE_LEN + 1);
         break;
     }
     // init info category
     switch (pItem->category) {
       case CFG_CATEGORY_GLOBAL:
-        strcpy(info.category, "global");
+        tstrncpy(info.category, "global", TSDB_CONFIG_CATEGORY_LEN + 1);
         break;
       case CFG_CATEGORY_LOCAL:
-        strcpy(info.category, "local");
+        tstrncpy(info.category, "local", TSDB_CONFIG_CATEGORY_LEN + 1);
         break;
       default:
-        strcpy(info.category, "unknown");
+        tstrncpy(info.category, "unknown", TSDB_CONFIG_CATEGORY_LEN + 1);
         break;
     }
     if (NULL == taosArrayPush(pInfos, &info)) {
