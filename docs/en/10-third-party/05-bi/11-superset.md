@@ -28,7 +28,7 @@ pip3 install taos-ws-py
 
 ## Configure TDengine Connection In Superset
 
-**Step 1**, enter the new database connection page, Superset -> Setting-> Database Connections -> +DATABASE   
+**Step 1**, enter the new database connection page, "Superset" → "Setting" → "Database Connections" → "+DATABASE"   
 **Step 2**, select TDengine database connection, select the "TDengine" option from the drop-down list of "SUPPORTED DATABASES". 
 :::tip
 If there is no TDengine option in the drop-down list, please confirm that the steps of installing, `Superset` is first and `Python Connector` is second.
