@@ -25,14 +25,11 @@
             >
           </el-tooltip>
         </div>
-        <el-table style="margin-top: 20px" :data="topicList" size="mini">
+        <el-table style="margin-top: 20px" :data="topicList">
           <el-table-column width="50" label="ID" prop="id" show-overflow-tooltip></el-table-column>
           <el-table-column width="150" :label="$t('taosuser.database')" prop="database" show-overflow-tooltip></el-table-column>
           <el-table-column width="180" :label="$t('topic.stables')" prop="stable" show-overflow-tooltip></el-table-column>
           <el-table-column :label="$t('taosuser.backupForm.fileDir')" prop="directory" show-overflow-tooltip></el-table-column>
-          <el-table-column width="210" :label="$t('taosuser.backupForm.upcoming')" prop="upcoming">
-            <span slot-scope="scope">{{ parsinginZone(scope.row.upcoming) }}</span>
-          </el-table-column>
           <el-table-column width="100" :label="$t('taosuser.backupFile')" prop="upcoming" align="center">
             <a slot-scope="scope" @click="activeBackupFileOf(scope.row.id)">{{ $t('view') }}</a>
           </el-table-column>
@@ -67,7 +64,7 @@
                 :value="scope.row.status.toLowerCase() != 'stopped'"
                 active-color="#13ce66"
                 inactive-color="#dcdfe6"
-                @change="switchOperation($event, scope.row)"
+                @change="switchOperation($event, scope.row, 'replication.backupTip')"
                 :disabled="$COMMUNITY"
               >
               </el-switch>
@@ -129,7 +126,38 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
-      <el-tab-pane :label="$t('taosuser.restoreTask')" name="restoreTask"></el-tab-pane>
+      <el-tab-pane :label="$t('taosuser.restoreTask')" name="restoreTask">
+        <el-table style="margin-top: 20px" :data="restoreList">
+          <el-table-column width="50" label="ID" prop="id" show-overflow-tooltip></el-table-column>
+          <el-table-column width="150" :label="$t('taosuser.backupForm.fileDir')" prop="from_path" show-overflow-tooltip></el-table-column>
+          <el-table-column width="420" :label="$t('taosuser.restoreRange')" prop="stable" show-overflow-tooltip>
+            <template slot-scope="scope">
+              <span>{{ parsinginZone(scope.row.from_point_start) }} ~ {{ parsinginZone(scope.row.from_point_end) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('taosuser.todb')" prop="to_database" show-overflow-tooltip></el-table-column>
+          <el-table-column width="220" :label="$t('taosuser.createtime')" prop="upcoming" align="center">
+            <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+          </el-table-column>
+          <el-table-column width="100" :label="$t('taosuser.lastbackup')" prop="status" show-overflow-tooltip>
+            <template slot-scope="scope">
+              <span>{{ handleDSStatus(scope.row.status) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('taosuser.operation')" width="100">
+            <template slot-scope="scope">
+              <el-switch
+                :value="scope.row.status.toLowerCase() != 'stopped'"
+                active-color="#13ce66"
+                inactive-color="#dcdfe6"
+                @change="switchOperation($event, scope.row, 'replication.restoreTip')"
+                :disabled="$COMMUNITY"
+              >
+              </el-switch>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
     </el-tabs>
     
     <el-dialog
@@ -646,10 +674,10 @@ export default {
       }
     },
     //切换状态
-    switchOperation(val, data) {
+    switchOperation(val, data, tip) {
       if (val) {
         this.$confirm(
-          this.$t("replication.backupTip")
+          this.$t(tip)
             .replace("{operate}", this.$t("replication.start"))
             .replace("{id}", data.id),
           this.$t("warning"),
@@ -663,7 +691,7 @@ export default {
         });
       } else {
         this.$confirm(
-          this.$t("replication.backupTip")
+          this.$t(tip)
             .replace("{operate}", this.$t("replication.stop"))
             .replace("{id}", data.id),
           this.$t("warning"),
@@ -753,7 +781,15 @@ export default {
     },
     
     parseRestore(data) {
-      return {};
+      return {
+        id: data.id,
+        from_path: data.from_expand.path,
+        from_point_start: data.from_expand.params.from,
+        from_point_end: data.from_expand.params.to,
+        to_database: data.to_expand.subject,
+        status: data.status,
+        created_at: data.created_at,
+      };
     },
 
     async getRestoreTasks() {
