@@ -38,7 +38,7 @@ jobs:
       - name: Remove artifacts
         run: |
           mkdir -p /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/
-          find /data/code_coverage_taosx/ -mindepth 1 -mtime +10 -exec rm -rf {} +
+          find /data/code_coverage_taosx/ -mindepth 1 -mtime +10 -exec rm -rf {} + 2>/dev/null
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
           mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
@@ -46,7 +46,7 @@ jobs:
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DIR
 
-  build_rust:
+  build_rust_run_unit_test:
     needs: [remove_artifacts,set_env]
     runs-on: [self-hosted, linux, x64, qa, rust]
     env:
@@ -97,7 +97,7 @@ jobs:
           rm taosx.tar.gz
           tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz
-  build_go:
+  build_go_run_unit_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [remove_artifacts,set_env]
     env:
@@ -129,7 +129,7 @@ jobs:
           rm opc_unit_report.txt
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
           cp taosx-opc $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
-  build_java:
+  build_java_run_unit_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [remove_artifacts,set_env]
     env:
@@ -168,9 +168,9 @@ jobs:
           mvn clean package -Dmaven.test.skip=true
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
           cp -r ./target/* $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
-  deploy_for_others:
+  deploy_taosx_plugins:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [build_rust, build_go, build_java,set_env]
+    needs: [build_rust_run_unit_test, build_go_run_unit_test, build_java_run_unit_test,set_env]
     env:
       COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
@@ -195,9 +195,9 @@ jobs:
           # 调用 windows 远程服务拉起 windows-agent
           echo $PATH
           cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py 6055 eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
-  test_others:
+  run_e2e_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: deploy_for_others
+    needs: deploy_taosx_plugins
     steps:
       - name: Update Repo
         run: |
@@ -226,7 +226,7 @@ jobs:
           pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [test_others,set_env]
+    needs: [run_e2e_test,set_env]
     env:
       COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
