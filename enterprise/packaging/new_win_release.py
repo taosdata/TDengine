@@ -20,7 +20,7 @@ internal_dir = os.path.join(directory, branch, "TDinternal")
 community_dir = os.path.join(internal_dir, "community")
 build_dir = os.path.join(community_dir, "debug")
 release_dir = os.path.join(community_dir, "release")
-odbc_build_type = "Release"
+
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 logname = f"{timestamp}.log"
@@ -204,7 +204,7 @@ def parse_arguments():
 
     install_info.directory = args.directory
     install_info.branch = args.branch
-    install_info.install_dir = f"C:\\TDengine"
+    install_info.install_dir = "C:\\TDengine"
     install_info.internal_dir = os.path.join(args.directory, args.branch, "TDinternal")
     install_info.community_dir = os.path.join(install_info.internal_dir, "community")
     script_dir = os.path.join(install_info.internal_dir, "enterprise", "packaging")
@@ -292,7 +292,7 @@ def get_latest_code():
 
     # pull taosws
     taosws_dir = os.path.join(install_info.community_dir, "tools", "taosws-rs")
-    git_pull(taosws_dir, "main", f"ver-{td_version.version}")
+    git_pull(taosws_dir, "install_info.branch", f"ver-{td_version.version}")
 
 
 def init_release_dir():
@@ -470,15 +470,14 @@ def process_build_taosws_32bit():
 
     logging.info("copy {}\\taosws.dll.lib to {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
     os.system("copy /Y {}\\taosws.dll.lib {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
-    logging.info("copy  {}\\taosws.dll to {}".format(dll_dir, x86_target_bin_dir))
+    print("copy {}\\taosws.dll to {}".format(dll_dir, x86_target_bin_dir))
     os.system("copy /Y {}\\taosws.dll {}".format(dll_dir, x86_target_bin_dir))
 
     logging.info("32bit taosws build done")
 
 
 def process_build_odbc():
-    # only directory/main/3.0  has  taos-connector-odbc
-    odbc_dir = os.path.join(directory, branch, "taos-connector-odbc")
+    odbc_dir = os.path.join(directory, branch, "taos_odbc")
     os.chdir(odbc_dir)
     os.system("git checkout main")
     os.system("git pull")
@@ -486,7 +485,7 @@ def process_build_odbc():
 
     # build 32 bit ODBC
     os.system("vcvarsall.bat amd64_x86")
-    logging.info("vcvarsall.bat amd64_x86")
+    print("vcvarsall.bat amd64_x86")
     os.system("rm -rf .externals && rm -rf build32")
     os.system(
         '''cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030  -B build32 -G "Visual Studio 17 2022" -A Win32''')
@@ -688,7 +687,7 @@ def process_package_server():
             shutil.rmtree(odbc_dir)
 
     try:
-        package_process_cmd = f"iscc /DMyAppInstallName=\"{install_info.packagServerName}\" \
+        subprocess.check_call(f"iscc /DMyAppInstallName=\"{install_info.packagServerName}\" \
                 /DMyAppIco=\"{ico_path}\" \
                 /DMyAppInstallDir=\"C:\\{tdCustomer.Name}\" \
                 /DMyAppVersion=\"{td_version.version}\" \
@@ -1018,9 +1017,9 @@ if __name__ == "__main__":
 
     init_release_dir()
 
-    # # p1 = Thread(target=process_build_TD)
-    # # p2 = Thread(target=process_build_taosx)
-    # # p3 = Thread(target=process_build_keeper)
+    p1 = Process(target=process_build_TD)
+    p2 = Process(target=process_build_taosx)
+    p3 = Process(target=process_build_keeper)
 
     # # p1.start()
     # # p2.start()

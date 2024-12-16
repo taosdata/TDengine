@@ -100,18 +100,18 @@
     COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);       \
   } while (0)
 
-#define GRANT_ITEM_SHOW(cur, limit, unit)                                            \
-  do {                                                                               \
-    ++cols;                                                                          \
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                               \
-    if ((limit) != GRANT_UNIQ_UNLIMITED) {                                           \
-      (void)sprintf(tmp1, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit)); \
-    } else {                                                                         \
-      (void)sprintf(tmp1, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S); \
-    }                                                                                \
-    src = tmp1;                                                                      \
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                  \
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                                  \
+#define GRANT_ITEM_SHOW(cur, limit, unit)                                                                        \
+  do {                                                                                                           \
+    ++cols;                                                                                                      \
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                                                           \
+    if ((limit) != GRANT_UNIQ_UNLIMITED) {                                                                       \
+      TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit))); \
+    } else {                                                                                                     \
+      TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S)); \
+    }                                                                                                            \
+    src = tmp1;                                                                                                  \
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                                              \
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                                                              \
   } while (0)
 
 #define GRANT_VALUE_CONVERT(from, to, factor, dft) \
@@ -1356,8 +1356,8 @@ void grantParseParameter() {
 static int32_t grantSecondsToString(int64_t seconds, char *ts) {
   time_t    sec = seconds;
   struct tm ptm;
-  if (taosLocalTime(&sec, &ptm, ts, GRANT_TS_SEC_LEN) != NULL) {
-    if (strftime(ts, GRANT_TS_SEC_LEN, "%Y-%m-%d %H:%M:%S", &ptm)) {
+  if (taosLocalTime(&sec, &ptm, ts, GRANT_TS_SEC_LEN, NULL) != NULL) {
+    if (taosStrfTime(ts, GRANT_TS_SEC_LEN, "%Y-%m-%d %H:%M:%S", &ptm)) {
       return 0;
     }
   }

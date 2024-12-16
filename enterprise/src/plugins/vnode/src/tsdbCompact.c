@@ -28,8 +28,10 @@ extern int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, 
 
 // tsdbCompactMonitor.c
 extern bool    tsdbCompMonHasTask(STsdb *tsdb);
-extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId);
-extern int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
+extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
+extern int32_t tsdbUpdateCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
+extern void    tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
+static void    tsdbCompactCancel(void *arg);
 
 // new code ====================================================================================
 typedef struct {
@@ -514,7 +516,13 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCompact(void *arg) {
+static struct {
+  TdThreadMutex mutex;
+  int32_t       numOfRunningCompactTasks;
+  int32_t       maxNumOfCompactTasks;
+} gCompactTaskStage;
+
+static int32_t tsdbCompactImpl(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -557,13 +565,80 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&compactor.fset);
   TARRAY2_DESTROY(compactor.fopArr, NULL);
-  TAOS_UNUSED(tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid));
+  tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
   taosMemoryFree(arg);
 
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static int32_t tsdbCompact(void *arg);
+
+static void tsdbRescheduleCompactTask(void *arg) {
+  SCompactArg *compactArg = (SCompactArg *)arg;
+  STsdb       *tsdb = compactArg->tsdb;
+  bool         schedSuccess = false;
+
+  (void)taosThreadMutexLock(&tsdb->mutex);
+  if (!tsdb->bgTaskDisabled) {
+    STFileSet *fset;
+    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+      if (fset->fid == compactArg->fid) {
+        int32_t code =
+            vnodeAsync(&fset->channel, EVA_PRIORITY_NORMAL, tsdbCompact, tsdbCompactCancel, arg, &compactArg->taskid);
+        if (TSDB_CODE_SUCCESS == code) {
+          int64_t compactSize = 0;
+          if (fset->farr[TSDB_FTYPE_DATA]) {
+            compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
+          }
+
+          SSttLvl *lvl;
+          TARRAY2_FOREACH(fset->lvlArr, lvl) {
+            STFileObj *fobj;
+            TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
+          }
+
+          TAOS_UNUSED(tsdbUpdateCompMonitorTask(tsdb, fset->fid, &compactArg->taskid, compactSize));
+          schedSuccess = true;
+        }
+
+        break;
+      }
+    }
+  }
+
+  if (!schedSuccess) {
+    tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
+  }
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
+  return;
+}
+
+static int32_t tsdbCompact(void *arg) {
+  bool reschedule = false;
+
+  // check if the number of running tasks exceeds the limit
+  (void)taosThreadMutexLock(&gCompactTaskStage.mutex);
+  if (gCompactTaskStage.numOfRunningCompactTasks >= gCompactTaskStage.maxNumOfCompactTasks) {
+    reschedule = true;
+  } else {
+    gCompactTaskStage.numOfRunningCompactTasks++;
+  }
+  (void)taosThreadMutexUnlock(&gCompactTaskStage.mutex);
+
+  // reschedule or do compact
+  if (reschedule) {
+    tsdbRescheduleCompactTask(arg);
+  } else {
+    (void)tsdbCompactImpl(arg);
+
+    (void)taosThreadMutexLock(&gCompactTaskStage.mutex);
+    gCompactTaskStage.numOfRunningCompactTasks--;
+    (void)taosThreadMutexUnlock(&gCompactTaskStage.mutex);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void tsdbCompactCancel(void *arg) { taosMemoryFree(arg); }
@@ -596,7 +671,18 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
         taosMemoryFree(arg);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid));
+        int64_t compactSize = 0;
+        if (fset->farr[TSDB_FTYPE_DATA]) {
+          compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
+        }
+
+        SSttLvl *lvl;
+        TARRAY2_FOREACH(fset->lvlArr, lvl) {
+          STFileObj *fobj;
+          TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
+        }
+
+        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
       }
     }
   }
@@ -614,4 +700,28 @@ int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw) {
   code = tsdbAsyncCompactImpl(tsdb, tw);
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return code;
+}
+
+void tsdbAlterMaxCompactTasks() {
+  (void)taosThreadMutexLock(&gCompactTaskStage.mutex);
+  if (gCompactTaskStage.maxNumOfCompactTasks != tsNumOfCompactThreads) {
+    tsdbInfo("maxNumOfCompactTasks changed from %d to %d", gCompactTaskStage.maxNumOfCompactTasks,
+             tsNumOfCompactThreads);
+    gCompactTaskStage.maxNumOfCompactTasks = tsNumOfCompactThreads;
+  }
+  (void)taosThreadMutexUnlock(&gCompactTaskStage.mutex);
+}
+
+int32_t tsdbInitCompact() {
+  if (taosThreadMutexInit(&gCompactTaskStage.mutex, NULL) != TSDB_CODE_SUCCESS) {
+    return terrno;
+  }
+  gCompactTaskStage.numOfRunningCompactTasks = 0;
+  gCompactTaskStage.maxNumOfCompactTasks = tsNumOfCompactThreads;
+  return 0;
+}
+
+void tsdbCleanupCompact() {
+  (void)taosThreadMutexDestroy(&gCompactTaskStage.mutex);
+  return;
 }
