@@ -1,5 +1,5 @@
 ---
-title: TDengine 双活系统
+title: 双活系统
 sidebar_label: 双活系统
 toc_max_heading_level: 4
 ---
