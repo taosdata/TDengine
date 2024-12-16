@@ -145,7 +145,7 @@ void insert_dist(TAOS* taos, const char *sql) {
   UINIT(tbs, ts, ts_len, b, b_len, tags, paramv);
 }
 
-void insert_dup(TAOS* taos, const char *sql) {
+void insert_dup_rows(TAOS* taos, const char *sql) {
   char **tbs, **b;
   int64_t **ts;
   int *ts_len, *b_len;
@@ -169,6 +169,27 @@ void insert_dup(TAOS* taos, const char *sql) {
   UINIT(tbs, ts, ts_len, b, b_len, tags, paramv);
 }
 
+void insert_dup_tables(TAOS* taos, const char *sql) {
+  char **tbs, **b;
+  int64_t **ts;
+  int *ts_len, *b_len;
+  TAOS_STMT2_BIND **paramv, **tags;
+
+  INIT(tbs, ts, ts_len, b, b_len, tags, paramv);
+
+  for (int i = 0; i < CTB_NUMS; i++) {
+    sprintf(tbs[i], "ctb_%d", i % 2);
+  }
+
+  for (int i = 0; i < CTB_NUMS; i++) {
+    paramv[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, &ts[i][0], &ts_len[0], NULL, ROW_NUMS};
+    paramv[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, ROW_NUMS};
+  }
+  insert(taos, tbs, tags, paramv, sql);
+
+  UINIT(tbs, ts, ts_len, b, b_len, tags, paramv);
+}
+
 int main() {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   if (!taos) {
@@ -180,7 +201,9 @@ int main() {
   // insert distinct rows
   insert_dist(taos, "insert into db.? using db.stb tags(?,?)values(?,?)");
   // insert duplicate rows
-  insert_dup(taos, "insert into db.? values(?,?)");
+  insert_dup_rows(taos, "insert into db.? values(?,?)");
+  // insert duplicate tables
+  insert_dup_tables(taos, "insert into db.? values(?,?)");
 
   taos_close(taos);
   taos_cleanup();

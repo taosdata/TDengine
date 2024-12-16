@@ -2166,9 +2166,37 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     pStmt->semWaited = true;
   }
 
+  /*
+   * Insert with interlace mode doesn't allow duplicate table names per bind,
+   * so initialize a tbnames hash table for duplication check. 
+   * 
+   * Note, STMT doesn't have such issue as it's unable to bind multiple tables.
+   */
+  SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
+  if (NULL == hashTbnames) {
+    tscError("stmt2 bind failed: out of memory");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+
   int32_t code = 0;
   for (int i = 0; i < bindv->count; ++i) {
     if (bindv->tbnames && bindv->tbnames[i]) {
+      if (pStmt->sql.stbInterlaceMode) {
+        if (tSimpleHashGet(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i])) != NULL) {
+          tSimpleHashCleanup(hashTbnames);
+          tscError("stmt2 bind failed: duplicate table name %s is not allowed in interlace mode.", bindv->tbnames[i]);
+          terrno = TSDB_CODE_PAR_TBNAME_DUPLICATED;
+          return terrno;
+        }
+
+        code = tSimpleHashPut(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i]), NULL, 0);
+        if (TSDB_CODE_SUCCESS != code) {
+          tSimpleHashCleanup(hashTbnames);
+          return code;
+        }
+      }
+
       code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
         return code;
@@ -2205,6 +2233,8 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       }
     }
   }
+
+  tSimpleHashCleanup(hashTbnames);
 
   return TSDB_CODE_SUCCESS;
 }
