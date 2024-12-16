@@ -2257,7 +2257,7 @@ mod parser_tests {
     }
 
     #[test]
-    fn test_parse_record() {
+    fn test_parse_record_to_sql() {
         let parser = r#"{
             "parse": {
                 "value": {"json": ""}
@@ -2266,7 +2266,7 @@ mod parser_tests {
                 "name": "t_${DEV_ID}",
                 "using": "deva",
                 "tags": [ "dev_id" ],
-                "columns": [ "_ts", "_val" ]
+                "columns": [ "_ts", "_val0", "_val1" ]
             },
             "mutate": [{
                 "map": {
@@ -2274,8 +2274,12 @@ mod parser_tests {
                         "cast": "_ts",
                         "as": "TIMESTAMP(ms)"
                     },
-                    "_val": {
-                        "cast": "_val",
+                    "_val0": {
+                        "cast": "_val0",
+                        "as": "INT"
+                    },
+                    "_val1": {
+                        "cast": "_val1",
                         "as": "INT"
                     },
                     "dev_id": {
@@ -2294,16 +2298,40 @@ mod parser_tests {
                 "value",
                 Utf8,
                 [
-                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val": 12, "DEV_ID": "2212"}"#,
-                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val": 13, "DEV_ID": "2213"}"#,
-                    r#"{"_ts": "2024-12-02T18:00:01+08:00", "_val": 14, "DEV_ID": "2212"}"#
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val0": 12, "DEV_ID": "2212"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val1": 13, "DEV_ID": "2213"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:01+08:00", "_val0": 14, "DEV_ID": "2212"}"#
                 ]
             )
         )
         .unwrap();
 
         let records = parser.parse_message_from_records(&raw_data, false).unwrap();
-        assert_eq!(records.len(), 2);
-        dbg!(records);
+        // assert_eq!(records.len(), 2);
+        if let super::Message::Records(records) = records {
+            assert_eq!(records.len(), 2);
+            for record in records {
+                let sql = record.sql_insert_part(taos::Precision::Millisecond, true, true, None);
+                if record.table_name() == "t_2212" {
+                    assert_eq!(sql.len(), 1);
+                    assert_eq!(
+                        sql[0].0,
+                        r#"`t_2212` using `deva` (`dev_id`) tags("2212") (`_ts`,`_val0`) values(1733133600000,12)(1733133601000,14)"#
+                    );
+                    assert_eq!(sql[0].1, 2);
+                } else if record.table_name() == "t_2213" {
+                    assert_eq!(sql.len(), 1);
+                    assert_eq!(
+                        sql[0].0,
+                        r#"`t_2213` using `deva` (`dev_id`) tags("2213") (`_ts`,`_val1`) values(1733133600000,13)"#
+                    );
+                    assert_eq!(sql[0].1, 1);
+                } else {
+                    assert!(false);
+                }
+            }
+        } else {
+            assert!(false);
+        }
     }
 }

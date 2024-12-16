@@ -625,10 +625,21 @@ pub fn sql_values_from_record_batch(
     if batch.num_rows() == 0 {
         return Ok(vec![]);
     }
+
+    let mut column_has_value = vec![];
     let schema = batch.schema();
     let names = schema
         .fields()
         .iter()
+        .filter(|f| {
+            let col_index = schema.index_of(f.name()).unwrap();
+            if batch.column(col_index).null_count() < batch.num_rows() {
+                column_has_value.push(col_index);
+                true
+            } else {
+                false
+            }
+        })
         .map(|f| format!("`{}`", f.name()))
         .join(",");
     let vec = Vec::with_capacity(1);
@@ -655,16 +666,16 @@ pub fn sql_values_from_record_batch(
             });
             cursor.write_all(b"(")?;
             #[allow(clippy::needless_range_loop)]
-            for col in 0..batch.num_columns() {
-                let array = &columns[col];
-                if col > 0 {
+            for col in column_has_value.iter() {
+                let array = &columns[*col];
+                if *col > 0 {
                     cursor.write_all(b",")?;
                 }
                 if array.is_null(row) {
                     cursor.write_all(b"NULL")?;
                     continue;
                 }
-                match columns[col].data_type() {
+                match columns[*col].data_type() {
                     arrow_schema::DataType::Null => {
                         cursor.write_all(b"NULL")?;
                     }
