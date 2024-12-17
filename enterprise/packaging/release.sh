@@ -243,6 +243,9 @@ fi
 
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   BUILD_HTTP=internal
+  BUILD_KEEPER=internal
+else
+  BUILD_KEEPER=true
 fi
 
 if [[ "$pagMode" == "full" ]]; then
@@ -278,14 +281,14 @@ fi
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]] || [[ "$cpuType" == "loongarch64" ]] ; then
   if [ "$verMode" == "edge" ]; then
     # community-version compile
-    cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=${BUILD_WEBSOCKET} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro}
+    cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=${BUILD_WEBSOCKET} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} -DBUILD_KEEPER=${BUILD_KEEPER} ${allocator_macro}
   elif [ "$verMode" == "cloud" ]; then
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=false -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=false ${allocator_macro}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=false -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=false ${allocator_macro} -DBUILD_KEEPER=${BUILD_KEEPER}
   elif [ "$verMode" == "cluster" ]; then
 #    if [[ "$dbName" != "taos" ]]; then
 #      replace_enterprise_$dbName
 #    fi
-    cmake ../../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=${ASSERT_NOT_CORE} -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=${BUILD_TAOSX} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DTD_PRODUCT_NAME="${cusName} Enterprise Edition" -DGRANT_VALUE=${grantValue}
+    cmake ../../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=${ASSERT_NOT_CORE} -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=${BUILD_TAOSX} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DTD_PRODUCT_NAME="${cusName} Enterprise Edition"  -DBUILD_KEEPER=${BUILD_KEEPER} -DGRANT_VALUE=${grantValue}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
@@ -325,16 +328,16 @@ if [ "$osType" != "Darwin" ]; then
       cd ${top_dir}/community/packaging/deb
       ${csudo}./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
-      if [[ "$pagMode" == "full" ]]; then
-        if [ -d ${top_dir}/community/tools/taos-tools/packaging/deb ]; then
-          cd ${top_dir}/community/tools/taos-tools/packaging/deb
-          taos_tools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
-          [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+      # if [[ "$pagMode" == "full" ]]; then
+      #   if [ -d ${top_dir}/community/tools/taos-tools/packaging/deb ]; then
+      #     cd ${top_dir}/community/tools/taos-tools/packaging/deb
+      #     taos_tools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
+      #     [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          ${csudo}./make-taos-tools-deb.sh ${top_dir} \
-            ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType} ${verNumberComp}
-        fi
-      fi
+      #     ${csudo}./make-taos-tools-deb.sh ${top_dir} \
+      #       ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType} ${verNumberComp}
+      #   fi
+      # fi
     else
       echo "==========dpkg command not exist, so not release deb package!!!"
     fi
@@ -350,26 +353,34 @@ if [ "$osType" != "Darwin" ]; then
       cd ${top_dir}/community/packaging/rpm
       ${csudo}./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
-      if [[ "$pagMode" == "full" ]]; then
-        if [ -d ${top_dir}/community/tools/taos-tools/packaging/rpm ]; then
-          cd ${top_dir}/community/tools/taos-tools/packaging/rpm
-          taos_tools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
-          [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+      # if [[ "$pagMode" == "full" ]]; then
+      #   if [ -d ${top_dir}/community/tools/taos-tools/packaging/rpm ]; then
+      #     cd ${top_dir}/community/tools/taos-tools/packaging/rpm
+      #     taos_tools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
+      #     [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
-            ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType} ${verNumberComp}
-        fi
-      fi
+      #     ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
+      #       ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType} ${verNumberComp}
+      #   fi
+      # fi
     else
       echo "==========rpmbuild command not exist, so not release rpm package!!!"
     fi
   fi
 
   if [[ "$verMode" == "cluster" && "$skip" == 0 ]]; then
+    echo "====clone taosx repo if taosx dir is empty===="
+    taosx_release_dir="${top_dir}/enterprise/src/plugins/taosx/packaging"
+    if [ ! -d ${taosx_release_dir} ]; then
+      cd ${top_dir}/enterprise/src/plugins
+      git clone https://github.com/taosdata/taosx.git
+    else
+      echo "it has taosx repo, so don't need to clone again"
+    fi
     echo "==== generate taosx package ===="
-    cd ${top_dir}/enterprise/src/plugins/taosx/packaging
+    cd ${taosx_release_dir}
     if [[ "$cusName" == "TDengine" && "${cusPrompt}" == "taos" && "${cusEmail}" == "support@taosdata.com" ]];then
-      python3 release.py -ob -vn ${verNumber}
+      python3 release.py -ob -vn ${verNumber} -bw
     else
       python3 release.py -ob -vn ${verNumber} -cn ${cusName} -cp ${cusPrompt} -ce ${cusEmail}
     fi
