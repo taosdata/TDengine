@@ -2248,29 +2248,29 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
   return stmtIsInsert2(stmt, insert);
 }
 
-int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
-  if (stmt == NULL || count == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+// int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
+//   if (stmt == NULL || count == NULL) {
+//     tscError("NULL parameter for %s", __FUNCTION__);
+//     terrno = TSDB_CODE_INVALID_PARA;
+//     return terrno;
+//   }
 
-  if (field_type == TAOS_FIELD_COL) {
-    return stmtGetColFields2(stmt, count, fields);
-  } else if (field_type == TAOS_FIELD_TAG) {
-    return stmtGetTagFields2(stmt, count, fields);
-  } else if (field_type == TAOS_FIELD_QUERY) {
-    return stmtGetParamNum2(stmt, count);
-  } else if (field_type == TAOS_FIELD_TBNAME) {
-    return stmtGetParamTbName(stmt, count);
-  } else {
-    tscError("invalid parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-}
+//   if (field_type == TAOS_FIELD_COL) {
+//     return stmtGetColFields2(stmt, count, fields);
+//   } else if (field_type == TAOS_FIELD_TAG) {
+//     return stmtGetTagFields2(stmt, count, fields);
+//   } else if (field_type == TAOS_FIELD_QUERY) {
+//     return stmtGetParamNum2(stmt, count);
+//   } else if (field_type == TAOS_FIELD_TBNAME) {
+//     return stmtGetParamTbName(stmt, count);
+//   } else {
+//     tscError("invalid parameter for %s", __FUNCTION__);
+//     terrno = TSDB_CODE_INVALID_PARA;
+//     return terrno;
+//   }
+// }
 
-int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields) {
+int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
   if (stmt == NULL || count == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -2292,13 +2292,7 @@ int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fie
   return stmtGetStbColFields2(stmt, count, fields);
 }
 
-void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
-  (void)stmt;
-  if (!fields) return;
-  taosMemoryFree(fields);
-}
-
-DLL_EXPORT void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) {
+DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {
   (void)stmt;
   if (!fields) return;
   taosMemoryFree(fields);
