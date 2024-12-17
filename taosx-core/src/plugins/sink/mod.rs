@@ -2805,7 +2805,8 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
     for message in record.records() {
         let batch = message.record();
-        if batch.num_rows() == 0 {
+        let num_rows = batch.num_rows();
+        if num_rows == 0 {
             continue;
         }
 
@@ -2831,17 +2832,11 @@ async fn consume_flat_record(
                     continue;
                 }
 
-                let num_rows = message.iter().map(|r| r.records.num_rows()).sum::<usize>();
                 if unsafe { crate::global::DRY_RUN } {
                     *count += num_rows;
                     metrics.add_processed_rows(num_rows as u64);
                     continue;
                 }
-                tracing::debug!(
-                    "Writing flat message, num_rows: {}, message.len(): {}",
-                    num_rows,
-                    message.len()
-                );
 
                 let factor = message
                     .iter()

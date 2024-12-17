@@ -1316,8 +1316,9 @@ pub async fn get_stable_name(
         database_name = database.unwrap().to_string();
     } else {
         let database: Option<String> = taos.query_one("select database()").await?;
-        database_name = database.unwrap();
+        database_name = database.expect("get database name withe 'select database()'");
     }
+
     let show_create_table_result: Option<(String, String)> = taos
         .query_one(format!("show create table `{database_name}`.`{tablename}`"))
         .await?;
@@ -1329,8 +1330,10 @@ pub async fn get_stable_name(
                 return Ok(Some(cap_str.as_str().to_string()));
             }
         }
+        tracing::warn!("No stable name found in sql: {}", sql_create_table);
         Ok(None)
     } else {
+        tracing::warn!("No table found in database: {database_name} with table name: {tablename}");
         Ok(None)
     }
 }
