@@ -400,7 +400,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_restore_dnode.py -N 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_vgroups.py
