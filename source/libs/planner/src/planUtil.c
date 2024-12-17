@@ -68,14 +68,14 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
         return DEAL_RES_ERROR;
       }
       pCol->node.resType = pExpr->resType;
-      strcpy(pCol->colName, pExpr->aliasName);
+      tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
       if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
         SFunctionNode* pFunc = (SFunctionNode*)pNode;
         if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
           SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
           if (NULL != pVal) {
-            strcpy(pCol->tableAlias, pVal->literal);
-            strcpy(pCol->tableName, pVal->literal);
+            tstrncpy(pCol->tableAlias, pVal->literal, TSDB_TABLE_NAME_LEN);
+            tstrncpy(pCol->tableName, pVal->literal, TSDB_TABLE_NAME_LEN);
           }
         }
       }
@@ -636,9 +636,9 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
   SFunctionNode* pFunc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (pFunc) {
-    strcpy(pFunc->functionName, "_group_key");
-    strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
-    strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
+    tstrncpy(pFunc->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
+    tstrncpy(pFunc->node.aliasName, pGroupCol->node.aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.userAlias, pGroupCol->node.userAlias, TSDB_COL_NAME_LEN);
     SNode* pNew = NULL;
     code = nodesCloneNode((SNode*)pGroupCol, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
@@ -655,7 +655,7 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
       int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
       (void)taosHashBinary(name, len);
-      strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+      tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {

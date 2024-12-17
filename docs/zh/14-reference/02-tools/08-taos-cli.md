@@ -54,7 +54,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - -h HOST: 要连接的 TDengine 服务端所在服务器的 FQDN, 默认为连接本地服务
 - -P PORT: 指定服务端所用端口号
 - -u USER: 连接时使用的用户名
-- -p PASSWORD: 连接服务端时使用的密码
+- -p PASSWORD: 连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理
 - -?, --help: 打印出所有命令行参数
 
 还有更多其他参数：
@@ -88,6 +88,9 @@ taos -h h1.taos.com -s "use db; show tables;"
 ## 配置文件
 
 也可以通过配置文件中的参数设置来控制 TDengine CLI 的行为。可用配置参数请参考[客户端配置](../../components/taosc)
+
+## 错误代码表
+在 TDengine 3.3.4.8 版本后 TDengine CLI 在返回错误信息中返回了具体错误码，用户可到 TDengine 官网错误码页面查找具体原因及解决措施，见：[错误码参考表](https://docs.taosdata.com/reference/error-code/)
 
 ## TDengine CLI TAB 键补全
 

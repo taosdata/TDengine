@@ -4,11 +4,10 @@ sidebar_label: "安装部署"
 ---
 
 ### 环境准备
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 可以运行在 Linux/Windows/MacOS 等平台上，同时需要 3.10 或以上版本的 Python 环境支持。
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 运行在 Linux 平台上，并需要 3.10 或以上版本的 Python 环境支持。
 > 部署 Anode 需要 TDengine Enterprise 3.3.4.3 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
 
 ### 安装及卸载
-不同操作系统上安装及部署 Anode 有一些差异，主要是卸载操作、安装路径、服务启停等方面。本文以 Linux 系统为例，说明安装部署的流程。
 使用 Linux 环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 Anode 的安装部署工作，命令如下：
 
 ```bash
@@ -37,7 +36,7 @@ systemctl status taosanoded
 |/usr/local/taos/taosanode/bin|可执行文件目录|
 |/usr/local/taos/taosanode/resource|资源文件目录，链接到文件夹 /var/lib/taos/taosanode/resource/|
 |/usr/local/taos/taosanode/lib|库文件目录|
-|/var/lib/taos/taosanode/model/|模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
+|/usr/local/taos/taosanode/model/|模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
 |/var/log/taos/taosanode/|日志文件目录|
 |/etc/taos/taosanode.ini|配置文件|
 
@@ -64,7 +63,7 @@ pidfile = /usr/local/taos/taosanode/taosanode.pid
 # conflict with systemctl, so do NOT uncomment this
 # daemonize = /var/log/taos/taosanode/taosanode.log
 
-# log directory
+# uWSGI log files
 logto = /var/log/taos/taosanode/taosanode.log
 
 # wWSGI monitor port
@@ -74,7 +73,7 @@ stats = 127.0.0.1:8387
 virtualenv = /usr/local/taos/taosanode/venv/
 
 [taosanode]
-# default app log file
+# default taosanode log file
 app-log = /var/log/taos/taosanode/taosanode.app.log
 
 # model storage directory
@@ -107,12 +106,33 @@ node_url 是提供服务的 Anode 的 IP 和 PORT组成的字符串, 例如：`c
 列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`等属性。
 ```sql
 SHOW ANODES;
+
+taos> show anodes;
+     id      |              url               |    status    |       create_time       |       update_time       |
+==================================================================================================================
+           1 | 192.168.0.1:6090             | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
+Query OK, 1 row(s) in set (0.037205s)
+
 ```
 
 #### 查看提供的时序数据分析服务
 
 ```SQL
 SHOW ANODES FULL;
+
+taos> show anodes full;
+     id      |            type            |              algo              |
+============================================================================
+           1 | anomaly-detection          | shesd                          |
+           1 | anomaly-detection          | iqr                            |
+           1 | anomaly-detection          | ksigma                         |
+           1 | anomaly-detection          | lof                            |
+           1 | anomaly-detection          | grubbs                         |
+           1 | anomaly-detection          | ad_encoder                     |
+           1 | forecast                   | holtwinters                    |
+           1 | forecast                   | arima                          |
+Query OK, 8 row(s) in set (0.008796s)
+
 ```
 
 #### 刷新集群中的分析算法缓存

@@ -47,11 +47,12 @@ enum {
   RES_TYPE__TMQ_BATCH_META,
 };
 
-#define SHOW_VARIABLES_RESULT_COLS       4
+#define SHOW_VARIABLES_RESULT_COLS       5
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD5_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
 
 #define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
@@ -153,6 +154,13 @@ typedef struct {
   __taos_notify_fn_t fp;
 } SWhiteListInfo;
 
+typedef struct {
+  timezone_t    timezone;
+  void         *charsetCxt;
+  char          userApp[TSDB_APP_NAME_LEN];
+  uint32_t      userIp;
+}SOptionInfo;
+
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
   char           pass[TSDB_PASSWORD_LEN];
@@ -175,6 +183,7 @@ typedef struct STscObj {
   SPassInfo      passInfo;
   SWhiteListInfo whiteListInfo;
   STscNotifyInfo userDroppedInfo;
+  SOptionInfo    optionInfo;
 } STscObj;
 
 typedef struct STscDbg {
@@ -211,6 +220,7 @@ typedef struct SReqResultInfo {
   int32_t        precision;
   int32_t        payloadLen;
   char*          convertJson;
+  void*          charsetCxt;
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {
@@ -338,6 +348,7 @@ extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 extern int32_t  timestampDeltaLimit;
 extern int64_t  lastClusterId;
+extern SHashObj* pTimezoneMap;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
@@ -436,6 +447,9 @@ void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
+
+int32_t tzInit();
+void    tzCleanup();
 
 #ifdef TD_ENTERPRISE
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser,

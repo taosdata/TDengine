@@ -70,6 +70,9 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_KEEP_TIME_OFFSET,
   DB_OPTION_ENCRYPT_ALGORITHM,
   DB_OPTION_DNODES,
+  DB_OPTION_COMPACT_INTERVAL,
+  DB_OPTION_COMPACT_TIME_RANGE,
+  DB_OPTION_COMPACT_TIME_OFFSET,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -163,8 +166,10 @@ SNode*     createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValue
 SNode*     createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
 SNode*     createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd);
 SNode*     createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint);
+SNode*     createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SNode* pInterval);
 SNode*     createWhenThenNode(SAstCreateContext* pCxt, SNode* pWhen, SNode* pThen);
 SNode*     createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhenThenList, SNode* pElse);
+SNode*     createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* token, SNode* pVal);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);
@@ -198,6 +203,8 @@ SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t maxSpeed);
 SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd);
+SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
+                                SNode* pEnd);
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
@@ -228,6 +235,7 @@ SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_
 SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pOldColName,
                                  SToken* pNewColName);
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal);
+SNode* createAlterTableSetMultiTagValue(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* singleNode);
 SNode* setAlterSuperTableType(SNode* pStmt);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind);
@@ -320,6 +328,7 @@ SNode* createDefaultTSMAOptions(SAstCreateContext* pCxt);
 SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
+SNode* createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type);
 
 #ifdef __cplusplus
 }

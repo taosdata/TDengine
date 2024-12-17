@@ -106,6 +106,10 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+if(NOT ${TD_WINDOWS})
+    cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(NOT ${TD_WINDOWS})
+
 # xz
 # cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
@@ -651,6 +655,35 @@ if(${TD_LINUX} AND ${BUILD_WITH_S3})
     add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
 endif()
 
+IF(TD_LINUX)
+    SET(TZ_OUTPUT_PATH /usr/share/zoneinfo)
+ELSEIF(TD_DARWIN)
+    SET(TZ_OUTPUT_PATH /var/db/timezone/zoneinfo)
+ENDIF()
+
+
+if(NOT ${TD_WINDOWS})
+    MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
+
+    execute_process(
+            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
+            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+    )
+
+    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+    file(REMOVE_RECURSE ${TZ_SRC_DIR})
+    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+            DESTINATION ${TZ_SRC_DIR})
+endif(NOT ${TD_WINDOWS})
+
+#if(NOT ${TD_WINDOWS})
+#    execute_process(
+#            COMMAND make CFLAGS+=-fPIC CFLAGS+=-g TZDIR=${TZ_OUTPUT_PATH} clean libtz.a
+#            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+#    )
+#endif(NOT ${TD_WINDOWS})
 # ================================================================================================
 # Build test
 # ================================================================================================

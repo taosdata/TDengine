@@ -11,12 +11,12 @@ IF(NOT TD_DARWIN)
         IF (TD_GRANT)
                 TARGET_LINK_LIBRARIES(
                         schedulerTest
-                        PUBLIC os util common catalog transport gtest qcom taos_static planner scheduler grant
+                        PUBLIC os util common catalog transport gtest qcom ${TAOS_LIB_STATIC} planner scheduler grant
                 )
         ELSE ()
                 TARGET_LINK_LIBRARIES(
                         schedulerTest
-                        PUBLIC os util common catalog transport gtest qcom taos_static planner scheduler
+                        PUBLIC os util common catalog transport gtest qcom ${TAOS_LIB_STATIC} planner scheduler
                 )
         ENDIF()
 

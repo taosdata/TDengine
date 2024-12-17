@@ -161,33 +161,52 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
 
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pRpcInfo, int32_t code) {
-  int32_t size = sizeof(SMsgHead) + sizeof(SCheckpointTriggerRsp);
-  void*   pBuf = rpcMallocCont(size);
-  if (pBuf == NULL) {
+  int32_t  ret = 0;
+  int32_t  tlen = 0;
+  void*    buf = NULL;
+  SEncoder encoder;
+
+  SCheckpointTriggerRsp req = {.streamId = pTask->id.streamId,
+                               .upstreamTaskId = pTask->id.taskId,
+                               .taskId = dstTaskId,
+                               .rspCode = code};
+
+  if (code == TSDB_CODE_SUCCESS) {
+    req.checkpointId = pTask->chkInfo.pActiveInfo->activeId;
+    req.transId = pTask->chkInfo.pActiveInfo->transId;
+  } else {
+    req.checkpointId = -1;
+    req.transId = -1;
+  }
+
+  tEncodeSize(tEncodeCheckpointTriggerRsp, &req, tlen, ret);
+  if (ret < 0) {
+    stError("s-task:%s encode checkpoint-trigger rsp msg failed, code:%s", pTask->id.idStr, tstrerror(code));
+    return ret;
+  }
+
+  buf = rpcMallocCont(tlen + sizeof(SMsgHead));
+  if (buf == NULL) {
+    stError("s-task:%s malloc chkpt-trigger rsp failed for task:0x%x, since out of memory", pTask->id.idStr, dstTaskId);
     return terrno;
   }
 
-  SCheckpointTriggerRsp* pRsp = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
+  ((SMsgHead*)buf)->vgId = htonl(downstreamNodeId);
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  ((SMsgHead*)pBuf)->vgId = htonl(downstreamNodeId);
-
-  pRsp->streamId = pTask->id.streamId;
-  pRsp->upstreamTaskId = pTask->id.taskId;
-  pRsp->taskId = dstTaskId;
-  pRsp->rspCode = code;
-
-  if (code == TSDB_CODE_SUCCESS) {
-    pRsp->checkpointId = pTask->chkInfo.pActiveInfo->activeId;
-    pRsp->transId = pTask->chkInfo.pActiveInfo->transId;
-  } else {
-    pRsp->checkpointId = -1;
-    pRsp->transId = -1;
+  tEncoderInit(&encoder, abuf, tlen);
+  if ((ret = tEncodeCheckpointTriggerRsp(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    tEncoderClear(&encoder);
+    stError("encode checkpoint-trigger rsp failed, code:%s", tstrerror(code));
+    return ret;
   }
+  tEncoderClear(&encoder);
 
-  SRpcMsg rspMsg = {.code = 0, .pCont = pBuf, .contLen = size, .info = *pRpcInfo};
+  SRpcMsg rspMsg = {.code = 0, .pCont = buf, .contLen = tlen + sizeof(SMsgHead), .info = *pRpcInfo};
   tmsgSendRsp(&rspMsg);
 
-  return 0;
+  return ret;
 }
 
 int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask) {
@@ -332,6 +351,11 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     pActiveInfo->activeId = checkpointId;
     pActiveInfo->transId = transId;
 
+    if (pTask->chkInfo.startTs == 0) {
+      pTask->chkInfo.startTs = taosGetTimestampMs();
+      pTask->execInfo.checkpoint += 1;
+    }
+
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s handle checkpoint-trigger block failed, code:%s", id, tstrerror(code));
@@ -392,11 +416,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
   } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
-    if (pTask->chkInfo.startTs == 0) {
-      pTask->chkInfo.startTs = taosGetTimestampMs();
-      pTask->execInfo.checkpoint += 1;
-    }
-
     // todo: handle this
     // update the child Id for downstream tasks
     code = streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
@@ -594,7 +613,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
     {  // destroy the related fill-history tasks
       // drop task should not in the meta-lock, and drop the related fill-history task now
-      streamMetaWUnLock(pMeta);
       if (pReq->dropRelHTask) {
         code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
         int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
@@ -602,7 +620,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 id, vgId, pReq->taskId, numOfTasks);
       }
 
-      streamMetaWLock(pMeta);
       if (pReq->dropRelHTask) {
         code = streamMetaCommit(pMeta);
       }
@@ -637,9 +654,11 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 pInfo->processedVer <= pReq->checkpointVer);
 
   if (!valid) {
-    stFatal("invalid checkpoint id check, current checkpointId:%" PRId64 " checkpointVer:%" PRId64
-            " processedVer:%" PRId64 " req checkpointId:%" PRId64 " checkpointVer:%" PRId64,
-            pInfo->checkpointId, pInfo->checkpointVer, pInfo->processedVer, pReq->checkpointId, pReq->checkpointVer);
+    stFatal("s-task:%s invalid checkpointId update info recv, current checkpointId:%" PRId64 " checkpointVer:%" PRId64
+            " processedVer:%" PRId64 " req checkpointId:%" PRId64 " checkpointVer:%" PRId64 " discard it",
+            id, pInfo->checkpointId, pInfo->checkpointVer, pInfo->processedVer, pReq->checkpointId,
+            pReq->checkpointVer);
+    streamMutexUnlock(&pTask->lock);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
@@ -676,8 +695,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
     return TSDB_CODE_SUCCESS;
   }
 
-  streamMetaWUnLock(pMeta);
-
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
     code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
@@ -686,9 +703,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
             (int32_t)pReq->hTaskId, numOfTasks);
   }
 
-  streamMetaWLock(pMeta);
   code = streamMetaCommit(pMeta);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -801,7 +816,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     stDebug("s-task:%s remove redundant files in uploading checkpointId:%" PRId64 " data", idStr, checkpointId);
   }
 
-  taosArrayDestroyP(toDelFiles, taosMemoryFree);
+  taosArrayDestroyP(toDelFiles, NULL);
   double el = (taosGetTimestampMs() - now) / 1000.0;
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -983,7 +998,7 @@ static int32_t doFindNotSendUpstream(SStreamTask* pTask, SArray* pList, SArray**
   return 0;
 }
 
-static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray* pNotSendList) {
+static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList) {
   const char*            id = pTask->id.idStr;
   SArray*                pList = pTask->upstreamInfo.pList;  // send msg to retrieve checkpoint trigger msg
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
@@ -995,7 +1010,7 @@ static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SA
     return code;
   }
 
-  code = doFindNotSendUpstream(pTask, pList, &pNotSendList);
+  code = doFindNotSendUpstream(pTask, pList, ppNotSendList);
   if (code) {
     streamCleanBeforeQuitTmr(pTmrInfo, param);
     stDebug("s-task:%s failed to find not send upstream, code:%s, out of tmr", id, tstrerror(code));
@@ -1003,7 +1018,7 @@ static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SA
   }
 
   // do send retrieve checkpoint trigger msg to upstream
-  code = doSendRetrieveTriggerMsg(pTask, pNotSendList);
+  code = doSendRetrieveTriggerMsg(pTask, *ppNotSendList);
   if (code) {
     stError("s-task:%s vgId:%d failed to retrieve trigger msg, code:%s", pTask->id.idStr, vgId, tstrerror(code));
     code = 0;
@@ -1075,7 +1090,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   }
 
   streamMutexLock(&pActiveInfo->lock);
-  code = chkptTriggerRecvMonitorHelper(pTask, param, pNotSendList);
+  code = chkptTriggerRecvMonitorHelper(pTask, param, &pNotSendList);
   streamMutexUnlock(&pActiveInfo->lock);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -1119,23 +1134,43 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
       return TSDB_CODE_INVALID_PARA;
     }
 
-    SRetrieveChkptTriggerReq* pReq = rpcMallocCont(sizeof(SRetrieveChkptTriggerReq));
-    if (pReq == NULL) {
-      code = terrno;
-      stError("vgId:%d failed to create msg to retrieve trigger msg for task:%s exec, code:out of memory", vgId, pId);
+    int32_t  ret = 0;
+    int32_t  tlen = 0;
+    void*    buf = NULL;
+    SRpcMsg  rpcMsg = {0};
+    SEncoder encoder;
+
+    SRetrieveChkptTriggerReq req = {.streamId = pTask->id.streamId,
+                                    .downstreamTaskId = pTask->id.taskId,
+                                    .downstreamNodeId = vgId,
+                                    .upstreamTaskId = pUpstreamTask->taskId,
+                                    .upstreamNodeId = pUpstreamTask->nodeId,
+                                    .checkpointId = checkpointId};
+
+    tEncodeSize(tEncodeRetrieveChkptTriggerReq, &req, tlen, ret);
+    if (ret < 0) {
+      stError("encode retrieve checkpoint-trigger msg failed, code:%s", tstrerror(code));
+    }
+
+    buf = rpcMallocCont(tlen + sizeof(SMsgHead));
+    if (buf == NULL) {
+      stError("vgId:%d failed to create retrieve checkpoint-trigger msg for task:%s exec, code:out of memory", vgId, pId);
       continue;
     }
 
-    pReq->head.vgId = htonl(pUpstreamTask->nodeId);
-    pReq->streamId = pTask->id.streamId;
-    pReq->downstreamTaskId = pTask->id.taskId;
-    pReq->downstreamNodeId = vgId;
-    pReq->upstreamTaskId = pUpstreamTask->taskId;
-    pReq->upstreamNodeId = pUpstreamTask->nodeId;
-    pReq->checkpointId = checkpointId;
+    ((SRetrieveChkptTriggerReq*)buf)->head.vgId = htonl(pUpstreamTask->nodeId);
+    void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-    SRpcMsg rpcMsg = {0};
-    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE_TRIGGER, pReq, sizeof(SRetrieveChkptTriggerReq));
+    tEncoderInit(&encoder, abuf, tlen);
+    if ((code = tEncodeRetrieveChkptTriggerReq(&encoder, &req)) < 0) {
+      rpcFreeCont(buf);
+      tEncoderClear(&encoder);
+      stError("encode retrieve checkpoint-trigger req failed, code:%s", tstrerror(code));
+      continue;
+    }
+    tEncoderClear(&encoder);
+
+    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE_TRIGGER, buf, tlen + sizeof(SMsgHead));
 
     code = tmsgSendReq(&pUpstreamTask->epSet, &rpcMsg);
     if (code == TSDB_CODE_SUCCESS) {

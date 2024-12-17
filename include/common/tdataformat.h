@@ -57,9 +57,9 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define ONE               ((uint8_t)1)
 #define THREE             ((uint8_t)3)
 #define DIV_8(i)          ((i) >> 3)
-#define MOD_8(i)          ((i)&7)
+#define MOD_8(i)          ((i) & 7)
 #define DIV_4(i)          ((i) >> 2)
-#define MOD_4(i)          ((i)&3)
+#define MOD_4(i)          ((i) & 3)
 #define MOD_4_TIME_2(i)   (MOD_4(i) << 1)
 #define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
 #define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
@@ -154,7 +154,7 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
-int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
+int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf, void *charsetCxt);
 
 // SColData ================================
 typedef struct {
@@ -173,6 +173,8 @@ typedef struct {
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);
+typedef int32_t (*checkWKBGeometryFn)(const unsigned char *geoWKB, size_t nGeom);
+typedef int32_t (*initGeosFn)();
 
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
@@ -191,7 +193,8 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
 int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *colData, SBuffer *assist);
 
 // for stmt bind
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                               checkWKBGeometryFn cgeos);
 int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
@@ -378,7 +381,8 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
                           SArray *rowArray);
 
 // stmt2 binding
-int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen);
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                                checkWKBGeometryFn cgeos);
 
 typedef struct {
   int32_t          columnId;

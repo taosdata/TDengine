@@ -45,7 +45,7 @@
   tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead)); \
   if (FUNC(&decoder, DATA) < 0) { \
     tDecoderClear(&decoder); \
-    code = TSDB_CODE_OUT_OF_MEMORY; \
+    code = terrno; \
     goto END;\
   }\
   tDecoderClear(&decoder);\
@@ -534,7 +534,7 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
 void tmq_list_destroy(tmq_list_t* list) {
   if (list == NULL) return;
   SArray* container = &list->container;
-  taosArrayDestroyP(container, taosMemoryFree);
+  taosArrayDestroyP(container, NULL);
 }
 
 int32_t tmq_list_get_size(const tmq_list_t* list) {
@@ -659,7 +659,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   pMsgSendInfo->requestId = generateRequestId();
   pMsgSendInfo->requestObjRefId = 0;
   pMsgSendInfo->param = pParam;
-  pMsgSendInfo->paramFreeFp = taosMemoryFree;
+  pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
   pMsgSendInfo->fp = tmqCommitCb;
   pMsgSendInfo->msgType = TDMT_VND_TMQ_COMMIT_OFFSET;
 
@@ -1385,7 +1385,7 @@ static int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
-  sendInfo->paramFreeFp = taosMemoryFree;
+  sendInfo->paramFreeFp = taosAutoMemoryFree;
   sendInfo->fp = askEpCb;
   sendInfo->msgType = TDMT_MND_TMQ_ASK_EP;
 
@@ -1552,7 +1552,7 @@ static void tmqMgmtInit(void) {
   tmqMgmt.timer = taosTmrInit(1000, 100, 360000, "TMQ");
 
   if (tmqMgmt.timer == NULL) {
-    tmqInitRes = TSDB_CODE_OUT_OF_MEMORY;
+    tmqInitRes = terrno;
   }
 
   tmqMgmt.rsetId = taosOpenRef(10000, tmqFreeImpl);
@@ -1872,17 +1872,21 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   if (tmq->epTimer == NULL){
     tmq->epTimer = taosTmrStart(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(tmq->refId), tmqMgmt.timer);
+    if (tmq->epTimer == NULL) {
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto END;
+    }
   }
-  if (tmq->commitTimer == NULL){
+  if (tmq->autoCommit && tmq->commitTimer == NULL){
     tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, (void*)(tmq->refId), tmqMgmt.timer);
-  }
-  if (tmq->epTimer == NULL || tmq->commitTimer == NULL) {
-    code = TSDB_CODE_TSC_INTERNAL_ERROR;
-    goto END;
+    if (tmq->commitTimer == NULL) {
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto END;
+    }
   }
 
 END:
-  taosArrayDestroyP(req.topicNames, taosMemoryFree);
+  taosArrayDestroyP(req.topicNames, NULL);
   return code;
 }
 
@@ -2173,7 +2177,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   sendInfo->requestId = req.reqId;
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
-  sendInfo->paramFreeFp = taosMemoryFree;
+  sendInfo->paramFreeFp = taosAutoMemoryFree;
   sendInfo->fp = tmqPollCb;
   sendInfo->msgType = TDMT_VND_TMQ_CONSUME;
 
@@ -2516,7 +2520,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
 
   tmq_list_t* lst = tmq_list_new();
   if (lst == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
   code = tmq_subscribe(tmq, lst);
@@ -2697,10 +2701,12 @@ int32_t tmq_commit_sync(tmq_t* tmq, const TAOS_RES* pRes) {
     tqErrorC("failed to allocate memory for sync commit");
     return terrno;
   }
-  if (tsem2_init(&pInfo->sem, 0, 0) != 0) {
+
+  code = tsem2_init(&pInfo->sem, 0, 0);
+  if (code != 0) {
     tqErrorC("failed to init sem for sync commit");
     taosMemoryFree(pInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pInfo->code = 0;
 
@@ -2774,9 +2780,10 @@ int32_t tmq_commit_offset_sync(tmq_t* tmq, const char* pTopicName, int32_t vgId,
     return terrno;
   }
 
-  if (tsem2_init(&pInfo->sem, 0, 0) != 0) {
+  code = tsem2_init(&pInfo->sem, 0, 0);
+  if (code != 0) {
     taosMemoryFree(pInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pInfo->code = 0;
 
@@ -2842,6 +2849,7 @@ end:
     cb(tmq, code, param);
   }
 }
+
 
 int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pResInfo) {
   SMqRspObj*  pRspObj = (SMqRspObj*)res;
@@ -2962,9 +2970,10 @@ static int32_t tmCommittedCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
     SDecoder decoder = {0};
     tDecoderInit(&decoder, (uint8_t*)pMsg->pData, pMsg->len);
-    if (tDecodeMqVgOffset(&decoder, &pParam->vgOffset) < 0) {
+    int32_t err = tDecodeMqVgOffset(&decoder, &pParam->vgOffset);
+    if (err < 0) {
       tOffsetDestroy(&pParam->vgOffset.offset);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = err;
       goto end;
     }
     tDecoderClear(&decoder);
@@ -3257,8 +3266,9 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       code = terrno;
       goto end;
     }
-    if (tsem2_init(&pCommon->rsp, 0, 0) != 0) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+
+    code = tsem2_init(&pCommon->rsp, 0, 0);
+    if (code != 0) {
       goto end;
     }
     (void)taosThreadMutexInit(&pCommon->mutex, 0);
@@ -3292,7 +3302,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       int32_t msgSize = tSerializeSMqPollReq(NULL, 0, &req);
       if (msgSize < 0) {
         taosMemoryFree(pParam);
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = msgSize;
         goto end;
       }
 
@@ -3303,10 +3313,11 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
         goto end;
       }
 
-      if (tSerializeSMqPollReq(msg, msgSize, &req) < 0) {
+      msgSize = tSerializeSMqPollReq(msg, msgSize, &req);
+      if (msgSize < 0) {
         taosMemoryFree(msg);
         taosMemoryFree(pParam);
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = msgSize;
         goto end;
       }
 
@@ -3322,7 +3333,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       sendInfo->requestId = req.reqId;
       sendInfo->requestObjRefId = 0;
       sendInfo->param = pParam;
-      sendInfo->paramFreeFp = taosMemoryFree;
+      sendInfo->paramFreeFp = taosAutoMemoryFree;
       sendInfo->fp = tmqGetWalInfoCb;
       sendInfo->msgType = TDMT_VND_TMQ_VG_WALINFO;
 

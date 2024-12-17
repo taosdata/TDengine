@@ -332,7 +332,6 @@ SArray* createSortInfo(SNodeList* pNodeList) {
 
   SArray* pList = taosArrayInit(numOfCols, sizeof(SBlockOrderInfo));
   if (pList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return pList;
   }
 
@@ -342,7 +341,7 @@ SArray* createSortInfo(SNodeList* pNodeList) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       taosArrayDestroy(pList);
       pList = NULL;
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       break;
     }
     SBlockOrderInfo   bi = {0};
@@ -355,7 +354,6 @@ SArray* createSortInfo(SNodeList* pNodeList) {
     if (!tmp) {
       taosArrayDestroy(pList);
       pList = NULL;
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
   }
@@ -1129,7 +1127,7 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
     if (numOfExisted > 0) {
       uHash = taosHashInit(numOfExisted / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (!uHash) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         return terrno;
       }
 
@@ -1330,7 +1328,7 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
     STUidTagInfo info = {.uid = *uid};
     void*        tmp = taosArrayPush(pUidTagList, &info);
     if (!tmp) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return code;
     }
   }
@@ -1356,15 +1354,13 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
   tagFilterAssist ctx = {0};
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
   if (ctx.colHash == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, end);
   }
 
   ctx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
   if (ctx.cInfoList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, end);
   }
 
@@ -1705,6 +1701,7 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
 
   nodesDestroyList(groupNew);
   pAPI->metaReaderFn.clearReader(&mr);
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1716,7 +1713,6 @@ SArray* makeColumnArrayFromList(SNodeList* pNodeList) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColumn));
   if (pList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -1724,7 +1720,7 @@ SArray* makeColumnArrayFromList(SNodeList* pNodeList) {
     SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pNodeList, i);
     if (!pColNode) {
       taosArrayDestroy(pList);
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
       return NULL;
     }
 
@@ -1740,7 +1736,7 @@ SArray* makeColumnArrayFromList(SNodeList* pNodeList) {
     void* tmp = taosArrayPush(pList, &c);
     if (!tmp) {
       taosArrayDestroy(pList);
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return NULL;
     }
   }
@@ -1835,7 +1831,6 @@ static SResSchema createResSchema(int32_t type, int32_t bytes, int32_t slotId, i
 static SColumn* createColumn(int32_t blockId, int32_t slotId, int32_t colId, SDataType* pType, EColumnType colType) {
   SColumn* pCol = taosMemoryCalloc(1, sizeof(SColumn));
   if (pCol == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -2174,7 +2169,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
         }
         bool tmp = pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
         if (!tmp) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           QUERY_CHECK_CODE(code, lino, _end);
         }
       } else {
@@ -2187,7 +2182,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
         if (pCtx->sfp.getEnv != NULL) {
           bool tmp = pCtx->sfp.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
           if (!tmp) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             QUERY_CHECK_CODE(code, lino, _end);
           }
         }
@@ -2236,6 +2231,8 @@ _end:
     }
     taosMemoryFreeClear(*rowEntryInfoOffset);
     taosMemoryFreeClear(pFuncCtx);
+
+    terrno = code;
     return NULL;
   }
   return pFuncCtx;
@@ -2289,7 +2286,9 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
       .slidingUnit = pTableScanNode->slidingUnit,
       .offset = pTableScanNode->offset,
       .precision = pTableScanNode->scan.node.pOutputDataBlockDesc->precision,
+      .timeRange = pTableScanNode->scanRange,
   };
+  calcIntervalAutoOffset(&interval);
 
   return interval;
 }
@@ -2390,6 +2389,9 @@ int32_t convertFillType(int32_t mode) {
     case FILL_MODE_LINEAR:
       type = TSDB_FILL_LINEAR;
       break;
+    case FILL_MODE_NEAR:
+      type = TSDB_FILL_NEAR;
+      break;
     default:
       type = TSDB_FILL_NONE;
   }
@@ -2406,13 +2408,14 @@ void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, b
 
     int64_t key = w->skey;
     while (key < ts) {  // moving towards end
-      key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+      key = getNextTimeWindowStart(pInterval, key, TSDB_ORDER_ASC);
       if (key > ts) {
         break;
       }
 
       w->skey = key;
     }
+    w->ekey = taosTimeAdd(w->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
   }
 }
 
@@ -2425,14 +2428,12 @@ static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
 }
 
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
-  int32_t factor = (order == TSDB_ORDER_ASC) ? -1 : 1;
-
   STimeWindow win = *pWindow;
   STimeWindow save = win;
   while (win.skey <= ts && win.ekey >= ts) {
     save = win;
-    win.skey = taosTimeAdd(win.skey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-    win.ekey = taosTimeAdd(win.ekey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+    // get previous time window
+    getNextTimeWindow(pInterval, &win, order == TSDB_ORDER_ASC ? TSDB_ORDER_DESC : TSDB_ORDER_ASC);
   }
 
   return save;
@@ -2445,7 +2446,6 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   STimeWindow w = {0};
   if (pResultRowInfo->cur.pageId == -1) {  // the first window, from the previous stored value
     getInitialStartTimeWindow(pInterval, ts, &w, (order == TSDB_ORDER_ASC));
-    w.ekey = taosTimeGetIntervalEnd(w.skey, pInterval);
     return w;
   }
 
@@ -2468,19 +2468,17 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   return w;
 }
 
-void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
-  int64_t slidingStart = 0;
-  if (pInterval->offset > 0) {
-    slidingStart = taosTimeAdd(tw->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-  } else {
-    slidingStart = tw->skey;
-  }
+TSKEY getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order) {
   int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-  slidingStart = taosTimeAdd(slidingStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-  tw->skey = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-  int64_t slidingEnd =
-      taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  tw->ekey = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+  TSKEY   nextStart = taosTimeAdd(start, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+  nextStart = taosTimeAdd(nextStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
+  nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+  return nextStart;
+}
+
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
+  tw->skey = getNextTimeWindowStart(pInterval, tw->skey, order);
+  tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
@@ -3072,6 +3070,7 @@ SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys) {
     int32_t           code = nodesListMakeAppend(&ret, pSortKey->pExpr);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      terrno = code;
       return NULL;
     }
   }
@@ -3097,3 +3096,4 @@ _end:
   }
   return code;
 }
+
