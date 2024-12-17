@@ -18,6 +18,7 @@
 #include "mndConfig.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "tutil.h"
@@ -52,7 +53,7 @@ int32_t mndInitConfig(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndCfgActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndCfgActionDelete,
                      .deployFp = (SdbDeployFp)mndCfgActionDeploy,
-                     .prepareFp = (SdbPrepareFp)mndCfgActionPrepare};
+                     .afterRestoredFp = (SdbAfterRestoredFp)mndCfgActionAfterRestored};
 
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG, mndProcessConfigReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
@@ -213,7 +214,7 @@ static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *pOld, SConfigObj *pNew
 
 static int32_t mndCfgActionDeploy(SMnode *pMnode) { return mndInitWriteCfg(pMnode); }
 
-static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndTryRebuildCfg(pMnode); }
+static int32_t mndCfgActionAfterRestored(SMnode *pMnode) { return mndTryRebuildCfg(pMnode); }
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
@@ -340,11 +341,15 @@ _OVER:
 }
 
 int32_t mndTryRebuildCfg(SMnode *pMnode) {
+  if (!mndIsLeader(pMnode)) {
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t   code = 0;
   int32_t   sz = -1;
   STrans   *pTrans = NULL;
   SAcctObj *vObj = NULL, *obj = NULL;
   SArray   *addArray = NULL;
+
   vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
     if ((code = mndInitWriteCfg(pMnode)) < 0) goto _exit;
