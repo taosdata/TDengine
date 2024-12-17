@@ -44,6 +44,32 @@ typedef struct SPhysiPlanContext {
 #define planDebugL(param, ...) qDebugL("PLAN: " param, ##__VA_ARGS__)
 #define planTrace(param, ...)  qTrace("PLAN: " param, ##__VA_ARGS__)
 
+#define PLAN_ERR_RET(c)                \
+  do {                                 \
+    int32_t _code = c;                 \
+    if (_code != TSDB_CODE_SUCCESS) {  \
+      terrno = _code;                  \
+      return _code;                    \
+    }                                  \
+  } while (0)
+#define PLAN_RET(c)                    \
+  do {                                 \
+    int32_t _code = c;                 \
+    if (_code != TSDB_CODE_SUCCESS) {  \
+      terrno = _code;                  \
+    }                                  \
+    return _code;                      \
+  } while (0)
+#define PLAN_ERR_JRET(c)              \
+  do {                                \
+    code = c;                         \
+    if (code != TSDB_CODE_SUCCESS) {  \
+      terrno = code;                  \
+      goto _return;                   \
+    }                                 \
+  } while (0)
+
+
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList);
 int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList);
