@@ -53,7 +53,7 @@ int32_t mndInitConfig(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndCfgActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndCfgActionDelete,
                      .deployFp = (SdbDeployFp)mndCfgActionDeploy,
-                     .prepareFp = (SdbPrepareFp)mndCfgActionPrepare};
+                     .afterRestoredFp = (SdbAfterRestoredFp)mndCfgActionAfterRestored};
 
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG, mndProcessConfigReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
@@ -214,7 +214,7 @@ static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *pOld, SConfigObj *pNew
 
 static int32_t mndCfgActionDeploy(SMnode *pMnode) { return mndInitWriteCfg(pMnode); }
 
-static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndTryRebuildCfg(pMnode); }
+static int32_t mndCfgActionAfterRestored(SMnode *pMnode) { return mndTryRebuildCfg(pMnode); }
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
