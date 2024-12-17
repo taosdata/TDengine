@@ -13,5 +13,6 @@ pub use super::{
 };
 
 pub use super::health::{
-    health_checker, EventLevel, EventSource, HealthNotify, HealthOpts, TaskNotify,
+    health_checker, EventLevel, EventSource, HealthNotify, HealthOpts, State as HealthState,
+    TaskNotify,
 };

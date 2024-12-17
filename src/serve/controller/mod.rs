@@ -23,7 +23,7 @@ use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::runners::kafka::KAFKA_ID;
 use taosx_core::runners::mqtt::MQTT_ID;
-use taosx_core::task_set::prelude::HealthNotify;
+use taosx_core::task_set::prelude::{HealthNotify, HealthState};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -2545,7 +2545,11 @@ impl Activity {
         Self {
             id,
             at: state.at,
-            level: LevelFilter::Warn,
+            level: if state.state >= HealthState::Busy {
+                LevelFilter::Warn
+            } else {
+                LevelFilter::Info
+            },
             activity: format!("{}", state.state),
             status: "health".to_string(),
             context: Some(json!(state).into()),
