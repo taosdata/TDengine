@@ -371,6 +371,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REAL_TABLE:
       code = makeNode(type, sizeof(SRealTableNode), &pNode);
       break;
+    case QUERY_NODE_VIRTUAL_TABLE:
+      code = makeNode(type, sizeof(SVirtualTableNode), &pNode);
+      break;
     case QUERY_NODE_TEMP_TABLE:
       code = makeNode(type, sizeof(STempTableNode), &pNode);
       break;
@@ -822,6 +825,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
       code = makeNode(type, sizeof(SDynQueryCtrlLogicNode), &pNode);
       break;
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      code = makeNode(type, sizeof(SVirtualScanLogicNode), &pNode);
+      break;
     case QUERY_NODE_LOGIC_SUBPLAN:
       code = makeNode(type, sizeof(SLogicSubplan), &pNode);
       break;
@@ -979,6 +985,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       code = makeNode(type, sizeof(SStreamInterpFuncPhysiNode), &pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      code = makeNode(type, sizeof(SVirtualScanPhysiNode), &pNode);
+      break;
     default:
       break;
   }
@@ -1107,6 +1116,13 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
       taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
+      break;
+    }
+    case QUERY_NODE_VIRTUAL_TABLE: {
+      SVirtualTableNode *pVirtual = (SVirtualTableNode*)pNode;
+      taosMemoryFreeClear(pVirtual->pMeta);
+      taosMemoryFreeClear(pVirtual->pVgroupList);
+      nodesDestroyList(pVirtual->refTables);
       break;
     }
     case QUERY_NODE_TEMP_TABLE:
@@ -1721,6 +1737,14 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pRightOnCond);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN: {
+      SVirtualScanLogicNode * pLogicNode = (SVirtualScanLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pScanCols);
+      nodesDestroyList(pLogicNode->pScanPseudoCols);
+      taosMemoryFreeClear(pLogicNode->pVgroupList);
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
       SAggLogicNode* pLogicNode = (SAggLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -1839,6 +1863,12 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
+      SVirtualScanPhysiNode* pPhyNode = (SVirtualScanPhysiNode*)pNode;
+      destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pTargets);
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
       SLastRowScanPhysiNode* pPhyNode = (SLastRowScanPhysiNode*)pNode;

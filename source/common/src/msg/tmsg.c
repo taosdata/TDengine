@@ -6040,6 +6040,13 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     }
   }
 
+  if (hasRefCol(pRsp->tableType)) {
+    for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+      SColRef *pColRef = &pRsp->pColRefs[i];
+      TAOS_CHECK_RETURN(tEncodeSColRef(pEncoder, pColRef));
+    }
+  }
+
   return 0;
 }
 
@@ -6088,7 +6095,21 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
       pRsp->pSchemaExt = NULL;
     }
   }
-  pRsp->pColRefs = NULL;
+  if (!tDecodeIsEnd(pDecoder)) {
+    if (hasRefCol(pRsp->tableType) && pRsp->numOfColumns > 0) {
+      pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColumns);
+      if (pRsp->pColRefs == NULL) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+
+      for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+        SColRef *pColRef = &pRsp->pColRefs[i];
+        TAOS_CHECK_RETURN(tDecodeSColRef(pDecoder, pColRef));
+      }
+    } else {
+      pRsp->pColRefs = NULL;
+    }
+  }
 
   return 0;
 }
@@ -10300,8 +10321,8 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
     if (p->hasRef) {
       TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &p->refColName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &p->refTableName));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refColName));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refTableName));
     }
   }
 
