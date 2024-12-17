@@ -88,12 +88,14 @@ add_test(
     COMMAND osSystemTests
 )
 
+if(TD_LINUX)
 add_executable(osThreadTests "osThreadTests.cpp")
 target_link_libraries(osThreadTests os util gtest_main)
 add_test(
     NAME osThreadTests
     COMMAND osThreadTests
 )
+endif()
 
 add_executable(osTimeTests "osTimeTests.cpp")
 target_link_libraries(osTimeTests os util gtest_main)
