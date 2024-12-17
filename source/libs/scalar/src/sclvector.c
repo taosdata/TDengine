@@ -1069,7 +1069,7 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
 
 int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex,
                                int32_t numOfRows) {
-  if (input->columnData == NULL && input->pHashFilterVar != NULL){
+  if (input->columnData == NULL && (input->pHashFilter != NULL || input->pHashFilterVar != NULL)){
     return TSDB_CODE_SUCCESS;
   }
   output->numOfRows = input->numOfRows;
