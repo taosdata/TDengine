@@ -127,6 +127,18 @@
         </el-table>
       </el-tab-pane>
       <el-tab-pane :label="$t('taosuser.restoreTask')" name="restoreTask">
+        <div class="flexEnd">
+          <el-button
+            plain
+            type="primary"
+            @click="refreshRestoreTask"
+            size="small"
+            icon="el-icon-refresh"
+            :disabled="requestIng || $COMMUNITY"
+            style="font-size:14px;"
+            >{{ $t("refresh") }}</el-button
+          >
+        </div>
         <el-table style="margin-top: 20px" :data="restoreList">
           <el-table-column width="50" label="ID" prop="id" show-overflow-tooltip></el-table-column>
           <el-table-column width="150" :label="$t('taosuser.backupForm.fileDir')" prop="from_path" show-overflow-tooltip></el-table-column>
@@ -144,7 +156,7 @@
               <span>{{ handleDSStatus(scope.row.status) }}</span>
             </template>
           </el-table-column>
-          <el-table-column :label="$t('taosuser.operation')" width="100">
+          <el-table-column :label="$t('taosuser.operation')" width="150">
             <template slot-scope="scope">
               <el-switch
                 :value="scope.row.status.toLowerCase() != 'stopped'"
@@ -154,6 +166,13 @@
                 @change="switchOperation($event, scope.row, 'replication.restoreTip')"
               >
               </el-switch>
+              <el-button
+                plain
+                size="small"
+                @click="toDeleteRestoreTask(scope.row.id)"
+                icon="el-icon-delete"
+                :disabled="$COMMUNITY || scope.row.status.toLowerCase() != 'stopped'"
+              ></el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -530,6 +549,20 @@ export default {
       this.deleteConfirmDialog = true;
       this.yesDeleteFile = false;
     },
+    toDeleteRestoreTask(id) {
+      this.$confirm(
+          this.$t('taosuser.conformDeleteRestoreTask') + id + '?',
+          this.$t("warning"),
+          {
+            confirmButtonText: this.$t("confirm"),
+            cancelButtonText: this.$t("cancel"),
+            type: "warning",
+          }
+        ).then(() => {
+          this.currentId = id;
+          this.del();
+        });
+    },
 
     del() {
       excuteDel(this.currentId, this.yesDeleteFile).then((res) => {
@@ -540,6 +573,7 @@ export default {
           });
           this.deleteConfirmDialog = false;
           this.getBackData();
+          this.getRestoreTasks();
         } else {
           Message({
             type: 'error',
@@ -572,6 +606,9 @@ export default {
     },
     refresh() {
       this.getBackData();
+    },
+    refreshRestoreTask() {
+      this.getRestoreTasks();
     },
     edit(data) {
       this.copy(data);
@@ -650,6 +687,7 @@ export default {
           } else {
             Message.success(this.$t('operateSucc'));
             this.getBackData();
+            this.getRestoreTasks();
           }
         });
       } catch (err) {
@@ -667,6 +705,7 @@ export default {
           } else {
             Message.success(this.$t('operateSucc'));
             this.getBackData();
+            this.getRestoreTasks();
           }
         });
       } catch (err) {
