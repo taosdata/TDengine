@@ -31,13 +31,40 @@
 
 static int32_t globalVar = 0;
 
-static void *funcPtr100(void *param) {
-  taosMsleep(100);
+static void funcPtrKey(void *param) { taosMsleep(100); }
+
+static void *funcPtr200(void *param) {
+  taosMsleep(200);
+  TdThread thread = taosThreadSelf();
+
+  TdThreadKey key = {0};
+  taosThreadKeyCreate(&key, funcPtrKey);
+  void *oldVal = taosThreadGetSpecific(key);
+  taosThreadSetSpecific(key, oldVal);
+  taosThreadKeyDelete(key);
+
+  int32_t oldType = 0;
+  taosThreadSetCancelType(-1, &oldType);
+  taosThreadSetCancelType(0, &oldType);
+
+  int32_t oldState = 0;
+  taosThreadSetCancelState(-1, &oldState);
+  taosThreadSetCancelState(0, &oldState);
+
+  int32_t            policy;
+  struct sched_param para;
+  taosThreadGetSchedParam(thread, &policy, &para);
+  taosThreadGetSchedParam(thread, NULL, &para);
+  taosThreadGetSchedParam(thread, &policy, NULL);
+  taosThreadSetSchedParam(NULL, 0, &para);
+  taosThreadSetSchedParam(thread, 0, &para);
+
   return NULL;
 }
 
 static void *funcPtr500(void *param) {
   taosMsleep(500);
+  TdThread thread = taosThreadSelf();
   return NULL;
 }
 
@@ -51,18 +78,16 @@ static void *funcPtrExit2(void *param) {
   return NULL;
 }
 
-static void funcPtrKey(void *param) { taosMsleep(100); }
-
 TEST(osThreadTests, thread) {
   TdThread tid1 = {0};
   TdThread tid2 = {0};
   int32_t  reti = 0;
 
-  reti = taosThreadCreate(NULL, NULL, funcPtr100, NULL);
+  reti = taosThreadCreate(NULL, NULL, funcPtr200, NULL);
   EXPECT_NE(reti, 0);
   reti = taosThreadCreate(&tid1, NULL, NULL, NULL);
   EXPECT_NE(reti, 0);
-  reti = taosThreadCreate(&tid1, NULL, funcPtr100, NULL);
+  reti = taosThreadCreate(&tid1, NULL, funcPtr200, NULL);
   EXPECT_EQ(reti, 0);
   reti = taosThreadCancel(tid1);
 
@@ -91,14 +116,17 @@ TEST(osThreadTests, thread) {
   taosThreadKill(tid2, SIGINT);
 
   int32_t            policy;
-  struct sched_param param;
-  taosThreadGetSchedParam(tid2, &policy, &param);
-  taosThreadGetSchedParam(tid2, NULL, &param);
+  struct sched_param para;
+  taosThreadGetSchedParam(tid2, &policy, &para);
+  taosThreadGetSchedParam(tid2, NULL, &para);
   taosThreadGetSchedParam(tid2, &policy, NULL);
+  taosThreadSetSchedParam(NULL, 0, &para);
+  taosThreadSetSchedParam(tid2, 0, &para);
 
-  TdThreadKey key;
+  TdThreadKey key = {0};
   taosThreadKeyCreate(&key, funcPtrKey);
-  taosThreadGetSpecific(key);
+  void *oldVal = taosThreadGetSpecific(key);
+  taosThreadSetSpecific(key, oldVal);
   taosThreadKeyDelete(key);
 }
 
@@ -244,6 +272,142 @@ TEST(osThreadTests, cond) {
   reti = taosThreadCondAttrDestroy(NULL);
   EXPECT_NE(reti, 0);
   reti = taosThreadCondAttrDestroy(&condattr);
+  EXPECT_EQ(reti, 0);
+}
+
+TEST(osThreadTests, mutex) {
+  int32_t       reti = 0;
+  TdThreadMutex mutex;
+  reti = taosThreadMutexInit(NULL, 0);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexInit(&mutex, 0);
+  EXPECT_EQ(reti, 0);
+
+  reti = taosThreadMutexTryLock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexTryLock(&mutex);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadMutexTryLock(&mutex);
+  EXPECT_NE(reti, 0);
+
+  reti = taosThreadMutexUnlock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexUnlock(&mutex);
+  EXPECT_EQ(reti, 0);
+
+  reti = taosThreadMutexLock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexLock(&mutex);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadMutexUnlock(&mutex);
+  EXPECT_EQ(reti, 0);
+
+  reti = taosThreadMutexDestroy(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexDestroy(&mutex);
+  EXPECT_EQ(reti, 0);
+}
+
+TEST(osThreadTests, mutexAttr) {
+  int32_t           reti = 0;
+  TdThreadMutexAttr mutexAttr;
+  reti = taosThreadMutexAttrInit(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexAttrInit(&mutexAttr);
+  EXPECT_EQ(reti, 0);
+
+  int32_t pshared;
+  reti = taosThreadMutexAttrGetPshared(&mutexAttr, &pshared);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadMutexAttrSetPshared(&mutexAttr, pshared);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadMutexAttrSetPshared(&mutexAttr, -1);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexAttrSetPshared(NULL, pshared);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexAttrGetPshared(NULL, &pshared);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexAttrGetPshared(&mutexAttr, NULL);
+  EXPECT_NE(reti, 0);
+
+  int32_t kind;
+  reti = taosThreadMutexAttrGetType(&mutexAttr, &kind);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadMutexAttrSetType(&mutexAttr, kind);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadMutexAttrSetType(&mutexAttr, -1);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexAttrSetType(NULL, kind);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexAttrGetType(NULL, &kind);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexAttrGetType(&mutexAttr, NULL);
+  EXPECT_NE(reti, 0);
+
+  reti = taosThreadMutexAttrDestroy(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadMutexAttrDestroy(&mutexAttr);
+  EXPECT_EQ(reti, 0);
+}
+
+TEST(osThreadTests, rwlock) {
+  int32_t        reti = 0;
+  TdThreadRwlock rwlock;
+  reti = taosThreadRwlockInit(NULL, 0);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockInit(&rwlock, 0);
+  EXPECT_EQ(reti, 0);
+
+  reti = taosThreadRwlockTryRdlock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockTryRdlock(&rwlock);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadRwlockTryRdlock(&rwlock);
+  EXPECT_NE(reti, 0);
+
+  reti = taosThreadRwlockUnlock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockUnlock(&rwlock);
+  EXPECT_EQ(reti, 0);
+
+  reti = taosThreadRwlockRdlock(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockRdlock(&rwlock);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadRwlockUnlock(&rwlock);
+  EXPECT_EQ(reti, 0);
+
+  reti = taosThreadRwlockDestroy(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockDestroy(&rwlock);
+  EXPECT_EQ(reti, 0);
+}
+
+TEST(osThreadTests, rdlockAttr) {
+  int32_t            reti = 0;
+  TdThreadRwlockAttr rdlockAttr;
+  reti = taosThreadRwlockAttrInit(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockAttrInit(&rdlockAttr);
+  EXPECT_EQ(reti, 0);
+
+  int32_t pshared;
+  reti = taosThreadRwlockAttrGetPshared(&rdlockAttr, &pshared);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadRwlockAttrSetPshared(&rdlockAttr, pshared);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadRwlockAttrSetPshared(&rdlockAttr, -1);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockAttrSetPshared(NULL, pshared);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockAttrGetPshared(NULL, &pshared);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockAttrGetPshared(&rdlockAttr, NULL);
+  EXPECT_NE(reti, 0);
+
+  reti = taosThreadRwlockAttrDestroy(NULL);
+  EXPECT_NE(reti, 0);
+  reti = taosThreadRwlockAttrDestroy(&rdlockAttr);
   EXPECT_EQ(reti, 0);
 }
 
