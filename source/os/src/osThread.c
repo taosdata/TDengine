@@ -702,6 +702,7 @@ int32_t taosThreadRwlockAttrDestroy(TdThreadRwlockAttr *attr) {
 }
 
 int32_t taosThreadRwlockAttrGetPshared(const TdThreadRwlockAttr *attr, int32_t *pshared) {
+  OS_PARAM_CHECK(attr);
   OS_PARAM_CHECK(pshared);
 #ifdef __USE_WIN_THREAD
   if (pshared) *pshared = PTHREAD_PROCESS_PRIVATE;

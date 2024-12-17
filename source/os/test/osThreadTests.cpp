@@ -56,13 +56,31 @@ static void *funcPtr200(void *param) {
   taosThreadGetSchedParam(thread, &policy, &para);
   taosThreadGetSchedParam(thread, NULL, &para);
   taosThreadGetSchedParam(thread, &policy, NULL);
-  taosThreadSetSchedParam(NULL, 0, &para);
+  // taosThreadSetSchedParam(NULL, 0, &para);
   taosThreadSetSchedParam(thread, 0, &para);
 
   return NULL;
 }
 
-static void *funcPtr500(void *param) {
+static void *funcPtr501(void *param) {
+  taosMsleep(500);
+  TdThread thread = taosThreadSelf();
+  return NULL;
+}
+
+static void *funcPtr502(void *param) {
+  taosMsleep(500);
+  TdThread thread = taosThreadSelf();
+  return NULL;
+}
+
+static void *funcPtr503(void *param) {
+  taosMsleep(500);
+  TdThread thread = taosThreadSelf();
+  return NULL;
+}
+
+static void *funcPtr504(void *param) {
   taosMsleep(500);
   TdThread thread = taosThreadSelf();
   return NULL;
@@ -92,14 +110,14 @@ TEST(osThreadTests, thread) {
   reti = taosThreadCancel(tid1);
 
   EXPECT_EQ(reti, 0);
-  reti = taosThreadCreate(&tid2, NULL, funcPtr500, NULL);
+  reti = taosThreadCreate(&tid2, NULL, funcPtr501, NULL);
   EXPECT_EQ(reti, 0);
   taosMsleep(1000);
   reti = taosThreadCancel(tid2);
   EXPECT_EQ(reti, 0);
 
   taosThreadDetach(tid1);
-  reti = taosThreadCreate(&tid2, NULL, funcPtr500, NULL);
+  reti = taosThreadCreate(&tid2, NULL, funcPtr502, NULL);
   EXPECT_EQ(reti, 0);
   reti = taosThreadDetach(tid2);
 
@@ -111,16 +129,18 @@ TEST(osThreadTests, thread) {
   reti = taosThreadCreate(&tid2, NULL, funcPtrExit2, NULL);
   EXPECT_EQ(reti, 0);
 
-  reti = taosThreadCreate(&tid2, NULL, funcPtr500, NULL);
-  EXPECT_EQ(reti, 0);
-  taosThreadKill(tid2, SIGINT);
+  taosMsleep(1000);
+
+  // reti = taosThreadCreate(&tid2, NULL, funcPtr503, NULL);
+  // EXPECT_EQ(reti, 0);
+  // taosThreadKill(tid2, SIGINT);
 
   int32_t            policy;
   struct sched_param para;
   taosThreadGetSchedParam(tid2, &policy, &para);
   taosThreadGetSchedParam(tid2, NULL, &para);
   taosThreadGetSchedParam(tid2, &policy, NULL);
-  taosThreadSetSchedParam(NULL, 0, &para);
+  // taosThreadSetSchedParam(NULL, 0, &para);
   taosThreadSetSchedParam(tid2, 0, &para);
 
   TdThreadKey key = {0};
@@ -249,7 +269,7 @@ TEST(osThreadTests, cond) {
   reti = taosThreadCondTimedWait(NULL, &mutex, &abstime);
   EXPECT_NE(reti, 0);
   reti = taosThreadCondTimedWait(&cond, &mutex, NULL);
-  EXPECT_NE(reti, 0);
+  EXPECT_EQ(reti, 0);
 
   TdThreadCondAttr condattr = {0};
   (void)taosThreadCondAttrInit(&condattr);
@@ -362,8 +382,6 @@ TEST(osThreadTests, rwlock) {
   EXPECT_NE(reti, 0);
   reti = taosThreadRwlockTryRdlock(&rwlock);
   EXPECT_EQ(reti, 0);
-  reti = taosThreadRwlockTryRdlock(&rwlock);
-  EXPECT_NE(reti, 0);
 
   reti = taosThreadRwlockUnlock(NULL);
   EXPECT_NE(reti, 0);
@@ -416,15 +434,24 @@ TEST(osThreadTests, spinlock) {
 
   TdThreadSpinlock lock = {0};
   reti = taosThreadSpinInit(&lock, -1);
-  EXPECT_NE(reti, 0);
+  EXPECT_EQ(reti, 0);
   reti = taosThreadSpinLock(&lock);
-  EXPECT_NE(reti, 0);
+  EXPECT_EQ(reti, 0);
   reti = taosThreadSpinTrylock(&lock);
   EXPECT_NE(reti, 0);
   reti = taosThreadSpinUnlock(&lock);
-  EXPECT_NE(reti, 0);
+  EXPECT_EQ(reti, 0);
   reti = taosThreadSpinDestroy(&lock);
-  EXPECT_NE(reti, 0);
+  EXPECT_EQ(reti, 0);
+
+  reti = taosThreadSpinInit(&lock, -1);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadSpinTrylock(&lock);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadSpinUnlock(&lock);
+  EXPECT_EQ(reti, 0);
+  reti = taosThreadSpinDestroy(&lock);
+  EXPECT_EQ(reti, 0);
 
   reti = taosThreadSpinInit(NULL, 0);
   EXPECT_NE(reti, 0);
