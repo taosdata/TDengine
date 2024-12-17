@@ -2243,6 +2243,7 @@ static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
 
 // 0 means equal, 1 means the left shall prevail, -1 means the right shall prevail
 static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
+  if (l->type == TSDB_DATA_TYPE_NULL) return -1;
   if (l->type != r->type) {
     return 1;
   }
