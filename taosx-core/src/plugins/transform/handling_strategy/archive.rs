@@ -29,9 +29,13 @@ impl HandlingArchiveFailed {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Archive {
+    #[serde(default)]
     pub keep_days: usize,
+    #[serde(default)]
     pub max_size: usize,
+    #[serde(default)]
     pub location: String,
+    #[serde(default)]
     pub on_fail: HandlingArchiveFailed,
 }
 

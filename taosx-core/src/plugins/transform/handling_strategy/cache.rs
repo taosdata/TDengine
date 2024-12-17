@@ -24,8 +24,11 @@ impl HandlingCacheFailed {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Cache {
+    #[serde(default)]
     pub max_size: usize,
+    #[serde(default)]
     pub location: String,
+    #[serde(default)]
     pub on_fail: HandlingCacheFailed,
 }
 
