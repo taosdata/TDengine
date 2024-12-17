@@ -1333,6 +1333,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
     pAction->msgReceived = 1;
     pAction->errCode = pRsp->code;
     pAction->endTime = taosGetTimestampMs();
+
     // pTrans->lastErrorNo = pRsp->code;
     mndSetTransLastAction(pTrans, pAction);
 

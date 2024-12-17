@@ -1017,7 +1017,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
-  //if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
   if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
