@@ -47,28 +47,32 @@ class TDTestCase:
         t1.start()
         t2.start()
 
-        dnode = self.dnodes[1]
+        #time.sleep(1)
+
+        dnode = self.dnodes[2]
         
         # stop dnode
-        tdLog.info(f"stop dnode 1")
+        tdLog.info(f"stop dnode 2")
         dnode.stoptaosd()
 
-        rows = tdSql.query("show transactions;")
+        tdLog.info(f"show transactions;")
+        rows = tdSql.query("show transactions;", queryTimes=1)
+        tdLog.info(f"rows={rows}")
         if rows > 0:
-            tranId = tdSql.getData(0, 0)
-            tdLog.info(f"show transaction {tranId}")
-            rows = tdSql.query(f"show transaction {tranId}", queryTimes=1)
+            tranId1 = tdSql.getData(0, 0)
+            oper1 = tdSql.getData(0, 3)
+            tdLog.info(f"show transaction {tranId1}, {oper1}")
 
+            tranId2 = tdSql.getData(1, 0)
+            oper2 = tdSql.getData(1, 3)
+            tdLog.info(f"show transaction {tranId2}, {oper2}")
+        
+            rows = tdSql.query(f"show transaction {tranId1}", queryTimes=1)
             if rows != 160 and rows != 176:
                 tdLog.exit(f"restore transaction detial error, rows={rows}")
                 return False
 
-        rows = tdSql.query("show transactions;")
-        if rows > 0:
-            tranId = tdSql.getData(1, 0)
-            tdLog.info(f"show transaction {tranId}")
-            rows = tdSql.query(f"show transaction {tranId}", queryTimes=1)
-
+            rows = tdSql.query(f"show transaction {tranId2}", queryTimes=1)
             if rows != 176 and rows != 160:
                 tdLog.exit(f"restore transaction detial error, rows={rows}")
                 return False
@@ -81,12 +85,12 @@ class TDTestCase:
             return False
             
     def createDbThread(self, sql, newTdSql):
-        tdLog.info("CREATE DATABASE db2 vgroups 160 replica 1;")
-        newTdSql.execute('CREATE DATABASE db2 vgroups 160 replica 1;')
+        tdLog.info("CREATE DATABASE db2 vgroups 160 replica 3;")
+        newTdSql.execute('CREATE DATABASE db2 vgroups 160 replica 3;', queryTimes=1)
 
     def alterDbThread(self, sql, newTdSql):
         tdLog.info("alter DATABASE db1 replica 3;")
-        newTdSql.execute('alter DATABASE db1 replica 3;')
+        newTdSql.execute('alter DATABASE db1 replica 3;', queryTimes=1)
 
     def waitTransactionZero(self, seconds = 300, interval = 1):
         # wait end
