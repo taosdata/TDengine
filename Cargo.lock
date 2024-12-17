@@ -7842,6 +7842,7 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "shadow-rs 0.35.2",
+ "shlex",
  "socket2",
  "sqlx",
  "strum",
