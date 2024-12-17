@@ -569,6 +569,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
       if (TSDB_CODE_SUCCESS != input->code) {
         QW_TASK_ELOG("task already failed at phase %s, code:0x%x", qwPhaseStr(phase), input->code);
+        ctx->ctrlConnInfo.handle = NULL;
         (void)qwDropTask(QW_FPARAMS());
 
         QW_ERR_JRET(input->code);
