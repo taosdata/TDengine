@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "mndCompact.h"
 #include "audit.h"
+#include "mndCompact.h"
 #include "mndCompactDetail.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -254,7 +254,7 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompac
   int32_t code = 0;
   pCompact->compactId = tGenIdPI32();
 
-  (void)strcpy(pCompact->dbname, pDb->name);
+  tstrncpy(pCompact->dbname, pDb->name, sizeof(pCompact->dbname));
 
   pCompact->startTime = taosGetTimestampMs();
 
@@ -893,7 +893,7 @@ static void mndCompactPullup(SMnode *pMnode) {
   }
   taosArrayDestroy(pArray);
 }
-
+#ifdef TD_ENTERPRISE
 static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow *tw) {
   if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
     return 0;
@@ -995,6 +995,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   }
   return 0;
 }
+#endif
 
 static int32_t mndProcessCompactTimer(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE

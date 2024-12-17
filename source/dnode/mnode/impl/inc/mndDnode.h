@@ -31,6 +31,7 @@ SEpSet     mndGetDnodeEpsetById(SMnode *pMnode, int32_t dnodeId);
 int32_t    mndGetDnodeSize(SMnode *pMnode);
 bool       mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs);
 int32_t    mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo);
+void       getSlowLogScopeString(int32_t scope, char *result);
 
 #ifdef __cplusplus
 }

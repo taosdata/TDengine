@@ -418,17 +418,17 @@ static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   }
 
   size_t optLen = p - pMCfgReq->config;
-  strncpy(pDCfgReq->config, pMCfgReq->config, optLen);
+  tstrncpy(pDCfgReq->config, pMCfgReq->config, sizeof(pDCfgReq->config));
   pDCfgReq->config[optLen] = 0;
 
   if (' ' == pMCfgReq->config[optLen]) {
     // 'key value'
     if (strlen(pMCfgReq->value) != 0) goto _err;
-    (void)strcpy(pDCfgReq->value, p + 1);
+    tstrncpy(pDCfgReq->value, p + 1, sizeof(pDCfgReq->value));
   } else {
     // 'key' 'value'
     if (strlen(pMCfgReq->value) == 0) goto _err;
-    (void)strcpy(pDCfgReq->value, pMCfgReq->value);
+    tstrncpy(pDCfgReq->value, pMCfgReq->value, sizeof(pDCfgReq->value));
   }
 
   TAOS_RETURN(code);
@@ -576,7 +576,7 @@ _send_req :
 
 {  // audit
   char obj[50] = {0};
-  (void)sprintf(obj, "%d", cfgReq.dnodeId);
+  (void)tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
 }
@@ -785,59 +785,59 @@ SArray *initVariablesFromItems(SArray *pItems) {
   for (int32_t i = 0; i < sz; ++i) {
     SConfigItem   *pItem = taosArrayGet(pItems, i);
     SVariablesInfo info = {0};
-    strcpy(info.name, pItem->name);
+    tstrncpy(info.name, pItem->name, sizeof(info.name));
 
     // init info value
     switch (pItem->dtype) {
       case CFG_DTYPE_NONE:
         break;
       case CFG_DTYPE_BOOL:
-        sprintf(info.value, "%d", pItem->bval);
+        tsnprintf(info.value, sizeof(info.value), "%d", pItem->bval);
         break;
       case CFG_DTYPE_INT32:
-        sprintf(info.value, "%d", pItem->i32);
+        tsnprintf(info.value, sizeof(info.value), "%d", pItem->i32);
         break;
       case CFG_DTYPE_INT64:
-        sprintf(info.value, "%" PRId64, pItem->i64);
+        tsnprintf(info.value, sizeof(info.value), "%" PRId64, pItem->i64);
         break;
       case CFG_DTYPE_FLOAT:
       case CFG_DTYPE_DOUBLE:
-        sprintf(info.value, "%f", pItem->fval);
+        tsnprintf(info.value, sizeof(info.value), "%f", pItem->fval);
         break;
       case CFG_DTYPE_STRING:
       case CFG_DTYPE_DIR:
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
-        sprintf(info.value, "%s", pItem->str);
+        tsnprintf(info.value, sizeof(info.value), "%s", pItem->str);
         break;
     }
 
     // init info scope
     switch (pItem->scope) {
       case CFG_SCOPE_SERVER:
-        strcpy(info.scope, "server");
+        tstrncpy(info.scope, "server", sizeof(info.scope));
         break;
       case CFG_SCOPE_CLIENT:
-        strcpy(info.scope, "client");
+        tstrncpy(info.scope, "client", sizeof(info.scope));
         break;
       case CFG_SCOPE_BOTH:
-        strcpy(info.scope, "both");
+        tstrncpy(info.scope, "both", sizeof(info.scope));
         break;
       default:
-        strcpy(info.scope, "unknown");
+        tstrncpy(info.scope, "unknown", sizeof(info.scope));
         break;
     }
     // init info category
     switch (pItem->category) {
       case CFG_CATEGORY_GLOBAL:
-        strcpy(info.category, "global");
+        tstrncpy(info.category, "global", sizeof(info.category));
         break;
       case CFG_CATEGORY_LOCAL:
-        strcpy(info.category, "local");
+        tstrncpy(info.category, "local", sizeof(info.category));
         break;
       default:
-        strcpy(info.category, "unknown");
+        tstrncpy(info.category, "unknown", sizeof(info.category));
         break;
     }
     if (NULL == taosArrayPush(pInfos, &info)) {

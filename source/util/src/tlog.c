@@ -19,8 +19,8 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tjson.h"
-#include "tutil.h"
 #include "ttime.h"
+#include "tutil.h"
 
 #define LOG_MAX_LINE_SIZE              (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
@@ -166,9 +166,9 @@ static int32_t taosStartLog() {
 }
 
 static int32_t getDay(char *buf, int32_t bufSize) {
-  time_t    t;
+  time_t  t;
   int32_t code = taosTime(&t);
-  if(code != 0) {
+  if (code != 0) {
     return code;
   }
   struct tm tmInfo;
@@ -204,8 +204,8 @@ int32_t taosInitSlowLog() {
 
   getFullPathName(tsLogObj.slowLogName, logFileName);
 
-  char name[PATH_MAX + TD_TIME_STR_LEN] = {0};
-  char day[TD_TIME_STR_LEN] = {0};
+  char    name[PATH_MAX + TD_TIME_STR_LEN] = {0};
+  char    day[TD_TIME_STR_LEN] = {0};
   int32_t code = getDay(day, sizeof(day));
   if (code != 0) {
     (void)printf("failed to get day, reason:%s\n", tstrerror(code));
@@ -299,9 +299,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles, ELogMode mode) {
   return 0;
 }
 
-void taosSetNoNewFile() {
-  tsLogObj.openInProgress = 1;
-}
+void taosSetNoNewFile() { tsLogObj.openInProgress = 1; }
 
 static void taosStopLog() {
   if (tsLogObj.logHandle) {
@@ -503,7 +501,7 @@ static void taosOpenNewSlowLogFile() {
   taosWriteLog(tsLogObj.slowHandle);
   atomic_store_32(&tsLogObj.slowHandle->lock, 0);
 
-  char day[TD_TIME_STR_LEN] = {0};
+  char    day[TD_TIME_STR_LEN] = {0};
   int32_t code = getDay(day, sizeof(day));
   if (code != 0) {
     uError("failed to get day, reason:%s", tstrerror(code));
@@ -881,32 +879,6 @@ void taosPrintSlowLog(const char *format, ...) {
 
   taosMemoryFree(buffer);
 }
-
-#if 0
-void taosDumpData(unsigned char *msg, int32_t len) {
-  if (!osLogSpaceAvailable()) return;
-  taosUpdateLogNums(DEBUG_DUMP);
-
-  char    temp[256] = {0};
-  int32_t i, pos = 0, c = 0;
-
-  for (i = 0; i < len; ++i) {
-    sprintf(temp + pos, "%02x ", msg[i]);
-    c++;
-    pos += 3;
-    if (c >= 16) {
-      temp[pos++] = '\n';
-      TAOS_UNUSED((taosWriteFile(tsLogObj.logHandle->pFile, temp, (uint32_t)pos) <= 0));
-      c = 0;
-      pos = 0;
-    }
-  }
-
-  temp[pos++] = '\n';
-
-  TAOS_UNUSED(taosWriteFile(tsLogObj.logHandle->pFile, temp, (uint32_t)pos));
-}
-#endif
 
 static void taosCloseLogByFd(TdFilePtr pFile) {
   if (pFile != NULL) {

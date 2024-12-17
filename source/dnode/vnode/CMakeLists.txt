@@ -32,6 +32,8 @@ set(
     "src/meta/metaSnapshot.c"
     "src/meta/metaCache.c"
     "src/meta/metaTtl.c"
+    "src/meta/metaEntry2.c"
+    "src/meta/metaTable2.c"
 
     # sma
     "src/sma/smaEnv.c"

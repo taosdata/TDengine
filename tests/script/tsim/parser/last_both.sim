@@ -145,6 +145,7 @@ sql alter database $db cachemodel 'both'
 sql alter database $db cachesize 2
 sleep 11000
 
+run tsim/parser/last_both_no_ts.tsim
 run tsim/parser/last_both_query.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
