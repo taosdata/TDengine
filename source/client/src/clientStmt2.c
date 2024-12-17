@@ -39,7 +39,7 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 }
 
 static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
-  while (0 == atomic_load_64(&pStmt->queue.qRemainNum)) {
+  while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
     taosUsleep(1);
     return false;
   }
@@ -53,7 +53,7 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
 
   *param = node;
 
-  (void)atomic_sub_fetch_64(&pStmt->queue.qRemainNum, 1);
+  (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
 
   return true;
 }
@@ -63,7 +63,7 @@ static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
   pStmt->queue.tail = param;
 
   pStmt->stat.bindDataNum++;
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+  (void)atomic_add_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
 }
 
 static int32_t stmtCreateRequest(STscStmt2* pStmt) {
@@ -1086,7 +1086,7 @@ static int stmtFetchColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E
   return TSDB_CODE_SUCCESS;
 }
 
-static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_STB** fields) {
+static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_ALL** fields) {
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
   }
@@ -1911,7 +1911,7 @@ int stmtGetColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_E** fields) {
   return stmtFetchColFields2(stmt, nums, fields);
 }
 
-int stmtGetStbColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_STB** fields) {
+int stmtGetStbColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
   int32_t code = stmtParseColFields2(stmt);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
