@@ -148,10 +148,10 @@
             <template slot-scope="scope">
               <el-switch
                 :value="scope.row.status.toLowerCase() != 'stopped'"
+                :disabled="$COMMUNITY || scope.row.status.toLowerCase() == 'completed'"
                 active-color="#13ce66"
                 inactive-color="#dcdfe6"
                 @change="switchOperation($event, scope.row, 'replication.restoreTip')"
-                :disabled="$COMMUNITY"
               >
               </el-switch>
             </template>
@@ -174,7 +174,6 @@
         :model="ruleForm"
         :rules="rules"
         ref="ruleForm"
-        size="mini"
         :label-width="$i18n.locale=='zh'? '120px': '180px'"
         class="demo-ruleForm"
       >
@@ -195,7 +194,6 @@
             v-model="ruleForm.stable"
             allow-create
             default-first-option
-            size="small"
             :disabled="!!currentId"
           >
             <el-option
@@ -479,6 +477,8 @@ export default {
 
         Message.success(this.$t('operateSucc'));
         this.restoreConfirmDialog = false;
+        await this.getRestoreTasks();
+        this.backupActiveTab = "restoreTask";
       } catch (err) {
         Message.error(err);
       }
