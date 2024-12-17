@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-# set -x
+set -x
 
 # new_ver_release.sh  -b [develop | master] 
 #                     -c [aarch32 | aarch64 | x64 ...]  
@@ -13,11 +13,11 @@ set -e
 #                     -h help
 
 # set parameters by default value
-branchName=master   # -b [develop | master ]
+branchName=3.0   # -b [main | 3.0 ]
 cpuType=x64         # -c [aarch32 | aarch64 | x64 ...]
 version="3.0.0.0"   # -n [2.1.*.* | 2.0.*.* ]
 pagMode=full        # -l [full | lite] 
-verMode=all         # -v [cluster, edge ,all ] cluster is enterprise, edge is community
+verMode=cluster         # -v [cluster, edge ,all ] cluster is enterprise, edge is community
 verType=stable      # -V [stable, beta]
 versionComp=3.0.0.0
 dockerMode="no"
@@ -101,6 +101,7 @@ do
       ;;
   esac
 done
+
 
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 topDir=$scriptDir/../..         # TDinternal

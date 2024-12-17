@@ -139,10 +139,11 @@ fi
 # rm -rf $prefix/
 # rm -rf build-taoskeeper
 
-# copy TDengine package to nas [optional]
-if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
-    cd $archiveDir
-    cp -f $communityDir/release/* ./
+
+# # copy TDengine package to nas [optional]
+# if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
+#     cd $archiveDir
+#     cp -f $communityDir/release/* ./
 
 #     if [ $skip == 1 ]; then
 #       # copy client package to server if password free is set
@@ -162,8 +163,8 @@ if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
 #         fi
 #       fi
 #     fi
-else
-    echo "Cannot find $archiveDir on this machine"
-fi
+# else
+#     echo "Cannot find $archiveDir on this machine"
+# fi
 
 echo " packaging release done! "
