@@ -81,8 +81,13 @@ class TDTestCase:
         rows = tdSql.query(f"select * from information_schema.ins_transaction_details", queryTimes=1)
 
         if rows != 296:
-            tdLog.exit(f"restore transaction detial error, rows={rows}")
+            tdLog.exit(f"show transaction detial error, rows={rows}")
             return False
+        
+        dnode.starttaosd()
+
+        t1.join()
+        t2.join()
             
     def createDbThread(self, sql, newTdSql):
         tdLog.info("CREATE DATABASE db2 vgroups 40 replica 3;")
