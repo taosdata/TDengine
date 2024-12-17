@@ -2992,7 +2992,9 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     // debug_assert!(qid.batch_id() > 0);
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
+        let raw_rows = record.nrows();
         metrics.add_received_batches(1);
+        metrics.add_received_messages(raw_rows as u64);
         let taos = pool.get().await?;
         let mut taos = Some(taos);
         info!("Writing batch");
@@ -3062,6 +3064,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         }
         acks.fetch_add(1, Ordering::SeqCst);
         metrics.add_processed_batches(1);
+        metrics.add_processed_messages(raw_rows as u64);
         drop(taos);
     }
     println!("finished, totally {count} rows");
@@ -3105,6 +3108,8 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
+        let raw_rows = record.nrows();
+        metrics.add_received_messages(raw_rows as u64);
         let n = consume_point_record(
             pool,
             &mut taos,
@@ -3114,8 +3119,9 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             context.target_precision,
             metrics,
         )
-        .await?;
-        Ok(n)
+        .await;
+        metrics.add_processed_messages(raw_rows as u64);
+        n
     }
 
     let context = WriterContext {

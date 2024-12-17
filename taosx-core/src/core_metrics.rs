@@ -147,6 +147,16 @@ impl CommonMetrics {
     pub fn processed_messages(&self) -> u64 {
         self.processed_messages.load(SeqCst)
     }
+
+    #[inline]
+    pub fn add_received_messages(&self, n: u64) {
+        self.received_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_processed_messages(&self, n: u64) {
+        self.processed_messages.fetch_add(n, SeqCst);
+    }
 }
 
 pub trait TaskMetrics: Into<CoreMetrics> + Serialize {
@@ -211,6 +221,25 @@ pub trait TaskMetrics: Into<CoreMetrics> + Serialize {
     fn add_written_points(&self, n: u64) {
         self.com().total_written_points.fetch_add(n, SeqCst);
         self.com().written_points.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    fn add_received_messages(&self, n: u64) {
+        self.com().received_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    fn add_processed_messages(&self, n: u64) {
+        self.com().processed_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    fn received_messages(&self) {
+        self.com().received_messages();
+    }
+    #[inline]
+    fn processed_messages(&self) {
+        self.com().processed_messages();
     }
 }
 

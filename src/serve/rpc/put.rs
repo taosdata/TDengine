@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
 use taoslog::QidManager;
-use taosx_core::core_metrics::init_task_metrics;
+use taosx_core::core_metrics::{init_task_metrics, TaskMetrics};
 use taosx_core::sink::handle_point_message_init;
 use taosx_core::utils::trace::Qid;
 use taosx_core::{
@@ -215,6 +215,7 @@ async fn ipc_stream_writer(
                 async move {
                     taoslog::utils::Span.set_qid(&qid);
                     tracing::info!("Writing batch");
+                    let raw_rows = record.num_rows();
                     if let Err(err) = worker
                         .process_record(
                             record.clone(),
@@ -297,6 +298,7 @@ async fn ipc_stream_writer(
                             tracing::debug!("Writing batch success");
                         }
                     }
+                    metrics.add_processed_messages(raw_rows as u64);
                     Ok(())
                 }
                 .in_current_span()
@@ -755,6 +757,7 @@ impl PutStream {
                     match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                             tracing::trace!(schema = ?batch.schema(), columns = ?batch.columns(), "Enqueue batch");
+                            metrics.add_received_messages(batch.num_rows() as u64);
                             if let Err(err) = tx.send_async((batch, qid)).await {
                                 tracing::warn!(
                                     ipc.channel.capacity = tx.capacity(),

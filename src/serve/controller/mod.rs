@@ -378,10 +378,6 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         tracing::debug!("task id is 0 or -1, ignore activity");
         return Ok(());
     }
-    if activity.status == "health" {
-        tracing::debug!("task id is health, ignore activity");
-        return Ok(());
-    }
     let exists = sqlx::query!("select id, status from tasks where id = ?", activity.id)
         .fetch_optional(pool)
         .in_current_span()
@@ -452,6 +448,15 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         "suspended" => {
             sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
                 .bind(activity.status.as_str())
+                .bind(activity.id)
+                .execute(txn.as_mut())
+                .in_current_span()
+                .await
+                .context("Update task properties error")?;
+        }
+        "health" => {
+            sqlx::query("UPDATE tasks SET health = ? WHERE id = ?")
+                .bind(activity.activity.as_str())
                 .bind(activity.id)
                 .execute(txn.as_mut())
                 .in_current_span()
