@@ -254,6 +254,7 @@ static void *dmAuditThreadFp(void *param) {
 }
 
 static void *dmCrashReportThreadFp(void *param) {
+  int32_t     code = 0;
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-crashReport");
@@ -265,8 +266,14 @@ static void *dmCrashReportThreadFp(void *param) {
   bool      truncateFile = false;
   int32_t   sleepTime = 200;
   int32_t   reportPeriodNum = 3600 * 1000 / sleepTime;
-  ;
-  int32_t loopTimes = reportPeriodNum;
+  int32_t   loopTimes = reportPeriodNum;
+
+  STelemAddrMgmt mgt = {0};
+  code = taosTelemetryMgtInit(&mgt, tsTelemServer);
+  if (code != 0) {
+    dError("failed to init telemetry since %s", tstrerror(code));
+    return NULL;
+  }
 
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -277,7 +284,7 @@ static void *dmCrashReportThreadFp(void *param) {
 
     taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
     if (pMsg && msgLen > 0) {
-      if (taosSendHttpReport(tsTelemServer, tsSvrCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
+      if (taosSendTelemReport(&mgt, tsSvrCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
         dError("failed to send crash report");
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
@@ -311,6 +318,7 @@ static void *dmCrashReportThreadFp(void *param) {
     taosMsleep(sleepTime);
     loopTimes = 0;
   }
+  taosTelemetryDestroy(&mgt);
 
   return NULL;
 }

@@ -62,7 +62,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 |telemetryReporting     |          |Supported, effective immediately  |Whether to upload telemetry, 0: do not upload, 1: upload, default value 1|
 |telemetryServer        |          |Not supported                     |Telemetry server address|
 |telemetryPort          |          |Not supported                     |Telemetry server port number|
-|telemetryInterval      |          |Supported, effective immediately  |Telemetry upload interval, in seconds, default 43200|
+|telemetryInterval      |          |Supported, effective immediately  |Telemetry upload interval, in seconds, default 86400|
 |crashReporting         |          |Supported, effective immediately  |Whether to upload crash information; 0: do not upload, 1: upload; default value 1|
 
 ### Query Related

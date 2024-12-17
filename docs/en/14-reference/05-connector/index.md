@@ -7,12 +7,12 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import Image from '@theme/IdealImage';
 import imgClientLib from '../../assets/client-libraries-01.png';
-import InstallOnLinux from "./_linux_install.mdx";
-import InstallOnWindows from "./_windows_install.mdx";
-import InstallOnMacOS from "./_macos_install.mdx";
-import VerifyWindows from "./_verify_windows.mdx";
-import VerifyLinux from "./_verify_linux.mdx";
-import VerifyMacOS from "./_verify_macos.mdx";
+import InstallOnLinux from "../../assets/resources/_linux_install.mdx";
+import InstallOnWindows from "../../assets/resources/_windows_install.mdx";
+import InstallOnMacOS from "../../assets/resources/_macos_install.mdx";
+import VerifyWindows from "../../assets/resources/_verify_windows.mdx";
+import VerifyLinux from "../../assets/resources/_verify_linux.mdx";
+import VerifyMacOS from "../../assets/resources/_verify_macos.mdx";
 
 TDengine provides a rich set of application development interfaces. To facilitate users in quickly developing their own applications, TDengine supports connectors for multiple programming languages, including official connectors for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support connecting to the TDengine cluster using the native interface (taosc) and WebSocket interface. Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, Lua connector, and PHP connector.
 
