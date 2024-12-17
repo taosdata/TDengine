@@ -515,7 +515,8 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
   }
 
   if (pMetaMsg->tableType != TSDB_SUPER_TABLE && pMetaMsg->tableType != TSDB_CHILD_TABLE &&
-      pMetaMsg->tableType != TSDB_NORMAL_TABLE && pMetaMsg->tableType != TSDB_SYSTEM_TABLE) {
+      pMetaMsg->tableType != TSDB_NORMAL_TABLE && pMetaMsg->tableType != TSDB_SYSTEM_TABLE &&
+      pMetaMsg->tableType != TSDB_VIRTUAL_TABLE && pMetaMsg->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
     qError("invalid tableType[%d] in table meta rsp msg", pMetaMsg->tableType);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
@@ -558,13 +559,15 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColumns : 0;
 
-  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+  SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -583,6 +586,13 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   } else {
     pTableMeta->schemaExt = NULL;
+  }
+
+  if (hasRefCol(msg->tableType) && msg->pColRefs) {
+    pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+    memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+  } else {
+    pTableMeta->colRef = NULL;
   }
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
@@ -614,14 +624,16 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColumns : 0;
   int32_t tbNameSize = strlen(msg->tbName) + 1;
 
-  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + tbNameSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize + tbNameSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+  SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -642,6 +654,13 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
     pTableMeta->schemaExt = NULL;
   }
 
+  if (hasRefCol(msg->tableType) && msg->pColRefs) {
+    pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+    memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+  } else {
+    pTableMeta->colRef = NULL;
+  }
+
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
   for (int32_t i = 0; i < msg->numOfColumns; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
@@ -654,7 +673,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
     }
   }
 
-  char *pTbName = (char *)pTableMeta + metaSize + schemaExtSize;
+  char *pTbName = (char *)pTableMeta + metaSize + schemaExtSize + pColRefSize;
   tstrncpy(pTbName, msg->tbName, tbNameSize);
 
   qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
