@@ -97,6 +97,11 @@ class TDTestCase(TBase):
         self.alterReplica(1)
         self.checkAggCorrect()
         self.compactDb()
+
+        if self.waitCompactsZero() is False:
+            tdLog.exit(f"compact not finished")
+            return False
+        
         self.alterReplica3()
 
         vgids = self.getVGroup(self.db)

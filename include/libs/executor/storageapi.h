@@ -62,7 +62,7 @@ typedef struct SMetaEntry {
     struct {
       int64_t  btime;
       int32_t  ttlDays;
-      int32_t  commentLen;
+      int32_t  commentLen;  // not include '\0'
       char*    comment;
       tb_uid_t suid;
       uint8_t* pTags;
@@ -171,6 +171,8 @@ typedef union {
 
 typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param);
 
+struct SFileSetReader;
+
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
@@ -191,6 +193,13 @@ typedef struct TsdReader {
 
   void         (*tsdSetFilesetDelimited)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
+
+  // for fileset query
+  int32_t (*fileSetReaderOpen)(void *pVnode, struct SFileSetReader **ppReader);
+  int32_t (*fileSetReadNext)(struct SFileSetReader *);
+  int32_t (*fileSetGetEntryField)(struct SFileSetReader *, const char *, void *);
+  void (*fileSetReaderClose)(struct SFileSetReader **);
+  
 } TsdReader;
 
 typedef struct SStoreCacheReader {
@@ -281,6 +290,7 @@ typedef struct SStoreMeta {
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);
+  int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
 
   SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock);
   int32_t (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
@@ -336,6 +346,7 @@ typedef struct SStateStore {
   int32_t (*streamStatePutParName)(SStreamState* pState, int64_t groupId, const char* tbname);
   int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache,
                                    int32_t* pWinCode);
+  int32_t (*streamStateDeleteParName)(SStreamState* pState, int64_t groupId);
 
   int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
                                       int32_t* pWinCode);
@@ -399,7 +410,8 @@ typedef struct SStateStore {
 
   int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
                                               void** ppVal, int32_t* pVLen, int32_t* pWinCode);
-  int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen);
+  int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal,
+                                    int32_t* pVLen);
 
   int32_t (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp, int8_t pkType,
                             int32_t pkLen, SUpdateInfo** ppInfo);
@@ -428,7 +440,7 @@ typedef struct SStateStore {
   int32_t (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                  GetTsFun fp, void* pFile, TSKEY delMark, const char* id, int64_t ckId, int8_t type,
                                  struct SStreamFileState** ppFileState);
-  
+
   int32_t (*streamStateGroupPut)(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
   SStreamStateCur* (*streamStateGroupGetCur)(SStreamState* pState);
   void (*streamStateGroupCurNext)(SStreamStateCur* pCur);

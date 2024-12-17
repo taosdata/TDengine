@@ -95,33 +95,14 @@ static int32_t parseCfgIntWithUnit(const char* str, int64_t* res) {
 }
 
 int32_t taosStrHumanToInt64(const char* str, int64_t* out) {
-  int64_t  res;
+  int64_t res;
   int32_t code = parseCfgIntWithUnit(str, &res);
   if (code == TSDB_CODE_SUCCESS) *out = (int64_t)res;
   return code;
 }
 
-#ifdef BUILD_NO_CALL
-void taosInt64ToHumanStr(int64_t val, char* outStr) {
-  if (((val >= UNIT_ONE_EXBIBYTE) || (-val >= UNIT_ONE_EXBIBYTE)) && ((val % UNIT_ONE_EXBIBYTE) == 0)) {
-    sprintf(outStr, "%qdE", (long long)val / UNIT_ONE_EXBIBYTE);
-  } else if (((val >= UNIT_ONE_PEBIBYTE) || (-val >= UNIT_ONE_PEBIBYTE)) && ((val % UNIT_ONE_PEBIBYTE) == 0)) {
-    sprintf(outStr, "%qdP", (long long)val / UNIT_ONE_PEBIBYTE);
-  } else if (((val >= UNIT_ONE_TEBIBYTE) || (-val >= UNIT_ONE_TEBIBYTE)) && ((val % UNIT_ONE_TEBIBYTE) == 0)) {
-    sprintf(outStr, "%qdT", (long long)val / UNIT_ONE_TEBIBYTE);
-  } else if (((val >= UNIT_ONE_GIBIBYTE) || (-val >= UNIT_ONE_GIBIBYTE)) && ((val % UNIT_ONE_GIBIBYTE) == 0)) {
-    sprintf(outStr, "%qdG", (long long)val / UNIT_ONE_GIBIBYTE);
-  } else if (((val >= UNIT_ONE_MEBIBYTE) || (-val >= UNIT_ONE_MEBIBYTE)) && ((val % UNIT_ONE_MEBIBYTE) == 0)) {
-    sprintf(outStr, "%qdM", (long long)val / UNIT_ONE_MEBIBYTE);
-  } else if (((val >= UNIT_ONE_KIBIBYTE) || (-val >= UNIT_ONE_KIBIBYTE)) && ((val % UNIT_ONE_KIBIBYTE) == 0)) {
-    sprintf(outStr, "%qdK", (long long)val / UNIT_ONE_KIBIBYTE);
-  } else
-    sprintf(outStr, "%qd", (long long)val);
-}
-#endif
-
 int32_t taosStrHumanToInt32(const char* str, int32_t* out) {
-  int64_t  res;
+  int64_t res;
   int32_t code = parseCfgIntWithUnit(str, &res);
   if (code == TSDB_CODE_SUCCESS) {
     if (res < INT32_MIN || res > INT32_MAX) {
@@ -131,16 +112,3 @@ int32_t taosStrHumanToInt32(const char* str, int32_t* out) {
   }
   return code;
 }
-
-#ifdef BUILD_NO_CALL
-void taosInt32ToHumanStr(int32_t val, char* outStr) {
-  if (((val >= UNIT_ONE_GIBIBYTE) || (-val >= UNIT_ONE_GIBIBYTE)) && ((val % UNIT_ONE_GIBIBYTE) == 0)) {
-    sprintf(outStr, "%qdG", (long long)val / UNIT_ONE_GIBIBYTE);
-  } else if (((val >= UNIT_ONE_MEBIBYTE) || (-val >= UNIT_ONE_MEBIBYTE)) && ((val % UNIT_ONE_MEBIBYTE) == 0)) {
-    sprintf(outStr, "%qdM", (long long)val / UNIT_ONE_MEBIBYTE);
-  } else if (((val >= UNIT_ONE_KIBIBYTE) || (-val >= UNIT_ONE_KIBIBYTE)) && ((val % UNIT_ONE_KIBIBYTE) == 0)) {
-    sprintf(outStr, "%qdK", (long long)val / UNIT_ONE_KIBIBYTE);
-  } else
-    sprintf(outStr, "%qd", (long long)val);
-}
-#endif

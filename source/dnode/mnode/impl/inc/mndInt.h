@@ -24,6 +24,7 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
+#include "thttp.h"
 #include "tqueue.h"
 #include "ttime.h"
 #include "version.h"
@@ -80,8 +81,9 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  TdThreadMutex lock;
-  char          email[TSDB_FQDN_LEN];
+  TdThreadMutex  lock;
+  char           email[TSDB_FQDN_LEN];
+  STelemAddrMgmt addrMgt;
 } STelemMgmt;
 
 typedef struct {

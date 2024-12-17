@@ -133,8 +133,17 @@ class TDTestCase:
         if len(tags) < 10:
             return 
 
-        sel_cols = random.sample(columns, random.randint(2,int(len(columns)/10)))
-        sel_tags = random.sample(tags, random.randint(1,int(len(tags)/10)))
+        # cmax
+        cmax = int(len(columns)/10) 
+        if cmax <=2 :
+            cmax = 3
+        sel_cols = random.sample(columns, random.randint(2, cmax))
+        
+        # tmax
+        tmax = int(len(tags)/10)
+        if tmax <=1 :
+            tmax = 2
+        sel_tags = random.sample(tags,    random.randint(1, tmax))
 
         field_cols = ",".join(sel_cols)
         field_tags = ",".join(sel_tags)
@@ -217,18 +226,43 @@ class TDTestCase:
             #time.sleep(0.3)
 
 
+    # create db and stb
+    def create(self, db, stb, cols, tags):
+        # create db
+        sql = f"create database {db} ;"
+        tdSql.execute(sql)
+
+        # switch db
+        tdSql.execute(f"use {db};")
+
+        # cols
+        sql1 = ""
+        for k, v in cols.items():
+            sql1 += f",{k} {v}"
+        # tags
+        sql2 = ""
+        for k, v in tags.items():
+            if sql2 == "":
+                sql2 =  f"{k} {v}"
+            else:
+                sql2 += f",{k} {v}"
+
+        # create stb
+        sql = f"create table {db}.{stb}(ts timestamp {sql1}) tags({sql2})"
+        tdSql.execute(sql)
+
     # run
     def run(self):
         # seed
         random.seed(int(time.time()))
         self.dbname = "schema_change"
 
-        # switch db
-        tdSql.execute(f"use {self.dbname};")
+        # create db
+        self.create(self.dbname, "meters", self.column_dict, self.tag_dict)
+
 
         # change meters
-        self.change_schema(1000000)
-
+        self.change_schema(1000)
         
         
     def stop(self):

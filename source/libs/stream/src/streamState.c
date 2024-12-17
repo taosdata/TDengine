@@ -526,6 +526,18 @@ _end:
   return code;
 }
 
+int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId) {
+  int32_t code = tSimpleHashRemove(pState->parNameMap, &groupId, sizeof(int64_t));
+  if (TSDB_CODE_SUCCESS != code) {
+    qWarn("failed to remove parname from cache, code:%d", code);
+  }
+  code = streamStateDeleteParName_rocksdb(pState, groupId);
+  if (TSDB_CODE_SUCCESS != code) {
+    qWarn("failed to remove parname from rocksdb, code:%d", code);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 void streamStateDestroy(SStreamState* pState, bool remove) {
   streamFileStateDestroy(pState->pFileState);
   tSimpleHashCleanup(pState->parNameMap);

@@ -551,7 +551,7 @@ int32_t dmGetEncryptKey() {
     goto _OVER;
   }
 
-  strncpy(tsEncryptKey, encryptKey, ENCRYPT_KEY_LEN + 1);
+  tstrncpy(tsEncryptKey, encryptKey, ENCRYPT_KEY_LEN + 1);
   taosMemoryFreeClear(encryptKey);
   tsEncryptionKeyChksum = taosCalcChecksum(0, tsEncryptKey, strlen(tsEncryptKey));
   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;

@@ -71,11 +71,11 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   if (infoReq.option == REQ_OPT_TBUID) reqTbUid = true;
   metaRsp.dbId = pVnode->config.dbId;
-  (void)strcpy(metaRsp.tbName, infoReq.tbName);
+  tstrncpy(metaRsp.tbName, infoReq.tbName, TSDB_TABLE_NAME_LEN);
   (void)memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
   if (!reqTbUid) {
-    TAOS_UNUSED(sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName));
+    (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
       goto _exit4;
@@ -105,7 +105,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.tuid = mer1.me.uid;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
-    (void)strcpy(metaRsp.stbName, mer1.me.name);
+    tstrncpy(metaRsp.stbName, mer1.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer1.me.stbEntry.schemaRow;
     schemaTag = mer1.me.stbEntry.schemaTag;
     metaRsp.suid = mer1.me.uid;
@@ -113,7 +113,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
-    (void)strcpy(metaRsp.stbName, mer2.me.name);
+    tstrncpy(metaRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     metaRsp.suid = mer2.me.uid;
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
@@ -220,10 +220,10 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit;
   }
 
-  (void)strcpy(cfgRsp.tbName, cfgReq.tbName);
+  tstrncpy(cfgRsp.tbName, cfgReq.tbName, TSDB_TABLE_NAME_LEN);
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
-  (void)sprintf(tableFName, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;
@@ -246,7 +246,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_LOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
-    (void)strcpy(cfgRsp.stbName, mer2.me.name);
+    tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
@@ -868,6 +868,41 @@ void *vnodeGetIvtIdx(void *pVnode) {
 
 int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
   return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
+}
+
+int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
+  SVnode *pVnodeObj = pVnode;
+  if (pVnodeObj == NULL) {
+    return TSDB_CODE_VND_NOT_EXIST;
+  }
+  int32_t code = 0;
+  char    path[TSDB_FILENAME_LEN] = {0};
+
+  char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
+  int64_t dirSize[4];
+
+  vnodeGetPrimaryDir(pVnodeObj->path, pVnodeObj->diskPrimary, pVnodeObj->pTfs, path, TSDB_FILENAME_LEN);
+  int32_t offset = strlen(path);
+
+  for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
+    int64_t size = {0};
+    (void)snprintf(path + offset, TSDB_FILENAME_LEN, "%s%s", TD_DIRSEP, dirName[i]);
+    code = taosGetDirSize(path, &size);
+    if (code != 0) {
+      return code;
+    }
+    path[offset] = 0;
+    dirSize[i] = size;
+  }
+
+  pInfo->l1Size = dirSize[0] - dirSize[3];
+  pInfo->walSize = dirSize[1];
+  pInfo->metaSize = dirSize[2];
+  pInfo->cacheSize = dirSize[3];
+
+  code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
+
+  return code;
 }
 
 int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {

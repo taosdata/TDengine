@@ -64,7 +64,8 @@ database_option: {
 - DURATION：数据文件存储数据的时间跨度。可以使用加单位的表示形式，如 DURATION 100h、DURATION 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。不加时间单位时默认单位为天，如 DURATION 50 表示 50 天。
 - MAXROWS：文件块中记录的最大条数，默认为 4096 条。
 - MINROWS：文件块中记录的最小条数，默认为 100 条。
-- KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于3倍的 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持[多级存储](../../operation/planning/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。
+- KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 3 倍的 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持[多级存储](../../operation/planning/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。了解更多，请点击 [关于主键时间戳](https://docs.taosdata.com/reference/taos-sql/insert/)
+
 - KEEP_TIME_OFFSET：自 3.2.0.0 版本生效。删除或迁移保存时间超过 KEEP 值的数据的延迟执行时间，默认值为 0 (小时)。在数据文件保存时间超过 KEEP 后，删除或迁移操作不会立即执行，而会额外等待本参数指定的时间间隔，以实现与业务高峰期错开的目的。
 - STT_TRIGGER：表示落盘文件触发文件合并的个数。开源版本固定为 1，企业版本可设置范围为 1 到 16。对于少表高频写入场景，此参数建议使用默认配置；而对于多表低频写入场景，此参数建议配置较大的值。
 - SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
@@ -80,6 +81,7 @@ database_option: {
 - WAL_FSYNC_PERIOD：当 WAL_LEVEL 参数设置为 2 时，用于设置落盘的周期。默认为 3000，单位毫秒。最小为 0，表示每次写入立即落盘；最大为 180000，即三分钟。
 - WAL_RETENTION_PERIOD: 为了数据订阅消费，需要 WAL 日志文件额外保留的最大时长策略。WAL 日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 3600，表示在 WAL 保留最近 3600 秒的数据，请根据数据订阅的需要修改这个参数为适当值。
 - WAL_RETENTION_SIZE：为了数据订阅消费，需要 WAL 日志文件额外保留的最大累计大小策略。单位为 KB。默认为 0，表示累计大小无上限。
+
 ### 创建数据库示例
 
 ```sql
@@ -90,7 +92,7 @@ create database if not exists db vgroups 10 buffer 10
 
 ### 使用数据库
 
-```
+```sql
 USE db_name;
 ```
 
@@ -98,7 +100,7 @@ USE db_name;
 
 ## 删除数据库
 
-```
+```sql
 DROP DATABASE [IF EXISTS] db_name
 ```
 
@@ -128,7 +130,7 @@ alter_database_option: {
 }
 ```
 
-###  修改 CACHESIZE
+### 修改 CACHESIZE
 
 修改数据库参数的命令使用简单，难的是如何确定是否需要修改以及如何修改。本小节描述如何判断数据库的 cachesize 是否够用。
 
@@ -157,13 +159,13 @@ alter_database_option: {
 
 ### 查看系统中的所有数据库
 
-```
+```sql
 SHOW DATABASES;
 ```
 
 ### 显示一个数据库的创建语句
 
-```
+```sql
 SHOW CREATE DATABASE db_name \G;
 ```
 
@@ -191,23 +193,23 @@ TRIM DATABASE db_name;
 FLUSH DATABASE db_name;
 ```
 
-落盘内存中的数据。在关闭节点之前，执行这条命令可以避免重启后的数据回放，加速启动过程。
+落盘内存中的数据。在关闭节点之前，执行这条命令可以避免重启后的预写数据日志回放，加速启动过程。
 
-## 调整VGROUP中VNODE的分布
+## 调整 VGROUP 中 VNODE 的分布
 
 ```sql
 REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3]
 ```
 
-按照给定的dnode列表，调整vgroup中的vnode分布。因为副本数目最大为3，所以最多输入3个dnode。
+按照给定的 dnode 列表，调整 vgroup 中的 vnode 分布。因为副本数目最大为 3，所以最多输入 3 个 dnode。
 
-## 自动调整VGROUP中VNODE的分布
+## 自动调整 VGROUP 中 LEADER 的分布
 
 ```sql
-BALANCE VGROUP
+BALANCE VGROUP LEADER
 ```
 
-自动调整集群所有vgroup中的vnode分布，相当于在vnode级别对集群进行数据的负载均衡操作。
+触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载再均衡操作。
 
 ## 查看数据库工作状态
 
@@ -216,3 +218,18 @@ SHOW db_name.ALIVE;
 ```
 
 查询数据库 db_name 的可用状态，返回值 0：不可用 1：完全可用 2：部分可用（即数据库包含的 VNODE 部分节点可用，部分节点不可用）
+
+## 查看DB 的磁盘空间占用
+
+```sql 
+select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
+```  
+查看DB各个模块所占用磁盘的大小
+
+```sql
+SHOW db_name.disk_info;
+```
+查看数据库 db_name 的数据压缩压缩率和数据在磁盘上所占用的大小
+
+该命令本质上等同于 `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`
+

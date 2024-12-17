@@ -1,4 +1,4 @@
-package com.taosdata.example;
+package com.taos.example;
 
 import com.alibaba.druid.pool.DruidDataSource;
 
@@ -8,11 +8,11 @@ import java.sql.Statement;
 public class DruidDemo {
     // ANCHOR: connection_pool
     public static void main(String[] args) throws Exception {
-        String url = "jdbc:TAOS://127.0.0.1:6030/log";
+        String url = "jdbc:TAOS-WS://127.0.0.1:6041/log";
 
         DruidDataSource dataSource = new DruidDataSource();
         // jdbc properties
-        dataSource.setDriverClassName("com.taosdata.jdbc.TSDBDriver");
+        dataSource.setDriverClassName("com.taosdata.jdbc.ws.WebSocketDriver");
         dataSource.setUrl(url);
         dataSource.setUsername("root");
         dataSource.setPassword("taosdata");

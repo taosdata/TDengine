@@ -1615,5 +1615,4 @@ TEST(clientCase, timezone_Test) {
     taos_close(pConn);
   }
 }
-
 #pragma GCC diagnostic pop

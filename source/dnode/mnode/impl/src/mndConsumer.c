@@ -614,7 +614,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 END:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
-  taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(subscribe.topicNames, NULL);
   return (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
 }
 
