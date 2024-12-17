@@ -27,9 +27,8 @@
 
 #define TRANS_VER1_NUMBER  1
 #define TRANS_VER2_NUMBER  2
-#define TRANS_VER3_NUMBER  3
 #define TRANS_ARRAY_SIZE   8
-#define TRANS_RESERVE_SIZE 44
+#define TRANS_RESERVE_SIZE 42
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
@@ -160,7 +159,7 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_INVALID_MSG;
-  int8_t sver = TRANS_VER3_NUMBER;
+  int8_t sver = TRANS_VER2_NUMBER;
 
   int32_t rawDataLen = sizeof(STrans) + TRANS_RESERVE_SIZE + pTrans->paramLen;
   rawDataLen += mndTransGetActionsSize(pTrans->prepareActions);
@@ -319,7 +318,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
 
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver > TRANS_VER3_NUMBER) {
+  if (sver > TRANS_VER2_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -398,14 +397,12 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
     if ((terrno = taosHashPut(pTrans->arbGroupIds, &arbGroupId, sizeof(int32_t), NULL, 0)) != 0) goto _OVER;
   }
 
-  if (sver > TRANS_VER2_NUMBER) {
-    int8_t ableKill = 0;
-    int8_t killMode = 0;
-    SDB_GET_INT8(pRaw, dataPos, &ableKill, _OVER)
-    SDB_GET_INT8(pRaw, dataPos, &killMode, _OVER)
-    pTrans->ableToBeKilled = ableKill;
-    pTrans->killMode = killMode;
-  }
+  int8_t ableKill = 0;
+  int8_t killMode = 0;
+  SDB_GET_INT8(pRaw, dataPos, &ableKill, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &killMode, _OVER)
+  pTrans->ableToBeKilled = ableKill;
+  pTrans->killMode = killMode;
 
   SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
 
