@@ -4557,10 +4557,6 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SRewriteGetInOperContext {
-  bool hasInOper;
-} SRewriteGetInOperContext;
-
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
