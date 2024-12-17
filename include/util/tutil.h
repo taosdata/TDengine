@@ -122,10 +122,10 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
  * only in very hot code paths. Misuse or abuse can lead to performance degradation.
  */
 #if __GNUC__ >= 3
-#define LIKELY(x)	__builtin_expect((x) != 0, 1)
+#define LIKELY(x)   __builtin_expect((x) != 0, 1)
 #define UNLIKELY(x) __builtin_expect((x) != 0, 0)
 #else
-#define LIKELY(x)	((x) != 0)
+#define LIKELY(x)   ((x) != 0)
 #define UNLIKELY(x) ((x) != 0)
 #endif
 

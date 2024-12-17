@@ -342,3 +342,18 @@ Note: Users with SYSINFO property set to 0 cannot view this table.
 | 10  | raw_data   | BIGINT      | Estimated size of raw data, in KB          |
 
 note: 
+
+## INS_FILESETS
+
+Provides information about file sets. 
+
+| #   |  **Column**   | **Data Type** | **Description**                                      | ** |
+| --- | :-----------: | ------------- | ---------------------------------------------------- |
+| 1   |    db_name    | VARCHAR(65)   | Database name                                        |
+| 2   |   vgroup_id   | INT           | Vgroup ID                                            |
+| 3   |  fileset_id   | INT           | File set ID                                          |
+| 4   |  start_time   | TIMESTAMP     | Start time of the time range covered by the file set |
+| 5   |   end_time    | TIMESTAMP     | End time of the time range covered by the file set   |
+| 6   |  total_size   | BIGINT        | Total size of the file set                           |
+| 7   | last_compact  | TIMESTAMP     | Time of the last compaction                          |
+| 8   | shold_compact | bool          | Whether the file set should be compacted             |

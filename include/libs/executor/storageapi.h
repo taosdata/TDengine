@@ -62,7 +62,7 @@ typedef struct SMetaEntry {
     struct {
       int64_t  btime;
       int32_t  ttlDays;
-      int32_t  commentLen;
+      int32_t  commentLen;  // not include '\0'
       char*    comment;
       tb_uid_t suid;
       uint8_t* pTags;
@@ -171,6 +171,8 @@ typedef union {
 
 typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param);
 
+struct SFileSetReader;
+
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
@@ -191,6 +193,13 @@ typedef struct TsdReader {
 
   void         (*tsdSetFilesetDelimited)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
+
+  // for fileset query
+  int32_t (*fileSetReaderOpen)(void *pVnode, struct SFileSetReader **ppReader);
+  int32_t (*fileSetReadNext)(struct SFileSetReader *);
+  int32_t (*fileSetGetEntryField)(struct SFileSetReader *, const char *, void *);
+  void (*fileSetReaderClose)(struct SFileSetReader **);
+  
 } TsdReader;
 
 typedef struct SStoreCacheReader {
@@ -431,7 +440,7 @@ typedef struct SStateStore {
   int32_t (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                  GetTsFun fp, void* pFile, TSKEY delMark, const char* id, int64_t ckId, int8_t type,
                                  struct SStreamFileState** ppFileState);
-  
+
   int32_t (*streamStateGroupPut)(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
   SStreamStateCur* (*streamStateGroupGetCur)(SStreamState* pState);
   void (*streamStateGroupCurNext)(SStreamStateCur* pCur);

@@ -561,9 +561,39 @@ int32_t cliBuildRespFromCont(SCliReq* pReq, STransMsg* pResp, STransMsgHead* pHe
   pResp->info.handle = (void*)qid;
   return 0;
 }
+
+int8_t cliMayNotifyUserOnRecvReleaseExcept(SCliConn* conn, STransMsgHead* pHead, SCliReq* pReq) {
+  int32_t code = 0;
+  if (pHead->code == 0 || pHead->msgType != TDMT_SCH_TASK_RELEASE) {
+    return 0;
+  }
+  // no ahandle, no need to notify user
+  if (pReq == NULL || pReq->ctx == NULL || pReq->ctx->ahandle == NULL) {
+    return 0;
+  }
+
+  SCliThrd* pThrd = conn->hostThrd;
+  STransMsg resp = {.code = pHead->code};
+  int64_t   qId = taosHton64(pHead->qid);
+  STraceId* trace = &pHead->traceId;
+  code = cliBuildExceptResp(pThrd, pReq, &resp);
+  if (code != 0) {
+    tGWarn("%s conn %p failed to build except resp for req:%" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, qId,
+           tstrerror(code));
+  }
+  code = cliNotifyCb(conn, NULL, &resp);
+  if (code != 0) {
+    tGWarn("%s conn %p failed to notify user for req:%" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, qId,
+           tstrerror(code));
+  }
+
+  destroyReq(pReq);
+  return 1;
+}
 int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead) {
   int32_t   code = 0;
   SCliThrd* pThrd = conn->hostThrd;
+  int8_t    notifyUser = 0;
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE || pHead->msgType == TDMT_SCH_TASK_RELEASE + 1) {
     int64_t   qId = taosHton64(pHead->qid);
     STraceId* trace = &pHead->traceId;
@@ -603,7 +633,11 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
       removeReqFromSendQ(pReq);
       STraceId* trace = &pReq->msg.info.traceId;
       tGDebug("start to free msg %p", pReq);
-      destroyReqWrapper(pReq, pThrd);
+
+      if (cliMayNotifyUserOnRecvReleaseExcept(conn, pHead, pReq)) {
+      } else {
+        destroyReqWrapper(pReq, pThrd);
+      }
     }
     taosMemoryFree(pHead);
     return 1;
@@ -707,7 +741,6 @@ void cliHandleResp(SCliConn* conn) {
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seq:%" PRId64 ", sid:%" PRId64 ", code:%s",
           CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(resp.msgType), conn->dst, conn->src, pHead->msgLen, seq, qId,
           tstrerror(pHead->code));
-
   code = cliNotifyCb(conn, pReq, &resp);
   if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
     tGWarn("%s msg need retry", CONN_GET_INST_LABEL(conn));
@@ -1266,6 +1299,8 @@ static void cliHandleException(SCliConn* conn) {
   if (conn->registered) {
     int8_t ref = transGetRefCount(conn);
     if (ref == 0 && !uv_is_closing((uv_handle_t*)conn->stream)) {
+//      tTrace("%s conn %p fd %d,%d,%d,%p uv_closed", CONN_GET_INST_LABEL(conn), conn, conn->stream->u.fd,
+//             conn->stream->io_watcher.fd, conn->stream->accepted_fd, conn->stream->queued_fds);
       uv_close((uv_handle_t*)conn->stream, cliDestroy);
     }
   }
@@ -1594,6 +1629,8 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     TAOS_CHECK_GOTO(terrno, &lino, _exception1);
   }
 
+  tTrace("%s conn %p fd %d openend", pInst->label, conn, fd);
+
   int ret = uv_tcp_open((uv_tcp_t*)conn->stream, fd);
   if (ret != 0) {
     tError("%s conn %p failed to set stream since %s", transLabel(pInst), conn, uv_err_name(ret));
@@ -1809,9 +1846,7 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* pThrd, SCliReq* pReq, STransMs
 
   STrans* pInst = pThrd->pInst;
 
-  SReqCtx*  pCtx = pReq ? pReq->ctx : NULL;
-  STransMsg resp = {0};
-  // resp.code = (conn->connnected ? TSDB_CODE_RPC_BROKEN_LINK : TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  SReqCtx* pCtx = pReq ? pReq->ctx : NULL;
   pResp->msgType = pReq ? pReq->msg.msgType + 1 : 0;
   pResp->info.cliVer = pInst->compatibilityVer;
   pResp->info.ahandle = pCtx ? pCtx->ahandle : 0;
@@ -3129,15 +3164,18 @@ SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {
   SCliThrd* pThrd = transGetWorkThrdFromHandle(trans, handle);
   return pThrd;
 }
-int32_t transReleaseCliHandle(void* handle) {
+int32_t transReleaseCliHandle(void* handle, int32_t status) {
   int32_t   code = 0;
   SCliThrd* pThrd = transGetWorkThrdFromHandle(NULL, (int64_t)handle);
   if (pThrd == NULL) {
     return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
-  STransMsg tmsg = {
-      .msgType = TDMT_SCH_TASK_RELEASE, .info.handle = handle, .info.ahandle = (void*)0, .info.qId = (int64_t)handle};
+  STransMsg tmsg = {.msgType = TDMT_SCH_TASK_RELEASE,
+                    .info.handle = handle,
+                    .info.ahandle = (void*)0,
+                    .info.qId = (int64_t)handle,
+                    code = status};
 
   TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 

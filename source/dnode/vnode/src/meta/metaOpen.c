@@ -19,7 +19,7 @@
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
-static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+int        tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
@@ -197,7 +197,7 @@ static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
   code = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
+  (void)tsnprintf(indexFullPath, sizeof(indexFullPath), "%s/%s", pMeta->path, "invert");
   ret = taosMkDir(indexFullPath);
 
   SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
@@ -209,7 +209,7 @@ static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
 
   // open pTtlMgr ("ttlv1.idx")
   char logPrefix[128] = {0};
-  sprintf(logPrefix, "vgId:%d", TD_VID(pVnode));
+  (void)tsnprintf(logPrefix, sizeof(logPrefix), "vgId:%d", TD_VID(pVnode));
   code = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0, logPrefix, tsTtlFlushThreshold);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -330,7 +330,7 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
                 tdbTbGet(pMeta->pUidIdx, &me.ctbEntry.suid, sizeof(me.ctbEntry.suid), NULL, NULL) != 0) {
               metaError("vgId:%d failed to get super table uid:%" PRId64 " for child table uid:%" PRId64,
                         TD_VID(pVnode), me.ctbEntry.suid, uid);
-            } else if (metaHandleEntry(pNewMeta, &me) != 0) {
+            } else if (metaHandleEntry2(pNewMeta, &me) != 0) {
               metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), uid);
             }
           }
@@ -598,7 +598,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   return 0;
 }
 
-static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey1 = (STagIdxKey *)pKey1;
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
   tb_uid_t    uid1 = 0, uid2 = 0;

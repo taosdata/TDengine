@@ -471,7 +471,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
     case QUERY_NODE_RANGE_AROUND:
-      code = makeNode(type, sizeof(SRangeAroundNode), &pNode); break;
+      code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
+      break;
     case QUERY_NODE_SELECT_STMT:
       code = makeNode(type, sizeof(SSelectStmt), &pNode);
       break;
@@ -592,6 +593,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = makeNode(type, sizeof(SCompactDatabaseStmt), &pNode);
+      break;
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
+      code = makeNode(type, sizeof(SCompactVgroupsStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = makeNode(type, sizeof(SCreateFunctionStmt), &pNode);
@@ -1079,7 +1083,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pReal->pMeta);
       taosMemoryFreeClear(pReal->pVgroupList);
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
-      taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, taosMemoryFree);
+      taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
       break;
     }
@@ -1156,6 +1160,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pOptions->s3KeepLocalStr);
       nodesDestroyList(pOptions->pKeep);
       nodesDestroyList(pOptions->pRetentions);
+      nodesDestroyNode((SNode*)pOptions->pCompactIntervalNode);
+      nodesDestroyList(pOptions->pCompactTimeRangeList);
+      nodesDestroyNode((SNode*)pOptions->pCompactTimeOffsetNode);
       break;
     }
     case QUERY_NODE_TABLE_OPTIONS: {
@@ -1320,14 +1327,20 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
-    case QUERY_NODE_CREATE_DATABASE_STMT:
-      nodesDestroyNode((SNode*)((SCreateDatabaseStmt*)pNode)->pOptions);
+    case QUERY_NODE_CREATE_DATABASE_STMT: {
+      SDatabaseOptions* pOptions = ((SCreateDatabaseStmt*)pNode)->pOptions;
+      taosMemoryFreeClear(pOptions->pDbCfg);
+      nodesDestroyNode((SNode*)pOptions);
       break;
+    }
     case QUERY_NODE_DROP_DATABASE_STMT:  // no pointer field
       break;
-    case QUERY_NODE_ALTER_DATABASE_STMT:
-      nodesDestroyNode((SNode*)((SAlterDatabaseStmt*)pNode)->pOptions);
+    case QUERY_NODE_ALTER_DATABASE_STMT: {
+      SDatabaseOptions* pOptions = ((SAlterDatabaseStmt*)pNode)->pOptions;
+      taosMemoryFreeClear(pOptions->pDbCfg);
+      nodesDestroyNode((SNode*)pOptions);
       break;
+    }
     case QUERY_NODE_FLUSH_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_TRIM_DATABASE_STMT:   // no pointer field
       break;
@@ -1439,6 +1452,14 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_COMPACT_DATABASE_STMT: {
       SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_COMPACT_VGROUPS_STMT: {
+      SCompactVgroupsStmt* pStmt = (SCompactVgroupsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyList(pStmt->vgidList);
       nodesDestroyNode(pStmt->pStart);
       nodesDestroyNode(pStmt->pEnd);
       break;
@@ -1627,7 +1648,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
-      taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, taosMemoryFree);
+      taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pLogicNode->pTsmaTargetTbInfo);
       break;
     }
@@ -2012,7 +2033,7 @@ int32_t nodesMakeList(SNodeList** ppListOut) {
 
 int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
   if (NULL == pList || NULL == pNode) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
   SListCell* p = NULL;
   int32_t    code = nodesCalloc(1, sizeof(SListCell), (void**)&p);

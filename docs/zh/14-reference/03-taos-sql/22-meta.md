@@ -343,3 +343,17 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 10  | raw_data   | BIGINT      | 预估的原始数据的大小, 单位为KB      | 
 
 
+## INS_FILESETS
+
+提供当前数据存储的文件组的相关信息。
+
+| #   |   **列名**    | **数据类型** | **说明**                                |
+| --- | :-----------: | ------------ | --------------------------------------- |
+| 1   |    db_name    | VARCHAR(65)  | 数据库名                                |
+| 2   |   vgroup_id   | INT          | vgroup id                               |
+| 3   |  fileset_id   | INT          | 文件组 id                               |
+| 4   |  start_time   | TIMESTAMP    | 文件组的覆盖数据的开始时间              |
+| 5   |   end_time    | TIMESTAMP    | 文件组的覆盖数据的结束时间              |
+| 6   |  total_size   | BIGINT       | 文件组的总大小                          |
+| 7   | last_compact  | TIMESTAMP    | 最后一次压缩的时间                      |
+| 8   | shold_compact | bool         | 是否需要压缩，true：需要，false：不需要 |

@@ -48,7 +48,8 @@ class TDSimClient:
             "telemetryReporting": "0",
             "tqDebugflag": "135",
             "stDebugflag":"135",
-            "safetyCheckLevel":"2"
+            "safetyCheckLevel":"2",
+            "minReservedMemorySize":"1024"
         }
 
     def getLogDir(self):

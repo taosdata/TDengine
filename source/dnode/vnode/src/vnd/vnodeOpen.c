@@ -168,7 +168,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
 
 static int32_t vnodeVgroupIdLen(int32_t vgId) {
   char tmp[TSDB_FILENAME_LEN];
-  sprintf(tmp, "%d", vgId);
+  (void)tsnprintf(tmp, TSDB_FILENAME_LEN, "%d", vgId);
   return strlen(tmp);
 }
 
@@ -199,7 +199,7 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
     char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
     if (tsdbFilePrefixPos == NULL) continue;
 
-    int32_t tsdbFileVgId = 0;  // atoi(tsdbFilePrefixPos + prefixLen);
+    int32_t tsdbFileVgId = 0;
     ret = taosStr2int32(tsdbFilePrefixPos + prefixLen, &tsdbFileVgId);
     if (ret != 0) {
       vError("vgId:%d, failed to get tsdb file vgid since %s", dstVgId, tstrerror(ret));
@@ -417,7 +417,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   pVnode->path = (char *)&pVnode[1];
-  strcpy(pVnode->path, path);
+  tstrncpy(pVnode->path, path, strlen(path) + 1);
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.commitTerm = info.state.commitTerm;
@@ -472,7 +472,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open wal
-  sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
+  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 
@@ -484,7 +484,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open tq
-  sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
+  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 

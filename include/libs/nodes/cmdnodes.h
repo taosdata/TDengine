@@ -42,11 +42,12 @@ extern "C" {
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
 
-#define SHOW_LOCAL_VARIABLES_RESULT_COLS       4
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD5_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
 
 #define COMPACT_DB_RESULT_COLS       3
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
@@ -110,6 +111,16 @@ typedef struct SDatabaseOptions {
   SValueNode* s3KeepLocalStr;
   int8_t      s3Compact;
   int8_t      withArbitrator;
+  // for auto-compact
+  int8_t      compactTimeOffset;  // hours
+  int32_t     compactInterval;    // minutes
+  int32_t     compactStartTime;   // minutes
+  int32_t     compactEndTime;     // minutes
+  SValueNode* pCompactTimeOffsetNode;
+  SValueNode* pCompactIntervalNode;
+  SNodeList*  pCompactTimeRangeList;
+  // for cache
+  SDbCfgInfo* pDbCfg;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -158,6 +169,14 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pStart;
   SNode*    pEnd;
 } SCompactDatabaseStmt;
+
+typedef struct SCompactVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SCompactVgroupsStmt;
 
 typedef struct STableOptions {
   ENodeType  type;
