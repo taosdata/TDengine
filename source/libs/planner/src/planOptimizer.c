@@ -7555,7 +7555,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
   {.pName = "GroupJoin",                  .optimizeFunc = groupJoinOptimize},
-  {.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
+  //{.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
   {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
   {.pName = "SortForjoin",                .optimizeFunc = sortForJoinOptimize},
   {.pName = "SmaIndex",                   .optimizeFunc = smaIndexOptimize},
