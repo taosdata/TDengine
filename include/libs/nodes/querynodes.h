@@ -22,8 +22,8 @@ extern "C" {
 
 #include "nodes.h"
 #include "tmsg.h"
-#include "tvariant.h"
 #include "tsimplehash.h"
+#include "tvariant.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) \
@@ -41,7 +41,7 @@ typedef struct SRawExprNode {
   char*     p;
   uint32_t  n;
   SNode*    pNode;
-  bool isPseudoColumn;
+  bool      isPseudoColumn;
 } SRawExprNode;
 
 typedef struct SDataType {
@@ -111,8 +111,8 @@ typedef struct STargetNode {
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
 
-#define IS_DURATION_VAL(_flag) ((_flag) & VALUE_FLAG_IS_DURATION)
-#define IS_TIME_OFFSET_VAL(_flag) ((_flag) & VALUE_FLAG_IS_TIME_OFFSET)
+#define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
+#define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
 
 typedef struct SValueNode {
   SExprNode node;  // QUERY_NODE_VALUE
@@ -129,8 +129,10 @@ typedef struct SValueNode {
     double   d;
     char*    p;
   } datum;
-  int64_t typeData;
-  int8_t  unit;
+  int64_t    typeData;
+  int8_t     unit;
+  timezone_t tz;
+  void      *charsetCxt;
 } SValueNode;
 
 typedef struct SLeftValueNode {
@@ -159,6 +161,8 @@ typedef struct SOperatorNode {
   EOperatorType opType;
   SNode*        pLeft;
   SNode*        pRight;
+  timezone_t    tz;
+  void*         charsetCxt;
 } SOperatorNode;
 
 typedef struct SLogicConditionNode {
@@ -191,6 +195,8 @@ typedef struct SFunctionNode {
   int32_t    originalFuncId;
   ETrimType  trimType;
   bool       dual; // whether select stmt without from stmt, true for without.
+  timezone_t tz;
+  void      *charsetCxt;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -205,7 +211,7 @@ typedef struct STableNode {
 struct STableMeta;
 
 typedef struct STsmaTargetCTbInfo {
-  char     tableName[TSDB_TABLE_NAME_LEN]; // child table or normal table name
+  char     tableName[TSDB_TABLE_NAME_LEN];  // child table or normal table name
   uint64_t uid;
 } STsmaTargetTbInfo;
 
@@ -219,8 +225,8 @@ typedef struct SRealTableNode {
   int8_t             cacheLastMode;
   int8_t             stbRewrite;
   SArray*            pTsmas;
-  SArray*            tsmaTargetTbVgInfo; // SArray<SVgroupsInfo*>, used for child table or normal table only
-  SArray*            tsmaTargetTbInfo; // SArray<STsmaTargetTbInfo>, used for child table or normal table only
+  SArray*            tsmaTargetTbVgInfo;  // SArray<SVgroupsInfo*>, used for child table or normal table only
+  SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -238,12 +244,12 @@ typedef struct SViewNode {
   int8_t             cacheLastMode;
 } SViewNode;
 
-#define JOIN_JLIMIT_MAX_VALUE  1024
+#define JOIN_JLIMIT_MAX_VALUE 1024
 
 #define IS_INNER_NONE_JOIN(_type, _stype) ((_type) == JOIN_TYPE_INNER && (_stype) == JOIN_STYPE_NONE)
-#define IS_SEMI_JOIN(_stype) ((_stype) == JOIN_STYPE_SEMI)
-#define IS_WINDOW_JOIN(_stype) ((_stype) == JOIN_STYPE_WIN)
-#define IS_ASOF_JOIN(_stype) ((_stype) == JOIN_STYPE_ASOF)
+#define IS_SEMI_JOIN(_stype)              ((_stype) == JOIN_STYPE_SEMI)
+#define IS_WINDOW_JOIN(_stype)            ((_stype) == JOIN_STYPE_WIN)
+#define IS_ASOF_JOIN(_stype)              ((_stype) == JOIN_STYPE_ASOF)
 
 typedef enum EJoinType {
   JOIN_TYPE_INNER = 0,
@@ -325,12 +331,14 @@ typedef struct SSessionWindowNode {
 } SSessionWindowNode;
 
 typedef struct SIntervalWindowNode {
-  ENodeType type;       // QUERY_NODE_INTERVAL_WINDOW
-  SNode*    pCol;       // timestamp primary key
-  SNode*    pInterval;  // SValueNode
-  SNode*    pOffset;    // SValueNode
-  SNode*    pSliding;   // SValueNode
-  SNode*    pFill;
+  ENodeType   type;       // QUERY_NODE_INTERVAL_WINDOW
+  SNode*      pCol;       // timestamp primary key
+  SNode*      pInterval;  // SValueNode
+  SNode*      pOffset;    // SValueNode
+  SNode*      pSliding;   // SValueNode
+  SNode*      pFill;
+  STimeWindow timeRange;
+  void*       timezone;
 } SIntervalWindowNode;
 
 typedef struct SEventWindowNode {
@@ -400,6 +408,8 @@ typedef struct SCaseWhenNode {
   SNode*     pCase;
   SNode*     pElse;
   SNodeList* pWhenThenList;
+  timezone_t tz;
+  void*      charsetCxt;
 } SCaseWhenNode;
 
 typedef struct SWindowOffsetNode {
@@ -469,6 +479,7 @@ typedef struct SSelectStmt {
   bool          groupSort;
   bool          tagScan;
   bool          joinContains;
+  bool          mixSysTableAndActualTable;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -638,13 +649,15 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
 typedef enum ECollectColType { COLLECT_COL_TYPE_COL = 1, COLLECT_COL_TYPE_TAG, COLLECT_COL_TYPE_ALL } ECollectColType;
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols);
-int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias, ECollectColType type,
-                            SNodeList** pCols);
+int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias,
+                               ECollectColType type, SNodeList** pCols);
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
-int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs);
-int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList* pFuncs);
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier,
+                          SNodeList** pFuncs);
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier,
+                                SNodeList* pFuncs);
 
 int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes);
 
@@ -678,11 +691,10 @@ const char* logicConditionTypeStr(ELogicConditionType type);
 bool nodesIsStar(SNode* pNode);
 bool nodesIsTableStar(SNode* pNode);
 
-char* getJoinTypeString(EJoinType type);
-char* getJoinSTypeString(EJoinSubType type);
-char* getFullJoinTypeString(EJoinType type, EJoinSubType stype);
+char*   getJoinTypeString(EJoinType type);
+char*   getJoinSTypeString(EJoinSubType type);
+char*   getFullJoinTypeString(EJoinType type, EJoinSubType stype);
 int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
-
 
 #ifdef __cplusplus
 }

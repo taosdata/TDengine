@@ -68,19 +68,19 @@ dataDir /mnt/data6 2 0
 
 在配置文件 /etc/taos/taos.cfg 中，添加用于 S3 访问的参数：
 
-|参数名称        |   参数含义                                      |
-|:-------------|:-----------------------------------------------|
-|s3EndPoint | 用户所在地域的 COS 服务域名，支持 http 和 https，bucket 的区域需要与 endpoint 的保持一致，否则无法访问。 |
-|s3AccessKey |冒号分隔的用户 SecretId:SecretKey。例如：AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E |
-|s3BucketName | 存储桶名称，减号后面是用户注册 COS 服务的 AppId。其中 AppId 是 COS 特有，AWS 和阿里云都没有，配置时需要作为 bucket name 的一部分，使用减号分隔。参数值均为字符串类型，但不需要引号。例如：test0711-1309024725 |
-|s3UploadDelaySec | data 文件持续多长时间不再变动后上传至 s3，单位：秒。最小值：1；最大值：2592000 (30天），默认值 60 秒 |
-|s3PageCacheSize |s3 page cache 缓存页数目，单位：页。最小值：4；最大值：1024*1024\*1024。 ，默认值 4096|
-|s3MigrateIntervalSec | 本地数据文件自动上传 S3 的触发周期，单位为秒。最小值：600；最大值：100000。默认值 3600 |
-|s3MigrateEnabled | 是否自动进行 S3 迁移，默认值为 0，表示关闭自动 S3 迁移，可配置为 1。 |
+| 参数名称 | 参数含义 |
+|:---------------------|:-----------------------------------------------|
+| s3EndPoint           | 用户所在地域的 COS 服务域名，支持 http 和 https，bucket 的区域需要与 endpoint 的保持一致，否则无法访问。 |
+| s3AccessKey          | 冒号分隔的用户 SecretId:SecretKey。例如：AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E |
+| s3BucketName         | 存储桶名称，减号后面是用户注册 COS 服务的 AppId。其中 AppId 是 COS 特有，AWS 和阿里云都没有，配置时需要作为 bucket name 的一部分，使用减号分隔。参数值均为字符串类型，但不需要引号。例如：test0711-1309024725 |
+| s3UploadDelaySec     | data 文件持续多长时间不再变动后上传至 s3，单位：秒。最小值：1；最大值：2592000（30天），默认值 60 秒 |
+| s3PageCacheSize      | S3 page cache 缓存页数目，单位：页。最小值：4；最大值：1024*1024*1024。 ，默认值 4096|
+| s3MigrateIntervalSec | 本地数据文件自动上传 S3 的触发周期，单位为秒。最小值：600；最大值：100000。默认值 3600 |
+| s3MigrateEnabled     | 是否自动进行 S3 迁移，默认值为 0，表示关闭自动 S3 迁移，可配置为 1。 |
 
 ### 检查配置参数可用性
 
-在 taos.cfg 中完成对 s3 的配置后，通过 taosd 命令的 checks3 参数可以检查所配置的 S3 服务是否可用：
+在 taos.cfg 中完成对 S3 的配置后，通过 taosd 命令的 checks3 参数可以检查所配置的 S3 服务是否可用：
 
 ```
 taosd --checks3
@@ -106,11 +106,11 @@ s3migrate database <db_name>;
 
 详细的 DB 参数见下表：
 
-| #    | 参数         | 默认值 | 最小值 | 最大值  | 描述                                                         |
-| :--- | :----------- | :----- | :----- | :------ | :----------------------------------------------------------- |
-| 1    | s3_keeplocal | 365    | 1      | 365000  | 数据在本地保留的天数，即 data 文件在本地磁盘保留多长时间后可以上传到 S3。默认单位：天，支持 m（分钟）、h（小时）和 d（天）三个单位 |
-| 2    | s3_chunkpages | 131072 | 131072 | 1048576 | 上传对象的大小阈值，与 tsdb_pagesize 参数一样，不可修改，单位为 TSDB 页 |
-| 3    | s3_compact   | 1      | 0      | 1       | TSDB 文件组首次上传 S3 时，是否自动进行 compact 操作。       |
+| # | 参数 | 默认值 | 最小值 | 最大值 | 描述 |
+|:--|:--------------|:-------|:------ |:------- | :----------------------------------------------------------- |
+| 1 | s3_keeplocal  | 365    | 1      | 365000  | 数据在本地保留的天数，即 data 文件在本地磁盘保留多长时间后可以上传到 S3。默认单位：天，支持 m（分钟）、h（小时）和 d（天）三个单位 |
+| 2 | s3_chunkpages | 131072 | 131072 | 1048576 | 上传对象的大小阈值，与 tsdb_pagesize 参数一样，不可修改，单位为 TSDB 页 |
+| 3 | s3_compact    | 1      | 0      | 1       | TSDB 文件组首次上传 S3 时，是否自动进行 compact 操作 |
 
 ### 对象存储读写次数估算
 
@@ -168,10 +168,10 @@ s3BucketName td-test
 
 用户界面同 S3，不同的地方在于下面三个参数的配置：
 
-| #    | 参数         | 示例值                                   | 描述                                                         |
-| :--- | :----------- | :--------------------------------------- | :----------------------------------------------------------- |
-| 1    | s3EndPoint   | https://fd2d01c73.blob.core.windows.net  | Blob URL                                                     |
-| 2    | s3AccessKey  | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg== | 冒号分隔的用户 accountId:accountKey                          |
-| 3    | s3BucketName | test-container                           | Container name                                               |
+| # | 参数 | 示例值 | 描述 |
+|:--|:-------------|:-----------------------------------------|:----------------------------------|
+| 1 | s3EndPoint   | https://fd2d01c73.blob.core.windows.net  | Blob URL                          |
+| 2 | s3AccessKey  | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg== | 冒号分隔的用户 accountId:accountKey |
+| 3 | s3BucketName | test-container                           | Container name                    |
 
 其中 fd2d01c73 是账户 ID；微软 Blob 存储服务只支持 Https 协议，不支持 Http。

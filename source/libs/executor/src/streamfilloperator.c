@@ -281,12 +281,12 @@ static void calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillCo
 }
 
 static void setFillInfoStart(TSKEY ts, SInterval* pInterval, SStreamFillInfo* pFillInfo) {
-  ts = taosTimeAdd(ts, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+  ts = taosTimeAdd(ts, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
   pFillInfo->start = ts;
 }
 
 static void setFillInfoEnd(TSKEY ts, SInterval* pInterval, SStreamFillInfo* pFillInfo) {
-  ts = taosTimeAdd(ts, pInterval->sliding * -1, pInterval->slidingUnit, pInterval->precision);
+  ts = taosTimeAdd(ts, pInterval->sliding * -1, pInterval->slidingUnit, pInterval->precision, NULL);
   pFillInfo->end = ts;
 }
 
@@ -303,7 +303,7 @@ void setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillS
   }
 
   TSKEY realStart = taosTimeAdd(pFillSup->prev.key, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
-                                pFillSup->interval.precision);
+                                pFillSup->interval.precision, NULL);
 
   pFillInfo->needFill = true;
   pFillInfo->start = realStart;
@@ -542,7 +542,7 @@ static void doStreamFillNormal(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
       QUERY_CHECK_CODE(code, lino, _end);
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
-                                     pFillSup->interval.precision);
+                                     pFillSup->interval.precision, NULL);
   }
 
 _end:
@@ -564,7 +564,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
 
     if ((pFillSup->hasDelete && !ckRes) || !inWinRange(&pFillSup->winRange, &st)) {
       pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
-                                       pFillSup->interval.precision);
+                                       pFillSup->interval.precision, NULL);
       pFillInfo->pLinearInfo->winIndex++;
       continue;
     }
@@ -610,7 +610,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
       }
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
-                                     pFillSup->interval.precision);
+                                     pFillSup->interval.precision, NULL);
     pBlock->info.rows++;
   }
 
@@ -1343,7 +1343,7 @@ static int32_t doStreamForceFillImpl(SOperatorInfo* pOperator) {
           break;
         }
         resTs = taosTimeAdd(resTs, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
-                            pFillSup->interval.precision);
+                            pFillSup->interval.precision, NULL);
       }
     }
   }

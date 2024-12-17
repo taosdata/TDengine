@@ -89,6 +89,8 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     if (type == TDMT_VND_SUBMIT || ((type == TDMT_VND_DELETE) && (pReader->cond.deleteMsg == 1)) ||
         (IS_META_MSG(type) && pReader->cond.scanMeta)) {
       TAOS_RETURN(walFetchBody(pReader));
+    } else if (type == TDMT_VND_DROP_TABLE && pReader->cond.scanDropCtb) {
+      TAOS_RETURN(walFetchBody(pReader));
     } else {
       TAOS_CHECK_RETURN(walSkipFetchBody(pReader));
 
@@ -537,7 +539,7 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
     opts.source = pHead->head.body;
     opts.result = newBody;
     opts.unitLen = 16;
-    TAOS_UNUSED(strncpy((char *)opts.key, cfg->encryptKey, 16));
+    tstrncpy((char *)opts.key, cfg->encryptKey, sizeof(opts.key));
 
     int32_t count = CBC_Decrypt(&opts);
 

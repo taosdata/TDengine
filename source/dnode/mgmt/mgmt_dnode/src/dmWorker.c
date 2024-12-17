@@ -47,6 +47,25 @@ static void *dmStatusThreadFp(void *param) {
   return NULL;
 }
 
+static void *dmConfigThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-config");
+  while (1) {
+    taosMsleep(200);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped || tsConfigInited) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
+    if (interval >= tsStatusInterval) {
+      dmSendConfigReq(pMgmt);
+      lastTime = curTime;
+    }
+  }
+  return NULL;
+}
+
 static void *dmStatusInfoThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -202,8 +221,11 @@ static void *dmMonitorThreadFp(void *param) {
 
       trimCount = (trimCount + 1) % TRIM_FREQ;
       if (trimCount == 0) {
-        taosMemoryTrim(0);
+        taosMemoryTrim(0, NULL);
       }
+    }
+    if (atomic_val_compare_exchange_8(&tsNeedTrim, 1, 0)) {
+      taosMemoryTrim(0, NULL);
     }
   }
 
@@ -306,6 +328,22 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
 
   (void)taosThreadAttrDestroy(&thAttr);
   tmsgReportStartup("dnode-status", "initialized");
+  return 0;
+}
+
+int32_t dmStartConfigThread(SDnodeMgmt *pMgmt) {
+  int32_t      code = 0;
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED);
+  if (taosThreadCreate(&pMgmt->configThread, &thAttr, dmConfigThreadFp, pMgmt) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create config thread since %s", tstrerror(code));
+    return code;
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("config-status", "initialized");
   return 0;
 }
 

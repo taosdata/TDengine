@@ -358,7 +358,7 @@ static int32_t closeStreamIntervalWindow(SSHashObj* pHashMap, STimeWindowAggSupp
     void*       chIds = taosHashGet(pPullDataMap, pWinKey, sizeof(SWinKey));
     STimeWindow win = {
         .skey = pWinKey->ts,
-        .ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1,
+        .ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1,
     };
     if (isCloseWindow(&win, pTwSup)) {
       if (chIds && pPullDataMap) {
@@ -391,7 +391,7 @@ _end:
 
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval) {
   STimeWindow w = {.skey = ts, .ekey = INT64_MAX};
-  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
   return w;
 }
 
@@ -851,7 +851,7 @@ static int32_t processPullOver(SSDataBlock* pBlock, SHashObj* pMap, SHashObj* pF
           }
         }
       }
-      winTs = taosTimeAdd(winTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+      winTs = taosTimeAdd(winTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
     }
   }
   if (pBeOver) {
@@ -1466,7 +1466,7 @@ void doStreamIntervalSaveCheckpoint(SOperatorInfo* pOperator) {
     int32_t len = doStreamIntervalEncodeOpState(NULL, 0, pOperator);
     void*   buf = taosMemoryCalloc(1, len);
     if (!buf) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return;
     }
     void* pBuf = buf;
@@ -1932,7 +1932,9 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
                                 .intervalUnit = pIntervalPhyNode->intervalUnit,
                                 .slidingUnit = pIntervalPhyNode->slidingUnit,
                                 .offset = pIntervalPhyNode->offset,
-                                .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
+                                .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
+                                .timeRange = pIntervalPhyNode->timeRange};
+  calcIntervalAutoOffset(&pInfo->interval);
   pInfo->twAggSup = (STimeWindowAggSupp){
       .waterMark = pIntervalPhyNode->window.watermark,
       .calTrigger = pIntervalPhyNode->window.triggerType,
@@ -5215,7 +5217,7 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
       code = getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
-    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE || pBlock->info.type == STREAM_DROP_CHILD_TABLE) {
       printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       (*ppRes) = pBlock;
       return code;
@@ -5342,7 +5344,9 @@ static int32_t createStreamSingleIntervalOperatorInfo(SOperatorInfo* downstream,
       .slidingUnit = pIntervalPhyNode->slidingUnit,
       .offset = pIntervalPhyNode->offset,
       .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
+      .timeRange = pIntervalPhyNode->timeRange,
   };
+  calcIntervalAutoOffset(&pInfo->interval);
 
   pInfo->twAggSup =
       (STimeWindowAggSupp){.waterMark = pIntervalPhyNode->window.watermark,
