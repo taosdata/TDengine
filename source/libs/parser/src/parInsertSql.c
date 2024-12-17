@@ -1849,7 +1849,6 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
           tstrncpy(pStbRowsCxt->ctbName.tname, tbName, sizeof(pStbRowsCxt->ctbName.tname));
           tstrncpy(pStmt->usingTableName.tname, pStmt->targetTableName.tname, sizeof(pStmt->usingTableName.tname));
           tstrncpy(pStmt->targetTableName.tname, tbName, sizeof(pStmt->targetTableName.tname));
-
           tstrncpy(pStmt->usingTableName.dbname, pStmt->targetTableName.dbname, sizeof(pStmt->usingTableName.dbname));
           pStmt->usingTableName.type = 1;
           pStmt->pTableMeta->tableType = TSDB_CHILD_TABLE;  // set the table type to child table for parse cache
@@ -2060,9 +2059,7 @@ static int32_t parseStbBoundInfo(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext*
 
   insDestroyBoundColInfo(&((*ppTableDataCxt)->boundColsInfo));
   (*ppTableDataCxt)->boundColsInfo = pStbRowsCxt->boundColsInfo;
-  (*ppTableDataCxt)->boundColsInfo.numOfCols = pStbRowsCxt->boundColsInfo.numOfBound;
-  (*ppTableDataCxt)->boundColsInfo.numOfBound = pStbRowsCxt->boundColsInfo.numOfBound;
-  (*ppTableDataCxt)->boundColsInfo.hasBoundCols = pStbRowsCxt->boundColsInfo.hasBoundCols;
+
   (*ppTableDataCxt)->boundColsInfo.pColIndex = taosMemoryCalloc(pStbRowsCxt->boundColsInfo.numOfBound, sizeof(int16_t));
   if (NULL == (*ppTableDataCxt)->boundColsInfo.pColIndex) {
     return terrno;
@@ -3175,9 +3172,8 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
                                  .isStmtBind = pCxt->isStmtBind};
 
   int32_t             code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
-  SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)((*pQuery)->pRoot);
   if (TSDB_CODE_SUCCESS == code) {
-    code = parseInsertSqlImpl(&context, pStmt);
+    code = parseInsertSqlImpl(&context, (SVnodeModifyOpStmt*)((*pQuery)->pRoot));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = setNextStageInfo(&context, *pQuery, pCatalogReq);

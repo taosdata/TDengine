@@ -62,7 +62,7 @@ typedef struct SMetaEntry {
     struct {
       int64_t  btime;
       int32_t  ttlDays;
-      int32_t  commentLen;
+      int32_t  commentLen;  // not include '\0'
       char*    comment;
       tb_uid_t suid;
       uint8_t* pTags;
