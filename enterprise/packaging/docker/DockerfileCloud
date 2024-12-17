@@ -16,6 +16,6 @@ COPY ./run.sh /usr/bin/
 COPY ./td_cluster_check /usr/bin/
 COPY ./bin/* /usr/bin/
 
-VOLUME [ "/var/lib/taos", "/var/log/taos" ]
+VOLUME [ "/var/lib/taos" ]
 
 ENTRYPOINT exec /usr/bin/run.sh
