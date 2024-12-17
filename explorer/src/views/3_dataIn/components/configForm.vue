@@ -11,7 +11,7 @@
             :key="item.label"
             ref="checkConnectivity"
           ></ConnectivityCheck>
-          <div v-if="item.type == 'writeConfig'" :key="item.label" class="block-wrapper">
+          <div v-else-if="item.type == 'writeConfig'" :key="item.label" class="block-wrapper">
             <el-collapse 
               :class='`collapse-${lang}`'
               accordion>
