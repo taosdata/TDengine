@@ -1,11 +1,20 @@
+use chrono::Duration;
+use chrono::FixedOffset;
+use chrono::Local;
 use regex::Regex;
 use serde_json::json;
 use serde_json::Map;
 use serde_json::Value as JsonValue;
+use std::collections::HashSet;
 use std::ffi::CString;
 use std::mem::ManuallyDrop;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
+
+use std::sync::LazyLock;
+
+static DATE_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"20[2-9]\d-[01]\d-[0-3]\d").unwrap());
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -32,7 +41,17 @@ pub struct ParserResponse {
 struct ParserConfig {
     value_key_pattern: Regex,
     value_type_key: Option<String>,
-    white_type_key: Option<String>,
+    value_type_range: HashSet<String>,
+}
+
+fn get_now_and_d7_ago() -> (String, String) {
+    let offset = FixedOffset::east_opt(8 * 3600).unwrap();
+    let now = Local::now().with_timezone(&offset);
+    let d7_ago = now - Duration::days(7);
+    let fmt = "%Y-%m-%dT%H:%M:%S%%Z";
+    let now = now.format(fmt).to_string();
+    let d7_ago = d7_ago.format(fmt).to_string();
+    (now, d7_ago)
 }
 
 impl ParserConfig {
@@ -43,18 +62,22 @@ impl ParserConfig {
             return Err("Invalid config".to_string());
         }
 
-        let regex = format!(r#"{}\d{{4}}"#, ctx_parts[0]);
-        let regex = Regex::new(&regex).map_err(|err| format!("{:?}", err))?;
+        let value_key_pattern = Regex::new(ctx_parts[0]).map_err(|err| format!("{:?}", err))?;
+
+        let value_type_range = ctx_parts.get(2).map_or(HashSet::new(), |s| {
+            s.split("|").map(|s| s.to_string()).collect()
+        });
 
         Ok(ParserConfig {
-            value_key_pattern: regex,
+            value_key_pattern,
             value_type_key: ctx_parts.get(1).map(|s| s.to_string()),
-            white_type_key: ctx_parts.get(2).map(|s| s.to_string()),
+            value_type_range,
         })
     }
 
     fn parse_object(&self, object: Map<String, JsonValue>) -> Vec<Map<String, JsonValue>> {
-        // let data_type = self.value_type_key.as_deref().unwrap_or("");
+        let mut arr_data = Vec::new();
+
         let the_flag = self
             .value_type_key
             .as_ref()
@@ -67,25 +90,38 @@ impl ParserConfig {
                 ""
             })
             .unwrap_or("");
+        if !self.value_type_range.is_empty() && !self.value_type_range.contains(the_flag) {
+            println!("not in value type range: {}", the_flag);
+            return arr_data;
+        }
 
-        let mut arr_data = Vec::new();
         let data_date = object
             .get("DATA_DATE")
             .map(|v| v.as_str().unwrap_or(""))
             .unwrap_or("");
-        let mut share_object = Map::new();
+        if !DATE_PATTERN.is_match(data_date) {
+            println!("not match DATE_PATTERN: {}", data_date);
+            return arr_data;
+        }
 
+        let (now, d7_ago) = get_now_and_d7_ago();
+
+        let mut share_object = Map::new();
         for (k, v) in object.iter() {
             if self.value_key_pattern.is_match(k) {
-                let mut new_obj = Map::new();
-                new_obj.insert(format!("_val{}", the_flag), v.clone());
-
                 let dt = format!(
                     "{}T{}:{}:00+08:00",
                     data_date,
                     k[1..3].to_string(),
                     k[3..].to_string()
                 );
+
+                if dt < d7_ago || dt > now {
+                    continue;
+                }
+
+                let mut new_obj = Map::new();
+                new_obj.insert(format!("_val{}", the_flag), v.clone());
                 new_obj.insert("_ts".to_string(), json!(dt));
                 arr_data.push(new_obj);
             } else if k != "DATA_DATE" {
@@ -95,6 +131,18 @@ impl ParserConfig {
 
         for obj in arr_data.iter_mut() {
             for (k, v) in share_object.iter() {
+                if k == "DEV_ID" {
+                    match v {
+                        JsonValue::String(dev_id_value) => {
+                            if dev_id_value.len() > 16 {
+                                return Vec::new();
+                            }
+                        }
+                        _ => {
+                            return Vec::new();
+                        }
+                    }
+                }
                 obj.insert(k.clone(), v.clone());
             }
         }
@@ -142,7 +190,7 @@ pub unsafe extern "C" fn parser_mutate(
      * U,DATA_TYPE,1
      * value_key_prefix
      * value_type_key
-     * white_type_key
+     * value_type_range
      */
     let parser_config = (p as *mut ParserConfig).as_mut().unwrap();
 
@@ -207,6 +255,18 @@ pub unsafe extern "C" fn parser_free(p: *mut c_void) {
 mod tests {
     use super::*;
 
+    fn get_yesterday() -> String {
+        let offset = FixedOffset::east_opt(8 * 3600).unwrap();
+        let yesterday = Local::now().with_timezone(&offset) - Duration::days(1);
+        yesterday.format("%Y-%m-%d").to_string()
+    }
+
+    fn get_day_ago(d: i64) -> String {
+        let offset = FixedOffset::east_opt(8 * 3600).unwrap();
+        let yesterday = Local::now().with_timezone(&offset) - Duration::days(d);
+        yesterday.format("%Y-%m-%d").to_string()
+    }
+
     #[test]
     fn test_parser_config_error() {
         let parser_config = ParserConfig::new("");
@@ -215,121 +275,162 @@ mod tests {
 
     #[test]
     fn test_parse_object_with_data_type() {
-        let parser_config = ParserConfig::new("U,DATA_TYPE,1").unwrap();
+        let yesterday = get_yesterday();
+
+        let parser_config = ParserConfig::new(r"^U\d{2}00$,DATA_TYPE").unwrap();
         let object = json!({
-            "DATA_DATE": "2021-01-01",
+            "DATA_DATE": yesterday.clone(),
             "DATA_TYPE": "1",
-            "U0001": 1.0,
-            "U0002": 2.0,
-            "U0003": 3.0,
+            "U0000": 1.0,
+            "U0001": 2.0,
+            "U0002": 3.0,
             "DEV_ID": "8100000888",
         });
         let object = object.as_object().unwrap();
 
         let parsed_data = parser_config.parse_object(object.clone());
-        assert_eq!(parsed_data.len(), 3);
+        assert_eq!(parsed_data.len(), 1);
         assert_eq!(parsed_data[0].get("_val1").unwrap().as_f64().unwrap(), 1.0);
         assert_eq!(
             parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:01:00+08:00"
-        );
-        assert_eq!(parsed_data[1].get("_val1").unwrap().as_f64().unwrap(), 2.0);
-        assert_eq!(
-            parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:02:00+08:00"
-        );
-        assert_eq!(parsed_data[2].get("_val1").unwrap().as_f64().unwrap(), 3.0);
-        assert_eq!(
-            parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:03:00+08:00"
+            format!("{yesterday}T00:00:00+08:00")
         );
     }
 
     #[test]
-    fn test_parse_object_without_data_type() {
-        let parser_config = ParserConfig::new("U").unwrap();
+    fn test_parse_object_with_dev_id_too_long() {
+        let yesterday = get_yesterday();
+
+        let parser_config = ParserConfig::new(r"^U\d{2}00$,DATA_TYPE").unwrap();
         let object = json!({
-            "DATA_DATE": "2021-01-01",
+            "DATA_DATE": yesterday,
+            "DATA_TYPE": "1",
+            "U0000": 1.0,
+            "U0001": 2.0,
+            "U0002": 3.0,
+            "DEV_ID": "812345678910111213141516",
+        });
+        let object = object.as_object().unwrap();
+
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_object_with_multiple_time() {
+        let yesterday = get_yesterday();
+
+        let parser_config = ParserConfig::new(r"^U\d{2}(00|15|30|45)$,DATA_TYPE").unwrap();
+        let object = json!({
+            "DATA_DATE": yesterday.clone(),
+            "DATA_TYPE": "1",
+            "U0000": 1.0,
+            "U0006": 2.0,
+            "U0015": 3.0,
+            "U0030": 4.0,
+            "U0040": 5.0,
+            "U0045": 6.0,
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 4);
+        assert_eq!(parsed_data[0].get("_val1").unwrap().as_f64().unwrap(), 1.0);
+        assert_eq!(
+            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
+            format!("{yesterday}T00:00:00+08:00")
+        );
+        assert_eq!(
+            parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:15:00+08:00"
+        );
+        assert_eq!(
+            parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
+            format!("{yesterday}T00:30:00+08:00")
+        );
+        assert_eq!(
+            parsed_data[3].get("_ts").unwrap().as_str().unwrap(),
+            format!("{yesterday}T00:45:00+08:00")
+        );
+    }
+
+    #[test]
+    fn test_parse_object_with_data_type_range() {
+        let yesterday = get_yesterday();
+
+        let parser_config = ParserConfig::new(r"^U\d{4}$,DATA_TYPE,2").unwrap();
+        let object = json!({
+            "DATA_DATE": yesterday.clone(),
+            "DATA_TYPE": "1",
+            "U0001": 1.0,
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_object_not_in_date_range() {
+        let d8_ago = get_day_ago(8);
+        let parser_config = ParserConfig::new(r"^U\d{4}$").unwrap();
+        let object = json!({
+            "DATA_DATE": d8_ago.clone(),
             "DATA_TYPE": "1",
             "U0001": 1.0,
             "U0002": 2.0,
             "U0003": 3.0,
-            "DEV_ID": "8100000888",
-        });
-        let object = object.as_object().unwrap();
-
-        let parsed_data = parser_config.parse_object(object.clone());
-        assert_eq!(parsed_data.len(), 3);
-        assert_eq!(parsed_data[0].get("_val").unwrap().as_f64().unwrap(), 1.0);
-        assert_eq!(
-            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:01:00+08:00"
-        );
-        assert_eq!(parsed_data[1].get("_val").unwrap().as_f64().unwrap(), 2.0);
-        assert_eq!(
-            parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:02:00+08:00"
-        );
-        assert_eq!(parsed_data[2].get("_val").unwrap().as_f64().unwrap(), 3.0);
-        assert_eq!(
-            parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:03:00+08:00"
-        );
-    }
-
-    #[test]
-    fn test_parse_object_exception_missing_data_type() {
-        let parser_config = ParserConfig::new("U,DATA_TYPE").unwrap();
-        let object = json!({
-            "DATA_DATE": "2021-01-01",
-            "U0001": 1.0,
-            "U0002": 2.0,
-            "U0003": 3.0,
-            "DEV_ID": "8100000888",
-        });
-        let object = object.as_object().unwrap();
-
-        let parsed_data = parser_config.parse_object(object.clone());
-        assert_eq!(parsed_data.len(), 3);
-        assert_eq!(parsed_data[0].get("_val").unwrap().as_f64().unwrap(), 1.0);
-        assert_eq!(
-            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:01:00+08:00"
-        );
-        assert_eq!(parsed_data[1].get("_val").unwrap().as_f64().unwrap(), 2.0);
-        assert_eq!(
-            parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:02:00+08:00"
-        );
-        assert_eq!(parsed_data[2].get("_val").unwrap().as_f64().unwrap(), 3.0);
-        assert_eq!(
-            parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:03:00+08:00"
-        );
-    }
-
-    #[test]
-    fn test_parse_object_exception_missing_data_date() {
-        let parser_config = ParserConfig::new("U,DATA_TYPE").unwrap();
-
-        let object = json!({
-            "U0001": 1.0,
-            "DEV_ID": "8100000888",
-        });
-        let object = object.as_object().unwrap();
-        let parsed_data = parser_config.parse_object(object.clone());
-        assert_eq!(parsed_data.len(), 1);
-        assert_eq!(
-            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
-            "T00:01:00+08:00"
-        );
-
-        let object = json!({
-            "DATA_DATE": "2021-01-01",
             "DEV_ID": "8100000888",
         });
         let object = object.as_object().unwrap();
         let parsed_data = parser_config.parse_object(object.clone());
         assert_eq!(parsed_data.len(), 0);
+
+        let d1_after = get_day_ago(-1);
+        let object = json!({
+            "DATA_DATE": d1_after.clone(),
+            "DATA_TYPE": "1",
+            "U0001": 1.0,
+            "U0002": 2.0,
+            "U0003": 3.0,
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_object_exception_missing_data_type() {
+        let yesterday = get_yesterday();
+        let parser_config = ParserConfig::new(r"^U\d{4}$,DATA_TYPE").unwrap();
+        let object = json!({
+            "DATA_DATE": yesterday.clone(),
+            "U0001": 1.0,
+            "U0002": 2.0,
+            "U0003": 3.0,
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 3);
+        assert_eq!(parsed_data[0].get("_val").unwrap().as_f64().unwrap(), 1.0);
+        assert_eq!(
+            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
+            format!("{yesterday}T00:01:00+08:00")
+        );
+        assert_eq!(parsed_data[1].get("_val").unwrap().as_f64().unwrap(), 2.0);
+        assert_eq!(
+            parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
+            format!("{yesterday}T00:02:00+08:00")
+        );
+        assert_eq!(parsed_data[2].get("_val").unwrap().as_f64().unwrap(), 3.0);
+        assert_eq!(
+            parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
+            format!("{yesterday}T00:03:00+08:00")
+        );
     }
 }

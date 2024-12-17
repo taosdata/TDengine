@@ -2809,6 +2809,7 @@ async fn consume_flat_record(
         if num_rows == 0 {
             continue;
         }
+
         let instant = std::time::Instant::now();
         let batch = tokio::task::spawn_blocking({
             let parser = parser.clone();
@@ -2817,6 +2818,7 @@ async fn consume_flat_record(
         })
         .await?
         .context("Transformer parse error")?;
+
         if tracing::event_enabled!(tracing::Level::TRACE) {
             let elapsed = instant.elapsed();
             tracing::trace!(cost = ?elapsed, "Parse message elapsed: {:?}", elapsed);
@@ -2829,11 +2831,13 @@ async fn consume_flat_record(
                 if message.is_empty() {
                     continue;
                 }
+
                 if unsafe { crate::global::DRY_RUN } {
                     *count += num_rows;
                     metrics.add_processed_rows(num_rows as u64);
                     continue;
                 }
+
                 let factor = message
                     .iter()
                     .map(|message| message.records.num_rows())
@@ -3054,7 +3058,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                     ),
                 })
                 .context("write ack error");
-            tracing::info!(acks = acks.load(Ordering::SeqCst), "ack done");
+            tracing::debug!(acks = acks.load(Ordering::SeqCst), "ack done");
         }
         acks.fetch_add(1, Ordering::SeqCst);
         metrics.add_processed_batches(1);

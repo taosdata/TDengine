@@ -84,13 +84,13 @@ pub(super) struct Cli {
 struct ConfigArgs {
     /// When `endless` flag set, we'll re-write tmq timeout as `never` to wait messages
     /// without an ending, but it will still abort when there's error in the process.
-    #[clap(short, long)]
+    #[clap(short, long, hide = true)]
     endless: bool,
 
     /// Override default TDengine connection protocol to websocket, both `from` and `to` will be affected.
     ///
     /// So that you don't need to append `+ws` in DSN.
-    #[clap(short, long)]
+    #[clap(short, long, hide = true)]
     websocket: bool,
 }
 
