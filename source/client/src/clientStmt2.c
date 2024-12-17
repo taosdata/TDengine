@@ -77,7 +77,7 @@ static int32_t stmtCreateRequest(STscStmt2* pStmt) {
     }
     if (pStmt->db != NULL) {
       taosMemoryFreeClear(pStmt->exec.pRequest->pDb); 
-      pStmt->exec.pRequest->pDb = strdup(pStmt->db);
+      pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
     }
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
