@@ -3482,7 +3482,8 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (NULL != pNode->pParent &&
       (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
        QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0)) ||
-       QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode->pParent))) {
+       QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode->pParent) ||
+       QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pNode->pParent))) {
     return false;
   }
 
@@ -3551,6 +3552,9 @@ static bool eliminateProjOptCanChildConditionUseChildTargets(SLogicNode* pChild,
     if (!cxt.canUse) return false;
   }
 
+  if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pChild)) {
+    return false;
+  }
   if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild) && ((SJoinLogicNode*)pChild)->joinAlgo != JOIN_ALGO_UNKNOWN) {
     return false;
   }
