@@ -103,6 +103,13 @@ go version
 go env
 ```
 
+You can also complete the installation with one click by executing the following shell script:
+
+```bash
+chmod +x setup.sh
+./setup.sh deploy_dev
+```
+
 ## 3. Build
 
 Clone the code first:
@@ -191,6 +198,19 @@ To run the specific test case(s) from above list with `nextest`:
 ```bash
 cargo nextest run --workspace <case-name>
 ```
+
+To run the e2e test case(s), it can be completed by the following operation:
+
+```bash
+cd tests/e2e
+cp setenv.sh.example setenv.sh
+source setenv.sh
+poetry install
+# run sanity test cases
+pytest -sv --timeout=300 -m sanity
+
+```
+
 
 ## 8. Releasing
 
