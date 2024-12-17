@@ -314,6 +314,9 @@ impl HealthChecker {
     /// *Internal only* Update the health state.
     fn update_state(&mut self, state: State) {
         let last = self.state;
+        if state == State::Idle && last == State::Initial {
+            return;
+        }
 
         if state == last {
             if self.options.repeat_errors && state > State::Idle {
@@ -384,6 +387,9 @@ impl HealthChecker {
         self.window_start = window_start;
 
         let state = self.get_state();
+        if self.total_messages.source_messages > 0 {
+            self.update_state(state);
+        }
         self.update_state(state);
     }
 
@@ -465,6 +471,9 @@ impl HealthChecker {
         }
         if is_busy {
             return State::Busy;
+        }
+        if last_state == State::Initial && self.total_messages.sink_messages > 0 {
+            return State::Ready;
         }
         State::Idle
     }
