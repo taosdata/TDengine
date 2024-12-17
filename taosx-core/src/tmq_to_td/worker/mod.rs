@@ -700,7 +700,9 @@ impl Worker {
                                 0x0118 => {
                                     let from = self.source.get().await?;
                                     // sync schema
-                                    let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = database() and table_name = '{source_table_name}'")).await?;
+                                    // let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = database() and table_name = '{source_table_name}'")).await?;
+                                    let source_stable_name =
+                                        get_stable_name(&from, None, &source_table_name).await?;
                                     if let Some(mut source_stable_name) = source_stable_name {
                                         if actions.is_empty() {
                                             migrate_data_schema(
@@ -748,23 +750,58 @@ impl Worker {
                                         .await
                                         .context("Create table error")?;
                                     }
-                                    if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
-                                    let from = self.source.get().await?;
-                                    let target_opts = Default::default();
-                                    sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
-                                    // 临时代码，保证编译通过
-                                    let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
-                                    sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true, &self.options.actions, metrics_arc).await.context("Create sub table error")?;
-                                    taos.write_raw_block(raw)
+                                    let super_table_name =
+                                        get_stable_name(&from, Some(database), &source_table_name)
+                                            .await?;
+                                    // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+                                    if let Some(stable) = super_table_name {
+                                        let from = self.source.get().await?;
+                                        let target_opts = Default::default();
+                                        sync_super_table_schema(
+                                            &from,
+                                            &stable,
+                                            taos,
+                                            None,
+                                            &target_opts,
+                                            actions,
+                                        )
                                         .await
-                                        .context("Write raw block into target error")?;
-                                } else {
-                                    // normal table
-                                    sync_normal_table_schema(&from, &source_table_name, actions, None, taos).await.context("Create table error")?;
-                                    taos.write_raw_block(raw)
+                                        .context("Create super table error")?;
+                                        // 临时代码，保证编译通过
+                                        let metrics_arc = Arc::new(CoreMetrics::Legacy(
+                                            LegacyToTaosMetrics::default(),
+                                        ));
+                                        sync_super_table_schema_with_subs(
+                                            &from,
+                                            &stable,
+                                            &[source_table_name],
+                                            taos,
+                                            None,
+                                            &target_opts,
+                                            true,
+                                            &self.options.actions,
+                                            metrics_arc,
+                                        )
                                         .await
-                                        .context("Write raw block into target error")?;
-                                }
+                                        .context("Create sub table error")?;
+                                        taos.write_raw_block(raw)
+                                            .await
+                                            .context("Write raw block into target error")?;
+                                    } else {
+                                        // normal table
+                                        sync_normal_table_schema(
+                                            &from,
+                                            &source_table_name,
+                                            actions,
+                                            None,
+                                            taos,
+                                        )
+                                        .await
+                                        .context("Create table error")?;
+                                        taos.write_raw_block(raw)
+                                            .await
+                                            .context("Write raw block into target error")?;
+                                    }
                                 }
                                 0x061B => {
                                     // Table schema is old.
@@ -921,7 +958,9 @@ impl Worker {
                             0x0118 => {
                                 let from = self.source.get().await?;
                                 // sync schema
-                                let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = database() and table_name = '{source_table_name}'")).await?;
+                                // let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = database() and table_name = '{source_table_name}'")).await?;
+                                let source_stable_name =
+                                    get_stable_name(&from, None, &source_table_name).await?;
                                 if let Some(mut source_stable_name) = source_stable_name {
                                     if actions.is_empty() {
                                         migrate_data_schema(
@@ -969,19 +1008,54 @@ impl Worker {
                                     .await
                                     .context("Create table error")?;
                                 }
-                                if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+                                let super_table_name =
+                                    get_stable_name(&from, Some(database), &source_table_name)
+                                        .await?;
+                                // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+                                if let Some(stable) = super_table_name {
                                     let from = self.source.get().await?;
                                     let target_opts = Default::default();
-                                    sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
+                                    sync_super_table_schema(
+                                        &from,
+                                        &stable,
+                                        taos,
+                                        None,
+                                        &target_opts,
+                                        actions,
+                                    )
+                                    .await
+                                    .context("Create super table error")?;
                                     // 临时代码，保证编译通过
-                                    let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
-                                    sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true, &self.options.actions, metrics_arc).await.context("Create sub table error")?;
+                                    let metrics_arc = Arc::new(CoreMetrics::Legacy(
+                                        LegacyToTaosMetrics::default(),
+                                    ));
+                                    sync_super_table_schema_with_subs(
+                                        &from,
+                                        &stable,
+                                        &[source_table_name],
+                                        taos,
+                                        None,
+                                        &target_opts,
+                                        true,
+                                        &self.options.actions,
+                                        metrics_arc,
+                                    )
+                                    .await
+                                    .context("Create sub table error")?;
                                     taos.write_raw_block(raw)
                                         .await
                                         .context("Write raw block into target error")?;
                                 } else {
                                     // normal table
-                                    sync_normal_table_schema(&from, &source_table_name, actions, None, taos).await.context("Create table error")?;
+                                    sync_normal_table_schema(
+                                        &from,
+                                        &source_table_name,
+                                        actions,
+                                        None,
+                                        taos,
+                                    )
+                                    .await
+                                    .context("Create table error")?;
                                     taos.write_raw_block(raw)
                                         .await
                                         .context("Write raw block into target error")?;
@@ -1231,6 +1305,63 @@ impl Worker {
         Ok(())
     }
 }
+
+pub async fn get_stable_name(
+    taos: &Taos,
+    database: Option<&str>,
+    tablename: &str,
+) -> Result<Option<String>> {
+    let database_name;
+    if database.is_some() {
+        database_name = database.unwrap().to_string();
+    } else {
+        let database: Option<String> = taos.query_one("select database()").await?;
+        database_name = database.expect("get database name withe 'select database()'");
+    }
+
+    let show_create_table_result: Option<(String, String)> = taos
+        .query_one(format!("show create table `{database_name}`.`{tablename}`"))
+        .await?;
+    if let Some((_, sql_create_table)) = show_create_table_result {
+        let regex = regex::Regex::new(r"`\sUSING\s`(.+?)`\s").unwrap();
+        for cap in regex.captures_iter(&sql_create_table) {
+            let cap_str = cap.get(1);
+            if let Some(cap_str) = cap_str {
+                return Ok(Some(cap_str.as_str().to_string()));
+            }
+        }
+        tracing::warn!("No stable name found in sql: {}", sql_create_table);
+        Ok(None)
+    } else {
+        tracing::warn!("No table found in database: {database_name} with table name: {tablename}");
+        Ok(None)
+    }
+}
+
+// mod test {
+//     use taos::*;
+//     use super::get_stable_name;
+
+//     #[tokio::test]
+//     async fn test_query_stable_name_with_taos() -> anyhow::Result<()> {
+//         let taos = TaosBuilder::from_dsn("taos+ws://192.168.0.201:6041/test")?.build().await?;
+
+//         let stable_name = get_stable_name(&taos, None, "d1").await?;
+//         println!("stablename: {:?}", stable_name);
+
+//         Ok(())
+//     }
+
+//     #[tokio::test]
+//     async fn test_query_stable_name_with_database_name_with_taos() -> anyhow::Result<()> {
+//         let taos = TaosBuilder::from_dsn("taos+ws://192.168.0.201:6041")?.build().await?;
+
+//         let stable_name = get_stable_name(&taos, Some("test"), "d1").await?;
+//         println!("stablename: {:?}", stable_name);
+
+//         Ok(())
+//     }
+// }
 
 #[async_trait::async_trait]
 impl deadpool::managed::Manager for Worker {

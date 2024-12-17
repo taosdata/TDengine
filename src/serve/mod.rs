@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
 use actix_cors::Cors;
@@ -215,7 +216,12 @@ impl Cli {
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
         } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
-            format!("sqlite:{}/{}x.db", root, build::CUS_PROMPT)
+            format!(
+                "sqlite:{}",
+                Path::new(&root)
+                    .join(format!("{}x.db", build::CUS_PROMPT))
+                    .display()
+            )
         } else {
             format!("sqlite:{}x.db", build::CUS_PROMPT)
         }
