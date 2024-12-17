@@ -417,7 +417,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   pVnode->path = (char *)&pVnode[1];
-  tstrncpy(pVnode->path, path, strlen(path) + 1);
+  memcpy(pVnode->path, path, strlen(path) + 1);
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.commitTerm = info.state.commitTerm;
