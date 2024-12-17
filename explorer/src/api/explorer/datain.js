@@ -279,7 +279,7 @@ export async function refreshTask(id) {
         mergeAuthentication(dsConfig.authentication, data);
     }
 
-    if (dsConfig.writeConfig) {
+    if (dsConfig.writeConfig && taskDetail?.parser.parser.global) {
         const global = parseglobal(taskDetail?.parser.parser.global)
         mergeWriteConfig(dsConfig.writeConfig.params, global)
     }
