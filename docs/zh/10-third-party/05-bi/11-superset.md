@@ -47,7 +47,7 @@ taosws://用户名:密码@主机名:端口号
 ```bash
 taosws://root:taosdata@localhost:6041  
 ```
-第5步，配置好连接串，点击 “TEST CONNECTION” 测试连接是否成功，测试通过后点击 “CONNECT” 按钮，完成连接。
+**第 5 步**，配置好连接串，点击 “TEST CONNECTION” 测试连接是否成功，测试通过后点击 “CONNECT” 按钮，完成连接。
        
 
 ## 开始使用
