@@ -579,6 +579,10 @@ export default {
     border-color: #bebcbc;
     .el-input__inner {
       box-shadow: none;
+      color: #16191f;
+      &:hover {
+        color: #16191f;
+      }
     }
   }
   ::v-deep .el-input-group__append {
