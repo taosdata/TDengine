@@ -68,25 +68,25 @@ class TDTestCase:
             tdLog.info(f"show transaction {tranId2}, {oper2}")
         
             rows = tdSql.query(f"show transaction {tranId1}", queryTimes=1)
-            if rows != 160 and rows != 176:
-                tdLog.exit(f"restore transaction detial error, rows={rows}")
+            if rows != 120 and rows != 176:
+                tdLog.exit(f"show transaction detial error, rows={rows}")
                 return False
 
             rows = tdSql.query(f"show transaction {tranId2}", queryTimes=1)
-            if rows != 176 and rows != 160:
-                tdLog.exit(f"restore transaction detial error, rows={rows}")
+            if rows != 176 and rows != 120:
+                tdLog.exit(f"show transaction detial error, rows={rows}")
                 return False
 
         tdLog.info(f"select * from ins_transaction_details")
         rows = tdSql.query(f"select * from information_schema.ins_transaction_details", queryTimes=1)
 
-        if rows != 336:
+        if rows != 296:
             tdLog.exit(f"restore transaction detial error, rows={rows}")
             return False
             
     def createDbThread(self, sql, newTdSql):
-        tdLog.info("CREATE DATABASE db2 vgroups 160 replica 3;")
-        newTdSql.execute('CREATE DATABASE db2 vgroups 160 replica 3;', queryTimes=1)
+        tdLog.info("CREATE DATABASE db2 vgroups 40 replica 3;")
+        newTdSql.execute('CREATE DATABASE db2 vgroups 40 replica 3;', queryTimes=1)
 
     def alterDbThread(self, sql, newTdSql):
         tdLog.info("alter DATABASE db1 replica 3;")
