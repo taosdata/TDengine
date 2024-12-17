@@ -2139,9 +2139,11 @@ impl Default for TargetOpts {
 impl Drop for TargetOpts {
     fn drop(&mut self) {
         if let Some(file) = self.fails_to.take() {
-            tokio::task::spawn(async move {
-                let _ = file.lock().await.flush();
-            });
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    let _ = file.lock().await.flush();
+                });
+            }
         }
     }
 }
@@ -3821,7 +3823,7 @@ mod tests {
             .filter_level(log::LevelFilter::Debug)
             .try_init();
         // prepare
-        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let taos = TaosBuilder::from_dsn("taos+ws:///")?.build().await?;
         taos.exec_many([
             "drop database if exists `x-sync-2`",
             "create database `x-sync-2`",
