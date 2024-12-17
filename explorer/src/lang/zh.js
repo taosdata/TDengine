@@ -234,8 +234,8 @@ export default {
   healthStatus: {
     ready: 'Ready',
     readyDesc: '数据源和目标端健康检查通过，可以进行数据读取和写入。',
-    idel: 'Idle',
-    idelDesc: '表示最近一段时间内（可配置）无数据处理（没有数据进入处理流程）。',
+    idle: 'Idle',
+    idleDesc: '表示最近一段时间内（可配置）无数据处理（没有数据进入处理流程）。',
     busy: 'Busy',
     busyDesc: '表示写入队列已满。',
     bounce: 'Bounce',
