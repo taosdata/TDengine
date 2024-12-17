@@ -20,6 +20,7 @@
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
+#include "mndConfig.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -611,6 +612,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-anode", mndInitAnode, mndCleanupAnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-arbgroup", mndInitArbGroup, mndCleanupArbGroup));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-config", mndInitConfig, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant));
@@ -637,7 +639,6 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
-
   return 0;
 }
 
@@ -713,7 +714,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   }
 
   char timestr[24] = "1970-01-01 00:00:00.00";
-  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
   if (code < 0) {
     mError("failed to parse time since %s", tstrerror(code));
     (void)taosThreadRwlockDestroy(&pMnode->lock);
@@ -793,6 +794,12 @@ int32_t mndStart(SMnode *pMnode) {
   if (pMnode->deploy) {
     if (sdbDeploy(pMnode->pSdb) != 0) {
       mError("failed to deploy sdb while start mnode");
+      return -1;
+    }
+    mndSetRestored(pMnode, true);
+  } else {
+    if (sdbPrepare(pMnode->pSdb) != 0) {
+      mError("failed to prepare sdb while start mnode");
       return -1;
     }
     mndSetRestored(pMnode, true);

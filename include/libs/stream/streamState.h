@@ -116,6 +116,7 @@ void streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache, int32_t* pWinCode);
+int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId);
 
 // group id
 int32_t streamStateGroupPut(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);

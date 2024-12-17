@@ -15,10 +15,20 @@ This document details the server error codes that may be encountered when using 
 | 0x80000015 | Unable to resolve FQDN                       | Invalid fqdn set                                             | Check fqdn settings                                          |
 | 0x80000017 | Port already in use                          | The port is already occupied by some service, and the newly started service still tries to bind to that port | 1. Change the server port of the new service 2. Kill the service that previously occupied the port |
 | 0x80000018 | Conn is broken                               | Due to network jitter or request time being too long (over 900 seconds), the system actively disconnects | 1. Set the system's maximum timeout duration 2. Check request duration |
-| 0x80000019 | Conn read timeout                            | Not enabled                                                  |                                                              |
+| 0x80000019 | Conn read timeout                            | 1. The request processing time is too long 2. The server is overwhelmed 3. The server is deadlocked | 1. Explicitly configure the readTimeout parameter 2. Analyze the stack on taos | 
 | 0x80000020 | some vnode/qnode/mnode(s) out of service     | After multiple retries, still unable to connect to the cluster, possibly all nodes have crashed, or the surviving nodes are not Leader nodes | 1. Check the status of taosd, analyze the reasons for taosd crash 2. Analyze why the surviving taosd cannot elect a Leader |
 | 0x80000021 | some vnode/qnode/mnode(s) conn is broken     | After multiple retries, still unable to connect to the cluster, possibly due to network issues, request time too long, server deadlock, etc. | 1. Check network 2. Request execution time                   |
 | 0x80000022 | rpc open too many session                    | 1. High concurrency causing the number of occupied connections to reach the limit 2. Server BUG, causing connections not to be released | 1. Adjust configuration parameter numOfRpcSessions 2. Adjust configuration parameter timeToGetAvailableConn 3. Analyze reasons for server not releasing connections |
+| 0x80000023  | RPC network error                           | 1. Network issues, possibly intermittent 2. Server crash     | 1. Check the network 2. Check if the server has restarted                 |
+| 0x80000024  | RPC network bus                             | 1. When pulling data between clusters, no available connections are obtained, or the number of connections has reached the limit | 1. Check if the concurrency is too high 2. Check if there are any anomalies in the cluster nodes, such as deadlocks |
+| 0x80000025  | HTTP-report already quit                    | 1. Issues with HTTP reporting                                | Internal issue, can be ignored                                            |
+| 0x80000026  | RPC module already quit                     | 1. The client instance has already exited, but still uses the instance for queries | Check the business code to see if there is a mistake in usage             |
+| 0x80000027  | RPC async module already quit               | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+| 0x80000028  | RPC async in process                        | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+| 0x80000029  | RPC no state                                | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+| 0x8000002A  | RPC state already dropped                   | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+| 0x8000002B  | RPC msg exceed limit                        | 1. Single RPC message exceeds the limit, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
+
 
 ## common  
 
@@ -62,6 +72,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80000133 | Invalid operation                 | Invalid or unsupported operation                             | 1. Modify to confirm the current operation is legal and supported, check parameter validity 2. If the problem persists, preserve the scene and logs, report issue on github |
 | 0x80000134 | Invalid value                     | Invalid value                                                | Preserve the scene and logs, report issue on github          |
 | 0x80000135 | Invalid fqdn                      | Invalid FQDN                                                 | Check if the configured or input FQDN value is correct       |
+| 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
+
 
 ## tsc
 
@@ -241,6 +253,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000529 | Vnode is stopped                                   | Vnode is closed                                 | Report issue        |
 | 0x80000530 | Duplicate write request                            | Duplicate write request, internal error         | Report issue        |
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
+| 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
 
 ## tsdb
 
@@ -273,6 +286,9 @@ This document details the server error codes that may be encountered when using 
 | 0x80000729 | Task message error                   | Query message error                                          | Preserve the scene and logs, report issue on GitHub          |
 | 0x8000072B | Task status error                    | Subquery status error                                        | Preserve the scene and logs, report issue on GitHub          |
 | 0x8000072F | Job not exist                        | Query JOB no longer exists                                   | Preserve the scene and logs, report issue on GitHub          |
+| 0x80000739 | Query memory upper limit is reached  | Single query memory upper limit is reached                   | Modify memory upper limit size or optimize SQL               |
+| 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                           | Limit concurrent queries or add more physical memory         |
+| 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                          | Correct application to fetch data asap                       |
 
 ## grant
 
@@ -493,6 +509,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80003103 | Invalid tsma state            | The vgroup of the stream computing result is inconsistent with the vgroup that created the TSMA index | Check error logs, contact development for handling |
 | 0x80003104 | Invalid tsma pointer          | Processing the results issued by stream computing, the message body is a null pointer. | Check error logs, contact development for handling |
 | 0x80003105 | Invalid tsma parameters       | Processing the results issued by stream computing, the result count is 0. | Check error logs, contact development for handling |
+| 0x80003113 | Tsma optimization cannot be applied with INTERVAL AUTO offset. | Tsma optimization cannot be enabled with INTERVAL AUTO OFFSET under the current query conditions. | Use SKIP_TSMA Hint or specify a manual INTERVAL OFFSET. |
 | 0x80003150 | Invalid rsma env              | Rsma execution environment is abnormal.                      | Check error logs, contact development for handling |
 | 0x80003151 | Invalid rsma state            | Rsma execution state is abnormal.                            | Check error logs, contact development for handling |
 | 0x80003152 | Rsma qtaskinfo creation error | Creating stream computing environment failed.                | Check error logs, contact development for handling |

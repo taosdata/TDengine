@@ -72,7 +72,6 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   int32_t     nKey = 0;
   int32_t     nData = 0;
   STbDbKey    key;
-  SMetaInfo   info;
 
   *ppData = NULL;
   for (;;) {
@@ -85,8 +84,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
       goto _exit;
     }
 
-    if (key.version < pReader->sver  //
-        || metaGetInfo(pReader->pMeta, key.uid, &info, NULL) == TSDB_CODE_NOT_FOUND) {
+    if (key.version < pReader->sver) {
       if (tdbTbcMoveToNext(pReader->pTbc) != 0) {
         metaTrace("vgId:%d, vnode snapshot meta read data done", TD_VID(pReader->pMeta->pVnode));
       }
@@ -199,7 +197,7 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   code = metaDecodeEntry(pDecoder, &metaEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = metaHandleEntry(pMeta, &metaEntry);
+  code = metaHandleEntry2(pMeta, &metaEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

@@ -667,7 +667,7 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
   int64_t    nRow = imem->nRow;
   int64_t    nDel = imem->nDel;
 
-  if (nRow == 0 && nDel == 0) {
+  if ((nRow == 0 && nDel == 0) || (tsBypassFlag & TSDB_BYPASS_RB_TSDB_COMMIT)) {
     (void)taosThreadMutexLock(&tsdb->mutex);
     tsdb->imem = NULL;
     (void)taosThreadMutexUnlock(&tsdb->mutex);

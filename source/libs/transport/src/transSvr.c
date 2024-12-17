@@ -1320,8 +1320,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, &lino, _end);
   }
 
-  QUEUE_INIT(&exh->q);
-
   SExHandle* pSelf = transAcquireExHandle(uvGetConnRefOfThrd(pThrd), exh->refId);
   if (pSelf != exh) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _end);
@@ -1369,6 +1367,12 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   return pConn;
 _end:
   if (pConn) {
+    if (pConn->refId > 0) {
+      transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
+      transRemoveExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
+      pConn->refId = -1;
+    }
+
     transQueueDestroy(&pConn->resps);
     transDestroyBuffer(&pConn->readBuf);
     taosHashCleanup(pConn->pQTable);
@@ -1378,7 +1382,7 @@ _end:
     taosMemoryFree(pConn);
     pConn = NULL;
   }
-  tError("%s failed to create conn since %s" PRId64, transLabel(pInst), tstrerror(code));
+  tError("%s failed to create conn since %s", transLabel(pInst), tstrerror(code));
   return NULL;
 }
 
@@ -1858,7 +1862,7 @@ void transUnrefSrvHandle(void* handle) {
   }
 }
 
-int32_t transReleaseSrvHandle(void* handle) {
+int32_t transReleaseSrvHandle(void* handle, int32_t status) {
   int32_t         code = 0;
   SRpcHandleInfo* info = handle;
   SExHandle*      exh = info->handle;
@@ -1871,7 +1875,7 @@ int32_t transReleaseSrvHandle(void* handle) {
   ASYNC_ERR_JRET(pThrd);
 
   STransMsg tmsg = {.msgType = TDMT_SCH_TASK_RELEASE,
-                    .code = 0,
+                    .code = status,
                     .info.handle = exh,
                     .info.ahandle = NULL,
                     .info.refId = refId,

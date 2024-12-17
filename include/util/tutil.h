@@ -48,14 +48,11 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
 int32_t tintToHex(uint64_t val, char hex[]);
 int32_t titoa(uint64_t val, size_t radix, char str[]);
 
-char    *taosIpStr(uint32_t ipInt);
-uint32_t ip2uint(const char *const ip_addr);
-void     taosIp2String(uint32_t ip, char *str);
-void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
-
 void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 
 int32_t parseCfgReal(const char *str, float *out);
+bool    tIsValidFileName(const char *fileName, const char *pattern);
+bool    tIsValidFilePath(const char *filePath, const char *pattern);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
@@ -125,10 +122,10 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
  * only in very hot code paths. Misuse or abuse can lead to performance degradation.
  */
 #if __GNUC__ >= 3
-#define LIKELY(x)	__builtin_expect((x) != 0, 1)
+#define LIKELY(x)   __builtin_expect((x) != 0, 1)
 #define UNLIKELY(x) __builtin_expect((x) != 0, 0)
 #else
-#define LIKELY(x)	((x) != 0)
+#define LIKELY(x)   ((x) != 0)
 #define UNLIKELY(x) ((x) != 0)
 #endif
 

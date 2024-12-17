@@ -13,7 +13,7 @@ IF(TD_WEBSOCKET)
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
             BUILD_ALWAYS off
-            DEPENDS taos
+            DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
@@ -32,7 +32,7 @@ IF(TD_WEBSOCKET)
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
             BUILD_ALWAYS off
-            DEPENDS taos
+            DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
@@ -52,7 +52,7 @@ IF(TD_WEBSOCKET)
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
             BUILD_ALWAYS off
-            DEPENDS taos
+            DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
@@ -139,7 +139,7 @@ ELSE()
             PREFIX "taosadapter"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
             BUILD_ALWAYS off
-            DEPENDS taos
+            DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
@@ -168,7 +168,7 @@ ELSE()
             PREFIX "taosadapter"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
             BUILD_ALWAYS off
-            DEPENDS taos
+            DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
@@ -193,7 +193,7 @@ ELSE()
             PREFIX "taosadapter"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
             BUILD_ALWAYS off
-            DEPENDS taos
+            DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND

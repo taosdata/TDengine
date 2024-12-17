@@ -286,8 +286,8 @@ void shellRunSingleCommandWebsocketImp(char *command) {
       // if it's not a ws connection error
       if (TSDB_CODE_WS_DSN_ERROR != (code&TSDB_CODE_WS_DSN_ERROR)) {
         et = taosGetTimestampUs();
-        fprintf(stderr, "\nDB: error: %s (%.6fs)\n",
-                ws_errstr(res), (et - st)/1E6);
+        fprintf(stderr, "\nDB: error:0x%08X %s (%.6fs)\n",
+                ws_errno(res), ws_errstr(res), (et - st)/1E6);
         ws_free_result(res);
         return;
       }

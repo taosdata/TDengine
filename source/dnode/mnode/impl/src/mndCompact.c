@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "mndCompact.h"
 #include "audit.h"
+#include "mndCompact.h"
 #include "mndCompactDetail.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -254,7 +254,7 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompac
   int32_t code = 0;
   pCompact->compactId = tGenIdPI32();
 
-  (void)strcpy(pCompact->dbname, pDb->name);
+  tstrncpy(pCompact->dbname, pDb->name, sizeof(pCompact->dbname));
 
   pCompact->startTime = taosGetTimestampMs();
 
@@ -549,6 +549,8 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
     if (pDetail->compactId == compactId && pDetail->vgId == rsp->vgId && pDetail->dnodeId == rsp->dnodeId) {
       pDetail->newNumberFileset = rsp->numberFileset;
       pDetail->newFinished = rsp->finished;
+      pDetail->progress = rsp->progress;
+      pDetail->remainingTime = rsp->remainingTime;
 
       sdbCancelFetch(pMnode->pSdb, pIter);
       sdbRelease(pMnode->pSdb, pDetail);
@@ -859,7 +861,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   return 0;
 }
 
-void mndCompactPullup(SMnode *pMnode) {
+static void mndCompactPullup(SMnode *pMnode) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   SArray *pArray = taosArrayInit(sdbGetSize(pSdb, SDB_COMPACT), sizeof(int32_t));
@@ -891,9 +893,115 @@ void mndCompactPullup(SMnode *pMnode) {
   }
   taosArrayDestroy(pArray);
 }
+#ifdef TD_ENTERPRISE
+static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow *tw) {
+  if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
+    return 0;
+  }
+
+  SName   name = {0};
+  int32_t sqlLen = 0;
+  char    sql[256] = {0};
+  char    skeyStr[40] = {0};
+  char    ekeyStr[40] = {0};
+  char   *pDbName = pDb->name;
+
+  if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) == 0) {
+    pDbName = name.dbname;
+  }
+
+  if (taosFormatUtcTime(skeyStr, sizeof(skeyStr), tw->skey, pDb->cfg.precision) == 0 &&
+      taosFormatUtcTime(ekeyStr, sizeof(ekeyStr), tw->ekey, pDb->cfg.precision) == 0) {
+    sqlLen = tsnprintf(sql, sizeof(sql), "compact db %s start with '%s' end with '%s'", pDbName, skeyStr, ekeyStr);
+  } else {
+    sqlLen = tsnprintf(sql, sizeof(sql), "compact db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey,
+                       tw->ekey);
+  }
+  auditRecord(NULL, pMnode->clusterId, "autoCompactDB", name.dbname, "", sql, sqlLen);
+
+  return 0;
+}
+
+extern int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds);
+static int32_t mndCompactDispatch(SRpcMsg *pReq) {
+  int32_t code = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  int64_t curMs = taosGetTimestampMs();
+  int64_t curMin = curMs / 60000LL;
+
+  void   *pIter = NULL;
+  SDbObj *pDb = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
+    if (pDb->cfg.compactInterval <= 0) {
+      mDebug("db:%p,%s, compact interval is %dm, skip", pDb, pDb->name, pDb->cfg.compactInterval);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    // daysToKeep2 would be altered
+    if (pDb->cfg.compactEndTime && (pDb->cfg.compactEndTime <= -pDb->cfg.daysToKeep2)) {
+      mWarn("db:%p,%s, compact end time:%dm <= -keep2:%dm , skip", pDb, pDb->name, pDb->cfg.compactEndTime,
+            -pDb->cfg.daysToKeep2);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    int64_t compactStartTime = pDb->cfg.compactStartTime ? pDb->cfg.compactStartTime : -pDb->cfg.daysToKeep2;
+    int64_t compactEndTime = pDb->cfg.compactEndTime ? pDb->cfg.compactEndTime : -pDb->cfg.daysPerFile;
+
+    if (compactStartTime >= compactEndTime) {
+      mDebug("db:%p,%s, compact start time:%" PRIi64 "m >= end time:%" PRIi64 "m, skip", pDb, pDb->name,
+             compactStartTime, compactEndTime);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    int64_t remainder = ((curMin - (int64_t)pDb->cfg.compactTimeOffset * 60LL) % pDb->cfg.compactInterval);
+    if (remainder != 0) {
+      mDebug("db:%p,%s, current time:%" PRIi64 "m is not divisible by compact interval:%dm, offset:%" PRIi8
+             "h, remainder:%" PRIi64 "m, skip",
+             pDb, pDb->name, curMin, pDb->cfg.compactInterval, pDb->cfg.compactTimeOffset, remainder);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    if ((pDb->compactStartTime / 60000LL) == curMin) {
+      mDebug("db:%p:%s, compact has already been dispatched at %" PRIi64 "m(%" PRIi64 "ms), skip", pDb, pDb->name,
+             curMin, pDb->compactStartTime);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    STimeWindow tw = {
+        .skey = convertTimePrecision(curMs + compactStartTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision),
+        .ekey = convertTimePrecision(curMs + compactEndTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision)};
+
+    if ((code = mndCompactDb(pMnode, NULL, pDb, tw, NULL)) == 0) {
+      mInfo("db:%p,%s, succeed to dispatch compact with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
+            "m, end:%" PRIi64 "m, offset:%" PRIi8 "h",
+            pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, compactStartTime, compactEndTime,
+            pDb->cfg.compactTimeOffset);
+    } else {
+      mWarn("db:%p,%s, failed to dispatch compact with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
+            "m, end:%" PRIi64 "m, offset:%" PRIi8 "h, since %s",
+            pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, compactStartTime, compactEndTime,
+            pDb->cfg.compactTimeOffset, tstrerror(code));
+    }
+
+    TAOS_UNUSED(mndCompactDispatchAudit(pMnode, pReq, pDb, &tw));
+
+    sdbRelease(pSdb, pDb);
+  }
+  return 0;
+}
+#endif
 
 static int32_t mndProcessCompactTimer(SRpcMsg *pReq) {
+#ifdef TD_ENTERPRISE
   mTrace("start to process compact timer");
   mndCompactPullup(pReq->info.node);
+  TAOS_UNUSED(mndCompactDispatch(pReq));
+#endif
   return 0;
 }

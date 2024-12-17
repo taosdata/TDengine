@@ -36,9 +36,14 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
+#include "tconv.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#endif
+
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "tao"
 #endif
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -70,6 +75,7 @@ int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 int32_t  clientStop = -1;
+SHashObj* pTimezoneMap = NULL;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -295,8 +301,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if ((duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThreshold * 1000000UL ||
-       duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
+  if ((duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThreshold * 1000000UL) &&
       checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogExceptDb)) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogScope & reqType) {
@@ -557,6 +562,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->metric.start = taosGetTimestampUs();
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
+  (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
 
@@ -684,7 +690,7 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("begin to destroy request 0x%" PRIx64 " p:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
@@ -726,7 +732,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 
@@ -958,33 +964,35 @@ void taos_init_imp(void) {
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == appInfo.pInstMap || NULL == appInfo.pInstMapByClusterId) {
     (void)printf("failed to allocate memory when init appInfo\n");
-    tscInitRes = TSDB_CODE_OUT_OF_MEMORY;
+    tscInitRes = terrno;
     return;
   }
   taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
-  deltaToUtcInitOnce();
 
-  char logDirName[64] = {0};
-#ifdef CUS_PROMPT
-  snprintf(logDirName, 64, "%slog", CUS_PROMPT);
-#else
-  (void)snprintf(logDirName, 64, "taoslog");
-#endif
-  if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
-    tscInitRes = -1;
+  const char *logName = CUS_PROMPT "slog";
+  ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
+  if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
+    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
+    tscInitRes = terrno;
     return;
   }
 
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
-  ENV_ERR_RET(taosConvInit(), "failed to init conv");
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
+    tscInitRes = terrno;
+    tscError("failed to init conv");
+    return;
+  }
+#ifndef WINDOWS
+  ENV_ERR_RET(tzInit(), "failed to init timezone");
+#endif
   ENV_ERR_RET(monitorInit(), "failed to init monitor");
   ENV_ERR_RET(rpcInit(), "failed to init rpc");
 
   if (InitRegexCache() != 0) {
-    tscInitRes = -1;
+    tscInitRes = terrno;
     (void)printf("failed to init regex cache\n");
     return;
   }
