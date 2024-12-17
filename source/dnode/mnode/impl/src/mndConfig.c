@@ -18,6 +18,7 @@
 #include "mndConfig.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "tutil.h"
@@ -340,11 +341,15 @@ _OVER:
 }
 
 int32_t mndTryRebuildCfg(SMnode *pMnode) {
+  if (!mndIsLeader(pMnode)) {
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t   code = 0;
   int32_t   sz = -1;
   STrans   *pTrans = NULL;
   SAcctObj *vObj = NULL, *obj = NULL;
   SArray   *addArray = NULL;
+
   vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
     if ((code = mndInitWriteCfg(pMnode)) < 0) goto _exit;
