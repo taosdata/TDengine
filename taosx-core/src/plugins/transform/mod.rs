@@ -980,7 +980,7 @@ impl Parser {
     }
 
     pub fn set_minimum_timestamp(&mut self, ts: DateTime<Utc>) {
-        Arc::make_mut(&mut self.global).maximum_timestamp = Some(ts);
+        Arc::make_mut(&mut self.global).minimum_timestamp = Some(ts);
     }
 }
 
@@ -1240,7 +1240,9 @@ impl Parser {
                                 if array.is_null(row) {
                                     Ok(None)
                                 } else {
-                                    Ok(Some(array.value(row)))
+                                    let ts = array.value(row);
+                                    let ts = ts * 1_000;
+                                    Ok(Some(ts))
                                 }
                             }
                             arrow_schema::TimeUnit::Millisecond => {
@@ -1251,7 +1253,8 @@ impl Parser {
                                 if array.is_null(row) {
                                     Ok(None)
                                 } else {
-                                    Ok(Some(array.value(row)))
+                                    let ts = array.value(row);
+                                    Ok(Some(ts))
                                 }
                             }
                             arrow_schema::TimeUnit::Microsecond => {
@@ -1262,7 +1265,9 @@ impl Parser {
                                 if array.is_null(row) {
                                     Ok(None)
                                 } else {
-                                    Ok(Some(array.value(row)))
+                                    let ts = array.value(row);
+                                    let ts = ts / 1_000;
+                                    Ok(Some(ts))
                                 }
                             }
                             arrow_schema::TimeUnit::Nanosecond => {
@@ -1273,7 +1278,9 @@ impl Parser {
                                 if array.is_null(row) {
                                     Ok(None)
                                 } else {
-                                    Ok(Some(array.value(row)))
+                                    let ts = array.value(row);
+                                    let ts = ts / 1_000_000;
+                                    Ok(Some(ts))
                                 }
                             }
                         }
@@ -1386,22 +1393,25 @@ impl Parser {
                 .into_iter()
                 .into_group_map();
 
-            for (name, indices) in tables {
-                // 1. archive records
-                if !archive_indices.is_empty() {
-                    let archive_batches = indices
-                        .iter()
-                        .filter(|row| archive_indices.contains(*row))
-                        .map(|row| batch.slice(*row, 1))
-                        .collect_vec();
-                    let archive_batch = concat_batches(&batch.schema(), &archive_batches)?;
-                    archive_records(
-                        task_id,
-                        &self.global.process_on_abnormal.archive.location,
-                        &archive_batch,
-                    );
-                }
+            // 1. archive records
+            if !archive_indices.is_empty() {
+                let mut archive_indices_vec = Vec::new();
+                archive_indices.scan(|row: &usize| {
+                    archive_indices_vec.push(row.clone());
+                });
+                let archive_batches = archive_indices_vec
+                    .iter()
+                    .map(|row| batch.slice(*row, 1))
+                    .collect_vec();
+                let archive_batch = concat_batches(&batch.schema(), &archive_batches)?;
+                archive_records(
+                    task_id,
+                    &self.global.process_on_abnormal.archive.location,
+                    &archive_batch,
+                );
+            }
 
+            for (name, indices) in tables {
                 // 2. skip records
                 let indices = if skip_indices.is_empty() {
                     indices
