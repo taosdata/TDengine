@@ -200,6 +200,7 @@ void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 void    streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo);
+int32_t streamTaskAddIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId);
 
 void              streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo);
 EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
