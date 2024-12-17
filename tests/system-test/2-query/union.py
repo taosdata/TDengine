@@ -436,6 +436,29 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(49)
 
+        sql = "select null union select null"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        sql = "select null union all select null"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, None)
+
+        sql = "select null union select 1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 1)
+
+        sql = "select null union select 'asd'"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 'asd')
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
