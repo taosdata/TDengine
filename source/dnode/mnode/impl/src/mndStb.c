@@ -3513,10 +3513,6 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *ta
     terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
     return -1;
   }
-  col_id_t colId = pOld->pTags[tag].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
-    return -1;
-  }
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
