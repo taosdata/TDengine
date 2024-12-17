@@ -4356,7 +4356,9 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
             type = tmp;
           }
         }
-        exprNode->resType.type = type;
+	if (IS_NUMERIC_TYPE(type)){
+          exprNode->resType.type = type;
+        }
       }
       if ((0 != type && type != refNode->node.resType.type) || OP_TYPE_NOT_IN == node->opType) {
         stat->scalarMode = true;
