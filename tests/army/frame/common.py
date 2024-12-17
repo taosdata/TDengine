@@ -1839,7 +1839,8 @@ class TDCom:
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
         else:
             self.query_result_file = f"./temp_{test_case}.result"
-            os.system(f"taos -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  ")
+            cfgPath = self.getClientCfgPath()
+            os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  ")
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):

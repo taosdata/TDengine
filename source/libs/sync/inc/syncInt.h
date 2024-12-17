@@ -234,6 +234,10 @@ struct SSyncNode {
 
   bool isStart;
 
+  // statis
+  int32_t sendCount;
+  int32_t recvCount;
+  int32_t slowCount;
 };
 
 // open/close --------------
@@ -286,8 +290,8 @@ bool      syncNodeIsReadyForRead(SSyncNode* pSyncNode);
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
-void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm);
-void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr);
+void    syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm, SRaftId id);
+void    syncNodeBecomeFollower(SSyncNode* pSyncNode, SRaftId leaderId, const char* debugStr);
 void syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeBecomeAssignedLeader(SSyncNode* pSyncNode);

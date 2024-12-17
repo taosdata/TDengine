@@ -99,6 +99,7 @@ typedef void* queue[2];
 #define TRANS_CONN_TIMEOUT 5000  // connect timeout (ms)
 #define TRANS_READ_TIMEOUT 3000  // read timeout  (ms)
 #define TRANS_PACKET_LIMIT 1024 * 1024 * 512
+#define TRANS_MSG_LIMIT    (TRANS_PACKET_LIMIT - sizeof(STransMsgHead))
 
 #define TRANS_MAGIC_NUM           0x5f375a86
 #define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
@@ -310,8 +311,8 @@ void    transRefCliHandle(void* handle);
 int32_t transUnrefCliHandle(void* handle);
 int32_t transGetRefCount(void* handle);
 
-int32_t transReleaseCliHandle(void* handle);
-int32_t transReleaseSrvHandle(void* handle);
+int32_t transReleaseCliHandle(void* handle, int32_t status);
+int32_t transReleaseSrvHandle(void* handle, int32_t status);
 
 int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
 int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);

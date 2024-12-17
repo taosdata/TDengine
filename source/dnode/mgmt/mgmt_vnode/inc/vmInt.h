@@ -35,7 +35,7 @@ typedef struct SVnodeMgmt {
   SWWorkerPool          fetchPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
-  SHashObj             *hash;
+  SHashObj             *runngingHash;
   SHashObj             *closedHash;
   SHashObj             *creatingHash;
   TdThreadRwlock        lock;
@@ -98,7 +98,8 @@ SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict);
 void       vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
 void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed);
-void vmRemoveFromCreatingHash(SVnodeMgmt *pMgmt, int32_t vgId);
+void       vmCleanPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
+void       vmCloseFailedVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();

@@ -17,11 +17,22 @@
 #define TDENGINE_STREAMMSG_H
 
 #include "tmsg.h"
-#include "trpc.h"
+//#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct SStreamRetrieveReq SStreamRetrieveReq;
+typedef struct SStreamDispatchReq SStreamDispatchReq;
+typedef struct STokenBucket       STokenBucket;
+typedef struct SMetaHbInfo        SMetaHbInfo;
+
+typedef struct SNodeUpdateInfo {
+  int32_t nodeId;
+  SEpSet  prevEp;
+  SEpSet  newEp;
+} SNodeUpdateInfo;
 
 typedef struct SStreamUpstreamEpInfo {
   int32_t nodeId;
@@ -170,14 +181,18 @@ typedef struct SStreamHbMsg {
   SArray* pUpdateNodes;  // SArray<int32_t>, needs update the epsets in stream tasks for those nodes.
 } SStreamHbMsg;
 
-int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pRsp);
-int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pRsp);
+int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
+int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
 void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
 
 typedef struct {
   SMsgHead head;
   int32_t  msgId;
+  SEpSet   mndEpset;
 } SMStreamHbRspMsg;
+
+int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);
+int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp);
 
 typedef struct SRetrieveChkptTriggerReq {
   SMsgHead head;
@@ -189,6 +204,9 @@ typedef struct SRetrieveChkptTriggerReq {
   int64_t  downstreamTaskId;
 } SRetrieveChkptTriggerReq;
 
+int32_t tEncodeRetrieveChkptTriggerReq(SEncoder* pEncoder, const SRetrieveChkptTriggerReq* pReq);
+int32_t tDecodeRetrieveChkptTriggerReq(SDecoder* pDecoder, SRetrieveChkptTriggerReq* pReq);
+
 typedef struct SCheckpointTriggerRsp {
   int64_t streamId;
   int64_t checkpointId;
@@ -197,6 +215,9 @@ typedef struct SCheckpointTriggerRsp {
   int32_t transId;
   int32_t rspCode;
 } SCheckpointTriggerRsp;
+
+int32_t tEncodeCheckpointTriggerRsp(SEncoder* pEncoder, const SCheckpointTriggerRsp* pRsp);
+int32_t tDecodeCheckpointTriggerRsp(SDecoder* pDecoder, SCheckpointTriggerRsp* pRsp);
 
 typedef struct SCheckpointReport {
   int64_t streamId;
@@ -222,7 +243,7 @@ typedef struct SRestoreCheckpointInfo {
   int32_t  nodeId;
 } SRestoreCheckpointInfo;
 
-int32_t tEncodeRestoreCheckpointInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
+int32_t tEncodeRestoreCheckpointInfo(SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
 int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq);
 
 typedef struct {
@@ -232,10 +253,8 @@ typedef struct {
   int32_t  reqType;
 } SStreamTaskRunReq;
 
-typedef struct SCheckpointConsensusEntry {
-  SRestoreCheckpointInfo req;
-  int64_t                ts;
-} SCheckpointConsensusEntry;
+int32_t tEncodeStreamTaskRunReq(SEncoder* pEncoder, const SStreamTaskRunReq* pReq);
+int32_t tDecodeStreamTaskRunReq(SDecoder* pDecoder, SStreamTaskRunReq* pReq);
 
 #ifdef __cplusplus
 }

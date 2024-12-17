@@ -74,7 +74,7 @@ int32_t flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   if (IS_VAR_DATA_TYPE(dataType)) {
     vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     if (NULL == vnode->datum.p) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataLen(value);
