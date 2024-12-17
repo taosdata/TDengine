@@ -5100,7 +5100,7 @@ static int32_t hasValidInOper(SArray *sclInOper, SArray *colRangeList, bool* has
               return TSDB_CODE_SUCCESS;
             }
           } else {
-            if (startPt->val.d != endPt->val.d && (valDatum.i >= startPt->val.i || valDatum.i <= endPt->val.i)) {
+            if (startPt->val.i != endPt->val.i && (valDatum.i >= startPt->val.i || valDatum.i <= endPt->val.i)) {
               *has = true;
               return TSDB_CODE_SUCCESS;
             }
