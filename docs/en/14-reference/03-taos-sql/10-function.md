@@ -190,6 +190,7 @@ ROUND(expr[, digits])
 - `digits` less than zero means discarding the decimal places and rounding the number to the left of the decimal point by `digits` places. If the number of places to the left of the decimal point is less than `digits`, returns 0.
 - Since the DECIMAL type is not yet supported, this function will use DOUBLE and FLOAT to represent results containing decimals, but DOUBLE and FLOAT have precision limits, and using this function may be meaningless when there are too many digits.
 - Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
+- `digits` is supported from version 3.3.3.0.
 
 **Example**:
 
@@ -249,6 +250,8 @@ TAN(expr)
 
 **Function Description**: Obtains the tangent result of the specified field.
 
+**Version**: ver-3.3.3.0
+
 **Return Result Type**: DOUBLE.
 
 **Applicable Data Types**: Numeric types.
@@ -297,6 +300,8 @@ TRUNCATE(expr, digits)
 
 **Function Description**: Gets the truncated value of the specified field to the specified number of digits.
 
+**Version**: ver-3.3.3.0
+
 **Return Type**: Consistent with the original data type of the `expr` field.
 
 **Applicable Data Types**:
@@ -340,6 +345,8 @@ EXP(expr)
 
 **Function Description**: Returns the value of e (the base of natural logarithms) raised to the specified power.
 
+**Version**: ver-3.3.3.0
+
 **Return Type**: DOUBLE.
 
 **Applicable Data Types**: Numeric type.
@@ -369,6 +376,8 @@ LN(expr)
 ```
 
 **Function Description**: Returns the natural logarithm of the specified parameter.
+
+**Version**: ver-3.3.3.0
 
 **Return Type**: DOUBLE.
 
@@ -400,6 +409,8 @@ MOD(expr1, expr2)
 ```
 
 **Function Description**: Calculates the result of expr1 % expr2.
+
+**Version**: ver-3.3.3.0
 
 **Return Type**: DOUBLE.
 
@@ -436,6 +447,8 @@ RAND([seed])
 ```
 
 **Function Description**: Returns a uniformly distributed random number from 0 to 1.
+
+**Version**: ver-3.3.3.0
 
 **Return Result Type**: DOUBLE.
 
@@ -484,6 +497,8 @@ SIGN(expr)
 
 **Function Description**: Returns the sign of the specified parameter.
 
+**Version**: ver-3.3.3.0
+
 **Return Result Type**: Consistent with the original data type of the specified field.
 
 **Applicable Data Types**: Numeric types.
@@ -527,6 +542,8 @@ DEGREES(expr)
 
 **Function Description**: Calculates the value of the specified parameter converted from radians to degrees.
 
+**Version**: ver-3.3.3.0
+
 **Return Result Type**: DOUBLE.
 
 **Applicable Data Types**: Numeric types.
@@ -557,6 +574,8 @@ RADIANS(expr)
 ```
 
 **Function Description**: Calculates the value of the specified parameter converted from degrees to radians.
+
+**Version**: ver-3.3.3.0
 
 **Return Type**: DOUBLE.
 
@@ -729,6 +748,8 @@ TRIM([remstr FROM] expr)
 
 **Function Description**: Returns the string expr with all prefixes or suffixes of remstr removed.
 
+**Version**: ver-3.3.3.0
+
 **Return Result Type**: Same as the original type of the input field expr.
 
 **Applicable Data Types**:
@@ -807,6 +828,8 @@ SUBSTRING/SUBSTR(expr FROM pos [FOR len])
 - If `len` is less than 1, returns an empty string.
 - `pos` is 1-based; if `pos` is 0, returns an empty string.
 - If `pos` + `len` exceeds `len(expr)`, returns the substring from `pos` to the end of the string, equivalent to executing `substring(expr, pos)`.
+- Function `SUBSTRING` is equal to `SUBSTR`, supported from ver-3.3.3.0.
+- Syntax `SUBSTRING/SUBSTR(expr FROM pos [FOR len])` is supported from ver-3.3.3.0.
 
 **Examples**:
 
@@ -844,6 +867,8 @@ SUBSTRING_INDEX(expr, delim, count)
 ```
 
 **Function Description**: Returns a substring of `expr` cut at the position where the delimiter appears the specified number of times.
+
+**Version**: ver-3.3.3.0
 
 **Return Result Type**: Same as the original type of the input field `expr`.
 
@@ -902,6 +927,8 @@ CHAR(expr1 [, expr2] [, expr3] ...)
 
 **Function Description**: Treats the input parameters as integers and returns the characters corresponding to these integers in ASCII encoding.
 
+**Version**: ver-3.3.3.0
+
 **Return Result Type**: VARCHAR.
 
 **Applicable Data Types**: Integer types, VARCHAR, NCHAR.
@@ -949,6 +976,8 @@ ASCII(expr)
 
 **Function Description**: Returns the ASCII code of the first character of the string.
 
+**Version**: ver-3.3.3.0
+
 **Return Result Data Type**: BIGINT.
 
 **Applicable Data Types**: VARCHAR, NCHAR.
@@ -978,6 +1007,8 @@ POSITION(expr1 IN expr2)
 ```
 
 **Function Description**: Calculates the position of string `expr1` in string `expr2`.
+
+**Version**: ver-3.3.3.0
 
 **Return Result Type**: BIGINT.
 
@@ -1026,6 +1057,8 @@ REPLACE(expr, from_str, to_str)
 
 **Function Description**: Replaces all occurrences of `from_str` in the string with `to_str`.
 
+**Version**: ver-3.3.3.0
+
 **Return Type**: Same as the original type of the input field `expr`.
 
 **Applicable Data Types**:
@@ -1060,6 +1093,8 @@ REPEAT(expr, count)
 ```
 
 **Function Description**: Returns a string that repeats the string `expr` a specified number of times.
+
+**Version**: ver-3.3.3.0
 
 **Return Type**: Same as the original type of the input field `expr`.
 
@@ -1319,6 +1354,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - `expr1`: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 standard date-time format.
 - `expr2`: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 standard date-time format.
 - `time_unit`: See usage instructions.
+- `timediff` return the absolute value of the difference between timestamp `expr1` and `expr2` before ver-3.3.3.0.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -1423,6 +1459,8 @@ WEEK(expr [, mode])
 
 **Function Description**: Returns the week number of the input date.
 
+**Version**: ver-3.3.3.0
+
 **Return Result Type**: BIGINT.
 
 **Applicable Data Types**:
@@ -1490,6 +1528,8 @@ WEEKOFYEAR(expr)
 
 **Function Description**: Returns the week number of the input date.
 
+**Version**: ver-3.3.3.0
+
 **Return Type**: BIGINT.
 
 **Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
@@ -1521,6 +1561,8 @@ WEEKDAY(expr)
 
 **Function Description**: Returns the weekday of the input date.
 
+**Version**: ver-3.3.3.0
+
 **Return Type**: BIGINT.
 
 **Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
@@ -1551,6 +1593,8 @@ DAYOFWEEK(expr)
 ```
 
 **Function Description**: Returns the weekday of the input date.
+
+**Version**: ver-3.3.3.0
 
 **Return Type**: BIGINT.
 
@@ -1707,6 +1751,9 @@ STDDEV/STDDEV_POP(expr)
 
 **Applicable to**: Tables and supertables.
 
+**Description**:
+- Function `STDDEV_POP` equals `STDDEV` and is supported from ver-3.3.3.0.
+
 **Example**:
 
 ```sql
@@ -1732,6 +1779,8 @@ VAR_POP(expr)
 ```
 
 **Function Description**: Calculates the population variance of a column in a table.
+
+**Version**: ver-3.3.3.0
 
 **Return Data Type**: DOUBLE.
 
@@ -1975,7 +2024,8 @@ MAX(expr)
 
 **Applicable to**: Tables and supertables.
 
-**Usage Instructions**: The max function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value.
+**Usage Instructions**: 
+- The max function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `max` only accept numeric parameter before ver-3.3.3.0).
 
 ### MIN
 
@@ -1991,7 +2041,8 @@ MIN(expr)
 
 **Applicable to**: Tables and supertables.
 
-**Usage Instructions**: The min function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value.
+**Usage Instructions**: 
+- The min function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `min` only accept numeric parameter before ver-3.3.3.0).
 
 ### MODE
 
