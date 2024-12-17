@@ -49,6 +49,27 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
+int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
+  int8_t tblType = reader->me.type;
+  if (hasRefCol(tblType)) {
+    SColRefWrapper *p = &(reader->me.colRef);
+    if (numOfCol != p->nCols) {
+      vError("fillTableColRef table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
+      return TSDB_CODE_APP_ERROR;
+    }
+    for (int i = 0; i < p->nCols; i++) {
+      SColRef *pColRef = &p->pColRef[i];
+      pRef[i].hasRef = pColRef->hasRef;
+      if(pRef[i].hasRef) {
+        pRef[i].id = pColRef->id;
+        tstrncpy(pRef[i].refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRef[i].refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
+  return 0;
+}
+
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
@@ -119,6 +140,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     schemaTag = mer2.me.stbEntry.schemaTag;
   } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
+  } else if (mer1.me.type == TSDB_VIRTUAL_TABLE) {
+    schema = mer1.me.ntbEntry.schemaRow;
   } else {
     vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
     goto _exit3;
@@ -148,6 +171,13 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   } else {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
+  }
+  metaRsp.pColRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * metaRsp.numOfColumns);
+  if (metaRsp.pColRefs) {
+    code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
+    if (code < 0) {
+      goto _exit;
+    }
   }
 
   // encode and send response

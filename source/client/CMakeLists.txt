@@ -2,6 +2,7 @@ aux_source_directory(src CLIENT_SRC)
 
 if(TD_ENTERPRISE)
     LIST(APPEND CLIENT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/clientView.c)
+    LIST(APPEND CLIENT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/vtable/src/clientVtable.c)
 endif()
 
 if(TD_WINDOWS)

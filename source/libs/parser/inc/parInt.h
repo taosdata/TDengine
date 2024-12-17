@@ -48,6 +48,7 @@ void    tfreeSParseQueryRes(void* p);
 
 #ifdef TD_ENTERPRISE
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName);
+int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SName* pName);
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
 #endif
 #ifdef __cplusplus

@@ -2108,6 +2108,43 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
 }
 
 enum {
+  PHY_VIRTUAL_TABLE_SCAN_CODE_SCAN = 1,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_TARGETS,
+};
+
+static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SVirtualScanPhysiNode* pNode = (const SVirtualScanPhysiNode *)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_SCAN, physiScanNodeToMsg, &pNode->scan);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
+  }
+  return code;
+}
+
+static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj) {
+  SVirtualScanPhysiNode* pNode = (SVirtualScanPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_SCAN:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiScanNode, &pNode->scan);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_TARGETS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum {
   PHY_TAG_SCAN_CODE_SCAN = 1,
   PHY_TAG_SCAN_CODE_ONLY_META_CTB_IDX
 };
@@ -4686,6 +4723,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       code = physiDynQueryCtrlNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      code = physiVirtualTableScanNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = subplanToMsg(pObj, pEncoder);
       break;
@@ -4854,6 +4894,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       code = msgToPhysiDynQueryCtrlNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      code = msgToPhysiVirtualTableScanNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = msgToSubplan(pDecoder, pObj);

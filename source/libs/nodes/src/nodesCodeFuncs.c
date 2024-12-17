@@ -41,6 +41,8 @@ const char* nodesNodeName(ENodeType type) {
       return "Function";
     case QUERY_NODE_REAL_TABLE:
       return "RealTable";
+    case QUERY_NODE_VIRTUAL_TABLE:
+      return "VirtualTable";
     case QUERY_NODE_TEMP_TABLE:
       return "TempTable";
     case QUERY_NODE_JOIN_TABLE:
@@ -352,6 +354,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicGroupCache";
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
       return "LogicDynamicQueryCtrl";
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      return "LogicVirtualTableScan";
     case QUERY_NODE_LOGIC_SUBPLAN:
       return "LogicSubplan";
     case QUERY_NODE_LOGIC_PLAN:
@@ -453,6 +457,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiGroupCache";
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       return "PhysiDynamicQueryCtrl";
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      return "PhysiVirtualTableScan";
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return "PhysiSubplan";
     case QUERY_NODE_PHYSICAL_PLAN:

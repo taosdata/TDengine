@@ -538,23 +538,33 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   ctx->tbInfo.suid = tbMeta->suid;
   ctx->tbInfo.tbType = tbMeta->tableType;
 
-  if (tbMeta->tableType != TSDB_CHILD_TABLE) {
+  if (tbMeta->tableType != TSDB_CHILD_TABLE && tbMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
     int32_t schemaExtSize = 0;
+    int32_t colRefSize = 0;
     int32_t metaSize = CTG_META_SIZE(tbMeta);
-    if (tbMeta->schemaExt != NULL) {
+    if (useCompress(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
       schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
-    *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
+    if (hasRefCol(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+      colRefSize += tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+    }
+    *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + colRefSize);
     if (NULL == *pTableMeta) {
       CTG_ERR_RET(terrno);
     }
 
     TAOS_MEMCPY(*pTableMeta, tbMeta, metaSize);
-    if (tbMeta->schemaExt != NULL) {
+    if (useCompress(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
       (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
       TAOS_MEMCPY((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
     } else {
       (*pTableMeta)->schemaExt = NULL;
+    }
+    if (hasRefCol(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+      (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY((*pTableMeta)->colRef, tbMeta->colRef, colRefSize);
+    } else {
+      (*pTableMeta)->colRef = NULL;
     }
 
     ctgDebug("Got tb %s meta from cache, type:%d, dbFName:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
@@ -562,7 +572,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   // PROCESS FOR CHILD TABLE
-
+  // TODO(smj): add virtual child table process
   int32_t metaSize = sizeof(SCTableMeta);
   *pTableMeta = taosMemoryCalloc(1, metaSize);
   if (NULL == *pTableMeta) {
@@ -3493,25 +3503,35 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     SMetaRes    res = {0};
     STableMeta *pTableMeta = NULL;
-    if (tbMeta->tableType != TSDB_CHILD_TABLE) {
+    if (tbMeta->tableType != TSDB_CHILD_TABLE && tbMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
       int32_t schemaExtSize = 0;
+      int32_t colRefSize = 0;
       int32_t metaSize = CTG_META_SIZE(tbMeta);
-      if (tbMeta->schemaExt != NULL) {
+      if (useCompress(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
         schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
       }
+      if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
+        colRefSize = tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+      }
       
-      pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
+      pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + colRefSize);
       if (NULL == pTableMeta) {
         ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
         CTG_ERR_RET(terrno);
       }
 
       TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
-      if (tbMeta->schemaExt != NULL) {
+      if (useCompress(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
         pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
         TAOS_MEMCPY(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
       } else {
         pTableMeta->schemaExt = NULL;
+      }
+      if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
+        pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+        TAOS_MEMCPY(pTableMeta->colRef, tbMeta->colRef, colRefSize);
+      } else {
+        pTableMeta->colRef = NULL;
       }
 
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
@@ -3529,6 +3549,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     // PROCESS FOR CHILD TABLE
 
+    // TODO(smj): add virtual child table process
     if (lastSuid && tbMeta->suid == lastSuid && lastTableMeta) {
       code = cloneTableMeta(lastTableMeta, &pTableMeta);
       if (code) {
@@ -3646,7 +3667,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     TAOS_MEMCPY(&pTableMeta->sversion, &stbMeta->sversion, metaSize + schemaExtSize - sizeof(SCTableMeta));
-    if (stbMeta->schemaExt != NULL) {
+    if (useCompress(stbMeta->tableType) && stbMeta->schemaExt != NULL) {
       pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
     } else {
       pTableMeta->schemaExt = NULL;

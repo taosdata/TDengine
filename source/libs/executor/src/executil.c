@@ -1763,20 +1763,16 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, terrno);
-    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {
-      SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
-
-      SColMatchItem c = {.needOutput = true};
-      c.colId = pColNode->colId;
-      c.srcSlotId = pColNode->slotId;
-      c.dstSlotId = pNode->slotId;
-      c.isPk = pColNode->isPk;
-      c.dataType = pColNode->node.resType;
-      void* tmp = taosArrayPush(pList, &c);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-    }
+    SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pNodeList, i);
+    QUERY_CHECK_NULL(pColNode, code, lino, _end, terrno);
+    SColMatchItem c = {.needOutput = true};
+    c.colId = pColNode->colId;
+    c.srcSlotId = pColNode->slotId;
+    //c.dstSlotId = pNode->slotId;
+    c.isPk = pColNode->isPk;
+    c.dataType = pColNode->node.resType;
+    void* tmp = taosArrayPush(pList, &c);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
   // set the output flag for each column in SColMatchInfo, according to the
