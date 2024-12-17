@@ -96,6 +96,9 @@ typedef struct SColumnNode {
   bool        isPk;
   int32_t     projRefIdx;
   int32_t     resIdx;
+  bool        hasRef;
+  char        refColName[TSDB_COL_NAME_LEN];
+  char        refTableName[TSDB_TABLE_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
@@ -237,6 +240,14 @@ typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
 } STempTableNode;
+
+typedef struct SVirtualTableNode {
+  STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
+  SNodeList*         refTables;
+} SVirtualTableNode;
 
 typedef struct SViewNode {
   STableNode         table;  // QUERY_NODE_REAL_TABLE

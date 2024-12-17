@@ -110,6 +110,23 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
   return code;
 }
 
+static int32_t getVirtualSlotKey(SNode* pNode, char** ppKey, int32_t* pLen, uint16_t extraBufLen) {
+  int32_t code = 0;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+    if (!*ppKey) {
+      return terrno;
+    }
+    strcat(*ppKey, pCol->refTableName);
+    strcat(*ppKey, ".");
+    strcat(*ppKey, pCol->refColName);
+    *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
+    return code;
+  }
+  return code;
+}
+
 static SNode* createSlotDesc(SPhysiPlanContext* pCxt, const char* pName, const SNode* pNode, int16_t slotId,
                              bool output, bool reserve) {
   SSlotDescNode* pSlot = NULL;
@@ -354,6 +371,13 @@ typedef struct SSetSlotIdCxt {
   SHashObj* pRightProdIdxHash;
 } SSetSlotIdCxt;
 
+typedef struct SVTableSetSlotIdCxt {
+  int32_t    errCode;
+  SArray*    hashArray;
+  SArray*    projIdxHashArray;
+  SNodeList* pChild;
+} SVTableSetSlotIdCxt;
+
 static void dumpSlots(const char* pName, SHashObj* pHash) {
   if (NULL == pHash) {
     return;
@@ -409,6 +433,61 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t getVTableScanDataBlockDescNode(SNodeList* pChildren, int32_t idx, SDataBlockDescNode** ppDesc) {
+  *ppDesc = ((SPhysiNode*)nodesListGetNode(pChildren, idx))->pOutputDataBlockDesc;
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes doSetVtableSlotId(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
+    if (!((SColumnNode*)pNode)->hasRef) {
+      return DEAL_RES_CONTINUE;
+    }
+    SVTableSetSlotIdCxt* pCxt = (SVTableSetSlotIdCxt*)pContext;
+    char*          name = NULL;
+    int32_t        len = 0;
+    pCxt->errCode = getVirtualSlotKey(pNode, &name, &len, 16);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      return DEAL_RES_ERROR;
+    }
+    SSlotIndex* pIndex = NULL;
+    int32_t idx = 0;
+    if (((SColumnNode*)pNode)->projRefIdx > 0) {
+      sprintf(name + strlen(name), "_%d", ((SColumnNode*)pNode)->projRefIdx);
+      while (!pIndex && idx < LIST_LENGTH(pCxt->pChild)) {
+        SHashObj *tmpHash =
+            taosArrayGetP(pCxt->projIdxHashArray,
+                          ((SPhysiNode*)nodesListGetNode(pCxt->pChild, idx))->pOutputDataBlockDesc->dataBlockId);
+        pIndex = taosHashGet(tmpHash, name, strlen(name));
+        idx++;
+      }
+    } else {
+      while (!pIndex && idx < LIST_LENGTH(pCxt->pChild)) {
+        SHashObj *tmpHash =
+            taosArrayGetP(pCxt->hashArray,
+                          ((SPhysiNode*)nodesListGetNode(pCxt->pChild, idx))->pOutputDataBlockDesc->dataBlockId);
+        pIndex = taosHashGet(tmpHash, name, len);
+        idx++;
+      }
+    }
+    // pIndex is definitely not NULL, otherwise it is a bug
+    if (NULL == pIndex) {
+      planError("doSetSlotId failed, invalid slot name %s", name);
+      for (int32_t i = 0; i < taosArrayGetSize(pCxt->hashArray); i++) {
+        //dumpSlots("vtable datablock desc", taosArrayGetP(pCxt->hashArray, i));
+      }
+      pCxt->errCode = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      taosMemoryFree(name);
+      return DEAL_RES_ERROR;
+    }
+    ((SColumnNode*)pNode)->dataBlockId = pIndex->dataBlockId;
+    ((SColumnNode*)pNode)->slotId = ((SSlotIdInfo*)taosArrayGet(pIndex->pSlotIdsInfo, 0))->slotId;
+    taosMemoryFree(name);
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, int16_t rightDataBlockId, SNode* pNode,
                              SNode** pOutput) {
   if (NULL == pNode) {
@@ -437,6 +516,7 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
   return TSDB_CODE_SUCCESS;
 }
 
+
 static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, int16_t rightDataBlockId,
                              const SNodeList* pList, SNodeList** pOutput) {
   if (NULL == pList) {
@@ -462,6 +542,33 @@ static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
   }
   *pOutput = pRes;
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setVtableListSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, const SNodeList* pList,
+                                   SNodeList** pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == pList) {
+    PLAN_RET(code);
+  }
+
+  SNodeList* pRes = NULL;
+  PLAN_ERR_JRET(nodesCloneList(pList, &pRes));
+
+  SVTableSetSlotIdCxt cxt = {
+    .errCode = TSDB_CODE_SUCCESS,
+    .hashArray = pCxt->pLocationHelper,
+    .projIdxHashArray = pCxt->pProjIdxLocHelper,
+    .pChild = pChild
+  };
+
+  nodesWalkExprs(pRes, doSetVtableSlotId, &cxt);
+  PLAN_ERR_JRET(cxt.errCode);
+
+  *pOutput = pRes;
+  return code;
+_return:
+  nodesDestroyList(pRes);
+  return code;
 }
 
 static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, ENodeType type) {
@@ -1558,6 +1665,62 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
 
   return TSDB_CODE_FAILED;
+}
+
+static int32_t createVirtualScanCols(SPhysiPlanContext* pCxt, SVirtualScanPhysiNode* pScanPhysiNode, SNodeList* pScanCols) {
+  if (NULL == pScanCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pScanPhysiNode->scan.pScanCols = NULL;
+  int32_t code = nodesCloneList(pScanCols, &pScanPhysiNode->scan.pScanCols);
+  if (NULL == pScanPhysiNode->scan.pScanCols) {
+    return code;
+  }
+  return sortScanCols(pScanPhysiNode->scan.pScanCols);
+}
+
+static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
+                                                       SVirtualScanLogicNode* pScanLogicNode,
+                                                       SVirtualScanPhysiNode* pScanPhysiNode,
+                                                       SPhysiNode** pPhyNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(createVirtualScanCols(pCxt, pScanPhysiNode, pScanLogicNode->pScanCols));
+  PLAN_ERR_JRET(addDataBlockSlots(pCxt, pScanPhysiNode->scan.pScanCols, pScanPhysiNode->scan.node.pOutputDataBlockDesc));
+  if (NULL != pScanLogicNode->pScanPseudoCols) {
+    pScanPhysiNode->scan.pScanPseudoCols = NULL;
+    PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pScanPseudoCols, &pScanPhysiNode->scan.pScanPseudoCols));
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pScanPhysiNode->scan.pScanPseudoCols, pScanPhysiNode->scan.node.pOutputDataBlockDesc));
+  }
+
+  PLAN_ERR_JRET(setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode));
+
+  pScanPhysiNode->scan.uid = pScanLogicNode->tableId;
+  pScanPhysiNode->scan.suid = pScanLogicNode->stableId;
+  pScanPhysiNode->scan.tableType = pScanLogicNode->tableType;
+  memcpy(&pScanPhysiNode->scan.tableName, &pScanLogicNode->tableName, sizeof(SName));
+
+  *pPhyNode = (SPhysiNode*)pScanPhysiNode;
+  return code;
+
+_return:
+  nodesDestroyNode((SNode*)pScanPhysiNode);
+  return code;
+}
+
+static int32_t createVirtualTableScanPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                               SVirtualScanLogicNode * pScanLogicNode, SPhysiNode** pPhyNode) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  SVirtualScanPhysiNode * pVirtualScan =
+      (SVirtualScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN);
+  if (NULL == pVirtualScan) {
+    return terrno;
+  }
+
+  PLAN_ERR_RET(createVirtualTableScanPhysiNodeFinalize(pCxt, pScanLogicNode, (SVirtualScanPhysiNode*)pVirtualScan, pPhyNode));
+  PLAN_ERR_RET(setVtableListSlotId(pCxt, pChildren, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
+  return code;
 }
 
 static int32_t createGroupCachePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
@@ -2772,6 +2935,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createGroupCachePhysiNode(pCxt, pChildren, (SGroupCacheLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
       return createDynQueryCtrlPhysiNode(pCxt, pChildren, (SDynQueryCtrlLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      return createVirtualTableScanPhysiNode(pCxt, pChildren, (SVirtualScanLogicNode*)pLogicNode, pPhyNode);
     default:
       break;
   }
