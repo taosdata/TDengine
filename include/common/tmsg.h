@@ -275,6 +275,7 @@ typedef enum ENodeType {
   QUERY_NODE_ANOMALY_WINDOW,
   QUERY_NODE_RANGE_AROUND,
   QUERY_NODE_STREAM_NOTIFY_OPTIONS,
+  QUERY_NODE_VIRTUAL_TABLE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -440,6 +441,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_GROUP_CACHE,
   QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL,
   QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
+  QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -496,6 +498,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
   QUERY_NODE_RESET_STREAM_STMT,
+  QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN,
 } ENodeType;
 
 typedef struct {
@@ -600,8 +603,8 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
-  char    *refTableName;
-  char    *refColName;
+  char     refTableName[TSDB_TABLE_NAME_LEN];
+  char     refColName[TSDB_COL_NAME_LEN];
 } SColRef;
 
 typedef struct {
