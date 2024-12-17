@@ -260,7 +260,7 @@ int32_t taosMemoryDbgInitRestore() {
 #endif
 }
 
-void *taosMemoryMalloc(int64_t size) {
+void *taosMemMalloc(int64_t size) {
 #ifdef USE_TD_MEMORY
   void *tmp = malloc(size + sizeof(TdMemoryInfo));
   if (tmp == NULL) return NULL;
@@ -290,7 +290,7 @@ void *taosMemoryMalloc(int64_t size) {
 #endif
 }
 
-void *taosMemoryCalloc(int64_t num, int64_t size) {
+void *taosMemCalloc(int64_t num, int64_t size) {
 #ifdef USE_TD_MEMORY
   int32_t memorySize = num * size;
   char   *tmp = calloc(memorySize + sizeof(TdMemoryInfo), 1);
@@ -322,7 +322,7 @@ void *taosMemoryCalloc(int64_t num, int64_t size) {
 #endif
 }
 
-void *taosMemoryRealloc(void *ptr, int64_t size) {
+void *taosMemRealloc(void *ptr, int64_t size) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return taosMemoryMalloc(size);
 
@@ -360,7 +360,7 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
 #endif
 }
 
-char *taosStrdup(const char *ptr) {
+char *taosStrdupi(const char *ptr) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return NULL;
 
@@ -390,7 +390,8 @@ char *taosStrdup(const char *ptr) {
 #endif
 }
 
-void taosMemoryFree(void *ptr) {
+
+void taosMemFree(void *ptr) {
   if (NULL == ptr) return;
 #ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
@@ -406,7 +407,7 @@ void taosMemoryFree(void *ptr) {
 #endif
 }
 
-int64_t taosMemorySize(void *ptr) {
+int64_t taosMemSize(void *ptr) {
   if (ptr == NULL) return 0;
 
 #ifdef USE_TD_MEMORY
@@ -427,16 +428,22 @@ int64_t taosMemorySize(void *ptr) {
 #endif
 }
 
-void taosMemoryTrim(int32_t size) {
+int32_t taosMemTrim(int32_t size, bool* trimed) {
 #if defined(WINDOWS) || defined(DARWIN) || defined(_ALPINE)
   // do nothing
-  return;
+  return TSDB_CODE_SUCCESS;
 #else
-  (void)malloc_trim(size);
+  if (trimed) {
+    *trimed = malloc_trim(size);
+  } else {
+    malloc_trim(size);
+  }
+  
+  return TSDB_CODE_SUCCESS;
 #endif
 }
 
-void *taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
+void *taosMemMallocAlign(uint32_t alignment, int64_t size) {
 #ifdef USE_TD_MEMORY
   return NULL;
 #else
@@ -461,7 +468,7 @@ void *taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
   }
   return p;
 #else
-  return taosMemoryMalloc(size);
+  return taosMemMalloc(size);
 #endif
 #endif
 }

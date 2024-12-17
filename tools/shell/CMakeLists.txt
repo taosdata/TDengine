@@ -33,9 +33,9 @@ ELSE()
 ENDIF()
 
 if(TD_WINDOWS)
-    target_link_libraries(shell PUBLIC taos_static ${LINK_WEBSOCKET})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB_STATIC} ${LINK_WEBSOCKET})
 else()
-    target_link_libraries(shell PUBLIC taos ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif()
 
 target_link_libraries(
@@ -63,7 +63,7 @@ IF(TD_LINUX)
     IF(TD_WEBSOCKET)
         ADD_DEPENDENCIES(shell_ut taosws-rs)
     ENDIF()
-    target_link_libraries(shell_ut PUBLIC taos ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
     target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
     # util depends

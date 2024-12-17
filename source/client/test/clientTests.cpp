@@ -300,7 +300,13 @@ void* doConsumeData(void* param) {
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   if (argc > 1) {
-    numOfThreads = atoi(argv[1]);
+    //numOfThreads = atoi(argv[1]);
+    int32_t code = taosStr2int32(argv[1], &numOfThreads);
+    if (code != 0) {
+      return code;
+    }
+     
+    
   }
 
   numOfThreads = TMAX(numOfThreads, 1);
@@ -1609,5 +1615,4 @@ TEST(clientCase, timezone_Test) {
     taos_close(pConn);
   }
 }
-
 #pragma GCC diagnostic pop

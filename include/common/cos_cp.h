@@ -44,7 +44,7 @@ typedef struct {
 
   char    file_path[TSDB_FILENAME_LEN];  // local file path
   int64_t file_size;                     // local file size, for upload
-  int32_t file_last_modified;            // local file last modified time, for upload
+  int64_t file_last_modified;            // local file last modified time, for upload
   char    file_md5[64];                  // md5 of the local file content, for upload, reserved
 
   char    object_name[128];          // object name
@@ -67,9 +67,9 @@ int32_t cos_cp_load(char const* filepath, SCheckpoint* checkpoint);
 int32_t cos_cp_dump(SCheckpoint* checkpoint);
 void    cos_cp_get_undo_parts(SCheckpoint* checkpoint, int* part_num, SCheckpointPart* parts, int64_t* consume_bytes);
 void    cos_cp_update(SCheckpoint* checkpoint, int32_t part_index, char const* etag, uint64_t crc64);
-void    cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t size, int32_t mtime,
+void    cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t size, int64_t mtime,
                             char const* upload_id, int64_t part_size);
-bool    cos_cp_is_valid_upload(SCheckpoint* checkpoint, int64_t size, int32_t mtime);
+bool    cos_cp_is_valid_upload(SCheckpoint* checkpoint, int64_t size, int64_t mtime);
 
 void cos_cp_build_download(SCheckpoint* checkpoint, char const* filepath, char const* object_name, int64_t object_size,
                            char const* object_lmtime, char const* object_etag, int64_t part_size);

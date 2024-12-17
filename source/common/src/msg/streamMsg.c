@@ -15,8 +15,48 @@
 
 #include "streamMsg.h"
 #include "os.h"
-#include "tstream.h"
-#include "streamInt.h"
+#include "tcommon.h"
+
+typedef struct STaskId {
+  int64_t streamId;
+  int64_t taskId;
+} STaskId;
+
+typedef struct STaskCkptInfo {
+  int64_t latestId;          // saved checkpoint id
+  int64_t latestVer;         // saved checkpoint ver
+  int64_t latestTime;        // latest checkpoint time
+  int64_t latestSize;        // latest checkpoint size
+  int8_t  remoteBackup;      // latest checkpoint backup done
+  int64_t activeId;          // current active checkpoint id
+  int32_t activeTransId;     // checkpoint trans id
+  int8_t  failed;            // denote if the checkpoint is failed or not
+  int8_t  consensusChkptId;  // required the consensus-checkpointId
+  int64_t consensusTs;       //
+} STaskCkptInfo;
+
+typedef struct STaskStatusEntry {
+  STaskId       id;
+  int32_t       status;
+  int32_t       statusLastDuration;  // to record the last duration of current status
+  int64_t       stage;
+  int32_t       nodeId;
+  SVersionRange verRange;      // start/end version in WAL, only valid for source task
+  int64_t       processedVer;  // only valid for source task
+  double        inputQUsed;    // in MiB
+  double        inputRate;
+  double        procsThroughput;   // duration between one element put into input queue and being processed.
+  double        procsTotal;        // duration between one element put into input queue and being processed.
+  double        outputThroughput;  // the size of dispatched result blocks in bytes
+  double        outputTotal;       // the size of dispatched result blocks in bytes
+  double        sinkQuota;         // existed quota size for sink task
+  double        sinkDataSize;      // sink to dst data size
+  int64_t       startTime;
+  int64_t       startCheckpointId;
+  int64_t       startCheckpointVer;
+  int64_t       hTaskId;
+  STaskCkptInfo checkpointInfo;
+} STaskStatusEntry;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pInfo->taskId));
@@ -289,7 +329,7 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->totalLen));
 
   if (taosArrayGetSize(pReq->data) != pReq->blockNum || taosArrayGetSize(pReq->dataLen) != pReq->blockNum) {
-    stError("invalid dispatch req msg");
+    uError("invalid dispatch req msg");
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
 
@@ -363,7 +403,7 @@ _exit:
 }
 
 void tCleanupStreamDispatchReq(SStreamDispatchReq* pReq) {
-  taosArrayDestroyP(pReq->data, taosMemoryFree);
+  taosArrayDestroyP(pReq->data, NULL);
   taosArrayDestroy(pReq->dataLen);
 }
 
@@ -605,173 +645,94 @@ void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
   pMsg->numOfTasks = -1;
 }
 
-int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
+int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
   int32_t code = 0;
   int32_t lino;
 
   TAOS_CHECK_EXIT(tStartEncode(pEncoder));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->ver));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->id.streamId));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->id.taskId));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->info.trigger));
-  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->info.taskLevel));
-  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->outputInfo.type));
-  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pTask->msgInfo.msgType));
-
-  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->status.taskStatus));
-  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->status.schedStatus));
-
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->info.selfChildId));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->info.nodeId));
-  TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pTask->info.epSet));
-  TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pTask->info.mnodeEpset));
-
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->chkInfo.checkpointId));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->chkInfo.checkpointVer));
-  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->info.fillHistory));
-
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->hTaskInfo.id.streamId));
-  int32_t taskId = pTask->hTaskInfo.id.taskId;
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, taskId));
-
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->streamTaskId.streamId));
-  taskId = pTask->streamTaskId.taskId;
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, taskId));
-
-  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTask->dataRange.range.minVer));
-  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTask->dataRange.range.maxVer));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->dataRange.window.skey));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->dataRange.window.ekey));
-
-  int32_t epSz = taosArrayGetSize(pTask->upstreamInfo.pList);
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, epSz));
-  for (int32_t i = 0; i < epSz; i++) {
-    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
-    TAOS_CHECK_EXIT(tEncodeStreamEpInfo(pEncoder, pInfo));
-  }
-
-  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
-    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTask->exec.qmsg));
-  }
-
-  if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->outputInfo.tbSink.stbUid));
-    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTask->outputInfo.tbSink.stbFullName));
-    TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pEncoder, pTask->outputInfo.tbSink.pSchemaWrapper));
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__SMA) {
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->outputInfo.smaSink.smaId));
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__FETCH) {
-    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->outputInfo.fetchSink.reserved));
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->outputInfo.fixedDispatcher.taskId));
-    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->outputInfo.fixedDispatcher.nodeId));
-    TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pTask->outputInfo.fixedDispatcher.epSet));
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    TAOS_CHECK_EXIT(tSerializeSUseDbRspImp(pEncoder, &pTask->outputInfo.shuffleDispatcher.dbInfo));
-    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTask->outputInfo.shuffleDispatcher.stbFullName));
-  }
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->info.delaySchedParam));
-  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->subtableWithoutMd5));
-  TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1));
-
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->msgId));
+  TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pRsp->mndEpset));
   tEndEncode(pEncoder);
+
 _exit:
   return code;
 }
 
-int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
-  int32_t taskId = 0;
+int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
   int32_t code = 0;
   int32_t lino;
 
   TAOS_CHECK_EXIT(tStartDecode(pDecoder));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->ver));
-  if (pTask->ver <= SSTREAM_TASK_INCOMPATIBLE_VER || pTask->ver > SSTREAM_TASK_VER) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
-  }
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->msgId));
+  TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pRsp->mndEpset));
+  tEndDecode(pDecoder);
 
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->id.streamId));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->id.taskId));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->info.trigger));
-  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->info.taskLevel));
-  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->outputInfo.type));
-  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTask->msgInfo.msgType));
+_exit:
+  return code;
+}
 
-  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->status.taskStatus));
-  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->status.schedStatus));
+int32_t tEncodeRetrieveChkptTriggerReq(SEncoder* pEncoder, const SRetrieveChkptTriggerReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
 
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->info.selfChildId));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->info.nodeId));
-  TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pTask->info.epSet));
-  TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pTask->info.mnodeEpset));
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->streamId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->checkpointId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->upstreamNodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->upstreamTaskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->downstreamNodeId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->downstreamTaskId));
+  tEndEncode(pEncoder);
 
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->chkInfo.checkpointId));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->chkInfo.checkpointVer));
-  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->info.fillHistory));
+_exit:
+  return code;
+}
 
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->hTaskInfo.id.streamId));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &taskId));
-  pTask->hTaskInfo.id.taskId = taskId;
+int32_t tDecodeRetrieveChkptTriggerReq(SDecoder* pDecoder, SRetrieveChkptTriggerReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
 
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->streamTaskId.streamId));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &taskId));
-  pTask->streamTaskId.taskId = taskId;
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->checkpointId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->upstreamNodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->upstreamTaskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->downstreamNodeId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->downstreamTaskId));
+  tEndDecode(pDecoder);
 
-  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, (uint64_t*)&pTask->dataRange.range.minVer));
-  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, (uint64_t*)&pTask->dataRange.range.maxVer));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->dataRange.window.skey));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->dataRange.window.ekey));
+_exit:
+  return code;
+}
 
-  int32_t epSz = -1;
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &epSz) < 0);
+int32_t tEncodeCheckpointTriggerRsp(SEncoder* pEncoder, const SCheckpointTriggerRsp* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
 
-  if ((pTask->upstreamInfo.pList = taosArrayInit(epSz, POINTER_BYTES)) == NULL) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  for (int32_t i = 0; i < epSz; i++) {
-    SStreamUpstreamEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamUpstreamEpInfo));
-    if (pInfo == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    if ((code = tDecodeStreamEpInfo(pDecoder, pInfo)) < 0) {
-      taosMemoryFreeClear(pInfo);
-      goto _exit;
-    }
-    if (taosArrayPush(pTask->upstreamInfo.pList, &pInfo) == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-  }
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->streamId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->checkpointId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->upstreamTaskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->taskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->transId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->rspCode));
+  tEndEncode(pEncoder);
 
-  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pTask->exec.qmsg));
-  }
+_exit:
+  return code;
+}
 
-  if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->outputInfo.tbSink.stbUid));
-    TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->outputInfo.tbSink.stbFullName));
-    pTask->outputInfo.tbSink.pSchemaWrapper = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
-    if (pTask->outputInfo.tbSink.pSchemaWrapper == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pDecoder, pTask->outputInfo.tbSink.pSchemaWrapper));
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__SMA) {
-    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->outputInfo.smaSink.smaId));
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__FETCH) {
-    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->outputInfo.fetchSink.reserved));
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->outputInfo.fixedDispatcher.taskId));
-    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->outputInfo.fixedDispatcher.nodeId));
-    TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pTask->outputInfo.fixedDispatcher.epSet));
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    TAOS_CHECK_EXIT(tDeserializeSUseDbRspImp(pDecoder, &pTask->outputInfo.shuffleDispatcher.dbInfo));
-    TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName));
-  }
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->info.delaySchedParam));
-  if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
-    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->subtableWithoutMd5));
-  }
-  TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->reserve));
+int32_t tDecodeCheckpointTriggerRsp(SDecoder* pDecoder, SCheckpointTriggerRsp* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
 
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pRsp->streamId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pRsp->checkpointId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->upstreamTaskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->taskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->transId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->rspCode));
   tEndDecode(pDecoder);
 
 _exit:
@@ -830,11 +791,7 @@ int32_t tEncodeRestoreCheckpointInfo(SEncoder* pEncoder, const SRestoreCheckpoin
   tEndEncode(pEncoder);
 
 _exit:
-  if (code) {
-    return code;
-  } else {
-    return pEncoder->pos;
-  }
+  return code;
 }
 
 int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq) {
@@ -848,6 +805,34 @@ int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo*
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->transId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->taskId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->nodeId));
+  tEndDecode(pDecoder);
+
+_exit:
+  return code;
+}
+
+int32_t tEncodeStreamTaskRunReq (SEncoder* pEncoder, const SStreamTaskRunReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->streamId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->taskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->reqType));
+  tEndEncode(pEncoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeStreamTaskRunReq(SDecoder* pDecoder, SStreamTaskRunReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->taskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->reqType));
   tEndDecode(pDecoder);
 
 _exit:

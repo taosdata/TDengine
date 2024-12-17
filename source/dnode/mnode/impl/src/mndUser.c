@@ -213,7 +213,7 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
 
 _OVER:
   (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  taosArrayDestroyP(fqdns, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(fqdns, NULL);
   if (code < 0) {
     mError("failed to update ip white list for user: %s at line %d since %s", user, lino, tstrerror(code));
   }
@@ -640,8 +640,8 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
   }
 
 _OVER:
-  taosArrayDestroyP(fqdns, taosMemoryFree);
-  taosArrayDestroyP(pUserNames, taosMemoryFree);
+  taosArrayDestroyP(fqdns, NULL);
+  taosArrayDestroyP(pUserNames, NULL);
 
   if (code < 0) {
     mError("failed to fetch all ip white list at line %d since %s", lino, tstrerror(code));
@@ -691,7 +691,7 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
 
   (void)uv_inet_ntop(AF_INET, &addr, buf, 32);
   if (range->mask != 32) {
-    (void)sprintf(buf + strlen(buf), "/%d", range->mask);
+    (void)tsnprintf(buf + strlen(buf), 36 - strlen(buf), "/%d", range->mask);
   }
   return;
 }
@@ -699,14 +699,14 @@ static bool isDefaultRange(SIpV4Range *pRange) {
   static SIpV4Range val = {.ip = 16777343, .mask = 32};
   return pRange->ip == val.ip && pRange->mask == val.mask;
 }
-static int32_t ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf) {
+static int32_t ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf, int64_t bufLen) {
   int32_t len = 0;
   for (int i = 0; i < num; i++) {
     char        tbuf[36] = {0};
     SIpV4Range *pRange = &range[i];
 
     ipRangeToStr(&range[i], tbuf);
-    len += sprintf(buf + len, "%s,", tbuf);
+    len += tsnprintf(buf + len, bufLen - len, "%s,", tbuf);
   }
   if (len > 0) buf[len - 1] = 0;
   return len;
@@ -738,11 +738,13 @@ int32_t convertIpWhiteListToStr(SIpWhiteList *pList, char **buf) {
     *buf = NULL;
     return 0;
   }
-  *buf = taosMemoryCalloc(1, pList->num * 36);
+  int64_t bufLen = pList->num * 36;
+  *buf = taosMemoryCalloc(1, bufLen);
   if (*buf == NULL) {
     return 0;
   }
-  int32_t len = ipRangeListToStr(pList->pIpRange, pList->num, *buf);
+
+  int32_t len = ipRangeListToStr(pList->pIpRange, pList->num, *buf, bufLen);
   if (len == 0) {
     taosMemoryFreeClear(*buf);
     return 0;
@@ -1706,8 +1708,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   if (pCreate->isImport != 1) {
     taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
   } else {
-    // mInfo("pCreate->pass:%s", pCreate->pass)
-    strncpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    // mInfo("pCreate->pass:%s", pCreate->eass)
+    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
   }
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -1899,13 +1901,13 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  (void)sprintf(detail, "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable, createReq.superUser,
-                createReq.sysInfo);
+  (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
+            createReq.superUser, createReq.sysInfo);
   char operation[15] = {0};
   if (createReq.isImport == 1) {
-    (void)strcpy(operation, "importUser");
+    tstrncpy(operation, "importUser", sizeof(operation));
   } else {
-    (void)strcpy(operation, "createUser");
+    tstrncpy(operation, "createUser", sizeof(operation));
   }
 
   auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail));
@@ -2502,9 +2504,10 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char detail[1000] = {0};
-    (void)sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
-                  mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
-                  alterReq.createdb ? 1 : 0, alterReq.tabName);
+    (void)tsnprintf(detail, sizeof(detail),
+              "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
+              mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
+              alterReq.createdb ? 1 : 0, alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, detail, strlen(detail));
   } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
              alterReq.alterType == TSDB_ALTER_USER_SYSINFO || alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
@@ -2877,8 +2880,8 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       SNode  *pAst = NULL;
       int32_t sqlLen = 0;
       size_t  bufSz = strlen(value) + 1;
-      if (bufSz < 5) bufSz = 5;
-      TAOS_MEMORY_REALLOC(*sql, bufSz + 1);
+      if (bufSz < 6) bufSz = 6;
+      TAOS_MEMORY_REALLOC(*sql, bufSz);
       if (*sql == NULL) {
         code = terrno;
         goto _exit;
@@ -2892,12 +2895,12 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       if (nodesStringToNode(value, &pAst) == 0) {
         if (nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen) != 0) {
           sqlLen = 5;
-          (void)sprintf(*sql, "error");
+          (void)tsnprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
       } else {
         sqlLen = 5;
-        (void)sprintf(*sql, "error");
+        (void)tsnprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);
