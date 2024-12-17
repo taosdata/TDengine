@@ -651,6 +651,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createEventNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT == type) {
     //todo (liuyao) add
+  } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type) {
+    code = createVirtualTableMergeOperatorInfo(ops, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;

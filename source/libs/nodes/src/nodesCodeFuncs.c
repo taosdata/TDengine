@@ -41,6 +41,8 @@ const char* nodesNodeName(ENodeType type) {
       return "Function";
     case QUERY_NODE_REAL_TABLE:
       return "RealTable";
+    case QUERY_NODE_VIRTUAL_TABLE:
+      return "VirtualTable";
     case QUERY_NODE_TEMP_TABLE:
       return "TempTable";
     case QUERY_NODE_JOIN_TABLE:
@@ -371,6 +373,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicGroupCache";
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
       return "LogicDynamicQueryCtrl";
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      return "LogicVirtualTableScan";
     case QUERY_NODE_LOGIC_SUBPLAN:
       return "LogicSubplan";
     case QUERY_NODE_LOGIC_PLAN:
@@ -478,6 +482,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiGroupCache";
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       return "PhysiDynamicQueryCtrl";
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      return "PhysiVirtualTableScan";
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return "PhysiSubplan";
     case QUERY_NODE_PHYSICAL_PLAN:
@@ -1880,6 +1886,65 @@ static int32_t jsonToLogicJoinNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkVirtualTableScanLogicPlanScanCols = "ScanCols";
+static const char* jkVirtualTableScanLogicPlanScanPseudoCols = "ScanPseudoCols";
+static const char* jkVirtualTableScanLogicPlanTableType = "TableType";
+static const char* jkVirtualTableScanLogicPlanTableId = "TableId";
+static const char* jkVirtualTableScanLogicPlanStableId = "StableId";
+static const char* jkVirtualTableScanLogicPlanScanType = "ScanType";
+
+static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
+  const SVirtualScanLogicNode* pNode = (const SVirtualScanLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanScanCols, pNode->pScanCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanScanPseudoCols, pNode->pScanPseudoCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanLogicPlanTableType, pNode->tableType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanLogicPlanTableId, pNode->tableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanLogicPlanStableId, pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanLogicPlanScanType, pNode->scanType);
+  }
+  return code;
+}
+
+static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
+  SVirtualScanLogicNode* pNode = (SVirtualScanLogicNode *)pObj;
+
+  int32_t objSize = 0;
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanScanCols, &pNode->pScanCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanScanPseudoCols, &pNode->pScanPseudoCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkVirtualTableScanLogicPlanTableType, &pNode->tableType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkVirtualTableScanLogicPlanTableId, &pNode->tableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkVirtualTableScanLogicPlanStableId, &pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkVirtualTableScanLogicPlanScanType, pNode->scanType, code);
+  }
+  return code;
+}
+
+
 static const char* jkPhysiPlanOutputDataBlockDesc = "OutputDataBlockDesc";
 static const char* jkPhysiPlanConditions = "Conditions";
 static const char* jkPhysiPlanChildren = "Children";
@@ -2337,6 +2402,31 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoIsWindowFilledName, pNode->pIsWindowFilledName);
   }
+  return code;
+}
+
+static const char* jkVirtualTableScanPhysiPlanTargets = "Targets";
+
+static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
+  const SVirtualScanPhysiNode* pNode = (const SVirtualScanPhysiNode*)pObj;
+
+  int32_t code = physiScanNodeToJson(pObj, pJson);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanTargets, pNode->pTargets);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
+  SVirtualScanPhysiNode* pNode = (SVirtualScanPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanTargets, &pNode->pTargets);
+  }
+
   return code;
 }
 
@@ -4977,6 +5067,61 @@ static int32_t jsonToJoinTableNode(const SJson* pJson, void* pObj) {
 
   return code;
 }
+
+static const char* jkVirtualTableMetaSize = "MetaSize";
+static const char* jkVirtuaTableMeta = "Meta";
+static const char* jkVirtuaTableVgroupsInfoSize = "VgroupsInfoSize";
+static const char* jkVirtuaTableVgroupsInfo = "VgroupsInfo";
+static const char* jkVirtuaTableRefTables = "RefTables";
+
+static int32_t virtualTableNodeToJson(const void* pObj, SJson* pJson) {
+  const SVirtualTableNode* pNode = (const SVirtualTableNode*)pObj;
+
+  int32_t code = tableNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableMetaSize, TABLE_META_SIZE(pNode->pMeta));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkVirtuaTableMeta, tableMetaToJson, pNode->pMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtuaTableVgroupsInfoSize, VGROUPS_INFO_SIZE(pNode->pVgroupList));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkVirtuaTableVgroupsInfo, vgroupsInfoToJson, pNode->pVgroupList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtuaTableRefTables, pNode->refTables);
+  }
+
+
+  return code;
+}
+
+static int32_t jsonToVirtualTableNode(const SJson* pJson, void* pObj) {
+  SVirtualTableNode* pNode = (SVirtualTableNode*)pObj;
+
+  int32_t objSize = 0;
+  int32_t code = jsonToTableNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkVirtualTableMetaSize, &objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonMakeObject(pJson, jkVirtuaTableMeta, jsonToTableMeta, (void**)&pNode->pMeta, objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkVirtuaTableVgroupsInfoSize, &objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonMakeObject(pJson, jkVirtuaTableVgroupsInfo, jsonToVgroupsInfo, (void**)&pNode->pVgroupList, objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtuaTableRefTables, &pNode->refTables);
+  }
+
+  return code;
+}
+
 
 static const char* jkGroupingSetType = "GroupingSetType";
 static const char* jkGroupingSetParameter = "Parameters";
@@ -8326,6 +8471,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return tempTableNodeToJson(pObj, pJson);
     case QUERY_NODE_JOIN_TABLE:
       return joinTableNodeToJson(pObj, pJson);
+    case QUERY_NODE_VIRTUAL_TABLE:
+      return virtualTableNodeToJson(pObj, pJson);
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeToJson(pObj, pJson);
     case QUERY_NODE_ORDER_BY_EXPR:
@@ -8577,6 +8724,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicScanNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       return logicJoinNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      return logicVirtualTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return logicAggNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
@@ -8620,6 +8769,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return physiTableScanNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      return physiVirtualTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return physiSysTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
@@ -8724,6 +8875,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToTempTableNode(pJson, pObj);
     case QUERY_NODE_JOIN_TABLE:
       return jsonToJoinTableNode(pJson, pObj);
+    case QUERY_NODE_VIRTUAL_TABLE:
+      return jsonToVirtualTableNode(pJson, pObj);
     case QUERY_NODE_GROUPING_SET:
       return jsonToGroupingSetNode(pJson, pObj);
     case QUERY_NODE_ORDER_BY_EXPR:
@@ -8975,6 +9128,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicScanNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       return jsonToLogicJoinNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      return jsonToLogicVirtualTableScanNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return jsonToLogicAggNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
@@ -9018,6 +9173,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return jsonToPhysiTableScanNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      return jsonToPhysiVirtualTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return jsonToPhysiSysTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:

@@ -1684,12 +1684,17 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     int32_t schemaExtSize = 0;
+    int32_t colRefSize = 0;
     if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
       schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      colRefSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+    }
 
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize);
+    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
     qTrace("tbmeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
+
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1702,6 +1707,12 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
       TAOS_MEMCPY((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
     } else {
       (*pOutput)->tbMeta->schemaExt = NULL;
+    }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      (*pOutput)->tbMeta->colRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->tbMeta->colRef = NULL;
     }
   }
 

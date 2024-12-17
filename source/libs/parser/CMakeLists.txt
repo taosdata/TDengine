@@ -2,6 +2,7 @@ aux_source_directory(src PARSER_SRC)
 
 IF(TD_ENTERPRISE)
         LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/parserView.c)
+        LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/src/plugins/vtable/src/parserVtable.c)
 ENDIF()
 
 add_custom_command(

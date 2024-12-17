@@ -170,6 +170,18 @@ typedef struct SJoinLogicNode {
   SNode*      pRightOnCond;     // table onCond filter
 } SJoinLogicNode;
 
+typedef struct SVirtualScanLogicNode {
+  SLogicNode    node;
+  SNodeList*    pScanCols;
+  SNodeList*    pScanPseudoCols;
+  int8_t        tableType;
+  uint64_t      tableId;
+  uint64_t      stableId;
+  SVgroupsInfo* pVgroupList;
+  EScanType     scanType;
+  SName         tableName;
+} SVirtualScanLogicNode;
+
 typedef struct SAggLogicNode {
   SLogicNode node;
   SNodeList* pGroupKeys;
@@ -470,6 +482,11 @@ typedef struct STagScanPhysiNode {
 } STagScanPhysiNode;
 
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
+
+typedef struct SVirtualScanPhysiNode {
+  SScanPhysiNode scan;
+  SNodeList*     pTargets;
+}SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
   SScanPhysiNode scan;
