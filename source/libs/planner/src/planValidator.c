@@ -78,6 +78,7 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE:
       return validateMergePhysiNode(pCxt, (SMergePhysiNode*)pNode);
