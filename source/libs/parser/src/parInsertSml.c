@@ -98,7 +98,7 @@ end:
  * @return int32_t
  */
 static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchema, STag** ppTag, SArray** tagName,
-                              SMsgBuf* msg) {
+                              SMsgBuf* msg, void* charsetCxt) {
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
   if (!pTagArray) {
     return terrno;
@@ -142,7 +142,7 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
         code = terrno;
         goto end;
       }
-      if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)(p), kv->length * TSDB_NCHAR_SIZE, &output)) {
+      if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)(p), kv->length * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
         if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
           taosMemoryFree(p);
           code = generateSyntaxErrMsg(msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
@@ -221,7 +221,7 @@ int32_t smlBuildRow(STableDataCxt* pTableCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32_t index) {
+int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32_t index, void* charsetCxt) {
   int      ret = TSDB_CODE_SUCCESS;
   SSchema* pColSchema = schema + index;
   SColVal* pVal = taosArrayGet(pTableCxt->pValues, index);
@@ -256,7 +256,7 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
       ret = terrno;
       goto end;
     }
-    if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, size, &len)) {
+    if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, size, &len, charsetCxt)) {
       if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         taosMemoryFree(pUcs4);
         ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
@@ -291,7 +291,7 @@ end:
 
 int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols,
                     STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
-                    char* msgBuf, int32_t msgBufLen) {
+                    char* msgBuf, int32_t msgBufLen, void* charsetCxt) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSchema*       pTagsSchema = getTableTagSchema(pTableMeta);
@@ -313,7 +313,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
   STag* pTag = NULL;
 
-  ret = smlBuildTagRow(tags, &bindTags, pTagsSchema, &pTag, &tagName, &pBuf);
+  ret = smlBuildTagRow(tags, &bindTags, pTagsSchema, &pTag, &tagName, &pBuf, charsetCxt);
   if (ret != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -411,7 +411,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
           ret = terrno;
           goto end;
         }
-        if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
+        if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len, charsetCxt)) {
           if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
             uError("sml bind taosMbsToUcs4 error, kv length:%d, bytes:%d, kv->value:%s", (int)kv->length,
                    pColSchema->bytes, kv->value);

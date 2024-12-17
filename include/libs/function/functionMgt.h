@@ -219,6 +219,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_CONTAINS,
   FUNCTION_TYPE_CONTAINS_PROPERLY,
 
+  FUNCTION_TYPE_DB_USAGE = 4300,
+  FUNCTION_TYPE_DB_USAGE_INFO,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
@@ -290,13 +293,15 @@ bool fmIsPrimaryKeyFunc(int32_t funcId);
 bool fmIsProcessByRowFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
+bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 
-void getLastCacheDataType(SDataType* pType, int32_t pkBytes);
+void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
 int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** pFunc);
 
-int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
+                        SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,
@@ -319,7 +324,7 @@ int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 bool    fmIsInvertible(int32_t funcId);
 #endif
 
-char*   fmGetFuncName(int32_t funcId);
+char* fmGetFuncName(int32_t funcId);
 
 bool    fmIsTSMASupportedFunc(func_id_t funcId);
 int32_t fmCreateStateFuncs(SNodeList* pFuncs);

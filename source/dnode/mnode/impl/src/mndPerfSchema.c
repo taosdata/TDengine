@@ -107,9 +107,9 @@ int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *t
     TAOS_RETURN(code);
   }
 
-  strcpy(pRsp->tbName, pMeta->tbName);
-  strcpy(pRsp->stbName, pMeta->stbName);
-  strcpy(pRsp->dbFName, pMeta->dbFName);
+  tstrncpy(pRsp->tbName, pMeta->tbName, sizeof(pRsp->tbName));
+  tstrncpy(pRsp->stbName, pMeta->stbName, sizeof(pRsp->stbName));
+  tstrncpy(pRsp->dbFName, pMeta->dbFName, sizeof(pRsp->dbFName));
   pRsp->numOfTags = pMeta->numOfTags;
   pRsp->numOfColumns = pMeta->numOfColumns;
   pRsp->tableType = pMeta->tableType;

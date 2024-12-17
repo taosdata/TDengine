@@ -308,7 +308,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     if (!pStreamTask->exec.qmsg) {
       TAOS_RETURN(terrno);
     }
-    (void)sprintf(pStreamTask->exec.qmsg, "%s", RSMA_EXEC_TASK_FLAG);
+    TAOS_UNUSED(snprintf(pStreamTask->exec.qmsg, strlen(RSMA_EXEC_TASK_FLAG) + 1, "%s", RSMA_EXEC_TASK_FLAG));
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
 
@@ -1552,7 +1552,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
       _resume_delete:
         version = RSMA_EXEC_MSG_VER(msg);
         if ((code = tqExtractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
-                                          &packData.pDataBlock, 1))) {
+                                          &packData.pDataBlock, 1, STREAM_DELETE_DATA))) {
           taosFreeQitem(msg);
           TAOS_CHECK_EXIT(code);
         }

@@ -21,19 +21,19 @@
 extern "C" {
 #endif
 
-typedef struct SCryptOpts{
-  int32_t   len;
-  char*     source;
-  char*     result;
-  int32_t   unitLen;
-  unsigned char  key[17];
-}SCryptOpts;
+typedef struct SCryptOpts {
+  int32_t len;
+  char*   source;
+  char*   result;
+  int32_t unitLen;
+  char    key[17];
+} SCryptOpts;
 
-int32_t CBC_Decrypt(SCryptOpts *opts);
-int32_t CBC_Encrypt(SCryptOpts *opts);
+int32_t CBC_Decrypt(SCryptOpts* opts);
+int32_t CBC_Encrypt(SCryptOpts* opts);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // _CRYPT_H_
+#endif  // _CRYPT_H_

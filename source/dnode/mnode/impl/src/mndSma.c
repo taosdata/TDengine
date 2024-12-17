@@ -313,7 +313,7 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   req.version = 0;
   req.intervalUnit = pSma->intervalUnit;
   req.slidingUnit = pSma->slidingUnit;
-  req.timezoneInt = pSma->timezone;
+//  req.timezoneInt = pSma->timezone;
   tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
   req.exprLen = pSma->exprLen;
   req.tagsFilterLen = pSma->tagsFilterLen;
@@ -614,9 +614,9 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   smaObj.intervalUnit = pCreate->intervalUnit;
   smaObj.slidingUnit = pCreate->slidingUnit;
 #if 0
-  smaObj.timezone = pCreate->timezone;
+//  smaObj.timezone = pCreate->timezone;
 #endif
-  smaObj.timezone = tsTimezone;  // use timezone of server
+//  smaObj.timezone = taosGetLocalTimezoneOffset();  // use timezone of server
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;
@@ -1551,7 +1551,7 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
   pCxt->pSma->dbUid = pCxt->pDb->uid;
   pCxt->pSma->interval = pCxt->pCreateSmaReq->interval;
   pCxt->pSma->intervalUnit = pCxt->pCreateSmaReq->intervalUnit;
-  pCxt->pSma->timezone = tsTimezone;
+//  pCxt->pSma->timezone = taosGetLocalTimezoneOffset();
   pCxt->pSma->version = 1;
 
   pCxt->pSma->exprLen = pCxt->pCreateSmaReq->exprLen;

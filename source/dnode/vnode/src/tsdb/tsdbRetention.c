@@ -660,7 +660,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
   int32_t lcn = fobj->f->lcn;
 
   if (/*lcn < 1 && */ taosCheckExistFile(fobj->fname)) {
-    int32_t mtime = 0;
+    int64_t mtime = 0;
     int64_t size = 0;
     int32_t r = taosStatFile(fobj->fname, &size, &mtime, NULL);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
@@ -687,7 +687,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
     tsdbTFileLastChunkName(rtner->tsdb, fobj->f, fname1);
 
     if (taosCheckExistFile(fname1)) {
-      int32_t mtime = 0;
+      int64_t mtime = 0;
       int64_t size = 0;
       if (taosStatFile(fname1, &size, &mtime, NULL) != 0) {
         tsdbError("vgId:%d, %s failed at %s:%d ", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, __LINE__);
@@ -731,5 +731,32 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   if (code) {
     tsdbError("vgId:%d, %s failed, reason:%s", TD_VID(tsdb->pVnode), __func__, tstrerror(code));
   }
+  return code;
+}
+
+static int32_t tsdbGetS3SizeImpl(STsdb *tsdb, int64_t *size) {
+  int32_t code = 0;
+
+  SVnodeCfg *pCfg = &tsdb->pVnode->config;
+  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
+    if (fobj) {
+      int32_t lcn = fobj->f->lcn;
+      if (lcn > 1) {
+        *size += ((lcn - 1) * chunksize);
+      }
+    }
+  }
+
+  return code;
+}
+int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
+  int32_t code = 0;
+  (void)taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbGetS3SizeImpl(tsdb, size);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
