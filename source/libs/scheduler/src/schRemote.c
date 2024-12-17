@@ -1361,14 +1361,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     taosMemoryFree(msg);
     SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
   } else {
+    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) {
+      SCH_ERR_JRET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
+    }
+
     SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
     code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, (uint32_t)msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
     msg = NULL;
     SCH_ERR_JRET(code);
-
-    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) {
-      SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
-    }
   }
 
   return TSDB_CODE_SUCCESS;
