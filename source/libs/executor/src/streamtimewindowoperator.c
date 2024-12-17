@@ -2269,7 +2269,6 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   }
 
   pSup->pCur = NULL;
-  pSup->historyResutFlag = false;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

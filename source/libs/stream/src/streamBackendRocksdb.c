@@ -5281,8 +5281,9 @@ SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWin
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
 
-  char buf[128] = {0};
-  int  len = winKeyEncode((void*)key, buf);
+  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  char      buf[128] = {0};
+  int       len = stateKeyEncode((void*)&sKey, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
     streamStateFreeCur(pCur);
     return NULL;
@@ -5296,7 +5297,7 @@ SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWin
     size_t  kLen = 0;
     char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     TAOS_UNUSED(winKeyDecode((void*)&curKey, keyStr));
-    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) > 0) {
+    if (winKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) > 0) {
       return pCur;
     }
     rocksdb_iter_prev(pCur->iter);

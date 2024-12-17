@@ -417,7 +417,6 @@ typedef struct SStreamAggSupporter {
   int32_t             windowCount;
   int32_t             windowSliding;
   SStreamStateCur*    pCur;
-  bool                historyResutFlag;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {

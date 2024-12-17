@@ -1344,7 +1344,7 @@ void clearExpiredState(SStreamFileState* pFileState) {
     for (int32_t i = 0; i < size; i++) {
       SWinKey* pKey = taosArrayGet(pWinStates, i);
       int32_t  code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, sizeof(SWinKey));
-      qTrace("clear expired buff, ts:%" PRId64 ". %s at line %d res:%d", pKey->ts, __func__, __LINE__, code_buff);
+      qTrace("clear expired buff, ts:%" PRId64 ",groupid:%" PRIu64 ". %s at line %d res:%d", pKey->ts, pKey->groupId, __func__, __LINE__, code_buff);
 
       if (isFlushedState(pFileState, pKey->ts, 0)) {
         int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);

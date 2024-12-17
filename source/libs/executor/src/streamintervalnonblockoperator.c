@@ -63,12 +63,12 @@ void streamIntervalNonblockReleaseState(SOperatorInfo* pOperator) {
   pAggSup->stateStore.streamStateSaveInfo(pAggSup->pState, STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME,
                                           strlen(STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME), &pInfo->twAggSup.maxTs,
                                           resSize);
-  pAggSup->stateStore.streamStateCommit(pAggSup->pState);
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.releaseStreamStateFn) {
     downstream->fpSet.releaseStreamStateFn(downstream);
   }
+  qDebug("%s===stream===streamIntervalNonblockReleaseState:%" PRId64, GET_TASKID(pOperator->pTaskInfo), pInfo->twAggSup.maxTs);
 }
 
 void streamIntervalNonblockReloadState(SOperatorInfo* pOperator) {
@@ -92,6 +92,7 @@ void streamIntervalNonblockReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  qDebug("%s===stream===streamIntervalNonblockReloadState:%" PRId64, GET_TASKID(pOperator->pTaskInfo), ts);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -173,6 +174,7 @@ static int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataB
     code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos,
                                            forwardRows, pBlock->info.rows, numOfOutput);
     QUERY_CHECK_CODE(code, lino, _end);
+    curPoint.pResPos->beUpdated = true;
 
     if (curPoint.pLastRow->key == curPoint.winKey.win.ekey) {
       setInterpoWindowFinished(&curPoint);
@@ -196,23 +198,23 @@ _end:
 int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, SArray* pUpdated, int32_t capacity) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (pAggSup->historyResutFlag) {
-    goto _end;
-  }
-
   if (pAggSup->pCur == NULL) {
     pAggSup->pCur = pAggSup->stateStore.streamStateGetLastStateCur(pAggSup->pState);
   }
-  int32_t num = capacity - taosArrayGetSize(pUpdated);
-  void*   pPos = NULL;
+  int32_t      num = capacity - taosArrayGetSize(pUpdated);
+  SRowBuffPos* pPos = NULL;
   for (int32_t i = 0; i < num; i++) {
-    int32_t winCode = pAggSup->stateStore.streamStateLastStateGetKVByCur(pAggSup->pCur, &pPos);
+    int32_t winCode = pAggSup->stateStore.streamStateLastStateGetKVByCur(pAggSup->pCur, (void**)&pPos);
     if (winCode == TSDB_CODE_FAILED) {
       pAggSup->stateStore.streamStateFreeCur(pAggSup->pCur);
       pAggSup->pCur = NULL;
-      pAggSup->historyResutFlag = true;
       break;
     }
+    if (pPos->beUpdated == false) {
+      pAggSup->stateStore.streamStateLastStateCurNext(pAggSup->pCur);
+      continue;
+    }
+    pPos->beUpdated = false;
     void* tmpPtr = taosArrayPush(pUpdated, &pPos);
     QUERY_CHECK_NULL(tmpPtr, code, lino, _end, terrno);
 
