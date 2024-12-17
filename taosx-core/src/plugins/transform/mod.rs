@@ -1191,7 +1191,7 @@ impl Parser {
             } else {
                 columns.schema_ref().fields().iter().collect()
             };
-            for field in all_fields {
+            for field in all_fields.clone() {
                 let field_name = field.name();
                 if field_name.len() > 64 {
                     match self
@@ -1231,8 +1231,60 @@ impl Parser {
             // check primary timestamp
             if filter_ts {
                 for row in 0..columns.num_rows() {
+                    let col = columns.column(0);
+                    let ts = if let DataType::Timestamp(unit, _) = col.data_type() {
+                        match unit {
+                            arrow_schema::TimeUnit::Second => {
+                                let array =
+                                    col.as_any().downcast_ref::<TimestampSecondArray>().unwrap();
+                                if array.is_null(row) {
+                                    Ok(None)
+                                } else {
+                                    Ok(Some(array.value(row)))
+                                }
+                            }
+                            arrow_schema::TimeUnit::Millisecond => {
+                                let array = col
+                                    .as_any()
+                                    .downcast_ref::<TimestampMillisecondArray>()
+                                    .unwrap();
+                                if array.is_null(row) {
+                                    Ok(None)
+                                } else {
+                                    Ok(Some(array.value(row)))
+                                }
+                            }
+                            arrow_schema::TimeUnit::Microsecond => {
+                                let array = col
+                                    .as_any()
+                                    .downcast_ref::<TimestampMicrosecondArray>()
+                                    .unwrap();
+                                if array.is_null(row) {
+                                    Ok(None)
+                                } else {
+                                    Ok(Some(array.value(row)))
+                                }
+                            }
+                            arrow_schema::TimeUnit::Nanosecond => {
+                                let array = col
+                                    .as_any()
+                                    .downcast_ref::<TimestampNanosecondArray>()
+                                    .unwrap();
+                                if array.is_null(row) {
+                                    Ok(None)
+                                } else {
+                                    Ok(Some(array.value(row)))
+                                }
+                            }
+                        }
+                    } else {
+                        Err(Error::PrimaryKeyCastError(
+                            all_fields[0].name().clone(),
+                            arrow_schema::ArrowError::CastError(col.data_type().to_string()),
+                        ))
+                    }?;
                     // primary timestamp null
-                    if columns.column(0).is_null(row) {
+                    if ts.is_none() {
                         match self
                             .global
                             .process_on_abnormal
@@ -1257,14 +1309,10 @@ impl Parser {
                                 Err(Error::NullPrimaryKey(format!("{e:#}")))?;
                             }
                         }
+                        continue;
                     }
-                    // primary timestamp overflow;
-                    let ts = columns
-                        .column(0)
-                        .as_any()
-                        .downcast_ref::<TimestampMillisecondArray>()
-                        .unwrap()
-                        .value(row);
+                    // primary timestamp overflow
+                    let ts = ts.unwrap();
                     let mut primary_timestamp_overflow_flag = false;
                     if let Some(max_ts) = self.global.maximum_timestamp {
                         if ts > max_ts.timestamp_millis() {
@@ -2616,6 +2664,10 @@ mod parser_tests {
 
         // test1: normal
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampNanosecondArray::from(vec![None])) as ArrayRef,
+            ),
             ("str1", Arc::new(StringArray::from(vec!["a"])) as ArrayRef),
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
@@ -2651,7 +2703,7 @@ mod parser_tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Transform error: the table name should not contain illegal characters: table_1.2"
+            "Transform error: the table name 'table_1.2' should not contain illegal characters"
         );
 
         // test4: table name variable mistake, and the processing method is 'skip'
@@ -2673,6 +2725,10 @@ mod parser_tests {
     #[test]
     fn test_table_name_length_overflow() {
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampNanosecondArray::from(vec![None])) as ArrayRef,
+            ),
             (
                 "str1",
                 Arc::new(StringArray::from(vec!["1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567"])) as ArrayRef,
@@ -2745,7 +2801,7 @@ mod parser_tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Transform error: the length of table name should not exceed 192: length = 193"
+            "Transform error: the length of table name 'table_1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567' should not exceed 192"
         );
 
         // test4: truncate
@@ -2867,7 +2923,7 @@ mod parser_tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Transform error: the table name should not contain illegal characters: table_1.2"
+            "Transform error: the table name 'table_1.2' should not contain illegal characters"
         );
 
         // test4: replace illegal char
