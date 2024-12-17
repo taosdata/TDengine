@@ -52,8 +52,8 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
     if (p->hasRef) {
       TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
-      TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &p->refTableName));
-      TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &p->refColName));
+      TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refTableName));
+      TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refColName));
     }
   }
   return 0;

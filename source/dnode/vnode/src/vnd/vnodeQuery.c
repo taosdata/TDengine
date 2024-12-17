@@ -77,6 +77,26 @@ void vnodePrintTableMeta(STableMetaRsp* pMeta) {
 
 }
 
+int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
+  int8_t tblType = reader->me.type;
+  if (hasRefCol(tblType)) {
+    SColRefWrapper *p = &(reader->me.colRef);
+    if (numOfCol != p->nCols) {
+      vError("fillTableColRef table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
+      return TSDB_CODE_APP_ERROR;
+    }
+    for (int i = 0; i < p->nCols; i++) {
+      SColRef *pColRef = &p->pColRef[i];
+      pRef[i].hasRef = pColRef->hasRef;
+      if(pRef[i].hasRef) {
+        pRef[i].id = pColRef->id;
+        tstrncpy(pRef[i].refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRef[i].refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
+  return 0;
+}
 
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
@@ -138,24 +158,34 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.vgId = TD_VID(pVnode);
   metaRsp.tuid = mer1.me.uid;
 
-  if (mer1.me.type == TSDB_SUPER_TABLE) {
-    tstrncpy(metaRsp.stbName, mer1.me.name, TSDB_TABLE_NAME_LEN);
-    schema = mer1.me.stbEntry.schemaRow;
-    schemaTag = mer1.me.stbEntry.schemaTag;
-    metaRsp.suid = mer1.me.uid;
-  } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
-    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
+  switch (mer1.me.type) {
+    case TSDB_SUPER_TABLE: {
+      (void)strcpy(metaRsp.stbName, mer1.me.name);
+      schema = mer1.me.stbEntry.schemaRow;
+      schemaTag = mer1.me.stbEntry.schemaTag;
+      metaRsp.suid = mer1.me.uid;
+      break;
+    }
+    case TSDB_CHILD_TABLE:
+    case TSDB_VIRTUAL_CHILD_TABLE:{
+      metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
+      if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
-    tstrncpy(metaRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
-    metaRsp.suid = mer2.me.uid;
-    schema = mer2.me.stbEntry.schemaRow;
-    schemaTag = mer2.me.stbEntry.schemaTag;
-  } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
-    schema = mer1.me.ntbEntry.schemaRow;
-  } else {
-    vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
-    goto _exit3;
+      (void)strcpy(metaRsp.stbName, mer2.me.name);
+      metaRsp.suid = mer2.me.uid;
+      schema = mer2.me.stbEntry.schemaRow;
+      schemaTag = mer2.me.stbEntry.schemaTag;
+      break;
+    }
+    case TSDB_NORMAL_TABLE:
+    case TSDB_VIRTUAL_TABLE: {
+      schema = mer1.me.ntbEntry.schemaRow;
+      break;
+    }
+    default: {
+      vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
+      goto _exit3;
+    }
   }
 
   metaRsp.numOfTags = schemaTag.nCols;
@@ -182,6 +212,13 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   } else {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
+  }
+  metaRsp.pColRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * metaRsp.numOfColumns);
+  if (metaRsp.pColRefs) {
+    code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
+    if (code < 0) {
+      goto _exit;
+    }
   }
 
   vnodePrintTableMeta(&metaRsp);
