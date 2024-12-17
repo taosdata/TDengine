@@ -27,6 +27,7 @@ typedef struct SLogicPlanContext {
   SLogicNode*   pCurrRoot;
   SSHashObj*    pChildTables;
   bool          hasScan;
+  bool          refScan;
 } SLogicPlanContext;
 
 typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
@@ -441,7 +442,6 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
-    SNodeList* pNewScanPseudoCols = NULL;
     code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL);
     /*
         if (TSDB_CODE_SUCCESS == code && NULL != pScan->pScanPseudoCols) {
@@ -666,6 +666,102 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
+static int32_t findRefTableNode(SNodeList *refTableList, const char *tableName, SNode **pRefTable) {
+  SNode *pRef = NULL;
+  FOREACH(pRef, refTableList) {
+    if (0 == strcasecmp(((SRealTableNode*)pRef)->table.tableName, tableName)) {
+      *pRefTable = pRef;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_NOT_FOUND;
+}
+
+static int32_t findRefColId(SNode *pRefTable, const char *colName, col_id_t *colId) {
+  SRealTableNode *pRealTable = (SRealTableNode*)pRefTable;
+  for (int32_t i = 0; i < pRealTable->pMeta->tableInfo.numOfColumns; ++i) {
+    if (0 == strcasecmp(pRealTable->pMeta->schema[i].name, colName)) {
+      *colId = pRealTable->pMeta->schema[i].colId;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_NOT_FOUND;
+}
+
+static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, const SSchema* pSchema, col_id_t colId) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SColumnNode    *pRefTableScanCol = NULL;
+  SScanLogicNode *pLogicScan = (SScanLogicNode*)pLogicNode;
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pRefTableScanCol));
+  tstrncpy(pRefTableScanCol->tableAlias, colRef->refTableName, sizeof(pRefTableScanCol->tableAlias));
+  tstrncpy(pRefTableScanCol->tableName, colRef->refTableName, sizeof(pRefTableScanCol->tableName));
+  tstrncpy(pRefTableScanCol->colName, colRef->refColName, sizeof(pRefTableScanCol->colName));
+  pRefTableScanCol->colId = colId;
+  pRefTableScanCol->tableId = pLogicScan->tableId;
+  pRefTableScanCol->tableType = pLogicScan->tableType;
+  pRefTableScanCol->node.resType.type = pSchema->type;
+  pRefTableScanCol->node.resType.bytes = pSchema->bytes;
+  pRefTableScanCol->colType = COLUMN_TYPE_COLUMN;
+  pRefTableScanCol->isPk = false;
+  pRefTableScanCol->tableHasPk = false;
+  pRefTableScanCol->numOfPKs = 0;
+  PLAN_ERR_JRET(nodesListAppend(pLogicScan->pScanCols, (SNode*)pRefTableScanCol));
+  nodesDestroyList(pLogicScan->node.pTargets);
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pLogicScan->pScanCols, &pLogicScan->node.pTargets));
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pRefTableScanCol);
+  return code;
+}
+
+static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                           SVirtualTableNode* pVirtualTable, SLogicNode** pLogicNode) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  SVirtualScanLogicNode *pVtableScan = NULL;
+  SLogicNode             *pRefScan = NULL;
+  SNode                  *pRefTable = NULL;
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN, (SNode**)&pVtableScan));
+  PLAN_ERR_JRET(nodesMakeList(&pVtableScan->node.pChildren));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_COL,
+                                    &pVtableScan->pScanCols));
+
+  pCxt->refScan = true;
+  SNode *pNode = NULL;
+  int32_t slotId = 0;
+  FOREACH(pNode, pVtableScan->pScanCols) {
+    SColumnNode *pCol = (SColumnNode*)pNode;
+    if (pVirtualTable->pMeta->colRef[pCol->colId - 1].hasRef) {
+      if (pCol->isPrimTs) {
+        PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
+      }
+      SColRef *pColRef = &pVirtualTable->pMeta->colRef[pCol->colId - 1];
+      tstrncpy(pCol->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+      pCol->hasRef = true;
+      col_id_t colId = 0;
+      PLAN_ERR_JRET(findRefTableNode(pVirtualTable->refTables, pColRef->refTableName, &pRefTable));
+      PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId));
+      PLAN_ERR_JRET(doCreateLogicNodeByTable(pCxt, pSelect, pRefTable, &pRefScan));
+      PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->pMeta->schema[pCol->colId - 1], colId));
+      PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)pRefScan));
+    } else {
+      pCol->hasRef = false;
+    }
+  }
+  pCxt->refScan = false;
+  // set output
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
+
+  *pLogicNode = (SLogicNode*)pVtableScan;
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pVtableScan);
+  nodesDestroyNode((SNode*)pRefScan);
+  return code;
+}
+
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode) {
   switch (nodeType(pTable)) {
@@ -675,6 +771,8 @@ static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pS
       return createSubqueryLogicNode(pCxt, pSelect, (STempTableNode*)pTable, pLogicNode);
     case QUERY_NODE_JOIN_TABLE:
       return createJoinLogicNode(pCxt, pSelect, (SJoinTableNode*)pTable, pLogicNode);
+    case QUERY_NODE_VIRTUAL_TABLE:
+      return createVirtualTableLogicNode(pCxt, pSelect, (SVirtualTableNode*)pTable, pLogicNode);
     default:
       break;
   }
@@ -2248,7 +2346,7 @@ static void setLogicSubplanType(bool hasScan, SLogicSubplan* pSubplan) {
 }
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
-  SLogicPlanContext cxt = {.pPlanCxt = pCxt, .pCurrRoot = NULL, .hasScan = false};
+  SLogicPlanContext cxt = {.pPlanCxt = pCxt, .pCurrRoot = NULL, .hasScan = false, .refScan = false};
 
   SLogicSubplan* pSubplan = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pSubplan);
