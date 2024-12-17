@@ -6,29 +6,27 @@ slug: /tdengine-reference/client-libraries/node
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import RequestId from "./_request_id.mdx";
+import RequestId from "../../assets/resources/_request_id.mdx";
 
 `@tdengine/websocket` is the official Node.js language connector for TDengine. Node.js developers can use it to develop applications that access the TDengine database.
 
 The source code for the Node.js connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-node/tree/main).
 
-## Connection Method
+## Node.js Version Compatibility
 
-The Node.js connector currently only supports WebSocket connections, which connect to a TDengine instance through the WebSocket interface provided by taosAdapter.
-
-For a detailed introduction to the connection method, please refer to: [Connection Method](../../../developer-guide/connecting-to-tdengine/)
+Supports Node.js 14 and above.
 
 ## Supported Platforms
 
-Supports Node.js version 14 and above.
+Support all platforms that can run Node.js.
 
 ## Version History
 
-| Node.js Connector Version |          Major Changes         |   TDengine Version    |
-| :------------------:  | :----------------------: | :----------------: |
-|        3.1.2          | Optimized data protocol and parsing, significantly improved performance|  3.3.2.0 and higher versions |
-|        3.1.1          | Optimized data transmission performance          |  3.3.2.0 and higher versions |
-|        3.1.0          | New release, supports WebSocket connection |  3.2.0.0 and higher versions |
+| Node.js Connector Version | Major Changes                                                            | TDengine Version            |
+| ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.1.2                     | Optimized data protocol and parsing, significantly improved performance. | -                           |
+| 3.1.1                     | Optimized data transmission performance.                                 | 3.3.2.0 and higher versions |
+| 3.1.0                     | New release, supports WebSocket connection.                              | 3.2.0.0 and higher versions |
 
 ## Exception Handling
 
@@ -38,19 +36,19 @@ Error description: Node.js connector error codes range from 100 to 110, errors o
 
 For specific connector error codes, please refer to:
 
-| Error Code | Description                                                  | Suggested Actions                                                                         |
-| ---------- | -------------------------------------------------------------| ----------------------------------------------------------------------------------------- |
-| 100     | invalid variables                                               | The parameters are illegal, please check the corresponding interface specifications and adjust the parameter types and sizes.                                |
-| 101     | invalid url                                                     | URL error, please check if the URL is correctly filled.                                                |
-| 102     | received server data but did not find a callback for processing | Received server data but no upper layer callback was found                                      |
-| 103     | invalid message type                                            | Received message type unrecognized, please check if the server is normal.               |
-| 104     | connection creation failed                                      | Connection creation failed, please check if the network is normal.                           |
-| 105     | websocket request timeout                                       | Request timed out                                          |
-| 106     | authentication fail                                             | Authentication failed, please check if the username and password are correct.                                 |
-| 107     | unknown sql type in tdengine                                    | Please check the Data Type types supported by TDengine.                                 |
-| 108     | connection has been closed                                      | The connection has been closed, please check if the Connection is used again after closing, or if the connection is normal.  |
-| 109     | fetch block data parse fail                                     | Failed to parse the fetched query data                    |
-| 110     | websocket connection has reached its maximum limit              | WebSocket connection has reached its maximum limit                                                   |
+| Error Code | Description                                                     | Suggested Actions                                                                                                             |
+| ---------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 100        | invalid variables                                               | The parameters are illegal, please check the corresponding interface specifications and adjust the parameter types and sizes. |
+| 101        | invalid url                                                     | URL error, please check if the URL is correctly filled.                                                                       |
+| 102        | received server data but did not find a callback for processing | Received server data but no upper layer callback was found                                                                    |
+| 103        | invalid message type                                            | Received message type unrecognized, please check if the server is normal.                                                     |
+| 104        | connection creation failed                                      | Connection creation failed, please check if the network is normal.                                                            |
+| 105        | websocket request timeout                                       | Request timed out                                                                                                             |
+| 106        | authentication fail                                             | Authentication failed, please check if the username and password are correct.                                                 |
+| 107        | unknown sql type in tdengine                                    | Please check the Data Type types supported by TDengine.                                                                       |
+| 108        | connection has been closed                                      | The connection has been closed, please check if the Connection is used again after closing, or if the connection is normal.   |
+| 109        | fetch block data parse fail                                     | Failed to parse the fetched query data                                                                                        |
+| 110        | websocket connection has reached its maximum limit              | WebSocket connection has reached its maximum limit                                                                            |
 
 - [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 - For errors from other TDengine modules, please refer to [Error Codes](../../error-codes/)
@@ -59,38 +57,38 @@ For specific connector error codes, please refer to:
 
 The table below shows the mapping between TDengine DataType and Node.js DataType
 
-| TDengine DataType | Node.js DataType|
-|-------------------|-------------|
-| TIMESTAMP         | bigint      |
-| TINYINT           | number      |
-| SMALLINT          | number      |
-| INT               | number      |
-| BIGINT            | bigint      |
-| TINYINT UNSIGNED  | number      |
-| SMALLINT UNSIGNED | number      |
-| INT UNSIGNED      | number      |
-| BIGINT UNSIGNED   | bigint      |
-| FLOAT             | number      |
-| DOUBLE            | number      |
-| BOOL              | boolean     |
-| BINARY            | string      |
-| NCHAR             | string      |
-| JSON              | string      |
-| VARBINARY         | ArrayBuffer |
-| GEOMETRY          | ArrayBuffer |
+| TDengine DataType | Node.js DataType |
+| ----------------- | ---------------- |
+| TIMESTAMP         | bigint           |
+| TINYINT           | number           |
+| SMALLINT          | number           |
+| INT               | number           |
+| BIGINT            | bigint           |
+| TINYINT UNSIGNED  | number           |
+| SMALLINT UNSIGNED | number           |
+| INT UNSIGNED      | number           |
+| BIGINT UNSIGNED   | bigint           |
+| FLOAT             | number           |
+| DOUBLE            | number           |
+| BOOL              | boolean          |
+| BINARY            | string           |
+| NCHAR             | string           |
+| JSON              | string           |
+| VARBINARY         | ArrayBuffer      |
+| GEOMETRY          | ArrayBuffer      |
 
 **Note**: JSON type is only supported in tags.
 
 ## More Example Programs
 
-| Example Program                                                                                                                             | Description of Example Program                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js)                           | Basic usage such as establishing connections, executing SQL, etc.                       |
-| [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/stmt_example.js)                         | Example of binding parameters for insertion.               |
-| [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/line_example.js)                         | Line protocol writing example.               |
-| [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/tmq_example.js)                           | Example of using subscriptions.                       |
-| [all_type_query](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/all_type_query.js)                     | Example supporting all types.                       |
-| [all_type_stmt](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/all_type_stmt.js)                       | Example of parameter binding supporting all types.                       |
+| Example Program                                                                                                        | Description of Example Program                                    |
+| ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js)       | Basic usage such as establishing connections, executing SQL, etc. |
+| [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/stmt_example.js)     | Example of binding parameters for insertion.                      |
+| [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/line_example.js)     | Line protocol writing example.                                    |
+| [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/tmq_example.js)       | Example of using subscriptions.                                   |
+| [all_type_query](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/all_type_query.js) | Example supporting all types.                                     |
+| [all_type_stmt](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/all_type_stmt.js)   | Example of parameter binding supporting all types.                |
 
 ## Usage Restrictions
 

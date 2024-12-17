@@ -3,7 +3,7 @@ title: TCollector
 slug: /third-party-tools/data-collection/tcollector
 ---
 
-import TCollector from "./_tcollector.mdx"
+import TCollector from "../../assets/resources/_tcollector.mdx"
 
 TCollector is part of openTSDB, used for collecting client logs and sending them to the database.
 
