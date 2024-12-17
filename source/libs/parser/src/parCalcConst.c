@@ -611,7 +611,12 @@ static void resetProjectNullType(SNode* pStmt) {
       resetProjectNullTypeImpl(((SSelectStmt*)pStmt)->pProjectionList);
       break;
     case QUERY_NODE_SET_OPERATOR: {
-      resetProjectNullTypeImpl(((SSetOperator*)pStmt)->pProjectionList);
+      SSetOperator* pSetOp = (SSetOperator*)pStmt;
+      resetProjectNullTypeImpl(pSetOp->pProjectionList);
+      if (pSetOp->pLeft)
+        resetProjectNullType(pSetOp->pLeft);
+      if (pSetOp->pRight)
+        resetProjectNullType(pSetOp->pRight);
       break;
     }
     default:
