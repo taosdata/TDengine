@@ -2168,47 +2168,38 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     pStmt->semWaited = true;
   }
 
-  /*
-   * Insert with interlace mode doesn't allow duplicate table names per bind,
-   * so initialize a tbnames hash table for duplication check. 
-   * 
-   * Note, STMT doesn't have such issue as it's unable to bind multiple tables.
-   */
   SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
   if (NULL == hashTbnames) {
-    tscError("stmt2 bind failed: out of memory");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tscError("stmt2 bind failed: %s", tstrerror(terrno));
     return terrno;
   }
 
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < bindv->count; ++i) {
     if (bindv->tbnames && bindv->tbnames[i]) {
       if (pStmt->sql.stbInterlaceMode) {
         if (tSimpleHashGet(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i])) != NULL) {
-          tSimpleHashCleanup(hashTbnames);
-          tscError("stmt2 bind failed: duplicate table name %s is not allowed in interlace mode.", bindv->tbnames[i]);
-          terrno = TSDB_CODE_PAR_TBNAME_DUPLICATED;
-          return terrno;
+          code = terrno = TSDB_CODE_PAR_TBNAME_DUPLICATED;
+          tscError("stmt2 bind failed: %s %s", tstrerror(terrno), bindv->tbnames[i]);
+          goto out;
         }
 
         code = tSimpleHashPut(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i]), NULL, 0);
-        if (TSDB_CODE_SUCCESS != code) {
-          tSimpleHashCleanup(hashTbnames);
-          return code;
+        if (code) {
+          goto out;
         }
       }
 
       code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
-        return code;
+        goto out;
       }
     }
 
     if (bindv->tags && bindv->tags[i]) {
       code = stmtSetTbTags2(stmt, bindv->tags[i]);
       if (code) {
-        return code;
+        goto out;
       }
     }
 
@@ -2217,28 +2208,29 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         tscError("invalid bind num %d", bind->num);
-        terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-        return terrno;
+        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        goto out;
       }
 
       int32_t insert = 0;
       (void)stmtIsInsert2(stmt, &insert);
       if (0 == insert && bind->num > 1) {
         tscError("only one row data allowed for query");
-        terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-        return terrno;
+        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        goto out;
       }
 
       code = stmtBindBatch2(stmt, bind, col_idx);
       if (TSDB_CODE_SUCCESS != code) {
-        return code;
+        goto out;
       }
     }
   }
 
+out:
   tSimpleHashCleanup(hashTbnames);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
