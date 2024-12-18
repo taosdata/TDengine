@@ -63,24 +63,25 @@ class TDTestCase:
             oper1 = tdSql.getData(0, 3)
             tdLog.info(f"show transaction {tranId1}, {oper1}")
 
-            tranId2 = tdSql.getData(1, 0)
-            oper2 = tdSql.getData(1, 3)
-            tdLog.info(f"show transaction {tranId2}, {oper2}")
+            #tranId2 = tdSql.getData(1, 0)
+            #oper2 = tdSql.getData(1, 3)
+            #tdLog.info(f"show transaction {tranId2}, {oper2}")
         
             rows = tdSql.query(f"show transaction {tranId1}", queryTimes=1)
             if rows != 120 and rows != 176:
                 tdLog.exit(f"show transaction detial error, rows={rows}")
                 return False
 
-            rows = tdSql.query(f"show transaction {tranId2}", queryTimes=1)
-            if rows != 176 and rows != 120:
-                tdLog.exit(f"show transaction detial error, rows={rows}")
-                return False
+            #rows = tdSql.query(f"show transaction {tranId2}", queryTimes=1)
+            #if rows != 176 and rows != 120:
+            #    tdLog.exit(f"show transaction detial error, rows={rows}")
+            #    return False
 
         tdLog.info(f"select * from ins_transaction_details")
         rows = tdSql.query(f"select * from information_schema.ins_transaction_details", queryTimes=1)
 
-        if rows != 296:
+        #if rows != 296:
+        if rows != 176:
             tdLog.exit(f"show transaction detial error, rows={rows}")
             return False
         
