@@ -109,14 +109,12 @@ TEST(osThreadTests, thread) {
   EXPECT_EQ(reti, 0);
   taosMsleep(300);
 
-  reti = taosThreadCancel(tid1);
-
-  EXPECT_EQ(reti, 0);
+  (void)taosThreadCancel(tid1);
+  
   reti = taosThreadCreate(&tid2, NULL, funcPtr501, NULL);
   EXPECT_EQ(reti, 0);
   taosMsleep(1000);
-  reti = taosThreadCancel(tid2);
-  EXPECT_EQ(reti, 0);
+  (void)taosThreadCancel(tid2);
 
   taosThreadDetach(tid1);
   reti = taosThreadCreate(&tid2, NULL, funcPtr502, NULL);

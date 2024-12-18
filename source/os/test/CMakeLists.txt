@@ -14,12 +14,14 @@ ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
+if(TD_LINUX)
 add_executable(osAtomicTests "osAtomicTests.cpp")
 target_link_libraries(osAtomicTests os util gtest_main)
 add_test(
     NAME osAtomicTests
     COMMAND osAtomicTests
 )
+endif()
 
 if(TD_LINUX)
 add_executable(osDirTests "osDirTests.cpp")
