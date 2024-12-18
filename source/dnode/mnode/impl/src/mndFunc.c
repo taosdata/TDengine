@@ -723,7 +723,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     char varLang[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     varDataSetLen(varLang, strlen(language));
-    strcpy(varDataVal(varLang), language);
+    tstrncpy(varDataVal(varLang), language, sizeof(varLang) - VARSTR_HEADER_SIZE);
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false), pSdb, pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

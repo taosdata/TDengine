@@ -52,7 +52,8 @@ _exit:
   } else {
     metaDebug("vgId:%d %s success", TD_VID(pMeta->pVnode), __func__);
   }
-  return 0;
+
+  TAOS_RETURN(code);
 }
 
 // commit the meta txn
@@ -85,7 +86,8 @@ _exit:
   } else {
     metaDebug("vgId:%d %s success", TD_VID(pMeta->pVnode), __func__);
   }
-  return code;
+
+  TAOS_RETURN(code);
 }
 
 // abort the meta txn

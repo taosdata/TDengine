@@ -122,6 +122,10 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmi
   tb_uid_t   suid = pSubmitTbData->suid;
   tb_uid_t   uid = pSubmitTbData->uid;
 
+  if (tsBypassFlag & TSDB_BYPASS_RB_TSDB_WRITE_MEM) {
+    goto _err;
+  }
+
   // create/get STbData to op
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
   if (code) {
@@ -319,6 +323,27 @@ void tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj *pTableMap, int64_t *
     }
   }
   taosRUnLockLatch(&pMemTable->latch);
+}
+
+typedef int32_t (*__tsdb_cache_update)(SMemTable *imem, int64_t suid, int64_t uid);
+
+int32_t tsdbMemTableSaveToCache(SMemTable *pMemTable, void *func) {
+  int32_t             code = 0;
+  __tsdb_cache_update cb = (__tsdb_cache_update)func;
+
+  for (int32_t i = 0; i < pMemTable->nBucket; ++i) {
+    STbData *pTbData = pMemTable->aBucket[i];
+    while (pTbData) {
+      code = (*cb)(pMemTable, pTbData->suid, pTbData->uid);
+      if (code) {
+        TAOS_RETURN(code);
+      }
+
+      pTbData = pTbData->next;
+    }
+  }
+
+  return code;
 }
 
 static int32_t tsdbMemTableRehash(SMemTable *pMemTable) {
@@ -655,7 +680,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     pTbData->maxKey = key.key.ts;
   }
 
-  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config) && !tsUpdateCacheBatch) {
     if (tsdbCacheColFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, pBlockData) != 0) {
       tsdbError("vgId:%d, failed to update cache data from table suid:%" PRId64 " uid:%" PRId64 " at version %" PRId64,
                 TD_VID(pMemTable->pTsdb->pVnode), pTbData->suid, pTbData->uid, version);
@@ -717,7 +742,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if (key.key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.key.ts;
   }
-  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config) && !tsUpdateCacheBatch) {
     TAOS_UNUSED(tsdbCacheRowFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, version, nRow, aRow));
   }
 

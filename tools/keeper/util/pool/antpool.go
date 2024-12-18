@@ -1,8 +1,6 @@
 package pool
 
-import (
-	"github.com/panjf2000/ants/v2"
-)
+import "github.com/panjf2000/ants/v2"
 
 var GoroutinePool *ants.Pool
 

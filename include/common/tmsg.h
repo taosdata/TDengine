@@ -161,6 +161,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USER_FULL,
   TSDB_MGMT_TABLE_ANODE,
   TSDB_MGMT_TABLE_ANODE_FULL,
+  TSDB_MGMT_TABLE_USAGE,
+  TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -309,6 +311,7 @@ typedef enum ENodeType {
   QUERY_NODE_DESCRIBE_STMT,
   QUERY_NODE_RESET_QUERY_CACHE_STMT,
   QUERY_NODE_COMPACT_DATABASE_STMT,
+  QUERY_NODE_COMPACT_VGROUPS_STMT,
   QUERY_NODE_CREATE_FUNCTION_STMT,
   QUERY_NODE_DROP_FUNCTION_STMT,
   QUERY_NODE_CREATE_STREAM_STMT,
@@ -397,9 +400,11 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TSMAS_STMT,
   QUERY_NODE_SHOW_ANODES_STMT,
   QUERY_NODE_SHOW_ANODES_FULL_STMT,
+  QUERY_NODE_SHOW_USAGE_STMT,
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
+  QUERY_NODE_SHOW_FILESETS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -679,7 +684,7 @@ typedef struct {
   int32_t tsSlowLogThreshold;
   int32_t tsSlowLogMaxLen;
   int32_t tsSlowLogScope;
-  int32_t tsSlowLogThresholdTest;
+  int32_t tsSlowLogThresholdTest;  // Obsolete
   char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN];
 } SMonitorParas;
 
@@ -1240,14 +1245,15 @@ typedef struct {
 } STsBufInfo;
 
 typedef struct {
-  int32_t tz;  // query client timezone
-  char    intervalUnit;
-  char    slidingUnit;
-  char    offsetUnit;
-  int8_t  precision;
-  int64_t interval;
-  int64_t sliding;
-  int64_t offset;
+  void*       timezone;
+  char        intervalUnit;
+  char        slidingUnit;
+  char        offsetUnit;
+  int8_t      precision;
+  int64_t     interval;
+  int64_t     sliding;
+  int64_t     offset;
+  STimeWindow timeRange;
 } SInterval;
 
 typedef struct STbVerInfo {
@@ -1344,6 +1350,11 @@ typedef struct {
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
   char    dnodeListStr[TSDB_DNODE_LIST_LEN];
+  // 1. add auto-compact parameters
+  int32_t compactInterval;  // minutes
+  int32_t compactStartTime; // minutes
+  int32_t compactEndTime;   // minutes
+  int8_t compactTimeOffset; // hour
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1375,6 +1386,11 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
   int8_t  withArbitrator;
+  // 1. add auto-compact parameters
+  int32_t compactInterval;
+  int32_t compactStartTime;
+  int32_t compactEndTime;
+  int8_t  compactTimeOffset;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1507,6 +1523,10 @@ typedef struct {
   int32_t s3ChunkSize;
   int32_t s3KeepLocal;
   int8_t  s3Compact;
+  int8_t  compactTimeOffset;
+  int32_t compactInterval;
+  int32_t compactStartTime;
+  int32_t compactEndTime;
   int32_t tsdbPageSize;
   int32_t walRetentionPeriod;
   int32_t walRollPeriod;
@@ -1614,6 +1634,7 @@ typedef struct {
   STimeWindow timeRange;
   int32_t     sqlLen;
   char*       sql;
+  SArray*     vgroupIds;
 } SCompactDbReq;
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
@@ -1755,6 +1776,21 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
+  int32_t     vgId;
+  int64_t     numOfTables;
+  int64_t     memSize;
+  int64_t     l1Size;
+  int64_t     l2Size;
+  int64_t     l3Size;
+  int64_t     cacheSize;
+  int64_t     walSize;
+  int64_t     metaSize;
+  int64_t     rawDataSize;
+  int64_t     s3Size;
+  const char* dbname;
+} SDbSizeStatisInfo;
+
+typedef struct {
   int32_t vgId;
   int64_t nTimeSeries;
 } SVnodeLoadLite;
@@ -1808,6 +1844,16 @@ typedef struct {
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
+
+typedef struct {
+  int32_t forceReadConfig;
+  int32_t cver;
+  SArray* array;
+} SConfigReq;
+
+int32_t tSerializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
+int32_t tDeserializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
+void    tFreeSConfigReq(SConfigReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -1885,6 +1931,18 @@ typedef struct {
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 void    tFreeSStatusRsp(SStatusRsp* pRsp);
+
+typedef struct {
+  int32_t forceReadConfig;
+  int32_t isConifgVerified;
+  int32_t isVersionVerified;
+  int32_t cver;
+  SArray* array;
+} SConfigRsp;
+
+int32_t tSerializeSConfigRsp(void* buf, int32_t bufLen, SConfigRsp* pRsp);
+int32_t tDeserializeSConfigRsp(void* buf, int32_t bufLen, SConfigRsp* pRsp);
+void    tFreeSConfigRsp(SConfigRsp* pRsp);
 
 typedef struct {
   int32_t reserved;
@@ -1984,6 +2042,8 @@ typedef struct {
   int32_t dnodeId;
   int32_t numberFileset;
   int32_t finished;
+  int32_t progress;
+  int64_t remainingTime;
 } SQueryCompactProgressRsp;
 
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
@@ -2191,6 +2251,7 @@ typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
   char value[TSDB_CONFIG_PATH_LEN + 1];
   char scope[TSDB_CONFIG_SCOPE_LEN + 1];
+  char category[TSDB_CONFIG_CATEGORY_LEN + 1];
   char info[TSDB_CONFIG_INFO_LEN + 1];
 } SVariablesInfo;
 
@@ -2399,8 +2460,9 @@ int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq
 void    tFreeSMCfgDnodeReq(SMCfgDnodeReq* pReq);
 
 typedef struct {
-  char config[TSDB_DNODE_CONFIG_LEN];
-  char value[TSDB_DNODE_VALUE_LEN];
+  char    config[TSDB_DNODE_CONFIG_LEN];
+  char    value[TSDB_DNODE_VALUE_LEN];
+  int32_t version;
 } SDCfgDnodeReq;
 
 int32_t tSerializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
@@ -2740,7 +2802,7 @@ int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
 
 typedef struct {
   SMsgHead header;
-  uint64_t sId;
+  uint64_t clientId;
 } SSchTasksStatusReq;
 
 typedef struct {
@@ -2770,7 +2832,7 @@ typedef struct SQueryNodeEpId {
 
 typedef struct {
   SMsgHead       header;
-  uint64_t       sId;
+  uint64_t       clientId;
   SQueryNodeEpId epId;
   SArray*        taskAction;  // SArray<STaskAction>
 } SSchedulerHbReq;
@@ -3231,6 +3293,7 @@ int tDecodeSVCreateTbBatchRsp(SDecoder* pCoder, SVCreateTbBatchRsp* pRsp);
 typedef struct {
   char*    name;
   uint64_t suid;  // for tmq in wal format
+  int64_t  uid;
   int8_t   igNotExists;
 } SVDropTbReq;
 
@@ -3433,6 +3496,8 @@ typedef struct {
   SAppHbReq         app;
   SQueryHbReqBasic* query;
   SHashObj*         info;  // hash<Skv.key, Skv>
+  char              userApp[TSDB_APP_NAME_LEN];
+  uint32_t          userIp;
 } SClientHbReq;
 
 typedef struct {
@@ -3811,7 +3876,14 @@ typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
-} SVPauseStreamTaskReq, SVResetStreamTaskReq;
+} SVPauseStreamTaskReq;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+  int64_t  chkptId;
+} SVResetStreamTaskReq;
 
 typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
@@ -3847,7 +3919,7 @@ typedef struct {
   int8_t  igExists;
   int8_t  intervalUnit;
   int8_t  slidingUnit;
-  int8_t  timezone;
+  int8_t  timezone;    // int8_t is not enough, timezone is unit of second
   int32_t dstVgId;  // for stream
   int64_t interval;
   int64_t offset;

@@ -200,10 +200,8 @@ bool tfsIsSameFile(const STfsFile *pFile1, const STfsFile *pFile2) {
   if (pFile1->did.level != pFile2->did.level) return false;
   if (pFile1->did.id != pFile2->did.id) return false;
   char nameBuf1[TMPNAME_LEN], nameBuf2[TMPNAME_LEN];
-  (void)strncpy(nameBuf1, pFile1->rname, TMPNAME_LEN);
-  (void)strncpy(nameBuf2, pFile2->rname, TMPNAME_LEN);
-  nameBuf1[TMPNAME_LEN - 1] = 0;
-  nameBuf2[TMPNAME_LEN - 1] = 0;
+  tstrncpy(nameBuf1, pFile1->rname, TMPNAME_LEN);
+  tstrncpy(nameBuf2, pFile2->rname, TMPNAME_LEN);
   TAOS_UNUSED(taosRealPath(nameBuf1, NULL, TMPNAME_LEN));
   TAOS_UNUSED(taosRealPath(nameBuf2, NULL, TMPNAME_LEN));
   if (strncmp(nameBuf1, nameBuf2, TMPNAME_LEN) != 0) return false;
@@ -573,7 +571,7 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
-  strncpy(pCfg->dir, dirName, TSDB_FILENAME_LEN);
+  tstrncpy(pCfg->dir, dirName, TSDB_FILENAME_LEN);
 
   TAOS_RETURN(0);
 }
@@ -592,7 +590,16 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
     wordfree(&wep);
     TAOS_RETURN(code);
   }
-  strcpy(odir, tmp);
+
+  int32_t dirLen = strlen(tmp);
+  if (dirLen < 0 || dirLen >= TSDB_FILENAME_LEN) {
+    wordfree(&wep);
+    code = TSDB_CODE_OUT_OF_RANGE;
+    fError("failed to mount %s to FS since %s, real path:%s, len:%d", idir, tstrerror(code), tmp, dirLen);
+    TAOS_RETURN(code);
+  }
+
+  tstrncpy(odir, tmp, TSDB_FILENAME_LEN);
 
   wordfree(&wep);
   TAOS_RETURN(0);

@@ -39,6 +39,7 @@ public class TelnetLineProtocolExample {
             createDatabase(conn);
             SchemalessWriter writer = new SchemalessWriter(conn);
             writer.write(lines, SchemalessProtocolType.TELNET, SchemalessTimestampType.NOT_CONFIGURED);
+            writer.close();
         }
     }
 

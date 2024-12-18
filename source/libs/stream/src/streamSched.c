@@ -104,12 +104,36 @@ int32_t streamTrySchedExec(SStreamTask* pTask) {
 }
 
 int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType) {
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
+  int32_t code = 0;
+  int32_t tlen = 0;
+
+  SStreamTaskRunReq req = {.streamId = streamId, .taskId = taskId, .reqType = execType};
+
+  tEncodeSize(tEncodeStreamTaskRunReq, &req, tlen, code);
+  if (code < 0) {
+    stError("s-task:0x%" PRIx64 " vgId:%d encode stream task run req failed, code:%s", streamId, vgId, tstrerror(code));
+    return code;
+  }
+
+  void* buf = rpcMallocCont(tlen + sizeof(SMsgHead));
+  if (buf == NULL) {
     stError("vgId:%d failed to create msg to start stream task:0x%x exec, type:%d, code:%s", vgId, taskId, execType,
             tstrerror(terrno));
     return terrno;
   }
+
+  ((SMsgHead*)buf)->vgId = vgId;
+  char* bufx = POINTER_SHIFT(buf, sizeof(SMsgHead));
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, (uint8_t*)bufx, tlen);
+  if ((code = tEncodeStreamTaskRunReq(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    tEncoderClear(&encoder);
+    stError("s-task:0x%x vgId:%d encode run task msg failed, code:%s", taskId, vgId, tstrerror(code));
+    return code;
+  }
+  tEncoderClear(&encoder);
 
   if (streamId != 0) {
     stDebug("vgId:%d create msg to for task:0x%x, exec type:%d, %s", vgId, taskId, execType,
@@ -118,13 +142,8 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
     stDebug("vgId:%d create msg to exec, type:%d, %s", vgId, execType, streamTaskGetExecType(execType));
   }
 
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = streamId;
-  pRunReq->taskId = taskId;
-  pRunReq->reqType = execType;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  int32_t code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
+  code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
   if (code) {
     stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
   }
@@ -192,6 +211,7 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
   const char*     id = pTask->id.idStr;
   int8_t          precision = pTask->info.interval.precision;
   SStreamTrigger* pTrigger = NULL;
+  bool            isFull = false;
 
   while (1) {
     code = streamCreateForcewindowTrigger(&pTrigger, pTask->info.delaySchedParam, &pTask->info.interval,
@@ -214,7 +234,6 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
 
     // check whether the time window gaps exist or not
     int64_t now = taosGetTimestamp(precision);
-    int64_t ekey = pTrigger->pBlock->info.window.skey + pTask->info.interval.interval;
 
     // there are gaps, needs to be filled
     STimeWindow w = pTrigger->pBlock->info.window;
@@ -226,13 +245,18 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
     }
 
     pTask->status.latestForceWindow = w;
-    if (ekey + pTask->info.watermark + pTask->info.interval.interval > now) {
-      int64_t prev = convertTimePrecision(*pNextTrigger, precision, TSDB_TIME_PRECISION_MILLI);
+    isFull = streamQueueIsFull(pTask->inputq.queue);
 
-      *pNextTrigger = ekey + pTask->info.watermark + pTask->info.interval.interval - now;
+    if ((w.ekey + pTask->info.watermark + pTask->info.interval.interval > now) || isFull) {
+      int64_t prev = convertTimePrecision(*pNextTrigger, precision, TSDB_TIME_PRECISION_MILLI);
+      if (!isFull) {
+        *pNextTrigger = w.ekey + pTask->info.watermark + pTask->info.interval.interval - now;
+      }
+
       *pNextTrigger = convertTimePrecision(*pNextTrigger, precision, TSDB_TIME_PRECISION_MILLI);
-      stDebug("s-task:%s generate %d time window(s), trigger delay adjust from %" PRId64 " to %d", id, num, prev,
-              *pNextTrigger);
+      pTask->chkInfo.nextProcessVer = w.ekey + pTask->info.interval.interval;
+      stDebug("s-task:%s generate %d time window(s), trigger delay adjust from %" PRId64 " to %d, set ver:%" PRId64, id,
+              num, prev, *pNextTrigger, pTask->chkInfo.nextProcessVer);
       return code;
     } else {
       stDebug("s-task:%s gap exist for force_window_close, current force_window_skey:%" PRId64, id, w.skey);
@@ -289,7 +313,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
   }
 
   if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) {
-    nextTrigger = TRIGGER_RECHECK_INTERVAL;  // retry in 10 seec
+    nextTrigger = TRIGGER_RECHECK_INTERVAL;  // retry in 10 sec
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, TRIGGER_RECHECK_INTERVAL);
   } else {
     if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {

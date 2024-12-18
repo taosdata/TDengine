@@ -337,7 +337,7 @@ char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t prec
   }
 
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf, bufSize) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize, NULL) == NULL) {
     return buf;
   }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
@@ -730,6 +730,10 @@ bool shellIsShowWhole(const char *sql) {
   if (taosStrCaseStr(sql, "describe ") != NULL) {
     return true;
   }
+  // desc
+  if (taosStrCaseStr(sql, "desc ") != NULL) {
+    return true;
+  }
   // show
   if (taosStrCaseStr(sql, "show ") != NULL) {
     return true;
@@ -1091,7 +1095,7 @@ void shellCleanupHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\r\nDB error: %s (%.6fs)\r\n", taos_errstr(tres), (et - st) / 1E6);
+  fprintf(stderr, "\r\nDB error: %s[0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -1303,6 +1307,8 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
     if (shell_conn_ws_server(1)) {
+      printf("failed to connect to server, reason: %s[0x%08X]\n%s", ws_errstr(NULL), ws_errno(NULL), ERROR_CODE_DETAIL);
+      fflush(stdout);
       return -1;
     }
   } else {
@@ -1314,7 +1320,7 @@ int32_t shellExecute() {
     }
 
     if (shell.conn == NULL) {
-      printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
+      printf("failed to connect to server, reason: %s[0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL), ERROR_CODE_DETAIL);
       fflush(stdout);
       return -1;
     }

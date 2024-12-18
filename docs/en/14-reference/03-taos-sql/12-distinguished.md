@@ -130,11 +130,25 @@ The forward sliding time of SLIDING cannot exceed the time range of one window. 
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
+The INTERVAL clause allows the use of the AUTO keyword to specify the window offset. If the WHERE condition provides a clear applicable start time limit, the required offset will be automatically calculated, dividing the time window from that point; otherwise, it defaults to an offset of 0. Here are some simple examples:
+
+```sql
+-- With a start time limit, divide the time window from '2018-10-03 14:38:05'
+SELECT COUNT(*) FROM meters WHERE _rowts >= '2018-10-03 14:38:05' INTERVAL (1m, AUTO);
+
+-- Without a start time limit, defaults to an offset of 0
+SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, AUTO);
+
+-- Unclear start time limit, defaults to an offset of 0
+SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
+```
+
 When using time windows, note:
 
 - The window width of the aggregation period is specified by the keyword INTERVAL, with the shortest interval being 10 milliseconds (10a); it also supports an offset (the offset must be less than the interval), which is the offset of the time window division compared to "UTC moment 0". The SLIDING statement is used to specify the forward increment of the aggregation period, i.e., the duration of each window slide forward.
 - When using the INTERVAL statement, unless in very special cases, it is required to configure the timezone parameter in the taos.cfg configuration files of both the client and server to the same value to avoid frequent cross-time zone conversions by time processing functions, which can cause severe performance impacts.
 - The returned results have a strictly monotonically increasing time-series.
+- When using AUTO as the window offset, if the window width unit is d (day), n (month), w (week), y (year), such as: INTERVAL(1d, AUTO), INTERVAL(3w, AUTO), the TSMA optimization cannot take effect. If TSMA is manually created on the target table, the statement will report an error and exit; in this case, you can explicitly specify the Hint SKIP_TSMA or not use AUTO as the window offset.
 
 ### State Window
 

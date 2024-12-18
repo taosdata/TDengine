@@ -36,9 +36,14 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
+#include "tconv.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#endif
+
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "tao"
 #endif
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -70,6 +75,7 @@ int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 int32_t  clientStop = -1;
+SHashObj* pTimezoneMap = NULL;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -166,7 +172,8 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
   ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "type", cJSON_CreateNumber(reqType)));
   ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(
       json, "rows_num", cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows)));
-  if (pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen) {
+  if (pRequest->sqlstr != NULL &&
+      strlen(pRequest->sqlstr) > pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen) {
     char tmp = pRequest->sqlstr[pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen];
     pRequest->sqlstr[pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogMaxLen] = '\0';
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", cJSON_CreateString(pRequest->sqlstr)));
@@ -294,8 +301,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if ((duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThreshold * 1000000UL ||
-       duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
+  if ((duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThreshold * 1000000UL) &&
       checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogExceptDb)) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogScope & reqType) {
@@ -556,6 +562,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->metric.start = taosGetTimestampUs();
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
+  (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
 
@@ -683,7 +690,7 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("begin to destroy request 0x%" PRIx64 " p:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
@@ -725,7 +732,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 
@@ -796,6 +803,7 @@ void stopAllQueries(SRequestObj *pRequest) {
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
 
 static void *tscCrashReportThreadFp(void *param) {
+  int32_t code = 0;
   setThreadName("client-crashReport");
   char filepath[PATH_MAX] = {0};
   (void)snprintf(filepath, sizeof(filepath), "%s%s.taosCrashLog", tsLogDir, TD_DIRSEP);
@@ -816,6 +824,12 @@ static void *tscCrashReportThreadFp(void *param) {
   if (-1 != atomic_val_compare_exchange_32(&clientStop, -1, 0)) {
     return NULL;
   }
+  STelemAddrMgmt mgt;
+  code = taosTelemetryMgtInit(&mgt, tsTelemServer);
+  if (code) {
+    tscError("failed to init telemetry management, code:%s", tstrerror(code));
+    return NULL;
+  }
 
   while (1) {
     if (clientStop > 0) break;
@@ -826,7 +840,7 @@ static void *tscCrashReportThreadFp(void *param) {
 
     taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
     if (pMsg && msgLen > 0) {
-      if (taosSendHttpReport(tsTelemServer, tsClientCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
+      if (taosSendTelemReport(&mgt, tsClientCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
         tscError("failed to send crash report");
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
@@ -860,6 +874,7 @@ static void *tscCrashReportThreadFp(void *param) {
     taosMsleep(sleepTime);
     loopTimes = 0;
   }
+  taosTelemetryDestroy(&mgt);
 
   clientStop = -2;
   return NULL;
@@ -949,33 +964,35 @@ void taos_init_imp(void) {
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == appInfo.pInstMap || NULL == appInfo.pInstMapByClusterId) {
     (void)printf("failed to allocate memory when init appInfo\n");
-    tscInitRes = TSDB_CODE_OUT_OF_MEMORY;
+    tscInitRes = terrno;
     return;
   }
   taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
-  deltaToUtcInitOnce();
 
-  char logDirName[64] = {0};
-#ifdef CUS_PROMPT
-  snprintf(logDirName, 64, "%slog", CUS_PROMPT);
-#else
-  (void)snprintf(logDirName, 64, "taoslog");
-#endif
-  if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
-    tscInitRes = -1;
+  const char *logName = CUS_PROMPT "slog";
+  ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
+  if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
+    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
+    tscInitRes = terrno;
     return;
   }
 
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
-  ENV_ERR_RET(taosConvInit(), "failed to init conv");
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
+    tscInitRes = terrno;
+    tscError("failed to init conv");
+    return;
+  }
+#ifndef WINDOWS
+  ENV_ERR_RET(tzInit(), "failed to init timezone");
+#endif
   ENV_ERR_RET(monitorInit(), "failed to init monitor");
   ENV_ERR_RET(rpcInit(), "failed to init rpc");
 
   if (InitRegexCache() != 0) {
-    tscInitRes = -1;
+    tscInitRes = terrno;
     (void)printf("failed to init regex cache\n");
     return;
   }
@@ -1099,7 +1116,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  */
 uint64_t generateRequestId() {
   static uint32_t hashId = 0;
-  static int32_t requestSerialId = 0;
+  static int32_t  requestSerialId = 0;
 
   if (hashId == 0) {
     int32_t code = taosGetSystemUUIDU32(&hashId);

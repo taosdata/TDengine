@@ -28,6 +28,9 @@ if(${BUILD_WITH_TRAFT})
     # add_subdirectory(traft)
 endif(${BUILD_WITH_TRAFT})
 
-add_subdirectory(azure)
+if(${BUILD_S3})
+  add_subdirectory(azure)
+endif()
+
 add_subdirectory(tdev)
 add_subdirectory(lz4)

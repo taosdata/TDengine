@@ -134,7 +134,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
         void* data = NULL;
         uint32_t size = 0;
         if(taosHex2Ascii(pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN, &data, &size) < 0){
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
 
         if (size + VARSTR_HEADER_SIZE > TSDB_MAX_VARBINARY_LEN) {
