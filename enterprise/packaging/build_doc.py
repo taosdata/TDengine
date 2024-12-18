@@ -1,3 +1,8 @@
+"""
+Utility script to build the documentation for the TDengine
+"""
+
+
 import argparse
 import logging
 import os
