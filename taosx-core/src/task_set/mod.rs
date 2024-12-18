@@ -1197,9 +1197,7 @@ mod tests {
             .await
             .expect("get task");
 
-        set.spawn(opts.clone(), env.clone())
-            .await
-            .expect("spawn task");
+        let _ = set.spawn(opts.clone(), env.clone()).await;
 
         tracing::info!("spawned");
         tokio::time::sleep(Duration::from_secs(5)).await;

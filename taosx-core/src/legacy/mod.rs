@@ -3820,8 +3820,10 @@ mod tests {
         // prepare
         let taos = TaosBuilder::from_dsn("taos+ws:///")?.build().await?;
         taos.exec_many([
+            "drop topic if exists `x-sync-2`",
             "drop database if exists `x-sync-2`",
             "create database `x-sync-2`",
+            "drop topic if exists `x-sync`",
             "drop database if exists `x-sync`",
             "create database `x-sync`",
             "use `x-sync`",
@@ -3854,6 +3856,14 @@ mod tests {
             ..Default::default()
         };
         legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
+        let _ = taos
+            .exec_many([
+                "drop topic if exists `x-sync-2`",
+                "drop database if exists `x-sync-2`",
+                "drop topic if exists `x-sync`",
+                "drop database if exists `x-sync`",
+            ])
+            .await;
         Ok(())
     }
 
