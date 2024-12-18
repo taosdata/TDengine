@@ -226,6 +226,10 @@ void sclFreeParam(SScalarParam *param) {
     taosHashCleanup(param->pHashFilter);
     param->pHashFilter = NULL;
   }
+  if (param->pHashFilterVar != NULL) {
+    taosHashCleanup(param->pHashFilterVar);
+    param->pHashFilterVar = NULL;
+  }
 }
 
 int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
@@ -390,6 +394,8 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pHashFilter);
         param->pHashFilter = NULL;
+        taosHashCleanup(param->pHashFilterVar);
+        param->pHashFilterVar = NULL;
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
         return TSDB_CODE_OUT_OF_MEMORY;
       }
