@@ -3,7 +3,7 @@ title: collectd
 slug: /third-party-tools/data-collection/collectd
 ---
 
-import CollectD from "./_collectd.mdx"
+import CollectD from "../../assets/resources/_collectd.mdx"
 
 collectd is a daemon for collecting system performance. collectd provides various storage mechanisms to store different values. It periodically collects relevant statistical information about the system while it is running and storing information. Utilizing this information helps identify current system performance bottlenecks and predict future system loads.
 

@@ -293,7 +293,15 @@ struct SScalarParam {
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
+  timezone_t       tz;
+  void            *charsetCxt;
 };
+
+static inline void setTzCharset(SScalarParam* param, timezone_t tz, void* charsetCxt){
+  if (param == NULL) return;
+  param->tz = tz;
+  param->charsetCxt = charsetCxt;
+}
 
 #define cleanupResultRowEntry(p)  p->initialized = false
 #define isRowEntryCompleted(p)   (p->complete)

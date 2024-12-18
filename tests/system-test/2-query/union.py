@@ -434,7 +434,30 @@ class TDTestCase:
         tdSql.checkRows(2)
         sql = "select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, stable_name `TABLE_NAME`, 'TABLE' `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_stables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, table_name `TABLE_NAME`,  case when `type`='SYSTEM_TABLE' then 'TABLE'       when `type`='NORMAL_TABLE' then 'TABLE'       when `type`='CHILD_TABLE' then 'TABLE'       else 'UNKNOWN'  end `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_tables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, view_name `TABLE_NAME`, 'VIEW' `TABLE_TYPE`, NULL `REMARKS` from information_schema.ins_views"
         tdSql.query(sql, queryTimes=1)
-        tdSql.checkRows(47)
+        tdSql.checkRows(49)
+
+        sql = "select null union select null"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        sql = "select null union all select null"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, None)
+
+        sql = "select null union select 1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 1)
+
+        sql = "select null union select 'asd'"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 'asd')
 
     def stop(self):
         tdSql.close()

@@ -497,6 +497,8 @@ typedef struct SCtgAsyncFps {
   ctgDumpTaskResFp      dumpResFp;
   ctgCompTaskFp         compFp;
   ctgCloneTaskResFp     cloneFp;
+  int32_t               subTaskFactor; // to indicate how many sub tasks this task will generate by ctgLaunchSubTask
+                                       // default to 1, means no sub task, 2 means 1 sub task, 3 means 2 sub tasks...
 } SCtgAsyncFps;
 
 typedef struct SCtgApiStat {

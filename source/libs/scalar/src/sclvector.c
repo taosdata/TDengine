@@ -24,6 +24,7 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdataformat.h"
+#include "tdef.h"
 #include "ttime.h"
 #include "ttypes.h"
 #include "geosWrapper.h"
@@ -103,7 +104,7 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   if (NULL == tmp) {
     SCL_ERR_RET(terrno);
   }
-  int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
+  int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp, NULL);
   if (len < 0) {
     sclError("castConvert taosUcs4ToMbs error 1");
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -242,7 +243,7 @@ int32_t getVectorBigintValueFn(int32_t srcType, _getBigintValue_fn_t *p) {
 static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
   int64_t value = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, pOut->tz) != TSDB_CODE_SUCCESS) {
     value = 0;
     code = TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
@@ -404,7 +405,7 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
     SCL_ERR_RET(terrno);
   }
   int32_t ret =
-      taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len);
+      taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len, pOut->charsetCxt);
   if (!ret) {
     sclError("failed to convert to NCHAR");
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -426,7 +427,7 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
   if (NULL == t) {
     SCL_ERR_RET(terrno);
   }
-  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
+  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t), pOut->charsetCxt);
   if (len < 0) {
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
@@ -557,7 +558,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
           SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
         }
 
-        int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
+        int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp, pCtx->pIn->charsetCxt);
         if (len < 0) {
           sclError("castConvert taosUcs4ToMbs error 1");
           SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -592,18 +593,19 @@ int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out) {
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobinary is nchar
+int32_t ncharTobinary(void *buf, void **out, void* charsetCxt) {  // todo need to remove , if tobinary is nchar
   int32_t inputLen = varDataTLen(buf);
 
   *out = taosMemoryCalloc(1, inputLen);
   if (NULL == *out) {
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
-             DEFAULT_UNICODE_ENCODEC, tsCharset, (char *)varDataVal(buf));
+             DEFAULT_UNICODE_ENCODEC, charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (char *)varDataVal(buf));
     SCL_ERR_RET(terrno);
   }
-  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out));
+  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out), charsetCxt);
   if (len < 0) {
-    sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+    sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
+             charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
              (char *)varDataVal(buf));
     taosMemoryFree(*out);
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -614,7 +616,7 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
 
 int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData,
                       char **pRightData, void *pLeftOut, void *pRightOut, bool *isNull, bool *freeLeft,
-                      bool *freeRight, bool *result) {
+                      bool *freeRight, bool *result, void* charsetCxt) {
   *result = false;
   if (optr == OP_TYPE_JSON_CONTAINS) {
     *result = true;
@@ -700,13 +702,13 @@ int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_
              type == TSDB_DATA_TYPE_GEOMETRY) {
     if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
       char *tmpLeft = NULL;
-      SCL_ERR_RET(ncharTobinary(*pLeftData, (void *)&tmpLeft));
+      SCL_ERR_RET(ncharTobinary(*pLeftData, (void *)&tmpLeft, charsetCxt));
       *pLeftData = tmpLeft;
       *freeLeft = true;
     }
     if (typeRight == TSDB_DATA_TYPE_NCHAR) {
       char *tmpRight = NULL;
-      SCL_ERR_RET(ncharTobinary(*pRightData, (void *)&tmpRight));
+      SCL_ERR_RET(ncharTobinary(*pRightData, (void *)&tmpRight, charsetCxt));
       *pRightData = tmpRight;
       *freeRight = true;
     }
@@ -1080,7 +1082,7 @@ int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_
 
   int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
   if (code != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   code = vectorConvertSingleColImpl(input, output, NULL, startIndex, numOfRows);
@@ -1176,7 +1178,7 @@ static int32_t vectorMathAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
 }
 
 static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                  int32_t numOfRows, int32_t step, int32_t i) {
+                                  int32_t numOfRows, int32_t step, int32_t i, timezone_t tz) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1196,7 +1198,7 @@ static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
       SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
       SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes));
       *output =
-          taosTimeAdd(leftRes, rightRes, pRightCol->info.scale, pRightCol->info.precision);
+          taosTimeAdd(leftRes, rightRes, pRightCol->info.scale, pRightCol->info.precision, tz);
     }
   }
   SCL_RET(TSDB_CODE_SUCCESS);
@@ -1246,12 +1248,7 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   SColumnInfoData *pRightCol = NULL;
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
-
-  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pRight))) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pLeft))) ||
-      (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BOOL) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP &&
-       GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BOOL)) {  // timestamp plus duration
+  if(checkOperatorRestypeIsTimestamp(OP_TYPE_ADD, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight))) {  // timestamp plus duration
     int64_t             *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft;
     _getBigintValue_fn_t getVectorBigintValueFnRight;
@@ -1260,14 +1257,14 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
 
     if (pLeft->numOfRows == 1 && pRight->numOfRows == 1) {
       if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP) {
-        SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pRight->numOfRows, step, i));
+        SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
       } else {
-        SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i));
+        SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
       }
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i));
+      SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
+      SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i, pLeft->tz));
     } else if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
         if (IS_NULL) {
@@ -1341,7 +1338,7 @@ static int32_t vectorMathSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
 }
 
 static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                  int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
+                                  int32_t numOfRows, int32_t step, int32_t factor, int32_t i, timezone_t tz) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1362,7 +1359,7 @@ static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
       SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
       SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes));
       *output =
-          taosTimeAdd(leftRes, -rightRes, pRightCol->info.scale, pRightCol->info.precision) * factor;
+          taosTimeAdd(leftRes, -rightRes, pRightCol->info.scale, pRightCol->info.precision, tz) * factor;
     }
   }
   SCL_RET(TSDB_CODE_SUCCESS);
@@ -1383,9 +1380,7 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
-  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BIGINT) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP &&
-       GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BIGINT)) {  // timestamp minus duration
+ if (checkOperatorRestypeIsTimestamp(OP_TYPE_SUB, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight))) { // timestamp minus duration
     int64_t             *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft;
     _getBigintValue_fn_t getVectorBigintValueFnRight;
@@ -1393,11 +1388,11 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     SCL_ERR_JRET(getVectorBigintValueFn(pRightCol->info.type, &getVectorBigintValueFnRight));
 
     if (pLeft->numOfRows == 1 && pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->tz));
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i, pLeft->tz));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->tz));
     } else if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
         if (IS_NULL) {
@@ -1943,7 +1938,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       bool    result = false;
 
       SCL_ERR_RET(convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
-                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result));
+                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result, pLeft->charsetCxt));
 
       if (isJsonnull) {
         sclError("doVectorCompareImpl: invalid json null value");
@@ -2044,6 +2039,8 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   SScalarParam *param2 = NULL;
   SScalarParam *param3 = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
+  setTzCharset(&pLeftOut, pLeft->tz, pLeft->charsetCxt);
+  setTzCharset(&pRightOut, pLeft->tz, pLeft->charsetCxt);
   if (noConvertBeforeCompare(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
     param1 = pLeft;
     param2 = pRight;
@@ -2307,4 +2304,17 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
     default:
       return NULL;
   }
+}
+
+bool checkOperatorRestypeIsTimestamp(EOperatorType opType, int32_t lType, int32_t rType) {
+  if (opType != OP_TYPE_ADD && opType != OP_TYPE_SUB && opType != OP_TYPE_MINUS) {
+    return false;
+  }
+  if ((TSDB_DATA_TYPE_TIMESTAMP == lType && IS_INTEGER_TYPE(rType) && rType != TSDB_DATA_TYPE_UBIGINT) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rType && IS_INTEGER_TYPE(lType) && lType != TSDB_DATA_TYPE_UBIGINT) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_BOOL == rType) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rType && TSDB_DATA_TYPE_BOOL == lType)) {
+    return true;
+  }
+  return false;
 }

@@ -72,6 +72,9 @@ static SKeyword keywordTable[] = {
     {"COMP",                 TK_COMP},
     {"COMPACT",              TK_COMPACT},
     {"COMPACTS",             TK_COMPACTS},
+    {"COMPACT_INTERVAL",     TK_COMPACT_INTERVAL},
+    {"COMPACT_TIME_OFFSET",  TK_COMPACT_TIME_OFFSET},
+    {"COMPACT_TIME_RANGE",   TK_COMPACT_TIME_RANGE},
     {"CONNECTION",           TK_CONNECTION},
     {"CONNECTIONS",          TK_CONNECTIONS},
     {"CONNS",                TK_CONNS},
@@ -350,6 +353,8 @@ static SKeyword keywordTable[] = {
     {"ARBGROUPS",            TK_ARBGROUPS},
     {"IS_IMPORT",            TK_IS_IMPORT},
     {"FORCE_WINDOW_CLOSE",   TK_FORCE_WINDOW_CLOSE},
+    {"DISK_INFO",            TK_DISK_INFO},
+    {"AUTO",                 TK_AUTO},
 };
 // clang-format on
 

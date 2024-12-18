@@ -432,7 +432,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       uError("p->nTag == 0");
       goto end;
     }
-    parseTagDatatoJson(pTag, &pJson);
+    parseTagDatatoJson(pTag, &pJson, NULL);
     RAW_NULL_CHECK(pJson);
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
@@ -745,7 +745,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             uError("processAlterTable isJson false");
             goto end;
           }
-          parseTagDatatoJson(vAlterTbReq.pTagVal, &buf);
+          parseTagDatatoJson(vAlterTbReq.pTagVal, &buf, NULL);
           if (buf == NULL) {
             uError("parseTagDatatoJson failed, buf == NULL");
             goto end;
@@ -1348,7 +1348,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
-  taosArrayDestroyP(pTagList, taosMemoryFree);
+  taosArrayDestroyP(pTagList, NULL);
   return code;
 }
 
@@ -1563,7 +1563,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   req.source = TD_REQ_FROM_TAOX;
   tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);
   if (code != 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto end;
   }
   tlen += sizeof(SMsgHead);
@@ -1577,7 +1577,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   code = tEncodeSVAlterTbReq(&coder, &req);
   if (code != 0) {
     tEncoderClear(&coder);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto end;
   }
   tEncoderClear(&coder);
