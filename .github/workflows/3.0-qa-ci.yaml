@@ -334,26 +334,26 @@ jobs:
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
       
-      # - name: Send Feishu Message to Platform Notifications Group
-      #   run: |
-      #     function post_to_feishu() {
-      #       local text="$1"
-      #       curl -X POST -H "Content-Type: application/json" \
-      #       -d @- https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9 <<EOF
-      #       {
-      #           "msg_type": "text",
-      #           "content": {
-      #           "text": "$text"
-      #           }
-      #       }
-      #     EOF
-      #     }
-      #     PR_INFO="Coverage test results for taosX and its plugins\n
-      #     PR Owner: @${{ github.actor }}\n
-      #     Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-      #     TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
-      #     InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
-      #     OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
-      #     OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
-      #     Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
-      #     post_to_feishu "$PR_INFO"
+      - name: Send Feishu Message to Platform Notifications Group
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+          PR_INFO="Coverage test results for taosX and its plugins\n
+          PR Owner: @${{ github.actor }}\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
+          Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          post_to_feishu "$PR_INFO"
