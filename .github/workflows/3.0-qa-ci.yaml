@@ -210,6 +210,8 @@ jobs:
           app_token: ${{ env.app_token }}
         run: echo "APP_TOKEN=${{ env.app_token }}" >> $GITHUB_ENV
       - name: Configure git user
+        env:
+          HOME: /root
         run: |
           git config --global user.name "taosdata-bot"
       - name: Update Repo
