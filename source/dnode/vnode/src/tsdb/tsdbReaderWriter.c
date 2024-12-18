@@ -104,7 +104,7 @@ int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppF
   }
 
   pFD->path = (char *)&pFD[1];
-  tstrncpy(pFD->path, path, strlen(path) + 1);
+  memcpy(pFD->path, path, strlen(path) + 1);
   pFD->szPage = szPage;
   pFD->flag = flag;
   pFD->szPage = szPage;
