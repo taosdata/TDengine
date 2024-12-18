@@ -1446,8 +1446,7 @@ END:
 
 static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t consumerId, const char* user, const char* fqdn,
                            const char *topic, const char *cgroup, SArray *vgs, SArray *offsetRows) {
-  if (pBlock == NULL || numOfRows == NULL || topic == NULL ||
-      cgroup == NULL || vgs == NULL || offsetRows == NULL){
+  if (pBlock == NULL || numOfRows == NULL || topic == NULL || cgroup == NULL){
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
@@ -1601,6 +1600,9 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   return numOfRows;
 
 END:
+  taosRUnLockLatch(&pSub->lock);
+  sdbRelease(pSdb, pSub);
+
   return code;
 }
 

@@ -77,9 +77,8 @@ static tb_uid_t processSuid(tb_uid_t suid, char* db) {
 }
 static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id, int8_t t,
                                  SColCmprWrapper* pColCmprRow, cJSON** pJson) {
-  if (schemaRow == NULL || schemaTag == NULL || name == NULL || pColCmprRow == NULL || pJson == NULL) {
-    uError("invalid parameter, schemaRow:%p, schemaTag:%p, name:%p, pColCmprRow:%p, pJson:%p", schemaRow, schemaTag,
-           name, pColCmprRow, pJson);
+  if (schemaRow == NULL || name == NULL || pColCmprRow == NULL || pJson == NULL) {
+    uError("invalid parameter, schemaRow:%p, name:%p, pColCmprRow:%p, pJson:%p", schemaRow, name, pColCmprRow, pJson);
     return;
   }
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2570,7 +2569,7 @@ static int32_t writeRawImpl(TAOS* taos, void* buf, uint32_t len, uint16_t type) 
 
 int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
   if (taos == NULL || raw.raw == NULL || raw.raw_len <= 0) {
-    uError("taos:%p or data:%p is NULL or raw_len <= 0", taos, raw.raw);
+    SET_ERROR_MSG("taos:%p or data:%p is NULL or raw_len <= 0", taos, raw.raw);
     return TSDB_CODE_INVALID_PARA;
   }
 
