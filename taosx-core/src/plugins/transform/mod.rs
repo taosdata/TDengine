@@ -1314,8 +1314,8 @@ impl Parser {
                                 let _ = use_current_time_indices.insert(row);
                                 let _ = archive_indices.insert(row);
                             }
-                            Err(e) => {
-                                Err(Error::NullPrimaryKey(format!("{e:#}")))?;
+                            Err(_) => {
+                                Err(Error::NullPrimaryKey(all_fields[0].name().clone()))?;
                             }
                         }
                         continue;
