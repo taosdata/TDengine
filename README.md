@@ -1,22 +1,20 @@
 # taosX - Zero-code Ingestion Pipeline for TDengine
 
 <!-- omit in toc -->
-
 ## Table of Contents
-
 <!-- omit in toc -->
 
-1. [Introduction](#1-introduction)
-1. [Prerequisites](#2-prerequisites)
-1. [Build](#3-build)
-1. [Packaging](#4-packaging)
-1. [Installation](#5-installation)
-1. [Running](#6-running)
-1. [Testing](#7-testing)
-1. [Releasing](#8-releasing)
-1. [CI/CD](#9-cicd)
-1. [Coverage](#10-coverage)
-1. [Contributing](#11-contributing)
+- [1. Introduction](#1-introduction)
+- [2. Prerequisites](#2-prerequisites)
+- [3. Build](#3-build)
+- [4. Packaging](#4-packaging)
+- [5. Installation](#5-installation)
+- [6. Running](#6-running)
+- [7. Testing](#7-testing)
+- [8. Releasing](#8-releasing)
+- [9. CI/CD](#9-cicd)
+- [10. Coverage](#10-coverage)
+- [11. Contributing](#11-contributing)
 
 ## 1. Introduction
 
@@ -43,7 +41,7 @@ taosX uses Rust for its development. You need to install Rust and other required
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash
-cargo install cargo-make toml
+cargo install cargo-make toml-cli
 ```
 
 For UI development, you need to install Node.js. We recommend you to install [NVM](https://github.com/nvm-sh/nvm) for Node.js version manager:
