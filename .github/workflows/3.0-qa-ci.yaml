@@ -205,6 +205,13 @@ jobs:
     needs: [deploy_taosx_plugins,set_env]
     
     steps:
+      - name: Save token to environment
+        env:
+          app_token: ${{ env.app_token }}
+        run: echo "APP_TOKEN=${{ env.app_token }}" >> $GITHUB_ENV
+      - name: Configure git user
+        run: |
+          git config --global user.name "taosdata-bot"
       - name: Update Repo
         env:
           app_token: ${{ env.app_token }}
@@ -219,10 +226,7 @@ jobs:
           systemctl restart taos-explorer
           systemctl restart taosadapter
       
-      - name: Save token to environment
-        env:
-            app_token: ${{ env.app_token }}
-        run: echo "APP_TOKEN=${{ env.app_token }}" >> $GITHUB_ENV
+
       
       - name: Checkout code
         uses: actions/checkout@v2
