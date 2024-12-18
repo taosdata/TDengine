@@ -607,10 +607,6 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
     terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
     return -1;
   }
-  col_id_t colId = pOld->pTags[tag].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
-    return -1;
-  }
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
@@ -739,16 +735,6 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
     return -1;
   }
 
-  col_id_t colId = pStb->pTags[tag].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pStb->name, pStb->uid, colId) != 0) {
-    return -1;
-  }
-
-  // SSchema *pTag = pStb->pTags + tag;
-  // if (IS_IDX_ON(pTag)) {
-  //   terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
-  //   return -1;
-  // }
   code = mndAddIndexImpl(pMnode, pReq, pDb, pStb, &idxObj);
 
   return code;
