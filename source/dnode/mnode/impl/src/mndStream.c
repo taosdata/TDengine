@@ -1685,11 +1685,6 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 
   mInfo("stream:%s,%" PRId64 " start to pause stream", pauseReq.name, pStream->uid);
 
-  if (pStream->status == STREAM_STATUS__PAUSE) {
-    sdbRelease(pMnode->pSdb, pStream);
-    return 0;
-  }
-
   if ((code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb)) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     return code;
@@ -1778,7 +1773,6 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 
   // pause stream
   taosWLockLatch(&pStream->lock);
-  pStream->status = STREAM_STATUS__PAUSE;
   code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
   if (code) {
     taosWUnLockLatch(&pStream->lock);
@@ -1827,11 +1821,6 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
       mError("stream:%s not exist, failed to resume stream", resumeReq.name);
       TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
-  }
-
-  if (pStream->status != STREAM_STATUS__PAUSE) {
-    sdbRelease(pMnode->pSdb, pStream);
-    return 0;
   }
 
   mInfo("stream:%s,%" PRId64 " start to resume stream from pause", resumeReq.name, pStream->uid);
