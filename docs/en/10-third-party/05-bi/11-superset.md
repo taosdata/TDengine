@@ -13,10 +13,6 @@ Through the Python connector of TDengine, Superset can support TDengine data sou
 
 Ensure that Apache Superset v2.1.0 or above is installed. If not, please visit [official website](https://superset.apache.org/) to install  
 
-## Install TDengine
-
-Both TDengine Enterprise Edition and Community Edition are supported, with version requirements of 3.0 or higher  
-
 ## Install TDengine Python Connector
 
 The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.18 and later, which will be automatically installed in the Superset directory and provide data source services.  
@@ -26,7 +22,7 @@ pip3 install taospy
 pip3 install taos-ws-py
 ```
 
-## Configure TDengine Connection In Superset
+## Configure TDengine Cloud Connection In Superset
 
 **Step 1**, enter the new database connection page, "Superset" → "Setting" → "Database Connections" → "+DATABASE"   
 **Step 2**, select TDengine database connection, select the "TDengine" option from the drop-down list of "SUPPORTED DATABASES". 
@@ -34,23 +30,11 @@ pip3 install taos-ws-py
 If there is no TDengine option in the drop-down list, please confirm that the steps of installing, `Superset` is first and `Python Connector` is second.
 :::
 **Step 3**, write a name of connection in "DISPLAY NAME"  
-**Step 4**, The "SQLALCHEMY URL" field is a key connection information string, and it must be filled in correctly  
+**Step 4**, the "SQLALCHEMY URL" field is a key connection information string, copy and paste the following string  
 ```bash
-taosws://user:password@host:port
+taoswss://gw.cloud.taosdata.com?token=0df909712bb345d6ba92253d3e6fb635d609c8ff
 ```
-| Parameter  | <center>Parameter Description</center>                      |
-|:---------- |:---------------------------------------------------------   |
-|user        | Username for logging into TDengine database                 |   
-|password    | Password for logging into TDengine database                 |
-|host        | Name of the host where the TDengine database is located     |
-|port        | The port that provides WebSocket services, default is 6041  |
-
-Example:  
-The TDengine database installed on this machine provides WebSocket service port 6041, using the default username and password, "SQLALCHEMY URL" is:
-```bash
-taosws://root:taosdata@localhost:6041  
-```
-**Step 5**, configure the connection string, click "TEST CONNECTION" to test if the connection can be successful. After passing the test, click the "CONNECT" button to complete the connection  
+**Step 5**, click "TEST CONNECTION" to test if the connection can be successful. After passing the test, click the "CONNECT" button to complete the connection  
        
 
 ## Start

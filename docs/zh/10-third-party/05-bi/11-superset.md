@@ -10,10 +10,6 @@ title: 与 Superset 集成
 
 确保已安装 Apache Superset v2.1.0 及以上版本, 如未安装，请到其 [官网](https://superset.apache.org/) 安装
 
-## 安装 TDengine
-
-TDengine 企业版及社区版均可支持，版本要求在 3.0 及以上
-
 ## 安装 TDengine Python 连接器
 
 TDengine Python 连接器从 `v2.1.18` 开始自带 Superset 连接驱动，安装程序会把连接驱动安装到 Superset 相应目录下并向 Superset 提供数据源服务   
@@ -23,7 +19,7 @@ pip3 install taospy
 pip3 install taos-ws-py
 ```
 
-## Superset 中配置 TDengine 连接
+## Superset 中配置 TDengine 云服务连接
 
 **第 1 步**，进入新建数据库连接页面 "Superset" → "Setting" → "Database Connections" → "+DATABASE"   
 **第 2 步**，选择 TDengine 数据库连接。"SUPPORTED DATABASES" 下拉列表中选择 "TDengine" 项。  
@@ -31,23 +27,11 @@ pip3 install taos-ws-py
 注意：若下拉列表中无 "TDengine" 项，请检查安装顺序，确保 `TDengine Python 连接器` 在 `Superset` 安装之后再安装。  
 :::  
 **第 3 步**，"DISPLAY NAME" 中填写连接名称，任意填写即可。   
-**第 4 步**，"SQLALCHEMY URL" 项为关键连接信息串，务必填写正确。   
+**第 4 步**，"SQLALCHEMY URL" 项为关键连接信息串，复制以下内容粘贴即可。
 ```bash
-taosws://用户名:密码@主机名:端口号
+taoswss://gw.cloud.taosdata.com?token=0df909712bb345d6ba92253d3e6fb635d609c8ff
 ```
-| 参数名称 | <center>参数说明</center>          |
-|:------- |:--------------------------------  |
-| 用户名   | 登录 TDengine 数据库用户名           |  
-| 密码     | 登录 TDengine 数据库密码            |
-| 主机名   | TDengine 数据库所在主机名称          |
-| 端口号   | 提供 WebSocket 服务的端口，默认：6041 |  
-
-示例：  
-本机安装 TDengine 数据库，WebSocket 服务端口 6041，使用默认用户名密码，"SQLALCHEMY URL" 应为：
-```bash
-taosws://root:taosdata@localhost:6041  
-```
-**第 5 步**，配置好连接串，点击 “TEST CONNECTION” 测试连接是否成功，测试通过后点击 “CONNECT” 按钮，完成连接。
+**第 5 步**，点击 “TEST CONNECTION” 测试连接是否成功，测试通过后点击 “CONNECT” 按钮，完成连接。
        
 
 ## 开始使用
