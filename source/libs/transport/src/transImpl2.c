@@ -235,8 +235,9 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
     tDebug("select timeout occurred");
     return code;
   }
+  int32_t active_Fds = code;
 
-  for (j = 0; j < nfds; j++) {
+  for (j = 0; j < nfds && active_Fds > 0; j++) {
     int32_t fd = pOpt->fd[j];
     res = 0;
     if (FD_ISSET(fd, pOpt->evtReadSetOut)) {
@@ -249,6 +250,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
     if (res == 0) {
       continue;
     } else {
+      active_Fds--;
       code = evtMgtHandle(pOpt, res, fd);
       if (code != 0) {
         tError("failed to handle fd %d since %s", fd, tstrerror(code));
