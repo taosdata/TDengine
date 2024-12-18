@@ -231,6 +231,9 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
   code = select(nfds, pOpt->evtReadSetOut, pOpt->evtWriteSetOut, NULL, tv);
   if (code < 0) {
     return TAOS_SYSTEM_ERROR(errno);
+  } else if (code == 0) {
+    tDebug("select timeout occurred");
+    return code;
   }
 
   for (j = 0; j < nfds; j++) {
@@ -244,7 +247,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
     }
 
     if (res == 0) {
-      tDebug("do nothing");
+      continue;
     } else {
       code = evtMgtHandle(pOpt, res, fd);
       if (code != 0) {
