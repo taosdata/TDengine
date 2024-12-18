@@ -155,7 +155,7 @@ bool tsEnableTelem = false;
 #else
 bool    tsEnableTelem = true;
 #endif
-int32_t  tsTelemInterval = 43200;
+int32_t  tsTelemInterval = 86400;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <tlog.h>
+#include "nodes.h"
 #include "os.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -1284,7 +1285,8 @@ static void filterFreeGroup(void *pItem) {
   taosMemoryFreeClear(p->unitFlags);
 }
 
-int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
+int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, SArray *group) {
+  SFltBuildGroupCtx *ctx = (SFltBuildGroupCtx *)pContext;
   SOperatorNode *node = (SOperatorNode *)tree;
   int32_t        ret = TSDB_CODE_SUCCESS;
   SFilterFieldId left = {0}, right = {0};
@@ -1305,6 +1307,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
     out.columnData->info.type = type;
     out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
 
+    int32_t overflowCount = 0;
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
       if (valueNode->node.resType.type != type) {
@@ -1317,6 +1320,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
         if (overflow) {
           cell = cell->pNext;
+          ++overflowCount;
           continue;
         }
 
@@ -1356,6 +1360,9 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
       }
 
       cell = cell->pNext;
+    }
+    if(overflowCount == listNode->pNodeList->length) {
+      ctx->ignore = true;
     }
     colDataDestroy(out.columnData);
     taosMemoryFree(out.columnData);
@@ -1692,10 +1699,17 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
           FLT_ERR_RET(terrno);
         }
 
-        SFltBuildGroupCtx tctx = {.info = ctx->info, .group = newGroup};
+        SFltBuildGroupCtx tctx = {.info = ctx->info, .group = newGroup, .ignore = false};
         nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)&tctx);
         FLT_ERR_JRET(tctx.code);
-
+        if(tctx.ignore) {
+          ctx->ignore = true;
+          taosArrayDestroyEx(newGroup, filterFreeGroup);
+          newGroup = NULL;
+          taosArrayDestroyEx(resGroup, filterFreeGroup);
+          resGroup = NULL;
+          break;
+        }
         FLT_ERR_JRET(filterDetachCnfGroups(resGroup, preGroup, newGroup));
 
         taosArrayDestroyEx(newGroup, filterFreeGroup);
@@ -1707,9 +1721,10 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
 
         cell = cell->pNext;
       }
-
-      if (NULL == taosArrayAddAll(ctx->group, preGroup)) {
-        FLT_ERR_JRET(terrno);
+      if (!ctx->ignore) {
+        if (NULL == taosArrayAddAll(ctx->group, preGroup)) {
+          FLT_ERR_JRET(terrno);
+        }
       }
 
       taosArrayDestroy(preGroup);
@@ -1721,6 +1736,9 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
       SListCell *cell = node->pParameterList->pHead;
       for (int32_t i = 0; i < node->pParameterList->length; ++i) {
         nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)pContext);
+        if(ctx->ignore) {
+          ctx->ignore = false;
+        }
         FLT_ERR_JRET(ctx->code);
 
         cell = cell->pNext;
@@ -1735,7 +1753,7 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
   }
 
   if (QUERY_NODE_OPERATOR == nType) {
-    FLT_ERR_JRET(fltAddGroupUnitFromNode(ctx->info, pNode, ctx->group));
+    FLT_ERR_JRET(fltAddGroupUnitFromNode(ctx, ctx->info, pNode, ctx->group));
 
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -3831,12 +3849,20 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
     goto _return;
   }
 
-  SFltBuildGroupCtx tctx = {.info = info, .group = group};
+  SFltBuildGroupCtx tctx = {.info = info, .group = group, .ignore = false};
   nodesWalkExpr(tree, fltTreeToGroup, (void *)&tctx);
   if (TSDB_CODE_SUCCESS != tctx.code) {
     taosArrayDestroyEx(group, filterFreeGroup);
     code = tctx.code;
     goto _return;
+  }
+  if (tctx.ignore) {
+    FILTER_SET_FLAG(info->status, FI_STATUS_EMPTY);
+  }
+  if (FILTER_EMPTY_RES(info)) {
+    info->func = filterExecuteImplEmpty;
+    taosArrayDestroyEx(group, filterFreeGroup);
+    return TSDB_CODE_SUCCESS;
   }
   code = filterConvertGroupFromArray(info, group);
   if (TSDB_CODE_SUCCESS != code) {
@@ -3871,7 +3897,7 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
 
 _return:
   if (code) {
-    qInfo("init from node failed, code:%d", code);
+    qInfo("init from node failed, code:%d, %s", code, tstrerror(code));
   }
   return code;
 }
@@ -4561,8 +4587,7 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
         FLT_ERR_JRET(fltSclGetTimeStampDatum(endPt, &end));
         win->skey = start.i;
         win->ekey = end.i;
-        if(optNode->opType == OP_TYPE_IN) *isStrict = false;
-        else *isStrict = true;
+        *isStrict = info->isStrict;
         goto _return;
       } else if (taosArrayGetSize(points) == 0) {
         *win = TSWINDOW_DESC_INITIALIZER;
@@ -5026,7 +5051,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
 }
 
 // TODO: process DNF composed of CNF
-int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
+static int32_t fltSclProcessCNF(SFilterInfo *pInfo, SArray *sclOpListCNF, SArray *colRangeList) {
+  pInfo->isStrict = true;
   size_t sz = taosArrayGetSize(sclOpListCNF);
   for (int32_t i = 0; i < sz; ++i) {
     SFltSclOperator    *sclOper = taosArrayGet(sclOpListCNF, i);
@@ -5049,9 +5075,15 @@ int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
       taosArrayDestroy(colRange->points);
       taosArrayDestroy(points);
       colRange->points = merged;
+      if(merged->size == 0) {
+        return TSDB_CODE_SUCCESS;
+      }
     } else {
       taosArrayDestroy(colRange->points);
       colRange->points = points;
+    }
+    if (sclOper->type == OP_TYPE_IN) {
+      pInfo->isStrict = false;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -5154,7 +5186,7 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
   if (NULL == colRangeList) {
     FLT_ERR_JRET(terrno);
   }
-  FLT_ERR_JRET(fltSclProcessCNF(sclOpList, colRangeList));
+  FLT_ERR_JRET(fltSclProcessCNF(pInfo, sclOpList, colRangeList));
   pInfo->sclCtx.fltSclRange = colRangeList;
 
   for (int32_t i = 0; i < taosArrayGetSize(sclOpList); ++i) {

@@ -276,11 +276,15 @@ TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集�
 
 ### 30 为什么开源版 TDengine 的主进程会建立一个与公网的连接？
 这个连接只会上报不涉及任何用户数据的最基本信息，用于官方了解产品在世界范围内的分布情况，进而优化产品，提升用户体验，具体采集项目为：集群名、操作系统版本、cpu信息等。
-该特性为可选配置项，在开源版中默认开启，具体参数为 telemetryReporting , 在官方文档中有做说明，链接如下：
-https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B8%E5%85%B3
+
+该特性为可选配置项，在开源版中默认开启，具体参数为 telemetryReporting , 在官方文档中有做说明，链接如下：[参数简介](https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B8%E5%85%B3)
+
 您可以随时关闭该参数，只需要在taos.cfg 中修改telemetryReporting为 0，然后重启数据库服务即可。
-代码位于:https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c
-此外，对于安全性要求极高的企业版 TDengine Enterprise 来说，此参数不会工作。  
+
+代码位于:[点击此处](https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c)
+
+此外，对于安全性要求极高的企业版 TDengine Enterprise 来说，此参数不会工作。
+
 ### 31 第一次连接集群时遇到“Sync leader is unreachable”怎么办？
 报这个错，说明第一次向集群的连接是成功的，但第一次访问的IP不是mnode的leader节点，客户端试图与leader建立连接时发生错误。客户端通过EP，也就是指定的fqdn与端口号寻找leader节点，常见的报错原因有两个：  
 

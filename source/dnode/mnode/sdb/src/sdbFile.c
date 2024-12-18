@@ -48,12 +48,12 @@ static int32_t sdbDeployData(SSdb *pSdb) {
   return 0;
 }
 
-static int32_t sdbPrepareData(SSdb *pSdb) {
+static int32_t sdbAfterRestoredData(SSdb *pSdb) {
   int32_t code = 0;
   mInfo("start to prepare sdb");
 
   for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
-    SdbPrepareFp fp = pSdb->prepareFps[i];
+    SdbAfterRestoredFp fp = pSdb->afterRestoredFps[i];
     if (fp == NULL) continue;
 
     mInfo("start to prepare sdb:%s", sdbTableName(i));
@@ -666,9 +666,9 @@ int32_t sdbDeploy(SSdb *pSdb) {
   return 0;
 }
 
-int32_t sdbPrepare(SSdb *pSdb) {
+int32_t sdbAfterRestored(SSdb *pSdb) {
   int32_t code = 0;
-  code = sdbPrepareData(pSdb);
+  code = sdbAfterRestoredData(pSdb);
   if (code != 0) {
     TAOS_RETURN(code);
   }

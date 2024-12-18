@@ -3,7 +3,7 @@ title: StatsD
 slug: /third-party-tools/data-collection/statsd
 ---
 
-import StatsD from "./_statsd.mdx"
+import StatsD from "../../assets/resources/_statsd.mdx"
 
 StatsD is a simple daemon for aggregating and summarizing application metrics that has rapidly evolved in recent years into a unified protocol for collecting application performance metrics.
 
