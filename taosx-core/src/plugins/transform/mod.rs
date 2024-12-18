@@ -47,9 +47,9 @@ pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
-use crate::{plugins::transform::parse::ArrayForTaos, utils::files::write_to_parquet_file};
 use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::global::TABLE_TAG_CACHE;
+use crate::{plugins::transform::parse::ArrayForTaos, utils::files::write_to_parquet_file};
 
 use super::expr;
 
@@ -1399,7 +1399,7 @@ impl Parser {
             if !archive_indices.is_empty() {
                 let mut archive_indices_vec = Vec::new();
                 archive_indices.scan(|row: &usize| {
-                    archive_indices_vec.push(row.clone());
+                    archive_indices_vec.push(*row);
                 });
                 let archive_batches = archive_indices_vec
                     .iter()
@@ -2560,7 +2560,6 @@ mod parser_tests {
     };
 
     use super::Parser;
-    use crate::plugins::transform::modeler::Modeler;
 
     #[test]
     fn test_parser_serde() {
@@ -3236,7 +3235,9 @@ mod parser_tests {
 
         parser.set_maximum_timestamp(Utc::now());
         dbg!(parser);
+    }
 
+    #[test]
     fn test_parse_record_to_sql() {
         let parser = r#"{
             "parse": {
@@ -3286,7 +3287,9 @@ mod parser_tests {
         )
         .unwrap();
 
-        let records = parser.parse_message_from_records(&raw_data, false).unwrap();
+        let records = parser
+            .parse_message_from_records(1, &raw_data, false)
+            .unwrap();
         // assert_eq!(records.len(), 2);
         if let super::Message::Records(records) = records {
             assert_eq!(records.len(), 2);

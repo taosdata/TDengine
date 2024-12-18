@@ -154,12 +154,8 @@ pub async fn get_database(taos: &mut Option<TaosConnection>) -> Result<String, T
         .in_current_span()
         .await
     {
-        Ok(n) => {
-            return n.ok_or_else(|| TaosError::new(0xFFFF, "database name empty"));
-        }
-        Err(err) => {
-            return Err(err.context("get database error"));
-        }
+        Ok(n) => n.ok_or_else(|| TaosError::new(0xFFFF, "database name empty")),
+        Err(err) => Err(err.context("get database error")),
     }
 }
 
