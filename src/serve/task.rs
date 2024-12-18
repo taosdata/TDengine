@@ -637,7 +637,7 @@ pub(super) async fn get_task_offsets_by_id(
 #[utoipa::path(
     tag = "tasks",
     responses(
-        (status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
+        (status = 200, description = "Task activities of the task", body = Vec<Activity>),
         ),
     params(
         ("id", description = "Unique storage id of Task"),

@@ -16,8 +16,7 @@ use tracing::Instrument;
 use utoipa::openapi::path;
 use uuid::Uuid;
 
-use crate::serve::controller::agent::Activity;
-use crate::serve::controller::{AgentAction, TaskActivity};
+use crate::serve::controller::{Activity, AgentAction};
 use crate::serve::scheduler::NotifySenderExt;
 
 use super::NotifySender;
@@ -61,7 +60,7 @@ pub struct AgentTask {
     #[multi_index(ordered_unique)]
     pub task_id: TaskId,
     pub agent_state: Arc<RwLock<AgentState>>,
-    pub sender: tokio::sync::mpsc::Sender<TaskActivity>,
+    pub sender: tokio::sync::mpsc::Sender<Activity>,
     pub stop_sender: Arc<tokio::sync::oneshot::Sender<anyhow::Result<()>>>,
 }
 
@@ -91,7 +90,7 @@ pub enum AgentNotify {
     /// This error is sent by agent when it encounters an error while writing data to TDengine.
     WriterError(AgentId, TaskId, String),
     /// Agent task activity.
-    TaskActivity(AgentId, TaskActivity),
+    TaskActivity(AgentId, Activity),
     /// Agent activity.
     AgentActivity(AgentId, Activity),
 }
@@ -197,7 +196,7 @@ impl AgentWorker {
                                                         *t.agent_state.write().await =
                                                             AgentState::Connected;
                                                         t.sender
-                                                            .send(TaskActivity::agent_resumed(
+                                                            .send(Activity::agent_resumed(
                                                                 t.task_id, agent_id,
                                                             ))
                                                             .await;
@@ -225,7 +224,7 @@ impl AgentWorker {
                                                             AgentState::Disconnected;
 
                                                         t.sender
-                                                            .send(TaskActivity::waiting(
+                                                            .send(Activity::waiting(
                                                                 t.task_id,
                                                                 format!(
                                                                 "Agent {agent_id} is disconnected"
@@ -315,7 +314,7 @@ impl AgentWorker {
                                                 tokio::task::block_in_place(|| {
                                                     Handle::current().block_on(async {
                                                         t.sender
-                                                            .send(TaskActivity::interrupt(
+                                                            .send(Activity::interrupt(
                                                                 t.task_id,
                                                                 format!(
                                                                     "Writer error: {}",
@@ -366,7 +365,7 @@ impl AgentWorker {
         let mut agent_tasks = self.agent_tasks_sender.write().await;
         if let Some(task) = agent_tasks.remove_by_task_id(&task_id) {
             task.sender
-                .send(TaskActivity::suspended(task_id, uuid::Uuid::nil()))
+                .send(Activity::suspended(task_id, uuid::Uuid::nil()))
                 .await
                 .ok();
             if let Err(err) = self

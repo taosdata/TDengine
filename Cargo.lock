@@ -1166,6 +1166,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "bon"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f265cdb2e8501f1c952749e78babe8f1937be92c98120e5f78fc72d634682bad"
+dependencies = [
+ "bon-macros",
+ "rustversion",
+]
+
+[[package]]
+name = "bon-macros"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38aa5c627cd7706490e5b003d685f8b9d69bc343b1a00b9fdd01e75fdf6827cf"
+dependencies = [
+ "darling 0.20.10",
+ "ident_case",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.90",
+]
+
+[[package]]
 name = "borsh"
 version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1396,9 +1421,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.38"
+version = "0.4.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
+checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -7931,6 +7956,7 @@ dependencies = [
  "bitfield",
  "bitflags 2.6.0",
  "bitvec",
+ "bon",
  "bytes",
  "cfg-if",
  "chardetng",
@@ -7939,6 +7965,7 @@ dependencies = [
  "clap",
  "config",
  "convert_case 0.6.0",
+ "crossbeam",
  "csv",
  "csv-async",
  "dashmap 6.1.0",
@@ -8004,6 +8031,7 @@ dependencies = [
  "socket2",
  "sqlx",
  "sqlx-postgres",
+ "strum",
  "sysinfo 0.32.1",
  "taos",
  "taoslog",
@@ -9594,6 +9622,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f360fc0b24296329c78fda852a1e9ae82de9cf7b27dae4b7f62f118f77b9ed"
 dependencies = [
  "tap",
+]
+
+[[package]]
+name = "x-spawner-replication"
+version = "1.8.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "flume",
+ "taosx-core",
 ]
 
 [[package]]

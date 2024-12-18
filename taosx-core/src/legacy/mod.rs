@@ -2935,7 +2935,6 @@ pub async fn legacy_to_taos(
     mut from: Dsn,
     actions: Vec<Action>,
     mut to: Dsn,
-    concurrency: usize,
     cancel: CancellationToken,
     task_id: Option<i64>,
 ) -> anyhow::Result<()> {
@@ -2946,13 +2945,9 @@ pub async fn legacy_to_taos(
     let _ = tracing::info_span!("check parameters").entered();
     // let span = span.entered();
 
-    let concurrent = if concurrency > 0 {
-        concurrency
-    } else {
-        std::thread::available_parallelism()
-            .map(|v| v.get())
-            .unwrap_or(20)
-    };
+    let concurrent = std::thread::available_parallelism()
+        .map(|v| v.get())
+        .unwrap_or(20);
 
     let metrics_arc = {
         let task_id = task_id.unwrap_or(-1);
@@ -3325,7 +3320,7 @@ pub async fn legacy_to_taos(
 
                             if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
                                 // sync schema of the updated stables.
-                                sync_schema(&schema_polling_scheduler, &updates, concurrency)
+                                sync_schema(&schema_polling_scheduler, &updates, concurrent)
                                     .await
                                     .context("Spawn schema syncing of the updated stables error")?;
                             }
@@ -3420,7 +3415,7 @@ pub async fn legacy_to_taos(
 
                         if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
                             // sync schema of the updated tables.
-                            sync_schema(&schema_polling_scheduler, &updates, concurrency)
+                            sync_schema(&schema_polling_scheduler, &updates, concurrent)
                                 .await
                                 .context("Spawn schema syncing of the updated tables error")?;
                         }
@@ -3825,8 +3820,10 @@ mod tests {
         // prepare
         let taos = TaosBuilder::from_dsn("taos+ws:///")?.build().await?;
         taos.exec_many([
+            "drop topic if exists `x-sync-2`",
             "drop database if exists `x-sync-2`",
             "create database `x-sync-2`",
+            "drop topic if exists `x-sync`",
             "drop database if exists `x-sync`",
             "create database `x-sync`",
             "use `x-sync`",
@@ -3858,7 +3855,15 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
+        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
+        let _ = taos
+            .exec_many([
+                "drop topic if exists `x-sync-2`",
+                "drop database if exists `x-sync-2`",
+                "drop topic if exists `x-sync`",
+                "drop database if exists `x-sync`",
+            ])
+            .await;
         Ok(())
     }
 
@@ -3946,7 +3951,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
+        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
 
         taos.exec(format!("use `{}`", db2)).await?;
         let _ = taos.describe(stable).await?;
@@ -3956,6 +3961,8 @@ mod tests {
             format!("drop database if exists `{db2}`"),
         ])
         .await?;
+
+        std::fs::remove_file("tests/large_table.sql")?;
         Ok(())
     }
 
@@ -4032,7 +4039,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
+        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
 
         taos.exec(format!("use `{}`", db2)).await?;
 
@@ -4043,6 +4050,7 @@ mod tests {
             format!("drop database if exists `{db2}`"),
         ])
         .await?;
+        std::fs::remove_file("tests/large_normal_table.sql")?;
         Ok(())
     }
 
@@ -4203,15 +4211,7 @@ mod tests {
         crate::core_metrics::clear_metrics(tid).await;
         let _ = crate::core_metrics::init_task_metrics(&source, &sink, tid, None).await;
 
-        legacy_to_taos(
-            source,
-            actions,
-            sink,
-            1,
-            CancellationToken::new(),
-            Some(tid),
-        )
-        .await?;
+        legacy_to_taos(source, actions, sink, CancellationToken::new(), Some(tid)).await?;
 
         // table nTb2 should be created
         let _ = taos2.exec(format!("desc `{}`.`nTb2`", db2)).await?;

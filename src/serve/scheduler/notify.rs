@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::serve::{controller::TaskActivity, scheduler::SchedulerNotify};
+use crate::serve::{controller::Activity, scheduler::SchedulerNotify};
 use itertools::Itertools;
 use taosx_core::{
     sink::lush::{self, TableTagCache},
@@ -38,7 +38,7 @@ pub async fn notify_by_job_id(
     match job_state {
         JobNotification::Stop => {
             info!("Stopping task {:?}", task_id);
-            global.send_agent_activity(TaskActivity::stop(task_id));
+            global.send_agent_activity(Activity::stop(task_id));
         }
         JobNotification::Scheduled => {
             info!("Scheduling task {:?}", task_id);

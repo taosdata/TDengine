@@ -5,7 +5,7 @@ use crate::plugins::expr::BooleanExpr;
 
 use super::{RecordFilter, RecordFilterError};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ExprRecordFilter {
     expr: String,
 }

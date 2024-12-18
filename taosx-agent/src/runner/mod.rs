@@ -12,7 +12,9 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use taosx_core::{Activity, LevelFilter, RespAction, TaskNotify, TaskOpts};
+use taosx_core::{
+    task_set::prelude::EventLevel, Activity, LevelFilter, RespAction, TaskNotify, TaskOpts,
+};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
@@ -120,9 +122,7 @@ pub fn spawn_runner(
                                 transform: vec![],
                                 from: task.from.parse().unwrap(),
                                 to: task.to.parse()?,
-                                jobs: task.jobs as _,
-                                compression_level: task.compression_level.map(Into::into),
-                                force: task.force,
+                                health: task.health,
                                 cancel,
                                 parser: None,
                                 // port_pool: ONCE,
@@ -132,15 +132,14 @@ pub fn spawn_runner(
                                     token.to_string(),
                                 )),
                                 breakpoints: task.breakpoints,
-                                transferred: None,
                                 task_id: Some(task.id.to_string()),
                                 notify: task_tx,
                             };
                             let status_sender = status_tx.clone();
                             tokio::spawn(async move {
-                                while let Ok(status) = task_rx.recv_async().await {
-                                    let activity = match status {
-                                        TaskNotify::Error(message) => Activity::new(
+                                while let Ok(TaskNotify { level, message, .. }) = task_rx.recv_async().await {
+                                    let activity = match level {
+                                        EventLevel::Error | EventLevel::Fatal => Activity::new(
                                             task.id,
                                             Utc::now(),
                                             LevelFilter::Error,
@@ -151,7 +150,7 @@ pub fn spawn_runner(
                                                 "message": message,
                                             }),
                                         ),
-                                        TaskNotify::Warn(message) => Activity::new(
+                                        EventLevel::Warn => Activity::new(
                                             task.id,
                                             Utc::now(),
                                             LevelFilter::Warn,
@@ -161,7 +160,7 @@ pub fn spawn_runner(
                                                 "task": task.id,
                                             }),
                                         ),
-                                        TaskNotify::Info(message) => Activity::new(
+                                        EventLevel::Info => Activity::new(
                                             task.id,
                                             Utc::now(),
                                             LevelFilter::Info,
@@ -171,7 +170,6 @@ pub fn spawn_runner(
                                                 "task": task.id,
                                             }),
                                         ),
-                                        _ => unreachable!(),
                                     };
                                     let _ = status_sender.send_async(activity).await;
                                 }

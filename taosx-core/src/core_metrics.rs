@@ -62,6 +62,18 @@ impl CoreMetrics {
     }
 }
 
+impl std::ops::Deref for CoreMetrics {
+    type Target = CommonMetrics;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            CoreMetrics::Legacy(legacy) => &legacy.com,
+            CoreMetrics::TMQ(tmq) => &tmq.com,
+            CoreMetrics::IPC(ipc) => &ipc.com,
+        }
+    }
+}
+
 /// CommonMetrics is a data structure to store metrics that are common to all task types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommonMetrics {
@@ -79,6 +91,8 @@ pub struct CommonMetrics {
     pub execute_time: AtomicU64,
     pub written_rows: AtomicU64,
     pub written_points: AtomicU64,
+    pub received_messages: AtomicU64,
+    pub processed_messages: AtomicU64,
 }
 
 impl Default for CommonMetrics {
@@ -95,6 +109,8 @@ impl Default for CommonMetrics {
             execute_time: AtomicU64::new(0),
             written_rows: AtomicU64::new(0),
             written_points: AtomicU64::new(0),
+            received_messages: AtomicU64::new(0),
+            processed_messages: AtomicU64::new(0),
         }
     }
 }
@@ -123,6 +139,23 @@ impl CommonMetrics {
         self.written_points.store(0, SeqCst);
         self.execute_time.store(0, SeqCst);
         self.last_persist_time.reset();
+    }
+
+    pub fn received_messages(&self) -> u64 {
+        self.received_messages.load(SeqCst)
+    }
+    pub fn processed_messages(&self) -> u64 {
+        self.processed_messages.load(SeqCst)
+    }
+
+    #[inline]
+    pub fn add_received_messages(&self, n: u64) {
+        self.received_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_processed_messages(&self, n: u64) {
+        self.processed_messages.fetch_add(n, SeqCst);
     }
 }
 
@@ -188,6 +221,25 @@ pub trait TaskMetrics: Into<CoreMetrics> + Serialize {
     fn add_written_points(&self, n: u64) {
         self.com().total_written_points.fetch_add(n, SeqCst);
         self.com().written_points.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    fn add_received_messages(&self, n: u64) {
+        self.com().received_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    fn add_processed_messages(&self, n: u64) {
+        self.com().processed_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    fn received_messages(&self) {
+        self.com().received_messages();
+    }
+    #[inline]
+    fn processed_messages(&self) {
+        self.com().processed_messages();
     }
 }
 

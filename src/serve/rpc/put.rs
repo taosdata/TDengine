@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
 use taoslog::QidManager;
-use taosx_core::core_metrics::init_task_metrics;
+use taosx_core::core_metrics::{init_task_metrics, TaskMetrics};
 use taosx_core::sink::handle_point_message_init;
 use taosx_core::utils::trace::Qid;
 use taosx_core::{
@@ -27,7 +27,7 @@ use tracing::{instrument, Instrument, Span};
 use zerocopy::FromBytes;
 
 use crate::serve::{
-    controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
+    controller::{transferred::ConnectorTransferred, Activity, TaskControllerRef, TaskDetail},
     scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
 
@@ -109,7 +109,7 @@ async fn ipc_stream_writer(
     // dbg!(&task);
     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
         agent_id,
-        TaskActivity::ipc_started(task.id),
+        Activity::ipc_started(task.id),
     ))?;
     let task_id = task.id;
     let from: Dsn = task.from.parse().unwrap();
@@ -215,6 +215,7 @@ async fn ipc_stream_writer(
                 async move {
                     taoslog::utils::Span.set_qid(&qid);
                     tracing::info!("Writing batch");
+                    let raw_rows = record.num_rows();
                     if let Err(err) = worker
                         .process_record(
                             record.clone(),
@@ -248,7 +249,7 @@ async fn ipc_stream_writer(
                         let _ = notify_sender.send(
                             crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                 agent_id,
-                                TaskActivity::warn(task_id, message),
+                                Activity::warn(task_id, message),
                             ),
                         );
                         if ipc_error_strategy.will_stop() || last_errors > 10 {
@@ -285,7 +286,7 @@ async fn ipc_stream_writer(
                             let _ = notify_sender.send(
                                 crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                     agent_id,
-                                    TaskActivity::info(
+                                    Activity::info(
                                         task_id,
                                         format!("Rescue from {} continuous errors", last_errors),
                                         "running",
@@ -297,6 +298,7 @@ async fn ipc_stream_writer(
                             tracing::debug!("Writing batch success");
                         }
                     }
+                    metrics.add_processed_messages(raw_rows as u64);
                     Ok(())
                 }
                 .in_current_span()
@@ -498,7 +500,7 @@ async fn spawn_stream_writer(
                 let _ =
                     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                         agent_id,
-                        TaskActivity::warn(task_id, format!("{err:#}")),
+                        Activity::warn(task_id, format!("{err:#}")),
                     ));
                 drop(rx);
                 return;
@@ -516,7 +518,7 @@ async fn spawn_stream_writer(
             }
             let _ = notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                 agent_id,
-                TaskActivity::ipc_finished(task_id),
+                Activity::ipc_finished(task_id),
             ));
 
             tracing::info!(
@@ -755,6 +757,7 @@ impl PutStream {
                     match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                             tracing::trace!(schema = ?batch.schema(), columns = ?batch.columns(), "Enqueue batch");
+                            metrics.add_received_messages(batch.num_rows() as u64);
                             if let Err(err) = tx.send_async((batch, qid)).await {
                                 tracing::warn!(
                                     ipc.channel.capacity = tx.capacity(),
@@ -821,7 +824,7 @@ impl PutStream {
                                     if let Err(err) = notify_sender.send(
                                         crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                             agent_id,
-                                            TaskActivity::warn(task_id, format!("Put stream message error: {err:#}")),
+                                            Activity::warn(task_id, format!("Put stream message error: {err:#}")),
                                         ),
                                     ) {
                                         tracing::warn!(

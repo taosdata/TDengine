@@ -3,7 +3,7 @@ use tracing::instrument;
 
 use super::{filter::Filter, map::Map, parse::ParserImpl, TransformExt};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Mutate {
     Extract(ParserImpl),

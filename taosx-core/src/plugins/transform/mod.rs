@@ -953,7 +953,7 @@ mod pipeline_tests {
 ///   }
 /// }]
 /// ```
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Parser {
     #[serde(default)]
     global: Arc<TableOptions>,
@@ -1489,7 +1489,7 @@ impl MessageArrowRecords {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum WrittenProtocol {
     #[default]
@@ -1499,7 +1499,7 @@ pub enum WrittenProtocol {
     Sml,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum WrittenMethod {
     #[default]
@@ -1509,7 +1509,7 @@ pub enum WrittenMethod {
     Sequential,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NullValues {
     #[default]
@@ -1550,7 +1550,7 @@ impl FromStr for NullValues {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct TableOptions {
     // TODO: support case insensitive identifier, including table name and column name.
     /// Whether identifier is case insensitive. Not work for now.

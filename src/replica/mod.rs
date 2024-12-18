@@ -1303,5 +1303,12 @@ mod tests {
 
         assert!(num1 == 2, "rep1 should have received 1 message");
         assert!(num2 == 2, "rep2 should have received 1 message");
+
+        let _ = taos
+            .exec_many([
+                "drop database if exists rep1",
+                "drop database if exists rep2",
+            ])
+            .await;
     }
 }

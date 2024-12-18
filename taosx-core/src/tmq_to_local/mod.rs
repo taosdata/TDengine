@@ -275,12 +275,14 @@ impl LocalConfig {
 pub async fn tmq_to_local(
     from: Dsn,
     to: Dsn,
-    jobs: usize,
-    force: bool,
     cancel: CancellationToken,
     task_id: Option<String>,
 ) -> Result<()> {
     let (mut from, builder, topics, _, _) = check_tmq_dsn(from).await?;
+
+    // FIXME(@zitsen)
+    let jobs = 0;
+    let force = true;
 
     let offsets = Arc::new(DashMap::new());
     let version = builder.server_version().await?.to_owned();
@@ -680,8 +682,6 @@ mod tests {
         tmq_to_local(
             "tmq:///tmq_to_local".parse()?,
             "local:./tmq_to_local_out".parse()?,
-            1,
-            true,
             Default::default(),
             None,
         )
