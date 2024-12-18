@@ -20,14 +20,14 @@ concurrency:
 jobs:
   set_env:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    outputs:
-      coverage_report_dir: ${{ steps.set_env.outputs.coverage_report_dir }}
-      app_token: ${{ steps.app-token.outputs.token }}
+    # outputs:
+    #   coverage_report_dir: ${{ steps.set_env.outputs.coverage_report_dir }}
+    #   app_token: ${{ steps.app-token.outputs.token }}
     steps:
       - name: Set COVERAGE_REPORT_DIR
         id: set_env
         run: |
-          echo "coverage_report_dir=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_OUTPUT
+          echo "coverage_report_dir=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DIR
       - name: Generate GitHub App token
@@ -36,13 +36,16 @@ jobs:
         with:
           app_id: ${{ vars.APP_ID }}
           private_key: ${{ secrets.APP_KEY }}
+      - name: Save token to environment
+        run: echo "APP_TOKEN=${{ steps.app-token.outputs.token }}" >> $GITHUB_ENV
   remove_artifacts:
     needs: set_env
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     runs-on: [self-hosted, linux, x64, qa, rust]
+    
     steps:
       - name: Remove artifacts
+        env:
+          COVERAGE_REPORT_DIR: ${{ env.COVERAGE_REPORT_DIR }}
         run: |
           mkdir -p /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/
           find /data/code_coverage_taosx/ -mindepth 1 -mtime +10 -exec rm -rf {} + 2>/dev/null
@@ -51,16 +54,17 @@ jobs:
           mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
       - name: Print COVERAGE_REPORT_DIR
+        env:
+          COVERAGE_REPORT_DIR: ${{ env.COVERAGE_REPORT_DIR }}
         run: echo $COVERAGE_REPORT_DIR
 
   build_rust_run_unit_test:
     needs: [remove_artifacts,set_env]
     runs-on: [self-hosted, linux, x64, qa, rust]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        
       - name: Print Env
         run: |
           pwd
@@ -107,8 +111,6 @@ jobs:
   build_go_run_unit_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [remove_artifacts,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -139,8 +141,6 @@ jobs:
   build_java_run_unit_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [remove_artifacts,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4    
@@ -178,8 +178,6 @@ jobs:
   deploy_taosx_plugins:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [build_rust_run_unit_test, build_go_run_unit_test, build_java_run_unit_test,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Deploy taosx
         run: |
@@ -205,14 +203,16 @@ jobs:
   run_e2e_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [deploy_taosx_plugins,set_env]
-    env:
-      app_token: ${{ needs.set_env.outputs.app_token }}
+    
     steps:
       - name: Update Repo
+        env:
+          app_token: ${{ env.app_token }}
+          COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
         run: |
           # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
           # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
-          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
+          ssh root@$RELEASE_HOST "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e && git pull"
       
       - name: Restart taos-explorer & taosadapter
         run: |
@@ -220,12 +220,16 @@ jobs:
           systemctl restart taosadapter
       
       - name: Save token to environment
+        env:
+            app_token: ${{ env.app_token }}
         run: echo "APP_TOKEN=${{ env.app_token }}" >> $GITHUB_ENV
       
       - name: Checkout code
         uses: actions/checkout@v2
+        env:
+          app_token: ${{ env.app_token }}
         with:
-          token: ${{ env.APP_TOKEN }}
+          token: $APP_TOKEN
       - name: Run Test
         continue-on-error: true
         run: |
@@ -233,8 +237,8 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
           
-          cp /data/github/TestNG_taosX/setenv.sh ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/e2e/
-          cd ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/e2e && source ./setenv.sh && poetry config pypi-token.pypi &APP_TOKEN && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
+          cp /data/github/TestNG_taosX/setenv.sh ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/
+          cd ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e && source ./setenv.sh && poetry config pypi-token.pypi &APP_TOKEN && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
@@ -246,8 +250,7 @@ jobs:
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+    
     steps:
       - name: allure report
         run: |
@@ -310,16 +313,18 @@ jobs:
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/influxdb/"
       
       - name: save report daily
+        env:
+          COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
         run: |
           cp -r $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/
           echo "see report at $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/"
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [generate_report,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: get coverage percent for taosx and connecter
+        env:
+          COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
         run : |
           export TAOSX_COVERAGE_PERCENT=$(grep -oP '(?<=<td class="headerCovTableEntryLo">)[^&]+' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/taosx-report-merged/index.html | head -n 1)
           export INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/influxdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
@@ -330,6 +335,8 @@ jobs:
           echo "OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$OPENTSDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "OPC_CONNECTOR_COVERAGE_PERCENT=$OPC_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
       - name: Send Feishu Message to taosX CI Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
         run: |
           function post_to_feishu() {
             local text="$1"
@@ -354,6 +361,8 @@ jobs:
           post_to_feishu "$PR_INFO"
       
       - name: Send Feishu Message to Platform Notifications Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
         run: |
           function post_to_feishu() {
             local text="$1"
