@@ -509,7 +509,11 @@ unsafe impl Sync for TaskStartTime {}
 
 /// Save every 10 seconds
 pub async fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<()>) {
-    let metrics_arc = get_metrics(task_id).await.unwrap();
+    let metrics_arc = if let Some(arc) = get_metrics(task_id).await {
+        arc
+    } else {
+        return;
+    };
     tokio::spawn(
         async move {
             tracing::info!("start");
