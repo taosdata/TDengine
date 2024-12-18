@@ -522,14 +522,15 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
   }
 
   if (0 == *rowNum) {
-    taosMemoryFreeClear(paramList);
+    sclFreeParamList(paramList, *paramNum);
+    paramList = NULL;
   }
 
   *pParams = paramList;
   return TSDB_CODE_SUCCESS;
 
 _return:
-  taosMemoryFreeClear(paramList);
+  sclFreeParamList(paramList, *paramNum);
   SCL_RET(code);
 }
 
