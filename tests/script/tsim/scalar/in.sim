@@ -36,7 +36,7 @@ if $rows != 3 then
 endi
 
 sql select * from tb1 where fbool in (0, 3);
-if $rows != 5 then
+if $rows != 3 then
   return -1
 endi
 
@@ -61,7 +61,7 @@ if $rows != 10 then
 endi
 
 sql select * from st1 where tbool in (0, 3);
-if $rows != 15 then
+if $rows != 5 then
   return -1
 endi
 

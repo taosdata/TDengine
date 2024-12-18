@@ -367,7 +367,20 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      int32_t type = ctx->type.peerType;
+      int32_t type = -1;
+      SListCell     *cell = nodeList->pNodeList->pHead;
+      for (int32_t i = 0; i < nodeList->pNodeList->length; ++i) {
+          SValueNode *valueNode = (SValueNode *)cell->pNode;
+          cell = cell->pNext;
+          int32_t tmp = vectorGetConvertType(ctx->type.selfType, valueNode->node.resType.type);
+          if (tmp != 0 && IS_NUMERIC_TYPE(tmp) && tmp > type){
+            type = tmp;
+          }
+        }
+        if (IS_NUMERIC_TYPE(type)){
+          ctx->type.peerType = type;
+        }
+        type = ctx->type.peerType;
       if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(ctx->type.peerType)){
         SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, 1));
         SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilterVar, node, ctx->type.selfType, 2));

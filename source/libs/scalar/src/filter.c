@@ -4330,40 +4330,42 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       }
 
       SColumnNode *refNode = (SColumnNode *)node->pLeft;
-      int32_t      type = refNode->node.resType.type;
-      SExprNode   *exprNode = NULL;
+      SExprNode *  exprNode = NULL;
       if (OP_TYPE_IN != node->opType && OP_TYPE_NOT_IN != node->opType) {
-        SValueNode  *valueNode = (SValueNode *)node->pRight;
+        SValueNode *valueNode = (SValueNode *)node->pRight;
         if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) &&
             TSDB_DATA_TYPE_UBIGINT == valueNode->node.resType.type && valueNode->datum.u <= INT64_MAX) {
           valueNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
         }
         exprNode = &valueNode->node;
-        type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
+        if (0 != type && type != refNode->node.resType.type) {
+          stat->scalarMode = true;
+        }
       } else {
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-        if (LIST_LENGTH(listNode->pNodeList) > 10) {
+        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
           stat->scalarMode = true;
-          return DEAL_RES_CONTINUE;
         }
+        int32_t type = -1;
         exprNode = &listNode->node;
-        SListCell     *cell = listNode->pNodeList->pHead;
+        SListCell *cell = listNode->pNodeList->pHead;
         for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
           SValueNode *valueNode = (SValueNode *)cell->pNode;
           cell = cell->pNext;
-          int32_t tmp = vectorGetConvertType(type, valueNode->node.resType.type);
-          if (tmp != 0){
-            type = tmp;
+          int32_t tmp = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
+          if (tmp != 0 && tmp != refNode->node.resType.type) {
+            stat->scalarMode = true;
+            if (IS_NUMERIC_TYPE(tmp) && tmp > type) {
+              type = tmp;
+            }
+          }
+          if (IS_NUMERIC_TYPE(type)) {
+            exprNode->resType.type = type;
           }
         }
-        exprNode->resType.type = type;
-      }
-      if ((0 != type && type != refNode->node.resType.type) || OP_TYPE_NOT_IN == node->opType) {
-        stat->scalarMode = true;
-        return DEAL_RES_CONTINUE;
       }
     }
-
     return DEAL_RES_CONTINUE;
   }
 

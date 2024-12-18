@@ -1762,9 +1762,17 @@ void doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *
 
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
-      if (pLeftVar != NULL && !res){
-        pLeftData = colDataGetData(pLeftVar->columnData, i);
-        res = res || filterDoCompare(fpVar, optr, pLeftData, pRight->pHashFilterVar);
+      if (pLeftVar != NULL && taosHashGetSize(pRight->pHashFilterVar) > 0) {
+        do {
+          if (optr == OP_TYPE_IN && res) {
+            break;
+          }
+          if (optr == OP_TYPE_NOT_IN && !res) {
+            break;
+          }
+          pLeftData = colDataGetData(pLeftVar->columnData, i);
+          res = filterDoCompare(fpVar, optr, pLeftData, pRight->pHashFilterVar);
+        } while (0);
       }
       colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
       if (res) {
