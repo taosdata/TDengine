@@ -400,7 +400,6 @@ void *transAcceptThread(void *arg) {
     SFdArg *arg = taosMemoryCalloc(1, sizeof(SFdArg));
     if (arg == NULL) {
       tError("failed to create fd arg since %s", tstrerror(terrno));
-      taosThreadMutexUnlock(&pThrd->mutex);
       continue;
     }
     arg->acceptFd = client_fd;
@@ -539,7 +538,8 @@ static int32_t addHandleToAcceptloop(void *arg) {
   code = taosThreadCreate(&srv->thread, NULL, transAcceptThread, srv);
   return code;
 }
-void *transInitServer(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInit) {
+
+void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInit) {
   int32_t code = 0;
 
   SServerObj2 *srv = taosMemoryCalloc(1, sizeof(SServerObj2));
@@ -595,8 +595,432 @@ End:
   return NULL;
 }
 
-void transCloseServer(void *arg) {
+void transCloseServer2(void *arg) {
   // impl later
+  return;
+}
+// impl client with poll
+typedef struct SCliConn {
+  int32_t ref;
+  // uv_connect_t connReq;
+  // uv_stream_t *stream;
+
+  // uv_timer_t *timer;  // read timer, forbidden
+
+  void *hostThrd;
+
+  SConnBuffer readBuf;
+  STransQueue reqsToSend;
+  STransQueue reqsSentOut;
+
+  queue q;
+  // SConnList *list;
+
+  STransCtx  ctx;
+  bool       broken;  // link broken or not
+  ConnStatus status;  //
+
+  // SCliBatch *pBatch;
+
+  // SDelayTask *task;
+
+  // HeapNode node;  // for heap
+  int8_t   inHeap;
+  int32_t  reqRefCnt;
+  uint32_t clientIp;
+  uint32_t serverIp;
+
+  char *dstAddr;
+  char  src[32];
+  char  dst[32];
+
+  char   *ipStr;
+  int32_t port;
+
+  int64_t seq;
+
+  int8_t    registered;
+  int8_t    connnected;
+  SHashObj *pQTable;
+  int8_t    userInited;
+  void     *pInitUserReq;
+
+  void   *heap;  // point to req conn heap
+  int32_t heapMissHit;
+  int64_t lastAddHeapTime;
+  int8_t  forceDelFromHeap;
+
+  // uv_buf_t *buf;
+  int32_t bufSize;
+  int32_t readerStart;
+
+  queue wq;  // uv_write_t queue
+
+  queue  batchSendq;
+  int8_t inThreadSendq;
+
+} SCliConn;
+
+typedef struct {
+  SCliConn *conn;
+  void     *arg;
+} SReqState;
+
+typedef struct {
+  int64_t seq;
+  int32_t msgType;
+} SFiterArg;
+typedef struct SCliReq {
+  SReqCtx      *ctx;
+  queue         q;
+  queue         sendQ;
+  STransMsgType type;
+  uint64_t      st;
+  int64_t       seq;
+  int32_t       sent;  //(0: no send, 1: alread sent)
+  int8_t        inSendQ;
+  STransMsg     msg;
+  int8_t        inRetry;
+
+} SCliReq;
+
+#define EPSET_IS_VALID(epSet)       ((epSet) != NULL && (epSet)->numOfEps >= 0 && (epSet)->inUse >= 0)
+#define EPSET_GET_SIZE(epSet)       (epSet)->numOfEps
+#define EPSET_GET_INUSE_IP(epSet)   ((epSet)->eps[(epSet)->inUse].fqdn)
+#define EPSET_GET_INUSE_PORT(epSet) ((epSet)->eps[(epSet)->inUse].port)
+#define EPSET_FORWARD_INUSE(epSet)                             \
+  do {                                                         \
+    if ((epSet)->numOfEps != 0) {                              \
+      ++((epSet)->inUse);                                      \
+      (epSet)->inUse = ((epSet)->inUse) % ((epSet)->numOfEps); \
+    }                                                          \
+  } while (0)
+typedef struct SCliThrd2 {
+  TdThread thread;  // tid
+  int64_t  pid;     // pid
+
+  // uv_loop_t  *loop;
+  // SAsyncPool *asyncPool;
+  void *pool;  // conn pool
+  // timer handles
+  SArray *timerList;
+  // msg queue
+  queue         msg;
+  TdThreadMutex msgMtx;
+  // SDelayQueue  *delayQueue;
+  // SDelayQueue  *timeoutQueue;
+  // SDelayQueue  *waitConnQueue;
+  uint64_t nextTimeout;  // next timeout
+  STrans  *pInst;        //
+
+  void (*destroyAhandleFp)(void *ahandle);
+  SHashObj *fqdn2ipCache;
+  SCvtAddr *pCvtAddr;
+
+  SHashObj *failFastCache;
+  SHashObj *batchCache;
+  SHashObj *connHeapCache;
+
+  SCliReq *stopMsg;
+  bool     quit;
+
+  int32_t (*initCb)(void *arg, SCliReq *pReq, STransMsg *pResp);
+  int32_t (*notifyCb)(void *arg, SCliReq *pReq, STransMsg *pResp);
+  int32_t (*notifyExceptCb)(void *arg, SCliReq *pReq, STransMsg *pResp);
+
+  SHashObj *pIdConnTable;  // <qid, conn>
+
+  SArray       *pQIdBuf;  // tmp buf to avoid alloc buf;
+  queue         batchSendSet;
+  int8_t        thrdInited;
+  int32_t       pipe_queue_fd[2];
+  SEvtMgt      *pEvtMgt;
+  SAsyncHandle *asyncHandle;
+} SCliThrd2;
+
+typedef struct SCliObj2 {
+  char        label[TSDB_LABEL_LEN];
+  int32_t     index;
+  int         numOfThreads;
+  SCliThrd2 **pThreadObj;
+} SCliObj2;
+
+static FORCE_INLINE void destroyReqCtx(SReqCtx *ctx) {
+  if (ctx) {
+    taosMemoryFree(ctx->epSet);
+    taosMemoryFree(ctx->origEpSet);
+    taosMemoryFree(ctx);
+  }
+}
+static FORCE_INLINE void removeReqFromSendQ(SCliReq *pReq) {
+  if (pReq == NULL || pReq->inSendQ == 0) {
+    return;
+  }
+  QUEUE_REMOVE(&pReq->sendQ);
+  pReq->inSendQ = 0;
+}
+static void destroyThrdObj(SCliThrd2 *pThrd) {
+  if (pThrd == NULL) {
+    return;
+  }
+  if (pThrd->pEvtMgt) {
+    evtMgtDestroy(pThrd->pEvtMgt);
+  }
+  taosMemoryFree(pThrd);
+}
+static int32_t createThrdObj(void *trans, SCliThrd2 **ppThrd) {
+  int32_t line = 0;
+  int32_t code = 0;
+
+  STrans *pInst = trans;
+
+  SCliThrd2 *pThrd = (SCliThrd2 *)taosMemoryCalloc(1, sizeof(SCliThrd2));
+  if (pThrd == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _end);
+  }
+  code = evtMgtCreate(&pThrd->pEvtMgt);
+  if (code != 0) {
+    TAOS_CHECK_GOTO(code, &line, _end);
+  }
+  return code;
+_end:
+  if (code != 0) {
+    destroyThrdObj(pThrd);
+    tError("%s failed to init rpc client at line %d since %s,", __func__, line, tstrerror(code));
+  }
+  return code;
+}
+
+FORCE_INLINE int cliRBChoseIdx(STrans *pInst) {
+  int32_t index = pInst->index;
+  if (pInst->numOfThreads == 0) {
+    return -1;
+  }
+  /*
+   * no lock, and to avoid CPU load imbalance, set limit pInst->numOfThreads * 2000;
+   */
+  if (pInst->index++ >= pInst->numOfThreads * 2000) {
+    pInst->index = 0;
+  }
+  return index % pInst->numOfThreads;
+}
+static FORCE_INLINE SCliThrd2 *transGetWorkThrdFromHandle(STrans *trans, int64_t handle) {
+  SCliThrd2 *pThrd = NULL;
+  SExHandle *exh = transAcquireExHandle(transGetRefMgt(), handle);
+  if (exh == NULL) {
+    return NULL;
+  }
+  taosWLockLatch(&exh->latch);
+  if (exh->pThrd == NULL && trans != NULL) {
+    int idx = cliRBChoseIdx(trans);
+    if (idx < 0) return NULL;
+    exh->pThrd = ((SCliObj2 *)trans->tcphandle)->pThreadObj[idx];
+  }
+
+  pThrd = exh->pThrd;
+  taosWUnLockLatch(&exh->latch);
+  transReleaseExHandle(transGetRefMgt(), handle);
+
+  return pThrd;
+}
+SCliThrd2 *transGetWorkThrd(STrans *trans, int64_t handle) {
+  if (handle == 0) {
+    int idx = cliRBChoseIdx(trans);
+    if (idx < 0) return NULL;
+    return ((SCliObj2 *)trans->tcphandle)->pThreadObj[idx];
+  }
+  SCliThrd2 *pThrd = transGetWorkThrdFromHandle(trans, handle);
+  return pThrd;
+}
+static int32_t transInitMsg(void *pInstRef, const SEpSet *pEpSet, STransMsg *pReq, STransCtx *ctx, SCliReq **pCliMsg) {
+  int32_t code = 0;
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+
+  SCliReq *pCliReq = NULL;
+  SReqCtx *pCtx = taosMemoryCalloc(1, sizeof(SReqCtx));
+  if (pCtx == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
+  }
+
+  code = transCreateReqEpsetFromUserEpset(pEpSet, &pCtx->epSet);
+  if (code != 0) {
+    TAOS_CHECK_GOTO(code, NULL, _exception);
+  }
+
+  code = transCreateReqEpsetFromUserEpset(pEpSet, &pCtx->origEpSet);
+  if (code != 0) {
+    TAOS_CHECK_GOTO(code, NULL, _exception);
+  }
+
+  pCtx->ahandle = pReq->info.ahandle;
+  pCtx->msgType = pReq->msgType;
+
+  if (ctx != NULL) pCtx->userCtx = *ctx;
+
+  pCliReq = taosMemoryCalloc(1, sizeof(SCliReq));
+  if (pCliReq == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
+  }
+
+  pCliReq->ctx = pCtx;
+  pCliReq->msg = *pReq;
+  pCliReq->st = taosGetTimestampUs();
+  pCliReq->type = Normal;
+
+  *pCliMsg = pCliReq;
+  return code;
+_exception:
+  if (pCtx != NULL) {
+    taosMemoryFree(pCtx->epSet);
+    taosMemoryFree(pCtx->origEpSet);
+    taosMemoryFree(pCtx);
+  }
+  taosMemoryFree(pCliReq);
+  return code;
+}
+
+static FORCE_INLINE void destroyReq(void *arg) {
+  SCliReq *pReq = arg;
+  if (pReq == NULL) {
+    return;
+  }
+
+  removeReqFromSendQ(pReq);
+  STraceId *trace = &pReq->msg.info.traceId;
+  tGDebug("free memory:%p, free ctx: %p", pReq, pReq->ctx);
+
+  if (pReq->ctx) {
+    destroyReqCtx(pReq->ctx);
+  }
+  transFreeMsg(pReq->msg.pCont);
+  taosMemoryFree(pReq);
+}
+int32_t transSendRequest2(void *pInstRef, const SEpSet *pEpSet, STransMsg *pReq, STransCtx *ctx) {
+  STrans *pInst = (STrans *)transAcquireExHandle(transGetInstMgt(), (int64_t)pInstRef);
+  if (pInst == NULL) {
+    transFreeMsg(pReq->pCont);
+    pReq->pCont = NULL;
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+  int32_t    code = 0;
+  int64_t    handle = (int64_t)pReq->info.handle;
+  SCliThrd2 *pThrd = transGetWorkThrd(pInst, handle);
+  if (pThrd == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_RPC_BROKEN_LINK, NULL, _exception);
+  }
+
+  pReq->info.qId = handle;
+
+  SCliReq *pCliMsg = NULL;
+  TAOS_CHECK_GOTO(transInitMsg(pInstRef, pEpSet, pReq, ctx, &pCliMsg), NULL, _exception);
+
+  STraceId *trace = &pReq->info.traceId;
+  tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pInst), pThrd->pid,
+          EPSET_GET_INUSE_IP(pEpSet), EPSET_GET_INUSE_PORT(pEpSet), pReq->info.ahandle);
+
+  code = evtAsyncSend(pThrd->asyncHandle, &pCliMsg->q);
+  if (code != 0) {
+    destroyReq(pCliMsg);
+    transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
+    return (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+  }
+  {
+    // TODO(weizhong): add trace log
+    // if ((code = transAsyncSend(pThrd->asyncPool, &(pCliMsg->q))) != 0) {
+    // }
+  }
+
+  transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
+  return 0;
+
+_exception:
+  transFreeMsg(pReq->pCont);
+  pReq->pCont = NULL;
+  transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
+  if (code != 0) {
+    tError("failed to send request since %s", tstrerror(code));
+  }
+  return code;
+}
+static void *cliWorkThread2(void *arg) {
+  int32_t        line = 0;
+  int32_t        code = 0;
+  char           threadName[TSDB_LABEL_LEN] = {0};
+  struct timeval tv = {30, 0};
+  SCliThrd2     *pThrd = (SCliThrd2 *)arg;
+
+  pThrd->pid = taosGetSelfPthreadId();
+
+  tsEnableRandErr = true;
+  TAOS_UNUSED(strtolower(threadName, pThrd->pInst->label));
+  setThreadName(threadName);
+
+  code = evtAsyncInit(pThrd->pEvtMgt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtHandleReq, EVT_ASYNC_T);
+  TAOS_CHECK_GOTO(code, &line, _end);
+
+  while (!pThrd->quit) {
+    code = evtMgtDispath(pThrd->pEvtMgt, &tv);
+    if (code != 0) {
+      tError("failed to dispatch since %s", tstrerror(code));
+      continue;
+    }
+  }
+
+  tDebug("thread quit-thread:%08" PRId64 "", pThrd->pid);
+  return NULL;
+_end:
+  if (code != 0) {
+    tError("failed to do work %s", tstrerror(code));
+  }
+  return NULL;
+}
+void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInstRef) {
+  int32_t   code = 0;
+  SCliObj2 *cli = taosMemoryCalloc(1, sizeof(SCliObj2));
+  if (cli == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
+  }
+
+  STrans *pInst = pInstRef;
+  memcpy(cli->label, label, TSDB_LABEL_LEN);
+  cli->numOfThreads = numOfThreads;
+  cli->pThreadObj = (SCliThrd2 **)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrd2 *));
+  if (cli->pThreadObj == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
+  }
+  for (int i = 0; i < cli->numOfThreads; i++) {
+    SCliThrd2 *pThrd = NULL;
+    code = createThrdObj(pInstRef, &pThrd);
+    if (code != 0) {
+      goto _err;
+    }
+
+    int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread2, (void *)(pThrd));
+    if (err != 0) {
+      destroyThrdObj(pThrd);
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_CHECK_GOTO(code, NULL, _err);
+    } else {
+      tDebug("success to create tranport-cli thread:%d", i);
+    }
+    pThrd->thrdInited = 1;
+    cli->pThreadObj[i] = pThrd;
+  }
+
+_err:
+  if (cli) {
+    for (int i = 0; i < cli->numOfThreads; i++) {
+      // send quit msg
+      destroyThrdObj(cli->pThreadObj[i]);
+    }
+    taosMemoryFree(cli->pThreadObj);
+    taosMemoryFree(cli);
+  }
+  terrno = code;
+  return NULL;
+}
+void transCloseClient(void *arg) {
+  int32_t code = 0;
   return;
 }
 
