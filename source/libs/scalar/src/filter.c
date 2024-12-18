@@ -4848,7 +4848,6 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       }
 
       SColumnNode *refNode = (SColumnNode *)node->pLeft;
-      int32_t      type = refNode->node.resType.type;
       SExprNode   *exprNode = NULL;
       if (OP_TYPE_IN != node->opType && OP_TYPE_NOT_IN != node->opType) {
         SValueNode  *valueNode = (SValueNode *)node->pRight;
@@ -4857,29 +4856,34 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
           valueNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
         }
         exprNode = &valueNode->node;
-        type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
+        if (0 != type && type != refNode->node.resType.type) {
+          stat->scalarMode = true;
+        }
+        return DEAL_RES_CONTINUE;
       } else {
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-        if (LIST_LENGTH(listNode->pNodeList) > 10) {
+        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
           stat->scalarMode = true;
-          return DEAL_RES_CONTINUE;
         }
+        int32_t type = -1;
         exprNode = &listNode->node;
         SListCell     *cell = listNode->pNodeList->pHead;
         for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
           SValueNode *valueNode = (SValueNode *)cell->pNode;
           cell = cell->pNext;
-          int32_t tmp = vectorGetConvertType(type, valueNode->node.resType.type);
+          int32_t tmp = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
           if (tmp != 0){
-            type = tmp;
+            stat->scalarMode = true;
+            if (IS_NUMERIC_TYPE(tmp) && tmp > type){
+              type = tmp;
+            }
           }
+
         }
         if (IS_NUMERIC_TYPE(type)){
           exprNode->resType.type = type;
         }
-      }
-      if ((0 != type && type != refNode->node.resType.type) || OP_TYPE_NOT_IN == node->opType) {
-        stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
     }
