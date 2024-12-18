@@ -9,7 +9,7 @@ DEFAULT_DNS="192.168.1.252"
 SYSTEM_TOOLS="git wget vim gdb screen tmux ntp tree atop iotop sysstat fio tcpdump iperf3 qemu-guest-agent dstat linux-tools-common linux-tools-generic jq zip unzip cloud-guest-utils"
 
 # Define the packages to be installed for build TDinternal
-BUILD_TOOLS="llvm gcc make cmake perl g++ lzma curl locales psmisc sudo libgeos-dev libgoogle-glog-dev valgrind rsync libjemalloc-dev openssh-server sshpass net-tools dirmngr gnupg apt-transport-https \
+BUILD_TOOLS="llvm gcc make cmake perl g++ lzma curl locales psmisc sudo libgeos-dev libgoogle-glog-dev rsync libjemalloc-dev openssh-server sshpass net-tools dirmngr gnupg apt-transport-https \
             ca-certificates software-properties-common r-base iputils-ping  build-essential git libssl-dev libgflags2.2 libgflags-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config"
 
 # Define the packages to be installed via pip

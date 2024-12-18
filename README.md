@@ -115,6 +115,9 @@ chmod +x setup.sh
 Clone the code first:
 
 ```bash
+# Remember username and password of github locally
+git config --global credential.helper store
+# Clone taosx repository
 git clone --depth 1 https://github.com/taosdata/taosx.git
 ```
 
@@ -199,7 +202,7 @@ To run the specific test case(s) from above list with `nextest`:
 cargo nextest run --workspace <case-name>
 ```
 
-To run the e2e test case(s), it can be completed by the following operation:
+To run the e2e test case(s), it can be completed by the following operation(Before executing the above command, please confirm that you have correctly remembered the username and password locally in the build step):
 
 ```bash
 cd tests/e2e
