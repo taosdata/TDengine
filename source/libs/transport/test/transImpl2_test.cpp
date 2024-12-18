@@ -306,6 +306,7 @@ TEST_F(TransEnv, 01sendAndReq) {
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
     tr->cliSendReq(&req);
+    taosMsleep(1000);
     assert(resp.code == 0);
   }
 }

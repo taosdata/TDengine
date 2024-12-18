@@ -126,6 +126,7 @@ typedef struct {
   fd_set   *evtReadSetOut;
   fd_set   *evtWriteSetOut;
   SHashObj *pFdTable;
+  void     *arg;
 } SEvtMgt;
 
 static int32_t evtMgtResize(SEvtMgt *pOpt, int32_t cap);
@@ -341,7 +342,8 @@ static void evtMgtDestroy(SEvtMgt *pOpt) {
   taosMemoryFree(pOpt);
 }
 
-static int32_t evtAsyncInit(SEvtMgt *pOpt, int32_t fd[2], SAsyncHandle **async, AsyncCb cb, int8_t evtType) {
+static int32_t evtAsyncInit(SEvtMgt *pOpt, int32_t fd[2], SAsyncHandle **async, AsyncCb cb, int8_t evtType,
+                            void *pThrd) {
   int32_t       code = 0;
   SAsyncHandle *pAsync = taosMemoryCalloc(1, sizeof(SAsyncHandle));
   if (pAsync == NULL) {
@@ -484,13 +486,16 @@ void *transWorkerThread(void *arg) {
     tError("failed to create select op since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
   }
-  code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotify, EVT_CONN_T);
+
+  pOpt->arg = pThrd;
+
+  code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotify, EVT_CONN_T, (void *)pThrd);
   if (code != 0) {
     tError("failed to create select op since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
-  code = evtAsyncInit(pOpt, pThrd->pipe_queue_fd, &pThrd->handle, evtHandleReq, EVT_ASYNC_T);
+  code = evtAsyncInit(pOpt, pThrd->pipe_queue_fd, &pThrd->handle, evtHandleReq, EVT_ASYNC_T, (void *)pThrd);
   if (code != 0) {
     tError("failed to create select op since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
@@ -938,6 +943,44 @@ _exception:
   }
   return code;
 }
+
+static void evtHandleCliReq(void *arg, int32_t status) {
+  int32_t       code = 0;
+  SAsyncHandle *handle = arg;
+  SEvtMgt      *pEvtMgt = handle->data;
+
+  SCliThrd2 *pThrd = pEvtMgt->arg;
+
+  queue wq;
+  QUEUE_INIT(&wq);
+
+  taosThreadMutexLock(&pThrd->msgMtx);
+  QUEUE_MOVE(&pThrd->msg, &wq);
+  taosThreadMutexUnlock(&pThrd->msgMtx);
+
+  if (QUEUE_IS_EMPTY(&wq)) {
+    return;
+  }
+
+  while (!QUEUE_IS_EMPTY(&wq)) {
+    queue *el = QUEUE_HEAD(&wq);
+    QUEUE_REMOVE(el);
+
+    SCliReq *pReq = QUEUE_DATA(el, SCliReq, q);
+    if (pReq == NULL) {
+      continue;
+    }
+    STraceId *trace = &pReq->msg.info.traceId;
+    tGDebug("handle request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pThrd->pid, pReq->ctx->epSet->eps[0].fqdn,
+            pReq->ctx->epSet->eps[0].port, pReq->msg.info.ahandle);
+
+    if (pReq->msg.info.handle == 0) {
+      destroyReq(pReq);
+      continue;
+    }
+  }
+}
+
 static void *cliWorkThread2(void *arg) {
   int32_t        line = 0;
   int32_t        code = 0;
@@ -951,7 +994,10 @@ static void *cliWorkThread2(void *arg) {
   TAOS_UNUSED(strtolower(threadName, pThrd->pInst->label));
   setThreadName(threadName);
 
-  code = evtAsyncInit(pThrd->pEvtMgt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtHandleReq, EVT_ASYNC_T);
+  pThrd->pEvtMgt->arg = pThrd;
+
+  code = evtAsyncInit(pThrd->pEvtMgt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtHandleCliReq, EVT_ASYNC_T,
+                      (void *)pThrd);
   TAOS_CHECK_GOTO(code, &line, _end);
 
   while (!pThrd->quit) {
@@ -959,6 +1005,8 @@ static void *cliWorkThread2(void *arg) {
     if (code != 0) {
       tError("failed to dispatch since %s", tstrerror(code));
       continue;
+    } else {
+      tDebug("success to dispatch");
     }
   }
 
@@ -990,6 +1038,12 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
     if (code != 0) {
       goto _err;
     }
+    code = pipe(pThrd->pipe_queue_fd);
+    if (code != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_CHECK_GOTO(code, NULL, _err);
+    }
+    pThrd->pInst = pInst;
 
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread2, (void *)(pThrd));
     if (err != 0) {
@@ -1002,6 +1056,7 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
     pThrd->thrdInited = 1;
     cli->pThreadObj[i] = pThrd;
   }
+  return cli;
 
 _err:
   if (cli) {
