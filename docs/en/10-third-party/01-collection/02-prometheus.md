@@ -3,7 +3,7 @@ title: Prometheus
 slug: /third-party-tools/data-collection/prometheus
 ---
 
-import Prometheus from "./_prometheus.mdx"
+import Prometheus from "../../assets/resources/_prometheus.mdx"
 
 Prometheus is a popular open-source monitoring and alerting system. In 2016, Prometheus joined the Cloud Native Computing Foundation (CNCF), becoming the second hosted project after Kubernetes. The project has a very active developer and user community.
 

@@ -318,7 +318,7 @@ Configuration parameters for each dnode in the system. Users with SYSINFO attrib
 Note: Users with SYSINFO property set to 0 cannot view this table.
 
 | #    | **Column Name** | **Data Type**  | **Description**                      |
-| ---- | :-------------: | -------------- | ------------------------------------ |
+|:-----|:----------------|:---------------|:-------------------------------------|
 | 1    |    user_name    | VARCHAR(24)    | Username                             |
 | 2    |    privilege    | VARCHAR(10)    | Permission description               |
 | 3    |     db_name     | VARCHAR(65)    | Database name                        |
@@ -328,17 +328,32 @@ Note: Users with SYSINFO property set to 0 cannot view this table.
 
 ## INS_DISK_USAGE
 
-| #   |   **Column Name**    | **Data type** | **Description**|
-| --- | :----------: | ------------ | ------------------------|
-| 1   | db_name      | VARCHAR(32)       | Database name 
-| 2   | vgroup_id    | INT       | vgroup ID 
-| 3   | wal          | BIGINT    | WAL file size, in KB
-| 4   | data1        | BIGINT    | Data file size on primary storage, in KB 
-| 5   | data2        | BIGINT    | Data file size on secondary storage, in KB
-| 6   | data3        | BIGINT    | Data file size on tertiary storage, in KB 
-| 7   | cache_rdb    | BIGINT    | Size of last/last_row files, in KB
-| 8   | table_meta   | BIGINT    | Size of meta files, in KB 
-| 9   | s3           | BIGINT    | Size occupied on S3, in KB
-| 10  | raw_data     | BIGINT    | Estimated size of raw data, in KB
+| # | **Column Name** | **Data type** | **Description**|
+|:----|:-----------|:-----------|:--------------------|
+| 1   | db_name    | VARCHAR(32) | Database name                              |
+| 2   | vgroup_id  | INT         | vgroup ID                                  |
+| 3   | wal        | BIGINT      | WAL file size, in KB                       |
+| 4   | data1      | BIGINT      | Data file size on primary storage, in KB   |
+| 5   | data2      | BIGINT      | Data file size on secondary storage, in KB |
+| 6   | data3      | BIGINT      | Data file size on tertiary storage, in KB  | 
+| 7   | cache_rdb  | BIGINT      | Size of last/last_row files, in KB         |
+| 8   | table_meta | BIGINT      | Size of meta files, in KB                  | 
+| 9   | s3         | BIGINT      | Size occupied on S3, in KB                 |
+| 10  | raw_data   | BIGINT      | Estimated size of raw data, in KB          |
 
 note: 
+
+## INS_FILESETS
+
+Provides information about file sets. 
+
+| #   |  **Column**   | **Data Type** | **Description**                                      | ** |
+| --- | :-----------: | ------------- | ---------------------------------------------------- |
+| 1   |    db_name    | VARCHAR(65)   | Database name                                        |
+| 2   |   vgroup_id   | INT           | Vgroup ID                                            |
+| 3   |  fileset_id   | INT           | File set ID                                          |
+| 4   |  start_time   | TIMESTAMP     | Start time of the time range covered by the file set |
+| 5   |   end_time    | TIMESTAMP     | End time of the time range covered by the file set   |
+| 6   |  total_size   | BIGINT        | Total size of the file set                           |
+| 7   | last_compact  | TIMESTAMP     | Time of the last compaction                          |
+| 8   | shold_compact | bool          | Whether the file set should be compacted             |

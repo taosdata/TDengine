@@ -162,25 +162,25 @@ typedef struct STsdbReader STsdbReader;
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
-int32_t      tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                             SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
-int32_t      tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
-int32_t      tsdbReaderSetId(void *pReader, const char *idstr);
-void         tsdbReaderClose2(STsdbReader *pReader);
-int32_t      tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
-int32_t      tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
-void         tsdbReleaseDataBlock2(STsdbReader *pReader);
-int32_t      tsdbRetrieveDataBlock2(STsdbReader *pReader, SSDataBlock **pBlock, SArray *pIdList);
-int32_t      tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
-int32_t      tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-int64_t      tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle, uint32_t *rows);
-void        *tsdbGetIdx2(SMeta *pMeta);
-void        *tsdbGetIvtIdx2(SMeta *pMeta);
-uint64_t     tsdbGetReaderMaxVersion2(STsdbReader *pReader);
-void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
-int64_t      tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
-void         tsdbSetFilesetDelimited(STsdbReader *pReader);
-void         tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn notifyFn, void *param);
+int32_t  tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
+                         SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
+int32_t  tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
+int32_t  tsdbReaderSetId(void *pReader, const char *idstr);
+void     tsdbReaderClose2(STsdbReader *pReader);
+int32_t  tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
+int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
+void     tsdbReleaseDataBlock2(STsdbReader *pReader);
+int32_t  tsdbRetrieveDataBlock2(STsdbReader *pReader, SSDataBlock **pBlock, SArray *pIdList);
+int32_t  tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
+int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+int64_t  tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle, uint32_t *rows);
+void    *tsdbGetIdx2(SMeta *pMeta);
+void    *tsdbGetIvtIdx2(SMeta *pMeta);
+uint64_t tsdbGetReaderMaxVersion2(STsdbReader *pReader);
+void     tsdbReaderSetCloseFlag(STsdbReader *pReader);
+int64_t  tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
+void     tsdbSetFilesetDelimited(STsdbReader *pReader);
+void     tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn notifyFn, void *param);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -327,7 +327,7 @@ struct SVnodeCfg {
   int16_t     hashSuffix;
   int32_t     tsdbPageSize;
   int32_t     tdbEncryptAlgorithm;
-  char        tdbEncryptKey[ENCRYPT_KEY_LEN];
+  char        tdbEncryptKey[ENCRYPT_KEY_LEN + 1];
   int32_t     s3ChunkSize;
   int32_t     s3KeepLocal;
   int8_t      s3Compact;
@@ -340,6 +340,12 @@ struct SVnodeCfg {
 #define TABLE_COL_COMPRESSED          ((int8_t)0x2)
 #define TABLE_IS_COL_COMPRESSED(FLG)  (((FLG) & (TABLE_COL_COMPRESSED)) != 0)
 #define TABLE_SET_COL_COMPRESSED(FLG) ((FLG) |= TABLE_COL_COMPRESSED)
+
+struct SFileSetReader;
+int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader);
+int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader);
+int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value);
+void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 
 #ifdef __cplusplus
 }

@@ -382,8 +382,8 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
-void simReplaceDirSep(char *buf) {
 #ifdef WINDOWS
+void simReplaceDirSep(char *buf) {
   int i = 0;
   while (buf[i] != '\0') {
     if (buf[i] == '/') {
@@ -391,8 +391,8 @@ void simReplaceDirSep(char *buf) {
     }
     i++;
   }
-#endif
 }
+#endif
 
 bool simReplaceStr(char *buf, char *src, char *dst) {
   bool  replaced = false;

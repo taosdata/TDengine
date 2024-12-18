@@ -164,7 +164,7 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
     metaReaderClear(&mr);
     return code;
   }
-  strncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
+  tstrncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
   metaReaderClear(&mr);
 
   return 0;

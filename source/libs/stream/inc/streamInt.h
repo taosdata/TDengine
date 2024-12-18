@@ -200,6 +200,7 @@ void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 void    streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo);
+int32_t streamTaskAddIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId);
 
 void              streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo);
 EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
@@ -243,6 +244,8 @@ int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpoi
 int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
 int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
                                        STimeWindow* pLatestWindow, const char* id);
+// inject stream errors
+void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 
 // inject stream errors
 void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);

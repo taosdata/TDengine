@@ -72,6 +72,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80000133 | Invalid operation                 | Invalid or unsupported operation                             | 1. Modify to confirm the current operation is legal and supported, check parameter validity 2. If the problem persists, preserve the scene and logs, report issue on github |
 | 0x80000134 | Invalid value                     | Invalid value                                                | Preserve the scene and logs, report issue on github          |
 | 0x80000135 | Invalid fqdn                      | Invalid FQDN                                                 | Check if the configured or input FQDN value is correct       |
+| 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
+
 
 ## tsc
 
@@ -129,7 +131,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000350 | User already exists                                          | Create user, duplicate creation                              | Confirm if the operation is correct                          |
 | 0x80000351 | Invalid user                                                 | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x80000352 | Invalid user format                                          | Incorrect format                                             | Confirm if the operation is correct                          |
-| 0x80000353 | Invalid password format                                      | Incorrect format                                             | Confirm if the operation is correct                          |
+| 0x80000353 | Invalid password format                                      | The password must be between 8 and 16 characters long and include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters.  | Confirm the format of the password string |
 | 0x80000354 | Can not get user from conn                                   | Internal error                                               | Report issue                                                 |
 | 0x80000355 | Too many users                                               | (Enterprise only) Exceeding user limit                       | Adjust configuration                                         |
 | 0x80000357 | Authentication failure                                       | Incorrect password                                           | Confirm if the operation is correct                          |
@@ -251,6 +253,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000529 | Vnode is stopped                                   | Vnode is closed                                 | Report issue        |
 | 0x80000530 | Duplicate write request                            | Duplicate write request, internal error         | Report issue        |
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
+| 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
 
 ## tsdb
 
@@ -283,6 +286,9 @@ This document details the server error codes that may be encountered when using 
 | 0x80000729 | Task message error                   | Query message error                                          | Preserve the scene and logs, report issue on GitHub          |
 | 0x8000072B | Task status error                    | Subquery status error                                        | Preserve the scene and logs, report issue on GitHub          |
 | 0x8000072F | Job not exist                        | Query JOB no longer exists                                   | Preserve the scene and logs, report issue on GitHub          |
+| 0x80000739 | Query memory upper limit is reached  | Single query memory upper limit is reached                   | Modify memory upper limit size or optimize SQL               |
+| 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                           | Limit concurrent queries or add more physical memory         |
+| 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                          | Correct application to fetch data asap                       |
 
 ## grant
 

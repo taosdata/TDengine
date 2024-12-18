@@ -12,24 +12,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_UTIL_MEMPOOL_H_
-#define _TD_UTIL_MEMPOOL_H_
 
-#include "os.h"
+#ifndef _TD_MND_CONFIG_H_
+#define _TD_MND_CONFIG_H_
+
+#include "mndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+int32_t mndInitConfig(SMnode *pMnode);
 
-typedef void *mpool_h;
+SSdbRaw       *mnCfgActionEncode(SConfigObj *pCfg);
+SSdbRow       *mndCfgActionDecode(SSdbRaw *pRaw);
+static int32_t mndCfgActionInsert(SSdb *pSdb, SConfigObj *obj);
+static int32_t mndCfgActionDelete(SSdb *pSdb, SConfigObj *obj);
+static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *oldItem, SConfigObj *newObj);
+static int32_t mndCfgActionDeploy(SMnode *pMnode);
+static int32_t mndCfgActionAfterRestored(SMnode *pMnode);
 
-mpool_h taosMemPoolInit(int32_t maxNum, int32_t blockSize);
-char   *taosMemPoolMalloc(mpool_h handle);
-void    taosMemPoolFree(mpool_h handle, char *p);
-void    taosMemPoolCleanUp(mpool_h handle);
-
+static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_MEMPOOL_H_*/
+#endif /*_TD_MND_ARBGROUP_H_*/

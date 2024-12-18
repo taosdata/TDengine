@@ -67,8 +67,17 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   SVnodeInfo oldInfo = {0};
   oldInfo.config = vnodeCfgDefault;
   if (vnodeLoadInfo(dir, &oldInfo) == 0) {
-    vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
-    return (oldInfo.config.dbId == info.config.dbId) ? 0 : -1;
+    code = (oldInfo.config.dbId == info.config.dbId) ? 0 : TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
+    if (code == 0) {
+      vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
+    } else {
+      vError("vgId:%d, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
+             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             oldInfo.config.vgId, dir, oldInfo.config.dbId, oldInfo.config.dbname,
+             oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
+             info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
+    }
+    return code;
   }
 
   vInfo("vgId:%d, save config while create", info.config.vgId);
@@ -159,7 +168,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
 
 static int32_t vnodeVgroupIdLen(int32_t vgId) {
   char tmp[TSDB_FILENAME_LEN];
-  sprintf(tmp, "%d", vgId);
+  (void)tsnprintf(tmp, TSDB_FILENAME_LEN, "%d", vgId);
   return strlen(tmp);
 }
 
@@ -190,7 +199,14 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
     char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
     if (tsdbFilePrefixPos == NULL) continue;
 
-    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + prefixLen);
+    int32_t tsdbFileVgId = 0;
+    ret = taosStr2int32(tsdbFilePrefixPos + prefixLen, &tsdbFileVgId);
+    if (ret != 0) {
+      vError("vgId:%d, failed to get tsdb file vgid since %s", dstVgId, tstrerror(ret));
+      tfsClosedir(tsdbDir);
+      return ret;
+    }
+
     if (tsdbFileVgId == srcVgId) {
       char *tsdbFileSurfixPos = tsdbFilePrefixPos + prefixLen + vnodeVgroupIdLen(srcVgId);
 
@@ -401,7 +417,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   pVnode->path = (char *)&pVnode[1];
-  strcpy(pVnode->path, path);
+  memcpy(pVnode->path, path, strlen(path) + 1);
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.commitTerm = info.state.commitTerm;
@@ -456,7 +472,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open wal
-  sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
+  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 
@@ -468,7 +484,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open tq
-  sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
+  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 

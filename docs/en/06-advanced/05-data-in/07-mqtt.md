@@ -112,14 +112,14 @@ Fill in the example data from the MQTT message body in **Message Body**.
 
 JSON data supports JSONObject or JSONArray, and the json parser can parse the following data:
 
-``` json
+```json
 {"id": 1, "message": "hello-word"}
 {"id": 2, "message": "hello-word"}
 ```
 
 or
 
-``` json
+```json
 [{"id": 1, "message": "hello-word"},{"id": 2, "message": "hello-word"}]
 ```
 

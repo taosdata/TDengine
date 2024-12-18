@@ -71,7 +71,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   pReq->data = taosArrayInit(numOfBlocks, POINTER_BYTES);
   pReq->dataLen = taosArrayInit(numOfBlocks, sizeof(int32_t));
   if (pReq->data == NULL || pReq->dataLen == NULL) {
-    taosArrayDestroyP(pReq->data, taosMemoryFree);
+    taosArrayDestroyP(pReq->data, NULL);
     taosArrayDestroy(pReq->dataLen);
     return terrno;
   }
@@ -234,7 +234,7 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
 
 void destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups) {
   for (int32_t i = 0; i < numOfVgroups; i++) {
-    taosArrayDestroyP(pReq[i].data, taosMemoryFree);
+    taosArrayDestroyP(pReq[i].data, NULL);
     taosArrayDestroy(pReq[i].dataLen);
   }
 
@@ -1552,7 +1552,6 @@ static bool setDispatchRspInfo(SDispatchMsgInfo* pMsgInfo, int32_t vgId, int32_t
                                int32_t* pFailed, const char* id) {
   int32_t numOfRsp = 0;
   int32_t numOfFailed = 0;
-
   bool    allRsp = false;
   int32_t numOfDispatchBranch = taosArrayGetSize(pMsgInfo->pSendInfo);
 
@@ -1639,6 +1638,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   int32_t                notRsp = 0;
   int32_t                numOfFailed = 0;
   bool                   triggerDispatchRsp = false;
+  bool                   addFailure = false;
   SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
   int64_t                tmpCheckpointId = -1;
   int32_t                tmpTranId = -1;
@@ -1698,6 +1698,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     } else {
       if (pRsp->inputStatus == TASK_INPUT_STATUS__REFUSED) {
         // todo handle the role-changed during checkpoint generation, add test case
+        addFailure = true;
         stError(
             "s-task:%s downstream task:0x%x(vgId:%d) refused the dispatch msg, downstream may become follower or "
             "restart already, treat it as success",
@@ -1743,6 +1744,11 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   } else {
     stDebug("s-task:%s recv fix-dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s", id,
             msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code));
+  }
+
+  if (addFailure) {  // add failure downstream node id, and start the nodeEp update procedure
+    // ignore the return error and continue
+    int32_t unused = streamTaskAddIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
   }
 
   // all msg rsp already, continue
@@ -1865,6 +1871,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
       }
     }
   }
+
+#if 0
+    // inject errors, and always refuse the upstream dispatch msg and trigger the task nodeEpset update trans.
+    status = TASK_INPUT_STATUS__REFUSED;
+#endif
 
   {
     // do send response with the input status
