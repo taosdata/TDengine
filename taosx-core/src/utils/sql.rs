@@ -1,13 +1,14 @@
-use std::{fmt::Write, io::Write as _, time::Duration};
-
 use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_schema::ArrowError;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::Deserialize;
+use std::collections::BTreeMap;
+use std::{fmt::Write, io::Write as _, time::Duration};
 use taos::{
     taos_query::{common::Describe, Manager},
-    AsyncFetchable, AsyncQueryable, Error as TaosError, RawBlock, TaosBuilder, TaosPool,
+    AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Error as TaosError, RawBlock, Taos,
+    TaosBuilder, TaosPool,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
@@ -1217,6 +1218,25 @@ fn valid_sql_or_none(
     }
 }
 
+/// 通过 dsn 连接 taosd 且不指定 database 和任何参数
+pub async fn connect_taos_root(dsn: &Dsn) -> anyhow::Result<Taos> {
+    let from_cloned = Dsn {
+        subject: None,
+        params: BTreeMap::new(),
+        ..dsn.clone()
+    };
+
+    let taos = TaosBuilder::from_dsn(&from_cloned)?
+        .build()
+        .await
+        .map_err(|err| {
+            anyhow::Error::from(err)
+                .context(format!("failed to connect taos with dsn: {}", from_cloned))
+        })?;
+
+    Ok(taos)
+}
+
 #[cfg(test)]
 mod tests {
     use arrow::array::*;
@@ -1227,6 +1247,7 @@ mod tests {
     use super::*;
 
     const ROWS: usize = 10;
+
     fn valid_values_record() -> RecordBatch {
         let now = chrono::Utc::now().timestamp_millis();
         RecordBatch::try_from_iter(vec![
@@ -1361,5 +1382,10 @@ mod tests {
 
             // taos.query("select * from {}")
         }
+    }
+
+    #[tokio::test]
+    async fn test_connect_taos_root_with_taos() {
+        // TODO: test_connect_taos_root
     }
 }

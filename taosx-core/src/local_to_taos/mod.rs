@@ -49,6 +49,26 @@ pub async fn local_to_taos(
         .build()
         .await
         .context("parse local_to_taos config error")?;
+
+    let meta_in_dsn = config.meta();
+    // 处理 backup object
+    if let Some(meta_in_db) = config
+        .query_meta(
+            meta_in_dsn.db_name.as_str(),
+            meta_in_dsn.stable_name.as_ref(),
+        )
+        .await?
+    {
+        if force {
+            tracing::warn!("restore target exists, force to delete and recreate");
+            config.del_meta(&meta_in_db).await?;
+        } else {
+            bail!("restore target exists, please use -y/--yes-i-really-mean-it to delete and recreate");
+        }
+    }
+    tracing::warn!("restore backup object: {:?}", meta_in_dsn);
+    config.write_meta(meta_in_dsn).await?;
+
     // 创建 watcher
     let watcher = FileWatcher::from(config.clone());
     let stop_flag = watcher.get_stop_flag();
@@ -562,7 +582,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn test() -> Result<()> {
+    async fn test_local_to_taos_with_taos() -> Result<()> {
         std::env::set_var("RUST_LOG", "debug");
         pretty_env_logger::init();
         let out = Path::new("local_to_taos_out");

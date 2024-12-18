@@ -803,9 +803,61 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupObject {
+    pub topic: String,
+    pub db_name: String,
+    pub db_sql: String,
+    pub stable_name: Option<String>,
+    pub stable_sql: Option<String>,
+}
+
+impl TryFrom<&Dsn> for BackupObject {
+    type Error = anyhow::Error;
+
+    fn try_from(dsn: &Dsn) -> std::result::Result<Self, Self::Error> {
+        let topic = utils::parse_key_in_dsn::<String>(dsn, "topic")?
+            .ok_or(anyhow::anyhow!("parameter: topic not found"))?;
+        let db_name = utils::parse_key_in_dsn::<String>(dsn, "db_name")?
+            .ok_or(anyhow::anyhow!("parameter: db_name not found"))?;
+        let db_sql = utils::parse_key_in_dsn::<String>(dsn, "db_sql")?
+            .ok_or(anyhow::anyhow!("parameter: db_sql not found"))?;
+        let stable_name = utils::parse_key_in_dsn::<String>(dsn, "stable_name")?;
+        let stable_sql = utils::parse_key_in_dsn::<String>(dsn, "stable_sql")?;
+        Ok(Self {
+            topic,
+            db_name,
+            db_sql,
+            stable_name,
+            stable_sql,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_deserialize_backup_object() {
+        let topic_meta = r#"{
+            "topic": "x123",
+            "db_name": "x123",
+            "db_sql": "CREATE DATABASE IF NOT EXISTS x123",
+            "stable_name": "x123_stable",
+            "stable_sql": "CREATE TABLE IF NOT EXISTS x123_stable (ts TIMESTAMP, f1 INT) TAGS(t1 INT)"
+        }"#;
+
+        let topic_meta: BackupObject = serde_json::from_str(topic_meta).unwrap();
+        assert_eq!(topic_meta.topic, "x123");
+        assert_eq!(topic_meta.db_name, "x123");
+        assert_eq!(topic_meta.db_sql, "CREATE DATABASE IF NOT EXISTS x123");
+        assert_eq!(topic_meta.stable_name, Some("x123_stable".to_string()));
+        assert_eq!(
+            topic_meta.stable_sql,
+            Some("CREATE TABLE IF NOT EXISTS x123_stable (ts TIMESTAMP, value DOUBLE)".to_string())
+        );
+    }
 
     #[test]
     fn test_group_id_hash() {

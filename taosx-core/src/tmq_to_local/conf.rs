@@ -1,9 +1,9 @@
-use crate::tmq::generate_hash;
+use crate::tmq::{generate_hash, BackupObject};
 use crate::utils;
+use crate::utils::sql::connect_taos_root;
 use anyhow::{anyhow, bail};
 use chrono::{DateTime, Utc};
 use futures_util::TryStreamExt;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use taos::*;
@@ -44,6 +44,8 @@ pub struct BackupConfig {
     pub backup_comp_level: async_compression::Level,
 }
 
+impl BackupConfig {}
+
 impl BackupConfig {
     pub fn group_id(task_id: &Option<String>, from: &Dsn, to: &Dsn) -> String {
         if let Some(oneshot_topic) = from.get("use.topic.name") {
@@ -59,7 +61,7 @@ impl BackupConfig {
 
     /// 如果 topic 在 taosd 中不存在，则是初始备份，反之则不是
     pub async fn is_initial_backup(&self) -> anyhow::Result<bool> {
-        let taos = connect(&self.raw_from).await?;
+        let taos = connect_taos_root(&self.raw_from).await?;
         let topics = taos.topics().await?;
         let t = topics.iter().find(|t| t.name() == self.topic).is_none();
         Ok(t)
@@ -70,7 +72,7 @@ impl BackupConfig {
         let sql = self.create_topic_sql();
         tracing::debug!("create topic with sql: {}", sql);
 
-        let taos = connect(&self.raw_from).await?;
+        let taos = connect_taos_root(&self.raw_from).await?;
         taos.exec(&sql).await.map_err(|err| {
             anyhow::Error::from(err).context(format!(
                 "failed to create topic: {}, sql: {}",
@@ -141,7 +143,7 @@ impl BackupConfig {
     }
 
     async fn get_vgroups(&self) -> anyhow::Result<usize> {
-        let taos = connect(&self.raw_from).await?;
+        let taos = connect_taos_root(&self.raw_from).await?;
 
         let sql = format!(
             "select `vgroups` from information_schema.ins_databases where name = '{}'",
@@ -202,7 +204,7 @@ impl BackupConfig {
     }
 
     /// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
-    pub fn parse_backup_dir(dsn: &Dsn, task_id: &Option<String>) -> anyhow::Result<PathBuf> {
+    pub fn parse_backup_dir(dsn: &Dsn, task_id: Option<&str>) -> anyhow::Result<PathBuf> {
         let dir = utils::parse_dir_in_dsn(dsn, None)?;
         // TODO: 如果 dir 为空，使用 $TAOSX_DATA_DIR/backup
 
@@ -213,6 +215,78 @@ impl BackupConfig {
         }
 
         Ok(dir)
+    }
+
+    /// 从 taos 中查询出 BackupObject
+    pub async fn query_backup_obj(
+        from: &Dsn,
+        to: &Dsn,
+        task_id: Option<&str>,
+    ) -> anyhow::Result<BackupObject> {
+        let topic = Self::group_id(&task_id.map(|s| s.to_string()), from, to);
+
+        let taos = connect_taos_root(from).await?;
+        let db_name = from
+            .subject
+            .as_ref()
+            .ok_or(anyhow::anyhow!("database not found in dsn: {}", &from))?;
+
+        // query taos
+        let sql = format!(
+            "SELECT name FROM information_schema.ins_databases WHERE name = '{}'",
+            db_name
+        );
+        tracing::debug!("query taos with sql: {}", sql);
+        let database = taos
+            .query_one(sql)
+            .await?
+            .ok_or(anyhow::anyhow!("database not found in taos: {}", &from))?;
+
+        let sql = format!("SHOW CREATE DATABASE `{}`", db_name);
+        tracing::debug!("query taos with sql: {}", sql);
+        let (_db, db_sql) =
+            taos.query_one::<_, (String, String)>(sql)
+                .await?
+                .ok_or(anyhow::anyhow!(
+                    "failed to get create database sql: {}",
+                    &db_name
+                ))?;
+
+        let mut backup_obj = BackupObject {
+            topic,
+            db_name: database,
+            db_sql,
+            stable_name: None,
+            stable_sql: None,
+        };
+
+        let stable = utils::parse_key_in_dsn::<String>(from, "stable")?;
+        if let Some(stable) = stable {
+            let sql = format!(
+                "SELECT stable_name FROM information_schema.ins_stables WHERE db_name = '{}' AND stable_name = '{}'",
+                db_name, stable
+            );
+            tracing::debug!("query taos with sql: {}", sql);
+            let stable_name = taos
+                .query_one(sql)
+                .await?
+                .ok_or(anyhow::anyhow!("stable not found in taos: {}", &stable))?;
+
+            let sql = format!("SHOW CREATE STABLE `{}`.`{}`", db_name, stable);
+            tracing::debug!("query taos with sql: {}", sql);
+            let (_stable, stable_sql) =
+                taos.query_one::<_, (String, String)>(sql)
+                    .await?
+                    .ok_or(anyhow::anyhow!(
+                        "failed to get create stable sql: {}.{}",
+                        &db_name,
+                        &stable
+                    ))?;
+            backup_obj.stable_name = Some(stable_name);
+            backup_obj.stable_sql = Some(stable_sql);
+        }
+
+        Ok(backup_obj)
     }
 }
 
@@ -236,25 +310,6 @@ impl BackupPointGenMode {
     }
 }
 
-/// 通过 dsn 连接 taosd 且不指定 database 和任何参数
-async fn connect(dsn: &Dsn) -> anyhow::Result<Taos> {
-    let from_cloned = Dsn {
-        subject: None,
-        params: BTreeMap::new(),
-        ..dsn.clone()
-    };
-
-    let taos = TaosBuilder::from_dsn(&from_cloned)?
-        .build()
-        .await
-        .map_err(|err| {
-            anyhow::Error::from(err)
-                .context(format!("failed to connect taos with dsn: {}", from_cloned))
-        })?;
-
-    Ok(taos)
-}
-
 pub struct BackupConfigBuilder {
     task_id: Option<String>,
     from: Dsn,
@@ -271,7 +326,7 @@ impl BackupConfigBuilder {
     }
 
     pub async fn build(&self) -> anyhow::Result<BackupConfig> {
-        let taos = connect(&self.from).await?;
+        let taos = connect_taos_root(&self.from).await?;
 
         let server_version = taos
             .server_version()
@@ -309,7 +364,7 @@ impl BackupConfigBuilder {
             })?;
 
         // backup dir
-        let backup_dir = BackupConfig::parse_backup_dir(&self.to, &self.task_id)?;
+        let backup_dir = BackupConfig::parse_backup_dir(&self.to, self.task_id.as_deref())?;
 
         // topic 与 group.id 相同
         let topic = BackupConfig::group_id(&self.task_id, &self.from, &self.to);
@@ -417,7 +472,7 @@ mod tests {
     fn test_parse_backup_dir() {
         let dsn = "local:/tmp".into_dsn().unwrap();
         let task_id = Some("123".to_string());
-        let backup_dir = BackupConfig::parse_backup_dir(&dsn, &task_id).unwrap();
+        let backup_dir = BackupConfig::parse_backup_dir(&dsn, task_id.as_deref()).unwrap();
 
         let cur_dir = Path::new("/tmp").canonicalize().unwrap().join("123");
         assert_eq!(backup_dir, cur_dir);

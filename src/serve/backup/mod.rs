@@ -2,18 +2,21 @@ use crate::serve::controller::TaskControllerRef;
 use crate::serve::task::Failed;
 use actix_web::web::{Data, Path};
 use actix_web::{get, HttpResponse, Responder};
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::Serialize;
 use taos::IntoDsn;
 use taosx_core::taoz::ZFile;
+use taosx_core::tmq::BackupObject;
 use taosx_core::tmq_to_local::conf::BackupConfig;
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct BackupPoint {
-    /// topic 名称
-    topic: String,
+    #[serde(flatten)]
+    /// 备份对象
+    backup_obj: BackupObject,
     /// 备份点
     point: DateTime<Utc>,
     /// 文件大小
@@ -63,20 +66,21 @@ async fn get_backup_points_impl(
     if task.is_none() {
         return Ok(None);
     }
-
     let task = task.unwrap();
+
+    let from = task.from.as_str().into_dsn().map_err(|err| {
+        anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.from))
+    })?;
     let to = task.to.as_str().into_dsn().map_err(|err| {
         anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.to))
     })?;
-
+    let task_id = id.to_string();
     let topic = task
         .oneshot_topic
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("oneshot topic not found, task_id: {}", id))?;
 
-    let task_id = Some(id.to_string());
-    let backup_dir = BackupConfig::parse_backup_dir(&to, &task_id)?;
-
+    let backup_dir = BackupConfig::parse_backup_dir(&to, Some(task_id.as_str()))?;
     // 列出目录下的所有文件名
     let mut backup_files = vec![];
     let mut entries = tokio::fs::read_dir(backup_dir).await?;
@@ -90,29 +94,30 @@ async fn get_backup_points_impl(
             if !file_name.starts_with(topic) {
                 continue;
             }
-            if let Ok((topic, ts, _, _)) = ZFile::parse_file_name(file_name.as_ref()) {
-                backup_files.push(BackupPoint {
-                    topic,
-                    point: ts,
-                    file_size,
-                    file_count: 1,
-                });
+            if let Ok((_, ts, _, _)) = ZFile::parse_file_name(file_name.as_ref()) {
+                backup_files.push((ts, file_size, 1));
             }
         }
     }
 
+    let backup_obj = BackupConfig::query_backup_obj(&from, &to, Some(task_id.as_str()))
+        .await
+        .context(format!(
+            "failed to get backup obj with from: {}, to: {}, task: {}",
+            &from, &to, &task_id
+        ))?;
+
     // 按照 point 合并
     let points = backup_files
         .into_iter()
-        .chunk_by(|p| p.point)
+        .chunk_by(|p| p.0)
         .into_iter()
-        .map(|(point, group)| {
-            let (file_size, file_count) = group.fold((0, 0), |(size, count), p| {
-                (size + p.file_size, count + p.file_count)
-            });
+        .map(|(ts, group)| {
+            let (file_size, file_count) =
+                group.fold((0, 0), |(size, count), p| (size + p.1, count + p.2));
             BackupPoint {
-                topic: topic.clone(),
-                point,
+                backup_obj: backup_obj.clone(),
+                point: ts,
                 file_size,
                 file_count,
             }
@@ -129,7 +134,13 @@ mod tests {
     #[test]
     fn test_serialize_backup_point() {
         let p = BackupPoint {
-            topic: "abc".to_string(),
+            backup_obj: BackupObject {
+                topic: "abc".to_string(),
+                db_name: "abc".to_string(),
+                db_sql: "abc".to_string(),
+                stable_name: None,
+                stable_sql: None,
+            },
             point: Utc::now(),
             file_size: 1024 * 1024 * 30,
             file_count: 2,

@@ -43,7 +43,7 @@ pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub mod csv;
 mod fake;
 mod legacy;
-mod local_to_taos;
+pub mod local_to_taos;
 mod parquets;
 pub mod taoz;
 pub mod tmq;
