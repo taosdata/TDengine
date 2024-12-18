@@ -103,6 +103,7 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
   return TSDB_CODE_SUCCESS;
 }
 
+// processType = 0 means all type. 1 means number, 2 means var
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_t processType) {
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   if (NULL == pObj) {
@@ -181,9 +182,6 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_
 
     colInfoDataCleanup(out.columnData, out.numOfRows);
     cell = cell->pNext;
-  }
-  if (taosHashGetSize(pObj) == 0) {
-    goto _return;
   }
   *data = pObj;
 

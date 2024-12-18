@@ -4323,7 +4323,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         }
       }
 
-      if (OP_TYPE_IN == node->opType && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {
+      if ((OP_TYPE_IN == node->opType || OP_TYPE_NOT_IN == node->opType) && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {
         fltError("invalid IN operator node, rightType:%d", nodeType(node->pRight));
         stat->code = TSDB_CODE_APP_ERROR;
         return DEAL_RES_ERROR;
