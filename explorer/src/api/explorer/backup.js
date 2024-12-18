@@ -35,7 +35,7 @@ export function restoreBackups(restoreData) {
         data: {
             "labels": ["type::restore", `cluster-id::${localStorage.getItem("local_clusterID")}`],
             "trigger": {"schedule": "oneshot", "resume": "never"},
-            "from": `local:${restoreData.backupDirectory}?from=${restoreData.from}&to=${restoreData.to}`,
+            "from": `local:${restoreData.backupDirectory}?topic=${restoreData.topic}&from=${restoreData.from}&to=${restoreData.to}`,
             "to": dsn
         }
     });

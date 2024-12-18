@@ -119,7 +119,7 @@
               <el-button
               plain
               size="small"
-              @click="toRestoreBackup(scope.row.point)"
+              @click="toRestoreBackup(scope.row)"
               icon="el-icon-first-aid-kit"
             ></el-button>
             </el-tooltip>
@@ -462,10 +462,11 @@ export default {
     async getSTbaleList() {
       this.stableList = await getStables(this.ruleForm.database);
     },
-    toRestoreBackup(toPoint) {
-      this.restoreRangeList = this.historyList.map(item => item.point).filter(item => item <= toPoint);
-      this.restoreRange.from = toPoint;
-      this.restoreRange.to =  toPoint;
+    toRestoreBackup(toFile) {
+      this.restoreRangeList = this.historyList.map(item => item.point).filter(item => item <= toFile.point);
+      this.restoreRange.from = toFile.point;
+      this.restoreRange.to =  toFile.point;
+      this.toPointTopic = toFile.topic;
       this.restoreConfirmDialog = true;
     },
     async restoreBackup() {
@@ -486,6 +487,7 @@ export default {
           from: this.restoreRange.from,
           to: this.restoreRange.to,
           database: this.ruleForm.database,
+          topic: this.toPointTopic,
           backupDirectory,
         });
 
