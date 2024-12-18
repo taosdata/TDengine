@@ -14,6 +14,7 @@
 #,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3Basic.py -N 3
 #,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
 #,,y,army,./pytest.sh python3 ./test.py -f community/query/function/test_func_elapsed.py
+#,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
 #,,y,army,./pytest.sh python3 ./test.py -f community/query/test_join.py
 #,,y,army,./pytest.sh python3 ./test.py -f community/query/test_compare.py
 #,,y,army,./pytest.sh python3 ./test.py -f community/insert/test_column_tag_boundary.py
