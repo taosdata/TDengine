@@ -378,7 +378,7 @@ typedef struct {
   TAOS_MULTI_BIND *bind;
 } SBindInfo;
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                          SArray *rowArray);
+                          SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 // stmt2 binding
 int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
@@ -392,7 +392,7 @@ typedef struct {
 } SBindInfo2;
 
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray);
+                           SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 #endif
 
