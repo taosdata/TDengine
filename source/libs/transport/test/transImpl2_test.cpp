@@ -124,14 +124,14 @@ class Server {
     memcpy(rpcInit_.localFqdn, "localhost", strlen("localhost"));
     rpcInit_.localPort = port;
     rpcInit_.label = (char *)label;
-    rpcInit_.numOfThreads = 5;
+    rpcInit_.numOfThreads = 1;
     rpcInit_.cfp = processReq;
     rpcInit_.user = (char *)user;
     rpcInit_.connType = TAOS_CONN_SERVER;
     taosVersionStrToInt(td_version, &(rpcInit_.compatibilityVer));
   }
   void Start() {
-    this->transSrv = rpcOpen(&this->rpcInit_);
+    //this->transSrv = rpcOpen(&this->rpcInit_);
     taosMsleep(1000);
   }
   void SetSrvContinueSend(CB cb) {

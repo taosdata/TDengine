@@ -118,7 +118,7 @@ typedef struct {
   void  *arg;
 } SFdCbArg;
 typedef struct {
-  int32_t   evtFds;
+  int32_t   evtFds;  // highest fd in the set
   int32_t   evtFdsSize;
   int32_t   resizeOutSets;
   fd_set   *evtReadSetIn;
@@ -177,7 +177,12 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg) {
     handle->cb(handle, 0);
   } else if (pArg->evtType == EVT_ASYNC_T) {
     SAsyncHandle *handle = pArg->arg;
-    handle->cb(handle, 0);
+    char          buf[2] = {0};
+    int32_t       nBytes = read(pArg->fd, buf, 1);
+    if (nBytes == 1) {
+      handle->cb(handle, 0);
+    }
+
   } else {
   }
   return code;
@@ -198,10 +203,11 @@ int32_t evtMgtHandle(SEvtMgt *pOpt, int32_t res, int32_t fd) {
   return code;
 }
 static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
-  int32_t code = 0, res = 0, i, j, nfds = 0;
+  int32_t code = 0, res = 0, j, nfds = 0;
   if (pOpt->resizeOutSets) {
     fd_set *readSetOut = NULL, *writeSetOut = NULL;
     int32_t sz = pOpt->evtFdsSize;
+
     readSetOut = taosMemoryRealloc(pOpt->evtReadSetOut, sz);
     if (readSetOut == NULL) {
       return terrno;
@@ -212,8 +218,8 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
     if (writeSetOut == NULL) {
       return terrno;
     }
-
     pOpt->evtWriteSetOut = writeSetOut;
+
     pOpt->resizeOutSets = 0;
   }
 
@@ -236,9 +242,16 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
     if (FD_ISSET(fd, pOpt->evtWriteSetOut)) {
       res |= EVT_WRITE;
     }
-    code = evtMgtHandle(pOpt, res, fd);
-    if (code != 0) {
-      tError("failed to handle fd %d since %s", i, tstrerror(code));
+
+    if (res == 0) {
+      tDebug("do nothing");
+    } else {
+      code = evtMgtHandle(pOpt, res, fd);
+      if (code != 0) {
+        tError("failed to handle fd %d since %s", fd, tstrerror(code));
+      } else {
+        tDebug("success to handle fd %d", fd);
+      }
     }
   }
 
@@ -288,18 +301,20 @@ static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *ar
       if (evtMgtResize(pOpt, fdSize)) {
         return -1;
       }
-      pOpt->evtFds = fd;
     }
+    pOpt->evtFds = fd;
   }
-  if (events & EVT_READ) {
-    FD_SET(fd, pOpt->evtReadSetIn);
-  }
+  if (fd != 0) {
+    if (events & EVT_READ) {
+      FD_SET(fd, pOpt->evtReadSetIn);
+    }
 
-  if (events & EVT_WRITE) {
-    FD_SET(fd, pOpt->evtWriteSetIn);
+    if (events & EVT_WRITE) {
+      FD_SET(fd, pOpt->evtWriteSetIn);
+    }
+    pOpt->fd[pOpt->fdIdx++] = fd;
+    code = taosHashPut(pOpt->pFdTable, &fd, sizeof(fd), arg, sizeof(*arg));
   }
-  pOpt->fd[pOpt->fdIdx++] = fd;
-  code = taosHashPut(pOpt->pFdTable, &fd, sizeof(fd), arg, sizeof(*arg));
 
   return 0;
 }
@@ -588,10 +603,27 @@ void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads
       goto End;
     }
 
-    QUEUE_INIT(&thrd->fdQueue.q);
-    if (pipe(thrd->pipe_fd) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto End;
+    // QUEUE_INIT(&thrd->fdQueue.q);
+    {
+      int fd[2] = {0};
+      code = pipe(fd);
+      if (code < 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto End;
+      }
+      thrd->pipe_fd[0] = fd[0];
+      thrd->pipe_fd[1] = fd[1];
+    }
+
+    {
+      int fd2[2] = {0};
+      code = pipe(fd2);
+      if (code < 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto End;
+      }
+      thrd->pipe_queue_fd[0] = fd2[0];
+      thrd->pipe_queue_fd[1] = fd2[1];
     }
 
     int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void *)(thrd));
@@ -796,10 +828,11 @@ static int32_t createThrdObj(void *trans, SCliThrd2 **ppThrd) {
   if (pThrd == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _end);
   }
-  code = evtMgtCreate(&pThrd->pEvtMgt);
-  if (code != 0) {
-    TAOS_CHECK_GOTO(code, &line, _end);
-  }
+
+  taosThreadMutexInit(&pThrd->msgMtx, NULL);
+
+  QUEUE_INIT(&pThrd->msg);
+
   *ppThrd = pThrd;
   return code;
 _end:
@@ -967,14 +1000,13 @@ static void evtHandleCliReq(void *arg, int32_t status) {
   queue wq;
   QUEUE_INIT(&wq);
 
-  taosThreadMutexLock(&pThrd->msgMtx);
-  QUEUE_MOVE(&pThrd->msg, &wq);
-  taosThreadMutexUnlock(&pThrd->msgMtx);
+  taosThreadMutexLock(&handle->mutex);
+  QUEUE_MOVE(&handle->q, &wq);
+  taosThreadMutexUnlock(&handle->mutex);
 
   if (QUEUE_IS_EMPTY(&wq)) {
     return;
   }
-
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue *el = QUEUE_HEAD(&wq);
     QUEUE_REMOVE(el);
@@ -1006,6 +1038,11 @@ static void *cliWorkThread2(void *arg) {
   tsEnableRandErr = false;
   TAOS_UNUSED(strtolower(threadName, pThrd->pInst->label));
   setThreadName(threadName);
+
+  code = evtMgtCreate(&pThrd->pEvtMgt);
+  if (code != 0) {
+    TAOS_CHECK_GOTO(code, &line, _end);
+  }
 
   pThrd->pEvtMgt->arg = pThrd;
 
@@ -1051,11 +1088,15 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
     if (code != 0) {
       goto _err;
     }
-    code = pipe(pThrd->pipe_queue_fd);
+    int fd[2] = {0};
+
+    code = pipe(fd);
     if (code != 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       TAOS_CHECK_GOTO(code, NULL, _err);
     }
+    pThrd->pipe_queue_fd[0] = fd[0];
+    pThrd->pipe_queue_fd[1] = fd[1];
     pThrd->pInst = pInst;
 
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread2, (void *)(pThrd));
