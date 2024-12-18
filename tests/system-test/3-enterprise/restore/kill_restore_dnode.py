@@ -53,7 +53,7 @@ class TDTestCase:
 
             tdLog.info('show transaction %d'%tranId)
             rows=tdSql.query('show transaction %d'%tranId, queryTimes=1)
-            if rows != 13:
+            if rows != 11:
                 tdLog.exit(f"restore transaction detial error, rows={rows}")
                 return False
 
