@@ -4860,7 +4860,6 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
         }
-        return DEAL_RES_CONTINUE;
       } else {
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
         if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
@@ -4873,7 +4872,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
           SValueNode *valueNode = (SValueNode *)cell->pNode;
           cell = cell->pNext;
           int32_t tmp = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
-          if (tmp != 0){
+          if (tmp != 0 && tmp != refNode->node.resType.type){
             stat->scalarMode = true;
             if (IS_NUMERIC_TYPE(tmp) && tmp > type){
               type = tmp;
@@ -4884,7 +4883,6 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         if (IS_NUMERIC_TYPE(type)){
           exprNode->resType.type = type;
         }
-        return DEAL_RES_CONTINUE;
       }
     }
 
