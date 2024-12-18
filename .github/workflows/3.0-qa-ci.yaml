@@ -22,6 +22,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, rust]
     outputs:
       coverage_report_dir: ${{ steps.set_env.outputs.coverage_report_dir }}
+      app_token: ${{ steps.app-token.outputs.token }}
     steps:
       - name: Set COVERAGE_REPORT_DIR
         id: set_env
@@ -29,6 +30,12 @@ jobs:
           echo "coverage_report_dir=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_OUTPUT
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DIR
+      - name: Generate GitHub App token
+        id: app-token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ vars.APP_ID }}
+          private_key: ${{ secrets.APP_KEY }}
   remove_artifacts:
     needs: set_env
     env:
@@ -197,7 +204,9 @@ jobs:
           cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py 6055 eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
   run_e2e_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: deploy_taosx_plugins
+    needs: [deploy_taosx_plugins,set_env]
+    env:
+      app_token: ${{ needs.set_env.outputs.app_token }}
     steps:
       - name: Update Repo
         run: |
@@ -210,13 +219,23 @@ jobs:
           systemctl restart taos-explorer
           systemctl restart taosadapter
       
+      - name: Save token to environment
+        run: echo "APP_TOKEN=${{ env.app_token }}" >> $GITHUB_ENV
+      
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          token: ${{ env.APP_TOKEN }}
       - name: Run Test
         continue-on-error: true
         run: |
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
+          
+          cp /data/github/TestNG_taosX/setenv.sh ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/e2e/
+          cd ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/e2e && source ./setenv.sh && poetry config pypi-token.pypi &APP_TOKEN && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
+          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
       - name: Stop taosx-agent & taosx
