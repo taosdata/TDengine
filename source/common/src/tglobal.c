@@ -2381,6 +2381,10 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
+  if (strcasecmp(name, "dataDir") == 0) {
+    code = TSDB_CODE_SUCCESS;
+    goto _exit;
+  }
 
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {

@@ -432,6 +432,56 @@ _err:
   TAOS_RETURN(code);
 }
 
+int32_t cfgUpdateTfsItemDisable(SConfigItem *pItem, const char *value) {
+  int32_t     code = 0;
+  int32_t     len = strlen(value) + 1;
+  int8_t      disable = 0;
+  char       *dataDirStr = taosMemoryMalloc(PATH_MAX);
+  char       *disableStr = taosMemoryMalloc(1 + 1);
+  const char *p = value;
+  while (*p) {
+    if (*p == ' ') {
+      break;
+    }
+    p++;
+  }
+
+  size_t optLen = p - value;
+  tstrncpy(dataDirStr, value, PATH_MAX);
+  dataDirStr[optLen] = 0;
+
+  if (' ' == value[optLen] && strlen(value) > optLen + 1) {
+    disableStr[0] = value[optLen + 1];
+    disableStr[1] = 0;
+    if ((taosStr2int8(dataDirStr, &disable)) < 0) {
+      code = TSDB_CODE_INVALID_CFG_VALUE;
+      goto _exit;
+    }
+  } else {
+    code = TSDB_CODE_INVALID_CFG_VALUE;
+    goto _exit;
+  }
+
+  int32_t sz = taosArrayGetSize(pItem->array);
+  for (int32_t i = 0; i < sz; ++i) {
+    SDiskCfg *cfg = taosArrayGet(pItem->array, i);
+    if (strcmp(cfg->dir, dataDirStr) == 0) {
+      cfg->disable = disable;
+      break;
+      uInfo("update tfs item:%s disable:%d", cfg->dir, cfg->disable);
+    }
+  }
+  code = TSDB_CODE_INVALID_CFG_VALUE;
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to update tfs item:%s disable:%d", dataDirStr, disable);
+  }
+  taosMemoryFree(dataDirStr);
+  taosMemoryFree(disableStr);
+  TAOS_RETURN(code);
+}
+
 static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool resetArray) {
   SConfigItem *pDebugFlagItem = cfgGetItem(pCfg, "debugFlag");
   if (resetArray) {
@@ -501,15 +551,22 @@ int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **pItem, const char *name, c
 
   *pItem = cfgGetItem(pCfg, name);
   if (*pItem == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
-    TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
+    code = TSDB_CODE_CFG_NOT_FOUND;
+    goto _exit;
   }
-  TAOS_CHECK_RETURN(cfgSetItemVal(*pItem, name, value, stype));
 
+  if (strcasecmp(name, "dataDir") == 0) {
+    code = cfgUpdateTfsItemDisable(*pItem, value);
+    goto _exit;
+  }
+
+  TAOS_CHECK_GOTO(cfgSetItemVal(*pItem, name, value, stype), NULL, _exit);
+
+_exit:
   if (lock) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
   }
-
+  
   TAOS_RETURN(code);
 }
 
