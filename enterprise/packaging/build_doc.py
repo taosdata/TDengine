@@ -222,7 +222,7 @@ def build_oem_pdf(enterprise_path):
         os.chdir(enterprise_path)
         print(f"Changed directory to {enterprise_path}")          
         # Run the build script
-        subprocess.run(f"python3 build.py pdf oem", shell=True, check=True)
+        subprocess.run("python3 build.py pdf oem", shell=True, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error: {e}")
 
@@ -282,7 +282,7 @@ def main():
 
     # set  workdir 
     script_path = os.path.dirname(__file__)
-    script_file = os.path.abspath(__file__)
+    # script_file = os.path.abspath(__file__)
     workdir = os.path.abspath(os.path.join(script_path, "../../../"))
 
     # workdir = "/root/enterprise_build_zip_work/"
@@ -314,7 +314,7 @@ def main():
         # 可以在这里添加更多的键值对
     }
 
-    if td_is_update == True :
+    if td_is_update:
         # change to doc_zh/en_repo and build the documentation
         build_doc(doc_zh_repo_path)
         build_doc(doc_en_repo_path)
