@@ -127,6 +127,9 @@ typedef struct {
   fd_set   *evtWriteSetOut;
   SHashObj *pFdTable;
   void     *arg;
+  int32_t   fd[2048];
+  int32_t   fdIdx;
+
 } SEvtMgt;
 
 static int32_t evtMgtResize(SEvtMgt *pOpt, int32_t cap);
@@ -152,6 +155,8 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt) {
   pRes->evtWriteSetIn = NULL;
   pRes->evtReadSetOut = NULL;
   pRes->evtWriteSetOut = NULL;
+  pRes->pFdTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  pRes->fdIdx = 0;
 
   code = evtMgtResize(pRes, (32 + 1));
   if (code != 0) {
@@ -223,14 +228,15 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
   }
 
   for (j = 0; j < nfds; j++) {
+    int32_t fd = pOpt->fd[j];
     res = 0;
-    if (FD_ISSET(j, pOpt->evtReadSetOut)) {
+    if (FD_ISSET(fd, pOpt->evtReadSetOut)) {
       res |= EVT_READ;
     }
-    if (FD_ISSET(j, pOpt->evtWriteSetOut)) {
+    if (FD_ISSET(fd, pOpt->evtWriteSetOut)) {
       res |= EVT_WRITE;
     }
-    code = evtMgtHandle(pOpt, res, i);
+    code = evtMgtHandle(pOpt, res, fd);
     if (code != 0) {
       tError("failed to handle fd %d since %s", i, tstrerror(code));
     }
@@ -292,7 +298,9 @@ static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *ar
   if (events & EVT_WRITE) {
     FD_SET(fd, pOpt->evtWriteSetIn);
   }
+  pOpt->fd[pOpt->fdIdx++] = fd;
   code = taosHashPut(pOpt->pFdTable, &fd, sizeof(fd), arg, sizeof(*arg));
+
   return 0;
 }
 
@@ -316,6 +324,11 @@ static int32_t evtMgtRemove(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg 
     // TODO, destroy pArg
   } else {
     code = taosHashRemove(pOpt->pFdTable, &fd, sizeof(fd));
+  }
+  for (int32_t i = 0; i < sizeof(pOpt->fd) / sizeof(pOpt->fd[0]); i++) {
+    if (pOpt->fd[i] == fd) {
+      pOpt->fd[i] = -1;
+    }
   }
   return code;
 }
@@ -990,7 +1003,7 @@ static void *cliWorkThread2(void *arg) {
 
   pThrd->pid = taosGetSelfPthreadId();
 
-  tsEnableRandErr = true;
+  tsEnableRandErr = false;
   TAOS_UNUSED(strtolower(threadName, pThrd->pInst->label));
   setThreadName(threadName);
 

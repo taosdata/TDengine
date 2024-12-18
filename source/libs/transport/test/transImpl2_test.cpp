@@ -49,7 +49,7 @@ class Client {
     memset(&rpcInit_, 0, sizeof(rpcInit_));
     rpcInit_.localPort = 0;
     rpcInit_.label = (char *)label;
-    rpcInit_.numOfThreads = nThread;
+    rpcInit_.numOfThreads = 1;
     rpcInit_.cfp = processResp;
     rpcInit_.user = (char *)user;
     rpcInit_.parent = this;
