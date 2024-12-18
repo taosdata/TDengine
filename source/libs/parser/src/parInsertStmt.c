@@ -1212,6 +1212,48 @@ int32_t qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qRebuildStmt2DataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
+                               bool rebuildCreateTb, const char* tName, const char* sTableName) {
+  int32_t code = qCloneStmtDataBlock(pDst, pSrc, false);
+  if (code) {
+    return code;
+  }
+
+  STableDataCxt* pBlock = (STableDataCxt*)*pDst;
+  if (pBlock->pMeta) {
+    pBlock->pMeta->uid = uid;
+    pBlock->pMeta->vgId = vgId;
+    pBlock->pMeta->suid = suid;
+  }
+
+  pBlock->pData->suid = suid;
+  pBlock->pData->uid = uid;
+
+  if (rebuildCreateTb && NULL == pBlock->pData->pCreateTbReq) {
+    pBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (NULL == pBlock->pData->pCreateTbReq) {
+      return terrno;
+    }
+    SArray* pTagArray = taosArrayInit(0, sizeof(STagVal));
+    SArray* tagName = taosArrayInit(0, TSDB_COL_NAME_LEN);
+
+    STag* tag = NULL;
+    code = tTagNew(pTagArray, 1, false, &tag);
+
+    code = insBuildCreateTbReq(pBlock->pData->pCreateTbReq, tName, tag, suid, sTableName, tagName, 0,
+                               TSDB_DEFAULT_TABLE_TTL);
+
+    taosArrayDestroy(pTagArray);
+    taosArrayDestroy(tagName);
+    taosMemoryFree(tag);
+    if (code) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock) { return ((STableDataCxt*)pDataBlock)->pMeta; }
 
 void qDestroyStmtDataBlock(STableDataCxt* pBlock) {

@@ -137,6 +137,8 @@ int32_t     qResetStmtDataBlock(STableDataCxt* block, bool keepBuf);
 int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset);
 int32_t     qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
                                   bool rebuildCreateTb);
+int32_t     qRebuildStmt2DataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
+                                   bool rebuildCreateTb, const char* tName, const char* sTableName);
 void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
 STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
 int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);

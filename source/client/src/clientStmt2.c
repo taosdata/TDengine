@@ -488,7 +488,8 @@ static int32_t stmtTryAddTableVgroupInfo(STscStmt2* pStmt, int32_t* vgId) {
 static int32_t stmtRebuildDataBlock(STscStmt2* pStmt, STableDataCxt* pDataBlock, STableDataCxt** newBlock, uint64_t uid,
                                     uint64_t suid, int32_t vgId) {
   STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
-  STMT_ERR_RET(qRebuildStmtDataBlock(newBlock, pDataBlock, uid, suid, vgId, pStmt->sql.autoCreateTbl));
+  STMT_ERR_RET(qRebuildStmt2DataBlock(newBlock, pDataBlock, uid, suid, vgId, pStmt->sql.autoCreateTbl, pStmt->bInfo.sname.tname,
+                                      pStmt->bInfo.stbFName));
 
   STMT_DLOG("tableDataCxt rebuilt, uid:%" PRId64 ", vgId:%d", uid, vgId);
 
