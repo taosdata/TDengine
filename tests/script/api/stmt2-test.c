@@ -35,8 +35,8 @@ typedef struct {
 } FuncInfo;
 
 typedef enum {
-  BP_BIND_TAG = 1,
-  BP_BIND_COL,
+  BP_BIND_COL = 1,
+  BP_BIND_TAG,
 } BP_BIND_TYPE;
 
 #define BP_BIND_TYPE_STR(t) (((t) == BP_BIND_COL) ? "column" : "tag")
@@ -385,7 +385,7 @@ void   *taosMemoryMalloc(uint64_t size) { return malloc(size); }
 
 void *taosMemoryCalloc(int32_t num, int32_t size) { return calloc(num, size); }
 void  taosMemoryFree(const void *ptr) {
-   if (ptr == NULL) return;
+  if (ptr == NULL) return;
 
   return free((void *)ptr);
 }
@@ -1303,23 +1303,23 @@ static int st_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) { return taos_stm
 
 static int st_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) { return taos_stmt2_is_insert(stmt, insert); }
 
-static int st_stmt2_num_params(TAOS_STMT2 *stmt, int *count) {
-  return taos_stmt2_get_fields(stmt, TAOS_FIELD_QUERY, count, NULL);
-}
+// static int st_stmt2_num_params(TAOS_STMT2 *stmt, int *count) {
+//   return taos_stmt2_get_fields(stmt, count, NULL);
+// }
 
-static int st_stmt2_get_tag_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_E **fields) {
-  return taos_stmt2_get_fields(stmt, TAOS_FIELD_TAG, count, fields);
-}
+// static int st_stmt2_get_tag_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
+//   return taos_stmt2_get_fields(stmt, count, fields);
+// }
 
-static int st_stmt2_get_col_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_E **fields) {
-  return taos_stmt2_get_fields(stmt, TAOS_FIELD_COL, count, fields);
-}
+// static int st_stmt2_get_col_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_E **fields) {
+//   return taos_stmt2_get_fields(stmt, TAOS_FIELD_COL, count, fields);
+// }
 
 static int st_stmt2_get_param(TAOS_STMT2 *stmt, int idx, int *type, int *bytes) {
-  int32_t       code = 0, nums = 0;
-  TAOS_FIELD_E *fields = NULL;
+  int32_t         code = 0, nums = 0;
+  TAOS_FIELD_ALL *fields = NULL;
 
-  code = taos_stmt2_get_fields(stmt, TAOS_FIELD_COL, &nums, &fields);
+  code = taos_stmt2_get_fields(stmt, &nums, &fields);
   if (code) {
     return code;
   }
@@ -1328,9 +1328,18 @@ static int st_stmt2_get_param(TAOS_STMT2 *stmt, int idx, int *type, int *bytes) 
     taosMemoryFree(fields);
     return -1;
   }
+  int i = 0;
+  for (; i < nums; i++) {
+    if (fields[i].field_type == TAOS_FIELD_COL) {
+      idx--;
+    }
+    if (idx < 0) {
+      break;
+    }
+  }
 
-  *type = fields[idx].type;
-  *bytes = fields[idx].bytes;
+  *type = fields[i].type;
+  *bytes = fields[i].bytes;
 
   taosMemoryFree(fields);
   return 0;
@@ -1398,8 +1407,8 @@ void bpCheckIsInsert(TAOS_STMT2 *stmt, int32_t insert) {
 
 void bpCheckParamNum(TAOS_STMT2 *stmt) {
   int32_t num = 0;
-  if (st_stmt2_num_params(stmt, &num)) {
-    printf("!!!st_stmt2_num_params error:%s\n", st_stmt2_error(stmt));
+  if (taos_stmt2_get_fields(stmt, &num, NULL)) {
+    printf("!!!taos_stmt2_get_fields error:%s\n", st_stmt2_error(stmt));
     exit(1);
   }
 
@@ -1468,7 +1477,7 @@ void bpCheckQueryResult(TAOS_STMT2 *stmt, TAOS *taos, char *stmtSql, TAOS_STMT2_
   printf("***sql res num match stmt res num %d\n", stmtResNum);
 }
 
-void bpCheckColTagFields(TAOS_STMT2 *stmt, int32_t fieldNum, TAOS_FIELD_E *pFields, int32_t expecteNum,
+void bpCheckColTagFields(TAOS_STMT2 *stmt, int32_t fieldNum, TAOS_FIELD_ALL *pFields, int32_t expecteNum,
                          TAOS_STMT2_BIND *pBind, BP_BIND_TYPE type) {
   int32_t code = 0;
 
@@ -1485,6 +1494,11 @@ void bpCheckColTagFields(TAOS_STMT2 *stmt, int32_t fieldNum, TAOS_FIELD_E *pFiel
   }
 
   for (int32_t i = 0; i < fieldNum; ++i) {
+    if (pFields[i].field_type != type) {
+      printf("!!!%s %dth field type %d mis-match expect type %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].field_type,
+             TAOS_FIELD_TAG);
+      exit(1);
+    }
     if (pFields[i].type != pBind[i].buffer_type) {
       printf("!!!%s %dth field type %d mis-match expect type %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].type,
              pBind[i].buffer_type);
@@ -1545,17 +1559,22 @@ void bpCheckColTagFields(TAOS_STMT2 *stmt, int32_t fieldNum, TAOS_FIELD_E *pFiel
 }
 
 void bpCheckTagFields(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *pBind) {
-  int32_t       code = 0;
-  int           fieldNum = 0;
-  TAOS_FIELD_E *pFields = NULL;
-  code = st_stmt2_get_tag_fields(stmt, &fieldNum, &pFields);
+  int32_t         code = 0;
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL *pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
   if (code != 0) {
-    printf("!!!st_stmt2_get_tag_fields error:%s\n", st_stmt2_error(stmt));
+    printf("!!!taos_stmt2_get_fields error:%s\n", st_stmt2_error(stmt));
     exit(1);
   }
-
+  int n = fieldNum;
+  for (int i = 0; i < n; i++) {
+    if (pFields[i].field_type != TAOS_FIELD_TAG) {
+      fieldNum--;
+    }
+  }
   bpCheckColTagFields(stmt, fieldNum, pFields, gCurCase->bindTagNum, pBind, BP_BIND_TAG);
-  taosMemoryFree(pFields);
+  taos_stmt2_free_fields(stmt, pFields);
 }
 
 void bpCheckColFields(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *pBind) {
@@ -1563,16 +1582,27 @@ void bpCheckColFields(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *pBind) {
     return;
   }
 
-  int32_t       code = 0;
-  int           fieldNum = 0;
-  TAOS_FIELD_E *pFields = NULL;
-  code = st_stmt2_get_col_fields(stmt, &fieldNum, &pFields);
+  int32_t         code = 0;
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL *pFields = NULL;
+  TAOS_FIELD_ALL *pColFields = NULL;
+
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
   if (code != 0) {
     printf("!!!st_stmt2_get_col_fields error:%s\n", st_stmt2_error(stmt));
     exit(1);
   }
-
-  bpCheckColTagFields(stmt, fieldNum, pFields, gCurCase->bindColNum, pBind, BP_BIND_COL);
+  int n = fieldNum;
+  pColFields = taosMemoryMalloc(fieldNum * sizeof(TAOS_FIELD_ALL));
+  int j = 0;
+  for (int i = 0; i < n; i++) {
+    if (pFields[i].field_type != TAOS_FIELD_COL) {
+      fieldNum--;
+    } else {
+      pColFields[j++] = pFields[i];
+    }
+  }
+  bpCheckColTagFields(stmt, fieldNum, pColFields, gCurCase->bindColNum, pBind, BP_BIND_COL);
   taosMemoryFree(pFields);
 }
 

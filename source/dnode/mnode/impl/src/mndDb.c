@@ -889,22 +889,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static void mndBuildAuditDetailInt32(char *detail, char *tmp, char *format, int32_t para) {
-  if (para > 0) {
-    if (strlen(detail) > 0) (void)strcat(detail, ", ");
-    (void)sprintf(tmp, format, para);
-    (void)strcat(detail, tmp);
-  }
-}
-
-static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int64_t para) {
-  if (para > 0) {
-    if (strlen(detail) > 0) (void)strcat(detail, ", ");
-    (void)sprintf(tmp, format, para);
-    (void)strcat(detail, tmp);
-  }
-}
-
 static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   int32_t    code = 0;
   SSdb      *pSdb = pMnode->pSdb;
@@ -1384,7 +1368,7 @@ _OVER:
 }
 
 static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
-  (void)strcpy(cfgRsp->db, pDb->name);
+  tstrncpy(cfgRsp->db, pDb->name, sizeof(cfgRsp->db));
   cfgRsp->dbId = pDb->uid;
   cfgRsp->cfgVersion = pDb->cfgVersion;
   cfgRsp->numOfVgroups = pDb->cfg.numOfVgroups;
@@ -2283,24 +2267,24 @@ static char *buildRetension(SArray *pRetension) {
 
   int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
   int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-  len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
 
   if (size > 1) {
-    len += sprintf(p1 + len, ",");
+    len += tsnprintf(p1 + len, 100 - len, ",");
     p = taosArrayGet(pRetension, 1);
 
     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
   }
 
   if (size > 2) {
-    len += sprintf(p1 + len, ",");
+    len += tsnprintf(p1 + len, 100 - len, ",");
     p = taosArrayGet(pRetension, 2);
 
     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
   }
 
   varDataSetLen(p1, len);
@@ -2469,9 +2453,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pDb->cfg.daysToKeep2);
 
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep1Str, keep2Str, keep0Str);
+      len = tsnprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep1Str, keep2Str, keep0Str);
     } else {
-      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep0Str, keep1Str, keep2Str);
+      len = tsnprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep0Str, keep1Str, keep2Str);
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2559,7 +2543,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false), &lino, _OVER);
 
     char keeplocalVstr[128] = {0};
-    len = sprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.s3KeepLocal);
+    len = tsnprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr), "%dm", pDb->cfg.s3KeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false), &lino, _OVER);
