@@ -18,7 +18,7 @@ function install_lcov() {
     echo -e "\nInstalling..."
     local version=$1
     cd lcov-${version}
-    sudo make install
+    sudo make uninstall && sudo make install
     cd ..
     echo "lcov version ${version} installed."
 }
