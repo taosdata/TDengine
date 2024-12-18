@@ -924,11 +924,6 @@ int32_t transSendRequest2(void *pInstRef, const SEpSet *pEpSet, STransMsg *pReq,
     transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
     return (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
   }
-  {
-    // TODO(weizhong): add trace log
-    // if ((code = transAsyncSend(pThrd->asyncPool, &(pCliMsg->q))) != 0) {
-    // }
-  }
 
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
   return 0;
@@ -1019,7 +1014,7 @@ _err:
   terrno = code;
   return NULL;
 }
-void transCloseClient(void *arg) {
+void transCloseClient2(void *arg) {
   int32_t code = 0;
   return;
 }

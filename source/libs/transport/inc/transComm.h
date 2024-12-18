@@ -335,6 +335,7 @@ int32_t transReleaseCliHandle(void* handle);
 int32_t transReleaseSrvHandle(void* handle);
 
 int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRequest2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
 int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
 int32_t transSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs);
@@ -350,11 +351,17 @@ void transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
 int32_t transAllocHandle(int64_t* refId);
 
+#ifndef TD_ACORE
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
-
 void transCloseClient(void* arg);
 void transCloseServer(void* arg);
+#else
+void* transInitClient2(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void* transInitServer2(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void transCloseClient2(void* arg);
+void transCloseServer2(void* arg);
+#endif
 
 void  transCtxInit(STransCtx* ctx);
 void  transCtxCleanup(STransCtx* ctx);

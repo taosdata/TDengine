@@ -18,17 +18,17 @@
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
-#ifndef ALLOW_FORBID_FUNC
-#define socket       SOCKET_FUNC_TAOS_FORBID
-#define bind         BIND_FUNC_TAOS_FORBID
-#define listen       LISTEN_FUNC_TAOS_FORBID
-#define accept       ACCEPT_FUNC_TAOS_FORBID
-#define epoll_create EPOLL_CREATE_FUNC_TAOS_FORBID
-#define epoll_ctl    EPOLL_CTL_FUNC_TAOS_FORBID
-#define epoll_wait   EPOLL_WAIT_FUNC_TAOS_FORBID
-#define inet_addr    INET_ADDR_FUNC_TAOS_FORBID
-#define inet_ntoa    INET_NTOA_FUNC_TAOS_FORBID
-#endif
+// #ifndef ALLOW_FORBID_FUNC
+// #define socket       SOCKET_FUNC_TAOS_FORBID
+// #define bind         BIND_FUNC_TAOS_FORBID
+// #define listen       LISTEN_FUNC_TAOS_FORBID
+// #define accept       ACCEPT_FUNC_TAOS_FORBID
+// #define epoll_create EPOLL_CREATE_FUNC_TAOS_FORBID
+// #define epoll_ctl    EPOLL_CTL_FUNC_TAOS_FORBID
+// #define epoll_wait   EPOLL_WAIT_FUNC_TAOS_FORBID
+// #define inet_addr    INET_ADDR_FUNC_TAOS_FORBID
+// #define inet_ntoa    INET_NTOA_FUNC_TAOS_FORBID
+// #endif
 
 #if defined(WINDOWS)
 #if BYTE_ORDER == LITTLE_ENDIAN

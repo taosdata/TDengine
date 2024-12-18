@@ -252,9 +252,18 @@ void rpcCleanup(void) {
 
 #else
 
+#ifdef TD_ACORE
+void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* shandle) = {
+    transInitServer2, transInitClient2};
+
+void (*taosCloseHandle[])(void* arg) = {transCloseServer2, transCloseClient2};
+#else
+
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* shandle) = {
     transInitServer, transInitClient};
 void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
+
+#endif
 
 void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
 void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHandle};
