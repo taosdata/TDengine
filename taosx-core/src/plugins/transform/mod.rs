@@ -48,6 +48,8 @@ use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
 use crate::{plugins::transform::parse::ArrayForTaos, utils::files::write_to_parquet_file};
+use crate::global::SQL_TAG_CACHE_CAPACITY;
+use crate::global::TABLE_TAG_CACHE;
 
 use super::expr;
 
@@ -980,7 +982,7 @@ impl Parser {
     }
 
     pub fn set_minimum_timestamp(&mut self, ts: DateTime<Utc>) {
-        Arc::make_mut(&mut self.global).maximum_timestamp = Some(ts);
+        Arc::make_mut(&mut self.global).minimum_timestamp = Some(ts);
     }
 }
 
@@ -1240,7 +1242,9 @@ impl Parser {
                                 if array.is_null(row) {
                                     Ok(None)
                                 } else {
-                                    Ok(Some(array.value(row)))
+                                    let ts = array.value(row);
+                                    let ts = ts * 1_000;
+                                    Ok(Some(ts))
                                 }
                             }
                             arrow_schema::TimeUnit::Millisecond => {
@@ -1251,7 +1255,8 @@ impl Parser {
                                 if array.is_null(row) {
                                     Ok(None)
                                 } else {
-                                    Ok(Some(array.value(row)))
+                                    let ts = array.value(row);
+                                    Ok(Some(ts))
                                 }
                             }
                             arrow_schema::TimeUnit::Microsecond => {
@@ -1262,7 +1267,9 @@ impl Parser {
                                 if array.is_null(row) {
                                     Ok(None)
                                 } else {
-                                    Ok(Some(array.value(row)))
+                                    let ts = array.value(row);
+                                    let ts = ts / 1_000;
+                                    Ok(Some(ts))
                                 }
                             }
                             arrow_schema::TimeUnit::Nanosecond => {
@@ -1273,7 +1280,9 @@ impl Parser {
                                 if array.is_null(row) {
                                     Ok(None)
                                 } else {
-                                    Ok(Some(array.value(row)))
+                                    let ts = array.value(row);
+                                    let ts = ts / 1_000_000;
+                                    Ok(Some(ts))
                                 }
                             }
                         }
@@ -1386,22 +1395,25 @@ impl Parser {
                 .into_iter()
                 .into_group_map();
 
-            for (name, indices) in tables {
-                // 1. archive records
-                if !archive_indices.is_empty() {
-                    let archive_batches = indices
-                        .iter()
-                        .filter(|row| archive_indices.contains(*row))
-                        .map(|row| batch.slice(*row, 1))
-                        .collect_vec();
-                    let archive_batch = concat_batches(&batch.schema(), &archive_batches)?;
-                    archive_records(
-                        task_id,
-                        &self.global.process_on_abnormal.archive.location,
-                        &archive_batch,
-                    );
-                }
+            // 1. archive records
+            if !archive_indices.is_empty() {
+                let mut archive_indices_vec = Vec::new();
+                archive_indices.scan(|row: &usize| {
+                    archive_indices_vec.push(row.clone());
+                });
+                let archive_batches = archive_indices_vec
+                    .iter()
+                    .map(|row| batch.slice(*row, 1))
+                    .collect_vec();
+                let archive_batch = concat_batches(&batch.schema(), &archive_batches)?;
+                archive_records(
+                    task_id,
+                    &self.global.process_on_abnormal.archive.location,
+                    &archive_batch,
+                );
+            }
 
+            for (name, indices) in tables {
                 // 2. skip records
                 let indices = if skip_indices.is_empty() {
                     indices
@@ -2198,12 +2210,18 @@ impl MessageArrowRecords {
         }
     }
 
+    pub fn get_full_table_name(&self, database_name: &str) -> String {
+        let table_name = self.opts.canonical_table_name(self.table.name.as_str());
+        format!("{}.{}", database_name, table_name)
+    }
+
     pub fn sql_insert_part(
         &self,
         precision: taos::Precision,
         with_meta: bool,
         with_field_names: bool,
-    ) -> Vec<(String, usize)> {
+        database_name: Option<&str>,
+    ) -> Vec<(String, usize, Option<String>)> {
         let primary_key_null_count = self.records.column(0).null_count();
         if primary_key_null_count == self.records.num_rows() {
             return vec![];
@@ -2222,12 +2240,13 @@ impl MessageArrowRecords {
             with_field_names,
         )
         .expect("Sql values should be recognizable");
+
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
         col_values
             .into_iter()
             .map(|(col_values, rows)| {
                 if !with_meta || self.table.using.is_none() {
-                    return (format!("`{}` {}", tbname, col_values), rows);
+                    return (format!("`{}` {}", tbname, col_values), rows, None);
                 }
                 let using = self.table.using.as_ref().unwrap();
 
@@ -2255,12 +2274,32 @@ impl MessageArrowRecords {
                         .map(|c| c.taos_value(0).to_sql_value())
                         .join(",");
 
+                    if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } && database_name.is_some() {
+                        // 根据 database.tablename 来判断缓存，如果缓存在则不需要带 using
+                        let table_existed = TABLE_TAG_CACHE.get_or_init(|| {
+                            tracing::info!("Init tag cache with capacity: {}", unsafe {
+                                SQL_TAG_CACHE_CAPACITY
+                            });
+                            scc::HashSet::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
+                        });
+                        let tag_key = format!("{}.{}", database_name.unwrap(), tbname);
+                        if table_existed.contains(&tag_key) {
+                            return (format!("`{}` {}", tbname, col_values), rows, None);
+                        }
+                    }
+                    let full_name_to_cache = if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } {
+                        Some(format!("{}.{}", database_name.unwrap(), tbname))
+                    } else {
+                        None
+                    };
+
                     (
                         format!(
                             "`{}` using `{}` ({}) tags({}) {}",
                             tbname, using, names, tag_values, col_values
                         ),
                         rows,
+                        full_name_to_cache,
                     )
                 } else {
                     let tag_values = self
@@ -2278,6 +2317,7 @@ impl MessageArrowRecords {
                             tbname, using, tag_values, col_values
                         ),
                         rows,
+                        None,
                     )
                 }
             })
@@ -2520,6 +2560,7 @@ mod parser_tests {
     };
 
     use super::Parser;
+    use crate::plugins::transform::modeler::Modeler;
 
     #[test]
     fn test_parser_serde() {
@@ -3195,5 +3236,82 @@ mod parser_tests {
 
         parser.set_maximum_timestamp(Utc::now());
         dbg!(parser);
+
+    fn test_parse_record_to_sql() {
+        let parser = r#"{
+            "parse": {
+                "value": {"json": ""}
+            },
+            "model": {
+                "name": "t_${DEV_ID}",
+                "using": "deva",
+                "tags": [ "dev_id" ],
+                "columns": [ "_ts", "_val0", "_val1" ]
+            },
+            "mutate": [{
+                "map": {
+                    "_ts": {
+                        "cast": "_ts",
+                        "as": "TIMESTAMP(ms)"
+                    },
+                    "_val0": {
+                        "cast": "_val0",
+                        "as": "INT"
+                    },
+                    "_val1": {
+                        "cast": "_val1",
+                        "as": "INT"
+                    },
+                    "dev_id": {
+                        "cast": "DEV_ID",
+                        "as": "VARCHAR"
+                    }
+                }
+            }]
+
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+
+        let raw_data = arrow_array::record_batch!(
+            ("topic", Utf8, ["test", "test", "test"]),
+            (
+                "value",
+                Utf8,
+                [
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val0": 12, "DEV_ID": "2212"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val1": 13, "DEV_ID": "2213"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:01+08:00", "_val0": 14, "DEV_ID": "2212"}"#
+                ]
+            )
+        )
+        .unwrap();
+
+        let records = parser.parse_message_from_records(&raw_data, false).unwrap();
+        // assert_eq!(records.len(), 2);
+        if let super::Message::Records(records) = records {
+            assert_eq!(records.len(), 2);
+            for record in records {
+                let sql = record.sql_insert_part(taos::Precision::Millisecond, true, true, None);
+                if record.table_name() == "t_2212" {
+                    assert_eq!(sql.len(), 1);
+                    assert_eq!(
+                        sql[0].0,
+                        r#"`t_2212` using `deva` (`dev_id`) tags("2212") (`_ts`,`_val0`) values(1733133600000,12)(1733133601000,14)"#
+                    );
+                    assert_eq!(sql[0].1, 2);
+                } else if record.table_name() == "t_2213" {
+                    assert_eq!(sql.len(), 1);
+                    assert_eq!(
+                        sql[0].0,
+                        r#"`t_2213` using `deva` (`dev_id`) tags("2213") (`_ts`,`_val1`) values(1733133600000,13)"#
+                    );
+                    assert_eq!(sql[0].1, 1);
+                } else {
+                    panic!("unknown table");
+                }
+            }
+        } else {
+            panic!("not parsed as records");
+        }
     }
 }

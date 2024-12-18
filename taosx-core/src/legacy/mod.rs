@@ -4,6 +4,7 @@ use std::{
     fmt::{Debug, Display},
     io::Write,
     num::NonZeroUsize,
+    ops::DerefMut,
     path::Path,
     str::FromStr,
     sync::{atomic::Ordering, Arc},
@@ -872,6 +873,12 @@ pub async fn sync_super_table_schema(
     target_opts: &TargetOpts,
     actions: &[Action],
 ) -> anyhow::Result<()> {
+    if target_opts.minimal {
+        sync_super_table_schema_only_fallback(from, name, to, remap, actions, target_opts.minimal)
+            .in_current_span()
+            .await?;
+        return Ok(());
+    }
     debug_assert!(!name.is_empty());
     let (_, sql): ((), String) = from
         .query_one(format!("show create table `{name}`"))
@@ -932,7 +939,15 @@ pub async fn sync_super_table_schema(
                 0x2600 | 0x2601 => {
                     // 0x2600: Syntax error
                     // 0x2601: Incomplete SQL statement
-                    sync_super_table_schema_only_fallback(from, name, to, remap, actions).await?;
+                    sync_super_table_schema_only_fallback(
+                        from,
+                        name,
+                        to,
+                        remap,
+                        actions,
+                        target_opts.minimal,
+                    )
+                    .await?;
                     break;
                 }
                 _ => {
@@ -1040,9 +1055,17 @@ pub async fn sync_super_table_schema_only_fallback(
     to: &Taos,
     remap: Option<&Arc<HashMap<String, String>>>,
     actions: &[Action],
+    minimal: bool,
 ) -> anyhow::Result<()> {
     debug_assert!(!name.is_empty());
-    let desc = from.describe(name).await?;
+    let mut desc = from.describe(name).await?;
+    if minimal {
+        desc.deref_mut().iter_mut().for_each(|c| {
+            let m = c.deref_mut();
+            m.compression = None;
+            m.note = None;
+        });
+    }
     let sql = desc.to_create_table_sql(name);
     let target_name: Cow<str> = if actions.is_empty() {
         name.into()
@@ -1855,6 +1878,8 @@ pub struct SourceOpts {
     mode: SyncMode,
     table: TableOpts,
     forever: bool,
+    /// Sync metadata with less information to migrate from newer version to older version.
+    minimal: bool,
     tables: Option<Vec<String>>,
     /// Specified stables to sync.
     stables: Option<Vec<String>>,
@@ -2028,6 +2053,9 @@ impl SourceOpts {
             opts.fails_to.replace(value);
         }
 
+        if let Some(value) = dsn.remove("minimal") {
+            opts.minimal = matches!(value.as_str(), "" | "true" | "1" | "yes");
+        }
         Ok(opts)
     }
 }
@@ -2082,6 +2110,7 @@ pub struct TargetOpts {
     ///
     /// A map of table name to another map of field name to another.
     remap: Option<HashMap<String, Arc<HashMap<String, String>>>>,
+    minimal: bool,
 }
 
 impl Default for TargetOpts {
@@ -2102,6 +2131,7 @@ impl Default for TargetOpts {
             remap: None,
             retry_sleep: Duration::from_secs(2),
             retry_limit: 600,
+            minimal: false,
         }
     }
 }
@@ -2109,9 +2139,11 @@ impl Default for TargetOpts {
 impl Drop for TargetOpts {
     fn drop(&mut self) {
         if let Some(file) = self.fails_to.take() {
-            tokio::task::spawn(async move {
-                let _ = file.lock().await.flush();
-            });
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    let _ = file.lock().await.flush();
+                });
+            }
         }
     }
 }
@@ -2119,11 +2151,7 @@ impl Drop for TargetOpts {
 impl TargetOpts {
     /// 从 from DSN 和 to DSN 获取最终的 TargeOpts。
     /// 在 taosX 1.6.0 之前，TargetOpts 对应 to DSN， 但是 taosX 1.6.0 版本将某些与目标端相关的高级选项加入到了 from DSN 中，因此 TargetOpts 也需要参考 from DSN。
-    pub fn from_params(
-        source_opts: &SourceOpts,
-        to_dsn: &mut Dsn,
-        workers: usize,
-    ) -> anyhow::Result<Self> {
+    pub fn from_params(source_opts: &SourceOpts, to_dsn: &mut Dsn) -> anyhow::Result<Self> {
         let mut opts = Self::default();
         if let Some(value) = to_dsn.remove("schema") {
             opts.schema = value.parse().with_context(|| {
@@ -2160,6 +2188,8 @@ impl TargetOpts {
                 .parse()
                 .with_context(|| format!("invalid concurrent-limit value: {value}"))?;
         }
+
+        let workers = source_opts.workers;
         if let Some(write_concurrency) = source_opts.write_concurrency {
             // write-concurrency 是最大整体写并发，这里需要把它换算成 concurrent-limit
             let concurrent_limit = if write_concurrency != 0 && write_concurrency % workers == 0 {
@@ -2284,6 +2314,12 @@ impl TargetOpts {
                     .collect(),
             );
         }
+
+        opts.minimal = source_opts.minimal
+            || to_dsn.remove("minimal").map_or_else(
+                || false,
+                |v| matches!(v.as_str(), "" | "true" | "1" | "yes"),
+            );
         Ok(opts)
     }
 }
@@ -2948,7 +2984,7 @@ pub async fn legacy_to_taos(
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
 
-    let target_opts = TargetOpts::from_params(&source_opts, &mut to, source_opts.workers)?;
+    let target_opts = TargetOpts::from_params(&source_opts, &mut to)?;
     tracing::debug!("target options: {:?}", target_opts); // debug
     verify::verify_dsn(&to)
         .map_err(|err| anyhow::format_err!("Cannot parse target DSN params: {err}"))?;
@@ -2959,6 +2995,22 @@ pub async fn legacy_to_taos(
         .context("Source connection pool error")?;
     tracing::debug!("Getting connection from source connection pool...");
     let source_taos = from_pool.get().await.context("Source connection error")?;
+
+    const SQL_PRECISION: &str =
+        "select `precision` from information_schema.ins_databases where name = database()";
+    let v1: String = source_taos.server_version().await?.to_string();
+    let source_is_v3 = !v1.starts_with("2");
+    let precision_of_from: Precision = if source_is_v3 {
+        source_taos
+            .query_one(SQL_PRECISION)
+            .await
+            .context("Get precision from source error")?
+            .ok_or_else(|| anyhow::format_err!("Cannot get precision from source"))?
+    } else {
+        get_v2_precision(&source_taos)
+            .await
+            .with_context(|| anyhow::anyhow!("Source (2.x) precision could no be detected"))?
+    };
 
     // let source_taos = from_pool.get().await.context("Target connection error")?;
     if target_opts.assert {
@@ -3009,12 +3061,21 @@ pub async fn legacy_to_taos(
                         option_str,
                         ultimate_database_option
                     );
-                    target
-                        .exec(format!(
-                            "create database if not exists `{db}` {}",
-                            ultimate_database_option
-                        ))
-                        .await?;
+                    if source_opts.minimal {
+                        target
+                            .exec(format!(
+                                "create database if not exists `{db}` precision '{}'",
+                                precision_of_from
+                            ))
+                            .await?;
+                    } else {
+                        target
+                            .exec(format!(
+                                "create database if not exists `{db}` {}",
+                                ultimate_database_option
+                            ))
+                            .await?;
+                    }
                 }
             };
             to.subject = Some(db);
@@ -3030,8 +3091,6 @@ pub async fn legacy_to_taos(
     tracing::debug!("Getting connection from target connection pool...");
     let target_taos = to_pool.get().await?;
 
-    let v1: String = source_taos.server_version().await?.to_string();
-    let source_is_v3 = !v1.starts_with("2");
     let v2: String = target_taos.server_version().await?.to_string();
     let target_is_v3 = !v2.starts_with('2');
 
@@ -3039,25 +3098,13 @@ pub async fn legacy_to_taos(
         let (source_version, target_version) = (&v1, &v2);
         let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
         let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
-        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+        if !source_opts.minimal && source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0
+        {
             bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }
     }
 
     tracing::debug!("Checking precisions...");
-    const SQL_PRECISION: &str =
-        "select `precision` from information_schema.ins_databases where name = database()";
-    let precision_of_from: Precision = if source_is_v3 {
-        source_taos
-            .query_one(SQL_PRECISION)
-            .await
-            .context("Get precision from source error")?
-            .ok_or_else(|| anyhow::format_err!("Cannot get precision from source"))?
-    } else {
-        get_v2_precision(&source_taos)
-            .await
-            .with_context(|| anyhow::anyhow!("Source (2.x) precision could no be detected"))?
-    };
     let precision_of_to: Precision = if target_is_v3 {
         target_taos
             .query_one(SQL_PRECISION)
@@ -3776,7 +3823,7 @@ mod tests {
             .filter_level(log::LevelFilter::Debug)
             .try_init();
         // prepare
-        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let taos = TaosBuilder::from_dsn("taos+ws:///")?.build().await?;
         taos.exec_many([
             "drop database if exists `x-sync-2`",
             "create database `x-sync-2`",
@@ -4101,20 +4148,20 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_legacy_advance_options() {
         use taos::Dsn;
-        let from = "taos+ws://localhost:6041/db1?schema=only&fails-to=./fails-to.log&write-concurrency=10&workers=10";
+        let from = "taos+ws://localhost:6041/db1?schema=only&fails-to=./fails-to.log&write-concurrency=10&workers=10&minimal";
         let to = "taow+ws://localhost:6041/db2";
         let mut from_dsn = Dsn::from_str(from).unwrap();
         let source_opts = SourceOpts::from_params(&mut from_dsn).unwrap();
         assert_eq!(source_opts.workers, 10);
         assert_eq!(source_opts.write_concurrency, Some(10));
+        assert!(source_opts.minimal, "minimal should be true");
         let mut to_dsn = Dsn::from_str(to).unwrap();
-        let targe_opts =
-            TargetOpts::from_params(&source_opts, &mut to_dsn, source_opts.workers).unwrap();
+        let targe_opts = TargetOpts::from_params(&source_opts, &mut to_dsn).unwrap();
         assert_eq!(targe_opts.concurrent_limit, NonZeroUsize::new(1).unwrap());
         assert!(targe_opts.fails_to.is_some());
+        assert!(targe_opts.minimal, "minimal should be true");
     }
 
     #[tokio::test]

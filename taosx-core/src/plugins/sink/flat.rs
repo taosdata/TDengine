@@ -36,13 +36,16 @@ use crate::{
     sink::{consume_flat_record, DEFAULT_MAX_RETRIES_FOR_CONNECTION},
     utils::{
         sql::{
-            describe_table_with_connection_retries, exec_sql_with_connection_retries,
+            describe_table_with_connection_retries, exec_sql_with_connection_retries, get_database,
             get_minimum_timestamp, values_to_sqls,
         },
         trace::{BatchCounter, Qid},
     },
     Parser,
 };
+
+use crate::global::SQL_TAG_CACHE_CAPACITY;
+use crate::global::TABLE_TAG_CACHE;
 
 use super::{ipc_metric::IpcMetrics, IpcErrorStrategy};
 
@@ -52,15 +55,25 @@ pub(crate) fn message_to_sql<'a>(
     precision: taos::Precision,
     with_meta: bool,
     with_field_names: bool,
-) -> Vec<Records> {
-    messages
+    database_name: Option<&str>,
+) -> (Vec<Records>, Vec<String>) {
+    let mut full_tablenames_need_to_cache = Vec::new();
+    let sql_records = messages
         .into_iter()
         .chunk_by(|m| m.stable_name())
         .into_iter()
         .flat_map(|(key, group)| {
             let values = group
                 .into_iter()
-                .flat_map(|m| m.sql_insert_part(precision, with_meta, with_field_names))
+                .flat_map(|m| {
+                    m.sql_insert_part(precision, with_meta, with_field_names, database_name)
+                })
+                .map(|(sql_part, row_count, full_tablename_not_in_cache)| {
+                    if let Some(full_table_name) = full_tablename_not_in_cache {
+                        full_tablenames_need_to_cache.push(full_table_name);
+                    }
+                    (sql_part, row_count)
+                })
                 .collect_vec();
             let stable_name_iter = std::iter::repeat(key);
 
@@ -74,7 +87,8 @@ pub(crate) fn message_to_sql<'a>(
                     records,
                 })
         })
-        .collect_vec()
+        .collect_vec();
+    (sql_records, full_tablenames_need_to_cache)
 }
 
 /// Write records to TDengine with `sql`, which contains `tables` num of tables,
@@ -236,6 +250,22 @@ async fn write_stable_with_sql(
     }
 }
 
+fn cache_table_name(table_names: &[String]) {
+    if table_names.is_empty() {
+        return;
+    }
+
+    let table_existed = TABLE_TAG_CACHE.get_or_init(|| {
+        tracing::info!("Init tag cache with capacity: {}", unsafe {
+            SQL_TAG_CACHE_CAPACITY
+        });
+        scc::HashSet::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
+    });
+    table_names.iter().for_each(|table| {
+        let _ = table_existed.insert(table.clone());
+    });
+}
+
 #[instrument(skip_all)]
 #[async_backtrace::framed]
 pub async fn flat_write_with_sql(
@@ -254,10 +284,18 @@ pub async fn flat_write_with_sql(
     let groups = messages
         .iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
+
+    let database_name = get_database(taos).await.ok();
     // insert into stable
     for (stable, messages) in groups.into_iter() {
         let instant = std::time::Instant::now();
-        let sqls = message_to_sql(messages.iter().copied(), target_precision, true, true);
+        let (sqls, full_table_names) = message_to_sql(
+            messages.iter().copied(),
+            target_precision,
+            true,
+            true,
+            database_name.as_deref(),
+        );
         tracing::trace!(
             stable = stable.as_deref(),
             sqls = sqls.len(),
@@ -265,6 +303,7 @@ pub async fn flat_write_with_sql(
             "message to sql cost: {:#?}",
             instant.elapsed()
         );
+
         let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
         // debug_assert!(qid.task_id() > 0);
         // debug_assert!(qid.batch_id() > 0);
@@ -279,6 +318,10 @@ pub async fn flat_write_with_sql(
                         metrics.add_inserted_sqls(1_u64);
                         metrics.add_written_rows(n as u64);
                         metrics.add_written_points((n * cols) as u64);
+
+                        if unsafe { SQL_TAG_CACHE_CAPACITY } > 0 {
+                            cache_table_name(&full_table_names);
+                        }
                         break;
                     }
                     Err(err) => {
@@ -394,7 +437,6 @@ pub async fn flat_write_with_raw_block(
         if records.records.num_rows() == 0 {
             continue;
         }
-        metrics.add_processed_rows(records.records.num_rows() as u64);
         if records.records.column(0).null_count() > 0 {
             bail!("Timestamp field contains null or invalid values");
         }
@@ -1556,6 +1598,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     };
     // let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
     let workers = parser.global().concurrent_limit();
+    tracing::info!("flat stream concurrent workers count: {:?}", workers);
 
     let (msg_tx, msg_rx) = flume::bounded(workers);
     let (ack_tx, ack_rx) = flume::bounded(workers);

@@ -27,7 +27,10 @@ use taosx_core::{
     dsv::DataSourceValidation,
     plugins,
     sink::ipc_metric::IpcMetrics,
-    utils::{get_main_version_from_server_version, get_server_version, sql::get_maximum_timestamp},
+    utils::{
+        get_main_version_from_server_version, get_server_version,
+        sql::{get_maximum_timestamp, get_minimum_timestamp},
+    },
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
@@ -119,7 +122,7 @@ async fn task_opts_init(
             builder.with_pool_config(pool_config)?
         };
         let maximum_timestamp = get_maximum_timestamp(&pool, &mut None, 3, &cancel).await?;
-        let minimum_timestamp = get_maximum_timestamp(&pool, &mut None, 3, &cancel).await?;
+        let minimum_timestamp = get_minimum_timestamp(&pool, &mut None, 3, &cancel).await?;
         let parser = match parser {
             plugins::Parser::Inner(parser) => {
                 let mut parser = parser;
