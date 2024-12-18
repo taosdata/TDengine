@@ -290,9 +290,16 @@ impl TaskOpts {
                 ("local", "taos" | "tmq") => {
                     let mut to = to.clone();
                     to.driver = "taos".to_string();
-                    local_to_taos(from.clone(), to, *jobs, *force)
-                        .in_current_span()
-                        .await?;
+                    local_to_taos(
+                        task_id.clone(),
+                        from.clone(),
+                        to,
+                        *jobs,
+                        *force,
+                        cancel.clone(),
+                    )
+                    .in_current_span()
+                    .await?;
                 }
                 ("taos", "taos") => {
                     legacy_to_taos(

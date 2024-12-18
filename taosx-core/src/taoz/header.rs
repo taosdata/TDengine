@@ -234,10 +234,10 @@ impl taos::AsyncInlinable for Header {
 #[cfg(test)]
 mod tests {
     use super::Header;
+    use taos::{Inlinable, InlinableWrite};
+
     #[test]
     fn test_inline() {
-        use taos::{Inlinable, InlinableWrite};
-
         let header = Header::new("1.6.0", "3.3.0.0", "abc".to_string());
         let mut bytes = vec![0; 32];
 

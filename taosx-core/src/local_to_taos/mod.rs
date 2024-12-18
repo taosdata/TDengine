@@ -1,28 +1,146 @@
 use anyhow::{bail, Context, Result};
+use flume::Receiver;
+use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-use taos::*;
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder};
 use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
+use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 
-use crate::taoz::{ZCodec, ZMessage};
+use crate::local_to_taos::conf::LocalRestoreConfigBuilder;
+use crate::local_to_taos::reader::FileWatcher;
+use crate::taoz::{ZCodec, ZFile, ZMessage};
 use crate::tmq_to_local::LocalConfig;
+use crate::utils;
 use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
 
+mod conf;
+mod reader;
+
+/// 从本地备份恢复到 taos
+/// 1. 备份文件对应某个备份对象：database 或 database.stable，在 target 中：
+/// * 如果 backup object 存在
+///     - 如果 @param force 为 true，删除旧的 backup object，创建新的 backup object
+///     - 如果 @param force 为 false，报错 target 已存在，退出
+/// * 如果 backup object 不存在，创建新的 backup object
+/// 2. 恢复任务需要按照 backup point 的时间戳顺序，依次恢复；同一个 vg_id 的备份文件，按照 index 顺序恢复
+/// 3. 如果 stop.at 为 None，则持续监听 backup_dir 下的新备份文件
+/// 4. local_to_tmq 任务可以被中断 @param cancel
 #[tracing::instrument]
 #[async_backtrace::framed]
-pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Result<()> {
+pub async fn local_to_taos(
+    task_id: Option<String>,
+    from: Dsn,
+    to: Dsn,
+    jobs: usize,
+    force: bool,
+    cancel: CancellationToken,
+) -> Result<()> {
     tracing::info!("local_to_taos start");
 
-    tracing::info!("local_to_taos finish");
+    // 解析参数
+    let config = LocalRestoreConfigBuilder::new(&task_id, &from, &to)
+        .build()
+        .await
+        .context("parse local_to_taos config error")?;
+    // 创建 watcher
+    let watcher = FileWatcher::from(config.clone());
+    let stop_flag = watcher.get_stop_flag();
+
+    let (tx, rx) = flume::unbounded();
+    // 创建 RestoreWorker
+    let mut join_set = JoinSet::new();
+    let jobs = if jobs > 0 { jobs } else { 16 };
+    for i in 0..jobs {
+        let rx = rx.clone();
+        let mut worker = RestoreWorker { id: i, rx };
+        join_set.spawn(async move { worker.run().await }.in_current_span());
+    }
+
+    // 读取备份目录下的文件
+    let stream = watcher.into_stream();
+    tokio::pin!(stream);
+    while let Some(files) = stream.next().await {
+        for f in files {
+            match config.to.as_ref() {
+                None => {
+                    // TODO handle send error
+                    tx.send(f)?;
+                }
+                Some(to) => {
+                    let file_name = f.file_name().unwrap().to_string_lossy();
+                    let (_, ts, _, _idx) = ZFile::parse_file_name(file_name.as_ref())?;
+                    match ts.cmp(to) {
+                        std::cmp::Ordering::Less => {
+                            // TODO handle send error
+                            tx.send(f)?;
+                        }
+                        std::cmp::Ordering::Equal => {
+                            // TODO handle send error
+                            tx.send(f)?;
+                            stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        std::cmp::Ordering::Greater => {
+                            // skip
+                            stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    }
+                }
+            }
+        }
+        if cancel.is_cancelled() {
+            stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            tracing::warn!("local_to_taos cancelled");
+        }
+        if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
+    }
+    tracing::info!("local_to_taos read files done");
+
+    // 等待所有 worker 完成
+    while let Some(res) = join_set.join_next().await {
+        if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
+            tracing::error!("abort all local_to_taos workers since error: {:#}", err);
+            join_set.abort_all();
+            // TODO: 如果出现错误，要清理文件
+            return Err(err);
+        }
+    }
+    tracing::info!("local_to_taos completed");
     Ok(())
+}
+
+struct RestoreWorker {
+    id: usize,
+    rx: Receiver<PathBuf>,
+}
+
+impl RestoreWorker {
+    async fn run(&mut self) -> Result<()> {
+        tracing::info!("RestoreWorker {} started", self.id);
+        while let Ok(file) = self.rx.recv() {
+            tracing::info!("restore file: {:?}", file)
+        }
+        tracing::info!("RestoreWorker {} stopped", self.id);
+        Ok(())
+    }
 }
 
 #[allow(unused)]
 #[deprecated(since = "20241230", note = "use new local_to_taos")]
-pub async fn local_to_taos_v1(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
+pub async fn local_to_taos_previous(
+    from: Dsn,
+    mut to: Dsn,
+    jobs: usize,
+    force: bool,
+) -> Result<()> {
     // local dir
     let local_dir = from
         .path
@@ -71,7 +189,6 @@ pub async fn local_to_taos_v1(from: Dsn, mut to: Dsn, jobs: usize, force: bool) 
 
     // parameters
     let continuous = from
-        .params
         .get("continue")
         .map(|s| s.is_empty() || s.to_lowercase() == "true")
         .unwrap_or(false);
@@ -373,6 +490,33 @@ async fn restore(
 }
 
 pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
+    match is_local_valid_impl(dsn).await {
+        Ok(_) => DataSourceValidation {
+            valid: true,
+            support: true,
+            data_source: "local".to_string(),
+            version: None,
+            message: None,
+            namespaces: None,
+        },
+        Err(err) => DataSourceValidation::invalid("local".to_string(), err.to_string()),
+    }
+}
+
+pub async fn is_local_valid_impl(dsn: &Dsn) -> Result<()> {
+    if dsn.driver != "local" {
+        bail!("invalid driver: {}", dsn.driver);
+    }
+    if dsn.path.is_none() {
+        bail!("no backup directory specified");
+    }
+    utils::parse_dir_in_dsn(dsn, None)?;
+
+    Ok(())
+}
+
+#[allow(unused /* previous version */)]
+pub async fn is_local_valid_previous(dsn: &Dsn) -> DataSourceValidation {
     if dsn.driver != "local" {
         return DataSourceValidation::invalid(
             "local".to_string(),
@@ -393,13 +537,13 @@ pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
         );
     }
 
-    // let config_path = path.join("local.toml");
-    // if !config_path.exists() {
-    //     return DataSourceValidation::invalid(
-    //         "local".to_string(),
-    //         "Backup directory may not be correct".to_string(),
-    //     );
-    // }
+    let config_path = path.join("local.toml");
+    if !config_path.exists() {
+        return DataSourceValidation::invalid(
+            "local".to_string(),
+            "Backup directory may not be correct".to_string(),
+        );
+    }
 
     DataSourceValidation {
         valid: true,
@@ -413,8 +557,8 @@ pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+    use taos::{AsyncTBuilder, TaosBuilder};
 
     #[tokio::test]
     #[ignore]
@@ -455,7 +599,15 @@ mod tests {
         ])
         .await?;
 
-        local_to_taos(local.clone(), "taos:///".parse()?, 1, true).await?;
+        local_to_taos(
+            None,
+            local.clone(),
+            "taos:///".parse()?,
+            1,
+            true,
+            CancellationToken::new(),
+        )
+        .await?;
 
         let count: usize = taos.query_one("SELECT count(*) from tb1").await?.unwrap();
         assert_eq!(count, 3, "restored");

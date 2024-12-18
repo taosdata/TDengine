@@ -12,6 +12,8 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct BackupPoint {
+    /// topic 名称
+    topic: String,
     /// 备份点
     point: DateTime<Utc>,
     /// 文件大小
@@ -84,13 +86,13 @@ async fn get_backup_points_impl(
             let metadata = tokio::fs::metadata(&path).await?;
             let file_size = metadata.len();
             let file_name = path.file_name().unwrap().to_string_lossy();
-
             // 解析文件名: $TOPIC-$TIMESTAMP-$VG_ID-$INDEX.z
             if !file_name.starts_with(topic) {
                 continue;
             }
-            if let Ok((_, ts, _, _)) = ZFile::parse_file_name(file_name.as_ref()) {
+            if let Ok((topic, ts, _, _)) = ZFile::parse_file_name(file_name.as_ref()) {
                 backup_files.push(BackupPoint {
+                    topic,
                     point: ts,
                     file_size,
                     file_count: 1,
@@ -109,6 +111,7 @@ async fn get_backup_points_impl(
                 (size + p.file_size, count + p.file_count)
             });
             BackupPoint {
+                topic: topic.clone(),
                 point,
                 file_size,
                 file_count,
@@ -126,6 +129,7 @@ mod tests {
     #[test]
     fn test_serialize_backup_point() {
         let p = BackupPoint {
+            topic: "abc".to_string(),
             point: Utc::now(),
             file_size: 1024 * 1024 * 30,
             file_count: 2,

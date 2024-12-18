@@ -881,11 +881,12 @@ impl TaskController {
             from.set("use.topic.name", topic);
             tracing::info!("Set oneshot topic name: {}", topic);
         };
-        // 备份计划：将 upcoming 添加到 dsn 中
         if let Some(trigger) = task.trigger.as_ref() {
+            // 备份计划：将 upcoming 添加到 dsn 中
             if let Some(upcoming) = trigger.upcoming {
                 from.set("upcoming", upcoming.to_rfc3339().to_string());
             }
+            // TODO: 备份计划：校验 interval 要小于 WAL_RETENTION_PERIOD
         }
         let agent = if let Some(id) = task.via {
             let agent = self

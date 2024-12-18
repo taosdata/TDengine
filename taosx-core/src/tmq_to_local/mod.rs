@@ -282,14 +282,7 @@ impl LocalConfig {
     }
 }
 
-/// full or incremental backup from TMQ to local file
-/// @param from: DSN of TMQ
-/// @param to: DSN of local
-/// @param jobs: 子任务的数量，如果
-/// @param force: 如果 force 为 true，表示强制使用 from 中配置的 group_id；如果 force 为 false，
-/// 检查 from 中的 group_id 是否和上次备份的 group_id 一致，不一致则报错。
-/// @param cancel: 取消信号，用于取消备份任务
-/// @param task_id: task id
+/// 增量备份任务，通过 TDengine 的订阅，将数据备份到本地
 #[instrument]
 #[async_backtrace::framed]
 pub async fn tmq_to_local(
@@ -355,7 +348,7 @@ pub async fn tmq_to_local(
     // 等待所有 worker 完成
     while let Some(res) = join_set.join_next().await {
         if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
-            tracing::error!("abort all workers since error: {:#}", err);
+            tracing::error!("abort all tmq_to_local workers since error: {:#}", err);
             join_set.abort_all();
             // TODO: 如果出现错误，要清理文件
             return Err(err);

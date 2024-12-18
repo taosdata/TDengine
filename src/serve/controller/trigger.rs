@@ -410,8 +410,11 @@ impl Strategy {
 
     pub fn stop_condition(&self) -> StopCondition {
         // Never stop for cron job.
-        if self.schedule.as_deref().is_some() {
-            return StopCondition::Never;
+        if let Some(schedule) = self.schedule.as_deref() {
+            return match schedule.to_lowercase().as_str() {
+                "oneshot" => StopCondition::Done,
+                _ => StopCondition::Never,
+            };
         }
         // Never stop for repeated job with start_at.
         if let (Some(_), Some(_)) = (self.interval.as_ref(), self.upcoming.as_ref()) {

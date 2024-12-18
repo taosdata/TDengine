@@ -1,5 +1,8 @@
 use anyhow::bail;
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, FixedOffset, Utc};
+use serde::ser::StdError;
+use std::path::PathBuf;
+use std::time::Duration;
 use std::{io::BufRead, path::Path, thread::JoinHandle};
 use taos::*;
 
@@ -316,63 +319,247 @@ pub fn replace_date_placeholder(str: String, date: DateTime<FixedOffset>) -> Str
         .replace("${yj}", date.format("%y%j").to_string().as_str())
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_clear_database_with_taos() -> anyhow::Result<()> {
-    let dsn = "taos:///";
-
-    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
-
-    let db = "test_clear_database";
-    taos.exec_many([
-        format!("drop database if exists {db}"),
-        format!("create database {db}"),
-        format!("use {db}"),
-        "create stable `Stb1` (ts timestamp, v int) tags(t1 int)".to_string(),
-        "create table `Ctb1` using `Stb1` tags(1)".to_string(),
-        "create table `Ctb2` using `Stb1` tags(2)".to_string(),
-        "create table `Ntb1` (ts timestamp, v int)".to_string(),
-        "create table `Ntb2` (ts timestamp, v int)".to_string(),
-    ])
-    .await?;
-
-    use std::str::FromStr;
-
-    clear_database(&Dsn::from_str(&format!("{dsn}{db}"))?).await?;
-
-    assert!(taos.query_one::<_, String>("show stables").await?.is_none());
-    assert!(taos.query_one::<_, String>("show tables").await?.is_none());
-
-    taos.exec(format!("drop database {db}")).await?;
-
-    Ok(())
+pub fn parse_keys_in_dsn<T: std::str::FromStr>(
+    dsn: &Dsn,
+    keys: &[&str],
+) -> anyhow::Result<Option<T>>
+where
+    <T as std::str::FromStr>::Err: std::fmt::Debug,
+    <T as std::str::FromStr>::Err: StdError,
+    <T as std::str::FromStr>::Err: Send,
+    <T as std::str::FromStr>::Err: Sync,
+    <T as std::str::FromStr>::Err: 'static,
+{
+    for key in keys {
+        let val = parse_key_in_dsn(dsn, key)?;
+        if let Some(val) = val {
+            return anyhow::Ok(Some(val));
+        }
+    }
+    Ok(None)
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_get_main_version_from_server_version() -> anyhow::Result<()> {
-    let version = "3.0.5.0";
-    assert_eq!(
-        (3, 0, 5,),
-        get_main_version_from_server_version(&version.to_string())?
-    );
-    let version = "3.0.5.0.2023061722";
-    assert_eq!(
-        (3, 0, 5,),
-        get_main_version_from_server_version(&version.to_string())?
-    );
-    let version = "3.0";
-    assert_eq!(
-        Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
-    );
-    let version = "a.b";
-    assert_eq!(
-        Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
-    );
-    let version = "ab";
-    assert_eq!(
-        Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
-    );
-    Ok(())
+pub fn parse_key_in_dsn<T: std::str::FromStr>(dsn: &Dsn, key: &str) -> anyhow::Result<Option<T>>
+where
+    <T as std::str::FromStr>::Err: std::fmt::Debug,
+    <T as std::str::FromStr>::Err: StdError,
+    <T as std::str::FromStr>::Err: Send,
+    <T as std::str::FromStr>::Err: Sync,
+    <T as std::str::FromStr>::Err: 'static,
+{
+    dsn.get(key)
+        .filter(|s| !s.is_empty())
+        .map(|val| {
+            val.parse::<T>()
+                .map_err(|err| anyhow::Error::from(err).context(format!("invalid {key}: {val}")))
+        })
+        .transpose()
+}
+
+pub fn parse_duration_in_dsn(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Duration>> {
+    parse_key_in_dsn::<String>(dsn, key)?
+        .map(|val| {
+            fundu::parse_duration(val.as_str())
+                .map_err(|err| anyhow::Error::from(err).context(format!("invalid {key}: {val}")))
+        })
+        .transpose()
+}
+
+pub fn parse_datetime_in_dsn(dsn: &Dsn, key: &str) -> anyhow::Result<Option<DateTime<Utc>>> {
+    parse_key_in_dsn::<String>(dsn, key)?
+        .map(|val| {
+            DateTime::parse_from_rfc3339(val.as_str())
+                .map(|dt| dt.with_timezone(&Utc))
+                .map_err(|err| anyhow::Error::from(err).context(format!("invalid {key}: {val}")))
+        })
+        .transpose()
+}
+
+pub fn parse_dir_in_dsn(dsn: &Dsn, key: Option<&str>) -> anyhow::Result<Option<PathBuf>> {
+    let p = match key {
+        None => dsn.path.as_ref().filter(|p| !p.is_empty()),
+        Some(key) => dsn.get(key).filter(|s| !s.is_empty()),
+    };
+
+    p.map(|p| {
+        PathBuf::from(p)
+            .canonicalize()
+            .map_err(|err| anyhow::Error::new(err).context(format!("invalid path: {p}")))
+    })
+    .transpose()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Local;
+
+    #[test]
+    fn test_parse_dir_in_dsn() {
+        let dsn = "local:./".into_dsn().unwrap();
+        let dir = parse_dir_in_dsn(&dsn, None).unwrap().unwrap();
+        assert_eq!(PathBuf::from(".").canonicalize().unwrap(), dir);
+
+        let dsn = "local:/".into_dsn().unwrap();
+        let dir = parse_dir_in_dsn(&dsn, None).unwrap().unwrap();
+        assert_eq!(PathBuf::from("/").canonicalize().unwrap(), dir);
+
+        let dsn = "local://".into_dsn().unwrap();
+        let dir = parse_dir_in_dsn(&dsn, None).unwrap();
+        assert!(dir.is_none());
+
+        let dsn = "local://?dir=./".into_dsn().unwrap();
+        let dir = parse_dir_in_dsn(&dsn, Some("dir")).unwrap().unwrap();
+        assert_eq!(PathBuf::from(".").canonicalize().unwrap(), dir);
+
+        let dsn = "local://?dir=/".into_dsn().unwrap();
+        let dir = parse_dir_in_dsn(&dsn, Some("dir")).unwrap().unwrap();
+        assert_eq!(PathBuf::from("/").canonicalize().unwrap(), dir);
+
+        let dsn = "local://?dir=".into_dsn().unwrap();
+        let dir = parse_dir_in_dsn(&dsn, Some("dir")).unwrap();
+        assert!(dir.is_none());
+    }
+
+    #[test]
+    fn test_parse_datetime_in_dsn() {
+        let now = Utc::now();
+        let dsn = format!("tmq://?upcoming={}", now.to_rfc3339())
+            .into_dsn()
+            .unwrap();
+        let upcoming = parse_datetime_in_dsn(&dsn, "upcoming").unwrap().unwrap();
+        assert_eq!(upcoming, now);
+
+        let now = Local::now();
+        let dsn = format!("local://?from={}", now.to_rfc3339())
+            .into_dsn()
+            .unwrap();
+        let upcoming = parse_datetime_in_dsn(&dsn, "from").unwrap().unwrap();
+        assert_eq!(upcoming, now.with_timezone(&Utc));
+
+        let dsn = "tmq://".into_dsn().unwrap();
+        let upcoming = parse_datetime_in_dsn(&dsn, "upcoming").unwrap();
+        assert!(upcoming.is_none());
+
+        let dsn = "tmq://?upcoming=".into_dsn().unwrap();
+        let upcoming = parse_datetime_in_dsn(&dsn, "upcoming").unwrap();
+        assert!(upcoming.is_none());
+
+        let dsn = "tmq://?upcoming=abc".into_dsn().unwrap();
+        let upcoming = parse_datetime_in_dsn(&dsn, "upcoming");
+        assert!(upcoming.is_err());
+        assert_eq!(upcoming.unwrap_err().to_string(), "invalid upcoming: abc");
+    }
+
+    #[test]
+    fn test_parse_duration_in_dsn() {
+        let dsn = "taos://?timeout=1s".into_dsn().unwrap();
+        let duration = parse_duration_in_dsn(&dsn, "timeout").unwrap();
+        assert_eq!(Some(Duration::from_secs(1)), duration);
+
+        let dsn = "taos://?timeout=".into_dsn().unwrap();
+        assert_eq!(None, parse_duration_in_dsn(&dsn, "timeout").unwrap());
+
+        let dsn = "taos://?timeout=abc".into_dsn().unwrap();
+        let err = parse_duration_in_dsn(&dsn, "timeout");
+        assert!(err.is_err());
+        assert_eq!("invalid timeout: abc", err.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_parse_keys_in_dsn() {
+        let dsn = "taos://?error_max_retry=3".into_dsn().unwrap();
+        let val = parse_keys_in_dsn::<u32>(&dsn, &["error.max.retry", "error_max_retry"]).unwrap();
+        assert_eq!(Some(3u32), val);
+
+        let dsn = "taos://?error_max_retry=".into_dsn().unwrap();
+        let val = parse_keys_in_dsn::<u32>(&dsn, &["error.max.retry", "error_max_retry"]).unwrap();
+        assert_eq!(None, val);
+
+        let dsn = "taos://?error_max_retry=abc".into_dsn().unwrap();
+        let err = parse_keys_in_dsn::<u32>(&dsn, &["error.max.retry", "error_max_retry"]);
+        assert!(err.is_err());
+        assert_eq!("invalid error_max_retry: abc", err.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_parse_key_in_dsn() {
+        let dsn = "taos://?error.max.retry=3".into_dsn().unwrap();
+        assert_eq!(
+            Some(3u32),
+            parse_key_in_dsn::<u32>(&dsn, "error.max.retry").unwrap()
+        );
+
+        let dsn = "taos://?error.max.retry=".into_dsn().unwrap();
+        assert_eq!(
+            None,
+            parse_key_in_dsn::<u32>(&dsn, "error.max.retry").unwrap()
+        );
+
+        let dsn = "taos://?error.max.retry=abc".into_dsn().unwrap();
+        let err = parse_key_in_dsn::<u32>(&dsn, "error.max.retry");
+        assert!(err.is_err());
+        assert_eq!("invalid error.max.retry: abc", err.unwrap_err().to_string());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_clear_database_with_taos() -> anyhow::Result<()> {
+        let dsn = "taos:///";
+
+        let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
+
+        let db = "test_clear_database";
+        taos.exec_many([
+            format!("drop database if exists {db}"),
+            format!("create database {db}"),
+            format!("use {db}"),
+            "create stable `Stb1` (ts timestamp, v int) tags(t1 int)".to_string(),
+            "create table `Ctb1` using `Stb1` tags(1)".to_string(),
+            "create table `Ctb2` using `Stb1` tags(2)".to_string(),
+            "create table `Ntb1` (ts timestamp, v int)".to_string(),
+            "create table `Ntb2` (ts timestamp, v int)".to_string(),
+        ])
+        .await?;
+
+        use std::str::FromStr;
+
+        clear_database(&Dsn::from_str(&format!("{dsn}{db}"))?).await?;
+
+        assert!(taos.query_one::<_, String>("show stables").await?.is_none());
+        assert!(taos.query_one::<_, String>("show tables").await?.is_none());
+
+        taos.exec(format!("drop database {db}")).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_main_version_from_server_version() -> anyhow::Result<()> {
+        let version = "3.0.5.0";
+        assert_eq!(
+            (3, 0, 5,),
+            get_main_version_from_server_version(&version.to_string())?
+        );
+        let version = "3.0.5.0.2023061722";
+        assert_eq!(
+            (3, 0, 5,),
+            get_main_version_from_server_version(&version.to_string())?
+        );
+        let version = "3.0";
+        assert_eq!(
+            Err("error"),
+            get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
+        );
+        let version = "a.b";
+        assert_eq!(
+            Err("error"),
+            get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
+        );
+        let version = "ab";
+        assert_eq!(
+            Err("error"),
+            get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
+        );
+        Ok(())
+    }
 }

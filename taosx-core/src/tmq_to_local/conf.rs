@@ -1,4 +1,5 @@
 use crate::tmq::generate_hash;
+use crate::utils;
 use anyhow::{anyhow, bail};
 use chrono::{DateTime, Utc};
 use futures_util::TryStreamExt;
@@ -10,10 +11,10 @@ use tracing::Instrument;
 
 #[derive(Debug, Clone)]
 pub struct BackupConfig {
-    #[allow(dead_code)]
+    #[allow(unused)]
     task_id: Option<String>,
     raw_from: Dsn,
-    #[allow(dead_code)]
+    #[allow(unused)]
     raw_to: Dsn,
     /// taosd 的版本
     pub server_version: String,
@@ -27,9 +28,6 @@ pub struct BackupConfig {
     pub upcoming: Option<DateTime<Utc>>,
     /// 备份点的生成方式
     pub backup_point_gen_mode: BackupPointGenMode,
-    #[allow(dead_code)]
-    /// 备份执行的间隔
-    pub interval: Option<Duration>,
     #[allow(dead_code)]
     /// 最大错误重试次数。默认为：10
     pub error_retry_max: u32,
@@ -205,14 +203,10 @@ impl BackupConfig {
 
     /// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
     pub fn parse_backup_dir(dsn: &Dsn, task_id: &Option<String>) -> anyhow::Result<PathBuf> {
-        let p = dsn
-            .path
-            .as_ref()
-            .ok_or(anyhow::anyhow!("backup dir is required"))?;
+        let dir = utils::parse_dir_in_dsn(dsn, None)?;
+        // TODO: 如果 dir 为空，使用 $TAOSX_DATA_DIR/backup
 
-        let mut dir = PathBuf::from(p)
-            .canonicalize()
-            .map_err(|err| anyhow::Error::new(err).context(format!("invalid backup dir: {p}")))?;
+        let mut dir = dir.ok_or(anyhow!("backup dir is None in dsn"))?;
 
         if let Some(task_id) = task_id {
             dir = dir.join(task_id);
@@ -234,7 +228,7 @@ pub enum BackupPointGenMode {
 impl BackupPointGenMode {
     pub fn try_from_dsn(dsn: impl IntoDsn) -> anyhow::Result<Self> {
         let dsn = dsn.into_dsn()?;
-        let upcoming = BackupConfigBuilder::parse_upcoming(&dsn)?;
+        let upcoming = utils::parse_datetime_in_dsn(&dsn, "upcoming")?;
         match upcoming {
             Some(_) => Ok(Self::ByOffset),
             None => Ok(Self::ByTimeout),
@@ -305,11 +299,41 @@ impl BackupConfigBuilder {
             }
         }
 
-        // TODO: 如果 interval >= WAL_RETENTION_PERIOD 报错，可能会造成数据丢失
-        let interval = Self::parse_duration_in_dsn(&self.from, "interval")?;
+        // upcoming
+        let upcoming = utils::parse_datetime_in_dsn(&self.from, "upcoming")?;
+
+        // backup_point_gen_mode
+        let backup_point_gen_mode =
+            BackupPointGenMode::try_from_dsn(&self.from).map_err(|err| {
+                anyhow::Error::from(err).context("failed to parse backup point generate mode")
+            })?;
+
+        // backup dir
+        let backup_dir = BackupConfig::parse_backup_dir(&self.to, &self.task_id)?;
 
         // topic 与 group.id 相同
         let topic = BackupConfig::group_id(&self.task_id, &self.from, &self.to);
+
+        // error.retry.max
+        let error_retry_max =
+            utils::parse_keys_in_dsn::<u32>(&self.from, &["max_retry", "error.max.retry"])?
+                .unwrap_or(10);
+
+        // error.retry.interval
+        let error_retry_interval = utils::parse_duration_in_dsn(&self.from, "retry_interval")?
+            .unwrap_or(Duration::from_secs(5));
+
+        // move_to
+        let move_to = utils::parse_dir_in_dsn(&self.to, Some("move.to"))?;
+
+        // backup_max_size
+        let backup_max_size =
+            utils::parse_keys_in_dsn(&self.to, &["backup_max_size", "max.file.size"])?
+                .unwrap_or(1024 * 1024 * 1024);
+
+        // backup_comp_level
+        let backup_comp_level =
+            Self::parse_compression_level(&self.to)?.unwrap_or(async_compression::Level::Fastest);
 
         Ok(BackupConfig {
             task_id: self.task_id.clone(),
@@ -319,19 +343,14 @@ impl BackupConfigBuilder {
             topic,
             database,
             stable,
-            upcoming: Self::parse_upcoming(&self.from)?,
-            backup_point_gen_mode: BackupPointGenMode::try_from_dsn(&self.from).map_err(|err| {
-                anyhow::Error::from(err).context("failed to parse backup point generate mode")
-            })?,
-            interval,
-            error_retry_max: Self::parse_max_retry(&self.from)?.unwrap_or(10),
-            error_retry_interval: Self::parse_duration_in_dsn(&self.from, "retry_interval")?
-                .unwrap_or(Duration::from_secs(5)),
-            backup_dir: BackupConfig::parse_backup_dir(&self.to, &self.task_id)?,
-            move_to: Self::parse_directory_param(&self.to, "move.to")?,
-            backup_max_size: Self::parse_backup_max_size(&self.to)?.unwrap_or(1024 * 1024 * 1024),
-            backup_comp_level: Self::parse_compression_level(&self.to)?
-                .unwrap_or(async_compression::Level::Fastest),
+            upcoming,
+            backup_point_gen_mode,
+            error_retry_max,
+            error_retry_interval,
+            backup_dir,
+            move_to,
+            backup_max_size,
+            backup_comp_level,
         })
     }
 
@@ -352,44 +371,6 @@ impl BackupConfigBuilder {
             }
             Some(s.to_string())
         })
-    }
-
-    /// 从 dsn 中解析出 upcoming 时间，upcoming 是一个符合 rfc3339 格式的时间字符串
-    fn parse_upcoming(dsn: &Dsn) -> anyhow::Result<Option<DateTime<Utc>>> {
-        dsn.get("upcoming")
-            .filter(|s| !s.is_empty())
-            .map(|s| {
-                DateTime::parse_from_rfc3339(s)
-                    .map_err(|err| {
-                        anyhow::Error::from(err).context(format!("invalid upcoming: {s}"))
-                    })
-                    .map(|dt| dt.with_timezone(&Utc))
-            })
-            .transpose()
-    }
-
-    /// 解析 dsn 中的 interval 参数，interval 是一个 Duraiton
-    fn parse_duration_in_dsn(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Duration>> {
-        dsn.get(key)
-            .filter(|s| !s.is_empty())
-            .map(|s| {
-                fundu::parse_duration(s.as_str())
-                    .map_err(|err| anyhow::Error::from(err).context(format!("invalid {key}: {s}")))
-            })
-            .transpose()
-    }
-
-    /// 解析 dsn 中的 max_retry
-    fn parse_max_retry(dsn: &Dsn) -> anyhow::Result<Option<u32>> {
-        dsn.get("max_retry")
-            .or_else(|| dsn.get("error.max.retry"))
-            .filter(|s| !s.is_empty())
-            .map(|s| {
-                s.parse::<u32>().map_err(|err| {
-                    anyhow::Error::from(err).context(format!("invalid max_retry: {s}"))
-                })
-            })
-            .transpose()
     }
 
     /// 解析 dsn 中的压缩等级参数
@@ -415,19 +396,6 @@ impl BackupConfigBuilder {
             .transpose()
     }
 
-    /// 解析 dsn 中的备份文件最大字节数，默认为 1G
-    fn parse_backup_max_size(dsn: &Dsn) -> anyhow::Result<Option<u64>> {
-        dsn.get("backup_max_size")
-            .or_else(|| dsn.get("max.file.size"))
-            .filter(|s| !s.is_empty())
-            .map(|s| {
-                s.parse::<u64>().map_err(|err| {
-                    anyhow::Error::from(err).context(format!("invalid backup file size: {s}"))
-                })
-            })
-            .transpose()
-    }
-
     /// 解析 dsn 中的 move.to 参数
     pub fn parse_directory_param(dsn: &Dsn, param_key: &str) -> anyhow::Result<Option<PathBuf>> {
         dsn.get(param_key)
@@ -444,40 +412,6 @@ impl BackupConfigBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Local;
-
-    #[test]
-    fn test_parse_upcoming() {
-        let now = Utc::now();
-        let dsn = format!("tmq://?upcoming={}", now.to_rfc3339())
-            .into_dsn()
-            .unwrap();
-        let upcoming = BackupConfigBuilder::parse_upcoming(&dsn).unwrap().unwrap();
-        assert_eq!(upcoming, now);
-
-        let now = Local::now();
-        let dsn = format!("tmq://?upcoming={}", now.to_rfc3339())
-            .into_dsn()
-            .unwrap();
-        let upcoming = BackupConfigBuilder::parse_upcoming(&dsn).unwrap().unwrap();
-        assert_eq!(upcoming, now.with_timezone(&Utc));
-
-        let dsn = "tmq://".into_dsn().unwrap();
-        let upcoming = BackupConfigBuilder::parse_upcoming(&dsn).unwrap();
-        assert!(upcoming.is_none());
-
-        let dsn = "tmq://?upcoming=".into_dsn().unwrap();
-        let upcoming = BackupConfigBuilder::parse_upcoming(&dsn).unwrap();
-        assert!(upcoming.is_none());
-
-        let dsn = "tmq://?upcoming=abc".into_dsn().unwrap();
-        let upcoming = BackupConfigBuilder::parse_upcoming(&dsn);
-        assert!(upcoming.is_err());
-        assert!(upcoming
-            .unwrap_err()
-            .to_string()
-            .starts_with("failed to parse upcoming: abc, cause: "));
-    }
 
     #[test]
     fn test_parse_backup_dir() {
