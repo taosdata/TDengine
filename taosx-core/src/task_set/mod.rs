@@ -608,7 +608,7 @@ pub enum RunState {
 
 impl RunState {
     pub fn is_executing(&self) -> bool {
-        *self < Self::Completed
+        *self > Self::Backlog && *self < Self::Completed
     }
     pub fn is_stopped(&self) -> bool {
         matches!(self, Self::Stopped | Self::Cancelled)
@@ -1197,7 +1197,9 @@ mod tests {
             .await
             .expect("get task");
 
-        let _ = set.spawn(opts.clone(), env.clone()).await;
+        set.spawn(opts.clone(), env.clone())
+            .await
+            .expect("spawn task");
 
         tracing::info!("spawned");
         tokio::time::sleep(Duration::from_secs(5)).await;
