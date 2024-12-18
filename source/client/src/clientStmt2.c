@@ -39,7 +39,7 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 }
 
 static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
-  while (0 == atomic_load_64(&pStmt->queue.qRemainNum)) {
+  while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
     taosUsleep(1);
     return false;
   }
@@ -53,7 +53,7 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
 
   *param = node;
 
-  (void)atomic_sub_fetch_64(&pStmt->queue.qRemainNum, 1);
+  (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
 
   return true;
 }
@@ -63,7 +63,7 @@ static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
   pStmt->queue.tail = param;
 
   pStmt->stat.bindDataNum++;
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+  (void)atomic_add_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
 }
 
 static int32_t stmtCreateRequest(STscStmt2* pStmt) {

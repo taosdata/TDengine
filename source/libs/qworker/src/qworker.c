@@ -567,6 +567,14 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         QW_ERR_JRET(ctx->rspCode);
       }
 
+      if (TSDB_CODE_SUCCESS != input->code) {
+        QW_TASK_ELOG("task already failed at phase %s, code:0x%x", qwPhaseStr(phase), input->code);
+        ctx->ctrlConnInfo.handle = NULL;
+        (void)qwDropTask(QW_FPARAMS());
+
+        QW_ERR_JRET(input->code);
+      }
+
       QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC, ctx->dynamicTask));
       break;
     }
@@ -630,6 +638,10 @@ _return:
 
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
+
+    if (QW_PHASE_PRE_CQUERY == phase && code) {
+      QW_SET_PHASE(ctx, QW_PHASE_POST_CQUERY);
+    }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);
     qwReleaseTaskCtx(mgmt, ctx);
@@ -767,7 +779,7 @@ _return:
 int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   int32_t        code = 0;
   SSubplan      *plan = NULL;
-  SQWPhaseInput  input = {0};
+  SQWPhaseInput  input = {.code = qwMsg->code};
   qTaskInfo_t    pTaskInfo = NULL;
   DataSinkHandle sinkHandle = NULL;
   SQWTaskCtx    *ctx = NULL;
@@ -808,10 +820,10 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
-  atomic_add_fetch_64(&gQueryMgmt.stat.taskRunNum, 1);
+  (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskRunNum, 1);
 
   uint64_t flags = 0;
-  dsGetSinkFlags(sinkHandle, &flags);
+  (void)dsGetSinkFlags(sinkHandle, &flags);
 
   ctx->level = plan->level;
   ctx->dynamicTask = qIsDynamicExecTask(pTaskInfo);
@@ -1342,7 +1354,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   ctx.sinkHandle = sinkHandle;
 
   uint64_t flags = 0;
-  dsGetSinkFlags(sinkHandle, &flags);
+  (void)dsGetSinkFlags(sinkHandle, &flags);
 
   ctx.sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
 

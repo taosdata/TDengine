@@ -327,7 +327,7 @@ struct SVnodeCfg {
   int16_t     hashSuffix;
   int32_t     tsdbPageSize;
   int32_t     tdbEncryptAlgorithm;
-  char        tdbEncryptKey[ENCRYPT_KEY_LEN];
+  char        tdbEncryptKey[ENCRYPT_KEY_LEN + 1];
   int32_t     s3ChunkSize;
   int32_t     s3KeepLocal;
   int8_t      s3Compact;

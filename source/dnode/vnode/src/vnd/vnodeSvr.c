@@ -830,7 +830,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) && !syncIsReadyForRead(pVnode->sync)) {
+  if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -842,9 +842,21 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 
   SReadHandle handle = {.vnode = pVnode, .pMsgCb = &pVnode->msgCb, .pWorkerCb = pInfo->workerCb};
   initStorageAPI(&handle.api);
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool redirected = false;
 
   switch (pMsg->msgType) {
     case TDMT_SCH_QUERY:
+      if (!syncIsReadyForRead(pVnode->sync)) {
+        pMsg->code = (terrno) ? terrno : TSDB_CODE_SYN_NOT_LEADER;
+        redirected = true;
+      }
+      code = qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
+      if (redirected) {
+        vnodeRedirectRpcMsg(pVnode, pMsg, pMsg->code);
+        return 0;
+      }
+      return code;
     case TDMT_SCH_MERGE_QUERY:
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_CONTINUE:
