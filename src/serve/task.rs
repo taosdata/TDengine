@@ -16,6 +16,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
+use tracing::instrument;
 use utoipa::*;
 
 use taosx_core::core_metrics::CoreMetrics;
@@ -166,6 +167,7 @@ pub(super) async fn get_tasks_count(
     )
 )]
 #[post("/tasks")]
+#[instrument(level = "trace", skip(task_store))]
 pub(super) async fn create_task(
     task: actix_web::web::Json<NewTask>,
     task_store: Data<TaskControllerRef>,
