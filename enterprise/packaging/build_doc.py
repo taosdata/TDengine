@@ -1,5 +1,8 @@
 """
 Utility script to build the documentation for the TDengine
+you can run this script with the following command:
+generate oem zip and pdf :python3 build_doc.py -sb -sp -ozf -fu -cn LCIotDB -cp lc 
+generate all zip and pdf :python3 build_doc.py
 """
 
 
@@ -21,6 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 td_is_update = True
 no_upload_arm = "no_upload_arm"
+skip_prepare_env = False
 
 def init_build_info():
     parser = argparse.ArgumentParser(description="build docs script")
@@ -28,7 +32,7 @@ def init_build_info():
     parser.add_argument('-b', '--branch_name', default="main", help='Branch name of the TDengine repository')
     # parser.add_argument('-ee', '--build_enterprise_en', action='store_true', help='Build the build_enterprise en zip packagea')
     # parser.add_argument('-ez', '--build_enterprise_zh', action='store_true', help='Build the build_enterprise zh zip packagea')
-    parser.add_argument('-sp', '--skip_prepare_en', action='store_true', help='Skip prepare env of docs build')
+    parser.add_argument('-sp', '--skip_prepare_env', action='store_true', help='Skip prepare env of docs build')
     parser.add_argument('-sb', '--skip_build', action='store_true', help='Skip build docs')
     parser.add_argument('-ez', '--build_enterprise_zip', action='store_true', help='Build the build_enterprise zh and en zip package')
     parser.add_argument('-ezf', '--build_enterprise_pdf', action='store_true', help='Build the build_enterprise zh zip and pdf package')
@@ -37,6 +41,8 @@ def init_build_info():
     parser.add_argument('-cn', '--cus_name', help='customized name')   
     parser.add_argument('-cp', '--cus_prompt', help='customized prompt')
     parser.add_argument('-nu', '--no_upload_arm', action='store_true', help='build taosexplorer with docs zip')
+    parser.add_argument('-fu', '--force_not_update', action='store_true', help='build taosexplorer with docs zip')
+
     args, unknown_args = parser.parse_known_args()
 
     if unknown_args:
@@ -90,7 +96,7 @@ class EnvironmentPreparer:
             logger.info("Only supports Linux and macOS.")
             sys.exit(1)
         else:
-            if self.args.skip_prepare_en:
+            if skip_prepare_env:
                 logger.info("Skip prepare env of docs build")
             else:
                 if self.is_command_exist("node"):
@@ -158,6 +164,28 @@ def pre_view(doc_repo_path):
         os.chdir(doc_repo_path)
         subprocess.run(["yarn", "serve", "--port", "1234"], check=True)
         logger.info("Preview started successfully on port 1234")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error: {e}")
+
+def build_enterprise_zh(enterprise_path):
+    """
+    use doc.taosdata.com build result to generate doc zh zip
+    """
+    try:
+        yarn_install(f"{enterprise_path}/enterprise-docs-zh/")
+        
+        os.chdir(enterprise_path)
+        print(f"Changed directory to {enterprise_path}")          
+        # Run the build script
+        subprocess.run(f"python3 build.py enterprise  zh  nozip  {no_upload_arm}", shell=True, check=True)
+        
+        # # Check if the build was successful
+        # if subprocess.run(["echo", "$?"], capture_output=True, text=True).stdout.strip() == "0":
+        #     print("开始部署本地预览")
+        #     subprocess.run(["./deploy.sh"], check=True)
+        # else:
+        #     print("没有更新，退出脚本")
+
     except subprocess.CalledProcessError as e:
         logger.error(f"Error: {e}")
 
@@ -276,8 +304,10 @@ def prepare_repo(repo_url, repo_path, branch_name):
 def main():
     args = init_build_info()
 
-    global no_upload_arm, td_is_update
+    global no_upload_arm, td_is_update, skip_prepare_env
     no_upload_arm = "no_upload_arm" if args.no_upload_arm else ""
+    skip_prepare_env = args.skip_prepare_env
+
 
     logger.info(f"Building the documentation.... is upload to arm:{no_upload_arm}")
     # Prepare the environment for building the documentation
@@ -310,13 +340,19 @@ def main():
     prepare_repo(doc_en_repo, doc_en_repo_path, "main")
     prepare_repo(enterprise_doc_repo, enterprise_doc_repo_path, "main")
     prepare_repo(TDengine_repo, TDengine_repo_path, TDengine_branch_name)
-    
+
+    if args.force_not_update :
+        td_is_update = False   
+    else:
+        td_is_update = td_is_update
+
     # # 切换到 TDengine_repo 仓库并切换到指定分支
     # checkout_branch(TDengine_repo_path, TDengine_branch_name)
 
     # define oem dict
     oem_dict = {
         "ProDB": "prodb",
+        "LCIotDB": "lc",
         # 可以在这里添加更多的键值对
     }
 
@@ -361,6 +397,7 @@ def main():
             build_doc(doc_zh_repo_path)
             build_doc(doc_en_repo_path)
         # generate oem zip docs for TDengine
+        build_enterprise_zh(enterprise_doc_repo_path)
         build_oem_zip(enterprise_doc_repo_path, args.cus_name, args.cus_prompt)
     
     
@@ -371,6 +408,7 @@ def main():
             build_doc(doc_zh_repo_path)
             build_doc(doc_en_repo_path)
         # generate oem zip docs for TDengine
+        build_enterprise_zh(enterprise_doc_repo_path)
         build_oem_zip(enterprise_doc_repo_path, args.cus_name, args.cus_prompt)
 
         # generate oem pdf docs for TDengine
