@@ -436,7 +436,11 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
 }
 
 int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
+#ifndef TD_ACORE
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
+#else
+  return transSendRequest2(shandle, pEpSet, pMsg, NULL);
+#endif
 }
 int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
   if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0 || pRid == NULL) {

@@ -782,6 +782,7 @@ static int32_t createThrdObj(void *trans, SCliThrd2 **ppThrd) {
   if (code != 0) {
     TAOS_CHECK_GOTO(code, &line, _end);
   }
+  *ppThrd = pThrd;
   return code;
 _end:
   if (code != 0) {
