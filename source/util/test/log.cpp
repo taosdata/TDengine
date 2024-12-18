@@ -15,7 +15,7 @@ TEST(log, check_log_refactor) {
   tsAsyncLog = 0;
   // idxDebugFlag = 143;
   strcpy(tsLogDir, (char *)logDir);
-  taosInitLog(tsLogDir, 10, false);
+  taosInitLog(tsLogDir, 10, LOG_MODE_BOTH);
   tsAsyncLog = 0;
   uDebugFlag = 143;
 

@@ -4,6 +4,7 @@ add_executable(transUT2 "")
 add_executable(svrBench "")
 add_executable(cliBench "")
 add_executable(httpBench "")
+add_executable(transImpl2 "")
 
 target_sources(transUT
   PRIVATE
@@ -31,6 +32,13 @@ target_sources(httpBench
   PRIVATE
   "http_test.c"
 )
+
+target_sources(transImpl2
+  PRIVATE
+  "transImpl2_test.cpp"
+)
+
+
 
 target_include_directories(transportTest
   PUBLIC
@@ -99,6 +107,20 @@ target_include_directories(httpBench
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/transport"
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(transImpl2
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+target_link_libraries(transImpl2
+  os
+  util
+  common
+  gtest_main
+  transport
+  function
 )
 
 target_link_libraries(cliBench
