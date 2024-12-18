@@ -467,7 +467,7 @@ export default {
                   : this.isJson
                     ? JSON.stringify({
                         [`${this.itemData.columnname}`]:
-                          JSON.parse(msg)[this.itemData.columnname]
+                          JSON.parse(msg.replace(/\n/g, '\\n'))[this.itemData.columnname]
                       })
                     : msg;
               } else {

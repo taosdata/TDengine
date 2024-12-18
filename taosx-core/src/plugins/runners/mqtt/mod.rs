@@ -126,12 +126,12 @@ pub async fn mqtt_to_taos(
                     Some(Ok(Ok(_))) => {},
                     Some(Ok(Err(e))) => {
                         safe_exit!();
-                        tracing::error!("MQTT client exit with error: {e}");
+                        tracing::error!("MQTT client exit with error: {e:#}");
                         return Err(e);
                     }
                     Some(Err(e)) => {
                         safe_exit!();
-                        tracing::error!("MQTT client paniced: {e}");
+                        tracing::error!("MQTT client paniced: {e:#}");
                         return Err(e).context("MQTT task paniced");
                     }
                     None => break,

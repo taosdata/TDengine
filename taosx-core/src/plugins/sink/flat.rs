@@ -301,23 +301,49 @@ pub async fn flat_write_with_sql(
                                 let taos = taos.as_ref().unwrap();
                                 let stable_name = stable.name();
                                 let desc = taos.describe(stable.name()).await?;
-                                let desc_columns =
-                                    desc.iter().filter(|c| !c.is_tag()).map(|v| v.field());
-                                let actual_columns = HashSet::<_>::from_iter(desc_columns);
-
-                                taos.exec_many(
-                                    stable
-                                        .columns()
-                                        .filter(|c| !actual_columns.contains(c.name.as_str()))
-                                        .map(|c| {
-                                            format!(
-                                                "ALTER TABLE {stable_name} ADD COLUMN {} {};",
-                                                c.name, c.r#type
-                                            )
-                                        }),
-                                )
-                                .await
-                                .context("add columns error")?;
+                                let actual_columns = desc
+                                    .iter()
+                                    .filter(|c| !c.is_tag())
+                                    .map(|v| v.field())
+                                    .collect::<HashSet<_>>();
+                                'OUTER: for sql in stable
+                                    .columns()
+                                    .filter(|c| !actual_columns.contains(c.name.as_str()))
+                                    .map(|c| {
+                                        format!(
+                                            "ALTER TABLE {stable_name} ADD COLUMN `{}` {};",
+                                            c.name, c.r#type
+                                        )
+                                    })
+                                {
+                                    loop {
+                                        if let Err(e) = taos.exec(&sql).await {
+                                            match e.code().into() {
+                                                0x036B => {
+                                                    // Column already exists
+                                                    continue 'OUTER;
+                                                }
+                                                0x03D3 => {
+                                                    // Conflict transaction not completed
+                                                    tracing::warn!(
+                                                        "add columns transaction conflict"
+                                                    );
+                                                    tokio::time::sleep(Duration::from_millis(100))
+                                                        .await;
+                                                    continue;
+                                                }
+                                                code => {
+                                                    tracing::error!(
+                                                        sql,
+                                                        code,
+                                                        "add columns error: {e:#}"
+                                                    );
+                                                    Err(e).context("add columns error")?
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             FlatWriteError::TableNotExits(_) => {
                                 if let Some(stable_sql) = messages[0].stable_sql() {
