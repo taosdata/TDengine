@@ -27,7 +27,7 @@
     "echarts": "^5.3.2",
     "element-ui": "^2.15.8",
     "file-saver": "^2.0.5",
-    "github-markdown-css": "^5.1.0",
+    "github-markdown-css": "~5.1.0",
     "highlight.js": "^11.4.0",
     "highlightjs": "^9.16.2",
     "js-cookie": "^2.2.1",
