@@ -29,7 +29,7 @@ pip3 install taos-ws-py
 **第 3 步**，"DISPLAY NAME" 中填写连接名称，任意填写即可。   
 **第 4 步**，"SQLALCHEMY URL" 项为关键连接信息串，复制以下内容粘贴即可。
 ```bash
-taoswss://gw.cloud.taosdata.com?token=0df909712bb345d6ba92253d3e6fb635d609c8ff
+taosws://gw.cloud.taosdata.com?token=0df909712bb345d6ba92253d3e6fb635d609c8ff
 ```
 **第 5 步**，点击 “TEST CONNECTION” 测试连接是否成功，测试通过后点击 “CONNECT” 按钮，完成连接。
        

@@ -32,7 +32,7 @@ If there is no TDengine option in the drop-down list, please confirm that the st
 **Step 3**, write a name of connection in "DISPLAY NAME"  
 **Step 4**, the "SQLALCHEMY URL" field is a key connection information string, copy and paste the following string  
 ```bash
-taoswss://gw.cloud.taosdata.com?token=0df909712bb345d6ba92253d3e6fb635d609c8ff
+taosws://gw.cloud.taosdata.com?token=0df909712bb345d6ba92253d3e6fb635d609c8ff
 ```
 **Step 5**, click "TEST CONNECTION" to test if the connection can be successful. After passing the test, click the "CONNECT" button to complete the connection  
        
