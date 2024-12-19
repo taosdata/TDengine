@@ -803,7 +803,7 @@ static int32_t evtSvrReadCb(void *arg, SEvtBuf *buf, int32_t bytes) {
   return code;
 _end:
   if (code != 0) {
-    tError("failed to handle read since %s", tstrerror(code));
+    tError("%s failed to handle read at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -1150,9 +1150,10 @@ typedef struct SCliConn {
 
   queue wq;  // uv_write_t queue
 
-  queue  batchSendq;
-  int8_t inThreadSendq;
-
+  queue   batchSendq;
+  int8_t  inThreadSendq;
+  int32_t fd;
+  queue   reqsToSend2;
 } SCliConn;
 
 typedef struct {
@@ -1238,6 +1239,110 @@ typedef struct SCliObj2 {
   int         numOfThreads;
   SCliThrd2 **pThreadObj;
 } SCliObj2;
+
+static int32_t createSocket(char *ip, int32_t port, int32_t *fd) {
+  int32_t code = 0;
+  int32_t line = 0;
+  int32_t sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  if (sockfd < 0) {
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
+  }
+  struct sockaddr_in server_addr;
+  memset(&server_addr, 0, sizeof(server_addr));
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_port = htons(port);
+  if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
+  }
+
+  if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
+  }
+
+  return code;
+_end:
+  if (code != 0) {
+    tError("%s failed to connect to %s:%d at line %d since %s", __func__, ip, port, line, tstrerror(code));
+  }
+  return code;
+}
+static int32_t cliConnGetSockInfo(SCliConn *pConn) {
+  int32_t            code = 0;
+  int32_t            line = 0;
+  struct sockaddr_in addr;
+
+  socklen_t addr_len = sizeof(addr);
+  char      ip_str[INET_ADDRSTRLEN];
+  int       port;
+
+  // 获取对端地址
+  if (getpeername(pConn->fd, (struct sockaddr *)&addr, &addr_len) < 0) {
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
+  }
+  inet_ntop(AF_INET, &addr.sin_addr, ip_str, sizeof(ip_str));
+  port = ntohs(addr.sin_port);
+  snprintf(pConn->dst, sizeof(pConn->dst), "%s:%d", ip_str, port);
+
+  // 获取本地地址
+  if (getsockname(pConn->fd, (struct sockaddr *)&addr, &addr_len) < 0) {
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
+  }
+  inet_ntop(AF_INET, &addr.sin_addr, ip_str, sizeof(ip_str));
+  port = ntohs(addr.sin_port);
+  snprintf(pConn->src, sizeof(pConn->src), "%s:%d", ip_str, port);
+  return code;
+_end:
+  if (code != 0) {
+    tError("%s failed to get sock info at line %d since %s", __func__, line, tstrerror(code));
+  }
+  return code;
+}
+static int32_t createCliConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliConn **ppConn) {
+  int32_t   code = 0;
+  int32_t   line = 0;
+  STrans   *pInst = pThrd->pInst;
+  SCliConn *pConn = taosMemoryCalloc(1, sizeof(SCliConn));
+  if (pConn == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _end);
+  }
+  char addr[TSDB_FQDN_LEN + 64] = {0};
+  snprintf(addr, sizeof(addr), "%s:%d", ip, port);
+  pConn->hostThrd = pThrd;
+  pConn->dstAddr = taosStrdup(addr);
+  pConn->ipStr = taosStrdup(ip);
+  pConn->port = port;
+  if (pConn->dstAddr == NULL || pConn->ipStr == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &line, _end);
+  }
+  pConn->status = ConnNormal;
+  pConn->broken = false;
+  QUEUE_INIT(&pConn->q);
+
+  TAOS_CHECK_GOTO(transInitBuffer(&pConn->readBuf), NULL, _end);
+  pConn->seq = 0;
+
+  pConn->pQTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (pConn->pQTable == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
+  }
+  QUEUE_INIT(&pConn->batchSendq);
+  pConn->bufSize = pInst->shareConnLimit;
+  return code;
+
+  QUEUE_INIT(&pConn->reqsToSend2);
+
+  TAOS_CHECK_GOTO(createSocket(ip, port, &pConn->fd), &line, _end);
+  TAOS_CHECK_GOTO(cliConnGetSockInfo(pConn), &line, _end);
+  return code;
+
+_end:
+  if (code != 0) {
+    // TODO, delete conn mem
+    tError("%s failed to create conn at line %d since %s", __func__, line, tstrerror(code));
+    taosMemoryFree(pConn);
+  }
+  return code;
+}
 
 static FORCE_INLINE void destroyReqCtx(SReqCtx *ctx) {
   if (ctx) {
@@ -1434,6 +1539,81 @@ _exception:
   return code;
 }
 
+static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
+  int32_t code = 0;
+  return code;
+}
+static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
+  int32_t   code;
+  int32_t   line = 0;
+  SFdCbArg *pArg = arg;
+  SCliConn *pConn = pArg->data;
+  if (bytes == 0) {
+    tDebug("client %s closed", pConn->src);
+    return TSDB_CODE_RPC_NETWORK_ERROR;
+  }
+  SConnBuffer *p = &pConn->readBuf;
+  if (p->cap - p->len < bytes) {
+    int32_t newCap = p->cap + bytes;
+    char   *newBuf = taosMemoryRealloc(p->buf, newCap);
+    if (newBuf == NULL) {
+      TAOS_CHECK_GOTO(terrno, &line, _end);
+    }
+    p->buf = newBuf;
+    p->cap = newCap;
+  }
+
+  memcpy(p->buf + p->len, buf->buf, bytes);
+  p->len += bytes;
+
+  while (p->len >= sizeof(STransMsgHead)) {
+    STransMsgHead head;
+    memcpy(&head, p->buf, sizeof(head));
+    int32_t msgLen = (int32_t)htonl(head.msgLen);
+    if (p->len >= msgLen) {
+      char *pMsg = taosMemoryCalloc(1, msgLen);
+      if (pMsg == NULL) {
+        TAOS_CHECK_GOTO(terrno, &line, _end);
+      }
+      memcpy(pMsg, p->buf, msgLen);
+      memcpy(p->buf + msgLen, p->buf, p->len - msgLen);
+      p->len -= msgLen;
+
+      code = evtCliHandleResp(pConn, pMsg, msgLen);
+      TAOS_CHECK_GOTO(terrno, &line, _end);
+    } else {
+      break;
+    }
+  }
+
+  return code;
+_end:
+  if (code != 0) {
+    tError("%s failed to handle resp at line %d since %s", __func__, line, tstrerror(code));
+  }
+  return code;
+}
+static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
+  int32_t code = 0;
+  char   *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
+  int32_t port = EPSET_GET_INUSE_PORT(req->ctx->epSet);
+
+  SCliConn *pConn = NULL;
+  code = createCliConn(pThrd, fqdn, port, &pConn);
+  if (code != 0) {
+    tError("failed to create conn since %s", tstrerror(code));
+    return code;
+  } else {
+    STraceId *trace = &req->msg.info.traceId;
+    tGDebug("success to create conn %p, src:%s, dst:%s", pConn, pConn->src, pConn->dst);
+    QUEUE_PUSH(&pConn->reqsToSend2, &req->q);
+
+    SFdCbArg arg = {
+        .evtType = EVT_CONN_T, .arg = NULL, .fd = pConn->fd, .readCb = evtCliReadResp, .sendCb = NULL, .data = pConn};
+    code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_READ, &arg);
+  }
+  return code;
+}
 static void evtHandleCliReqCb(void *arg, int32_t status) {
   int32_t       code = 0;
   SAsyncHandle *handle = arg;

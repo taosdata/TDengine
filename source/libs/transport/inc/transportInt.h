@@ -159,6 +159,7 @@ typedef struct {
   TdThreadMutex seqMutex;
   int64_t       seq;
   SHashObj*     seqTable;
+  int8_t        shareConnLimit;
 } SRpcInfo;
 #endif
 
