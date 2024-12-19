@@ -13,15 +13,16 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
-use crate::local_to_taos::conf::LocalRestoreConfigBuilder;
-use crate::local_to_taos::reader::FileWatcher;
+use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
+use crate::local_to_taos::file_watcher::FileWatcher;
 use crate::taoz::{ZCodec, ZFile, ZMessage};
+use crate::tmq::BackupObject;
 use crate::tmq_to_local::LocalConfig;
 use crate::utils;
 use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
 
 mod conf;
-mod reader;
+mod file_watcher;
 
 /// 从本地备份恢复到 taos
 /// 1. 备份文件对应某个备份对象：database 或 database.stable，在 target 中：
@@ -49,25 +50,19 @@ pub async fn local_to_taos(
         .build()
         .await
         .context("parse local_to_taos config error")?;
+    tracing::debug!("local_to_taos config: {:?}", config);
 
-    let meta_in_dsn = config.meta();
     // 处理 backup object
-    if let Some(meta_in_db) = config
-        .query_meta(
-            meta_in_dsn.db_name.as_str(),
-            meta_in_dsn.stable_name.as_ref(),
-        )
-        .await?
-    {
+    if config.is_obj_existed().await? {
         if force {
             tracing::warn!("restore target exists, force to delete and recreate");
-            config.del_meta(&meta_in_db).await?;
+            config.delete_obj().await?;
         } else {
-            bail!("restore target exists, please use -y/--yes-i-really-mean-it to delete and recreate");
+            bail!("restore target already exists, please use -y/--yes-i-really-mean-it to delete and recreate");
         }
     }
-    tracing::warn!("restore backup object: {:?}", meta_in_dsn);
-    config.write_meta(meta_in_dsn).await?;
+    tracing::warn!("recreate backup object");
+    config.restore_obj().await?;
 
     // 创建 watcher
     let watcher = FileWatcher::from(config.clone());
@@ -79,49 +74,69 @@ pub async fn local_to_taos(
     let jobs = if jobs > 0 { jobs } else { 16 };
     for i in 0..jobs {
         let rx = rx.clone();
-        let mut worker = RestoreWorker { id: i, rx };
+        let mut worker = RestoreWorker {
+            id: i,
+            rx,
+            backup_config: config.clone(),
+            backup_obj: config.backup_obj.clone(),
+        };
         join_set.spawn(async move { worker.run().await }.in_current_span());
     }
+
+    let cancel_clone = cancel.clone();
+    let stop_flag_clone = stop_flag.clone();
+    tokio::spawn(async move {
+        cancel_clone.cancelled().await;
+        tracing::warn!("local_to_taos task: {:?} cancelled", task_id);
+        stop_flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+        tracing::debug!("set stop flag true since task cancelled");
+    });
 
     // 读取备份目录下的文件
     let stream = watcher.into_stream();
     tokio::pin!(stream);
+    tracing::debug!("local_to_taos start read files");
     while let Some(files) = stream.next().await {
         for f in files {
-            match config.to.as_ref() {
+            match config.stop_at.as_ref() {
                 None => {
+                    tracing::debug!("local_to_taos send file: {:?} to worker", f);
                     // TODO handle send error
                     tx.send(f)?;
                 }
-                Some(to) => {
+                Some(stop_at) => {
                     let file_name = f.file_name().unwrap().to_string_lossy();
                     let (_, ts, _, _idx) = ZFile::parse_file_name(file_name.as_ref())?;
-                    match ts.cmp(to) {
+                    tracing::debug!("compare current point: {} with stop point: {}", ts, to);
+                    match ts.cmp(stop_at) {
                         std::cmp::Ordering::Less => {
+                            tracing::debug!("local_to_taos send file: {:?} to worker", f);
                             // TODO handle send error
                             tx.send(f)?;
                         }
                         std::cmp::Ordering::Equal => {
+                            tracing::debug!("local_to_taos send file: {:?} to worker", f);
                             // TODO handle send error
                             tx.send(f)?;
                             stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                            tracing::debug!("set stop flag true since stop point reached");
                         }
                         std::cmp::Ordering::Greater => {
+                            tracing::debug!("local_to_taos skip file: {:?}", f);
                             // skip
                             stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                            tracing::debug!("set stop flag true since stop point reached");
                         }
                     }
                 }
             }
         }
-        if cancel.is_cancelled() {
-            stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
-            tracing::warn!("local_to_taos cancelled");
-        }
         if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            tracing::debug!("local_to_taos stop reading files");
             break;
         }
     }
+    drop(tx);
     tracing::info!("local_to_taos read files done");
 
     // 等待所有 worker 完成
@@ -139,14 +154,19 @@ pub async fn local_to_taos(
 
 struct RestoreWorker {
     id: usize,
+    backup_config: LocalRestoreConfig,
+    backup_obj: BackupObject,
     rx: Receiver<PathBuf>,
 }
 
 impl RestoreWorker {
     async fn run(&mut self) -> Result<()> {
         tracing::info!("RestoreWorker {} started", self.id);
+        let taos = self.backup_config.connect_taos().await?;
+
         while let Ok(file) = self.rx.recv() {
-            tracing::info!("restore file: {:?}", file)
+            tracing::info!("restore file: {:?}", file);
+            restore(self.id, file, &taos, self.backup_obj.stable_name.as_deref()).await?;
         }
         tracing::info!("RestoreWorker {} stopped", self.id);
         Ok(())
@@ -154,7 +174,7 @@ impl RestoreWorker {
 }
 
 #[allow(unused)]
-#[deprecated(since = "20241230", note = "use new local_to_taos")]
+#[deprecated(note = "use new local_to_taos")]
 pub async fn local_to_taos_previous(
     from: Dsn,
     mut to: Dsn,

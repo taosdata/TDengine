@@ -1,7 +1,7 @@
-use crate::tmq::{generate_hash, BackupObject};
+use crate::tmq::generate_hash;
 use crate::utils;
 use crate::utils::sql::connect_taos_root;
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Context};
 use chrono::{DateTime, Utc};
 use futures_util::TryStreamExt;
 use std::path::{Path, PathBuf};
@@ -63,8 +63,8 @@ impl BackupConfig {
     pub async fn is_initial_backup(&self) -> anyhow::Result<bool> {
         let taos = connect_taos_root(&self.raw_from).await?;
         let topics = taos.topics().await?;
-        let t = topics.iter().find(|t| t.name() == self.topic).is_none();
-        Ok(t)
+
+        Ok(!topics.iter().any(|t| t.name() == self.topic))
     }
 
     /// 在 taosd 中创建 topic
@@ -216,78 +216,6 @@ impl BackupConfig {
 
         Ok(dir)
     }
-
-    /// 从 taos 中查询出 BackupObject
-    pub async fn query_backup_obj(
-        from: &Dsn,
-        to: &Dsn,
-        task_id: Option<&str>,
-    ) -> anyhow::Result<BackupObject> {
-        let topic = Self::group_id(&task_id.map(|s| s.to_string()), from, to);
-
-        let taos = connect_taos_root(from).await?;
-        let db_name = from
-            .subject
-            .as_ref()
-            .ok_or(anyhow::anyhow!("database not found in dsn: {}", &from))?;
-
-        // query taos
-        let sql = format!(
-            "SELECT name FROM information_schema.ins_databases WHERE name = '{}'",
-            db_name
-        );
-        tracing::debug!("query taos with sql: {}", sql);
-        let database = taos
-            .query_one(sql)
-            .await?
-            .ok_or(anyhow::anyhow!("database not found in taos: {}", &from))?;
-
-        let sql = format!("SHOW CREATE DATABASE `{}`", db_name);
-        tracing::debug!("query taos with sql: {}", sql);
-        let (_db, db_sql) =
-            taos.query_one::<_, (String, String)>(sql)
-                .await?
-                .ok_or(anyhow::anyhow!(
-                    "failed to get create database sql: {}",
-                    &db_name
-                ))?;
-
-        let mut backup_obj = BackupObject {
-            topic,
-            db_name: database,
-            db_sql,
-            stable_name: None,
-            stable_sql: None,
-        };
-
-        let stable = utils::parse_key_in_dsn::<String>(from, "stable")?;
-        if let Some(stable) = stable {
-            let sql = format!(
-                "SELECT stable_name FROM information_schema.ins_stables WHERE db_name = '{}' AND stable_name = '{}'",
-                db_name, stable
-            );
-            tracing::debug!("query taos with sql: {}", sql);
-            let stable_name = taos
-                .query_one(sql)
-                .await?
-                .ok_or(anyhow::anyhow!("stable not found in taos: {}", &stable))?;
-
-            let sql = format!("SHOW CREATE STABLE `{}`.`{}`", db_name, stable);
-            tracing::debug!("query taos with sql: {}", sql);
-            let (_stable, stable_sql) =
-                taos.query_one::<_, (String, String)>(sql)
-                    .await?
-                    .ok_or(anyhow::anyhow!(
-                        "failed to get create stable sql: {}.{}",
-                        &db_name,
-                        &stable
-                    ))?;
-            backup_obj.stable_name = Some(stable_name);
-            backup_obj.stable_sql = Some(stable_sql);
-        }
-
-        Ok(backup_obj)
-    }
 }
 
 /// 备份点生成的方式
@@ -337,7 +265,7 @@ impl BackupConfigBuilder {
         // database
         let database = Self::parse_database(&self.from)?;
         let dbs = taos.databases().await?;
-        if dbs.iter().find(|db| db.name == database).is_none() {
+        if !dbs.iter().any(|db| db.name == database) {
             bail!("database `{}` not exists", database);
         }
 
@@ -349,7 +277,7 @@ impl BackupConfigBuilder {
                 database.as_str()
             );
             let stables: Vec<String> = taos.query(sql).await?.deserialize().try_collect().await?;
-            if !stables.contains(&stable) {
+            if !stables.contains(stable) {
                 bail!("stable `{}` not exists", stable);
             }
         }
@@ -358,10 +286,8 @@ impl BackupConfigBuilder {
         let upcoming = utils::parse_datetime_in_dsn(&self.from, "upcoming")?;
 
         // backup_point_gen_mode
-        let backup_point_gen_mode =
-            BackupPointGenMode::try_from_dsn(&self.from).map_err(|err| {
-                anyhow::Error::from(err).context("failed to parse backup point generate mode")
-            })?;
+        let backup_point_gen_mode = BackupPointGenMode::try_from_dsn(&self.from)
+            .context("failed to parse backup point generate mode")?;
 
         // backup dir
         let backup_dir = BackupConfig::parse_backup_dir(&self.to, self.task_id.as_deref())?;
@@ -414,7 +340,7 @@ impl BackupConfigBuilder {
         from.subject
             .as_ref()
             .filter(|s| !s.is_empty())
-            .map(|s| s.clone())
+            .cloned()
             .ok_or_else(|| anyhow!("database is required"))
     }
 
@@ -445,7 +371,7 @@ impl BackupConfigBuilder {
                             anyhow::Error::from(err)
                                 .context(format!("invalid compression level: {s}"))
                         })
-                        .map(|l| async_compression::Level::Precise(l)),
+                        .map(async_compression::Level::Precise),
                 }
             })
             .transpose()

@@ -323,7 +323,7 @@ pub async fn tmq_to_local(
         server_version: config.server_version.clone(),
         backup_dir: config.backup_dir.clone(),
         topic: config.topic.clone(),
-        compression_level: config.backup_comp_level.clone(),
+        compression_level: config.backup_comp_level,
         max_file_size: config.backup_max_size,
         move_to: config.move_to.clone(),
         sync: tokio::sync::Mutex::new(()),
@@ -377,7 +377,7 @@ impl BackupWorker {
     async fn wait_for_upcoming_impl(upcoming: Option<DateTime<Utc>>) -> Result<()> {
         if let Some(upcoming) = upcoming {
             let now = Utc::now();
-            if now < upcoming.clone() {
+            if now < upcoming {
                 let duration = upcoming - now;
                 tracing::info!("tmq_to_local worker wait for upcoming: {}", upcoming);
                 tokio::time::sleep(duration.to_std().map_err(|err| {
@@ -412,28 +412,25 @@ impl BackupWorker {
     }
 
     async fn run(&self) -> Result<()> {
-        Self::wait_for_upcoming_impl(self.config.upcoming.clone()).await?;
+        Self::wait_for_upcoming_impl(self.config.upcoming).await?;
 
         tracing::info!("tmq_to_local worker: {:?} start", self.id);
         self.assign().await?;
 
         let run_impl = self.run_impl().in_current_span();
-        loop {
-            select! {
-                _ = self.cancel.cancelled() => {
-                    tracing::warn!("tmq_to_local worker: {} cancelled", self.id);
-                    break;
-                }
-                res = run_impl => {
-                    match res {
-                        Ok(_) => {
-                            tracing::info!("tmq_to_local worker: {} completed", self.id);
-                            break;
-                        }
-                        Err(err) => {
-                            tracing::error!("tmq_to_local worker: {} exit with error: {:#}", self.id, err);
-                            bail!(err);
-                        }
+
+        select! {
+            _ = self.cancel.cancelled() => {
+                tracing::warn!("tmq_to_local worker: {} cancelled", self.id);
+            }
+            res = run_impl => {
+                match res {
+                    Ok(_) => {
+                        tracing::info!("tmq_to_local worker: {} completed", self.id);
+                    }
+                    Err(err) => {
+                        tracing::error!("tmq_to_local worker: {} exit with error: {:#}", self.id, err);
+                        bail!(err);
                     }
                 }
             }
@@ -521,7 +518,7 @@ impl BackupWorker {
     }
 }
 
-#[deprecated(since = "20241230", note = "use the new tmq_to_local instead")]
+#[deprecated(note = "use the new tmq_to_local instead")]
 pub async fn tmq_to_local_v1(
     from: Dsn,
     to: Dsn,
@@ -927,7 +924,7 @@ mod tests {
 
         std::fs::create_dir_all(back_dir).unwrap();
 
-        let taos = TaosBuilder::from_dsn(format!("{addr}"))
+        let taos = TaosBuilder::from_dsn(addr.to_string())
             .unwrap()
             .build()
             .await

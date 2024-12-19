@@ -5,7 +5,7 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use std::time::Duration;
-use taos::{AsyncQueryable, Dsn};
+use taos::{AsyncQueryable, Dsn, Taos};
 
 #[derive(Debug, Clone)]
 pub struct LocalRestoreConfig {
@@ -14,9 +14,9 @@ pub struct LocalRestoreConfig {
     /// 备份文件的目录，默认是 $TAOSX_DATA_DIR/backup/$TASK_ID
     pub backup_dir: PathBuf,
     /// 指定从哪个备份点开始恢复，如果为 None，则从最早的备份点开始
-    pub from: Option<DateTime<Utc>>,
+    pub start_from: Option<DateTime<Utc>>,
     /// 指定到哪个备份点结束恢复，如果为 None，恢复任务永不停止，持续监听 backup_dir 下的新备份文件
-    pub to: Option<DateTime<Utc>>,
+    pub stop_at: Option<DateTime<Utc>>,
     #[allow(unused)]
     /// 写入 taosd 失败，将错误数据转存到日志，
     pub error_restore_dir: PathBuf,
@@ -28,57 +28,112 @@ pub struct LocalRestoreConfig {
     pub error_retry_interval: Duration,
     /// taos 的原始 dsn
     pub raw_to: Dsn,
-    #[allow(unused)]
     /// 恢复到指定的数据库，如果为 None，则使用 topic_meta.db_name
     pub database: Option<String>,
 }
 
 impl LocalRestoreConfig {
-    pub fn meta(&self) -> &BackupObject {
-        &self.backup_obj
+    /// 从目标 taosd 中查询备份对象
+    pub async fn is_obj_existed(&self) -> anyhow::Result<bool> {
+        Ok(self.query_obj().await?.is_some())
     }
 
-    /// 从 taosd 中查询备份对象的元信息
-    pub async fn query_meta(
-        &self,
-        _db_name: &str,
-        _stable: Option<&String>,
-    ) -> anyhow::Result<Option<BackupObject>> {
-        todo!()
+    pub async fn query_obj(&self) -> anyhow::Result<Option<BackupObject>> {
+        // 如果target database 不为空，则使用target database; 否则使用backup object中的db_name
+        let db_name = match &self.database {
+            None => self.backup_obj.db_name.clone(),
+            Some(db_name) => db_name.clone(),
+        };
+
+        // taos://xxx/db2?stable=stb
+        let mut dsn = Dsn {
+            subject: Some(db_name),
+            ..self.raw_to.clone()
+        };
+        if let Some(stable) = &self.backup_obj.stable_name {
+            dsn.params.insert("stable".to_string(), stable.to_string());
+        }
+
+        BackupObject::try_from_taos(&dsn)
+            .await
+            .context(format!("failed to query backup object from taos: {}", &dsn))
     }
 
     /// 删除备份对象的元信息
-    pub async fn del_meta(&self, meta: &BackupObject) -> anyhow::Result<()> {
+    pub async fn delete_obj(&self) -> anyhow::Result<()> {
         let taos = connect_taos_root(&self.raw_to).await?;
 
-        // drop topic
-        let topic = self.backup_obj.topic.as_str();
-        let sql = format!("DROP TOPIC IF EXISTS `{}`", topic);
-        taos.exec(sql).await?;
+        let db_name = match &self.database {
+            None => self.backup_obj.db_name.clone(),
+            Some(db_name) => db_name.clone(),
+        };
 
-        // drop database
-        let sql = format!("DROP DATABASE IF EXISTS `{}`", meta.db_name);
-        taos.exec(sql).await?;
+        // drop topic
+        // if let Some(topic) = &self.backup_obj.topic {
+        //     let sql = format!("DROP TOPIC IF EXISTS `{}`", topic);
+        //     tracing::info!("exec sql: {sql}");
+        //     taos.exec(sql).await.context("failed to drop topic")?;
+        // }
+
+        // drop stable
+        match &self.backup_obj.stable_name {
+            Some(stable_name) => {
+                let sql = format!("DROP TABLE IF EXISTS `{}`.`{}`", db_name, stable_name);
+                tracing::info!("exec sql: {sql}");
+                taos.exec(sql).await.context("failed to drop stable")?;
+            }
+            None => {
+                let sql = format!("DROP DATABASE IF EXISTS `{}`", db_name);
+                tracing::info!("exec sql: {sql}");
+                taos.exec(sql).await.context("failed to drop database")?;
+            }
+        }
 
         Ok(())
     }
 
     /// 向 taosd 中写入备份对象的元信息
-    pub async fn write_meta(&self, meta: &BackupObject) -> anyhow::Result<()> {
+    pub async fn restore_obj(&self) -> anyhow::Result<()> {
         let taos = connect_taos_root(&self.raw_to).await?;
-        // create database
-        let sql = meta.db_sql.clone();
-        tracing::info!("exec sql: {}", sql);
-        taos.exec(sql).await?;
 
-        // create stable
-        if let Some(stable_sql) = &meta.stable_sql {
-            let sql = stable_sql.clone();
+        let db_name = match &self.database {
+            None => self.backup_obj.db_name.clone(),
+            Some(db_name) => db_name.clone(),
+        };
+
+        match &self.backup_obj.stable_sql {
+            None => {
+                // create database
+                let sql = self.backup_obj.db_sql.clone();
+                let sql = sql.replace(&self.backup_obj.db_name, &db_name);
+                tracing::info!("exec sql: {}", sql);
+                taos.exec(sql).await?;
+            }
+            Some(stable_sql) => {
+                // create stable
+                let sql = format!("USE `{}`", db_name);
+                tracing::info!("exec sql: {}", sql);
+                taos.exec(sql).await?;
+                let sql = stable_sql.clone();
+                let sql = sql.replace(&self.backup_obj.db_name, &db_name);
+                tracing::info!("exec sql: {}", sql);
+                taos.exec(sql).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn connect_taos(&self) -> anyhow::Result<Taos> {
+        let taos = connect_taos_root(&self.raw_to).await?;
+
+        if let Some(db_name) = &self.database {
+            let sql = format!("USE `{}`", db_name);
             tracing::info!("exec sql: {}", sql);
             taos.exec(sql).await?;
         }
 
-        Ok(())
+        Ok(taos)
     }
 }
 
@@ -106,18 +161,28 @@ impl LocalRestoreConfigBuilder {
             "failed to parse backup object in dsn: {}",
             &self.from
         ))?;
+        if backup_obj.topic.is_none() {
+            return Err(anyhow::anyhow!("topic not found in dsn"));
+        }
 
         // backup directory
         let mut backup_dir = utils::parse_dir_in_dsn(&self.from, None)?
-            .ok_or(anyhow::anyhow!("path is None in dsn"))?;
-        if let Some(task_id) = &self.task_id {
-            backup_dir.push(task_id.as_str());
+            .ok_or(anyhow::anyhow!("path not found in dsn"))?;
+        if let Some(backup_task_id) = &backup_obj.task_id {
+            backup_dir = backup_dir.join(backup_task_id);
         }
 
         // from 备份点
-        let from = utils::parse_datetime_in_dsn(&self.from, "from")?;
+        let start_from = utils::parse_datetime_in_dsn(&self.from, "from")?;
         // to 备份点
-        let to = utils::parse_datetime_in_dsn(&self.to, "to")?;
+        let stop_at = utils::parse_datetime_in_dsn(&self.from, "to")?;
+        // error_restore_dir
+        let mut error_restore_dir = utils::parse_dir_in_dsn(&self.from, None)?
+            .ok_or(anyhow::anyhow!("path not found in dsn"))?;
+        if let Some(restore_task_id) = &self.task_id {
+            error_restore_dir = error_restore_dir.join(restore_task_id);
+        }
+
         // error.max.retry
         let error_retry_max =
             utils::parse_keys_in_dsn::<u32>(&self.to, &["error.max.retry", "error_retry_max"])?
@@ -128,10 +193,10 @@ impl LocalRestoreConfigBuilder {
 
         Ok(LocalRestoreConfig {
             backup_obj,
-            backup_dir: backup_dir.clone(),
-            from,
-            to,
-            error_restore_dir: backup_dir.clone(),
+            backup_dir,
+            start_from,
+            stop_at,
+            error_restore_dir,
             error_retry_max,
             error_retry_interval,
             raw_to: self.to.clone(),

@@ -2,13 +2,16 @@ use crate::local_to_taos::conf::LocalRestoreConfig;
 use crate::taoz::ZFile;
 use std::collections::HashSet;
 use std::ops::Deref;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::IntervalStream;
 use tokio_stream::{Stream, StreamExt};
+
+type NameFilter = Box<dyn Fn(&str) -> bool + Send + Sync>;
+type FileSorter = Box<dyn Fn(&Path, &Path) -> std::cmp::Ordering + Send + Sync>;
 
 pub struct FileWatcher {
     /// 文件路径
@@ -18,9 +21,9 @@ pub struct FileWatcher {
     /// 已经看到的文件
     seen_files: Arc<Mutex<HashSet<PathBuf>>>,
     /// 文件名的过滤条件
-    name_filter: Arc<Option<Box<dyn Fn(&str) -> bool + Send + Sync>>>,
+    name_filter: Arc<Option<NameFilter>>,
     /// 文件名的排序规则
-    sorter: Arc<Option<Box<dyn Fn(&PathBuf, &PathBuf) -> std::cmp::Ordering + Send + Sync>>>,
+    sorter: Arc<Option<FileSorter>>,
     /// 停止标志
     stop_flag: Arc<AtomicBool>,
 }
@@ -31,29 +34,34 @@ impl From<LocalRestoreConfig> for FileWatcher {
 
         let name_filter = Some(Box::new(move |file_name: &str| {
             // 文件名以topic开头，以.z结尾
-            if !file_name.starts_with(config.backup_obj.topic.as_str())
-                || !file_name.ends_with(".z")
+            if !file_name.starts_with(
+                config
+                    .backup_obj
+                    .topic
+                    .as_ref()
+                    .expect("topic not found")
+                    .as_str(),
+            ) || !file_name.ends_with(".z")
             {
                 return false;
             }
             // 如果有from条件，那么，文件的时间戳必须大于等于from条件
-            if let Some(from) = config.from {
+            if let Some(from) = config.start_from {
                 return match ZFile::parse_file_name(file_name) {
                     Err(_) => false,
                     Ok((_, ts, _, _)) => ts >= from,
                 };
             }
             true
-        }) as Box<dyn Fn(&str) -> bool + Send + Sync>);
+        }) as NameFilter);
 
-        let sorter = Some(Box::new(|a: &PathBuf, b: &PathBuf| compare_file_name(a, b))
-            as Box<dyn Fn(&PathBuf, &PathBuf) -> std::cmp::Ordering + Send + Sync>);
+        let sorter = Some(Box::new(|a: &Path, b: &Path| compare_file_name(a, b)) as FileSorter);
 
         Self::new(backup_dir, Duration::from_millis(500), name_filter, sorter)
     }
 }
 
-fn compare_file_name(a: &PathBuf, b: &PathBuf) -> std::cmp::Ordering {
+fn compare_file_name(a: &Path, b: &Path) -> std::cmp::Ordering {
     let a = a.file_name().unwrap().to_string_lossy();
     let b = b.file_name().unwrap().to_string_lossy();
     let (_, a_ts, _, a_idx) = ZFile::parse_file_name(a.as_ref()).unwrap();
@@ -71,8 +79,8 @@ impl FileWatcher {
     pub fn new(
         dir: PathBuf,
         interval: Duration,
-        name_filter: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
-        sorter: Option<Box<dyn Fn(&PathBuf, &PathBuf) -> std::cmp::Ordering + Send + Sync>>,
+        name_filter: Option<NameFilter>,
+        sorter: Option<FileSorter>,
     ) -> Self {
         Self {
             dir,
@@ -99,6 +107,7 @@ impl FileWatcher {
 
                 async move {
                     if stop_flag.load(Ordering::Relaxed) {
+                        tracing::debug!("stop flag is set, stop watching files");
                         return None;
                     }
 
@@ -106,8 +115,21 @@ impl FileWatcher {
                     let mut seen_files = seen_files.lock().await;
 
                     // 读取目录下的所有文件
-                    let mut dir_entries = tokio::fs::read_dir(&dir).await.ok()?;
-                    while let Some(entry) = dir_entries.next_entry().await.ok()? {
+                    let mut dir_entries = tokio::fs::read_dir(&dir)
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!("failed to read dir: {:?}, err: {:?}", dir, err);
+                        })
+                        .ok()?;
+                    tracing::trace!("read dir: {:?}", dir);
+                    while let Some(entry) = dir_entries
+                        .next_entry()
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!("failed to read entry, err: {:?}", err);
+                        })
+                        .ok()?
+                    {
                         // 过滤文件
                         if let Some(ref name_filter) = *name_filter {
                             let file_name = entry.file_name();
@@ -129,6 +151,7 @@ impl FileWatcher {
                         new_files.sort_by(|a, b| sorter(a, b));
                     }
 
+                    tracing::trace!("read files: {:?}", new_files);
                     Some(new_files)
                 }
             })
@@ -157,15 +180,12 @@ mod tests {
 
         // 创建 watcher
         let watcher = FileWatcher::new(
-            PathBuf::from(dir.into_path()),
+            dir.into_path(),
             Duration::from_secs(2),
             Some(Box::new(move |file_name: &str| {
                 file_name.starts_with("topic") && file_name.ends_with(".z")
-            }) as Box<dyn Fn(&str) -> bool + Send + Sync>),
-            Some(
-                Box::new(move |a: &PathBuf, b: &PathBuf| compare_file_name(a, b))
-                    as Box<dyn Fn(&PathBuf, &PathBuf) -> std::cmp::Ordering + Send + Sync>,
-            ),
+            }) as NameFilter),
+            Some(Box::new(move |a: &Path, b: &Path| compare_file_name(a, b)) as FileSorter),
         );
 
         let stop_flag = watcher.stop_flag.clone();
@@ -181,6 +201,7 @@ mod tests {
         // 读取文件
         let mut count = 0;
         while let Some(files) = watcher.next().await {
+            println!("{:?}", files);
             if count == 0 {
                 assert_eq!(files.len(), 4);
             }

@@ -100,12 +100,15 @@ async fn get_backup_points_impl(
         }
     }
 
-    let backup_obj = BackupConfig::query_backup_obj(&from, &to, Some(task_id.as_str()))
+    let mut backup_obj = BackupObject::try_from_taos(&from)
         .await
         .context(format!(
-            "failed to get backup obj with from: {}, to: {}, task: {}",
-            &from, &to, &task_id
-        ))?;
+            "failed to get backup object from taos, from: {}",
+            &from
+        ))?
+        .ok_or(anyhow::anyhow!("backup obj not found in dsn: {}", &from))?;
+    backup_obj.task_id = Some(task_id.clone());
+    backup_obj.topic = Some(topic.clone());
 
     // 按照 point 合并
     let points = backup_files
@@ -122,6 +125,7 @@ async fn get_backup_points_impl(
                 file_count,
             }
         })
+        .sorted_by(|a, b| b.point.cmp(&a.point))
         .collect();
 
     Ok(Some(points))
@@ -135,7 +139,8 @@ mod tests {
     fn test_serialize_backup_point() {
         let p = BackupPoint {
             backup_obj: BackupObject {
-                topic: "abc".to_string(),
+                task_id: None,
+                topic: Some("abc".to_string()),
                 db_name: "abc".to_string(),
                 db_sql: "abc".to_string(),
                 stable_name: None,

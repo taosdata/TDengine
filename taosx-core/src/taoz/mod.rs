@@ -73,7 +73,7 @@ impl ZFile {
             dir: file_dir.as_ref().to_path_buf(),
             name: (
                 file_name.0.to_string(),
-                file_name.1.clone(),
+                file_name.1,
                 file_name.2,
                 file_name.3,
             ),
@@ -86,12 +86,7 @@ impl ZFile {
     }
 
     fn get_file_name(&self) -> String {
-        Self::file_name((
-            self.name.0.as_str(),
-            self.name.1.clone(),
-            self.name.2,
-            self.name.3,
-        ))
+        Self::file_name((self.name.0.as_str(), self.name.1, self.name.2, self.name.3))
     }
 
     fn file_name(name: (&str, Option<DateTime<Utc>>, i32, u64)) -> String {
@@ -227,13 +222,8 @@ impl ZFile {
                 &self.api_version,
                 &self.server_version,
                 &self.dir.as_path(),
-                (
-                    self.name.0.as_str(),
-                    self.name.1.clone(),
-                    self.name.2,
-                    self.name.3,
-                ),
-                self.compression_level.clone(),
+                (self.name.0.as_str(), self.name.1, self.name.2, self.name.3),
+                self.compression_level,
             )
             .await?;
             self.current_size = 0;

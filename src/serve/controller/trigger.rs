@@ -379,14 +379,14 @@ impl Strategy {
         if let (Some((_raw, interval)), Some(upcoming)) =
             (self.interval.as_ref(), self.upcoming.as_ref())
         {
-            return Schedule::RepeatedWithStartAt(interval.clone(), upcoming.clone());
+            return Schedule::RepeatedWithStartAt(*interval, *upcoming);
         }
 
         match self.resume {
             ResumeStrategy::Always => {
                 let d = match &self.interval {
                     None => repeat_interval(),
-                    Some((_raw, interval)) => interval.clone(),
+                    Some((_raw, interval)) => *interval,
                 };
                 Schedule::Repeated(d)
             }
@@ -394,14 +394,14 @@ impl Strategy {
             ResumeStrategy::Once => {
                 let d = match &self.interval {
                     None => repeat_interval(),
-                    Some((_raw, interval)) => interval.clone(),
+                    Some((_raw, interval)) => *interval,
                 };
                 Schedule::RepeatedLimit(d, 1)
             }
             ResumeStrategy::Retries(num) => {
                 let d = match &self.interval {
                     None => repeat_interval(),
-                    Some((_raw, interval)) => interval.clone(),
+                    Some((_raw, interval)) => *interval,
                 };
                 Schedule::RepeatedLimit(d, num)
             }
