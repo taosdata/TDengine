@@ -7636,6 +7636,7 @@ dependencies = [
  "log",
  "mockito",
  "rand 0.8.5",
+ "regex",
  "reqwest 0.11.27",
  "rust-embed 6.8.1",
  "rustls 0.23.19",

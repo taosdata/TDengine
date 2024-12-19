@@ -6,6 +6,7 @@ use clap_verbosity_flag::{InfoLevel, Verbosity};
 use deadpool::managed::{Object, PoolError};
 use favorites::FavoritesSql;
 use geos::{Geom, Geometry};
+use http::{HeaderMap, HeaderValue};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
 use reqwest::RequestBuilder;
@@ -309,6 +310,7 @@ async fn main() -> anyhow::Result<()> {
             // .route("/", web::get().to(index))
             .route("/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
+            .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
             .route("/api/-/import", web::to(import))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
@@ -886,15 +888,18 @@ async fn proxy(
     payload: web::Payload,
     client: web::Data<reqwest::Client>,
     url: &str,
+    append_headers: Option<HeaderMap>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
-    qid.add_sequence_id();
+    
     if req.headers().contains_key("upgrade") {
         // Websocket proxy.
 
         // Forward the request.
         let mut builder = client.get(url);
-        builder = builder.headers(headers_with_qid(&qid));
+        if append_headers.is_some() {
+            builder = builder.headers(append_headers.unwrap());
+        }
+        
         let builder = real_ip_forward(&req, builder);
 
         let target_response = builder.send().await.unwrap();
@@ -950,12 +955,14 @@ async fn proxy(
         });
 
         debug!(url, "proxy to taosx");
-        let builder = client
+        let mut builder = client
             .request(req.method().clone(), url)
-            .headers(headers_with_qid(&qid))
             .timeout(Duration::from_secs(u64::MAX))
             .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
-        let builder = real_ip_forward(&req, builder);
+        if append_headers.is_some() {
+            builder = builder.headers(append_headers.unwrap());
+        }
+        builder = real_ip_forward(&req, builder);
         builder
             .send()
             .await
@@ -1143,7 +1150,45 @@ async fn x_api(
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
 
-    proxy(req, payload, client, &url)
+    let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
+    qid.add_sequence_id();
+    proxy(req, payload, client, &url, Some(headers_with_qid(&qid)))
+        .await
+        .map_err(RestErrResponse::new)
+}
+
+static GRAFANA_API: OnceLock<String> = OnceLock::new();
+
+#[instrument(skip_all)]
+async fn grafana_api(
+    args: web::Data<Args>,
+    client: web::Data<reqwest::Client>,
+    grafana_path: web::Path<String>,
+    req: HttpRequest,
+    payload: web::Payload,
+) -> impl Responder {
+    tracing::trace!("proxy grafana: {:?}", grafana_path);
+    if args.profile.grafana_dashboard.is_none() || args.profile.grafana_token.is_none() {
+        tracing::error!("Grafana API is required");
+        return Ok(HttpResponse::NotFound().finish());
+    }
+    let grafana_api = GRAFANA_API.get_or_init(|| {
+        let url = args.profile.grafana_dashboard.as_deref().unwrap();
+        let re = regex::Regex::new(r"^(https?://[^/]+)").unwrap();
+        let url = re.captures(url).map(|cap| cap[1].to_string()).unwrap_or_else(|| url.to_string());
+        url.to_string()
+    });
+    let url: String = format!("{grafana_api}/grafana/{grafana_path}?{}", req.query_string());
+    tracing::info!("proxy to grafana: {:?}", url);
+
+    let mut headers = HeaderMap::new();
+    let token = format!("Bearer {}", args.profile.grafana_token.as_deref().unwrap());
+    headers.insert(
+        "Authorization",
+        HeaderValue::from_str(&token).unwrap(),
+    );
+    
+    proxy(req, payload, client, &url, Some(headers))
         .await
         .map_err(RestErrResponse::new)
 }
@@ -1231,6 +1276,11 @@ struct Profile {
     /// GRPC endpoint of taosX for agents.
     #[clap(short, long, env = "EXPLORER_GRPC")]
     grpc: Option<String>,
+
+    #[clap(long, env = "GRAFANA_DASHBOARD")]
+    grafana_dashboard: Option<String>,
+    #[clap(long, env = "GRAFANA_TOKEN")]
+    grafana_token: Option<String>,
 
     /// taosX version
     #[clap(skip)]

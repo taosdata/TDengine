@@ -53,6 +53,10 @@ x_api = "http://localhost:6050"
 # If "grpc" parameter is not set explicitly in taosX service, please set it to the default grpc address of taosX
 grpc = "http://localhost:6055"
 
+grafana_api = "http://192.168.0.201:3000"
+grafana_token = "eyJrIjoiTkx5VDlJQXQ1aVlCMlhCbjcxTDlRaDdlSEg0ZjM1RzkiLCJuIjoidGFvc0tleSIsImlkIjoyfQ=="
+
+
 # CORS configuration switch, it allows cross-origin access
 cors = true
 
