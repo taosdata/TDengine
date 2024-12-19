@@ -11,7 +11,7 @@ from util.dnodes import *
 import subprocess
 
 class TDTestCase:
-
+    updatecfgDict = {'udfdResFuncs': "udf1,udf2"}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")

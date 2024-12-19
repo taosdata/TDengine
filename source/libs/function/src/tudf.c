@@ -668,8 +668,8 @@ int32_t encodeUdfCallRequest(void **buf, const SUdfCallRequest *call) {
     len += tEncodeDataBlock(buf, &call->block);
     len += encodeUdfInterBuf(buf, &call->interBuf);
   } else if (call->callType == TSDB_UDF_CALL_AGG_MERGE) {
-    len += encodeUdfInterBuf(buf, &call->interBuf);
-    len += encodeUdfInterBuf(buf, &call->interBuf2);
+    // len += encodeUdfInterBuf(buf, &call->interBuf);
+    // len += encodeUdfInterBuf(buf, &call->interBuf2);
   } else if (call->callType == TSDB_UDF_CALL_AGG_FIN) {
     len += encodeUdfInterBuf(buf, &call->interBuf);
   }
@@ -690,10 +690,10 @@ void *decodeUdfCallRequest(const void *buf, SUdfCallRequest *call) {
       buf = tDecodeDataBlock(buf, &call->block);
       buf = decodeUdfInterBuf(buf, &call->interBuf);
       break;
-    case TSDB_UDF_CALL_AGG_MERGE:
-      buf = decodeUdfInterBuf(buf, &call->interBuf);
-      buf = decodeUdfInterBuf(buf, &call->interBuf2);
-      break;
+    // case TSDB_UDF_CALL_AGG_MERGE:
+    //   buf = decodeUdfInterBuf(buf, &call->interBuf);
+    //   buf = decodeUdfInterBuf(buf, &call->interBuf2);
+    //   break;
     case TSDB_UDF_CALL_AGG_FIN:
       buf = decodeUdfInterBuf(buf, &call->interBuf);
       break;
@@ -779,9 +779,9 @@ int32_t encodeUdfCallResponse(void **buf, const SUdfCallResponse *callRsp) {
     case TSDB_UDF_CALL_AGG_PROC:
       len += encodeUdfInterBuf(buf, &callRsp->resultBuf);
       break;
-    case TSDB_UDF_CALL_AGG_MERGE:
-      len += encodeUdfInterBuf(buf, &callRsp->resultBuf);
-      break;
+    // case TSDB_UDF_CALL_AGG_MERGE:
+    //   len += encodeUdfInterBuf(buf, &callRsp->resultBuf);
+    //   break;
     case TSDB_UDF_CALL_AGG_FIN:
       len += encodeUdfInterBuf(buf, &callRsp->resultBuf);
       break;
@@ -801,9 +801,9 @@ void *decodeUdfCallResponse(const void *buf, SUdfCallResponse *callRsp) {
     case TSDB_UDF_CALL_AGG_PROC:
       buf = decodeUdfInterBuf(buf, &callRsp->resultBuf);
       break;
-    case TSDB_UDF_CALL_AGG_MERGE:
-      buf = decodeUdfInterBuf(buf, &callRsp->resultBuf);
-      break;
+    // case TSDB_UDF_CALL_AGG_MERGE:
+    //   buf = decodeUdfInterBuf(buf, &callRsp->resultBuf);
+    //   break;
     case TSDB_UDF_CALL_AGG_FIN:
       buf = decodeUdfInterBuf(buf, &callRsp->resultBuf);
       break;
@@ -1129,8 +1129,9 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
                 SSDataBlock *output, SUdfInterBuf *newState);
 int32_t doCallUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
 int32_t doCallUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
-int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2,
-                          SUdfInterBuf *resultBuf);
+// udf todo:  aggmerge
+// int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2,
+//                           SUdfInterBuf *resultBuf);
 int32_t doCallUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
 int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
@@ -2176,11 +2177,11 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
       req->interBuf = *state;
       break;
     }
-    case TSDB_UDF_CALL_AGG_MERGE: {
-      req->interBuf = *state;
-      req->interBuf2 = *state2;
-      break;
-    }
+    // case TSDB_UDF_CALL_AGG_MERGE: {
+    //   req->interBuf = *state;
+    //   req->interBuf2 = *state2;
+    //   break;
+    // }
     case TSDB_UDF_CALL_AGG_FIN: {
       req->interBuf = *state;
       break;
@@ -2205,10 +2206,10 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
         *newState = rsp->resultBuf;
         break;
       }
-      case TSDB_UDF_CALL_AGG_MERGE: {
-        *newState = rsp->resultBuf;
-        break;
-      }
+      // case TSDB_UDF_CALL_AGG_MERGE: {
+      //   *newState = rsp->resultBuf;
+      //   break;
+      // }
       case TSDB_UDF_CALL_AGG_FIN: {
         *newState = rsp->resultBuf;
         break;
@@ -2241,12 +2242,13 @@ int32_t doCallUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInter
 
 // input: interbuf1, interbuf2
 // output: resultBuf
-int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2,
-                          SUdfInterBuf *resultBuf) {
-  int8_t  callType = TSDB_UDF_CALL_AGG_MERGE;
-  int32_t err = callUdf(handle, callType, NULL, interBuf1, interBuf2, NULL, resultBuf);
-  return err;
-}
+// udf todo:  aggmerge
+// int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2,
+//                           SUdfInterBuf *resultBuf) {
+//   int8_t  callType = TSDB_UDF_CALL_AGG_MERGE;
+//   int32_t err = callUdf(handle, callType, NULL, interBuf1, interBuf2, NULL, resultBuf);
+//   return err;
+// }
 
 // input: interBuf
 // output: resultData
