@@ -6,8 +6,6 @@ toc_max_heading_level: 4
 
 在 TDengine 的安装包中，除了 TDengine 数据库引擎 taosd 以外，还提供了一些附加组件，以方便用户的使用。taosAdapter 是应用和 TDengine 之间的桥梁；taosKeeper 是TDengine 监控指标的导出工具；taosX 是数据管道（data pipeline）工具；taosExplorer 是可视化图形管理工具；taosc 是 TDengine 客户端驱动。下图展示了整个 TDengine 产品生态的拓扑架构（组件 taosX、taosX Agent 仅 TDengine Enterprise 提供）。
 
-![TDengine 产品生态拓扑架构](./tdengine-topology.png)
-
 ## taosd
 
 在 TDengine 中，taosd 是一个关键的守护进程，同时也是核心服务进程。它负责处理所有与数据相关的操作，包括数据写入、查询和管理等。在 Linux 操作系统中，用户可以利用 systemd 命令来便捷地启动、停止 taosd 进程。为了查看 taosd 的所有命令行参数，用户可以执行 taosd -h 命令。

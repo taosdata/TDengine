@@ -23,10 +23,6 @@ taosAdapter 提供以下功能：
 - 支持 Prometheus remote_read 和 remote_write
 - 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID
 
-## taosAdapter 架构图
-
-![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
-
 ## taosAdapter 部署方法
 
 ### 安装 taosAdapter

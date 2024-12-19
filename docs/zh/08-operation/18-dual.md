@@ -15,9 +15,6 @@ toc_max_heading_level: 4
 2. 由 taosX 从（当前的）主节点到从节点实现数据复制
 3. 由数据订阅的写接口在写入复制过来的数据时在 WAL 中加入特殊标记，由数据订阅的读接口在读取数据时自动过滤掉带有该特殊标记的数据，避免重复复制形成 infinite loop
 
-注：下图中仅以一个单机版 TDengine 作为示例，但在实际部署中图中的一个 Host 也可以被任意节点数量的 TDengine 集群代替。
-
-![Active-Standby.png](./Active-Standby.png)
 
 ## 配置
 

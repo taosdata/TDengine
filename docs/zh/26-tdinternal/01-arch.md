@@ -11,12 +11,6 @@ TDengine 的设计是基于单个硬件、软件系统不可靠，基于任何�
 
 ### 主要逻辑单元
 
-TDengine 分布式架构的逻辑结构图如下：
-
-![TDengine Database 架构示意图](./structure.webp)
-
-<center> 图 1 TDengine架构示意图  </center>
-
 一个完整的 TDengine 系统是运行在一到多个物理节点上的，逻辑上，它包含数据节点（dnode）、TDengine 应用驱动（taosc）以及应用（app）。系统中存在一到多个数据节点，这些数据节点组成一个集群（cluster）。应用通过 taosc 的 API 与 TDengine 集群进行互动。下面对每个逻辑单元进行简要介绍。
 
 **物理节点（pnode）：** 
@@ -151,9 +145,6 @@ TDengine 集群可以容纳单个、多个甚至几千个数据节点。应用�
 
 为解释 vnode、mnode、taosc 和应用之间的关系以及各自扮演的角色，下面对写入数据这个典型操作的流程进行剖析。
 
-![TDengine Database 典型的操作流程](./message.webp)
-
-<center> 图 2 TDengine 典型的操作流程 </center>
 
 1. 应用通过 JDBC 或其他 API 接口发起插入数据的请求。
 2. taosc 会检查缓存，看是否保存有该表所在数据库的 vgroup-info 信息。如果有，直接到第 4 步。如果没有，taosc 将向 mnode 发出 get vgroup-info 请求。

@@ -30,7 +30,6 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 2. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称 “REST 连接”
 3. 通过 taosAdapter 组件提供的 WebSocket API 建立与 taosd 的连接，这种连接方式下文中简称 “WebSocket 连接”
 
-![TDengine connection type](connection-type-zh.webp)
 
 无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到什么差别。
 各种连接方式和各语言连接器支持情况请参考：[连接器功能特性](../../reference/connector/#功能特性)
