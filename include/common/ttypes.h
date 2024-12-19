@@ -370,7 +370,7 @@ void   *getDataMin(int32_t type, void *value);
 void   *getDataMax(int32_t type, void *value);
 
 #define STypeMod int32_t
-uint8_t getDecimalType(uint8_t precision);
+uint8_t decimalTypeFromPrecision(uint8_t precision);
 
 #ifdef __cplusplus
 }

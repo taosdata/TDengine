@@ -233,6 +233,6 @@ int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
   return 0;
 }
 
-uint8_t getDecimalType(uint8_t precision) {
+uint8_t decimalTypeFromPrecision(uint8_t precision) {
   return precision > TSDB_DECIMAL64_MAX_PRECISION ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64;
 }

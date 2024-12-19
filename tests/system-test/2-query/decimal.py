@@ -7,7 +7,244 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.common import *
-# from tmqCommon import *
+
+class DecimalType:
+    def __init__(self, precision: int, scale: int):
+        self.precision = precision
+        self.scale = scale
+    def __init__(self, precision: str, scale: str):
+        self.precision = int(precision)
+        self.scale = int(scale)
+
+    def __str__(self):
+        return f"DECIMAL({self.precision}, {self.scale})"
+
+    def __eq__(self, other):
+        return self.precision == other.precision and self.scale == other.scale
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash((self.precision, self.scale))
+
+    def __repr__(self):
+        return f"DecimalType({self.precision}, {self.scale})"
+    
+    def generate_value(self, allow_weight_overflow = False, allow_scale_overflow = False) -> str:
+        if allow_weight_overflow:
+            weight = secrets.randbelow(40)
+        else:
+            weight = secrets.randbelow(self.precision + 1)
+        if allow_scale_overflow:
+            dscale = secrets.randbelow(40 - weight + 1)
+        else:
+            dscale = secrets.randbelow(self.precision - weight + 1)
+        digits :str = ''
+        for i in range(dscale):
+            digits += str(secrets.randbelow(10))
+        if dscale > 0:
+            digits += '.'
+        for _ in range(dscale):
+            digits += str(secrets.randbelow(10))
+        return digits
+
+
+class TypeEnum:
+    BOOL = 1
+    TINYINT = 2
+    SMALLINT = 3
+    INT = 4
+    BIGINT = 5
+    FLOAT = 6
+    DOUBLE = 7
+    VARCHAR = 8
+    TIMESTAMP = 9
+    NCHAR = 10
+    UTINYINT = 11
+    USMALLINT = 12
+    UINT = 13
+    UBIGINT = 14
+    JSON = 15
+    VARBINARY = 16
+    DECIMAL = 17
+    BINARY = 8
+    GEOMETRY = 20
+    DECIMAL64 = 21
+
+    def get_type_str(type: int):
+        if type == TypeEnum.BOOL:
+            return "BOOL"
+        elif type == TypeEnum.TINYINT:
+            return "TINYINT"
+        elif type == TypeEnum.SMALLINT:
+            return "SMALLINT"
+        elif type == TypeEnum.INT:
+            return "INT"
+        elif type == TypeEnum.BIGINT:
+            return "BIGINT"
+        elif type == TypeEnum.FLOAT:
+            return "FLOAT"
+        elif type == TypeEnum.DOUBLE:
+            return "DOUBLE"
+        elif type == TypeEnum.VARCHAR:
+            return "VARCHAR"
+        elif type == TypeEnum.TIMESTAMP:
+            return "TIMESTAMP"
+        elif type == TypeEnum.NCHAR:
+            return "NCHAR"
+        elif type == TypeEnum.UTINYINT:
+            return "UTINYINT"
+        elif type == TypeEnum.USMALLINT:
+            return "USMALLINT"
+        elif type == TypeEnum.UINT:
+            return "UINT"
+        elif type == TypeEnum.UBIGINT:
+            return "UBIGINT"
+        elif type == TypeEnum.JSON:
+            return "JSON"
+        elif type == TypeEnum.VARBINARY:
+            return "VARBINARY"
+        elif type == TypeEnum.DECIMAL:
+            return "DECIMAL"
+        elif type == TypeEnum.BINARY:
+            return "BINARY"
+        elif type == TypeEnum.GEOMETRY:
+            return "GEOMETRY"
+        else:
+            raise "unknow type"
+
+class DataType:
+    def __init__(self, type: TypeEnum, length: int = 0, type_mod: int = 0):
+        self.type : TypeEnum = type
+        self.length = length
+        self.type_mod = type_mod
+
+    def __str__(self):
+        if self.type_mod != 0:
+            decimal_type = self.get_decimal_type()
+            return f"{TypeEnum.get_type_str(self.type)}({decimal_type.precision}, {decimal_type.scale})"
+        if self.length:
+            return f"{TypeEnum.get_type_str(self.type)}({self.length})"
+        return TypeEnum.get_type_str(self.type)
+
+    def __eq__(self, other):
+        return self.type == other.type and self.length == other.length
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash((self.type, self.length))
+
+    def __repr__(self):
+        return f"DataType({self.type}, {self.length}, {self.type_mod})"
+    
+    def get_decimal_type_mod(type: DecimalType) -> int:
+        return type.precision * 100 + type.scale
+
+    def get_decimal_type(self) -> DecimalType:
+        return DecimalType(self.type_mod // 100, self.type_mod % 100)
+    
+    def construct_type_value(self, val: str):
+        if self.type == TypeEnum.BINARY or self.type == TypeEnum.VARCHAR or self.type == TypeEnum.NCHAR or self.type == TypeEnum.VARBINARY:
+            return f"'{val}'"
+        else:
+            return val
+    def generate_value(self) -> str:
+        if self.type == TypeEnum.BOOL:
+            return str(secrets.randbelow(2))
+        if self.type == TypeEnum.TINYINT:
+            return str(secrets.randbelow(256) - 128)
+        if self.type == TypeEnum.SMALLINT:
+            return str(secrets.randbelow(65536) - 32768)
+        if self.type == TypeEnum.INT:
+            return str(secrets.randbelow(4294967296) - 2147483648)
+        if self.type == TypeEnum.BIGINT:
+            return str(secrets.randbelow(9223372036854775808) - 4611686018427387904)
+        if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
+            return str(random.random())
+        if self.type == TypeEnum.VARCHAR or self.type == TypeEnum.NCHAR or self.type == TypeEnum.VARBINARY:
+            return f"'{secrets.token_urlsafe(self.length)}'"
+        if self.type == TypeEnum.TIMESTAMP:
+            return str(secrets.randbelow(9223372036854775808))
+        if self.type == TypeEnum.UTINYINT:
+            return str(secrets.randbelow(256))
+        if self.type == TypeEnum.USMALLINT:
+            return str(secrets.randbelow(65536))
+        if self.type == TypeEnum.UINT:
+            return str(secrets.randbelow(4294967296))
+        if self.type == TypeEnum.UBIGINT:
+            return str(secrets.randbelow(9223372036854775808))
+        if self.type == TypeEnum.JSON:
+            return f'{{"key": "{secrets.token_urlsafe(10)}"}}'
+        if self.type == TypeEnum.DECIMAL:
+            return self.get_decimal_type().generate_value()
+
+class DecimalColumnTableCreater:
+    def __init__(self, conn, dbName: str, tbName: str, columns_types: List[DataType], tags_types: List[DataType] = []):
+        self.conn = conn
+        self.dbName = dbName
+        self.tbName = tbName
+        self.tags_types = tags_types
+        self.columns_types = columns_types
+
+    def create(self):
+        if len(self.tags_types) > 0:
+            table = 'stable'
+        else:
+            table = 'table'
+        sql = f"create {table} {self.dbName}.{self.tbName} (ts timestamp"
+        for i, column in enumerate(self.columns_types):
+            sql += f", c{i+1} {column}"
+        if self.tags_types:
+            sql += ") tags("
+            for i, tag in enumerate(self.tags_types):
+                sql += f"t{i+1} {tag}"
+                if i != len(self.tags_types) - 1:
+                    sql += ", "
+        sql += ")"
+        self.conn.execute(sql, queryTimes=1)
+
+    def create_child_table(self, ctbPrefix: str, ctbNum: int, tag_types: List[DataType], tag_values: List[str]):
+        for i in range(ctbNum):
+            sql = f"create table {self.dbName}.{ctbPrefix}{i} using {self.dbName}.{self.tbName} tags("
+            for j, tag in enumerate(tag_types):
+                sql += f"{tag.construct_type_value(tag_values[j])}"
+                if j != len(tag_types) - 1:
+                    sql += ", "
+            sql += ")"
+            self.conn.execute(sql, queryTimes=1)
+
+
+class TableInserter:
+    def __init__(self, conn, dbName: str, tbName: str, columns_types: List[DataType], tags_types: List[DataType] = []):
+        self.conn = conn
+        self.dbName = dbName
+        self.tbName = tbName
+        self.tags_types = tags_types
+        self.columns_types = columns_types
+
+    def insert(self, rows: int, start_ts: int, step: int):
+        pre_insert = f"insert into {self.dbName}.{self.tbName} values"
+        sql = pre_insert
+        for i in range(rows):
+            sql += f"({start_ts + i * step}"
+            for column in self.columns_types:
+                sql += f", {column.generate_value()}"
+            if self.tags_types:
+                sql += ") tags("
+                for tag in self.tags_types:
+                    sql += f"{tag.generate_value()},"
+                sql = sql[:-1]
+            sql += ")"
+            if i != rows - 1:
+                sql += ", "
+            if len(sql) > 1000:
+                self.conn.execute(sql, queryTimes=1)
+                sql = pre_insert
+        if len(sql) > len(pre_insert):
+            self.conn.execute(sql, queryTimes=1)
 
 class TDTestCase:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'debugFlag': 143}
@@ -17,6 +254,13 @@ class TDTestCase:
         self.ctbNum = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
+        self.columns = []
+        self.tags = []
+        self.stable_name = "meters"
+        self.norm_table_name = "norm_table"
+        self.c_table_prefix = "t"
+        self.db_name = "test"
+        self.c_table_num = 10
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -133,28 +377,78 @@ class TDTestCase:
         self.init_normal_tb(tdSql, paraDict['dbName'], 'norm_tb',
                             paraDict['rowsPerTbl'], paraDict['startTs'], paraDict['tsStep'])
 
+    def check_desc(self, tbname: str, column_types: List[DataType], tag_types: List[DataType] = []):
+        sql = f"desc {self.db_name}.{tbname}"
+        tdSql.query(sql, queryTimes=1)
+        results = tdSql.queryResult
+        for i, column_type in enumerate(column_types):
+            if column_type.type == TypeEnum.DECIMAL:
+                if results[i+1][1] != "DECIMAL":
+                    tdLog.exit(f"column {i+1} type is {results[i+1][1]}, expect DECIMAL")
+        ## add decimal type bytes check
+        ## add compression/encode check
+
+    def check_show_create_table(self, tbname: str, column_types: List[DataType], tag_types: List[DataType] = []):
+        sql = f"show create table {self.db_name}.{tbname}"
+        tdSql.query(sql, queryTimes=1)
+        create_table_sql = tdSql.queryResult[0][1]
+        decimal_idx = 0
+        results = re.findall(r"DECIMAL\((\d+),(\d+)\)", create_table_sql)
+        for i, column_type in enumerate(column_types):
+            if column_type.type == TypeEnum.DECIMAL:
+                result_type = DecimalType(results[decimal_idx][0], results[decimal_idx][1])
+                if result_type != column_type.get_decimal_type():
+                    tdLog.exit(f"column {i+1} type is {results[0][1]}, expect DECIMAL")
+                decimal_idx += 1
+
     def test_create_decimal_column(self):
         ## create decimal type table, normal/super table, decimal64/decimal128
         tdLog.printNoPrefix("-------- test create decimal column")
-        sql = "create stable test.meters (ts timestamp, c1 decimal(10, 2), c2 decimal(20, 2), c3 decimal(30, 2), c4 decimal(38, 2)) tags(t1 int, t2 varchar(255))"
-        tdSql.execute(sql, queryTimes=1)
+        self.columns = [
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(10, 2))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 2))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 2))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 2))),
+        ]
+        self.tags = [
+            DataType(TypeEnum.INT),
+            DataType(TypeEnum.VARCHAR, 255)
+        ]
+        DecimalColumnTableCreater(tdSql, self.db_name, self.stable_name, self.columns, self.tags).create()
+        self.check_desc("meters", self.columns, self.tags)
+        self.check_show_create_table("meters", self.columns, self.tags)
 
-        sql = "create table test.norm_table(ts timestamp, c1 decimal(10, 2), c2 decimal(20, 2), c3 decimal(30, 2), c4 decimal(38, 2))"
-        tdSql.execute(sql, queryTimes=1)
+        DecimalColumnTableCreater(tdSql, self.db_name, self.norm_table_name, self.columns).create()
+        self.check_desc("norm_table", self.columns)
+        self.check_show_create_table("norm_table", self.columns)
+
+        ## TODO add more values for all rows
+        tag_values = [
+            "1", "t1"
+        ]
+        DecimalColumnTableCreater(tdSql, self.db_name, self.stable_name, self.columns).create_child_table(self.c_table_prefix, self.c_table_num, self.tags, tag_values)
+        self.check_desc("t1", self.columns, self.tags)
 
         return
-
         ## invalid precision/scale
         invalid_precision_scale = ["decimal(-1, 2)", "decimal(39, 2)", "decimal(10, -1)", "decimal(10, 39)", "decimal(10, 2.5)", "decimal(10.5, 2)", "decimal(10.5, 2.5)", "decimal(0, 2)", "decimal(0)", "decimal", "decimal()"]
         for i in invalid_precision_scale:
-            sql = f"create table test.invalid_decimal_precision_scale (ts timestamp, c1 {i})"
+            sql = f"create table {self.db_name}.invalid_decimal_precision_scale (ts timestamp, c1 {i})"
             tdSql.error(sql, -1)
 
         ## can't create decimal tag
 
         ## alter table
         ## drop index from stb
-        ### These ops will override the previous stbobjs and metaentries, so test it
+        ### These ops will override the previous stbobjs and meta entries, so test it
+
+    def test_insert_decimal_values(self):
+
+        for i in range(self.c_table_num):
+            pass
+            #TableInserter(tdSql, self.db_name, f"{self.c_table_prefix}{i}", self.columns, self.tags).insert(1, 1537146000000, 500)
+
+        TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(1, 1537146000000, 500)
 
     def test_decimal_ddl(self):
         tdSql.execute("create database test", queryTimes=1)
@@ -162,6 +456,7 @@ class TDTestCase:
 
     def run(self):
         self.test_decimal_ddl()
+        self.test_insert_decimal_values()
         time.sleep(9999999)
 
     def stop(self):
