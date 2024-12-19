@@ -1802,7 +1802,7 @@ void vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *
     }
     param1 = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
     param2 = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
-    if (pRight->pHashFilterVar != NULL){
+    if (pRight->pHashFilterOthers != NULL){
       param3 = pLeft;
     }
   }
