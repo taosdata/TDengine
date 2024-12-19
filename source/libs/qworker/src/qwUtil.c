@@ -258,7 +258,7 @@ int32_t qwAddTaskCtxImpl(QW_FPARAMS_DEF, bool acquire, SQWTaskCtx **ctx) {
     }
   }
 
-  atomic_add_fetch_64(&gQueryMgmt.stat.taskInitNum, 1);
+  (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskInitNum, 1);
 
   if (acquire && ctx) {
     QW_RET(qwAcquireTaskCtx(QW_FPARAMS(), ctx));
@@ -283,7 +283,7 @@ void qwFreeTaskHandle(SQWTaskCtx *ctx) {
     qDestroyTask(otaskHandle);
     taosDisableMemPoolUsage();
 
-    atomic_add_fetch_64(&gQueryMgmt.stat.taskExecDestroyNum, 1);
+    (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskExecDestroyNum, 1);
 
     qDebug("task handle destroyed");
   }
@@ -297,7 +297,7 @@ void qwFreeSinkHandle(SQWTaskCtx *ctx) {
     dsDestroyDataSinker(osinkHandle);
     QW_SINK_DISABLE_MEMPOOL();
 
-    atomic_add_fetch_64(&gQueryMgmt.stat.taskSinkDestroyNum, 1);
+    (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskSinkDestroyNum, 1);
     
     qDebug("sink handle destroyed");
   }
@@ -409,6 +409,8 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   if (ctx->pJobInfo && TSDB_CODE_SUCCESS != ctx->pJobInfo->errCode) {
     QW_UPDATE_RSP_CODE(ctx, ctx->pJobInfo->errCode);
+  } else {
+    QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_TSC_QUERY_CANCELLED);
   }
 
   atomic_store_ptr(&ctx->taskHandle, NULL);
@@ -428,7 +430,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   QW_TASK_DLOG_E("task ctx dropped");
   
-  atomic_add_fetch_64(&gQueryMgmt.stat.taskDestroyNum, 1);
+  (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskDestroyNum, 1);
 
   return code;
 }

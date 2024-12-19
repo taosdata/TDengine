@@ -763,6 +763,11 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
+  if (QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP) || QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
+    QW_TASK_WLOG("task dropping or already dropped, drop event:%d", QW_GET_EVENT(ctx, QW_EVENT_DROP));
+    QW_ERR_JRET(ctx->rspCode);
+  }
+
   ctx->ctrlConnInfo = qwMsg->connInfo;
   ctx->sId = sId;
   ctx->phase = -1;
