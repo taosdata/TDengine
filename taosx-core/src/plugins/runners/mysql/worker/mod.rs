@@ -558,7 +558,7 @@ mod tests {
         }
     }
 
-    async fn test_create_table() {
+    async fn test_create_table(table_name: &str) {
         let _ = test_create_database().await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
@@ -567,10 +567,10 @@ mod tests {
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
-                let sql_drop_table = "drop table if exists t_metric";
-                let _ = query.pool.execute(sql_drop_table).await;
-                let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp, v_tinyint tinyint, v_tinyint_unsigned tinyint unsigned, v_smallint smallint, v_smallint_unsigned smallint unsigned, v_mediumint mediumint, v_mediumint_unsigned mediumint unsigned, v_int int, v_int_unsigned int unsigned, v_bigint bigint, v_bigint_unsigned bigint unsigned, v_float float, v_double double, v_decimal decimal(10, 2), v_char char(10), v_varchar varchar(255), v_binary binary(10), v_varbinary varbinary(255), v_date date, v_time time, v_datetime datetime, v_timestamp timestamp, v_year year, v_bit bit(8))";
-                let _ = query.pool.execute(sql_create_table).await;
+                let sql_drop_table = format!("drop table if exists {table_name}");
+                let _ = query.pool.execute(sql_drop_table.as_str()).await;
+                let sql_create_table = format!("create table if not exists {table_name} (id int primary key auto_increment, name varchar(255), value double, ts timestamp, v_tinyint tinyint, v_tinyint_unsigned tinyint unsigned, v_smallint smallint, v_smallint_unsigned smallint unsigned, v_mediumint mediumint, v_mediumint_unsigned mediumint unsigned, v_int int, v_int_unsigned int unsigned, v_bigint bigint, v_bigint_unsigned bigint unsigned, v_float float, v_double double, v_decimal decimal(10, 2), v_char char(10), v_varchar varchar(255), v_binary binary(10), v_varbinary varbinary(255), v_date date, v_time time, v_datetime datetime, v_timestamp timestamp, v_year year, v_bit bit(8))");
+                let _ = query.pool.execute(sql_create_table.as_str()).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -578,8 +578,8 @@ mod tests {
         }
     }
 
-    async fn test_insert_data(len: usize) {
-        let _ = test_create_table().await;
+    async fn test_insert_data(table_name: &str, len: usize) {
+        let _ = test_create_table(table_name).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -588,14 +588,16 @@ mod tests {
         match result {
             Ok(query) => {
                 let sql_insert_data =
-                    "insert into t_metric (name, value, ts, v_tinyint, v_tinyint_unsigned, v_smallint, v_smallint_unsigned, v_mediumint, v_mediumint_unsigned, v_int, v_int_unsigned, v_bigint, v_bigint_unsigned, v_float, v_double, v_decimal, v_char, v_varchar, v_binary, v_varbinary, v_date, v_time, v_datetime, v_timestamp, v_year, v_bit) values ('cpu', 0.8, now(), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 1.0, 'a', 'a', 'a', 'a', '2021-01-01', '12:00:00', '2021-01-01 12:00:00', '2021-01-01 12:00:00', 2021, 1)";
+                    format!("insert into {table_name} (name, value, ts, v_tinyint, v_tinyint_unsigned, v_smallint, v_smallint_unsigned, v_mediumint, v_mediumint_unsigned, v_int, v_int_unsigned, v_bigint, v_bigint_unsigned, v_float, v_double, v_decimal, v_char, v_varchar, v_binary, v_varbinary, v_date, v_time, v_datetime, v_timestamp, v_year, v_bit) values ('cpu', 0.8, now(), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 1.0, 'a', 'a', 'a', 'a', '2021-01-01', '12:00:00', '2021-01-01 12:00:00', '2021-01-01 12:00:00', 2021, 1)");
                 for _ in 0..len {
-                    let _ = query.pool.execute(sql_insert_data).await;
+                    let _ = query.pool.execute(sql_insert_data.as_str()).await;
                 }
                 // insert null
                 let _ = query
                     .pool
-                    .execute("insert into t_metric(name) values ('null_values')")
+                    .execute(
+                        format!("insert into {table_name}(name) values ('null_values')").as_str(),
+                    )
                     .await;
             }
             Err(e) => {
@@ -604,15 +606,15 @@ mod tests {
         }
     }
 
-    async fn test_clear_data() {
+    async fn test_clear_data(table_name: &str) {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
-                let sql = "delete from t_metric where 1 = 1";
-                let _ = query.pool.execute(sql).await;
+                let sql = format!("delete from {table_name} where 1 = 1");
+                let _ = query.pool.execute(sql.as_str()).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -636,11 +638,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_all_distinct_values() {
         // prepare data
-        let _ = test_create_table().await;
-        let _ = test_clear_data().await;
-        let _ = test_insert_data(4).await;
+        let _ = test_create_table("test_get_all_distinct_values").await;
+        let _ = test_insert_data("test_get_all_distinct_values", 4).await;
 
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?subtable_fields=select distinct * from t_metric&sql=select * from t_metric&start=2024-03-01T00:00:00Z&interval=5d&delay=0")
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?subtable_fields=select distinct * from test_get_all_distinct_values&sql=select * from test_get_all_distinct_values&start=2024-03-01T00:00:00Z&interval=5d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         let query = MySqlQuery::try_new(config.connect.clone(), config.task.time_zone.clone())
@@ -652,7 +653,7 @@ mod tests {
         dbg!(filters);
 
         // clear data
-        let _ = test_clear_data().await;
+        let _ = test_clear_data("test_get_all_distinct_values").await;
     }
 
     #[tokio::test]

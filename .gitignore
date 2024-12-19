@@ -45,3 +45,5 @@ Dockerfile.*
 *.repo
 compose.yaml
 scripts/
+issues
+output.txt

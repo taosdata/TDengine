@@ -100,7 +100,8 @@ fn column_to_arrow(column: &ColumnView) -> ArrayRef {
     }
 }
 
-pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()> {
+pub async fn query_to_parquet(mut from: Dsn, to: Dsn) -> Result<()> {
+    let force = true; // FIXME
     let sql = from.params.remove("query").unwrap();
     let builder = TaosBuilder::from_dsn(from)?;
     let taos = builder.build().await?;
@@ -208,7 +209,7 @@ async fn test() -> Result<()> {
         2
     );
 
-    query_to_parquet(from, to.clone(), true).await?;
+    query_to_parquet(from, to.clone()).await?;
 
     std::fs::remove_file(to.path.unwrap())?;
 

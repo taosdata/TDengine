@@ -16,6 +16,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
+use tracing::instrument;
 use utoipa::*;
 
 use taosx_core::core_metrics::CoreMetrics;
@@ -166,13 +167,14 @@ pub(super) async fn get_tasks_count(
     )
 )]
 #[post("/tasks")]
+#[instrument(level = "trace", skip(task_store))]
 pub(super) async fn create_task(
     task: Json<NewTask>,
     task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let task = task.into_inner();
-    tracing::info!("create task: {:?}", task);
+    tracing::info!(task.name, "create task with name");
 
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
@@ -644,8 +646,8 @@ pub(super) async fn get_task_offsets_by_id(
 #[utoipa::path(
     tag = "tasks",
     responses(
-        (status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
-    ),
+        (status = 200, description = "Task activities of the task", body = Vec<Activity>),
+        ),
     params(
         ("id", description = "Unique storage id of Task"),
         AgentActivityFilter

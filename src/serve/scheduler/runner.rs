@@ -21,23 +21,31 @@ use uuid::Uuid;
 
 use taosx_core::{
     core_metrics::{
-        auto_save_task_metrics, init_task_metrics, save_task_metrics_finally, CoreMetrics,
-        TaskMetrics, GLOBAL_METRICS,
+        auto_save_task_metrics, get_metrics_arc_from_i64, init_task_metrics,
+        save_task_metrics_finally, CoreMetrics, TaskMetrics, GLOBAL_METRICS,
     },
     dsv::DataSourceValidation,
+    plugins,
     sink::ipc_metric::IpcMetrics,
-    utils::{get_main_version_from_server_version, get_server_version},
+    task_set::prelude::EventLevel,
+    utils::{
+        get_main_version_from_server_version, get_server_version,
+        sql::{get_maximum_timestamp, get_minimum_timestamp},
+    },
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
 use taosx_core::{plugins::transform::sample::DsSampleIn, utils::trace::Qid};
 
-use crate::serve::controller::{
-    agent::Activity,
-    license::LicenseValidator,
-    load_breakpoints,
-    trigger::{Schedule, StopCondition, Strategy},
-    AgentAction, Status, Task, TaskActivity,
+use crate::serve::{
+    controller::{
+        agent::Activity,
+        license::LicenseValidator,
+        load_breakpoints,
+        trigger::{Schedule, StopCondition, Strategy},
+        AgentAction, Status, Task,
+    },
+    health,
 };
 
 use super::{
@@ -106,6 +114,38 @@ async fn task_opts_init(
 
     let (notify, notify_rx) = flume::unbounded();
 
+    let parser: Option<plugins::Parser> = task
+        .parser
+        .as_ref()
+        .map(|v| serde_json::from_value(v.clone()).unwrap());
+    let parser = if let Some(parser) = parser {
+        let pool = {
+            let builder = taos::TaosBuilder::from_dsn(&to_dsn)?;
+            let mut pool_config = builder.default_pool_config();
+            pool_config.timeouts.wait = Some(Duration::from_secs(30));
+            builder.with_pool_config(pool_config)?
+        };
+        let maximum_timestamp = get_maximum_timestamp(&pool, &mut None, 3, &cancel).await?;
+        let minimum_timestamp = get_minimum_timestamp(&pool, &mut None, 3, &cancel).await?;
+        let parser = match parser {
+            plugins::Parser::Inner(parser) => {
+                let mut parser = parser;
+                parser.set_maximum_timestamp(maximum_timestamp);
+                parser.set_minimum_timestamp(minimum_timestamp);
+                plugins::Parser::Inner(parser)
+            }
+            plugins::Parser::WithSample { parser, input } => {
+                let mut parser = parser;
+                parser.set_maximum_timestamp(maximum_timestamp);
+                parser.set_minimum_timestamp(minimum_timestamp);
+                plugins::Parser::WithSample { parser, input }
+            }
+        };
+        Some(parser)
+    } else {
+        None
+    };
+
     Ok((
         TaskOpts {
             transform: vec![],
@@ -115,14 +155,11 @@ async fn task_opts_init(
                 .parser
                 .as_ref()
                 .map(|v| serde_json::from_value(v.clone()).unwrap()),
-            jobs: 0,
-            compression_level: None,
-            force: true,
+            health: task.trigger.as_ref().map(|v| v.health),
             cancel,
             // port_pool: ONCE,
             with_agent: None,
             breakpoints,
-            transferred: None,
             task_id: Some(id.to_string()),
             notify,
         },
@@ -148,14 +185,30 @@ async fn run_task(
 
     let instant = std::time::Instant::now();
     let global_sender = global.clone();
+    let health_opts = state.task.trigger.as_ref().map(|v| v.health);
     let logging_abort = tokio::spawn(async move {
-        while let Ok(message) = task_rx.recv_async().await {
-            let activity = match message {
-                TaskNotify::Error(message) => TaskActivity::error(task_id, message),
-                TaskNotify::Warn(message) => TaskActivity::warn(task_id, message),
-                TaskNotify::Info(message) => TaskActivity::logging(task_id, message),
+        use taosx_core::task_set::prelude::health_checker;
+        let metrics = get_metrics_arc_from_i64(Some(task_id)).await;
+        let (health_tx, health_rx) = flume::bounded(64);
+        if let Some(health_opts) = health_opts {
+            let (_handle, mut rx) = health_checker(health_opts, health_rx, metrics);
+            let global_sender = global_sender.clone();
+            tokio::spawn(async move {
+                while let Ok(item) = rx.recv().await {
+                    global_sender.send_task_activity(Activity::health_state(task_id, item));
+                }
+            });
+        }
+        while let Ok(notify) = task_rx.recv_async().await {
+            let activity = match notify.level {
+                EventLevel::Error => Activity::error(task_id, notify.message.clone()),
+                EventLevel::Warn => Activity::warn(task_id, notify.message.clone()),
+                EventLevel::Info => Activity::logging(task_id, notify.message.clone()),
                 _ => break,
             };
+            if health_opts.is_some() {
+                health_tx.send_async(notify).await.ok();
+            }
             global_sender.send_task_activity(activity);
         }
     });
@@ -174,7 +227,7 @@ async fn run_task(
 
 pub type TaskId = i64;
 pub type AgentId = i64;
-pub type AgentTaskActivitiesReceiver = tokio::sync::broadcast::Receiver<TaskActivity>;
+pub type AgentTaskActivitiesReceiver = tokio::sync::broadcast::Receiver<Activity>;
 pub type AgentActionsSender = tokio::sync::mpsc::Sender<(AgentId, AgentAction)>;
 pub type AgentClientSender = tokio::sync::mpsc::Sender<Status>;
 
@@ -355,7 +408,7 @@ impl GlobalState {
         }
     }
 
-    pub fn send_task_activity(&self, activity: TaskActivity) {
+    pub fn send_task_activity(&self, activity: Activity) {
         if let Err(err) = self
             .notify_sender
             .upgrade()
@@ -399,7 +452,7 @@ pub struct AgentWaiter {
     /// Agent state if task is running on agent.
     agent_state: Arc<RwLock<AgentState>>,
     /// Agent task activities receiver.
-    agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<TaskActivity>>>,
+    agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<Activity>>>,
     /// Agent close waiter.
     agent_close_waiter: Arc<Mutex<Option<oneshot::Receiver<anyhow::Result<()>>>>>,
 }
@@ -801,7 +854,7 @@ impl TaskJob {
 
         self.task.operator.stop();
         // Send stopping state updating activity.
-        self.global.send_task_activity(TaskActivity::stop(id));
+        self.global.send_task_activity(Activity::stop(id));
 
         // Set task state to stopping if already scheduled.
         {
@@ -809,7 +862,7 @@ impl TaskJob {
             let mut state = self.task.state.write().await;
             if state.is_idle() {
                 // Set Task state to stopped directly.
-                self.global.send_task_activity(TaskActivity::stopped(id));
+                self.global.send_task_activity(Activity::stopped(id));
                 state.stopped();
             } else {
                 // Set task state to stopping so that it will be stopped when it's ticked properly.
@@ -842,7 +895,7 @@ impl TaskJob {
         self.task.operator.suspend();
         // Send stopping state updating activity.
         self.global
-            .send_task_activity(TaskActivity::suspend(id, self.job_id));
+            .send_task_activity(Activity::suspend(id, self.job_id));
 
         // Set task state to suspending if already scheduled.
         {
@@ -853,7 +906,7 @@ impl TaskJob {
 
                 // Send stopped state directly.
                 self.global
-                    .send_task_activity(TaskActivity::suspended(id, self.job_id));
+                    .send_task_activity(Activity::suspended(id, self.job_id));
 
                 // Set task state to stopping so that it will be stopped when it's ticked properly.
                 state.stopped();
@@ -958,7 +1011,7 @@ impl TaskJob {
                                             }
                                         }
                                     }
-                                    license_tracker_global.send_task_activity(TaskActivity::suspending_with(task_id, format!("License error: {:#}", err)));
+                                    license_tracker_global.send_task_activity(Activity::suspending_with(task_id, format!("License error: {:#}", err)));
                                     license_tracker_state.operator.suspend();
                                     license_tracker_cancellation_token.cancel();
                                     break true;
@@ -1015,11 +1068,11 @@ impl TaskJob {
                         let operator = state.operator.operator();
                         match operator {
                             Operator::Suspend => {
-                                global.send_task_activity(TaskActivity::suspended(task_id, jid));
+                                global.send_task_activity(Activity::suspended(task_id, jid));
                                 state.state.write().await.stopped();
                             }
                             Operator::Stop => {
-                                global.send_task_activity(TaskActivity::stopped(task_id));
+                                global.send_task_activity(Activity::stopped(task_id));
                                 state.state.write().await.stopped();
                             }
                             Operator::Run => {
@@ -1038,7 +1091,7 @@ impl TaskJob {
 
                             warn!("Agent {} is not alive, waiting...", agent_id);
                             global
-                                .send_task_activity(TaskActivity::waiting(task_id, "Waiting for agent..."));
+                                .send_task_activity(Activity::waiting(task_id, "Waiting for agent..."));
                             if waiting < 5 {
                                 waiting += 1;
                             }
@@ -1047,7 +1100,7 @@ impl TaskJob {
                     } => {}
                 }
 
-                global.send_task_activity(TaskActivity::running(
+                global.send_task_activity(Activity::running(
                     task_id,
                     format!("Agent {agent_id} now alive"),
                 ));
@@ -1077,7 +1130,7 @@ impl TaskJob {
                     jid: Uuid,
                     run_id: u64,
                     ipc_in_progress: Arc<AtomicI32>,
-                    agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<TaskActivity>>>,
+                    agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<Activity>>>,
                 ) -> anyhow::Result<AgentTaskState> {
                     let mut ipc_in_progress = ipc_in_progress.load(Ordering::Relaxed);
                     let mut signal: Option<&'static str> = None;
@@ -1092,7 +1145,7 @@ impl TaskJob {
                                 tracing::info!(%ipc_in_progress, agent.id = agent_id, task.id = task_id, job.id = %jid, "task runner `{task_id}` cancelled");
                                 match operator.operator() {
                                     Operator::Suspend => {
-                                        global.send_task_activity(TaskActivity::suspended(task_id, jid));
+                                        global.send_task_activity(Activity::suspended(task_id, jid));
                                         state.state.write().await.stopped();
                                     }
                                     Operator::Stop => {
@@ -1110,12 +1163,12 @@ impl TaskJob {
                                         } else {
                                             tracing::info!(signal, "task will be stopped after ingesting data completed");
                                         }
-                                        global.send_task_activity(TaskActivity::stopped(task_id));
+                                        global.send_task_activity(Activity::stopped(task_id));
                                         state.state.write().await.stopped();
                                     }
                                     Operator::Run => {
                                         tracing::warn!("operator is run, expect stop or suspend");
-                                        global.send_task_activity(TaskActivity::stopped(task_id));
+                                        global.send_task_activity(Activity::stopped(task_id));
                                         state.state.write().await.stopped();
                                         //unreachable!("Cancellation should be only trigger by stop or suspend operator")
                                     }
@@ -1219,7 +1272,7 @@ impl TaskJob {
                                                 "completed" => match operator.operator() {
                                                     Operator::Suspend => {
                                                         global.send_task_activity(
-                                                            TaskActivity::suspended(task_id, jid),
+                                                            Activity::suspended(task_id, jid),
                                                         );
                                                         state.state.write().await.stopped();
                                                         break Ok(AgentTaskState::Suspended);
@@ -1379,13 +1432,13 @@ impl TaskJob {
                             let operator = state.operator.operator();
                             match operator {
                                 Operator::Suspend => {
-                                    global.send_task_activity(TaskActivity::suspending_timeout(
+                                    global.send_task_activity(Activity::suspending_timeout(
                                         task_id, jid,
                                     ));
                                     state.state.write().await.stopped();
                                 }
                                 Operator::Stop => {
-                                    global.send_task_activity(TaskActivity::stopping_timeout(
+                                    global.send_task_activity(Activity::stopping_timeout(
                                         task_id,
                                     ));
                                     state.state.write().await.stopped();
@@ -1428,7 +1481,7 @@ impl TaskJob {
         } else {
             tokio::spawn(
                 async move {
-                    global.send_task_activity(TaskActivity::started(opts.task.id, jid));
+                    global.send_task_activity(Activity::started(opts.task.id, jid));
                     let runs = opts.runs.load(Ordering::Relaxed);
                     tracing::debug!(
                         "spawned new run_task, task.id={} task.rid={}",
@@ -1510,7 +1563,7 @@ impl TaskJob {
                         _ = opts.cancellation.cancelled() => {
                             tracing::info!("task cancelled");
                             opts.last_state.write().await.replace(LastState::Stopped);
-                            global.send_task_activity(TaskActivity::stop(opts.task.id));
+                            global.send_task_activity(Activity::stop(opts.task.id));
                             (&mut future).await;
                             true
                         }
@@ -1539,48 +1592,43 @@ impl TaskJob {
                     match last_state {
                         LastState::Done => match opts.operator.operator() {
                             Operator::Suspend => {
-                                global
-                                    .send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                                global.send_task_activity(Activity::suspended(opts.task.id, jid));
                                 opts.state.write().await.stopped();
                             }
                             Operator::Stop => {
-                                global.send_task_activity(TaskActivity::stopped(opts.task.id));
+                                global.send_task_activity(Activity::stopped(opts.task.id));
                                 opts.state.write().await.stopped();
                             }
                             Operator::Run => {
                                 if should_stop {
-                                    global.send_task_activity(TaskActivity::completed(
-                                        opts.task.id,
-                                        jid,
-                                    ));
+                                    global
+                                        .send_task_activity(Activity::completed(opts.task.id, jid));
                                     opts.state.write().await.completed();
                                 } else {
-                                    global
-                                        .send_task_activity(TaskActivity::tick(opts.task.id, jid));
+                                    global.send_task_activity(Activity::tick(opts.task.id, jid));
                                     opts.state.write().await.ticked();
                                 }
                             }
                         },
                         LastState::Stopped => match opts.operator.operator() {
                             Operator::Suspend => {
-                                global
-                                    .send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                                global.send_task_activity(Activity::suspended(opts.task.id, jid));
                                 opts.state.write().await.stopped();
                             }
                             _ => {
-                                global.send_task_activity(TaskActivity::stopped(opts.task.id));
+                                global.send_task_activity(Activity::stopped(opts.task.id));
                                 opts.state.write().await.stopped();
                             }
                         },
                         LastState::Error(err) => {
                             if should_stop {
-                                global.send_task_activity(TaskActivity::failed(
+                                global.send_task_activity(Activity::failed(
                                     opts.task.id,
                                     format!("{err:#}"),
                                 ));
                                 opts.state.write().await.fail(err);
                             } else {
-                                global.send_task_activity(TaskActivity::interrupted(
+                                global.send_task_activity(Activity::interrupted(
                                     opts.task.id,
                                     format!("{err:#}"),
                                 ));

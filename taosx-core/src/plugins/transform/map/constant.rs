@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{JsonValue, ValueBuilder, ValueBuilderError};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ConstantValueBuilder {
     value: JsonValue,
 }

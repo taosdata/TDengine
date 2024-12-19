@@ -1,8 +1,5 @@
+use std::sync::atomic::{AtomicU32, AtomicU64};
 use std::sync::OnceLock;
-use std::sync::{
-    atomic::{AtomicU32, AtomicU64},
-    Arc,
-};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -61,6 +58,9 @@ pub mod core_metrics;
 mod extensions;
 
 pub mod global;
+
+#[allow(dead_code)] // TODO: remove this
+pub mod task_set;
 
 // 全局定义的是否开启 agent 压缩的标志位
 pub static AGENT_COMPRESSION: OnceLock<bool> = OnceLock::new();
@@ -174,27 +174,8 @@ fn test_expired_seconds() {
     dbg!(license.expired_seconds());
 }
 
-pub enum TaskNotify {
-    Info(String),
-    Warn(String),
-    Error(String),
-    Done,
-}
-
-impl TaskNotify {
-    pub fn info(msg: impl Into<String>) -> Self {
-        Self::Info(msg.into())
-    }
-    pub fn warn(msg: impl Into<String>) -> Self {
-        Self::Warn(msg.into())
-    }
-    pub fn error(msg: impl Into<String>) -> Self {
-        Self::Error(msg.into())
-    }
-    pub fn done() -> Self {
-        Self::Done
-    }
-}
+// Use public re-exports to avoid breaking changes
+pub use task_set::prelude::TaskNotify;
 
 pub type TaskNotifySender = flume::Sender<TaskNotify>;
 pub type TaskNotifyReceiver = flume::Receiver<TaskNotify>;
@@ -204,14 +185,11 @@ pub struct TaskOpts {
     pub transform: Vec<Action>,
     pub to: Dsn,
     pub parser: Option<plugins::Parser>,
-    pub jobs: usize,
-    pub compression_level: Option<usize>,
-    pub force: bool,
+    pub health: Option<task_set::prelude::HealthOpts>,
     pub cancel: CancellationToken,
     pub with_agent: Option<(i64, String, String)>,
     // pub port_pool: OnceCell<PortPool>
     pub breakpoints: Option<String>,
-    pub transferred: Option<Arc<Transferred>>,
     pub task_id: Option<String>,
     pub notify: TaskNotifySender,
 }
@@ -236,14 +214,10 @@ impl TaskOpts {
             transform,
             to,
             parser,
-            jobs,
-            compression_level: _,
-            force,
             cancel,
             with_agent,
             // port_pool,
             breakpoints,
-            transferred,
             task_id,
             notify,
             ..
@@ -266,7 +240,6 @@ impl TaskOpts {
                         from.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
                         cancel.clone(),
                         task_id.clone(),
                         notify.clone(),
@@ -280,33 +253,26 @@ impl TaskOpts {
                     tmq_to_local(
                         from.clone(),
                         to.clone(),
-                        *jobs,
-                        *force,
+                        0,
+                        true,
                         cancel.clone(),
                         task_id.clone(),
                     )
                     .await?;
+                    // tmq_to_local(from.clone(), to.clone(), cancel.clone(), task_id.clone()).await?;
                 }
                 ("local", "taos" | "tmq") => {
                     let mut to = to.clone();
                     to.driver = "taos".to_string();
-                    local_to_taos(
-                        task_id.clone(),
-                        from.clone(),
-                        to,
-                        *jobs,
-                        *force,
-                        cancel.clone(),
-                    )
-                    .in_current_span()
-                    .await?;
+                    local_to_taos(task_id.clone(), from.clone(), to, 0, true, cancel.clone())
+                        .in_current_span()
+                        .await?;
                 }
                 ("taos", "taos") => {
                     legacy_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
                         cancel.clone(),
                         task_id
                             .as_deref()
@@ -327,18 +293,18 @@ impl TaskOpts {
                     }
                 }
                 ("taos", "parquet") => {
-                    query_to_parquet(from.clone(), to.clone(), *force).await?;
+                    query_to_parquet(from.clone(), to.clone()).await?;
                 }
                 ("pi" | "pibackfill", "taos") => {
                     pi_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -352,11 +318,11 @@ impl TaskOpts {
                         from.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -370,10 +336,10 @@ impl TaskOpts {
                         from.clone(),
                         parser.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -387,11 +353,11 @@ impl TaskOpts {
                         Self::append_breakpoints_in_dsn(breakpoints, from),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -405,11 +371,11 @@ impl TaskOpts {
                         Self::append_breakpoints_in_dsn(breakpoints, from),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -426,7 +392,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -456,11 +422,11 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -475,11 +441,11 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -494,11 +460,11 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         notify.clone(),
                     )
                     .await?;
@@ -509,11 +475,11 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -528,11 +494,11 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -547,11 +513,11 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -566,11 +532,11 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))
@@ -585,11 +551,11 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        *jobs,
+                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        transferred.clone(),
+                        None,
                         task_id
                             .as_deref()
                             .map(|t| t.parse().context("parse task id"))

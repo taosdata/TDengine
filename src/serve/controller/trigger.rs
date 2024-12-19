@@ -8,6 +8,7 @@ use std::str::FromStr;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use taosx_core::task_set::prelude::HealthOpts;
 use taosx_core::utils;
 use thiserror::Error;
 use utoipa::*;
@@ -37,51 +38,6 @@ pub enum ResumeStrategy {
     Retries(u16),
 }
 
-/// Check if the task is healthy.
-///
-/// Start check point is the time when the task is **running** or resumed as running
-/// from an **unhealthy** state.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HealthyCheck {
-    #[default]
-    /// Raise error as healthy check failed.
-    ///
-    /// Equivalent to `rate(1/0)`.
-    Forward,
-    /// Ignore runtime errors.
-    Ignore,
-    /// Set unhealthy when error rate is higher than the given value.
-    Rate(ErrorRate),
-}
-
-/// Task error handling strategy when error occurs.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-#[serde(rename_all = "snake_case", default)]
-pub struct Healthy {
-    /// Detect if the task is healthy.
-    check: HealthyCheck,
-    /// Unhealthy state will fadeout after the given duration if no error occurs.
-    fadeout: Duration,
-}
-
-impl Healthy {
-    pub const fn const_new() -> Self {
-        Self {
-            check: HealthyCheck::Forward,
-            fadeout: Duration::from_secs(60),
-        }
-    }
-}
-
-impl Default for Healthy {
-    fn default() -> Self {
-        Self {
-            check: Default::default(),
-            fadeout: Duration::from_secs(60),
-        }
-    }
-}
 /// Task error handling strategy when error occurs.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -167,7 +123,7 @@ pub struct Strategy {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) schedule: Option<String>,
     pub(crate) resume: ResumeStrategy,
-    pub(crate) healthy: Healthy,
+    pub(crate) health: HealthOpts,
     /// 任务的下次执行的日期时间
     pub(crate) upcoming: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -351,7 +307,7 @@ impl Strategy {
         Self {
             schedule: None,
             resume: ResumeStrategy::Always,
-            healthy: Healthy::const_new(),
+            health: HealthOpts::new(),
             upcoming: None,
             interval: None,
         }
@@ -476,8 +432,6 @@ mod tests {
         let s: Strategy = serde_json::from_str(s).unwrap();
         assert_eq!(s.schedule, None);
         assert_eq!(s.resume, ResumeStrategy::Always);
-        assert_eq!(s.healthy.check, HealthyCheck::Forward);
-        assert_eq!(s.healthy.fadeout, Duration::from_secs(60));
         assert_eq!(s.upcoming, None);
         assert_eq!(s.interval, None);
 
@@ -485,8 +439,6 @@ mod tests {
         let s: Strategy = serde_json::from_str(s).unwrap();
         assert_eq!(s.schedule, None);
         assert_eq!(s.resume, ResumeStrategy::Always);
-        assert_eq!(s.healthy.check, HealthyCheck::Forward);
-        assert_eq!(s.healthy.fadeout, Duration::from_secs(60));
         assert_eq!(s.upcoming, None);
         assert_eq!(s.interval, None);
 
@@ -494,8 +446,6 @@ mod tests {
         let s: Strategy = serde_json::from_str(s).unwrap();
         assert_eq!(s.schedule, None);
         assert_eq!(s.resume, ResumeStrategy::Always);
-        assert_eq!(s.healthy.check, HealthyCheck::Forward);
-        assert_eq!(s.healthy.fadeout, Duration::from_secs(60));
         assert_eq!(s.upcoming, None);
         assert_eq!(s.interval, Some(("1s".to_string(), Duration::from_secs(1))));
 

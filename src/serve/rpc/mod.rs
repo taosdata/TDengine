@@ -54,7 +54,7 @@ use crate::serve::controller::StringSender;
 use crate::serve::{
     controller::{
         agent::{Activity, AgentToken, LevelFilter},
-        TaskActivity, TaskDetail,
+        TaskDetail,
     },
     rpc::put::PutStream,
     scheduler::agent::AgentNotify,
@@ -899,7 +899,7 @@ impl FlightService for FlightServiceImpl {
                                             .send(AgentNotify::AgentActivity(agent_id, activity));
                                     }
                                     "task-activity" => {
-                                        let activity: TaskActivity = serde_json::from_str(context)
+                                        let activity: Activity = serde_json::from_str(context)
                                             .map_err(|err| {
                                                 anyhow::format_err!(
                                                     "Invalid activity `{context}`: {err:#}"
@@ -1079,7 +1079,7 @@ impl FlightService for FlightServiceImpl {
         match action.r#type.as_str() {
             "TaskStatus" => {
                 // task.
-                let mut status: TaskActivity = serde_json::from_slice(&action.body)
+                let mut status: Activity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 
                 if status.activity == "taosx-agent is suspended by SIGINT" {

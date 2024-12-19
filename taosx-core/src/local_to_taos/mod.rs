@@ -175,12 +175,11 @@ impl RestoreWorker {
 
 #[allow(unused)]
 #[deprecated(note = "use new local_to_taos")]
-pub async fn local_to_taos_previous(
-    from: Dsn,
-    mut to: Dsn,
-    jobs: usize,
-    force: bool,
-) -> Result<()> {
+pub async fn local_to_taos_previous(from: Dsn, mut to: Dsn) -> Result<()> {
+    // FIXME(@zitsen)
+    let jobs = 0;
+    let force = true;
+
     // local dir
     let local_dir = from
         .path

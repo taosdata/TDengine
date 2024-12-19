@@ -10,12 +10,9 @@ use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
 use taoslog::QidManager;
-use taosx_core::utils::trace::Qid;
-use tonic::{Status, Streaming};
-use tracing::{instrument, Instrument, Span};
-use zerocopy::FromBytes;
-
+use taosx_core::core_metrics::{init_task_metrics, TaskMetrics};
 use taosx_core::sink::handle_point_message_init;
+use taosx_core::utils::trace::Qid;
 use taosx_core::{
     core_metrics::get_metrics,
     sink::{
@@ -25,9 +22,12 @@ use taosx_core::{
     utils::{breakpoints::BreakpointDb, get_main_version_from_server_version, get_server_version},
     ConnectorLicense, IpcStreamWorker, Parser,
 };
+use tonic::{Status, Streaming};
+use tracing::{instrument, Instrument, Span};
+use zerocopy::FromBytes;
 
 use crate::serve::{
-    controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
+    controller::{transferred::ConnectorTransferred, Activity, TaskControllerRef, TaskDetail},
     scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
 
@@ -109,14 +109,15 @@ async fn ipc_stream_writer(
     // dbg!(&task);
     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
         agent_id,
-        TaskActivity::ipc_started(task.id),
+        Activity::ipc_started(task.id),
     ))?;
     let task_id = task.id;
-    let from = task.from.parse().unwrap();
+    let from: Dsn = task.from.parse().unwrap();
+    let to: Dsn = task.to.parse().unwrap();
     let taos = pool.get().await?;
     let worker = IpcStreamWorker::new(
         pool.clone(),
-        from,
+        from.clone(),
         lock,
         schema,
         license,
@@ -134,7 +135,17 @@ async fn ipc_stream_writer(
         .map(|v| serde_json::from_value(v.clone()).unwrap())
         .map(Arc::new);
     let metadata = worker.parser.metadata();
-    let metrics_arc = get_metrics(task.id).await.expect("metrics not found");
+    let metrics_arc = {
+        if let Some(arc) = get_metrics(task_id).await {
+            arc
+        } else {
+            let _ = init_task_metrics(&from, &to, task_id, None).await;
+            get_metrics(task_id)
+                .await
+                .ok_or_else(|| anyhow::format_err!("metrics not found"))?
+        }
+    };
+
     let metrics = metrics_arc.ipc();
     if worker.lush_model_config.get().is_none() {
         if let Some(sql) = metadata.init_sql_string() {
@@ -204,6 +215,7 @@ async fn ipc_stream_writer(
                 async move {
                     taoslog::utils::Span.set_qid(&qid);
                     tracing::info!("Writing batch");
+                    let raw_rows = record.num_rows();
                     if let Err(err) = worker
                         .process_record(
                             record.clone(),
@@ -212,6 +224,7 @@ async fn ipc_stream_writer(
                             metrics_arc,
                             tables_messages_in_progress,
                             None,
+                            task_id,
                         )
                         .await
                     {
@@ -237,7 +250,7 @@ async fn ipc_stream_writer(
                         let _ = notify_sender.send(
                             crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                 agent_id,
-                                TaskActivity::warn(task_id, message),
+                                Activity::warn(task_id, message),
                             ),
                         );
                         if ipc_error_strategy.will_stop() || last_errors > 10 {
@@ -274,7 +287,7 @@ async fn ipc_stream_writer(
                             let _ = notify_sender.send(
                                 crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                     agent_id,
-                                    TaskActivity::info(
+                                    Activity::info(
                                         task_id,
                                         format!("Rescue from {} continuous errors", last_errors),
                                         "running",
@@ -286,6 +299,7 @@ async fn ipc_stream_writer(
                             tracing::debug!("Writing batch success");
                         }
                     }
+                    metrics.add_processed_messages(raw_rows as u64);
                     Ok(())
                 }
                 .in_current_span()
@@ -487,7 +501,7 @@ async fn spawn_stream_writer(
                 let _ =
                     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                         agent_id,
-                        TaskActivity::warn(task_id, format!("{err:#}")),
+                        Activity::warn(task_id, format!("{err:#}")),
                     ));
                 drop(rx);
                 return;
@@ -505,7 +519,7 @@ async fn spawn_stream_writer(
             }
             let _ = notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                 agent_id,
-                TaskActivity::ipc_finished(task_id),
+                Activity::ipc_finished(task_id),
             ));
 
             tracing::info!(
@@ -700,7 +714,26 @@ impl PutStream {
         .await?;
 
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
-        let metrics_arc = get_metrics(self.task_id).await.expect("metrics not found");
+        let metrics_arc = {
+            if let Some(arc) = get_metrics(self.task_id).await {
+                arc
+            } else {
+                let task = self
+                    .controller
+                    .get(self.task_id)
+                    .await
+                    .map_err(|err| Status::internal(err.to_string()))
+                    .unwrap()
+                    .unwrap();
+                let from: Dsn = task.from.parse()?;
+                let to: Dsn = task.to.parse()?;
+                let _ = init_task_metrics(&from, &to, self.task_id, None).await;
+                get_metrics(self.task_id)
+                    .await
+                    .ok_or_else(|| anyhow::format_err!("metrics not found"))?
+            }
+        };
+
         let notify_sender = self.notify_sender.clone();
         let task_id = self.task_id;
         let (put_tx, put_rx) = flume::bounded(0);
@@ -725,6 +758,7 @@ impl PutStream {
                     match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                             tracing::trace!(schema = ?batch.schema(), columns = ?batch.columns(), "Enqueue batch");
+                            metrics.add_received_messages(batch.num_rows() as u64);
                             if let Err(err) = tx.send_async((batch, qid)).await {
                                 tracing::warn!(
                                     ipc.channel.capacity = tx.capacity(),
@@ -791,7 +825,7 @@ impl PutStream {
                                     if let Err(err) = notify_sender.send(
                                         crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                             agent_id,
-                                            TaskActivity::warn(task_id, format!("Put stream message error: {err:#}")),
+                                            Activity::warn(task_id, format!("Put stream message error: {err:#}")),
                                         ),
                                     ) {
                                         tracing::warn!(

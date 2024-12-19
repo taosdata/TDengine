@@ -251,6 +251,22 @@ export default {
     cleared: "Clear target database",
     scheduled: "Scheduled"
   },
+  healthStatus: {
+    ready: 'Ready',
+    readyDesc: 'The health check between the source and target systems has passed, allowing data reading and writing.',
+    idle: 'Idle',
+    idleDesc: 'Indicates no data processing for a configurable period, meaning no data has entered the processing flow recently.',
+    busy: 'Busy',
+    busyDesc: 'Indicates that the write queue is full.',
+    bounce: 'Bounce',
+    bounceDesc: 'Both the source and target systems are normal, but errors occurred during the writing process. Exceeding the threshold within a certain period may indicate abnormal data or potential data loss.',
+    source_error: 'SourceError',
+    source_errorDesc: 'An error in the data source prevents reading. The workload will attempt to reconnect to the data source.',
+    sink_error: 'SinkError',
+    sink_errorDesc: 'An error in the sink prevents writing.',
+    fatal: 'Fatal',
+    fatalDesc: 'An irrecoverable error. The data writing task will terminate at this point.'
+  },
   systemUpdate: "System update",
   ignore: "Ignore",
   update: "Update",
@@ -727,10 +743,10 @@ export default {
     timeRange: "Time Range",
     query: "Query",
     tbHeader: {
-      table: "Stable/Table", 
+      table: "Stable/Table",
       source: "Latest Timestamp at Source",
-      sink: "Latest Timestamp at Sink", 
-      difference: "Time Difference", 
+      sink: "Latest Timestamp at Sink",
+      difference: "Time Difference",
       sourceNum: "Number of Rows at Source",
       sinkNum: "Number of Rows at Sink",
       topic: "Topic",
@@ -1668,6 +1684,7 @@ export default {
     createat: "Create At",
     via: "Agent",
     status: "Status",
+    healthStatus: "Health Status",
     operation: "Operation",
     addsource: "Add Task",
     sourcetype: "Source Type",
@@ -1677,7 +1694,7 @@ export default {
     targetname: "Name",
     agentInfo: `
       1. When using PI or OPC-DA data sources, you need to enable the agent.
-      <br /> 
+      <br />
       2. In other cases, such as when the data source is isolated from the TDengine cluster network, agents are used to provide cross-network access to the data source.
     `,
 

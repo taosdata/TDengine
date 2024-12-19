@@ -22,12 +22,12 @@ use tokio_cron_scheduler::{Job, JobBuilder, JobScheduler};
 use tracing::{instrument, Instrument};
 
 use self::runner::{AgentIntegrationChannel, GlobalState, MultiIndexTaskJobMap};
-use super::controller::{agent::Activity, Task, TaskActivity};
+use super::controller::{Activity, Task};
 use crate::serve::scheduler::runner::{TaskJob, TaskState};
 
 #[derive(Debug, Clone)]
 pub enum SchedulerNotify {
-    TaskActivity(TaskActivity),
+    TaskActivity(Activity),
     AgentActivity(Activity),
 }
 pub type NotifyChannel = tokio::sync::broadcast::Receiver<SchedulerNotify>;
@@ -35,12 +35,12 @@ pub type NotifySender = Weak<tokio::sync::broadcast::Sender<SchedulerNotify>>;
 pub type SchedulerNotifier = Arc<tokio::sync::broadcast::Sender<SchedulerNotify>>;
 
 pub trait NotifySenderExt {
-    fn push_task_activity(&self, activity: TaskActivity);
+    fn push_task_activity(&self, activity: Activity);
     fn push_agent_activity(&self, activity: Activity);
 }
 
 impl NotifySenderExt for NotifySender {
-    fn push_task_activity(&self, activity: TaskActivity) {
+    fn push_task_activity(&self, activity: Activity) {
         if let Some(sender) = self.upgrade() {
             let _ = sender.send(SchedulerNotify::TaskActivity(activity));
         }
@@ -429,7 +429,7 @@ impl TaskScheduler {
     }
 
     #[instrument(skip_all, fields(task.id = task.id))]
-    pub async fn push_task(&self, task: Task) -> Result<()> {
+    pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
         tracing::info!("Push task to scheduler: {:?}", task);
         self.global_state.ensure_alive()?;
         let task_id = task.id;
@@ -516,7 +516,7 @@ impl TaskScheduler {
         })?;
 
         self.global_state
-            .send_task_activity(TaskActivity::queued(task_id, job_id));
+            .send_task_activity(Activity::queued(task_id, job_id));
 
         let task_job_ref = TaskJob::new(job_id, task, self.global_state.as_ref().clone());
         self.tasks.write().await.insert(task_job_ref);
@@ -914,21 +914,21 @@ mod tests {
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
-                    TaskActivity::running(id, "info activity".to_string()),
+                    Activity::running(id, "info activity".to_string()),
                 ))
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
-                    TaskActivity::error(id, "error activity".to_string()),
+                    Activity::error(id, "error activity".to_string()),
                 ))
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
-                    TaskActivity::completed(id, Uuid::new_v4()),
+                    Activity::completed(id, Uuid::new_v4()),
                 ))
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(11)).await;

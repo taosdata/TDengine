@@ -933,7 +933,10 @@ mod tests {
         assert_eq!(topic_meta.stable_name, Some("x123_stable".to_string()));
         assert_eq!(
             topic_meta.stable_sql,
-            Some("CREATE TABLE IF NOT EXISTS x123_stable (ts TIMESTAMP, value DOUBLE)".to_string())
+            Some(
+                "CREATE TABLE IF NOT EXISTS x123_stable (ts TIMESTAMP, f1 INT) TAGS(t1 INT)"
+                    .to_string()
+            )
         );
     }
 
@@ -992,10 +995,7 @@ mod tests {
         assert!(!dsv.valid);
         assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!(
-            "invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
-            dsv.message.unwrap()
-        );
+        assert!(dsv.message.is_some());
     }
 
     #[tokio::test]

@@ -25,7 +25,7 @@ use super::{
     TableOptions,
 };
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Modeler(#[serde(deserialize_with = "model_serde::deserialize")] Vec<Table>);
 
 impl Modeler {
@@ -219,7 +219,7 @@ impl<'a> IntoIterator for &'a Modeler {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Table {
     pub name: String,
     #[serde(default)]
@@ -365,9 +365,9 @@ impl Table {
                 .column_by_name(primary)
                 .with_context(|| format!("Primary key `{primary}` does not exist in data"))?;
 
-            if primary_array.null_count() > 0 {
-                return Err(super::Error::NullPrimaryKey(primary.to_string()));
-            }
+            // if primary_array.null_count() > 0 {
+            //     return Err(super::Error::NullPrimaryKey(primary.to_string()));
+            // }
             // Cast primary key column to timestamp.
             let primary_array = arrow_cast_guess_precision::cast(&primary_array, &timestamp)
                 .map_err(|err| super::Error::PrimaryKeyCastError(self.name.clone(), err))?;

@@ -85,3 +85,5 @@ total_csv_files_completed_rows: Total number of rows in CSV files completed
 csv_files: Number of CSV files
 csv_files_completed: Number of CSV files completed in this task run
 csv_files_completed_rows: Number of rows in CSV files completed in this task run
+received_messages: Total number of messages received in this task run
+processed_messages: Total number of messages processed in this task run

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_backtrace::framed;
 use taos::Dsn;
 
@@ -79,13 +79,13 @@ impl<'a> LicenseValidator<'a> {
                         .len();
 
                     return Ok(match license.number {
-                        0 => LicenseKind::Connector(anyhow::anyhow!(
+                        0 => LicenseKind::Connector(anyhow!(
                             "Number of {:?} has reached the licensed upper limit.",
                             license.r#type
                         )),
                         n if n > 0 => {
                             if used > n as usize {
-                                LicenseKind::Connector(anyhow::anyhow!(
+                                LicenseKind::Connector(anyhow!(
                                     "Number of {:?} has reached the licensed upper limit.",
                                     license.r#type
                                 ))
@@ -111,7 +111,11 @@ impl<'a> LicenseValidator<'a> {
 
 #[framed]
 #[instrument(skip_all, fields(source = %mask_dsn(from), sink = %mask_dsn(to)))]
-pub async fn validate_task(from: &Dsn, to: &Dsn, pool: Option<&sqlx::SqlitePool>) -> Result<()> {
+pub async fn validate_task(
+    from: &Dsn,
+    to: &Dsn,
+    pool: Option<&sqlx::SqlitePool>,
+) -> anyhow::Result<()> {
     if let Some(pool) = pool {
         LicenseValidator::new_with_sqlite(from, to, pool)
     } else {

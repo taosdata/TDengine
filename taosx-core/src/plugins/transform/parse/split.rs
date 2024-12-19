@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use super::Parse;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Split {
     split: SplitImpl,
 }
@@ -31,7 +31,7 @@ pub struct SplitError {
     error: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SplitImpl {
     #[serde(flatten)]
     sep: SplitOps,
@@ -101,7 +101,7 @@ impl Parse for SplitImpl {
         Ok((records, None))
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 enum SplitOps {
     At { at: usize },

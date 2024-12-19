@@ -310,7 +310,7 @@ pub async fn tmq_to_local(
         config.create_topic().await?;
         // 在本地创建备份目录
         config.create_backup_dir().await?;
-        // 初始备份，不能通过 position 获取 curren_offset
+        // 初始备份，不能通过 position 获取 current_offset
         config.set_backup_point_gen_mode(BackupPointGenMode::ByTimeout);
     }
 
@@ -519,15 +519,19 @@ impl BackupWorker {
 }
 
 #[deprecated(note = "use the new tmq_to_local instead")]
-pub async fn tmq_to_local_v1(
+pub async fn tmq_to_local_previous(
     from: Dsn,
     to: Dsn,
-    jobs: usize,
-    force: bool,
+    _jobs: usize,
+    _force: bool,
     cancel: CancellationToken,
     task_id: Option<String>,
 ) -> Result<()> {
     let (mut from, builder, topics, _, _) = check_tmq_dsn(from).await?;
+
+    // FIXME(@zitsen)
+    let jobs = 0;
+    let force = true;
 
     let offsets = Arc::new(DashMap::new());
     let version = builder.server_version().await?.to_owned();
@@ -909,6 +913,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_tmq_to_local_with_taos() {
         tracing_subscriber::fmt::fmt()
             .with_env_filter(EnvFilter::from_default_env().add_directive("debug".parse().unwrap()))

@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
 use actix_cors::Cors;
@@ -16,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use tracing::{info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
+use trigger::Strategy;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -217,7 +219,12 @@ impl Cli {
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
         } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
-            format!("sqlite:{}/{}x.db", root, build::CUS_PROMPT)
+            format!(
+                "sqlite:{}",
+                Path::new(&root)
+                    .join(format!("{}x.db", build::CUS_PROMPT))
+                    .display()
+            )
         } else {
             format!("sqlite:{}x.db", build::CUS_PROMPT)
         }
@@ -335,8 +342,9 @@ impl Cli {
                     NewTask,
                     UpdateTask,
                     Labels,
+                    Strategy,
                     Task,
-                    TaskActivity,
+                    Activity,
                     Failed,
                     DataSourceInput,
                     DataSourceDefinition,

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ValueBuilder, ValueBuilderError};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct JoinValueBuilder {
     join: Vec<String>,
     with: Option<String>,

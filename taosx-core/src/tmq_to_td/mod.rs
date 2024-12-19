@@ -263,7 +263,10 @@ async fn write_data(
                                 let from = source.get().await?;
                                 let database = topic.database.as_str();
                                 // sync schema
-                                let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?;
+                                // let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?;
+                                let source_stable_name =
+                                    get_stable_name(&from, Some(database), &source_table_name)
+                                        .await?;
                                 if let Some(mut source_stable_name) = source_stable_name {
                                     if actions.is_empty() {
                                         let result = migrate_data_schema(
@@ -325,19 +328,54 @@ async fn write_data(
                                     .await
                                     .context("Create table error")?;
                                 }
-                                if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+                                let super_table_name =
+                                    get_stable_name(&from, Some(database), &source_table_name)
+                                        .await?;
+                                // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+                                if let Some(stable) = super_table_name {
                                     let from = source.get().await?;
                                     let target_opts = Default::default();
-                                    sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
+                                    sync_super_table_schema(
+                                        &from,
+                                        &stable,
+                                        taos,
+                                        None,
+                                        &target_opts,
+                                        actions,
+                                    )
+                                    .await
+                                    .context("Create super table error")?;
                                     // 临时代码，保证编译通过
-                                    let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
-                                    sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
+                                    let metrics_arc = Arc::new(CoreMetrics::Legacy(
+                                        LegacyToTaosMetrics::default(),
+                                    ));
+                                    sync_super_table_schema_with_subs(
+                                        &from,
+                                        &stable,
+                                        &[source_table_name],
+                                        taos,
+                                        None,
+                                        &target_opts,
+                                        true,
+                                        actions,
+                                        metrics_arc,
+                                    )
+                                    .await
+                                    .context("Create sub table error")?;
                                     taos.write_raw_block(&raw)
                                         .await
                                         .context("Write raw block into target error")?;
                                 } else {
                                     // normal table
-                                    sync_normal_table_schema(&from, &source_table_name, actions, None, taos).await.context("Create table error")?;
+                                    sync_normal_table_schema(
+                                        &from,
+                                        &source_table_name,
+                                        actions,
+                                        None,
+                                        taos,
+                                    )
+                                    .await
+                                    .context("Create table error")?;
                                     taos.write_raw_block(&raw)
                                         .await
                                         .context("Write raw block into target error")?;
@@ -1397,7 +1435,6 @@ pub async fn tmq_to_td(
     from: Dsn,
     actions: Vec<Action>,
     mut to: Dsn,
-    jobs: usize,
     cancel: CancellationToken,
     task_id: Option<String>,
     notify: crate::TaskNotifySender,
@@ -1408,7 +1445,7 @@ pub async fn tmq_to_td(
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
-        .unwrap_or(jobs); // 0 means auto
+        .unwrap_or(0); // 0 means auto
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
@@ -1781,7 +1818,7 @@ pub async fn tmq_to_td(
                                     return Err(err);
                                 }
                                 let _ = notify
-                                    .send_async(crate::TaskNotify::Warn(format!(
+                                    .send_async(crate::TaskNotify::source_error(format!(
                                         "Consuming task {consumer_task_id} error: {err:#}"
                                     )))
                                     .await;
@@ -2013,7 +2050,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_show_subscriptions() -> anyhow::Result<()> {
+    async fn test_show_subscriptions_with_taos() -> anyhow::Result<()> {
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         let res = taos.query("show subscriptions").await;
         match res {

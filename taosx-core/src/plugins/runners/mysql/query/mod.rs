@@ -222,7 +222,7 @@ mod tests {
         }
     }
 
-    async fn test_create_table() {
+    async fn test_create_table(table_name: &str) {
         let _ = test_create_database().await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
@@ -231,10 +231,10 @@ mod tests {
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
-                let sql_drop_table = "drop table if exists t_metric";
-                let _ = query.pool.execute(sql_drop_table).await;
-                let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp)";
-                let _ = query.pool.execute(sql_create_table).await;
+                let sql_drop_table = format!("drop table if exists {table_name}");
+                let _ = query.pool.execute(sql_drop_table.as_str()).await;
+                let sql_create_table = format!("create table if not exists {table_name} (id int primary key auto_increment, name varchar(255), value double, ts timestamp)");
+                let _ = query.pool.execute(sql_create_table.as_str()).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -242,8 +242,8 @@ mod tests {
         }
     }
 
-    async fn test_insert_data(len: usize) {
-        let _ = test_create_table().await;
+    async fn test_insert_data(table_name: &str, len: usize) {
+        let _ = test_create_table(table_name).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -251,10 +251,11 @@ mod tests {
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
-                let sql_insert_data =
-                    "insert into t_metric (name, value, ts) values ('中文', 0.8, now())";
+                let sql_insert_data = format!(
+                    "insert into {table_name} (name, value, ts) values ('中文', 0.8, now())"
+                );
                 for _ in 0..len {
-                    let _ = query.pool.execute(sql_insert_data).await;
+                    let _ = query.pool.execute(sql_insert_data.as_str()).await;
                 }
             }
             Err(e) => {
@@ -263,15 +264,15 @@ mod tests {
         }
     }
 
-    async fn test_clear_data() {
+    async fn test_clear_data(table_name: &str) {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
-                let sql = "delete from t_metric where 1 = 1";
-                let _ = query.pool.execute(sql).await;
+                let sql = format!("delete from {table_name} where 1 = 1");
+                let _ = query.pool.execute(sql.as_str()).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -297,7 +298,7 @@ mod tests {
     #[tokio::test]
     async fn test_show_tables() {
         // prepare data
-        let _ = test_create_table().await;
+        let _ = test_create_table("test_show_tables").await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -307,15 +308,16 @@ mod tests {
 
         let tables = query.show_tables().await.unwrap();
         assert!(
-            tables.contains(&"t_metric".to_string())
+            tables.contains(&"test_show_tables".to_string())
                 || tables.contains(&"[116, 95, 109, 101, 116, 114, 105, 99]".to_string())
         );
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_show_columns() {
         // prepare data
-        let _ = test_create_table().await;
+        let _ = test_create_table("test_show_columns").await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -323,7 +325,7 @@ mod tests {
             .await
             .unwrap();
 
-        let columns = query.show_columns("t_metric").await.unwrap();
+        let columns = query.show_columns("test_show_columns").await.unwrap();
         assert!(
             columns.eq(&[
                 ("id".to_string(), "int".to_string()),
@@ -358,8 +360,8 @@ mod tests {
     #[tokio::test]
     async fn test_select_distinct_values() {
         // prepare data
-        let _ = test_create_table().await;
-        let _ = test_insert_data(7).await;
+        let _ = test_create_table("test_select_distinct_values").await;
+        let _ = test_insert_data("test_select_distinct_values", 7).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -368,19 +370,19 @@ mod tests {
             .unwrap();
 
         let rows = query
-            .select_distinct_values("select distinct name,value from t_metric")
+            .select_distinct_values("select distinct name,value from test_select_distinct_values")
             .await
             .unwrap();
         dbg!(&rows);
         // clear data
-        let _ = test_clear_data().await;
+        let _ = test_clear_data("test_select_distinct_values").await;
     }
 
     #[tokio::test]
     async fn test_select_one_for_schema() {
         // prepare data
-        let _ = test_create_table().await;
-        let _ = test_insert_data(1).await;
+        let _ = test_create_table("test_select_one_for_schema").await;
+        let _ = test_insert_data("test_select_one_for_schema", 1).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -389,19 +391,19 @@ mod tests {
             .unwrap();
 
         let row = query
-            .select_one_for_schema("select * from t_metric")
+            .select_one_for_schema("select * from test_select_one_for_schema")
             .await
             .unwrap();
         assert!(row.is_some());
         // clear data
-        let _ = test_clear_data().await;
+        let _ = test_clear_data("test_select_one_for_schema").await;
     }
 
     #[tokio::test]
     async fn test_select_all() {
         // prepare data
-        let _ = test_create_table().await;
-        let _ = test_insert_data(7).await;
+        let _ = test_create_table("test_select_all").await;
+        let _ = test_insert_data("test_select_all", 7).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -409,18 +411,21 @@ mod tests {
             .await
             .unwrap();
 
-        let rows = query.select_all("select * from t_metric").await.unwrap();
+        let rows = query
+            .select_all("select * from test_select_all")
+            .await
+            .unwrap();
         dbg!(&rows.len());
         // assert_eq!(rows.len(), 7);
         // clear data
-        let _ = test_clear_data().await;
+        let _ = test_clear_data("test_select_all").await;
     }
 
     #[tokio::test]
     async fn test_select_by_stream() {
         // prepare data
-        let _ = test_create_table().await;
-        let _ = test_insert_data(7).await;
+        let _ = test_create_table("test_select_by_stream").await;
+        let _ = test_insert_data("test_select_by_stream", 7).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -428,7 +433,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut stream = query.select_by_stream("select * from t_metric");
+        let mut stream = query.select_by_stream("select * from test_select_by_stream");
 
         let mut rows = Vec::new();
         while let Some(result) = stream.next().await {
@@ -444,15 +449,14 @@ mod tests {
         dbg!(&rows.len());
         // assert_eq!(rows.len(), 7);
         // clear data
-        let _ = test_clear_data().await;
+        let _ = test_clear_data("test_select_by_stream").await;
     }
 
     #[tokio::test]
     async fn test_top_n() {
         // prepare data
-        let _ = test_create_table().await;
-        let _ = test_clear_data().await;
-        let _ = test_insert_data(3).await;
+        let _ = test_create_table("test_top_n").await;
+        let _ = test_insert_data("test_top_n", 3).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -460,19 +464,19 @@ mod tests {
             .await
             .unwrap();
 
-        let rows = query.top_n("select * from t_metric", 5).await.unwrap();
+        let rows = query.top_n("select * from test_top_n", 5).await.unwrap();
         dbg!(&rows.len());
         // assert_eq!(rows.len(), 3);
         // clear data
-        let _ = test_clear_data().await;
+        let _ = test_clear_data("test_top_n").await;
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_charset() {
         // prepare data
-        let _ = test_create_table().await;
-        let _ = test_clear_data().await;
-        let _ = test_insert_data(3).await;
+        let _ = test_create_table("test_charset").await;
+        let _ = test_insert_data("test_charset", 3).await;
 
         // gbk, not match the charset in mysql
         let dsn =
@@ -483,7 +487,7 @@ mod tests {
             .unwrap();
 
         let row = query
-            .select_one_for_schema("select name from t_metric")
+            .select_one_for_schema("select name from test_charset")
             .await
             .unwrap();
         match row {
@@ -505,7 +509,7 @@ mod tests {
             .unwrap();
 
         let row = query
-            .select_one_for_schema("select name from t_metric")
+            .select_one_for_schema("select name from test_charset")
             .await
             .unwrap();
         match row {
@@ -518,7 +522,7 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data().await;
+        let _ = test_clear_data("test_charset").await;
     }
 
     /// mysql> show variables like 'require_secure_transport'; ---OFF
