@@ -71,9 +71,10 @@ class TDTestCase:
             time.sleep(1)
 
             count +=1
-            tdLog.info("loop%d"%count)
+            #tdLog.info("loop%d"%count)
 
-        #self.Fun.executeSQL("kill compact %d"%tdSql.queryResult[0][1])
+        if row1 != 0 or row2 != 0:
+            tdLog.exit("compact failed")
         
     
     def stop(self):
