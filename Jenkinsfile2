@@ -78,7 +78,7 @@ def check_docs(){
         file_only_tdgpt_change_except = sh (
             script: '''
                 cd ${WKC}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -v  "forecastoperator.c\\|anomalywindowoperator.c" |grep -v "tsim/analytics" |grep -v "tdgpt_cases.task" || :
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -v  "forecastoperator.c\\|anomalywindowoperator.c\\|tanalytics.h\\|tanalytics.c" |grep -v "tsim/analytics" |grep -v "tdgpt_cases.task" || :
             ''',
             returnStdout: true
         ).trim()
