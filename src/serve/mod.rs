@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use tracing::{info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
+use trigger::Strategy;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -339,8 +340,9 @@ impl Cli {
                     NewTask,
                     UpdateTask,
                     Labels,
+                    Strategy,
                     Task,
-                    TaskActivity,
+                    Activity,
                     Failed,
                     DataSourceInput,
                     DataSourceDefinition,

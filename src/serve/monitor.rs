@@ -178,6 +178,9 @@ impl Monitor {
                     tracing::info!("start send metrics task");
                     let exporter = TaosKeeperExporter { url: &url };
                     let mut interval = tokio::time::interval(Duration::from_secs(monitor_interval));
+                    const MIN_BACKOFF: Duration = Duration::from_secs(2);
+                    const MAX_BACKOFF: Duration = Duration::from_secs(300);
+                    let mut backoff = MIN_BACKOFF;
                     loop {
                         interval.tick().await;
                         let snapshot: taosx_metrics::Snapshot = recorder_handle.snapshot();
@@ -191,7 +194,15 @@ impl Monitor {
                         }
                         let body = stable2json(stables);
                         tracing::trace!("data send to taoskeeper: {}", &body);
-                        exporter.push_taoskeeper(body).await;
+                        if !exporter.push_taoskeeper(body).await {
+                            tokio::time::sleep(backoff).await;
+                            backoff *= 2;
+                            if backoff > MAX_BACKOFF {
+                                backoff = MAX_BACKOFF;
+                            }
+                        } else {
+                            backoff = MIN_BACKOFF;
+                        }
                     }
                 }
                 .in_current_span(),
@@ -385,7 +396,7 @@ struct TaosKeeperExporter<'a> {
 }
 
 impl<'a> TaosKeeperExporter<'a> {
-    pub async fn push_taoskeeper(&self, body: String) {
+    pub async fn push_taoskeeper(&self, body: String) -> bool {
         let client = reqwest::Client::new();
         let result = client
             .post(self.url)
@@ -397,10 +408,14 @@ impl<'a> TaosKeeperExporter<'a> {
             Ok(res) => {
                 if !res.status().is_success() {
                     tracing::error!("send metrics to taoskeeper failed: {:?}", res);
+                    false
+                } else {
+                    true
                 }
             }
             Err(err) => {
                 tracing::error!("send metrics to taoskeeper failed: {:?}", err);
+                false
             }
         }
     }

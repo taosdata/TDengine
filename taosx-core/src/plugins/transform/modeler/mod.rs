@@ -25,7 +25,7 @@ use super::{
     TableOptions,
 };
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Modeler(#[serde(deserialize_with = "model_serde::deserialize")] Vec<Table>);
 
 impl Modeler {
@@ -219,7 +219,7 @@ impl<'a> IntoIterator for &'a Modeler {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Table {
     pub name: String,
     #[serde(default)]

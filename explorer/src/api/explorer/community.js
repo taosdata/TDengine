@@ -173,6 +173,60 @@ export function getDataSources(lang) {
                 "Enable WebSocket compression to reduce network bandwidth consumption.\n",
               value: "false",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
       },
@@ -571,6 +625,60 @@ export function getDataSources(lang) {
                 "Enable WebSocket compression to reduce network bandwidth consumption.\n",
               value: "false",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
       },
@@ -737,6 +845,60 @@ export function getDataSources(lang) {
                 "The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.\n",
               value: "1",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         params: [
@@ -974,6 +1136,60 @@ export function getDataSources(lang) {
                 "The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.\n",
               value: "1",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         params: [
@@ -1399,6 +1615,60 @@ export function getDataSources(lang) {
               placeholder: "$DATA_DIR/tasks/:id/rawdata/",
               requires: "keep_raw_data",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         datasets: {
@@ -1726,6 +1996,60 @@ export function getDataSources(lang) {
               placeholder: "$DATA_DIR/tasks/:id/rawdata/",
               requires: "keep_raw_data",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         datasets: {
@@ -2149,6 +2473,60 @@ export function getDataSources(lang) {
               value: "1000",
               hidden: true,
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
       },
@@ -2340,6 +2718,60 @@ export function getDataSources(lang) {
               value: "1000",
               hidden: true,
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
       },
@@ -2620,6 +3052,60 @@ export function getDataSources(lang) {
               placeholder: "$DATA_DIR/tasks/:id/rawdata/",
               requires: "keep_raw_data",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -2969,6 +3455,60 @@ export function getDataSources(lang) {
                 "The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               value: "1000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -3132,6 +3672,60 @@ export function getDataSources(lang) {
               value: "1000",
               hidden: false,
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -3482,6 +4076,60 @@ export function getDataSources(lang) {
               placeholder: "$DATA_DIR/tasks/:id/rawdata/",
               requires: "keep_raw_data",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -3811,6 +4459,60 @@ export function getDataSources(lang) {
                 "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               value: "10000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -4067,6 +4769,60 @@ export function getDataSources(lang) {
                 "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               value: "10000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -4287,6 +5043,60 @@ export function getDataSources(lang) {
                 "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               value: "10000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -4574,6 +5384,60 @@ export function getDataSources(lang) {
                 "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               value: "10000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -4956,6 +5820,60 @@ export function getDataSources(lang) {
                 "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               value: "10000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "Health Check Duration",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "Seconds"
+                  }
+                ],
+                min: 0,
+                max: 60000
+              },
+              placeholder: "Enter an integer in the range [0, 60000]",
+              description: "Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.",
+              value: "",
+              type_value: "s"
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy State Threshold",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100
+              },
+              description: "Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "Max Write Queue Length",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the maximum write queue length for a single IPC connection.",
+              value: "0"
+            },
+            {
+              name: "max_errors_in_window",
+              display: "Write Error Threshold",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000
+              },
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              value: "0"
+            }
           ],
         },
         writeConfig: writeConfig.en,
@@ -5122,6 +6040,60 @@ export function getDataSources(lang) {
                 "启用 WebSocket 压缩支持，以降低网络带宽占用。",
               description: "启用 WebSocket 压缩支持，以降低网络带宽占用。\n",
               value: "false",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+            {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -5521,6 +6493,60 @@ export function getDataSources(lang) {
               description: "启用 WebSocket 压缩支持，以降低网络带宽占用。\n",
               value: "false",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
+            },
           ],
         },
       },
@@ -5682,6 +6708,60 @@ export function getDataSources(lang) {
               description:
                 "单次读取最大延时（单位为秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。\n",
               value: "1",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -5915,6 +6995,60 @@ export function getDataSources(lang) {
               description:
                 "单次读取最大延时（单位为秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。\n",
               value: "1",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -6333,6 +7467,60 @@ export function getDataSources(lang) {
               placeholder: "$DATA_DIR/tasks/:id/rawdata/",
               requires: "keep_raw_data",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
+            },
           ],
         },
         datasets: {
@@ -6649,6 +7837,60 @@ export function getDataSources(lang) {
                 "自定义原始数据存储目录，默认存储到系统数据目录下。\n",
               placeholder: "$DATA_DIR/tasks/:id/rawdata/",
               requires: "keep_raw_data",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -7067,6 +8309,60 @@ export function getDataSources(lang) {
               value: "1000",
               hidden: true,
             },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
+            },
           ],
         },
       },
@@ -7255,6 +8551,60 @@ export function getDataSources(lang) {
                 "单次读取最大延时（单位为秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。\n",
               value: "1000",
               hidden: true,
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -7531,6 +8881,60 @@ export function getDataSources(lang) {
                 "自定义原始数据存储目录，默认存储到系统数据目录下。\n",
               placeholder: "$DATA_DIR/tasks/:id/rawdata/",
               requires: "keep_raw_data",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -7867,6 +9271,60 @@ export function getDataSources(lang) {
               description: "单次发送的最大消息数或行数。\n",
               value: "1000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
+            },
           ],
         },
         writeConfig: writeConfig.zh,
@@ -8026,6 +9484,60 @@ export function getDataSources(lang) {
               },
               description: "单次发送的最大消息数或行数。\n",
               value: "1000",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -8367,6 +9879,60 @@ export function getDataSources(lang) {
               placeholder: "$DATA_DIR/tasks/:id/rawdata/",
               requires: "keep_raw_data",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
+            },
           ],
         },
         writeConfig: writeConfig.zh,
@@ -8686,6 +10252,60 @@ export function getDataSources(lang) {
               description: "单次发送的最大消息数或行数。\n",
               value: "10000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
+            },
           ],
         },
         writeConfig: writeConfig.zh,
@@ -8935,6 +10555,60 @@ export function getDataSources(lang) {
               description: "单次发送的最大消息数或行数。\n",
               value: "10000",
             },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
+            },
           ],
         },
         writeConfig: writeConfig.zh,
@@ -9149,6 +10823,60 @@ export function getDataSources(lang) {
               },
               description: "单次发送的最大消息数或行数。\n",
               value: "10000",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -9427,6 +11155,60 @@ export function getDataSources(lang) {
               },
               description: "单次发送的最大消息数或行数。\n",
               value: "10000",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },
@@ -9803,6 +11585,60 @@ export function getDataSources(lang) {
               },
               description: "单次发送的最大消息数或行数。\n",
               value: "10000",
+            },
+            {
+              name: "health_check_window_in_second",
+              display: "健康监测时段",
+              hint: {
+                type: "duration",
+                choices: [
+                  {
+                    value: "s",
+                    label: "秒",
+                  },
+                ],
+                min: 0,
+                max: 60000,
+              },
+              placeholder: "输入范围为[0,60000]整数",
+              description: "表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n",
+              value: "",
+              type_value: "s",
+            },
+           {
+              name: "busy_threshold",
+              display: "Busy 状态阈值",
+              hint: {
+                type: "duration",
+                choices: [{label: "%", value: "%"}],
+                min: 0,
+                max: 100,
+              },
+              description: "百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n",
+              value: "100",
+              type_value: "%"
+            },
+            {
+              name: "max_queue_length",
+              display: "写入队列长度",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示一个 IPC 连接对应的写入队列长度最大值。",
+              value: "0",
+            },
+            {
+              name: "max_errors_in_window",
+              display: "写入错误阈值",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 10000,
+              },
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              value: "0",
             },
           ],
         },

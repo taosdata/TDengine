@@ -2994,7 +2994,9 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     // debug_assert!(qid.batch_id() > 0);
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
+        let raw_rows = record.nrows();
         metrics.add_received_batches(1);
+        metrics.add_received_messages(raw_rows as u64);
         let taos = pool.get().await?;
         let mut taos = Some(taos);
         info!("Writing batch");
@@ -3041,7 +3043,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             });
 
             if notifier
-                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                 .is_err()
             {
                 bail!("write batch error: {err:#}");
@@ -3065,6 +3067,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         }
         acks.fetch_add(1, Ordering::SeqCst);
         metrics.add_processed_batches(1);
+        metrics.add_processed_messages(raw_rows as u64);
         drop(taos);
     }
     println!("finished, totally {count} rows");
@@ -3108,6 +3111,8 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
+        let raw_rows = record.nrows();
+        metrics.add_received_messages(raw_rows as u64);
         let n = consume_point_record(
             pool,
             &mut taos,
@@ -3117,8 +3122,9 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             context.target_precision,
             metrics,
         )
-        .await?;
-        Ok(n)
+        .await;
+        metrics.add_processed_messages(raw_rows as u64);
+        n
     }
 
     let context = WriterContext {
@@ -3158,7 +3164,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                     Err(err) => {
                         metrics.add_failed_batches(1);
                         tracing::warn!("Writing batch error: {err:#}");
-                        let _ = notifier.send(crate::TaskNotify::Error(format!("{:#}", err)));
+                        let _ = notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)));
                         let _ = ipc_ack_writer.lock().await.ack(LushAck {
                             code: 0,
                             message: Some(err.to_string()),

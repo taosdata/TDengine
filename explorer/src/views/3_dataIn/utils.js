@@ -49,6 +49,8 @@ export const ComposeParams = [
   "tolerance",
   "delay",
   "local_threshold",
+  "health_check_window_in_second",
+  "busy_threshold"
 ];
 const SelectAllPoints = "child_table_expression";
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
@@ -56,7 +58,7 @@ const valueField = uuid();
 export const optionsField = uuid();
 const groupsFieldBeforeConnection = uuid();
 const groupsFieldAfterConnection = uuid();
-const advancedField = uuid();
+export const advancedField = uuid();
 const piOptionShowValue = "PI Data Archive and Asset Framework (AF) Server";
 const historianLiveTable = "Runtime.dbo.Live";
 const historianSynchronizeMode = "synchronize";
@@ -109,6 +111,13 @@ export const DefaultOpcTableValue = {
     },
   ],
 };
+
+const healthInit = {
+  "health_check_window_in_second": '',
+  "busy_threshold": '',
+  "max_queue_length": '',
+  "max_errors_in_window": '',
+}
 
 export function getDataRange(datatype) {
   switch (datatype) {
@@ -1221,6 +1230,7 @@ function handleAdvanced(advanced, paramsConfig, id) {
       placeholder,
       description: d1,
       short_description: d2,
+      type_value
     } = group;
     const paramChildren = [];
     const config = {
@@ -1230,11 +1240,13 @@ function handleAdvanced(advanced, paramsConfig, id) {
       defaultValue: value, // if: !hidden,
       placeholder,
       required,
+      hint,
+      type_value,
       if: (currentData, originalData) => {
         if (id == "pi") {
           const datasetsData = originalData[datasetsField];
           if (piAdvancedShowValue == datasetsData[valueField]) return true;
-          return ["batch_size", "batch_timeout", "log_level"].includes(name);
+          return ["batch_size", "batch_timeout", "log_level", "health_check_window_in_second", "busy_threshold", "max_queue_length", "max_errors_in_window"].includes(name);
         }
         return !hidden;
       },
@@ -1620,9 +1632,29 @@ function getAdvancedQuery(advanced, query) {
       continue;
     } else {
       const field = getOriginField(key);
-      query.push(field + "=" + getQueryParamValue(advanced[key]));
+      if (ComposeParams.includes(key)) {
+        let type_value = checkValue(
+          getQueryParamValue(advanced[key + "_type"])
+        )
+          ? getQueryParamValue(advanced[key + "_type"])
+          : "";
+        query.push(
+          field + "=" + getQueryParamValue(advanced[key]) + type_value
+        );
+      } else {
+        query.push(field + "=" + getQueryParamValue(advanced[key]));
+      }
     }
   }
+}
+
+export function getAdvancedHealth(advanced) {
+  if (!advanced) return {};
+  const health = {}
+  for (let key in healthInit) {
+    health[key] = key == 'busy_threshold' ? advanced[key]/100 : advanced[key]
+  }
+  return health
 }
 
 function getDatasetsQuery(datasets, allData, query) {

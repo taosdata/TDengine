@@ -11,7 +11,7 @@ use thiserror::Error;
 
 mod functions;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BooleanExpr(Expr);
 
 impl BooleanExpr {
@@ -60,6 +60,12 @@ pub struct Expr {
     ast: rhai::AST,
     #[serde(skip)]
     engine: Arc<Engine>,
+}
+
+impl std::cmp::PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        self.expr == other.expr && self.null_if_error == other.null_if_error
+    }
 }
 
 impl<'de> serde::de::Deserialize<'de> for Expr {

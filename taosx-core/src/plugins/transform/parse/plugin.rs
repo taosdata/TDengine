@@ -184,6 +184,12 @@ pub struct ParserPlugin {
     parser_object: ParserObject,
 }
 
+impl std::cmp::PartialEq for ParserPlugin {
+    fn eq(&self, other: &Self) -> bool {
+        self.plugin_type == other.plugin_type && self.plugin_params == other.plugin_params
+    }
+}
+
 impl Clone for ParserPlugin {
     /// ## Safety
     ///

@@ -6,7 +6,7 @@ use uuid::Uuid;
 use taosx_core::set_env_data_dir;
 
 use crate::serve::{
-    controller::TaskActivity,
+    controller::Activity,
     scheduler::{
         agent::{AgentNotify, AgentWorker},
         runner::AgentIntegrationChannel,
@@ -44,10 +44,8 @@ pub(crate) async fn generate_scheduler_for_test(
                             tokio::spawn(async move {
                                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                                 tracing::info!("agent cancel");
-                                let _ = agent_notify_sender_cloned.send(AgentNotify::TaskActivity(
-                                    agent,
-                                    TaskActivity::stopped(id),
-                                ));
+                                let _ = agent_notify_sender_cloned
+                                    .send(AgentNotify::TaskActivity(agent, Activity::stopped(id)));
                             });
                         }
                         crate::serve::controller::AgentAction::Cancel(id) => {
@@ -58,7 +56,7 @@ pub(crate) async fn generate_scheduler_for_test(
                                 tracing::info!("agent cancel");
                                 let _ = agent_notify_sender_cloned.send(AgentNotify::TaskActivity(
                                     agent,
-                                    TaskActivity::suspended(id, Uuid::nil()),
+                                    Activity::suspended(id, Uuid::nil()),
                                 ));
                             });
                         }

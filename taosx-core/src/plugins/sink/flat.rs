@@ -1277,7 +1277,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
 
     let workers = parser.global().concurrent_limit();
 
-    let (msg_tx, msg_rx) = flume::bounded(workers * 4);
+    let (msg_tx, msg_rx) = flume::bounded::<Box<dyn IpcMessage>>(workers * 4);
     let (ack_tx, ack_rx) = flume::bounded(workers * 4);
 
     let mut writer_set = tokio::task::JoinSet::new();
@@ -1311,6 +1311,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
                 while let Ok(record) = msg_rx.recv_async().await {
+                    let raw_rows = record.nrows();
                     let batch_number = if let Some(batch_counter) = batch_counter.as_ref() {
                         let batch_number = batch_counter.next().await?;
                         qid.set_batch_id(batch_number);
@@ -1334,6 +1335,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                     .await;
                     worker_written += written;
                     count.fetch_add(written, Ordering::SeqCst);
+                    metrics.add_processed_messages(raw_rows as u64);
                     match res {
                         Err(err) => {
                             metrics.add_failed_batches(1);
@@ -1352,7 +1354,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                             ack_tx.send_async(ack).await.context("ACK writer error")?;
                             if ipc_error_strategy.will_stop()
                                 || notifier
-                                    .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                    .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                                     .is_err()
                             {
                                 Err(err).context("write batch error")?;
@@ -1392,9 +1394,12 @@ pub async fn ipc_flat_stream_worker_vgroup(
 
     tokio::pin!(stream);
     while let Some(record) = stream.next().await {
-        metrics_arc.ipc().add_received_batches(1);
         match record {
             Ok(record) => {
+                metrics_arc.ipc().add_received_batches(1);
+                metrics_arc
+                    .ipc()
+                    .add_received_messages(record.nrows() as u64);
                 msg_tx.send_async(record).await?;
             }
             Err(err) => {
@@ -1476,9 +1481,12 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     let metrics = metrics_arc.ipc();
     tokio::pin!(stream);
     while let Some(record) = stream.next().await {
-        metrics.add_received_batches(1);
         match record {
             Ok(record) => {
+                metrics_arc.ipc().add_received_batches(1);
+                metrics_arc
+                    .ipc()
+                    .add_received_messages(record.nrows() as u64);
                 // msg_tx.send_async(record).await?;
                 let batch_number = if let Some(batch_counter) = batch_counter.clone() {
                     Some(batch_counter.next().await?)
@@ -1518,7 +1526,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                         ack_tx.send_async(ack).await.context("ACK writer error")?;
                         if ipc_error_strategy.will_stop()
                             || notifier
-                                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                                 .is_err()
                         {
                             Err(err).context("write batch error")?;
@@ -1600,7 +1608,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     let workers = parser.global().concurrent_limit();
     tracing::info!("flat stream concurrent workers count: {:?}", workers);
 
-    let (msg_tx, msg_rx) = flume::bounded(workers);
+    let (msg_tx, msg_rx) = flume::bounded::<Box<dyn IpcMessage>>(workers);
     let (ack_tx, ack_rx) = flume::bounded(workers);
 
     let (cancel, upstream) = (cancel.child_token(), cancel);
@@ -1642,6 +1650,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
                 while let Ok(record) = msg_rx.recv_async().await {
+                    let raw_rows = record.nrows();
                     if let Some(batch_counter) = batch_counter.as_ref() {
                         let batch_number = batch_counter.next().await?;
                         qid.set_batch_id(batch_number);
@@ -1667,6 +1676,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     .await;
                     worker_written += written;
                     count.fetch_add(written, Ordering::SeqCst);
+                    metrics.add_processed_messages(raw_rows as u64);
                     match res {
                         Err(err) => {
                             metrics.add_failed_batches(1);
@@ -1690,7 +1700,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                                 })
                                 .context("ACK writer error")?;
                             if let Err(error) =
-                                notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                             {
                                 tracing::warn!(%error, "Send error notify failed");
                                 cancel.cancel();
@@ -1764,9 +1774,12 @@ pub async fn ipc_flat_stream_worker_concurrent(
         }
         if let Some(record) = stream.next().await {
             batches += 1;
-            metrics_arc.ipc().add_received_batches(1);
             match record {
                 Ok(record) => {
+                    metrics_arc.ipc().add_received_batches(1);
+                    metrics_arc
+                        .ipc()
+                        .add_received_messages(record.nrows() as u64);
                     msg_tx.send_async(record).await?;
                 }
                 Err(err) => {

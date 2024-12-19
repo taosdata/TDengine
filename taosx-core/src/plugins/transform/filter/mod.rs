@@ -9,7 +9,7 @@ pub(crate) mod expr;
 mod r#match;
 
 /// TODO(@Yuanpai Zhang): implement map transform.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Filter(Vec<FilterImpl>);
 
 impl Filter {
@@ -44,7 +44,7 @@ trait RecordFilter {
     ) -> Result<arrow::record_batch::RecordBatch, RecordFilterError>;
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum FilterImpl {
     Expr(expr::ExprRecordFilter),
     Match(r#match::MatchRecordFilter),
