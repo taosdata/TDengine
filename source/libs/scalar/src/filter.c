@@ -1195,14 +1195,14 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
   if (node->opType == OP_TYPE_IN && (!IS_VAR_DATA_TYPE(type))) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-    SListCell     *cell = listNode->pNodeList->pHead;
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
     out.columnData->info.type = type;
     out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
 
-    for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
-      SValueNode *valueNode = (SValueNode *)cell->pNode;
+    SNode* nodeItem = NULL;
+    FOREACH(nodeItem, listNode->pNodeList) {
+      SValueNode *valueNode = (SValueNode *)nodeItem;
       if (valueNode->node.resType.type != type) {
         int32_t overflow = 0;
         code = sclConvertValueToSclParam(valueNode, &out, &overflow);
@@ -1212,7 +1212,6 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
         }
 
         if (overflow) {
-          cell = cell->pNext;
           continue;
         }
 
@@ -1235,7 +1234,6 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
       taosArrayPush(group, &fgroup);
 
-      cell = cell->pNext;
     }
     colDataDestroy(out.columnData);
     taosMemoryFree(out.columnData);
@@ -4347,22 +4345,19 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
           stat->scalarMode = true;
         }
-        int32_t type = -1;
+        int32_t type = refNode->node.resType.type;
         exprNode = &listNode->node;
-        SListCell *cell = listNode->pNodeList->pHead;
-        for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
-          SValueNode *valueNode = (SValueNode *)cell->pNode;
-          cell = cell->pNext;
-          int32_t tmp = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
-          if (tmp != 0 && tmp != refNode->node.resType.type) {
+        SNode* nodeItem = NULL;
+        FOREACH(nodeItem, listNode->pNodeList) {
+          SValueNode *valueNode = (SValueNode *)nodeItem;
+          int32_t     tmp = vectorGetConvertType(type, valueNode->node.resType.type);
+          if (tmp != 0) {
             stat->scalarMode = true;
-            if (IS_NUMERIC_TYPE(tmp) && tmp > type) {
-              type = tmp;
-            }
+            type = tmp;
           }
-          if (IS_NUMERIC_TYPE(type)) {
-            exprNode->resType.type = type;
-          }
+        }
+        if (IS_NUMERIC_TYPE(type)){
+          exprNode->resType.type = type;
         }
       }
     }

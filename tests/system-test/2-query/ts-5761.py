@@ -31,8 +31,15 @@ class TDTestCase:
         tdSql.execute("INSERT INTO t1 VALUES (1641024000002, 1, 1, 1, 1, 1, '1', 'er')")
         tdSql.execute("INSERT INTO t2 VALUES (1641024000002, 1, 1, 1, 1, 1, '1', 'er')")
         tdSql.execute("INSERT INTO t3 VALUES (1641024000002, 1, 1, 1, 1, 1, '1', 'er')")
-
+        tdSql.execute("CREATE TABLE stt( time TIMESTAMP, c1 BIGINT, c2 timestamp, c3 int, c4 int UNSIGNED, c5 bool, c6 binary(32), c7 nchar(32)) tags(t1 binary(32), t2 nchar(32))")
+        tdSql.execute("create table tt1 using stt tags('1', '1.7')")
+        # create index for all tags
+        tdSql.execute("INSERT INTO tt1 VALUES (1641024000000, 9223372036854775807, 1641024000000, 1, 1, 1, '1', '1.7')")
     def check(self):
+        tdSql.query(f"SELECT * FROM tt1 WHERE c1 in (1.7, 9223372036854775803, '')")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM tt1 WHERE c1 = 9223372036854775803")
+        tdSql.checkRows(0)
         tdSql.query(f"SELECT * FROM t1 WHERE c1 = 1.7")
         tdSql.checkRows(0)
         tdSql.query(f"SELECT * FROM t1 WHERE c1 in (1.7, 2)")

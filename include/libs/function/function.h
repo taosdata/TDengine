@@ -232,7 +232,7 @@ struct SScalarParam {
   bool             colAlloced;
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
-  SHashObj        *pHashFilterVar;
+  SHashObj        *pHashFilterOthers;
   int32_t          hashValueType;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
