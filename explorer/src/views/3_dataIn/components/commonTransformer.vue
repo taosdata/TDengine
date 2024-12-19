@@ -1929,38 +1929,32 @@ export default {
           return;
         }
         this.isbreak = false;
-        let outputColumns = result[0].fields.map((item) => item.name);
-        let outputTBData = result[0].columns.map((data) => {
-          return Object.fromEntries(
-            result[0].fields.map((item, index) => {
-              return [item.name, this.filterEmpty(data[index])];
-            })
-          );
-        });
-        let overlapColumns = [];
-        this.tableData
-          .map((val) => val["Name"])
-          .forEach((item) => {
-            if (outputColumns.includes(item)) {
-              overlapColumns.push(item);
-            }
-          });
-        if (outputColumns.includes("__tbname__")) {
-          let index = this.tableData.findIndex(
-            (item) => item["Type"] == "Tablename"
-          );
-          overlapColumns.push(this.tableData[index]["Name"]);
-        }
-        
+      
         // 预览映射结果table数据
-        let resultTableData = outputTBData.map(item => {
-          if (this.$store.state.app.currentDBType == 'mqtt') {
-            item.SuperTableName = item['__using__']
-          }
-          item.SubTableName = item['__tbname__'];
-          const { __using__, __tbname__, ...rest } = item;
-          return rest;
+        let resultTableData = [];
+        resultTableData = result.map(item => {
+          const fields = item.fields;
+          const columns = item.columns;
+          const fieldNames = fields.map(field => field.name); 
+
+          return columns.map(row => {
+            // 为每一行数据创建一个字典，字段名作为键，行数据作为值
+            let rowDict = {};
+            fieldNames.forEach((fieldName, index) => {
+                rowDict[fieldName] = this.filterEmpty(row[index]);
+            });
+
+            if (this.$store.state.app.currentDBType == 'mqtt') {
+              rowDict.SuperTableName = rowDict['__using__'];  
+            }
+            rowDict.SubTableName = rowDict['__tbname__'];  
+
+            const { __using__, __tbname__, ...rest } = rowDict;
+
+            return rest;
+          });
         });
+     
         this.$store.commit('app/SET_RESULTTB_SHOW',true);
         this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'mappingResTb');
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultTableData);
