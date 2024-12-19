@@ -7,7 +7,6 @@ use std::{
     io::{Read, Write},
     iter::zip,
     net::SocketAddr,
-    num::NonZeroUsize,
     str::FromStr,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
@@ -212,7 +211,8 @@ async fn ipc_tcp_forward(
     info!("Reading batches");
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
 
-    let (tables_cache_tx, tables_cache_rx) = ring_channel(NonZeroUsize::new(50).unwrap());
+    let (tables_cache_tx, tables_cache_rx) =
+        ring_channel(crate::global::agent_in_memory_cache_capacity());
 
     let mut cause_error = None;
     const MAX_LAST_RETRIES: usize = 10; // allow 5 times retry in last 2 minutes;

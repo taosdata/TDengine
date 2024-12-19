@@ -7,16 +7,20 @@
 #
 #token = ""
 
-# server instance id
+# Server instance id
 #
 # The instanceId of each instance is unique on the host
 #instanceId = 48
 
-# enable communication data compression between Agent and taosX
+# Enable communication data compression between Agent and taosX
 #
 #compression = true
 
-# log configuration
+# In-memory cache capacity
+#
+#in_memory_cache_capacity = 64
+
+# Log configuration entry
 [log]
 # All log files are stored in this directory
 #
