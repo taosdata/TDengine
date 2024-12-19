@@ -493,10 +493,10 @@ int32_t vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void 
       .async = async,
       .id = 0,
   };
-  return vnodeAsync2(&channelID, priority, execute, complete, arg, taskID);
+  return vnodeAsyncC(&channelID, priority, execute, complete, arg, taskID);
 }
 
-int32_t vnodeAsync2(SVAChannelID *channelID, EVAPriority priority, int32_t (*execute)(void *), void (*cancel)(void *),
+int32_t vnodeAsyncC(SVAChannelID *channelID, EVAPriority priority, int32_t (*execute)(void *), void (*cancel)(void *),
                     void *arg, SVATaskID *taskID) {
   if (channelID == NULL || channelID->async < MIN_ASYNC_ID || channelID->async > MAX_ASYNC_ID || execute == NULL ||
       channelID->id < 0) {
@@ -827,4 +827,19 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
   channelID->async = 0;
   channelID->id = 0;
   return 0;
+}
+
+const char *vnodeGetATaskName(EVATaskT taskType) {
+  switch (taskType) {
+    case EVA_TASK_COMMIT:
+      return "vnode-commit";
+    case EVA_TASK_MERGE:
+      return "vnode-merge";
+    case EVA_TASK_COMPACT:
+      return "vnode-compact";
+    case EVA_TASK_RETENTION:
+      return "vnode-retention";
+    default:
+      return "unknown";
+  }
 }

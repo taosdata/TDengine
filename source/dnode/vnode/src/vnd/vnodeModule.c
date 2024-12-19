@@ -27,7 +27,6 @@ int vnodeInit(StopDnodeFp stopDnodeFp) {
 
   TAOS_CHECK_RETURN(vnodeAsyncOpen());
   TAOS_CHECK_RETURN(walInit(stopDnodeFp));
-  TAOS_CHECK_RETURN(tsdbInit());
 
   monInitVnode();
 
@@ -36,7 +35,6 @@ int vnodeInit(StopDnodeFp stopDnodeFp) {
 
 void vnodeCleanup() {
   if (atomic_val_compare_exchange_32(&VINIT, 1, 0) == 0) return;
-  tsdbCleanUp();
   vnodeAsyncClose();
   walCleanUp();
   smaCleanUp();
