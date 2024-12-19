@@ -14,6 +14,7 @@
  */
 
 #include "tsdbFSet2.h"
+#include "vnd.h"
 
 #ifndef _TSDB_FILE_SYSTEM_H
 #define _TSDB_FILE_SYSTEM_H
@@ -61,8 +62,8 @@ int32_t tsdbFSEditAbort(STFileSystem *fs);
 // other
 void tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);
-void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset);
-void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid);
+void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task, STFileSet **fset);
+void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task);
 // utils
 int32_t save_fs(const TFileSetArray *arr, const char *fname);
 void    current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);

@@ -18,22 +18,6 @@
 
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
 extern void    tsdbCloseCompMonitor(STsdb *tsdb);
-extern int32_t tsdbInitCompact();
-extern void    tsdbCleanupCompact();
-
-int32_t tsdbInit() {
-#ifdef TD_ENTERPRISE
-  return tsdbInitCompact();
-#endif
-  return 0;
-}
-
-void tsdbCleanUp() {
-#ifdef TD_ENTERPRISE
-  tsdbCleanupCompact();
-#endif
-  return;
-}
 
 void tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;

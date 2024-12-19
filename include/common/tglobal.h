@@ -114,6 +114,7 @@ extern int32_t tsRetentionSpeedLimitMB;
 
 extern const char *tsAlterCompactTaskKeywords;
 extern int32_t     tsNumOfCompactThreads;
+extern int32_t     tsNumOfRetentionThreads;
 
 // sync raft
 extern int32_t tsElectInterval;

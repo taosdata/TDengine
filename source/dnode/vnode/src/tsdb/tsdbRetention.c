@@ -325,11 +325,21 @@ static int32_t tsdbRetention(void *arg) {
 
   // begin task
   (void)taosThreadMutexLock(&pTsdb->mutex);
-  tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, &fset);
+
+  // check if background task is disabled
+  if (pTsdb->bgTaskDisabled) {
+    tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(pTsdb->pVnode));
+    (void)taosThreadMutexUnlock(&pTsdb->mutex);
+    return 0;
+  }
+
+  // set flag and copy
+  tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, EVA_TASK_RETENTION, &fset);
   if (fset && (code = tsdbTFileSetInitCopy(pTsdb, fset, &rtner.fset))) {
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+
   (void)taosThreadMutexUnlock(&pTsdb->mutex);
 
   // do retention
@@ -346,7 +356,7 @@ static int32_t tsdbRetention(void *arg) {
 _exit:
   if (rtner.fset) {
     (void)taosThreadMutexLock(&pTsdb->mutex);
-    tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
+    tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid, EVA_TASK_RETENTION);
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
   }
 
@@ -364,26 +374,29 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate) 
   int32_t code = 0;
   int32_t lino = 0;
 
+  // check if background task is disabled
+  if (tsdb->bgTaskDisabled) {
+    tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(tsdb->pVnode));
+    return 0;
+  }
+
   STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+    if (arg == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    }
 
-  if (!tsdb->bgTaskDisabled) {
-    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-      TAOS_CHECK_GOTO(tsdbTFileSetOpenChannel(fset), &lino, _exit);
+    arg->tsdb = tsdb;
+    arg->now = now;
+    arg->fid = fset->fid;
+    arg->s3Migrate = s3Migrate;
 
-      SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
-      if (arg == NULL) {
-        TAOS_CHECK_GOTO(terrno, &lino, _exit);
-      }
-
-      arg->tsdb = tsdb;
-      arg->now = now;
-      arg->fid = fset->fid;
-      arg->s3Migrate = s3Migrate;
-
-      if ((code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg, NULL))) {
-        taosMemoryFree(arg);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
+    code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
+                      &fset->retentionTask);
+    if (code) {
+      taosMemoryFree(arg);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 

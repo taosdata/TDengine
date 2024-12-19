@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tglobal.h"
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
-#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
@@ -104,6 +104,7 @@ int32_t tsRetentionSpeedLimitMB = 0;    // unlimited
 
 const char *tsAlterCompactTaskKeywords = "max_compact_tasks";
 int32_t     tsNumOfCompactThreads = 2;
+int32_t     tsNumOfRetentionThreads = 1;
 
 // sync raft
 int32_t tsElectInterval = 25 * 1000;

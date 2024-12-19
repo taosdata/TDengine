@@ -1083,9 +1083,6 @@ void tsdbRemoveFile(const char *path);
     }                                    \
   } while (0)
 
-int32_t tsdbInit();
-void    tsdbCleanUp();
-
 #ifdef __cplusplus
 }
 #endif
