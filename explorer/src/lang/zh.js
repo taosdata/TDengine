@@ -390,7 +390,7 @@ export default {
   },
   route: {
     dataIn: "数据写入",
-    board: "面板",
+    board: "监控面板",
     data: "数据",
     dataOut: "数据输出",
     cluster: "集群",
@@ -486,7 +486,7 @@ export default {
     version: "版本",
     expiretime: "过期时间",
     createtime: "创建时间",
-    overview: "概览",
+    overview: "监控面板",
     cluster: "集群",
     cloud: "云",
     region: "地区",

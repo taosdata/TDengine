@@ -441,7 +441,7 @@ export default {
     createtime: "Create Time",
     expiretime: "Expiration Time",
     version: "Version",
-    overview: "Overview",
+    overview: "Dashboard",
     cluster: "Instance",
     cloud: "Cloud",
     region: "Region",

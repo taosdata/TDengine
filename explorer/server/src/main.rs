@@ -890,7 +890,6 @@ async fn proxy(
     url: &str,
     append_headers: Option<HeaderMap>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    
     if req.headers().contains_key("upgrade") {
         // Websocket proxy.
 
@@ -899,7 +898,7 @@ async fn proxy(
         if append_headers.is_some() {
             builder = builder.headers(append_headers.unwrap());
         }
-        
+
         let builder = real_ip_forward(&req, builder);
 
         let target_response = builder.send().await.unwrap();
@@ -1168,26 +1167,34 @@ async fn grafana_api(
     payload: web::Payload,
 ) -> impl Responder {
     tracing::trace!("proxy grafana: {:?}", grafana_path);
-    if args.profile.grafana_dashboard.is_none() || args.profile.grafana_token.is_none() {
+    let grafana = args.profile.grafana.as_ref();
+    if grafana.is_none()
+        || grafana.unwrap().token.as_ref().is_none()
+        || grafana.unwrap().dashboards.as_ref().is_none()
+        || grafana.unwrap().dashboards.as_ref().unwrap().is_empty()
+    {
         tracing::error!("Grafana API is required");
         return Ok(HttpResponse::NotFound().finish());
     }
+
     let grafana_api = GRAFANA_API.get_or_init(|| {
-        let url = args.profile.grafana_dashboard.as_deref().unwrap();
+        let dashboards = grafana.unwrap().dashboards.as_ref().unwrap();
+        let url = dashboards.values().next().unwrap();
         let re = regex::Regex::new(r"^(https?://[^/]+)").unwrap();
-        let url = re.captures(url).map(|cap| cap[1].to_string()).unwrap_or_else(|| url.to_string());
+        let url = re
+            .captures(url)
+            .map(|cap| cap[1].to_string())
+            .unwrap_or_else(|| url.to_string());
         url.to_string()
     });
-    let url: String = format!("{grafana_api}/grafana/{grafana_path}?{}", req.query_string());
-    tracing::info!("proxy to grafana: {:?}", url);
-
-    let mut headers = HeaderMap::new();
-    let token = format!("Bearer {}", args.profile.grafana_token.as_deref().unwrap());
-    headers.insert(
-        "Authorization",
-        HeaderValue::from_str(&token).unwrap(),
+    let url: String = format!(
+        "{grafana_api}/grafana/{grafana_path}?{}",
+        req.query_string()
     );
-    
+    let mut headers = HeaderMap::new();
+    let token = format!("Bearer {}", grafana.unwrap().token.as_ref().unwrap());
+    headers.insert("Authorization", HeaderValue::from_str(&token).unwrap());
+
     proxy(req, payload, client, &url, Some(headers))
         .await
         .map_err(RestErrResponse::new)
@@ -1277,14 +1284,21 @@ struct Profile {
     #[clap(short, long, env = "EXPLORER_GRPC")]
     grpc: Option<String>,
 
-    #[clap(long, env = "GRAFANA_DASHBOARD")]
-    grafana_dashboard: Option<String>,
-    #[clap(long, env = "GRAFANA_TOKEN")]
-    grafana_token: Option<String>,
-
     /// taosX version
     #[clap(skip)]
     version: Option<String>,
+
+    #[clap(flatten)]
+    grafana: Option<GrafanaConfig>,
+}
+
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
+struct GrafanaConfig {
+    #[serde(skip_serializing)]
+    token: Option<String>,
+    #[clap(skip)]
+    dashboards: Option<HashMap<String, String>>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
