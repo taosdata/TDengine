@@ -230,7 +230,7 @@ jobs:
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
           
           cp /data/github/TestNG_taosX/setenv.sh $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/
-          cd ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/ && source ./setenv.sh && poetry config pypi-token.pypi $GITHUB_APP_TOKEN && poetry install --username x-access-token --password $GITHUB_APP_TOKEN && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
+          cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/ && source ./setenv.sh && poetry config pypi-token.pypi $GITHUB_APP_TOKEN && poetry install --username x-access-token --password $GITHUB_APP_TOKEN && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
