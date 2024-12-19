@@ -46,6 +46,7 @@ typedef struct {
   AsyncCb       cb;
   queue         q;
   TdThreadMutex mutex;
+  void         *hostThrd;
 } SAsyncHandle;
 typedef struct {
   queue   q;
@@ -177,8 +178,9 @@ typedef struct SServerObj {
   bool    inited;
 } SServerObj2;
 
-typedef void (*__sendCb)(void *arg, int32_t status);
+typedef int32_t (*__sendCb)(void *arg, SEvtBuf *buf, int32_t status);
 typedef int32_t (*__readCb)(void *arg, SEvtBuf *buf, int32_t status);
+typedef int32_t (*__sendFinishCb)(void *arg, int32_t status);
 typedef void (*__asyncCb)(void *arg, int32_t status);
 
 enum EVT_TYPE { EVT_ASYNC_T = 0, EVT_CONN_T = 1, EVT_SIGANL_T, EVT_NEW_CONN_T };
@@ -188,13 +190,16 @@ typedef struct {
   void   *data;
   int32_t event;
 
-  __sendCb  sendCb;
-  __readCb  readCb;
-  __asyncCb asyncCb;
+  __sendCb       sendCb;
+  __sendFinishCb sendFinishCb;
+  __readCb       readCb;
+  __asyncCb      asyncCb;
 
   int8_t  evtType;
   void   *arg;
   SEvtBuf buf;
+  SEvtBuf sendBuf;
+  int8_t  rwRef;
 } SFdCbArg;
 
 typedef struct {
@@ -206,7 +211,7 @@ typedef struct {
   fd_set   *evtReadSetOut;
   fd_set   *evtWriteSetOut;
   SHashObj *pFdTable;
-  void     *arg;
+  void     *hostThrd;
   int32_t   fd[2048];
   int32_t   fdIdx;
 
@@ -291,12 +296,48 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       nBytes = read(pArg->fd, pBuf->buf, pBuf->len);
       if (nBytes > 0) {
         code = pArg->readCb(pArg, pBuf, nBytes);
+      } else {
+        code = pArg->readCb(pArg, pBuf, nBytes);
       }
       // handle read
     }
+
     if (res & EVT_WRITE) {
-      pArg->sendCb(NULL, 0);
-      // handle write
+      SEvtBuf *pBuf = &pArg->sendBuf;
+
+      code = evtMayShoudInitBuf(pBuf);
+      if (code != 0) {
+        tError("failed to init wbuf since %s", tstrerror(code));
+        return code;
+      }
+
+      code = pArg->sendCb(pArg->arg, pBuf, 0);
+      if (code != 0) {
+        tError("failed to build send buf since %s", tstrerror(code));
+      }
+      int32_t total = pBuf->len;
+      int32_t offset = 0;
+      do {
+        int32_t n = send(pArg->fd, pBuf->buf + offset, total, 0);
+        if (n < 0) {
+          if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            code = TAOS_SYSTEM_ERROR(errno);
+            break;
+          }
+          code = TAOS_SYSTEM_ERROR(errno);
+          break;
+        }
+        offset += n;
+        total -= n;
+      } while (total > 0);
+
+      if (code != 0) {
+        tError("failed to send buf since %s", tstrerror(code));
+        pArg->sendFinishCb(pArg->arg, code);
+        return code;
+      }
+      code = evtMgtRemove(pOpt, pArg->fd, EVT_WRITE, pArg);
+      return code;
     }
   }
 
@@ -417,13 +458,16 @@ static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *ar
     }
     pOpt->evtFds = fd;
   }
+  int8_t rwRef = 0;
   if (fd != 0) {
     if (events & EVT_READ) {
       FD_SET(fd, pOpt->evtReadSetIn);
+      rwRef++;
     }
 
     if (events & EVT_WRITE) {
       FD_SET(fd, pOpt->evtWriteSetIn);
+      rwRef++;
     }
     pOpt->fd[pOpt->fdIdx++] = fd;
     code = taosHashPut(pOpt->pFdTable, &fd, sizeof(fd), arg, sizeof(*arg));
@@ -433,29 +477,35 @@ static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *ar
 }
 
 static int32_t evtMgtRemove(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *arg) {
+  int32_t line = 0;
   int32_t code = 0;
   ASSERT((events & EVT_SIGNAL) == 0);
-
+  int8_t rwRef = 0;
   if (pOpt->evtFds < fd) {
     return TAOS_SYSTEM_ERROR(EBADF);
   }
 
   if (events & EVT_READ) {
     FD_CLR(fd, pOpt->evtReadSetIn);
+    rwRef++;
   }
 
   if (events & EVT_WRITE) {
     FD_CLR(fd, pOpt->evtWriteSetIn);
+    rwRef++;
   }
   SFdCbArg *pArg = taosHashGet(pOpt->pFdTable, &fd, sizeof(fd));
   if (pArg == NULL) {
-    // TODO, destroy pArg
-  } else {
-    code = taosHashRemove(pOpt->pFdTable, &fd, sizeof(fd));
+    tError("%s failed to get fd %d since %s", __func__, fd, tstrerror(TAOS_SYSTEM_ERROR(EBADF)));
+    return 0;
   }
-  for (int32_t i = 0; i < sizeof(pOpt->fd) / sizeof(pOpt->fd[0]); i++) {
-    if (pOpt->fd[i] == fd) {
-      pOpt->fd[i] = -1;
+  pArg->rwRef -= rwRef;
+  if (pArg->rwRef == 0) {
+    code = taosHashRemove(pOpt->pFdTable, &fd, sizeof(fd));
+    for (int32_t i = 0; i < sizeof(pOpt->fd) / sizeof(pOpt->fd[0]); i++) {
+      if (pOpt->fd[i] == fd) {
+        pOpt->fd[i] = -1;
+      }
     }
   }
   return code;
@@ -490,6 +540,7 @@ static int32_t evtAsyncInit(SEvtMgt *pOpt, int32_t fd[2], SAsyncHandle **async, 
   if (pAsync == NULL) {
     return terrno;
   }
+  pAsync->hostThrd = pThrd;
   pAsync->data = pOpt;
 
   taosThreadMutexInit(&pAsync->mutex, NULL);
@@ -829,7 +880,7 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
 
     SFdArg *pArg = QUEUE_DATA(el, SFdArg, q);
 
-    SSvrConn *pConn = createConn(pEvtMgt->arg, pArg->acceptFd);
+    SSvrConn *pConn = createConn(pEvtMgt->hostThrd, pArg->acceptFd);
     if (pConn == NULL) {
       tError("failed to create conn since %s", tstrerror(code));
       taosMemoryFree(pArg);
@@ -854,6 +905,12 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
 
   return;
 }
+
+int32_t evtSvrHandleSendResp(SWorkThrd2 *pThrd, SSvrRespMsg *pResp) {
+  // TODO
+  int32_t code = 0;
+  return code;
+}
 void evtHandleRespCb(void *async, int32_t status) {
   int32_t code = 0;
 
@@ -874,6 +931,7 @@ void evtHandleRespCb(void *async, int32_t status) {
     QUEUE_REMOVE(el);
 
     SSvrRespMsg *pResp = QUEUE_DATA(el, SSvrRespMsg, q);
+    code = evtSvrHandleSendResp(handle->hostThrd, pResp);
   }
 
   return;
@@ -895,7 +953,7 @@ void *transWorkerThread(void *arg) {
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
-  pOpt->arg = pThrd;
+  pOpt->hostThrd = pThrd;
 
   code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotifyCb, EVT_CONN_T, (void *)pThrd);
   if (code != 0) {
@@ -1541,6 +1599,21 @@ _exception:
 
 static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
   int32_t code = 0;
+
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+
+  SCliReq       *pReq = NULL;
+  STransMsgHead *pHead = (STransMsgHead *)msg;
+
+  int64_t qId = taosHton64(pHead->qid);
+  pHead->code = htonl(pHead->code);
+  pHead->msgLen = htonl(pHead->msgLen);
+  int64_t seq = taosHton64(pHead->seqNum);
+
+  STransMsg resp = {0};
+  (pInst->cfp)(pInst->parent, &resp, NULL);
+
   return code;
 }
 static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
@@ -1593,6 +1666,30 @@ _end:
   }
   return code;
 }
+
+static int32_t evtCliSendReq(SCliConn *pConn, SCliReq *pReq) {
+  int32_t code = 0;
+  // int32_t code = 0;
+  // STransMsg *msg = &pReq->msg;
+  // STransMsgHead head = {0};
+  // head.qid = taosHton64(msg->info.qId);
+  // head.seqNum = taosHton64(msg->info.traceId.msgId);
+  // head.msgLen = htonl(msg->pCont->len);
+
+  // char *pMsg = taosMemoryCalloc(1, sizeof(head) + msg->pCont->len);
+  // if (pMsg == NULL) {
+  //   return TSDB_CODE_OUT_OF_MEMORY;
+  // }
+  // memcpy(pMsg, &head, sizeof(head));
+  // memcpy(pMsg + sizeof(head), msg->pCont->data, msg->pCont->len);
+
+  // code = evtAsyncSend(pConn->hostThrd->asyncHandle, pMsg);
+  // if (code != 0) {
+  //   taosMemoryFree(pMsg);
+  //   return code;
+  // }
+  return code;
+}
 static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
   int32_t code = 0;
   char   *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
@@ -1604,13 +1701,14 @@ static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
     tError("failed to create conn since %s", tstrerror(code));
     return code;
   } else {
+    QUEUE_PUSH(&pConn->reqsToSend2, &req->q);
     STraceId *trace = &req->msg.info.traceId;
     tGDebug("success to create conn %p, src:%s, dst:%s", pConn, pConn->src, pConn->dst);
-    QUEUE_PUSH(&pConn->reqsToSend2, &req->q);
 
     SFdCbArg arg = {
         .evtType = EVT_CONN_T, .arg = NULL, .fd = pConn->fd, .readCb = evtCliReadResp, .sendCb = NULL, .data = pConn};
-    code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_READ, &arg);
+
+    code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_READ | EVT_WRITE, &arg);
   }
   return code;
 }
@@ -1619,7 +1717,7 @@ static void evtHandleCliReqCb(void *arg, int32_t status) {
   SAsyncHandle *handle = arg;
   SEvtMgt      *pEvtMgt = handle->data;
 
-  SCliThrd2 *pThrd = pEvtMgt->arg;
+  SCliThrd2 *pThrd = pEvtMgt->hostThrd;
 
   queue wq;
   QUEUE_INIT(&wq);
@@ -1668,7 +1766,7 @@ static void *cliWorkThread2(void *arg) {
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
-  pThrd->pEvtMgt->arg = pThrd;
+  pThrd->pEvtMgt->hostThrd = pThrd;
 
   code = evtAsyncInit(pThrd->pEvtMgt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtHandleCliReqCb, EVT_ASYNC_T,
                       (void *)pThrd);
