@@ -194,17 +194,17 @@ int32_t udfdCPluginUdfAggProc(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdf
   }
 }
 
-int32_t udfdCPluginUdfAggMerge(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf,
-                               void *udfCtx) {
-  TAOS_UDF_CHECK_PTR_RCODE(inputBuf1, inputBuf2, outputBuf, udfCtx);
-  SUdfCPluginCtx *ctx = udfCtx;
-  if (ctx->aggMergeFunc) {
-    return ctx->aggMergeFunc(inputBuf1, inputBuf2, outputBuf);
-  } else {
-    fnError("udfd c plugin aggregation merge not implemented");
-    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
-  }
-}
+// int32_t udfdCPluginUdfAggMerge(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf,
+//                                void *udfCtx) {
+//   TAOS_UDF_CHECK_PTR_RCODE(inputBuf1, inputBuf2, outputBuf, udfCtx);
+//   SUdfCPluginCtx *ctx = udfCtx;
+//   if (ctx->aggMergeFunc) {
+//     return ctx->aggMergeFunc(inputBuf1, inputBuf2, outputBuf);
+//   } else {
+//     fnError("udfd c plugin aggregation merge not implemented");
+//     return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
+//   }
+// }
 
 int32_t udfdCPluginUdfAggFinish(SUdfInterBuf *buf, SUdfInterBuf *resultData, void *udfCtx) {
   TAOS_UDF_CHECK_PTR_RCODE(buf, resultData, udfCtx);
@@ -378,7 +378,7 @@ int32_t udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
   plugin->udfScalarProcFunc = udfdCPluginUdfScalarProc;
   plugin->udfAggStartFunc = udfdCPluginUdfAggStart;
   plugin->udfAggProcFunc = udfdCPluginUdfAggProc;
-  plugin->udfAggMergeFunc = udfdCPluginUdfAggMerge;
+  // plugin->udfAggMergeFunc = udfdCPluginUdfAggMerge;
   plugin->udfAggFinishFunc = udfdCPluginUdfAggFinish;
 
   SScriptUdfEnvItem items[1] = {{"LD_LIBRARY_PATH", tsUdfdLdLibPath}};
@@ -889,19 +889,19 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
       break;
     }
-    case TSDB_UDF_CALL_AGG_MERGE: {
-      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
-      if (outBuf.buf != NULL) {
-        code = udf->scriptPlugin->udfAggMergeFunc(&call->interBuf, &call->interBuf2, &outBuf, udf->scriptUdfCtx);
-        freeUdfInterBuf(&call->interBuf);
-        freeUdfInterBuf(&call->interBuf2);
-        subRsp->resultBuf = outBuf;
-      } else {
-        code = terrno;
-      }
-
-      break;
-    }
+    // case TSDB_UDF_CALL_AGG_MERGE: {
+    //   SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
+    //   if (outBuf.buf != NULL) {
+    //     code = udf->scriptPlugin->udfAggMergeFunc(&call->interBuf, &call->interBuf2, &outBuf, udf->scriptUdfCtx);
+    //     freeUdfInterBuf(&call->interBuf);
+    //     freeUdfInterBuf(&call->interBuf2);
+    //     subRsp->resultBuf = outBuf;
+    //   } else {
+    //     code = terrno;
+    //   }
+    // 
+    //   break;
+    // }
     case TSDB_UDF_CALL_AGG_FIN: {
       SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
       if (outBuf.buf != NULL) {
@@ -959,10 +959,10 @@ _exit:
       freeUdfInterBuf(&subRsp->resultBuf);
       break;
     }
-    case TSDB_UDF_CALL_AGG_MERGE: {
-      freeUdfInterBuf(&subRsp->resultBuf);
-      break;
-    }
+    // case TSDB_UDF_CALL_AGG_MERGE: {
+    //   freeUdfInterBuf(&subRsp->resultBuf);
+    //   break;
+    // }
     case TSDB_UDF_CALL_AGG_FIN: {
       freeUdfInterBuf(&subRsp->resultBuf);
       break;
