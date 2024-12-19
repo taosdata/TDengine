@@ -311,7 +311,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
         return code;
       }
 
-      code = pArg->sendCb(pArg->arg, pBuf, 0);
+      code = pArg->sendCb(pArg, pBuf, 0);
       if (code != 0) {
         tError("failed to build send buf since %s", tstrerror(code));
       }
@@ -333,7 +333,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
 
       if (code != 0) {
         tError("failed to send buf since %s", tstrerror(code));
-        pArg->sendFinishCb(pArg->arg, code);
+        pArg->sendFinishCb(pArg, code);
         return code;
       }
       code = evtMgtRemove(pOpt, pArg->fd, EVT_WRITE, pArg);
@@ -1617,15 +1617,18 @@ static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
   return code;
 }
 static int32_t evtCliPreSendReq(void *arg, SEvtBuf *buf, int32_t status) {
+   
   int32_t   code = 0;
-  SCliConn *pConn = arg;
-
+  SFdCbArg *pArg = arg;
+  SCliConn *pConn = pArg->data;
+  
   return code;
 }
 
 static int32_t evtCliSendCb(void *arg, int32_t status) {
   int32_t   code = status;
-  SCliConn *pConn = arg;
+  SFdCbArg *pArg = arg;
+  SCliConn *pConn = pArg->data;
   if (code != 0) {
     tError("failed to send request since %s", tstrerror(code));
     return code;
