@@ -19,6 +19,7 @@
 #include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "decimal.h"
 
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
@@ -1687,6 +1688,38 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
     case TSDB_DATA_TYPE_TIMESTAMP: {
       if (parseTime(pSql, pToken, timePrec, &pVal->value.val, &pCxt->msg, pCxt->pComCxt->timezone) != TSDB_CODE_SUCCESS) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid timestamp", pToken->z);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL: {
+      uint8_t precision = 0, scale = 0;
+      Decimal128 dec = {0};
+      int32_t code = decimal128FromStr(pToken->z, pToken->n, &precision, &scale, &dec);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+
+      // precision check
+      // scale auto fit
+
+      code = decimal128ToDataVal(&dec, &pVal->value);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      uint8_t precision = 0, scale = 0;
+      Decimal64 dec = {0};
+      int32_t code = decimal64FromStr(pToken->z, pToken->n, &precision, &scale, &dec);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      // precision check
+      // scale auto fit
+      code = decimal64ToDataVal(&dec, &pVal->value);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
       break;
     }

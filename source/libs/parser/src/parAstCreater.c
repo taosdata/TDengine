@@ -2388,7 +2388,7 @@ SDataType createDecimalDataType(uint8_t type, const SToken* pPrecisionToken, con
   SDataType dt = {0};
   dt.precision = taosStr2UInt8(pPrecisionToken->z, NULL, 10);
   dt.scale = pScaleToken ? taosStr2Int32(pScaleToken->z, NULL, 10) : 0;
-  dt.type = getDecimalType(dt.precision);
+  dt.type = decimalTypeFromPrecision(dt.precision);
   dt.bytes = tDataTypes[dt.type].bytes;
   return dt;
 }

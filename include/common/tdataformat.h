@@ -250,6 +250,10 @@ struct SValue {
       uint8_t *pData;
       uint32_t nData;
     };
+    struct {
+      DecimalWord *words;
+      int32_t      wordNum;
+    };
   };
 };
 

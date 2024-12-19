@@ -134,6 +134,7 @@ typedef struct SViewMeta {
   int32_t  version;
   int32_t  numOfCols;
   SSchema* pSchema;
+  // TODO wjm view support decimal
 } SViewMeta;
 
 typedef struct SDBVgInfo {

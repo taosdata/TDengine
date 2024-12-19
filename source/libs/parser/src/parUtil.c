@@ -1067,7 +1067,7 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
     int32_t metaSize =
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
-        (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
+        (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
     const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize;
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
@@ -1398,7 +1398,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemas = pSchema;
 
   SSchemaExt* pSchemaExt = NULL;
-  if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
+  if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt) {
     int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
     pSchemaExt = taosMemoryMalloc(schemaExtSize);
     if (!pSchemaExt) goto err;

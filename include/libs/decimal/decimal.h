@@ -20,10 +20,45 @@
 extern "C" {
 #endif
 
+#include "ttypes.h"
 #include "tdef.h"
 typedef struct SDataType SDataType;
+typedef struct SValue SValue;
+
+typedef struct Decimal64 {
+  DecimalWord words[1];
+} Decimal64;
+
+typedef struct Decimal128 {
+  DecimalWord words[2];
+} Decimal128;
+
+#define DECIMAL_WORD_NUM(TYPE) sizeof(TYPE) / sizeof(DecimalWord)
 
 int32_t decimalCalcTypeMod(const SDataType* pType);
+void    decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale);
+
+int32_t decimal64FromStr(const char* str, int32_t len, uint8_t* precision, uint8_t* scale, Decimal64* result);
+int32_t decimal128FromStr(const char* str, int32_t len, uint8_t* precision, uint8_t* scale, Decimal128* result);
+
+int32_t decimal64ToDataVal(const Decimal64* dec, SValue* pVal);
+int32_t decimal128ToDataVal(const Decimal128* dec, SValue* pVal);
+
+typedef struct DecimalVar DecimalVar;
+
+typedef struct SDecimalVarOps {
+    uint8_t wordNum;
+    int32_t (*add)(DecimalVar* pLeft, const DecimalVar* pRight);
+    int32_t (*multiply)(DecimalVar* pLeft, const DecimalVar* pRight);
+} SDecimalVarOps;
+
+typedef struct SWideIntegerOps {
+  uint8_t wordNum;
+  int32_t (*add)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+  int32_t (*subtract)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+  int32_t (*multiply)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+  int32_t (*divide)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+} SWideIntegerOps;
 
 #ifdef __cplusplus
 }

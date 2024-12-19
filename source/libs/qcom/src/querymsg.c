@@ -557,7 +557,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   QUERY_PARAM_CHECK(pMeta);
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
 
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
   if (NULL == pTableMeta) {
@@ -578,7 +578,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
   memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
-  if (useCompress(msg->tableType) && msg->pSchemaExt) {
+  if (withExtSchema(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
     memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   } else {
@@ -613,7 +613,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   QUERY_PARAM_CHECK(pMeta);
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
   int32_t tbNameSize = strlen(msg->tbName) + 1;
 
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + tbNameSize);
@@ -635,7 +635,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
   TAOS_MEMCPY(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
-  if (useCompress(msg->tableType) && msg->pSchemaExt) {
+  if (withExtSchema(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
     TAOS_MEMCPY(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   } else {
