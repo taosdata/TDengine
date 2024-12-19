@@ -673,8 +673,6 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
     code = TSDB_CODE_MND_TAG_NOT_EXIST;
     TAOS_RETURN(code);
   }
-  col_id_t colId = pOld->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId));
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
   SSchema *pTag = pNew->pTags + tag;
 
@@ -806,16 +804,7 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
     TAOS_RETURN(code);
   }
 
-  col_id_t colId = pStb->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pStb->name, pStb->uid, colId));
-
-  // SSchema *pTag = pStb->pTags + tag;
-  // if (IS_IDX_ON(pTag)) {
-  //   terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
-  //   return -1;
-  // }
   code = mndAddIndexImpl(pMnode, pReq, pDb, pStb, &idxObj);
-
   TAOS_RETURN(code);
 }
 
