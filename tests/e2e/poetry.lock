@@ -563,6 +563,7 @@ files = [
     {file = "cypari-2.5.5-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:765f63353d4f9e57e9fa9cfe44d2a9307b1dfd0cba3cfa4e841546645e201acd"},
     {file = "cypari-2.5.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9932bf445722152639d9c9edee3bfca5e27849d8d5d5ff9c86c8e538a21e6734"},
     {file = "cypari-2.5.5-cp312-cp312-win_amd64.whl", hash = "sha256:857eb176cbe36b9d2c76d529d5e70a3443314e2f68d07dcd64c8df700ebf383f"},
+    {file = "cypari-2.5.5-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:73b96e905c84deef31f07887505e42d1919c893ad8b04adf0f05288bf2b22b88"},
     {file = "cypari-2.5.5-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:96cc9e8bef803cf59e0dcff2f9aedf73b1350060d33a14e79b9983266d426697"},
     {file = "cypari-2.5.5-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:c3e46ade5c70062a632fc38b498edac9e309308bc6b7af0beaccb941bcdfc9fc"},
     {file = "cypari-2.5.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:17c9c569d936f455505854e8d579b28e788d3c57c02a75670d8c16d7ca6ba4f1"},
@@ -890,6 +891,11 @@ files = [
     {file = "knot_floer_homology-1.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d24c41920f21ebd184c8fde3158ebdd81fbf777bad589b81dd0f5d643bf83f4f"},
     {file = "knot_floer_homology-1.2-cp312-cp312-win32.whl", hash = "sha256:f06d26d9d6faa0b36aa6dc87148c57f483ad2bff9cfa5439990c77735a214ee6"},
     {file = "knot_floer_homology-1.2-cp312-cp312-win_amd64.whl", hash = "sha256:d3d2b21e1f1dfbcaa2ce638461fd1ecc314a5f0a6795607ad0b4389f14eefc30"},
+    {file = "knot_floer_homology-1.2-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:77c99c10e2b9e582e10a94167160e8643821ef56f84bd47269b671f6e71eace2"},
+    {file = "knot_floer_homology-1.2-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:c0c10a822940d7876d15fa9f786b01e99d6af9adafaf33d495a6e99835009ce8"},
+    {file = "knot_floer_homology-1.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:c8bf59e8860c72cba85915470c1a8a24201b527b44327502bba19a6f36027e01"},
+    {file = "knot_floer_homology-1.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:89cf2f94b9a86e213b15bf2ce85f766579b89459f152b793d7157038e599943d"},
+    {file = "knot_floer_homology-1.2-cp313-cp313-win_amd64.whl", hash = "sha256:89ea2ccc1a7c233e46a042a8629bf6edfa900681a094617b940ddfa4e46621f4"},
     {file = "knot_floer_homology-1.2-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:66cd20e0266021f31e2d761010302aefa552e006c5dcb4b3a33b3e0c26b19326"},
     {file = "knot_floer_homology-1.2-cp36-cp36m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f43a5ee40f7d9b901592eb1990fd414f7e27042c4d36f7e39e5227000d6882b3"},
     {file = "knot_floer_homology-1.2-cp36-cp36m-win32.whl", hash = "sha256:8ceca8b658131810620c70c83fff42234f6dddf35c5e87a700eab09081c4b20f"},
@@ -943,6 +949,11 @@ files = [
     {file = "low_index-1.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5007f42c4ab5c367dfd51a5401b9532ff84af5734e1a6eebedac4ff3ee704277"},
     {file = "low_index-1.2-cp312-cp312-win32.whl", hash = "sha256:d6ea034f48315c8fb2da91c66256d0c4e07c5da6058b2b216359a0d817c97bfb"},
     {file = "low_index-1.2-cp312-cp312-win_amd64.whl", hash = "sha256:f3f348d8943092a6292dc8e244a85628bd526c6b5cba2a56c0c1bab89146af7a"},
+    {file = "low_index-1.2-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:564b10bb36ea8a3763cfde2e9369fef08293fab6c1fc1a84d94634efe900cf51"},
+    {file = "low_index-1.2-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:a04ae9dd7179b02bfb28561d49bffc0659950afb750ebb78746487a768f6a52c"},
+    {file = "low_index-1.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:32afd15651b672ff24fe3163341f8d8dc8a046c1d873134304ffb43197bab2ca"},
+    {file = "low_index-1.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:75bb08fb7a1a05ef4fe3430a99eab086e9ced472c9fcea12f558205e61c7a114"},
+    {file = "low_index-1.2-cp313-cp313-win_amd64.whl", hash = "sha256:8cac71e993420dd3da3da133beb1930b981e79449987d35fc166461c8b98fd57"},
     {file = "low_index-1.2-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:a2c1824312df9600925a1823c9b58660af0a78fbf068b89513439898954a88bc"},
     {file = "low_index-1.2-cp36-cp36m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9bc3d622a02410d8d171864b8db5817a9b91879acc13ed3101d6cb58affe4263"},
     {file = "low_index-1.2-cp36-cp36m-win32.whl", hash = "sha256:70229d88eb4f3d2e03c5087e5c37b7ab0c197c392039709a51354a6ea1186f30"},
@@ -2209,4 +2220,4 @@ reference = "aliyun"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "460521a1ad42434e6fe432ca4fcaf99e36f916c77cea15c8f55b67a551e3bc9d"
+content-hash = "b79139c58d7499d00b5a38ae9f498d6ed1bb62e096297a67caf89f65b2f5c821"
