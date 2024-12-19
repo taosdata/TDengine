@@ -198,6 +198,11 @@ TEST(ChkptTriggerRecvMonitorHelperTest, chkptTriggerRecvMonitorHelper) {
     pTask->chkInfo.pActiveInfo->dispatchTrigger = true;
     SArray* array1 = NULL;
     code = chkptTriggerRecvMonitorHelper(pTask, NULL, &array1);
-
     EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+
+    pTask->pMeta->fatalInfo.code = TSDB_CODE_SUCCESS;
+    streamSetFatalError(pTask->pMeta, code, __func__, __LINE__);
+
+    pTask->pMeta->fatalInfo.code = TSDB_CODE_FAILED;
+    streamSetFatalError(pTask->pMeta, code, __func__, __LINE__);
 }
