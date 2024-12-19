@@ -2182,6 +2182,11 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (code) {
         return code;
       }
+    } else {
+      code = stmtSetTbTags2(stmt, NULL);
+      if (code) {
+        return code;
+      }
     }
 
     if (bindv->bind_cols && bindv->bind_cols[i]) {
