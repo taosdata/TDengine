@@ -25,7 +25,7 @@ static bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
 }
 
 static int32_t metaEncodeExtSchema(SEncoder* pCoder, const SMetaEntry* pME) {
-  if (pME->pExtSchema) {
+  if (pME->pExtSchemas) {
     const SSchemaWrapper *pSchWrapper = NULL;
     bool                  hasTypeMods = false;
     if (pME->type == TSDB_SUPER_TABLE) {
@@ -38,7 +38,7 @@ static int32_t metaEncodeExtSchema(SEncoder* pCoder, const SMetaEntry* pME) {
     hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
 
     for (int32_t i = 0; i < pSchWrapper->nCols && hasTypeMods; ++i) {
-      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->pExtSchema[i].typeMod));
+      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->pExtSchemas[i].typeMod));
     }
   }
   return 0;
@@ -57,13 +57,13 @@ static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
 
   hasExtSchema = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
   if (hasExtSchema && pSchWrapper->nCols > 0) {
-    pME->pExtSchema = (SExtSchema*)tDecoderMalloc(pDecoder, sizeof(SExtSchema) * pSchWrapper->nCols);
-    if (pME->pExtSchema == NULL) {
+    pME->pExtSchemas = (SExtSchema*)tDecoderMalloc(pDecoder, sizeof(SExtSchema) * pSchWrapper->nCols);
+    if (pME->pExtSchemas == NULL) {
       return terrno;
     }
 
     for (int32_t i = 0; i < pSchWrapper->nCols && hasExtSchema; i++) {
-      TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pME->pExtSchema[i].typeMod));
+      TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pME->pExtSchemas[i].typeMod));
     }
   }
 

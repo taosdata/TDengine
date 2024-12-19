@@ -579,7 +579,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
       }
     }
   }
-  req.pExtSchema = pStb->pExtSchemas; // only reference to it.
+  req.pExtSchemas = pStb->pExtSchemas; // only reference to it.
   // get length
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, &req, contLen, ret);
@@ -2232,6 +2232,9 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     SSchemaExt *pSchEx = &pRsp->pSchemaExt[i];
     pSchEx->colId = pCmpr->id;
     pSchEx->compress = pCmpr->alg;
+    if (pStb->pExtSchemas) {
+      pSchEx->typeMod = pStb->pExtSchemas[i].typeMod;
+    }
   }
 
   taosRUnLockLatch(&pStb->lock);
@@ -2297,6 +2300,9 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
     SSchemaExt *pSchExt = &pRsp->pSchemaExt[i];
     pSchExt->colId = pCmpr->id;
     pSchExt->compress = pCmpr->alg;
+    if (pStb->pExtSchemas) {
+      pSchExt->typeMod = pStb->pExtSchemas[i].typeMod;
+    }
   }
 
   taosRUnLockLatch(&pStb->lock);

@@ -83,7 +83,7 @@ typedef struct SMetaEntry {
   uint8_t* pBuf;
 
   SColCmprWrapper colCmpr;  // col compress alg
-  SExtSchema*     pExtSchema;
+  SExtSchema*     pExtSchemas;
 } SMetaEntry;
 
 typedef struct SMetaReader {
