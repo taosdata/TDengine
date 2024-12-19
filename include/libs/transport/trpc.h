@@ -246,7 +246,6 @@ typedef struct SRpcHandleInfo {
   int8_t       compressed;
   int16_t      connType;
   int64_t      seq;
-  int64_t      sidSeq;
   int64_t      qId;
   int32_t      msgType;
   void        *reqWithSem;

@@ -96,6 +96,7 @@ typedef struct SSvrConn {
   int32_t bufSize;
   queue   wq;  // uv_write_t queue
   int32_t fd;
+
 } SSvrConn;
 typedef struct SSvrRespMsg {
   SSvrConn     *pConn;
@@ -124,6 +125,12 @@ static FORCE_INLINE void destroySmsg(SSvrRespMsg *smsg) {
   transFreeMsg(smsg->msg.pCont);
   taosMemoryFree(smsg);
 }
+typedef struct {
+  char   *buf;
+  int32_t len;
+  int8_t  inited;
+  void   *data;
+} SEvtBuf;
 typedef struct SWorkThrd {
   TdThread thread;
   // //uv_connect_t connect_req;
@@ -170,9 +177,9 @@ typedef struct SServerObj {
   bool    inited;
 } SServerObj2;
 
-typedef void (*__sendCb)(SFdArg *arg, int32_t status);
-typedef void (*__readCb)(SFdArg *arg, int32_t status);
-typedef void (*__asyncCb)(SFdArg *arg, int32_t status);
+typedef void (*__sendCb)(void *arg, int32_t status);
+typedef int32_t (*__readCb)(void *arg, SEvtBuf *buf, int32_t status);
+typedef void (*__asyncCb)(void *arg, int32_t status);
 
 enum EVT_TYPE { EVT_ASYNC_T = 0, EVT_CONN_T = 1, EVT_SIGANL_T, EVT_NEW_CONN_T };
 
@@ -181,12 +188,13 @@ typedef struct {
   void   *data;
   int32_t event;
 
-  __sendCb  sendFn;
-  __readCb  readFn;
-  __asyncCb asyncFn;
+  __sendCb  sendCb;
+  __readCb  readCb;
+  __asyncCb asyncCb;
 
-  int8_t evtType;
-  void  *arg;
+  int8_t  evtType;
+  void   *arg;
+  SEvtBuf buf;
 } SFdCbArg;
 
 typedef struct {
@@ -242,6 +250,19 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt) {
 
 // int32_t selectUtilRange()
 
+static int32_t evtMayShoudInitBuf(SEvtBuf *evtBuf) {
+  int32_t code = 0;
+  if (evtBuf->inited == 0) {
+    evtBuf->buf = taosMemoryCalloc(1, 4096);
+    if (evtBuf->buf == NULL) {
+      code = terrno;
+    } else {
+      evtBuf->len = 4096;
+      evtBuf->inited = 1;
+    }
+  }
+  return code;
+}
 int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
   int32_t nBytes = 0;
   char    buf[2] = {0};
@@ -260,14 +281,25 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
     }
   } else if (pArg->event == EVT_CONN_T) {
     if (res & EVT_READ) {
-      pArg->readFn(NULL, 0);
+      SEvtBuf *pBuf = &pArg->buf;
+      code = evtMayShoudInitBuf(pBuf);
+      if (code != 0) {
+        tError("failed to init buf since %s", tstrerror(code));
+        return code;
+      }
+
+      nBytes = read(pArg->fd, pBuf->buf, pBuf->len);
+      if (nBytes > 0) {
+        code = pArg->readCb(pArg, pBuf, nBytes);
+      }
       // handle read
     }
     if (res & EVT_WRITE) {
-      pArg->sendFn(NULL, 0);
+      pArg->sendCb(NULL, 0);
       // handle write
     }
   }
+
   return code;
 }
 int32_t evtMgtHandle(SEvtMgt *pOpt, int32_t res, int32_t fd) {
@@ -529,7 +561,7 @@ void uvDestroyResp(void *e) {
   SSvrRespMsg *pMsg = QUEUE_DATA(e, SSvrRespMsg, q);
   destroySmsg(pMsg);
 }
-static int32_t connGetBasicInfo(SSvrConn *pConn) {
+static int32_t connGetSockInfo(SSvrConn *pConn) {
   int32_t code = 0;
 
   struct sockaddr_in addr;
@@ -554,6 +586,7 @@ static int32_t connGetBasicInfo(SSvrConn *pConn) {
   port = ntohs(addr.sin_port);
 
   snprintf(pConn->src, sizeof(pConn->src), "%s:%d", ip_str, port);
+
   return code;
 }
 static SSvrConn *createConn(void *tThrd, int32_t fd) {
@@ -567,12 +600,12 @@ static SSvrConn *createConn(void *tThrd, int32_t fd) {
   pConn->fd = fd;
   QUEUE_INIT(&pConn->queue);
 
-  code = connGetBasicInfo(pConn);
+  code = connGetSockInfo(pConn);
   TAOS_CHECK_GOTO(code, &lino, _end);
 
-  // if ((code = transInitBuffer(&pConn->readBuf)) != 0) {
-  //   TAOS_CHECK_GOTO(code, &lino, _end);
-  // }
+  if ((code = transInitBuffer(&pConn->readBuf)) != 0) {
+    TAOS_CHECK_GOTO(code, &lino, _end);
+  }
 
   // if ((code = transQueueInit(&pConn->resps, uvDestroyResp)) != 0) {
   //   TAOS_CHECK_GOTO(code, &lino, _end);
@@ -632,6 +665,148 @@ static void destroryConn(SSvrConn *pConn) {
   QUEUE_REMOVE(&pConn->queue);
   taosMemoryFree(pConn);
 }
+
+bool uvConnMayGetUserInfo(SSvrConn *pConn, STransMsgHead **ppHead, int32_t *msgLen) {
+  if (pConn->userInited) {
+    return false;
+  }
+
+  STrans        *pInst = pConn->pInst;
+  STransMsgHead *pHead = *ppHead;
+  int32_t        len = *msgLen;
+  if (pHead->withUserInfo) {
+    STransMsgHead *tHead = taosMemoryCalloc(1, len - sizeof(pInst->user));
+    if (tHead == NULL) {
+      tError("conn %p failed to get user info since %s", pConn, tstrerror(terrno));
+      return false;
+    }
+    memcpy((char *)tHead, (char *)pHead, TRANS_MSG_OVERHEAD);
+    memcpy((char *)tHead + TRANS_MSG_OVERHEAD, (char *)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
+           len - sizeof(STransMsgHead) - sizeof(pInst->user));
+    tHead->msgLen = htonl(htonl(pHead->msgLen) - sizeof(pInst->user));
+
+    memcpy(pConn->user, (char *)pHead + TRANS_MSG_OVERHEAD, sizeof(pConn->user));
+    pConn->userInited = 1;
+
+    taosMemoryFree(pHead);
+    *ppHead = tHead;
+    *msgLen = len - sizeof(pInst->user);
+    return true;
+  }
+  return false;
+}
+
+static int32_t evtConnHandleReleaseReq(SSvrConn *pConn, STransMsgHead *phead) {
+  int32_t code = 0;
+  return code;
+}
+static int32_t evtSvrHandleRep(SSvrConn *pConn, char *req, int32_t len) {
+  SWorkThrd2 *pThrd = pConn->hostThrd;
+  STrans     *pInst = pThrd->pInst;
+
+  int32_t        code = 0;
+  int32_t        msgLen = 0;
+  STransMsgHead *pHead = (STransMsgHead *)req;
+  if (uvConnMayGetUserInfo(pConn, &pHead, &msgLen) == true) {
+    tDebug("%s conn %p get user info", transLabel(pInst), pConn);
+  } else {
+    if (pConn->userInited == 0) {
+      taosMemoryFree(pHead);
+      tDebug("%s conn %p failed get user info since %s", transLabel(pInst), pConn, tstrerror(terrno));
+      return TSDB_CODE_INVALID_MSG;
+    }
+    tDebug("%s conn %p no need get user info", transLabel(pInst), pConn);
+  }
+  pHead->code = htonl(pHead->code);
+  pHead->msgLen = htonl(pHead->msgLen);
+
+  pConn->inType = pHead->msgType;
+
+  STransMsg transMsg = {0};
+  transMsg.contLen = transContLenFromMsg(pHead->msgLen);
+  transMsg.pCont = pHead->content;
+  transMsg.msgType = pHead->msgType;
+  transMsg.code = pHead->code;
+  if (pHead->seqNum == 0) {
+    STraceId *trace = &pHead->traceId;
+    tGError("%s conn %p received invalid seqNum, msgType:%s", transLabel(pInst), pConn, TMSG_INFO(pHead->msgType));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  transMsg.info.handle = (void *)transAcquireExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
+  transMsg.info.refIdMgt = pThrd->connRefMgt;
+
+  transMsg.info.refId = pHead->noResp == 1 ? -1 : pConn->refId;
+  transMsg.info.traceId = pHead->traceId;
+  transMsg.info.cliVer = htonl(pHead->compatibilityVer);
+  transMsg.info.forbiddenIp = 0;
+  transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
+  transMsg.info.seq = taosHton64(pHead->seqNum);
+  transMsg.info.qId = taosHton64(pHead->qid);
+  transMsg.info.msgType = pHead->msgType;
+
+  SRpcConnInfo *pConnInfo = &(transMsg.info.conn);
+  pConnInfo->clientIp = pConn->clientIp;
+  pConnInfo->clientPort = pConn->port;
+  tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
+
+  transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
+
+  (*pInst->cfp)(pInst->parent, &transMsg, NULL);
+
+  return code;
+}
+static int32_t evtSvrReadCb(void *arg, SEvtBuf *buf, int32_t bytes) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SFdCbArg *pArg = arg;
+  SSvrConn *pConn = pArg->data;
+
+  if (bytes == 0) {
+    tDebug("client %s closed", pConn->src);
+    return TSDB_CODE_RPC_NETWORK_ERROR;
+  }
+  SConnBuffer *p = &pConn->readBuf;
+  if (p->cap - p->len < bytes) {
+    int32_t newCap = p->cap + bytes;
+    char   *newBuf = taosMemoryRealloc(p->buf, newCap);
+    if (newBuf == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _end);
+    }
+    p->buf = newBuf;
+    p->cap = newCap;
+  }
+
+  memcpy(p->buf + p->len, buf->buf, bytes);
+  p->len += bytes;
+
+  while (p->len >= sizeof(STransMsgHead)) {
+    STransMsgHead head;
+    memcpy(&head, p->buf, sizeof(head));
+    int32_t msgLen = (int32_t)htonl(head.msgLen);
+    if (p->len >= msgLen) {
+      char *pMsg = taosMemoryCalloc(1, msgLen);
+      if (pMsg == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _end);
+      }
+      memcpy(pMsg, p->buf, msgLen);
+      memcpy(p->buf + msgLen, p->buf, p->len - msgLen);
+      p->len -= msgLen;
+
+      code = evtSvrHandleRep(pConn, pMsg, msgLen);
+      TAOS_CHECK_GOTO(terrno, &lino, _end);
+    } else {
+      break;
+    }
+  }
+
+  return code;
+_end:
+  if (code != 0) {
+    tError("failed to handle read since %s", tstrerror(code));
+  }
+  return code;
+}
 void evtNewConnNotifyCb(void *async, int32_t status) {
   int32_t code = 0;
 
@@ -663,8 +838,12 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
       tDebug("success to create conn %p, src:%s, dst:%s", pConn, pConn->src, pConn->dst);
     }
 
-    SFdCbArg arg = {
-        .evtType = EVT_CONN_T, .arg = pArg, .fd = pArg->acceptFd, .readFn = NULL, .sendFn = NULL, .data = NULL};
+    SFdCbArg arg = {.evtType = EVT_CONN_T,
+                    .arg = pArg,
+                    .fd = pArg->acceptFd,
+                    .readCb = evtSvrReadCb,
+                    .sendCb = NULL,
+                    .data = pConn};
     code = evtMgtAdd(pEvtMgt, pArg->acceptFd, EVT_READ, &arg);
 
     if (code != 0) {

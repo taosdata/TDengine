@@ -1897,6 +1897,92 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) { return 0; 
 
 #endif
 
+int32_t transInitBuffer(SConnBuffer* buf) {
+  buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
+  if (buf->buf == NULL) {
+    return terrno;
+  }
+
+  buf->cap = BUFFER_CAP;
+  buf->left = -1;
+  buf->len = 0;
+  buf->total = 0;
+  buf->invalid = 0;
+  return 0;
+}
+void transDestroyBuffer(SConnBuffer* p) {
+  taosMemoryFree(p->buf);
+  p->buf = NULL;
+}
+
+int32_t transClearBuffer(SConnBuffer* buf) {
+  SConnBuffer* p = buf;
+  if (p->cap > BUFFER_CAP) {
+    p->cap = BUFFER_CAP;
+    p->buf = taosMemoryRealloc(p->buf, BUFFER_CAP);
+    if (p->buf == NULL) {
+      return terrno;
+    }
+  }
+  p->left = -1;
+  p->len = 0;
+  p->total = 0;
+  p->invalid = 0;
+  return 0;
+}
+
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
+  static const int HEADSIZE = sizeof(STransMsgHead);
+  int32_t          code = 0;
+  SConnBuffer*     p = connBuf;
+  if (p->left != 0 || p->total <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  int total = p->total;
+  if (total >= HEADSIZE && !p->invalid) {
+    *buf = taosMemoryCalloc(1, total);
+    if (*buf == NULL) {
+      return terrno;
+    }
+    memcpy(*buf, p->buf, total);
+    if ((code = transResetBuffer(connBuf, resetBuf)) < 0) {
+      return code;
+    }
+  } else {
+    total = -1;
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return total;
+}
+
+int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
+  SConnBuffer* p = connBuf;
+  if (p->total < p->len) {
+    int left = p->len - p->total;
+    memmove(p->buf, p->buf + p->total, left);
+    p->left = -1;
+    p->total = 0;
+    p->len = left;
+  } else if (p->total == p->len) {
+    p->left = -1;
+    p->total = 0;
+    p->len = 0;
+    if (p->cap > BUFFER_CAP) {
+      if (resetBuf) {
+        p->cap = BUFFER_CAP;
+        p->buf = taosMemoryRealloc(p->buf, p->cap);
+        if (p->buf == NULL) {
+          return terrno;
+        }
+      }
+    }
+  } else {
+    tError("failed to reset buffer, total:%d, len:%d since %s", p->total, p->len, tstrerror(TSDB_CODE_INVALID_MSG));
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return 0;
+}
+
 int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet) {
   if (pEpset == NULL) {
     return TSDB_CODE_INVALID_PARA;
