@@ -2638,11 +2638,12 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   int32_t   code = 0, lino = 0;
   STSchema *pTSchema = NULL;
   int       sver = -1;
-  int       numCols = pTSchema->numOfCols;
   int       numKeys = 0;
   SArray   *remainCols = NULL;
 
   TAOS_CHECK_RETURN(metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema));
+
+  int numCols = pTSchema->numOfCols;
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
