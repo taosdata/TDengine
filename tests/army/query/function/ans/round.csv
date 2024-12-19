@@ -308,3 +308,53 @@ taos> select round(log(current), 2) from ts_4893.meters limit 1
 ============================
          2.370000000000000 |
 
+taos> select round(cast(1.0e+400 as float), 0);
+ round(cast(1.0e+400 as float), 0) |
+====================================
+ NULL                              |
+
+taos> select round(cast(1.0e+400 as double), 0);
+ round(cast(1.0e+400 as double), 0) |
+=====================================
+ NULL                               |
+
+taos> select round(cast(5 as tinyint), 1);
+ round(cast(5 as tinyint), 1) |
+===============================
+                            5 |
+
+taos> select round(cast(50 as smallint), 1);
+ round(cast(50 as smallint), 1) |
+=================================
+                             50 |
+
+taos> select round(cast(500 as int), 1);
+ round(cast(500 as int), 1) |
+=============================
+                        500 |
+
+taos> select round(cast(50000 as bigint), 1);
+ round(cast(50000 as bigint), 1) |
+==================================
+                           50000 |
+
+taos> select round(cast(5 as TINYINT UNSIGNED), 1);
+ round(cast(5 as tinyint unsigned), 1) |
+========================================
+                                     5 |
+
+taos> select round(cast(50 as smallint unsigned), 1);
+ round(cast(50 as smallint unsigned), 1) |
+==========================================
+                                      50 |
+
+taos> select round(cast(500 as int unsigned), 1);
+ round(cast(500 as int unsigned), 1) |
+======================================
+                                 500 |
+
+taos> select round(cast(50000 as bigint unsigned), 1)
+ round(cast(50000 as bigint unsigned), 1) |
+===========================================
+                                    50000 |
+
