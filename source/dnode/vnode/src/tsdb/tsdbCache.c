@@ -795,6 +795,9 @@ static int32_t reallocVarDataVal(SValue *pValue) {
     uint8_t *pVal = pValue->pData;
     uint32_t nData = pValue->nData;
     if (nData > 0) {
+      // [TODO]
+      tsdbInfo("reallocVarDataVal(): nData alloced %u", nData);
+      
       uint8_t *p = taosMemoryMalloc(nData);
       if (!p) {
         TAOS_RETURN(terrno);
