@@ -62,7 +62,7 @@ class TDTestCase:
         for root, dirs, files in os.walk(projPath):
             if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
+                if ("packaging" not in rootRealPath and "git" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
         if (len(paths) == 0):
