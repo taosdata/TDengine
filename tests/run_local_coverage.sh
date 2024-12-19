@@ -13,132 +13,125 @@ function print_color() {
     echo -e "${color}${message}${NC}"
 }
 
+function printHelp() {
+    echo "Usage: $(basename $0) [options]"
+    echo
+    echo "Options:"
+    echo "  -d [TDengine dir]         TDengine directory (default: outermost project directory)"
+    echo "                            e.g., -d /home/TDinternal/community"
+    echo "  -b [Test branch]          Test branch (default: current branch)"
+    echo "                            e.g., -b cover/3.0"
+    echo "  -i [Build test branch]    Build test branch (default: no)"
+    echo "                            Options: yes (build and install), no (install only)"
+    echo "  -f [TDengine gcda dir]    TDengine gcda directory (default: <TDengine dir>/debug)"
+    echo "  -c [Test case]            Test single case or all cases (default: null)"
+    echo "                            Options:"
+    echo "                              -c all  : run all python, sim cases and unit cases"
+    echo "                              -c task : run all python and sim cases"
+    echo "                              -c cmd  : run the specified test command"
+    echo "                            e.g., -c './test.sh -f tsim/stream/streamFwcIntervalFill.sim'"
+    echo "  -u [Unit test case]       Unit test case (default: null)"
+    echo "                            e.g., -u './schedulerTest'"
+    exit 0
+}
+
 # Initialization parameter
-TDENGINE_DIR="/root/TDinternal/community"
+TDENGINE_DIR=""
 BRANCH=""
-TDENGINE_GCDA_DIR="/root/TDinternal/community/debug/"
+TDENGINE_GCDA_DIR=""
+TEST_CASE=""
+UNIT_TEST_CASE=""
+BRANCH_BUILD="NO"
 
 # Parse command line parameters
 while getopts "hd:b:f:c:u:i:" arg; do
-  case $arg in
-    d)
-      TDENGINE_DIR=$OPTARG
-      ;;
-    b)
-      BRANCH=$OPTARG
-      ;;
-    f)
-      TDENGINE_GCDA_DIR=$OPTARG
-      ;;
-    c)
-      TEST_CASE=$OPTARG
-      ;;
-    u)
-      UNIT_TEST_CASE=$OPTARG
-      ;;
-    i)
-      BRANCH_BUILD=$OPTARG
-      ;;
-    h)
-      echo "Usage: $(basename $0) -d [TDengine dir] -b [Test branch] -i [Build test branch] -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case]"
-      echo "                  -d [TDengine dir] [default /root/TDinternal/community; eg: /home/TDinternal/community] "
-      echo "                  -b [Test branch] [default local branch; eg:cover/3.0] "
-      echo "                  -i [Build test branch] [default no:not build, but still install ;yes:will build and install ] "
-      echo "                  -f [TDengine gcda dir] [default /root/TDinternal/community/debug; eg:/root/TDinternal/community/debug/community/source/dnode/vnode/CMakeFiles/vnode.dir/src/tq/] "
-      echo "                  -c [Test single case/all cases] [default null; -c all : include parallel_test/longtimeruning_cases.task and all unit cases; -c task : include parallel_test/longtimeruning_cases.task; single case: eg: -c './test.sh -f tsim/stream/streamFwcIntervalFill.sim' ] "
-      echo "                  -u [Unit test case] [default null;  eg: './schedulerTest' ] "
-      exit 0
-      ;;
-    ?)
-      echo "Usage: ./$(basename $0) -h"
-      exit 1
-      ;;
-  esac
+    case $arg in
+        d)
+            TDENGINE_DIR=$OPTARG
+            ;;
+        b)
+            BRANCH=$OPTARG
+            ;;
+        f)
+            TDENGINE_GCDA_DIR=$OPTARG
+            ;;
+        c)
+            TEST_CASE=$OPTARG
+            ;;
+        u)
+            UNIT_TEST_CASE=$OPTARG
+            ;;
+        i)
+            BRANCH_BUILD=$OPTARG
+            ;;
+        h)
+            printHelp
+            ;;
+        ?)
+            echo "Usage: ./$(basename $0) -h"
+            exit 1
+            ;;
+    esac
 done
 
-# Check if the command name is provided
+# Find the current project directory if not specified
 if [ -z "$TDENGINE_DIR" ]; then
-  echo "Error: TDengine dir is required."
-  echo "Usage: $(basename $0) -d [TDengine dir] -b [Test branch] -i [Build test branch]  -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case]  "
-  echo "                        -d [TDengine dir] [default /root/TDinternal/community; eg: /home/TDinternal/community] "
-  echo "                        -b [Test branch] [default local branch; eg:cover/3.0] "   
-  echo "                        -i [Build test branch] [default no:not build, but still install ;yes:will build and install ] "
-  echo "                        -f [TDengine gcda dir] [default /root/TDinternal/community/debug; eg:/root/TDinternal/community/debug/community/source/dnode/vnode/CMakeFiles/vnode.dir/src/tq/]  " 
-  echo "                        -c [Test casingle case/all casesse] [default null; -c all : include parallel_test/longtimeruning_cases.task and all unit cases; -c task : include parallel_test/longtimeruning_cases.task; single case: eg: -c './test.sh -f tsim/stream/streamFwcIntervalFill.sim' ]  " 
-  echo "                        -u [Unit test case] [default null;  eg: './schedulerTest' ] "
-  exit 1
+    CODE_DIR=$(dirname $0)
+    cd $CODE_DIR
+    CODE_DIR=$(pwd)
+    if [[ "$CODE_DIR" == *"community"*  ]]; then
+        BUILD_DIR=$(realpath ../../debug)
+    else
+        BUILD_DIR=$(realpath ../debug)
+    fi
+    TDENGINE_DIR=$(realpath ..)
+else
+    BUILD_DIR="$TDENGINE_DIR/debug"
 fi
 
+if [ -z "$TDENGINE_GCDA_DIR" ]; then
+    TDENGINE_GCDA_DIR="$BUILD_DIR"
+elif [[ "$(realpath $TDENGINE_GCDA_DIR)" != "$(realpath $BUILD_DIR)/"* ]]; then
+    print_color $RED "TDENGINE_GCDA_DIR is not a subdirectory of BUILD_DIR"
+    exit 1
+fi
 
+# Show all parameters
 echo "TDENGINE_DIR = $TDENGINE_DIR"
+echo "BRANCH = $BRANCH"
+echo "TDENGINE_GCDA_DIR = $TDENGINE_GCDA_DIR"
+echo "TEST_CASE = $TEST_CASE"
+echo "UNIT_TEST_CASE = $UNIT_TEST_CASE"
+echo "BRANCH_BUILD = $BRANCH_BUILD"
+echo "BUILD_DIR = $BUILD_DIR"
+
 today=`date +"%Y%m%d"`
 TDENGINE_ALLCI_REPORT="$TDENGINE_DIR/tests/all-ci-report-$today.log"
-
-function pullTDengine() {
-    print_color "$GREEN" "TDengine pull start"
-    
-    # pull parent code
-    cd "$TDENGINE_DIR/../"
-    print_color "$GREEN" "git pull parent code..."
-
-    git reset --hard
-    git checkout -- .
-    git checkout $branch
-    git checkout -- .
-    git clean -f
-    git pull
-
-    # pull tdengine code
-    cd $TDENGINE_DIR
-    print_color "$GREEN" "git pull tdengine code..."
-
-    git reset --hard
-    git checkout -- .
-    git checkout $branch
-    git checkout -- .
-    git clean -f
-    git pull
-
-    print_color "$GREEN" "TDengine pull end"
-}
 
 function buildTDengine() {
     print_color "$GREEN" "TDengine build start"
 
-    [ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
-    cd $TDENGINE_DIR/debug
+    [ -d $BUILD_DIR ] || mkdir $BUILD_DIR
+    cd $BUILD_DIR
 
     print_color "$GREEN" "rebuild.."
     rm -rf *
-    makecmd="cmake -DCOVER=true -DBUILD_TEST=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false ../../"
+    makecmd="cmake -DCOVER=true -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=false -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_TEST=true -DBUILD_CONTRIB=false .."
     print_color "$GREEN" "$makecmd"
     $makecmd        
-    make -j 8 install
+    make -j $(nproc) install
 }
 
-# Check and get the branch name and build branch
-if [ -n "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
-    branch="$BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "Build is required for this test!"
-    pullTDengine
+if [ -n "$BRANCH" ]; then
+    git checkout $BRANCH
+    if [ $? -ne 0 ]; then
+        print_color $RED "Failed to checkout to the branch $BRANCH"
+        exit 1
+    fi
+fi
+
+if [ "$BRANCH_BUILD" = "YES" -o "$BRANCH_BUILD" = "yes" ]; then
     buildTDengine
-elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "yes" ] ; then
-    branch="$BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "Build is required for this test!"
-    pullTDengine
-    buildTDengine
-elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" == "no" ] ; then
-    branch="$BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "not build,only install!"
-    cd "$TDENGINE_DIR/../"
-    git pull
-    cd "$TDENGINE_DIR/"
-    git pull
-    cd $TDENGINE_DIR/debug
-    make -j 8 install 
 else
     print_color "$GREEN" "Build is not required for this test!"
 fi
@@ -178,9 +171,9 @@ function runCasesOneByOne () {
 
 function runUnitTest() {
     print_color "$GREEN" "=== Run unit test case ==="
-    print_color "$GREEN" " $TDENGINE_DIR/debug"
-    cd $TDENGINE_DIR/debug
-    ctest -j12
+    print_color "$GREEN" "cd $BUILD_DIR"
+    cd $BUILD_DIR
+    ctest -j $(nproc)
     print_color "$GREEN" "3.0 unit test done"
 }
 
@@ -218,6 +211,8 @@ function runPythonCases() {
     # develop-test
     cd $TDENGINE_DIR/tests/develop-test
     runCasesOneByOne ../parallel_test/longtimeruning_cases.task develop-test
+
+    git checkout -- ../parallel_test/longtimeruning_cases.task
 
     totalSuccess=`grep 'py success' $TDENGINE_ALLCI_REPORT | wc -l`
     if [ "$totalSuccess" -gt "0" ]; then
@@ -259,7 +254,6 @@ function runTest() {
     [ -f $TDENGINE_ALLCI_REPORT ] && rm $TDENGINE_ALLCI_REPORT
 
     if [ -n "$TEST_CASE" ] && [ "$TEST_CASE" != "all" ] && [ "$TEST_CASE" != "task" ]; then
-        TEST_CASE="$TEST_CASE"
         print_color "$GREEN" "Test case: $TEST_CASE "
         cd $TDENGINE_DIR/tests/script/ && $TEST_CASE
         cd $TDENGINE_DIR/tests/army/ && $TEST_CASE
@@ -273,8 +267,8 @@ function runTest() {
         runSimCases
         runPythonCases
     elif [ -n "$UNIT_TEST_CASE" ]; then
-        UNIT_TEST_CASE="$UNIT_TEST_CASE"
-        cd $TDENGINE_DIR/debug/build/bin/ && $UNIT_TEST_CASE
+        print_color $GREEN "Unit test case: $UNIT_TEST_CASE"
+        cd $BUILD_DIR/build/bin/ && $UNIT_TEST_CASE
     else
         print_color "$GREEN" "Test case is null"
     fi
@@ -290,17 +284,12 @@ function runTest() {
 
 function lcovFunc {
     echo "collect data by lcov"
-    cd $TDENGINE_DIR
+    cd $BIULD_DIR
 
-    if [ -n "$TDENGINE_GCDA_DIR" ]; then
-        TDENGINE_GCDA_DIR="$TDENGINE_GCDA_DIR"
-        print_color "$GREEN" "Test gcda file dir: $TDENGINE_GCDA_DIR "
-    else
-        print_color "$GREEN" "Test gcda file dir is default: /root/TDinternal/community/debug"
-    fi
+    print_color "$GREEN" "Test gcda file dir: $TDENGINE_GCDA_DIR "
 
     # collect data
-    lcov -d "$TDENGINE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
+    lcov -d "$TDENGINE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $BUILD_DIR -o coverage.info
 
     # remove exclude paths
     lcov --remove coverage.info \
@@ -347,10 +336,8 @@ function stopTaosadapter {
 
 }
 
-WORK_DIR=/root
-
-date >> $WORK_DIR/date.log
-print_color "$GREEN" "Run local coverage test cases" | tee -a $WORK_DIR/date.log
+date >> $BUILD_DIR/date.log
+print_color "$GREEN" "Run local coverage test cases" | tee -a $BUILD_DIR/date.log
 
 stopTaosd
 
@@ -359,13 +346,13 @@ runTest
 lcovFunc
 
 
-date >> $WORK_DIR/date.log
-print_color "$GREEN" "End of local coverage test cases" | tee -a $WORK_DIR/date.log
+date >> $BUILD_DIR/date.log
+print_color "$GREEN" "End of local coverage test cases" | tee -a $BUILD_DIR/date.log
 
 
 # Define coverage information files and output directories
-COVERAGE_INFO="$TDENGINE_DIR/coverage.info"
-OUTPUT_DIR="$WORK_DIR/coverage_report"
+COVERAGE_INFO="$BUILD_DIR/coverage.info"
+OUTPUT_DIR="$BUILD_DIR/coverage_report"
 
 # Check whether the coverage information file exists
 if [ ! -f "$COVERAGE_INFO" ]; then
