@@ -409,6 +409,8 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   if (ctx->pJobInfo && TSDB_CODE_SUCCESS != ctx->pJobInfo->errCode) {
     QW_UPDATE_RSP_CODE(ctx, ctx->pJobInfo->errCode);
+  } else {
+    QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_TSC_QUERY_CANCELLED);
   }
 
   atomic_store_ptr(&ctx->taskHandle, NULL);
