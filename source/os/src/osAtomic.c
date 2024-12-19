@@ -355,7 +355,7 @@ void atomic_store_double(double volatile* ptr, double val) {
     double_number ret_num = {0};
     ret_num.i = atomic_val_compare_exchange_64((volatile int64_t*)ptr, old_num.i, new_num.i);
 
-    if (ret_num.i == old_num.i) return;
+    if (ret_num.i == old_num.i) break;
   }
 }
 
@@ -414,6 +414,8 @@ int64_t atomic_exchange_64(int64_t volatile* ptr, int64_t val) {
 }
 
 double atomic_exchange_double(double volatile* ptr, double val) {
+  double ret = 0;
+
   for (;;) {
     double_number old_num = {0};
     old_num.d = *ptr;  // current old value
@@ -425,9 +427,11 @@ double atomic_exchange_double(double volatile* ptr, double val) {
     ret_num.i = atomic_val_compare_exchange_64((volatile int64_t*)ptr, old_num.i, new_num.i);
 
     if (ret_num.i == old_num.i) {
-      return ret_num.d;
+      ret = ret_num.d;
+      break;
     }
   }
+  return ret;
 }
 
 void* atomic_exchange_ptr(void* ptr, void* val) {
@@ -589,6 +593,8 @@ int64_t atomic_fetch_add_64(int64_t volatile* ptr, int64_t val) {
 }
 
 double atomic_fetch_add_double(double volatile* ptr, double val) {
+  double ret = 0;
+
   for (;;) {
     double_number old_num = {0};
     old_num.d = *ptr;  // current old value
@@ -599,8 +605,13 @@ double atomic_fetch_add_double(double volatile* ptr, double val) {
     double_number ret_num = {0};
     ret_num.i = atomic_val_compare_exchange_64((volatile int64_t*)ptr, old_num.i, new_num.i);
 
-    if (ret_num.i == old_num.i) return ret_num.d;
+    if (ret_num.i == old_num.i) {
+      ret = ret_num.d;
+      break;
+    }
   }
+
+  return ret;
 }
 
 void* atomic_fetch_add_ptr(void* ptr, int64_t val) {
@@ -710,6 +721,8 @@ int64_t atomic_fetch_sub_64(int64_t volatile* ptr, int64_t val) {
 }
 
 double atomic_fetch_sub_double(double volatile* ptr, double val) {
+  double ret = 0;
+
   for (;;) {
     double_number old_num = {0};
     old_num.d = *ptr;  // current old value
@@ -720,8 +733,13 @@ double atomic_fetch_sub_double(double volatile* ptr, double val) {
     double_number ret_num = {0};
     ret_num.i = atomic_val_compare_exchange_64((volatile int64_t*)ptr, old_num.i, new_num.i);
 
-    if (ret_num.i == old_num.i) return ret_num.d;
+    if (ret_num.i == old_num.i) {
+      ret = ret_num.d;
+      break;
+    }
   }
+
+  return ret;
 }
 
 void* atomic_fetch_sub_ptr(void* ptr, int64_t val) {
