@@ -100,7 +100,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
 static void dmCloseMgmt(SDnodeMgmt *pMgmt) {
   dmStopWorker(pMgmt);
-  taosMemoryFreeClear(pMgmt);
+  taosMemoryFree(pMgmt);
 }
 
 static int32_t dmRequireMgmt(const SMgmtInputOpt *pInput, bool *required) {
