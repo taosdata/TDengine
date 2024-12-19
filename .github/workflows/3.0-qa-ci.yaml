@@ -20,8 +20,8 @@ concurrency:
 jobs:
   set_env:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    # outputs:
-    #   coverage_report_dir: ${{ steps.set_env.outputs.coverage_report_dir }}
+    outputs:
+      coverage_report_dir: ${{ steps.set_env.outputs.coverage_report_dir }}
     #   app_token: ${{ steps.app-token.outputs.token }}
     steps:
       - name: Set COVERAGE_REPORT_DIR
@@ -30,14 +30,7 @@ jobs:
           echo "coverage_report_dir=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DIR
-      - name: Generate GitHub App token
-        id: app-token
-        uses: tibdex/github-app-token@v1
-        with:
-          app_id: ${{ vars.APP_ID }}
-          private_key: ${{ secrets.APP_KEY }}
-      - name: Save token to environment
-        run: echo "APP_TOKEN=${{ steps.app-token.outputs.token }}" >> $GITHUB_ENV
+
   remove_artifacts:
     needs: set_env
     runs-on: [self-hosted, linux, x64, qa, rust]
@@ -205,15 +198,14 @@ jobs:
     needs: [deploy_taosx_plugins,set_env]
     
     steps:
-      - name: Save token to environment
-        env:
-          app_token: ${{ env.app_token }}
-        run: echo "APP_TOKEN=${{ env.app_token }}" >> $GITHUB_ENV
-      - name: Configure git user
-        env:
-          HOME: /root
-        run: |
-          git config --global user.name "taosdata-bot"
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ vars.APP_ID }}
+          private_key: ${{ secrets.APP_KEY }}
+      - name: Set GitHub App Token as secret
+        run: echo "GITHUB_APP_TOKEN=${{ steps.app-token.outputs.token }}" >> $GITHUB_ENV
       - name: Update Repo
         env:
           app_token: ${{ env.app_token }}
@@ -228,14 +220,10 @@ jobs:
           systemctl restart taos-explorer
           systemctl restart taosadapter
       
-
-      
       - name: Checkout code
         uses: actions/checkout@v2
-        env:
-          app_token: ${{ env.app_token }}
         with:
-          token: $APP_TOKEN
+          token: ${{ steps.app-token.outputs.token }}
       - name: Run Test
         continue-on-error: true
         run: |
