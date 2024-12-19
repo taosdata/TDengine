@@ -1616,6 +1616,23 @@ static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
 
   return code;
 }
+static int32_t evtCliPreSendReq(void *arg, SEvtBuf *buf, int32_t status) {
+  int32_t   code = 0;
+  SCliConn *pConn = arg;
+
+  return code;
+}
+
+static int32_t evtCliSendCb(void *arg, int32_t status) {
+  int32_t   code = status;
+  SCliConn *pConn = arg;
+  if (code != 0) {
+    tError("failed to send request since %s", tstrerror(code));
+    return code;
+  }
+  return code;
+}
+
 static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
   int32_t   code;
   int32_t   line = 0;
@@ -1666,30 +1683,6 @@ _end:
   }
   return code;
 }
-
-static int32_t evtCliSendReq(SCliConn *pConn, SCliReq *pReq) {
-  int32_t code = 0;
-  // int32_t code = 0;
-  // STransMsg *msg = &pReq->msg;
-  // STransMsgHead head = {0};
-  // head.qid = taosHton64(msg->info.qId);
-  // head.seqNum = taosHton64(msg->info.traceId.msgId);
-  // head.msgLen = htonl(msg->pCont->len);
-
-  // char *pMsg = taosMemoryCalloc(1, sizeof(head) + msg->pCont->len);
-  // if (pMsg == NULL) {
-  //   return TSDB_CODE_OUT_OF_MEMORY;
-  // }
-  // memcpy(pMsg, &head, sizeof(head));
-  // memcpy(pMsg + sizeof(head), msg->pCont->data, msg->pCont->len);
-
-  // code = evtAsyncSend(pConn->hostThrd->asyncHandle, pMsg);
-  // if (code != 0) {
-  //   taosMemoryFree(pMsg);
-  //   return code;
-  // }
-  return code;
-}
 static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
   int32_t code = 0;
   char   *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
@@ -1705,8 +1698,13 @@ static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
     STraceId *trace = &req->msg.info.traceId;
     tGDebug("success to create conn %p, src:%s, dst:%s", pConn, pConn->src, pConn->dst);
 
-    SFdCbArg arg = {
-        .evtType = EVT_CONN_T, .arg = NULL, .fd = pConn->fd, .readCb = evtCliReadResp, .sendCb = NULL, .data = pConn};
+    SFdCbArg arg = {.evtType = EVT_CONN_T,
+                    .arg = pConn,
+                    .fd = pConn->fd,
+                    .readCb = evtCliReadResp,
+                    .sendCb = evtCliPreSendReq,
+                    .sendFinishCb = evtCliSendCb,
+                    .data = pConn};
 
     code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_READ | EVT_WRITE, &arg);
   }
