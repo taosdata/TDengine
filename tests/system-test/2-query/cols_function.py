@@ -71,9 +71,63 @@ class TDTestCase:
         tdSql.query(f'select cols(last(c0), ts, c1), cols(first(c0), ts, c1), count(1) from {self.dbname}.meters')
         tdSql.query(f'select cols(last(c0), ts as t1, c1 as c11), cols(first(c0), ts as c2, c1 c21), count(1) from {self.dbname}.meters')
 
+    
+    def funcNestTest(self):
+        tdSql.execute('create database db;')
+        tdSql.execute('use db')
+        tdSql.execute(f'drop table if exists db.d1')
+        
+        tdSql.execute('create table db.d1 (ts timestamp, c0 int, c1 float, c2 nchar(30), c3 bool)')
+        tdSql.execute('insert into db.d1 values(1734574929000, 1, 1.1, "a", true)')
+        tdSql.execute('insert into db.d1 values(1734574930000, 2, 2.2, "bbbbbbbbb", false)')
+        
+        tdSql.query(f'select cols(last(c0), ts, c2), cols(first(c0), ts, c2) from db.d1')
+        tdSql.checkRows(1)
+        #tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 1734574930000)
+        tdSql.checkData(0, 1, 2.2)
+        tdSql.checkData(0, 2, 1734574929000)
+        tdSql.checkData(0, 3, 1.1)
+        tdSql.query(f'select cols(last(c0), ts, c1, c2, c3), cols(first(c0), ts, c1, c2, c3) from db.d1')
+        tdSql.checkRows(1)
+        #tdSql.checkCols(6)
+        tdSql.checkData(0, 0, 1734574930000)
+        tdSql.checkData(0, 1, 2.2)
+        tdSql.checkData(0, 2, 'bbbbbbbbb')
+        tdSql.checkData(0, 3, False)
+        tdSql.checkData(0, 4, 1734574929000)
+        tdSql.checkData(0, 5, 1.1)
+        tdSql.checkData(0, 6, 'a')
+        tdSql.checkData(0, 7, True)
+        
+        tdSql.query(f'select cols(last(ts), c1), cols(first(ts), c1) from db.d1')
+        tdSql.checkRows(1)
+        #tdSql.checkCols(6)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 1, 1)
+        
+        tdSql.query(f'select cols(first(ts), c1), cols(first(ts), c1) from db.d1')
+        tdSql.checkRows(1)
+        #tdSql.checkCols(6)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        
+        tdSql.query(f'select cols(first(c0), ts, length(c2)), cols(last(c0), ts, length(c2)) from db.d1')
+        tdSql.checkRows(1)
+        #tdSql.checkCols(6)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.query(f'select cols(first(c0), ts, length(c2)), cols(last(c0), ts, length(c2)) from db.d1')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574929000)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 1734574929000)
+        tdSql.checkData(0, 3, 1)
+
+    
+    
     def parse_test(self):
         tdLog.info("parse test")
-        
         
         #** error sql  **#
         tdSql.error(f'select cols(ts) from {self.dbname}.meters group by tbname')
@@ -101,8 +155,12 @@ class TDTestCase:
         tdSql.error(f'select cols(last(ts)+1, ts) from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+10, c1+10) from {self.dbname}.meters group by tbname')
         
+        tdSql.error(f'select cols(cols(last(ts), c0), c0) as cc from {self.dbname}.meters')
+        
 
     def run(self):
+        self.funcNestTest()
+        return
         self.create_test_data()
         self.parse_test()
         self.one_cols_1output_test()

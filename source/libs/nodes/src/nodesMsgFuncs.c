@@ -664,11 +664,18 @@ static int32_t msgToDataType(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { EXPR_CODE_RES_TYPE = 1 };
+enum { EXPR_CODE_RES_TYPE = 1, EXPR_CODE_BIND_TUPLE_FUNC_IDX, EXPR_CODE_TUPLE_FUNC_IDX };
 
 static int32_t exprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExprNode* pNode = (const SExprNode*)pObj;
-  return tlvEncodeObj(pEncoder, EXPR_CODE_RES_TYPE, dataTypeToMsg, &pNode->resType);
+  int32_t          code = tlvEncodeObj(pEncoder, EXPR_CODE_RES_TYPE, dataTypeToMsg, &pNode->resType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, EXPR_CODE_BIND_TUPLE_FUNC_IDX, pNode->bindTupleFuncIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, EXPR_CODE_TUPLE_FUNC_IDX, pNode->tupleFuncIdx);
+  }
+  return code;
 }
 
 static int32_t msgToExprNode(STlvDecoder* pDecoder, void* pObj) {
@@ -680,6 +687,12 @@ static int32_t msgToExprNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case EXPR_CODE_RES_TYPE:
         code = tlvDecodeObjFromTlv(pTlv, msgToDataType, &pNode->resType);
+        break;
+      case EXPR_CODE_BIND_TUPLE_FUNC_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->bindTupleFuncIdx);
+        break;
+      case EXPR_CODE_TUPLE_FUNC_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->tupleFuncIdx);
         break;
       default:
         break;

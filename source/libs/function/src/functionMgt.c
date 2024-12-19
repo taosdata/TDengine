@@ -443,6 +443,8 @@ int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFu
     return code;
   }
   resetOutputChangedFunc(*ppFunc, pSrcFunc);
+  (*ppFunc)->node.bindTupleFuncIdx = pSrcFunc->node.bindTupleFuncIdx;
+  (*ppFunc)->node.tupleFuncIdx = pSrcFunc->node.tupleFuncIdx;
   return code;
 }
 

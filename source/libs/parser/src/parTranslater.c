@@ -13,8 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "nodes.h"
 #include "parInt.h"
 #include "parTranslater.h"
+#include <stdint.h>
+#include "query.h"
+#include "querynodes.h"
 #include "tdatablock.h"
 
 #include "catalog.h"
@@ -3534,6 +3538,8 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
   tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
+  pFunc->node.bindTupleFuncIdx = ((SExprNode*)*pNode)->bindTupleFuncIdx;
+  pFunc->node.tupleFuncIdx = ((SExprNode*)*pNode)->tupleFuncIdx;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = getFuncInfo(pCxt, pFunc);
@@ -3934,7 +3940,8 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
       ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
     return rewriteExprToSelectTagFunc(pCxt->pTranslateCxt, pNode);
   }
-  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if ((isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) &&
+      ((!nodesIsExprNode(*pNode) || ((SExprNode*)*pNode)->bindTupleFuncIdx == 0))) {
     pCxt->existCol = true;
   }
   return DEAL_RES_CONTINUE;
@@ -7362,6 +7369,19 @@ static EDealRes isMultiColsFuncNode(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+typedef struct SBindTupleFuncCxt {
+  int32_t bindTupleFuncIdx;
+} SBindTupleFuncCxt;
+
+static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
+  SBindTupleFuncCxt* pCxt = pContext;
+  if (nodesIsExprNode(*pNode)) {
+    ((SExprNode*)*pNode)->bindTupleFuncIdx = pCxt->bindTupleFuncIdx;
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static bool hasMultiColsFuncInList(SNodeList* nodeList) {
   SHasMultiColsFuncCxt pCxt = {false};
 
@@ -7383,13 +7403,9 @@ static int32_t hasInvalidColsFunction(STranslateContext* pCxt, SNodeList* nodeLi
   FOREACH(pTmpNode, nodeList) {
     if (QUERY_NODE_FUNCTION == nodeType(pTmpNode)) {
       SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
-      if (pFunc->funcType == FUNCTION_TYPE_COLS) {
-        // cols function at here is valid.
-      } else {
-        if (hasMultiColsFuncInList(pFunc->pParameterList)) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLS_FUNCTION,
-                                         "Invalid cols function in function %s", pFunc->functionName);
-        }
+      if (hasMultiColsFuncInList(pFunc->pParameterList)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLS_FUNCTION,
+                                       "Invalid cols function in function %s", pFunc->functionName);
       }
     } else {
       if (hasMultiColsFunc(&pTmpNode)) {
@@ -7436,43 +7452,80 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLS_FUNCTION,
                                        "Invalid using alias for cols function");
       }
-      if (isMultiColsFunc(pFunc)) {
-        needRewrite = true;
-        break;
-      }
+      needRewrite = true;
     }
   }
 
   SNodeList* pNewNodeList = NULL;
+  SNodeList* tmpFuncNodeList = NULL;
   if (needRewrite) {
     code = nodesMakeList(&pNewNodeList);
     if (NULL == pNewNodeList) {
       return code;
     }
+    code = nodesMakeList(&tmpFuncNodeList);
+    if (NULL == tmpFuncNodeList) {
+      return code;
+    }
+    SNode* pNewNode = NULL;
+    int32_t nums = 0;
+    int32_t selectFuncNum = 0;
     FOREACH(pTmpNode, *nodeList) {
       if (QUERY_NODE_FUNCTION == nodeType(pTmpNode)) {
         SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
-        if (isMultiColsFunc(pFunc)) {
+        if (strcasecmp(pFunc->functionName, "cols") == 0) {
+          ++selectFuncNum;
+          SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
+          if(nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
+            code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+            parserError("Invalid cols function, the first parameter must be a select function");
+            goto _end;
+          }
+          nodesListMakeStrictAppend(&tmpFuncNodeList, pSelectFunc);
           // start from index 1, because the first parameter is select function which needn't to output.
-          SFunctionNode* pSelectFunc = (SFunctionNode*)nodesListGetNode(pFunc->pParameterList, 0);
           for (int i = 1; i < pFunc->pParameterList->length; ++i) {
             SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
-            SNode* pNewFunc = NULL;
-            code = createMultiResColsFunc(pFunc, pSelectFunc, (SExprNode*)pExpr, &pNewFunc);
+
+            code = nodesCloneNode(pExpr, &pNewNode);
+            if (nodesIsExprNode(pNewNode)) {
+              SBindTupleFuncCxt pCxt = {selectFuncNum};
+              nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
+            } else {
+              code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+              parserError("Invalid cols function, the first parameter must be a select function");
+              goto _end;
+            }
             if (TSDB_CODE_SUCCESS != code) goto _end;
-            code = nodesListMakeStrictAppend(&pNewNodeList, pNewFunc);
+            code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
             if (TSDB_CODE_SUCCESS != code) goto _end;
           }
           continue;
         }
       }
-      SNode* pNewNode = NULL;
       code = nodesCloneNode(pTmpNode, &pNewNode);
       if (TSDB_CODE_SUCCESS != code) goto _end;
       code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
       if (TSDB_CODE_SUCCESS != code) goto _end;
     }
+    SNode* pNode = NULL;
+    int32_t pNewSelectFuncIds = 0;
+    FOREACH(pNode, tmpFuncNodeList) {
+      ++pNewSelectFuncIds;
+      code = nodesCloneNode(pNode, &pNewNode);
+      if (TSDB_CODE_SUCCESS != code) goto _end;
+      if (nodesIsExprNode(pNewNode)) {
+        SExprNode* pExprNode = (SExprNode*)pNewNode;
+        pExprNode->tupleFuncIdx = pNewSelectFuncIds;
+      } else {
+        code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+        parserError("Invalid cols function, the first parameter must be a select function");
+        goto _end;
+      }
+      code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
+      if (TSDB_CODE_SUCCESS != code) goto _end;
+    }
     nodesDestroyList(*nodeList);
+    nodesDestroyList(tmpFuncNodeList);
     *nodeList = pNewNodeList;
   }
   return TSDB_CODE_SUCCESS;
@@ -7480,6 +7533,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
 _end:
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyList(pNewNodeList);
+    nodesDestroyList(tmpFuncNodeList);
   }
   return code;
 }
