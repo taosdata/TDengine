@@ -26,7 +26,11 @@ export function restoreBackups(restoreData) {
 
     let base_url = localStorage.getItem("base_url")
     let splitArr = base_url.split('//')
-    let dsn = `tmq+${splitArr[0]}//${username}:${encodeURIComponent(decryptPwd)}@${splitArr[1]}/${restoreData.database}`;
+    let to = `tmq+${splitArr[0]}//${username}:${encodeURIComponent(decryptPwd)}@${splitArr[1]}/${restoreData.database}`;
+    let from = `local:${restoreData.backupDirectory}?topic=${restoreData.point.topic}&from=${restoreData.from}&to=${restoreData.to}&db_name=${restoreData.point.db_name}&db_sql=${restoreData.point.db_sql}`;
+    if (restoreData.point.stable_name) {
+        from += `&stable_name=${restoreData.point.stable_name}&stable_sql=${restoreData.point.stable_sql}`;
+    }
 
     return request({
         baseURL:process.env.VUE_APP_X_API,
@@ -35,8 +39,8 @@ export function restoreBackups(restoreData) {
         data: {
             "labels": ["type::restore", `cluster-id::${localStorage.getItem("local_clusterID")}`],
             "trigger": {"schedule": "oneshot", "resume": "never"},
-            "from": `local:${restoreData.backupDirectory}?topic=${restoreData.topic}&from=${restoreData.from}&to=${restoreData.to}`,
-            "to": dsn
+            from,
+            to,
         }
     });
 }

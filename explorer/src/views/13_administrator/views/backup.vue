@@ -466,7 +466,7 @@ export default {
       this.restoreRangeList = this.historyList.map(item => item.point).filter(item => item <= toFile.point);
       this.restoreRange.from = toFile.point;
       this.restoreRange.to =  toFile.point;
-      this.toPointTopic = toFile.topic;
+      this.pointToRestore = toFile;
       this.restoreConfirmDialog = true;
     },
     async restoreBackup() {
@@ -487,7 +487,7 @@ export default {
           from: this.restoreRange.from,
           to: this.restoreRange.to,
           database: this.ruleForm.database,
-          topic: this.toPointTopic,
+          point: this.pointToRestore,
           backupDirectory,
         });
 
