@@ -54,6 +54,76 @@ typedef struct {
 typedef struct {
   queue q;
 } SFdQueue;
+
+typedef struct SSvrConn {
+  int32_t ref;
+  // uv_tcp_t*  pTcp;
+  // uv_timer_t pTimer;
+
+  queue       queue;
+  SConnBuffer readBuf;  // read buf,
+  int         inType;
+  void       *pInst;    // rpc init
+  void       *ahandle;  //
+  void       *hostThrd;
+  STransQueue resps;
+
+  // SSvrRegArg regArg;
+  bool broken;  // conn broken;
+
+  ConnStatus status;
+
+  uint32_t serverIp;
+  uint32_t clientIp;
+  uint16_t port;
+
+  char src[32];
+  char dst[32];
+
+  int64_t refId;
+  int     spi;
+  char    info[64];
+  char    user[TSDB_UNI_LEN];  // user ID for the link
+  int8_t  userInited;
+  char    secret[TSDB_PASSWORD_LEN];
+  char    ckey[TSDB_PASSWORD_LEN];  // ciphering key
+
+  int64_t whiteListVer;
+
+  // state req dict
+  SHashObj *pQTable;
+  // uv_buf_t *buf;
+  int32_t bufSize;
+  queue   wq;  // uv_write_t queue
+  int32_t fd;
+} SSvrConn;
+typedef struct SSvrRespMsg {
+  SSvrConn     *pConn;
+  STransMsg     msg;
+  queue         q;
+  STransMsgType type;
+  int64_t       seqNum;
+  void         *arg;
+  FilteFunc     func;
+  int8_t        sent;
+
+} SSvrRespMsg;
+
+#define ASYNC_ERR_JRET(thrd)                            \
+  do {                                                  \
+    if (thrd->quit) {                                   \
+      tTrace("worker thread already quit, ignore msg"); \
+      goto _return1;                                    \
+    }                                                   \
+  } while (0)
+
+static FORCE_INLINE void destroySmsg(SSvrRespMsg *smsg) {
+  if (smsg == NULL) {
+    return;
+  }
+  transFreeMsg(smsg->msg.pCont);
+  taosMemoryFree(smsg);
+}
 typedef struct SWorkThrd {
   TdThread thread;
   // //uv_connect_t connect_req;
@@ -73,15 +143,16 @@ typedef struct SWorkThrd {
 
   int32_t connRefMgt;
 
-  int32_t       pipe_fd[2];  //
-  int32_t       pipe_queue_fd[2];
   int32_t       client_count;
   int8_t        inited;
   TdThreadMutex mutex;
   SFdQueue      fdQueue;
 
+  int32_t       pipe_fd[2];  //
   SAsyncHandle *notifyNewConnHandle;
-  SAsyncHandle *handle;
+
+  int32_t       pipe_queue_fd[2];
+  SAsyncHandle *asyncHandle;
 } SWorkThrd2;
 typedef struct SServerObj {
   TdThread     thread;
@@ -103,20 +174,21 @@ typedef void (*__sendCb)(SFdArg *arg, int32_t status);
 typedef void (*__readCb)(SFdArg *arg, int32_t status);
 typedef void (*__asyncCb)(SFdArg *arg, int32_t status);
 
-enum EVT_TYPE { EVT_ASYNC_T = 0, EVT_CONN_T = 1, EVT_SIGANL_T };
+enum EVT_TYPE { EVT_ASYNC_T = 0, EVT_CONN_T = 1, EVT_SIGANL_T, EVT_NEW_CONN_T };
 
 typedef struct {
   int32_t fd;
   void   *data;
   int32_t event;
 
-  __sendCb  sentFn;
+  __sendCb  sendFn;
   __readCb  readFn;
   __asyncCb asyncFn;
 
   int8_t evtType;
   void  *arg;
 } SFdCbArg;
+
 typedef struct {
   int32_t   evtFds;  // highest fd in the set
   int32_t   evtFdsSize;
@@ -170,40 +242,45 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt) {
 
 // int32_t selectUtilRange()
 
-int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg) {
+int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
+  int32_t nBytes = 0;
+  char    buf[2] = {0};
   int32_t code = 0;
-  if (pArg->evtType == EVT_CONN_T) {
-    SAsyncHandle *handle = pArg->arg;
-    handle->cb(handle, 0);
-  } else if (pArg->evtType == EVT_ASYNC_T) {
-    SAsyncHandle *handle = pArg->arg;
-    char          buf[2] = {0};
-    int32_t       nBytes = read(pArg->fd, buf, 1);
-    if (nBytes == 1) {
-      handle->cb(handle, 0);
+  if (pArg->evtType == EVT_NEW_CONN_T || pArg->evtType == EVT_ASYNC_T) {
+    // handle new coming conn;
+    if (res & EVT_READ) {
+      SAsyncHandle *handle = pArg->arg;
+      nBytes = read(pArg->fd, buf, 2);
+      if (nBytes >= 1) {
+        handle->cb(handle, 0);
+      }
     }
-
-  } else {
+    if (res & EVT_WRITE) {
+      // handle err
+    }
+  } else if (pArg->event == EVT_CONN_T) {
+    if (res & EVT_READ) {
+      pArg->readFn(NULL, 0);
+      // handle read
+    }
+    if (res & EVT_WRITE) {
+      pArg->sendFn(NULL, 0);
+      // handle write
+    }
   }
   return code;
 }
 int32_t evtMgtHandle(SEvtMgt *pOpt, int32_t res, int32_t fd) {
-  int32_t code = 0;
-  if (res & EVT_READ) {
-    // handle read
-  }
-  if (res & EVT_WRITE) {
-    // handle write
-  }
+  int32_t   code = 0;
   SFdCbArg *pArg = taosHashGet(pOpt->pFdTable, &fd, sizeof(fd));
   if (pArg == NULL) {
     return TAOS_SYSTEM_ERROR(EBADF);
   }
-  code = evtMgtHandleImpl(pOpt, pArg);
-  return code;
+  return evtMgtHandleImpl(pOpt, pArg, res);
 }
 static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
-  int32_t code = 0, res = 0, j, nfds = 0;
+  int32_t code = 0, res = 0, j, nfds = 0, active_Fds = 0;
+
   if (pOpt->resizeOutSets) {
     fd_set *readSetOut = NULL, *writeSetOut = NULL;
     int32_t sz = pOpt->evtFdsSize;
@@ -228,14 +305,13 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
 
   nfds = pOpt->evtFds + 1;
   // TODO lock or not
-  code = select(nfds, pOpt->evtReadSetOut, pOpt->evtWriteSetOut, NULL, tv);
-  if (code < 0) {
+  active_Fds = select(nfds, pOpt->evtReadSetOut, pOpt->evtWriteSetOut, NULL, tv);
+  if (active_Fds < 0) {
     return TAOS_SYSTEM_ERROR(errno);
-  } else if (code == 0) {
+  } else if (active_Fds == 0) {
     tDebug("select timeout occurred");
     return code;
   }
-  int32_t active_Fds = code;
 
   for (j = 0; j < nfds && active_Fds > 0; j++) {
     int32_t fd = pOpt->fd[j];
@@ -447,8 +523,116 @@ void *transAcceptThread(void *arg) {
   }
   return NULL;
 }
+int32_t uvGetConnRefOfThrd(SWorkThrd2 *thrd) { return thrd ? thrd->connRefMgt : -1; }
 
-void evtNewConnNotify(void *async, int32_t status) {
+void uvDestroyResp(void *e) {
+  SSvrRespMsg *pMsg = QUEUE_DATA(e, SSvrRespMsg, q);
+  destroySmsg(pMsg);
+}
+static int32_t connGetBasicInfo(SSvrConn *pConn) {
+  int32_t code = 0;
+
+  struct sockaddr_in addr;
+  socklen_t          addr_len = sizeof(addr);
+  char               ip_str[INET_ADDRSTRLEN];
+  int                port;
+
+  if (getpeername(pConn->fd, (struct sockaddr *)&addr, &addr_len) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    return code;
+  }
+
+  inet_ntop(AF_INET, &addr.sin_addr, ip_str, sizeof(ip_str));
+  port = ntohs(addr.sin_port);
+  snprintf(pConn->dst, sizeof(pConn->dst), "%s:%d", ip_str, port);
+
+  if (getsockname(pConn->fd, (struct sockaddr *)&addr, &addr_len) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    return code;
+  }
+  inet_ntop(AF_INET, &addr.sin_addr, ip_str, sizeof(ip_str));
+  port = ntohs(addr.sin_port);
+
+  snprintf(pConn->src, sizeof(pConn->src), "%s:%d", ip_str, port);
+  return code;
+}
+static SSvrConn *createConn(void *tThrd, int32_t fd) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SWorkThrd2 *pThrd = tThrd;
+  SSvrConn   *pConn = taosMemoryCalloc(1, sizeof(SSvrConn));
+  if (pConn == NULL) {
+    return NULL;
+  }
+  pConn->fd = fd;
+  QUEUE_INIT(&pConn->queue);
+
+  code = connGetBasicInfo(pConn);
+  TAOS_CHECK_GOTO(code, &lino, _end);
+
+  // if ((code = transInitBuffer(&pConn->readBuf)) != 0) {
+  //   TAOS_CHECK_GOTO(code, &lino, _end);
+  // }
+
+  // if ((code = transQueueInit(&pConn->resps, uvDestroyResp)) != 0) {
+  //   TAOS_CHECK_GOTO(code, &lino, _end);
+  //}
+
+  pConn->broken = false;
+  pConn->status = ConnNormal;
+
+  SExHandle *exh = taosMemoryMalloc(sizeof(SExHandle));
+  if (exh == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+  }
+
+  exh->handle = pConn;
+  exh->pThrd = pThrd;
+  exh->refId = transAddExHandle(uvGetConnRefOfThrd(pThrd), exh);
+  if (exh->refId < 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, &lino, _end);
+  }
+
+  SExHandle *pSelf = transAcquireExHandle(uvGetConnRefOfThrd(pThrd), exh->refId);
+  if (pSelf != exh) {
+    TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _end);
+  }
+
+  STrans *pInst = pThrd->pInst;
+  pConn->refId = exh->refId;
+
+  QUEUE_INIT(&exh->q);
+  tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pInst), exh, pConn, pConn->refId);
+
+  pConn->pQTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (pConn->pQTable == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+  }
+  QUEUE_PUSH(&pThrd->conn, &pConn->queue);
+
+  //  code = initWQ(&pConn->wq);
+  // TAOS_CHECK_GOTO(code, &lino, _end);
+  // wqInited = 1;
+
+  return pConn;
+_end:
+  if (code != 0) {
+    tError("failed to create conn since %s", tstrerror(code));
+    // destroryConn(pConn);
+  }
+  return NULL;
+}
+static void destroryConn(SSvrConn *pConn) {
+  if (pConn == NULL) {
+    return;
+  }
+  // transDestroyBuffer(&pConn->readBuf);
+  // transQueueCleanup(&pConn->resps);
+  taosHashCleanup(pConn->pQTable);
+  QUEUE_REMOVE(&pConn->queue);
+  taosMemoryFree(pConn);
+}
+void evtNewConnNotifyCb(void *async, int32_t status) {
   int32_t code = 0;
 
   SAsyncHandle *handle = async;
@@ -470,18 +654,32 @@ void evtNewConnNotify(void *async, int32_t status) {
 
     SFdArg *pArg = QUEUE_DATA(el, SFdArg, q);
 
-    SFdCbArg arg = {.evtType = EVT_CONN_T, .arg = pArg, .fd = pArg->acceptFd};
+    SSvrConn *pConn = createConn(pEvtMgt->arg, pArg->acceptFd);
+    if (pConn == NULL) {
+      tError("failed to create conn since %s", tstrerror(code));
+      taosMemoryFree(pArg);
+      continue;
+    } else {
+      tDebug("success to create conn %p, src:%s, dst:%s", pConn, pConn->src, pConn->dst);
+    }
+
+    SFdCbArg arg = {
+        .evtType = EVT_CONN_T, .arg = pArg, .fd = pArg->acceptFd, .readFn = NULL, .sendFn = NULL, .data = NULL};
     code = evtMgtAdd(pEvtMgt, pArg->acceptFd, EVT_READ, &arg);
+
+    if (code != 0) {
+      tError("failed to add fd to evt since %s", tstrerror(code));
+    }
     taosMemoryFree(pArg);
   }
 
   return;
 }
-void evtHandleReq(void *async, int32_t status) {
+void evtHandleRespCb(void *async, int32_t status) {
   int32_t code = 0;
 
   SAsyncHandle *handle = async;
-  SEvtMgt      *pEvtMgt = handle->data;
+  // SEvtMgt      *pEvtMgt = handle->data;
 
   queue wq;
   QUEUE_INIT(&wq);
@@ -496,9 +694,7 @@ void evtHandleReq(void *async, int32_t status) {
     queue *el = QUEUE_HEAD(&wq);
     QUEUE_REMOVE(el);
 
-    SFdArg *pArg = QUEUE_DATA(el, SFdArg, q);
-    //  code = evtMgtAdd(pEvtMgt, pArg->acceptFd, EVT_READ, NULL);
-    taosMemoryFree(pArg);
+    SSvrRespMsg *pResp = QUEUE_DATA(el, SSvrRespMsg, q);
   }
 
   return;
@@ -522,13 +718,13 @@ void *transWorkerThread(void *arg) {
 
   pOpt->arg = pThrd;
 
-  code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotify, EVT_CONN_T, (void *)pThrd);
+  code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotifyCb, EVT_CONN_T, (void *)pThrd);
   if (code != 0) {
     tError("failed to create select op since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
-  code = evtAsyncInit(pOpt, pThrd->pipe_queue_fd, &pThrd->handle, evtHandleReq, EVT_ASYNC_T, (void *)pThrd);
+  code = evtAsyncInit(pOpt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtHandleRespCb, EVT_ASYNC_T, (void *)pThrd);
   if (code != 0) {
     tError("failed to create select op since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
@@ -649,6 +845,70 @@ void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads
 End:
   return NULL;
 }
+
+// int32_t transReleaseSrvHandle(void *handle) { return 0; }
+// void    transRefSrvHandle(void *handle) { return; }
+
+// void    transUnrefSrvHandle(void *handle) { return; }
+
+int32_t transSendResponse2(STransMsg *msg) {
+  int32_t code = 0;
+
+  if (msg->info.noResp) {
+    rpcFreeCont(msg->pCont);
+    tTrace("no need send resp");
+    return 0;
+  }
+  SExHandle *exh = msg->info.handle;
+
+  if (exh == NULL) {
+    rpcFreeCont(msg->pCont);
+    return 0;
+  }
+  int64_t refId = msg->info.refId;
+  ASYNC_CHECK_HANDLE(msg->info.refIdMgt, refId, exh);
+
+  STransMsg tmsg = *msg;
+  tmsg.info.refId = refId;
+  if (tmsg.info.qId == 0) {
+    tmsg.msgType = msg->info.msgType + 1;
+  }
+
+  SWorkThrd2 *pThrd = exh->pThrd;
+  ASYNC_ERR_JRET(pThrd);
+
+  SSvrRespMsg *m = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
+  if (m == NULL) {
+    code = terrno;
+    goto _return1;
+  }
+  m->msg = tmsg;
+
+  m->type = Normal;
+
+  STraceId *trace = (STraceId *)&msg->info.traceId;
+  tGDebug("conn %p start to send resp (1/2)", exh->handle);
+  if ((code = evtAsyncSend(pThrd->asyncHandle, &m->q)) != 0) {
+    destroySmsg(m);
+    transReleaseExHandle(msg->info.refIdMgt, refId);
+    return code;
+  }
+
+  transReleaseExHandle(msg->info.refIdMgt, refId);
+  return 0;
+
+_return1:
+  tDebug("handle %p failed to send resp", exh);
+  rpcFreeCont(msg->pCont);
+  transReleaseExHandle(msg->info.refIdMgt, refId);
+  return code;
+_return2:
+  tDebug("handle %p failed to send resp", exh);
+  rpcFreeCont(msg->pCont);
+  return code;
+}
+// int32_t transRegisterMsg(const STransMsg *msg) { return 0; }
+// int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }
 
 void transCloseServer2(void *arg) {
   // impl later
@@ -995,7 +1255,7 @@ _exception:
   return code;
 }
 
-static void evtHandleCliReq(void *arg, int32_t status) {
+static void evtHandleCliReqCb(void *arg, int32_t status) {
   int32_t       code = 0;
   SAsyncHandle *handle = arg;
   SEvtMgt      *pEvtMgt = handle->data;
@@ -1051,7 +1311,7 @@ static void *cliWorkThread2(void *arg) {
 
   pThrd->pEvtMgt->arg = pThrd;
 
-  code = evtAsyncInit(pThrd->pEvtMgt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtHandleCliReq, EVT_ASYNC_T,
+  code = evtAsyncInit(pThrd->pEvtMgt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtHandleCliReqCb, EVT_ASYNC_T,
                       (void *)pThrd);
   TAOS_CHECK_GOTO(code, &line, _end);
 
@@ -1133,26 +1393,3 @@ void transCloseClient2(void *arg) {
   int32_t code = 0;
   return;
 }
-
-// int32_t transReleaseSrvHandle(void *handle) { return 0; }
-// void    transRefSrvHandle(void *handle) { return; }
-
-// void    transUnrefSrvHandle(void *handle) { return; }
-// int32_t transSendResponse(STransMsg *msg) {
-//   //
-//   int32_t code = 0;
-//   if (rpcIsReq(msg->info.msgType) && msg->info.msgType != 0) {
-//     msg->msgType = msg->info.msgType + 1;
-//   }
-//   if (msg->info.noResp) {
-//     rpcFreeCont(msg->pCont);
-//     return 0;
-//   }
-//   int32_t svrVer = 0;
-//   code = taosVersionStrToInt(td_version, &svrVer);
-//   msg->info.cliVer = svrVer;
-//   msg->type = msg->info.connType;
-//   return transSendResp(msg);
-// }
-// int32_t transRegisterMsg(const STransMsg *msg) { return 0; }
-// int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }

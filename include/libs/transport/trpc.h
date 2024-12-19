@@ -250,6 +250,7 @@ typedef struct SRpcHandleInfo {
   int64_t      qId;
   int32_t      msgType;
   void        *reqWithSem;
+  int32_t      refIdMgt;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
