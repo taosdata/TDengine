@@ -1298,7 +1298,6 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
 
   if (node->opType == OP_TYPE_IN && (!IS_VAR_DATA_TYPE(type))) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-    SListCell     *cell = listNode->pNodeList->pHead;
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
     if (out.columnData == NULL) {
@@ -1308,8 +1307,9 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
     out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
 
     int32_t overflowCount = 0;
-    for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
-      SValueNode *valueNode = (SValueNode *)cell->pNode;
+    SNode* nodeItem = NULL;
+    FOREACH(nodeItem, listNode->pNodeList) {
+      SValueNode *valueNode = (SValueNode *)nodeItem;
       if (valueNode->node.resType.type != type) {
         int32_t overflow = 0;
         code = sclConvertValueToSclParam(valueNode, &out, &overflow);
@@ -1319,7 +1319,6 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
         }
 
         if (overflow) {
-          cell = cell->pNext;
           ++overflowCount;
           continue;
         }
@@ -1358,8 +1357,6 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
         code = terrno;
         break;
       }
-
-      cell = cell->pNext;
     }
     if(overflowCount == listNode->pNodeList->length) {
       ctx->ignore = true;
@@ -4863,18 +4860,15 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
           stat->scalarMode = true;
         }
-        int32_t type = -1;
+        int32_t type = refNode->node.resType.type;
         exprNode = &listNode->node;
-        SListCell     *cell = listNode->pNodeList->pHead;
-        for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
-          SValueNode *valueNode = (SValueNode *)cell->pNode;
-          cell = cell->pNext;
-          int32_t tmp = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
-          if (tmp != 0 && tmp != refNode->node.resType.type){
+        SNode* nodeItem = NULL;
+        FOREACH(nodeItem, listNode->pNodeList) {
+          SValueNode *valueNode = (SValueNode *)nodeItem;
+          int32_t tmp = vectorGetConvertType(type, valueNode->node.resType.type);
+          if (tmp != 0){
             stat->scalarMode = true;
-            if (IS_NUMERIC_TYPE(tmp) && tmp > type){
-              type = tmp;
-            }
+            type = tmp;
           }
 
         }
@@ -5031,11 +5025,11 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
     }
     case OP_TYPE_IN: {
         SNodeListNode *listNode = (SNodeListNode *)oper->valNode;
-        SListCell *cell = listNode->pNodeList->pHead;
         SFltSclDatum minDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MAX, .type = oper->colNode->node.resType};
         SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MIN, .type = oper->colNode->node.resType};
-        for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
-          SValueNode *valueNode = (SValueNode *)cell->pNode;
+        SNode* nodeItem = NULL;
+        FOREACH(nodeItem, listNode->pNodeList) {
+          SValueNode *valueNode = (SValueNode *)nodeItem;
           SFltSclDatum valDatum;
           FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, valueNode));
           if(valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT || valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
@@ -5045,7 +5039,6 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
             minDatum.i = TMIN(minDatum.i, valDatum.i);
             maxDatum.i = TMAX(maxDatum.i, valDatum.i);
           }
-          cell = cell->pNext;
         }
         SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
         SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};

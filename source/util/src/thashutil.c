@@ -152,8 +152,8 @@ uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   if (FLT_EQUAL(f, 0.0)) {
     return 0;
   }
-  if (fabs(f) < INT32_MAX) {
-    int32_t t = (int32_t)(floor(f));
+  if (fabs(f) < FLT_MAX / BASE - DLT) {
+    int32_t t = (int32_t)(round(BASE * (f + DLT)));
     return (uint32_t)t;
   } else {
     return 0x7fc00000;
@@ -168,8 +168,8 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   if (FLT_EQUAL(f, 0.0)) {
     return 0;
   }
-  if (fabs(f) < INT32_MAX) {
-    int32_t t = (int32_t)(floor(f));
+  if (fabs(f) < DBL_MAX / BASE - DLT) {
+    int32_t t = (int32_t)(round(BASE * (f + DLT)));
     return (uint32_t)t;
   } else {
     return 0x7fc00000;
