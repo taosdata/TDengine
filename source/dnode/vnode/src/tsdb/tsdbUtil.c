@@ -817,6 +817,11 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
               code = tRealloc(&pTColVal->value.pData, pColVal->value.nData);
               if (code) return code;
 
+              // [TODO]
+              if (pTColVal->value.nData < pColVal->value.nData) {
+                tsdbInfo("tsdbRowMergedAdd(1): nData changed from %u to %u", pTColVal->value.nData, pColVal->value.nData);
+              }
+
               pTColVal->value.nData = pColVal->value.nData;
               if (pTColVal->value.nData) {
                 memcpy(pTColVal->value.pData, pColVal->value.pData, pTColVal->value.nData);
@@ -836,6 +841,11 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
           if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
             code = tRealloc(&tColVal->value.pData, pColVal->value.nData);
             if (code) return code;
+
+            // [TODO]
+            if (tColVal->value.nData < pColVal->value.nData) {
+              tsdbInfo("tsdbRowMergedAdd(-1): nData changed from %u to %u", tColVal->value.nData, pColVal->value.nData);
+            }
 
             tColVal->value.nData = pColVal->value.nData;
             if (pColVal->value.nData) {

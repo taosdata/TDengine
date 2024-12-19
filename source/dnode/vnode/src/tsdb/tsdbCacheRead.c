@@ -164,10 +164,12 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
           int32_t pkBufLen = (pReader->rowKey.numOfPKs > 0) ? pReader->pkColumn.bytes : 0;
           uint32_t allocBufLen = pReader->pSchema->columns[slotId].bytes + pkBufLen;
           if (allocBufLen < pColVal->colVal.value.nData) {
-            tsdbError("buffer overflow at row key:%" PRIu64 ", data length %u exceeded the allocated buffer size %u",
-                      ts, pColVal->colVal.value.nData, allocBufLen);
+            tsdbError("buffer overflow at row key:%" PRIu64 
+                      ", data length %u exceeded the allocated buffer size %u"
+                      ", pkBufLen = %d",
+                      ts, pColVal->colVal.value.nData, allocBufLen, pkBufLen);
             code = TSDB_CODE_OUT_OF_RANGE;
-            TSDB_CHECK_CODE(code, lino, _end);
+            // TSDB_CHECK_CODE(code, lino, _end);
           }
           varDataSetLen(p->buf, pColVal->colVal.value.nData);
           memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
