@@ -28,7 +28,7 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  taosMemoryFree(timeStr);
+  taosMemoryFreeClear(timeStr);
   valueNode->datum.i = value;
   valueNode->typeData = valueNode->datum.i;
 
@@ -52,7 +52,7 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
     colDataDestroy(pColumnData);
-    taosMemoryFree(pColumnData);
+    taosMemoryFreeClear(pColumnData);
     return terrno;
   }
 
@@ -111,7 +111,7 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
   SCL_ERR_JRET(OperatorFn(pLeft, pSrc, pDst, TSDB_ORDER_ASC));
 
 _return:
-  taosMemoryFree(pLeft);
+  taosMemoryFreeClear(pLeft);
 
   SCL_RET(code);
 }
@@ -257,7 +257,7 @@ void sclFreeParamList(SScalarParam *param, int32_t paramNum) {
     sclFreeParam(p);
   }
 
-  taosMemoryFree(param);
+  taosMemoryFreeClear(param);
 }
 
 void sclDowngradeValueType(SValueNode *valueNode) {
@@ -746,8 +746,8 @@ _return:
 
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
-  taosMemoryFree(pWhen);
-  taosMemoryFree(pThen);
+  taosMemoryFreeClear(pWhen);
+  taosMemoryFreeClear(pThen);
 
   SCL_RET(code);
 }
@@ -1013,10 +1013,10 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
   sclFreeParam(&comp);
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
-  taosMemoryFree(pCase);
-  taosMemoryFree(pElse);
-  taosMemoryFree(pWhen);
-  taosMemoryFree(pThen);
+  taosMemoryFreeClear(pCase);
+  taosMemoryFreeClear(pElse);
+  taosMemoryFreeClear(pWhen);
+  taosMemoryFreeClear(pThen);
 
   return TSDB_CODE_SUCCESS;
 
@@ -1028,10 +1028,10 @@ _return:
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
   sclFreeParam(output);
-  taosMemoryFree(pCase);
-  taosMemoryFree(pElse);
-  taosMemoryFree(pWhen);
-  taosMemoryFree(pThen);
+  taosMemoryFreeClear(pCase);
+  taosMemoryFreeClear(pElse);
+  taosMemoryFreeClear(pWhen);
+  taosMemoryFreeClear(pThen);
 
   SCL_RET(code);
 }
