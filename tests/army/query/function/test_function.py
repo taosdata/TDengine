@@ -294,6 +294,18 @@ class TDTestCase(TBase):
 
         tdSql.error("select min(nonexistent_column) from ts_4893.meters;")
 
+    def test_sum(self):
+        self.test_normal_query_new("sum")
+
+    def test_statecount(self):
+        self.test_normal_query_new("statecount")
+
+    def test_avg(self):
+        self.test_normal_query_new("avg")
+
+    def test_leastsquares(self):
+        self.test_normal_query_new("leastsquares")
+
     def test_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
             order by ts desc) limit 1000;", expectErrInfo="Invalid parameter data type : to_iso8601") # TS-5340
@@ -336,6 +348,10 @@ class TDTestCase(TBase):
         # agg function
         self.test_stddev_pop()
         self.test_varpop()
+        self.test_avg()
+        self.test_sum()
+        self.test_leastsquares()
+        self.test_statecount()
 
         # select function
         self.test_max()
