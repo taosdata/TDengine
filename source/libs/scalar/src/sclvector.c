@@ -944,28 +944,29 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
 }
 
 int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
-    /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
-    /*NULL*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
-    /*BOOL*/ 0, 0, 2, 3, 4, 5, 6, 7, 5, 9, 7, 11, 12, 13, 14, 0, -1, 0, 0, 0, -1,
-    /*TINY*/ 0, 0, 0, 3, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, -1, 0, 0, 0, -1,
-    /*SMAL*/ 0, 0, 0, 0, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, -1, 0, 0, 0, -1,
-    /*INT */ 0, 0, 0, 0, 0, 5, 6, 7, 5, 9, 7, 4,  4,  5,  7,  0, -1, 0, 0, 0, -1,
-    /*BIGI*/ 0, 0, 0, 0, 0, 0, 6, 7, 5, 9, 7, 5,  5,  5,  7,  0, -1, 0, 0, 0, -1,
-    /*FLOA*/ 0, 0, 0, 0, 0, 0, 0, 7, 7, 6, 7, 6,  6,  6,  6,  0, -1, 0, 0, 0, -1,
-    /*DOUB*/ 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7,  7,  7,  7,  0, -1, 0, 0, 0, -1,
-    /*VARC*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7,  7,  7,  7,  0, 16, 0, 0, 0, 20,
-    /*TIME*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 9,  9,  9,  7,  0, -1, 0, 0, 0, -1,
-    /*NCHA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7,  7,  7,  7,  0, 16, 0, 0, 0, -1,
-    /*UTIN*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  12, 13, 14, 0, -1, 0, 0, 0, -1,
-    /*USMA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  13, 14, 0, -1, 0, 0, 0, -1,
-    /*UINT*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  14, 0, -1, 0, 0, 0, -1,
-    /*UBIG*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*JSON*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*VARB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, -1, -1,-1, -1,
-    /*DECI*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*BLOB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*MEDB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*GEOM*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, 0};
+              /*NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
+    /*NULL*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    /*BOOL*/    0,   0,   2,   3,   4,   5,   6,   7,   5,   9,   5,   11, 12,  13,  14,   0,  -1,   0,   0,   0,  -1,
+    /*TINY*/    0,   0,   0,   3,   4,   5,   6,   7,   5,   9,   5,   3,   4,   5,   7,   0,  -1,   0,   0,   0,  -1,
+    /*SMAL*/    0,   0,   0,   0,   4,   5,   6,   7,   5,   9,   5,   3,   4,   5,   7,   0,  -1,   0,   0,   0,  -1,
+    /*INT */    0,   0,   0,   0,   0,   5,   6,   7,   5,   9,   5,   4,   4,   5,   7,   0,  -1,   0,   0,   0,  -1,
+    /*BIGI*/    0,   0,   0,   0,   0,   0,   6,   7,   5,   9,   5,   5,   5,   5,   7,   0,  -1,   0,   0,   0,  -1,
+    /*FLOA*/    0,   0,   0,   0,   0,   0,   0,   7,   6,   6,   6,   6,   6,   6,   6,   0,  -1,   0,   0,   0,  -1,
+    /*DOUB*/    0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,  -1,   0,   0,   0,  -1,
+    /*VARC*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   8,   7,   7,   7,   7,   0,  16,   0,   0,   0,  20,
+    /*TIME*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   9,   9,   9,   7,   0,  -1,   0,   0,   0,  -1,
+    /*NCHA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   0,  16,   0,   0,   0,  -1,
+    /*UTIN*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  12,   13, 14,   0,  -1,   0,   0,   0,  -1,
+    /*USMA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   13, 14,   0,  -1,   0,   0,   0,  -1,
+    /*UINT*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  14,   0,  -1,   0,   0,   0,  -1,
+    /*UBIG*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*JSON*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*VARB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,  -1,
+    /*DECI*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*BLOB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*MEDB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*GEOM*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,   0
+};
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
   if (type1 == type2) {
@@ -981,6 +982,9 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
 
 int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex,
                                int32_t numOfRows) {
+  if (input->columnData == NULL && (input->pHashFilter != NULL || input->pHashFilterOthers != NULL)){
+    return TSDB_CODE_SUCCESS;
+  }
   output->numOfRows = input->numOfRows;
 
   SDataType t = {.type = type};
@@ -1011,36 +1015,18 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   int8_t  type = 0;
   int32_t code = 0;
 
-  SScalarParam *param1 = NULL, *paramOut1 = NULL;
-  SScalarParam *param2 = NULL, *paramOut2 = NULL;
+  SScalarParam *param1 = pLeft, *paramOut1 = pLeftOut;
+  SScalarParam *param2 = pRight, *paramOut2 = pRightOut;
 
   // always convert least data
   if (IS_VAR_DATA_TYPE(leftType) && IS_VAR_DATA_TYPE(rightType) && (pLeft->numOfRows != pRight->numOfRows) &&
       leftType != TSDB_DATA_TYPE_JSON && rightType != TSDB_DATA_TYPE_JSON) {
-    param1 = pLeft;
-    param2 = pRight;
-    paramOut1 = pLeftOut;
-    paramOut2 = pRightOut;
-
     if (pLeft->numOfRows > pRight->numOfRows) {
       type = leftType;
     } else {
       type = rightType;
     }
   } else {
-    // we only define half value in the convert-matrix, so make sure param1 always less equal than param2
-    if (leftType < rightType) {
-      param1 = pLeft;
-      param2 = pRight;
-      paramOut1 = pLeftOut;
-      paramOut2 = pRightOut;
-    } else {
-      param1 = pRight;
-      param2 = pLeft;
-      paramOut1 = pRightOut;
-      paramOut2 = pLeftOut;
-    }
-
     type = vectorGetConvertType(GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
     if (0 == type) {
       return TSDB_CODE_SUCCESS;
@@ -1738,19 +1724,24 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   return num;
 }
 
-void doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+void doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                      int32_t numOfRows, int32_t _ord, int32_t optr) {
   int32_t       i = 0;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   int32_t       lType = GET_PARAM_TYPE(pLeft);
   int32_t       rType = GET_PARAM_TYPE(pRight);
   __compar_fn_t fp = NULL;
+  __compar_fn_t fpVar = NULL;
   int32_t       compRows = 0;
 
   if (lType == rType) {
     fp = filterGetCompFunc(lType, optr);
   } else {
     fp = filterGetCompFuncEx(lType, rType, optr);
+  }
+
+  if (pLeftVar != NULL) {
+    fpVar = filterGetCompFunc(GET_PARAM_TYPE(pLeftVar), optr);
   }
 
   if (startIndex < 0) {
@@ -1772,6 +1763,18 @@ void doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
 
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
+      if (pLeftVar != NULL && taosHashGetSize(pRight->pHashFilterOthers) > 0) {
+        do {
+          if (optr == OP_TYPE_IN && res) {
+            break;
+          }
+          if (optr == OP_TYPE_NOT_IN && !res) {
+            break;
+          }
+          pLeftData = colDataGetData(pLeftVar->columnData, i);
+          res = filterDoCompare(fpVar, optr, pLeftData, pRight->pHashFilterOthers);
+        } while (0);
+      }
       colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
       if (res) {
         pOut->numOfQualified++;
@@ -1788,6 +1791,7 @@ void vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *
   SScalarParam  pRightOut = {0};
   SScalarParam *param1 = NULL;
   SScalarParam *param2 = NULL;
+  SScalarParam *param3 = NULL;
 
   if (noConvertBeforeCompare(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
     param1 = pLeft;
@@ -1798,9 +1802,12 @@ void vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *
     }
     param1 = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
     param2 = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
+    if (pRight->pHashFilterOthers != NULL){
+      param3 = pLeft;
+    }
   }
 
-  doVectorCompare(param1, param2, pOut, startIndex, numOfRows, _ord, optr);
+  doVectorCompare(param1, param3, param2, pOut, startIndex, numOfRows, _ord, optr);
 
   sclFreeParam(&pLeftOut);
   sclFreeParam(&pRightOut);
