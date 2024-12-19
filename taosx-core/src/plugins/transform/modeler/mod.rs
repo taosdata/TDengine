@@ -365,9 +365,9 @@ impl Table {
                 .column_by_name(primary)
                 .with_context(|| format!("Primary key `{primary}` does not exist in data"))?;
 
-            if primary_array.null_count() > 0 {
-                return Err(super::Error::NullPrimaryKey(primary.to_string()));
-            }
+            // if primary_array.null_count() > 0 {
+            //     return Err(super::Error::NullPrimaryKey(primary.to_string()));
+            // }
             // Cast primary key column to timestamp.
             let primary_array = arrow_cast_guess_precision::cast(&primary_array, &timestamp)
                 .map_err(|err| super::Error::PrimaryKeyCastError(self.name.clone(), err))?;

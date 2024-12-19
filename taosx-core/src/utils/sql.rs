@@ -132,6 +132,15 @@ async fn test_precision_with_taos() {
 }
 
 #[tracing::instrument(skip_all)]
+pub async fn get_maximum_timestamp(
+    _pool: &TaosPool,
+    _taos: &mut Option<TaosConnection>,
+    _max_retries: u32,
+    _cancel: &CancellationToken,
+) -> Result<DateTime<Utc>, TaosError> {
+    Ok(chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600))
+}
+
 pub async fn get_database(taos: &mut Option<TaosConnection>) -> Result<String, TaosError> {
     const SQL_SELECT_DATABASE: &str = "select database();";
     if taos.is_none() {
@@ -145,12 +154,8 @@ pub async fn get_database(taos: &mut Option<TaosConnection>) -> Result<String, T
         .in_current_span()
         .await
     {
-        Ok(n) => {
-            return n.ok_or_else(|| TaosError::new(0xFFFF, "database name empty"));
-        }
-        Err(err) => {
-            return Err(err.context("get database error"));
-        }
+        Ok(n) => n.ok_or_else(|| TaosError::new(0xFFFF, "database name empty")),
+        Err(err) => Err(err.context("get database error")),
     }
 }
 

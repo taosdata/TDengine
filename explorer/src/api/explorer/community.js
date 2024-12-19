@@ -1,3 +1,4 @@
+import writeConfig from "./writeConfig";
 export function getDataSource(lang, type) {
   let allDataSources = getDataSources(lang);
 
@@ -949,7 +950,20 @@ export function getDataSources(lang) {
                     "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
                   hint: {
                     type: "compose",
-                    choices: ["point", "element", "template"],
+                    choices: [
+                      {
+                        value: 'point',
+                        label: 'point'
+                      },
+                      {
+                        value: 'element',
+                        label: 'element'
+                      },
+                      {
+                        value: 'template',
+                        label: 'template'
+                      },
+                    ],
                   },
                   action: "download",
                   action_text: "Download default configuration",
@@ -986,7 +1000,20 @@ export function getDataSources(lang) {
                     "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
                   hint: {
                     type: "compose",
-                    choices: ["point", "element", "template"],
+                    choices: [
+                      {
+                        value: 'point',
+                        label: 'point'
+                      },
+                      {
+                        value: 'element',
+                        label: 'element'
+                      },
+                      {
+                        value: 'template',
+                        label: 'template'
+                      },
+                    ],
                   },
                   action: "download",
                   action_text: "Download default configuration",
@@ -1214,7 +1241,20 @@ export function getDataSources(lang) {
                     "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
                   hint: {
                     type: "compose",
-                    choices: ["point", "element", "template"],
+                    choices: [
+                      {
+                        value: 'point',
+                        label: 'point'
+                      },
+                      {
+                        value: 'element',
+                        label: 'element'
+                      },
+                      {
+                        value: 'template',
+                        label: 'template'
+                      },
+                    ],
                   },
                   action: "download",
                   action_text: "Download default configuration",
@@ -1251,7 +1291,20 @@ export function getDataSources(lang) {
                     "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
                   hint: {
                     type: "compose",
-                    choices: ["point", "element", "template"],
+                    choices: [
+                      {
+                        value: 'point',
+                        label: 'point'
+                      },
+                      {
+                        value: 'element',
+                        label: 'element'
+                      },
+                      {
+                        value: 'template',
+                        label: 'template'
+                      },
+                    ],
                   },
                   action: "download",
                   action_text: "Download default configuration",
@@ -3055,6 +3108,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
         parser: {
           display: "Payload Transformation",
           required: true,
@@ -3457,6 +3511,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
         parser: {
           display: "Payload Transformation",
           required: true,
@@ -3673,6 +3728,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
       },
       {
         id: "avevaHistorian",
@@ -4076,6 +4132,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
         parser: {
           display: "Payload Transformation",
           required: true,
@@ -4458,6 +4515,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
         parser: {
           display: "Data Mapping",
           required: true,
@@ -4767,6 +4825,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
         parser: {
           display: "Data Mapping",
           required: true,
@@ -5040,6 +5099,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
         parser: {
           display: "Data Mapping",
           required: true,
@@ -5380,6 +5440,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
         parser: {
           display: "Data Mapping",
           required: true,
@@ -5815,6 +5876,7 @@ export function getDataSources(lang) {
             }
           ],
         },
+        writeConfig: writeConfig.en,
         parser: {
           display: "Payload Transformation",
           required: true,
@@ -6752,7 +6814,20 @@ export function getDataSources(lang) {
                     "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
                   hint: {
                     type: "compose",
-                    choices: ["point", "element", "template"],
+                    choices: [
+                      {
+                        value: 'point',
+                        label: 'point'
+                      },
+                      {
+                        value: 'element',
+                        label: 'element'
+                      },
+                      {
+                        value: 'template',
+                        label: 'template'
+                      },
+                    ],
                   },
                   action: "download",
                   action_text: "下载默认配置",
@@ -6788,7 +6863,20 @@ export function getDataSources(lang) {
                     "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
                   hint: {
                     type: "compose",
-                    choices: ["point", "element", "template"],
+                    choices: [
+                      {
+                        value: 'point',
+                        label: 'point'
+                      },
+                      {
+                        value: 'element',
+                        label: 'element'
+                      },
+                      {
+                        value: 'template',
+                        label: 'template'
+                      },
+                    ],
                   },
                   action: "download",
                   action_text: "下载默认配置",
@@ -7013,7 +7101,20 @@ export function getDataSources(lang) {
                     "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
                   hint: {
                     type: "compose",
-                    choices: ["point", "element", "template"],
+                    choices: [
+                      {
+                        value: 'point',
+                        label: 'point'
+                      },
+                      {
+                        value: 'element',
+                        label: 'element'
+                      },
+                      {
+                        value: 'template',
+                        label: 'template'
+                      },
+                    ],
                   },
                   action: "download",
                   action_text: "下载默认配置",
@@ -7049,7 +7150,20 @@ export function getDataSources(lang) {
                     "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
                   hint: {
                     type: "compose",
-                    choices: ["point", "element", "template"],
+                    choices: [
+                      {
+                        value: 'point',
+                        label: 'point'
+                      },
+                      {
+                        value: 'element',
+                        label: 'element'
+                      },
+                      {
+                        value: 'template',
+                        label: 'template'
+                      },
+                    ]
                   },
                   action: "download",
                   action_text: "下载默认配置",
@@ -8824,6 +8938,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
         parser: {
           display: "Payload 转换",
           required: true,
@@ -9212,6 +9327,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
         parser: {
           display: "Payload 转换",
           required: true,
@@ -9425,6 +9541,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
       },
       {
         id: "avevaHistorian",
@@ -9818,6 +9935,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
         parser: {
           display: "Payload 转换",
           required: true,
@@ -10190,6 +10308,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
         parser: {
           display: "数据映射",
           required: true,
@@ -10492,6 +10611,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
         parser: {
           display: "数据映射",
           required: true,
@@ -10760,6 +10880,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
         parser: {
           display: "数据映射",
           required: true,
@@ -11091,6 +11212,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
         parser: {
           display: "数据映射",
           required: true,
@@ -11520,6 +11642,7 @@ export function getDataSources(lang) {
             },
           ],
         },
+        writeConfig: writeConfig.zh,
         parser: {
           display: "Payload 转换",
           required: true,
