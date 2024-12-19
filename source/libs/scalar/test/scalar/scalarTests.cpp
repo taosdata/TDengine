@@ -1683,7 +1683,7 @@ TEST(columnTest, int_column_in_double_list) {
   SNode       *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
   int32_t      leftv[5] = {1, 2, 3, 4, 5};
   double       rightv1 = 1.1, rightv2 = 2.2, rightv3 = 3.3;
-  bool         eRes[5] = {true, true, true, false, false};
+  bool         eRes[5] = {false, false, false, false, false};
   SSDataBlock *src = NULL;
   int32_t      rowNum = sizeof(leftv) / sizeof(leftv[0]);
   scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);
