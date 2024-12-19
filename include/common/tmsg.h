@@ -598,6 +598,7 @@ struct SSchema {
 struct SSchemaExt {
   col_id_t colId;
   uint32_t compress;
+  STypeMod typeMod;
 };
 
 //
@@ -857,12 +858,14 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
 static FORCE_INLINE int32_t tEncodeSSchemaExt(SEncoder* pEncoder, const SSchemaExt* pSchemaExt) {
   TAOS_CHECK_RETURN(tEncodeI16v(pEncoder, pSchemaExt->colId));
   TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pSchemaExt->compress));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pSchemaExt->typeMod));
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeSSchemaExt(SDecoder* pDecoder, SSchemaExt* pSchemaExt) {
   TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &pSchemaExt->colId));
   TAOS_CHECK_RETURN(tDecodeU32(pDecoder, &pSchemaExt->compress));
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pSchemaExt->typeMod));
   return 0;
 }
 
@@ -3257,7 +3260,7 @@ typedef struct SVCreateStbReq {
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
   int64_t         keep;
-  SExtSchema*     pExtSchema;
+  SExtSchema*     pExtSchemas;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -3298,6 +3301,7 @@ typedef struct SVCreateTbReq {
   int32_t         sqlLen;
   char*           sql;
   SColCmprWrapper colCmpr;
+  SExtSchema*     pExtSchemas;
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -3321,6 +3325,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
+  taosMemoryFreeClear(req->pExtSchemas);
 }
 
 typedef struct {

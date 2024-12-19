@@ -576,7 +576,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
 
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   int32_t schemaExtSize = 0;
-  if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
+  if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
     schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
   *pDst = taosMemoryMalloc(metaSize + schemaExtSize);
@@ -584,7 +584,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     return terrno;
   }
   memcpy(*pDst, pSrc, metaSize);
-  if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
+  if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
     (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
     memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
   } else {

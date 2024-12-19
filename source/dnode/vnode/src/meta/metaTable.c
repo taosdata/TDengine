@@ -812,7 +812,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
     taosHashClear(pColCmprObj);
     return rc;
   }
-  if (useCompress(e.type)) {
+  if (withExtSchema(e.type)) {
     SColCmprWrapper *p = &e.colCmpr;
     for (int32_t i = 0; i < p->nCols; i++) {
       SColCmpr *pCmpr = &p->pColCmpr[i];

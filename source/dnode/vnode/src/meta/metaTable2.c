@@ -190,7 +190,7 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     TABLE_SET_COL_COMPRESSED(entry.flags);
     entry.colCmpr = pReq->colCmpr;
   }
-  entry.pExtSchema = pReq->pExtSchema;
+  entry.pExtSchemas = pReq->pExtSchemas;
 
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
@@ -437,6 +437,9 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
     SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
     (*ppRsp)->pSchemaExt[i].colId = p->id;
     (*ppRsp)->pSchemaExt[i].compress = p->alg;
+    if (pEntry->pExtSchemas) {
+      (*ppRsp)->pSchemaExt[i].typeMod = pEntry->pExtSchemas[i].typeMod;
+    }
   }
 
   return code;
@@ -456,17 +459,18 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
   }
 
   SMetaEntry entry = {
-      .version = version,
-      .type = TSDB_NORMAL_TABLE,
-      .uid = pReq->uid,
-      .name = pReq->name,
-      .ntbEntry.btime = pReq->btime,
-      .ntbEntry.ttlDays = pReq->ttl,
-      .ntbEntry.commentLen = pReq->commentLen,
-      .ntbEntry.comment = pReq->comment,
-      .ntbEntry.schemaRow = pReq->ntb.schemaRow,
-      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
-      .colCmpr = pReq->colCmpr,
+    .version = version,
+    .type = TSDB_NORMAL_TABLE,
+    .uid = pReq->uid,
+    .name = pReq->name,
+    .ntbEntry.btime = pReq->btime,
+    .ntbEntry.ttlDays = pReq->ttl,
+    .ntbEntry.commentLen = pReq->commentLen,
+    .ntbEntry.comment = pReq->comment,
+    .ntbEntry.schemaRow = pReq->ntb.schemaRow,
+    .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+    .colCmpr = pReq->colCmpr,
+    .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
 
@@ -691,6 +695,8 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
       SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
       pRsp->pSchemaExt[i].colId = p->id;
       pRsp->pSchemaExt[i].compress = p->alg;
+      // TODO wjm
+      // if (pEntry->pExtSchemas) pRsp->pSchemaExt[i].typeMod = pEntry->pExtSchemas[i].typeMod;
     }
   }
 

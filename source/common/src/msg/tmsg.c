@@ -3918,7 +3918,7 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->tagsLen));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pRsp->pTags, pRsp->tagsLen));
 
-  if (useCompress(pRsp->tableType)) {
+  if (withExtSchema(pRsp->tableType)) {
     for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
       SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
       TAOS_CHECK_EXIT(tEncodeSSchemaExt(&encoder, pSchemaExt));
@@ -3994,7 +3994,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pRsp->pTags, NULL));
 
   if (!tDecodeIsEnd(&decoder)) {
-    if (useCompress(pRsp->tableType) && pRsp->numOfColumns > 0) {
+    if (withExtSchema(pRsp->tableType) && pRsp->numOfColumns > 0) {
       pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
       if (pRsp->pSchemaExt == NULL) {
         TAOS_CHECK_EXIT(terrno);
@@ -6089,7 +6089,7 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     TAOS_CHECK_RETURN(tEncodeSSchema(pEncoder, pSchema));
   }
 
-  if (useCompress(pRsp->tableType)) {
+  if (withExtSchema(pRsp->tableType)) {
     for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
       SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
       TAOS_CHECK_RETURN(tEncodeSSchemaExt(pEncoder, pSchemaExt));
@@ -6130,7 +6130,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   }
 
   if (!tDecodeIsEnd(pDecoder)) {
-    if (useCompress(pRsp->tableType) && pRsp->numOfColumns > 0) {
+    if (withExtSchema(pRsp->tableType) && pRsp->numOfColumns > 0) {
       pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
       if (pRsp->pSchemaExt == NULL) {
         TAOS_CHECK_RETURN(terrno);
@@ -10503,9 +10503,9 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->colCmpred));
   TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->keep));
-  if (pReq->pExtSchema) {
+  if (pReq->pExtSchemas) {
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, 1));
-    TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchema, pReq->schemaRow.nCols));
+    TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchemas, pReq->schemaRow.nCols));
   } else {
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
   }
@@ -10550,7 +10550,7 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
       int8_t hasExtSchema = 0;
       TAOS_CHECK_EXIT(tDecodeI8(pCoder, &hasExtSchema));
       if (hasExtSchema) {
-        TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchema, pReq->schemaRow.nCols));
+        TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchemas, pReq->schemaRow.nCols));
       }
     }
   }
@@ -10602,6 +10602,12 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   // Encode Column Options: encode compress level
   if (pReq->type == TSDB_SUPER_TABLE || pReq->type == TSDB_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
+    if (pReq->pExtSchemas) {
+      TAOS_CHECK_EXIT(tEncodeI8(pCoder, 1));
+      TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
+    } else {
+      TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
+    }
   }
 
   tEndEncode(pCoder);
@@ -10666,6 +10672,14 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       if (!tDecodeIsEnd(pCoder)) {
         TAOS_CHECK_EXIT(tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr));
       }
+    
+    if (!tDecodeIsEnd(pCoder)) {
+      int8_t hasExtSchema = 0;
+      TAOS_CHECK_EXIT(tDecodeI8(pCoder, &hasExtSchema));
+      if (hasExtSchema) {
+        TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
+      }
+    }
   }
 
   tEndDecode(pCoder);
