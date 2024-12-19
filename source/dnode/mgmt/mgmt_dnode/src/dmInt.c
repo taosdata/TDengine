@@ -52,6 +52,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopMonitorThread(pMgmt);
   dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
+  dmStopConfigThread(pMgmt);
   dmStopStatusInfoThread(pMgmt);
 #if defined(TD_ENTERPRISE)
   dmStopNotifyThread(pMgmt);
@@ -99,7 +100,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
 static void dmCloseMgmt(SDnodeMgmt *pMgmt) {
   dmStopWorker(pMgmt);
-  taosMemoryFree(pMgmt);
+  taosMemoryFreeClear(pMgmt);
 }
 
 static int32_t dmRequireMgmt(const SMgmtInputOpt *pInput, bool *required) {
