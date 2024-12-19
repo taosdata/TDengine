@@ -3202,7 +3202,7 @@ pub struct TaskFilter {
     in_scheduler: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
+#[derive(Serialize, Deserialize, Default, Clone, IntoParams, Debug)]
 #[serde(default)]
 pub struct TaskDecorator {
     expand: Option<bool>,
