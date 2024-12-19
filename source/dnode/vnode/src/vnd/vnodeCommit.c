@@ -389,8 +389,8 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // schedule the task
-  code =
-      vnodeAsync(&pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommit, vnodeCommitCancel, pInfo, &pVnode->commitTask);
+  code = vnodeAsync2(&pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommit, vnodeCommitCancel, pInfo,
+                     &pVnode->commitTask);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

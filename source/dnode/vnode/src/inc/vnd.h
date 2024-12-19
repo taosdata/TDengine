@@ -55,12 +55,14 @@ typedef enum {
   EVA_PRIORITY_LOW,
 } EVAPriority;
 
-int32_t vnodeAsyncOpen(int32_t numOfThreads);
+int32_t vnodeAsyncOpen();
 void    vnodeAsyncClose();
 int32_t vnodeAChannelInit(int64_t async, SVAChannelID* channelID);
 int32_t vnodeAChannelDestroy(SVAChannelID* channelID, bool waitRunning);
-int32_t vnodeAsync(SVAChannelID* channelID, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*),
-                   void* arg, SVATaskID* taskID);
+int32_t vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*), void* arg,
+                   SVATaskID* taskID);
+int32_t vnodeAsync2(SVAChannelID* channelID, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*),
+                    void* arg, SVATaskID* taskID);
 void    vnodeAWait(SVATaskID* taskID);
 int32_t vnodeACancel(SVATaskID* taskID);
 int32_t vnodeAsyncSetWorkers(int64_t async, int32_t numWorkers);

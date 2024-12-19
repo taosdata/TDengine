@@ -380,7 +380,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate) 
       arg->fid = fset->fid;
       arg->s3Migrate = s3Migrate;
 
-      if ((code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg, NULL))) {
+      if ((code = vnodeAsync2(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg, NULL))) {
         taosMemoryFree(arg);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
