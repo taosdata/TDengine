@@ -4,6 +4,8 @@ import sys
 import time
 import os
 import platform
+import random
+import string
 
 from util.log import *
 from util.sql import *
@@ -12,7 +14,7 @@ from util.dnodes import *
 import subprocess
 
 class TDTestCase:
-
+    updatecfgDict = {'udfdResFuncs': "udf1,udf2"}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -652,10 +654,20 @@ class TDTestCase:
             tdDnodes.start(1)
             time.sleep(2)
 
+    def test_udfd_cmd(self):
+        tdLog.info(" test udfd -V ")
+        os.system("udfd -V")
+        tdLog.info(" test udfd -c ")
+        os.system("udfd -c")
+        
+        letters = string.ascii_letters + string.digits + '\\'
+        path = ''.join(random.choice(letters) for i in range(5000))
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        os.system(f"udfd -c {path}")
 
+    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring     
         print(" env is ok for all ")
+        self.test_udfd_cmd()
         self.prepare_udf_so()
         self.prepare_data()
         self.create_udf_function()

@@ -1667,7 +1667,6 @@ static int32_t udfdGlobalDataInit() {
 }
 
 static void udfdGlobalDataDeinit() {
-  taosHashCleanup(global.udfsHash);
   uv_mutex_destroy(&global.udfsMutex);
   uv_mutex_destroy(&global.scriptPluginsMutex);
   taosMemoryFreeClear(global.loop);
@@ -1720,8 +1719,11 @@ void udfdDeinitResidentFuncs() {
     SUdf **udfInHash = taosHashGet(global.udfsHash, funcName, strlen(funcName));
     if (udfInHash) {
       SUdf   *udf = *udfInHash;
-      int32_t code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
-      fnDebug("udfd destroy function returns %d", code);
+      int32_t code = 0;
+      if (udf->scriptPlugin->udfDestroyFunc) {
+        code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+        fnDebug("udfd %s destroy function returns %d", funcName, code);
+      }
       if(taosHashRemove(global.udfsHash, funcName, strlen(funcName)) != 0)
       {
         fnError("udfd remove resident function %s failed", funcName);
@@ -1729,6 +1731,7 @@ void udfdDeinitResidentFuncs() {
       taosMemoryFree(udf);
     }
   }
+  taosHashCleanup(global.udfsHash);
   taosArrayDestroy(global.residentFuncs);
   fnInfo("udfd resident functions are deinit");
 }
@@ -1838,14 +1841,14 @@ int main(int argc, char *argv[]) {
   fnInfo("udfd exit normally");
 
   removeListeningPipe();
-  udfdDeinitScriptPlugins();
 
 _exit:
-  if (globalDataInited) {
-    udfdGlobalDataDeinit();
-  }
   if (residentFuncsInited) {
     udfdDeinitResidentFuncs();
+  }
+  udfdDeinitScriptPlugins();
+  if (globalDataInited) {
+    udfdGlobalDataDeinit();
   }
   if (udfSourceDirInited) {
     udfdDestroyUdfSourceDir();
