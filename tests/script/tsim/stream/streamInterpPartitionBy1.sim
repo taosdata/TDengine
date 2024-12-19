@@ -4,6 +4,8 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
+sql alter local 'streamCoverage' '1';
+
 print step NULL
 print =============== create database
 sql create database test vgroups 1;
