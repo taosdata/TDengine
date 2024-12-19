@@ -206,14 +206,14 @@ jobs:
           private_key: ${{ secrets.APP_KEY }}
       - name: Set GitHub App Token as secret
         run: echo "GITHUB_APP_TOKEN=${{ steps.app-token.outputs.token }}" >> $GITHUB_ENV
+      
       - name: Update Repo
         env:
-          app_token: ${{ env.app_token }}
           COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
         run: |
           # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
           # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
-          ssh root@$RELEASE_HOST "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e && git pull"
+          ssh root@$RELEASE_HOST "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e && git -c http.extraHeader='Authorization: Basic $(echo -n x-access-token:$GITHUB_APP_TOKEN | base64)' pull"
       
       - name: Restart taos-explorer & taosadapter
         run: |
@@ -232,7 +232,7 @@ jobs:
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
           
           cp /data/github/TestNG_taosX/setenv.sh ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/
-          cd ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e && source ./setenv.sh && poetry config pypi-token.pypi &APP_TOKEN && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
+          cd ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e && source ./setenv.sh && poetry config pypi-token.pypi $GITHUB_APP_TOKEN && poetry install --username x-access-token --password $GITHUB_APP_TOKEN && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
