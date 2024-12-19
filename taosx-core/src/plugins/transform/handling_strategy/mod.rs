@@ -7,7 +7,7 @@ use tinytemplate::TinyTemplate;
 pub mod archive;
 pub mod cache;
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingStrategy {
     #[default]
@@ -35,7 +35,7 @@ impl HandlingStrategy {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingPrimaryTimestampNull {
     #[default]
@@ -68,7 +68,7 @@ impl HandlingPrimaryTimestampNull {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingDataOverflow {
     #[default]
@@ -113,7 +113,7 @@ impl HandlingDataOverflow {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingTableNameContainsIllegalChar {
     #[default]
@@ -152,7 +152,7 @@ impl HandlingTableNameContainsIllegalChar {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingTableNameVariableMistake {
     #[default]
@@ -226,7 +226,7 @@ impl HandlingTableNameVariableMistake {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingFieldNameNotFound {
     #[default]
@@ -259,7 +259,7 @@ impl HandlingFieldNameNotFound {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ProcessOnAbnormal {
     #[serde(default)]
     pub primary_timestamp_overflow: HandlingStrategy,

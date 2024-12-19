@@ -27,11 +27,11 @@ use taosx_core::{
     dsv::DataSourceValidation,
     plugins,
     sink::ipc_metric::IpcMetrics,
+    task_set::prelude::EventLevel,
     utils::{
         get_main_version_from_server_version, get_server_version,
         sql::{get_maximum_timestamp, get_minimum_timestamp},
     },
-    task_set::prelude::EventLevel,
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
