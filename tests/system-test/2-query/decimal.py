@@ -12,9 +12,6 @@ class DecimalType:
     def __init__(self, precision: int, scale: int):
         self.precision = precision
         self.scale = scale
-    def __init__(self, precision: str, scale: str):
-        self.precision = int(precision)
-        self.scale = int(scale)
 
     def __str__(self):
         return f"DECIMAL({self.precision}, {self.scale})"
@@ -72,6 +69,7 @@ class TypeEnum:
     GEOMETRY = 20
     DECIMAL64 = 21
 
+    @staticmethod
     def get_type_str(type: int):
         if type == TypeEnum.BOOL:
             return "BOOL"
@@ -112,11 +110,11 @@ class TypeEnum:
         elif type == TypeEnum.GEOMETRY:
             return "GEOMETRY"
         else:
-            raise "unknow type"
+            raise Exception("unknow type")
 
 class DataType:
-    def __init__(self, type: TypeEnum, length: int = 0, type_mod: int = 0):
-        self.type : TypeEnum = type
+    def __init__(self, type: int, length: int = 0, type_mod: int = 0):
+        self.type : int = type
         self.length = length
         self.type_mod = type_mod
 
@@ -140,6 +138,7 @@ class DataType:
     def __repr__(self):
         return f"DataType({self.type}, {self.length}, {self.type_mod})"
     
+    @staticmethod
     def get_decimal_type_mod(type: DecimalType) -> int:
         return type.precision * 100 + type.scale
 
@@ -165,7 +164,7 @@ class DataType:
         if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
             return str(random.random())
         if self.type == TypeEnum.VARCHAR or self.type == TypeEnum.NCHAR or self.type == TypeEnum.VARBINARY:
-            return f"'{secrets.token_urlsafe(self.length)}'"
+            return f"'{secrets.token_urlsafe(random.randint(0, self.length-10))}'"
         if self.type == TypeEnum.TIMESTAMP:
             return str(secrets.randbelow(9223372036854775808))
         if self.type == TypeEnum.UTINYINT:
@@ -236,7 +235,7 @@ class TableInserter:
                 sql += ") tags("
                 for tag in self.tags_types:
                     sql += f"{tag.generate_value()},"
-                sql = sql[:-1]
+                sql = sql[:-2]
             sql += ")"
             if i != rows - 1:
                 sql += ", "
@@ -384,7 +383,8 @@ class TDTestCase:
         for i, column_type in enumerate(column_types):
             if column_type.type == TypeEnum.DECIMAL:
                 if results[i+1][1] != "DECIMAL":
-                    tdLog.exit(f"column {i+1} type is {results[i+1][1]}, expect DECIMAL")
+                    tdLog.info(str(results))
+                    tdLog.exit(f"check desc failed for table: {tbname} column {results[i+1][0]} type is {results[i+1][1]}, expect DECIMAL")
         ## add decimal type bytes check
         ## add compression/encode check
 
@@ -396,9 +396,9 @@ class TDTestCase:
         results = re.findall(r"DECIMAL\((\d+),(\d+)\)", create_table_sql)
         for i, column_type in enumerate(column_types):
             if column_type.type == TypeEnum.DECIMAL:
-                result_type = DecimalType(results[decimal_idx][0], results[decimal_idx][1])
+                result_type = DecimalType(int(results[decimal_idx][0]), int(results[decimal_idx][1]))
                 if result_type != column_type.get_decimal_type():
-                    tdLog.exit(f"column {i+1} type is {results[0][1]}, expect DECIMAL")
+                    tdLog.exit(f"check show create table failed for: {tbname} column {i} type is {result_type}, expect {column_type.get_decimal_type()}")
                 decimal_idx += 1
 
     def test_create_decimal_column(self):
@@ -409,6 +409,12 @@ class TDTestCase:
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 2))),
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 2))),
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 2))),
+            DataType(TypeEnum.TINYINT),
+            DataType(TypeEnum.INT),
+            DataType(TypeEnum.BIGINT),
+            DataType(TypeEnum.DOUBLE),
+            DataType(TypeEnum.FLOAT),
+            DataType(TypeEnum.VARCHAR, 255),
         ]
         self.tags = [
             DataType(TypeEnum.INT),
@@ -450,12 +456,30 @@ class TDTestCase:
 
         TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(1, 1537146000000, 500)
 
+
+        ## insert null/None for decimal type
+
+        ## insert with column format
+
+    def no_decimal_table_test(self):
+        columns = [
+                DataType(TypeEnum.TINYINT),
+                DataType(TypeEnum.INT),
+                DataType(TypeEnum.BIGINT),
+                DataType(TypeEnum.DOUBLE),
+                DataType(TypeEnum.FLOAT),
+                DataType(TypeEnum.VARCHAR, 255),
+                ]
+        DecimalColumnTableCreater(tdSql, self.db_name, "tt", columns, []).create()
+        TableInserter(tdSql, self.db_name, 'tt', columns).insert(1, 1537146000000, 500)
+
     def test_decimal_ddl(self):
         tdSql.execute("create database test", queryTimes=1)
         self.test_create_decimal_column()
 
     def run(self):
         self.test_decimal_ddl()
+        self.no_decimal_table_test()
         self.test_insert_decimal_values()
         time.sleep(9999999)
 
