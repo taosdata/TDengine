@@ -20,8 +20,11 @@ env_scripts = ['''
   else
     echo "GCC version: ${version}"
 
-    # 提取主版本号
-    version = semver_parse "${version}.0.0"
+    if contains ${version} "."
+      version = semver_parse "${version}"
+    else
+      version = semver_parse "${version}.0.0"
+    end
     echo "Major version: ${version.major}"
 
     # 比较主版本号是否大于 9

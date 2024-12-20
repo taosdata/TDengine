@@ -639,7 +639,7 @@ pub fn sql_values_from_record_batch(
         .iter()
         .filter(|f| {
             let col_index = schema.index_of(f.name()).unwrap();
-            if batch.column(col_index).null_count() < batch.num_rows() {
+            if !with_field_names || batch.column(col_index).null_count() < batch.num_rows() {
                 column_has_value.push(col_index);
                 true
             } else {
