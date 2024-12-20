@@ -1512,7 +1512,7 @@ pub async fn tmq_to_td(
         if let Some(v) = to_params.get("token") {
             to.set("token", v);
         }
-        let group_id = group_id_hash(&from, &to);
+        let group_id = group_id_hash_by(&from, &to);
         tracing::info!("group.id not set, will use automatically generated group id: {group_id}");
         from_params.insert("group.id".to_string(), group_id);
         to.params = to_params;
@@ -2050,7 +2050,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_show_subscriptions() -> anyhow::Result<()> {
+    async fn test_show_subscriptions_with_taos() -> anyhow::Result<()> {
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         let res = taos.query("show subscriptions").await;
         match res {

@@ -213,6 +213,7 @@ async fn run_task(
         }
     });
     let res = opts.run(&global.port_pool).in_current_span().await;
+
     logging_abort.abort();
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {
@@ -1116,7 +1117,7 @@ impl TaskJob {
                 let waiter = state.agent_waiter.as_ref().unwrap();
 
                 let agent_activities = waiter.agent_activities.clone();
-                let is_cron_job = state.schedule().is_cron_job();
+                let is_cron_job = state.schedule().is_repeatable_job();
 
                 #[instrument(skip_all, fields(task.id = task_id, task.jid = %jid, task.rid = run_id, task.agent = agent_id,))]
                 async fn agent_activities_listener(

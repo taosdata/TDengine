@@ -40,11 +40,11 @@ pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub mod csv;
 mod fake;
 mod legacy;
-mod local_to_taos;
+pub mod local_to_taos;
 mod parquets;
 pub mod taoz;
 pub mod tmq;
-mod tmq_to_local;
+pub mod tmq_to_local;
 mod tmq_to_td;
 pub mod types;
 
@@ -250,12 +250,23 @@ impl TaskOpts {
                 ("tmq" | "sync", "local") => {
                     let mut from = from.clone();
                     from.driver = "tmq".to_string();
-                    tmq_to_local(from.clone(), to.clone(), cancel.clone(), task_id.clone()).await?;
+                    tmq_to_local(
+                        from.clone(),
+                        to.clone(),
+                        0,
+                        true,
+                        cancel.clone(),
+                        task_id.clone(),
+                    )
+                    .await?;
+                    // tmq_to_local(from.clone(), to.clone(), cancel.clone(), task_id.clone()).await?;
                 }
                 ("local", "taos" | "tmq") => {
                     let mut to = to.clone();
                     to.driver = "taos".to_string();
-                    local_to_taos(from.clone(), to).in_current_span().await?;
+                    local_to_taos(task_id.clone(), from.clone(), to, 0, true, cancel.clone())
+                        .in_current_span()
+                        .await?;
                 }
                 ("taos", "taos") => {
                     legacy_to_taos(
