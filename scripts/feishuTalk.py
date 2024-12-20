@@ -153,6 +153,7 @@ def main():
         if Result == "success":
             send_msg(url=notification_robot_url, result=Result, result_detail=Detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
         else:
+            send_msg(url=notification_robot_url, result=Result, result_detail=Detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
             send_msg(url=alert_robot_url, result=Result, result_detail=Detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
         #send_msg(result=Result, result_detail=Result_detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
     except Exception as e:
