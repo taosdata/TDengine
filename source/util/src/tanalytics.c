@@ -479,12 +479,12 @@ static int32_t taosAnalJsonBufWriteStrUseCol(SAnalyticBuf *pBuf, const char *buf
 
   if (pBuf->bufType == ANALYTICS_BUF_TYPE_JSON) {
     int32_t ret = taosWriteFile(pBuf->filePtr, buf, bufLen);
-    if (ret < 0) {
+    if (ret != bufLen) {
       return terrno;
     }
   } else {
     int32_t ret = taosWriteFile(pBuf->pCols[colIndex].filePtr, buf, bufLen);
-    if (ret < 0) {
+    if (ret != bufLen) {
       return terrno;
     }
   }
