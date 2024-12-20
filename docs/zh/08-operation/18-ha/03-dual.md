@@ -6,11 +6,12 @@ toc_max_heading_level: 4
 
 本节介绍 TDengine 双活系统的配置和使用。
 
-1. 部分用户因为部署环境的特殊性只能部署两台服务器，同时希望实现一定的服务高可用和数据高可靠。本文主要描述基于数据复制和客户端 Failover 两项关键技术的 TDengine 双活系统的产品行为，包括双活系统的架构、配置、运维等。TDengine 双活既可以用于前面所述资源受限的环境，也可用于在两套 TDengine 集群（不限资源）之间的灾备场景。双活是 TDengine Enterprise 特有功能，在 3.3.0.0 版本中第一次发布，建议使用最新版本。
+部分用户因为部署环境的特殊性只能部署两台服务器，同时希望实现一定的服务高可用和数据高可靠。本文主要描述基于数据复制和客户端 Failover 两项关键技术的 TDengine 双活系统的产品行为，包括双活系统的架构、配置、运维等。TDengine 双活既可以用于前面所述资源受限的环境，也可用于在两套 TDengine 集群（不限资源）之间的灾备场景。双活是 TDengine Enterprise 特有功能，在 3.3.0.0 版本中第一次发布，建议使用最新版本。
 
-2. 双活系统的定义是：业务系统中有且仅有两台服务器，其上分别部署一套服务，在业务层看来这两台机器和两套服务是一个完整的系统，对其中的细节业务层不需要感知。双活中的两个节点通常被称为 Master-Slave，意为”主从“或”主备“，本文档中可能会出现混用的情况。
+双活系统的定义是：业务系统中有且仅有两台服务器，其上分别部署一套服务，在业务层看来这两台机器和两套服务是一个完整的系统，对其中的细节业务层不需要感知。双活中的两个节点通常被称为 Master-Slave，意为”主从“或”主备“，本文档中可能会出现混用的情况。
 
-3. TDengine 双活系统的部署架构图如下, 其中涉及到三个关键点：
+TDengine 双活系统的部署架构图如下, 其中涉及到三个关键点：
+
 1. 由 Client Driver 实现对双系统的 Failover，即主节点宕机时的主从切换
 2. 由 taosX 从（当前的）主节点到从节点实现数据复制
 3. 由数据订阅的写接口在写入复制过来的数据时在 WAL 中加入特殊标记，由数据订阅的读接口在读取数据时自动过滤掉带有该特殊标记的数据，避免重复复制形成 infinite loop
@@ -42,13 +43,13 @@ connection = DriverManager.getConnection(url, properties);
 
 其中的配置属性及含义如下表
 
-| 属性名                             | 含义                                                                                                              |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| PROPERTY_KEY_SLAVE_CLUSTER_HOST    | 第二节点的主机名或者 ip，默认空                                                                                   |
-| PROPERTY_KEY_SLAVE_CLUSTER_PORT    | 第二节点的端口号，默认空                                                                                          |
+| 属性名                              | 含义 |
+| ---------------------------------- | --- |
+| PROPERTY_KEY_SLAVE_CLUSTER_HOST    | 第二节点的主机名或者 ip，默认空 |
+| PROPERTY_KEY_SLAVE_CLUSTER_PORT    | 第二节点的端口号，默认空  |
 | PROPERTY_KEY_ENABLE_AUTO_RECONNECT | 是否启用自动重连。仅在使用 WebSocket 连接时生效。true: 启用，false: 不启用。默认为 false。双活场景下请设置为 true |
-| PROPERTY_KEY_RECONNECT_INTERVAL_MS | 重连的时间间隔，单位毫秒：默认 2000 毫秒，也就是 2 秒；最小值为 0， 表示立即重试；最大值不做限制                  |
-| PROPERTY_KEY_RECONNECT_RETRY_COUNT | 每节点最多重试次数：默认值为 3；最小值为 0，表示不进行重试；最大值不做限制                                        |
+| PROPERTY_KEY_RECONNECT_INTERVAL_MS | 重连的时间间隔，单位毫秒：默认 2000 毫秒，也就是 2 秒；最小值为 0， 表示立即重试；最大值不做限制 |
+| PROPERTY_KEY_RECONNECT_RETRY_COUNT | 每节点最多重试次数：默认值为 3；最小值为 0，表示不进行重试；最大值不做限制 |
 
 ### 约束条件
 
@@ -73,7 +74,7 @@ taosx replica start
 1. 方法一
 
 ```shell
-    - taosx replica start -f source_endpoint -t sink_endpoint [database...] 
+taosx replica start -f source_endpoint -t sink_endpoint [database...] 
 ```
 
 在本机器所在的 taosx 服务中建立从 source_endpoint 到 sink_endpoint 的同步任务。运行该命令成功后，将打印 replica ID 到控制台（后续记为 id）。
@@ -82,6 +83,7 @@ taosx replica start
 ```shell
 taosx replica start -f td1:6030 -t td2:6030 
 ```
+
 该示例命令会自动创建除 information_schema、performance_schema、log、audit 库之外的同步任务。可以使用 `http://td2:6041` 指定该 endpoint 使用 websocket 接口（默认是原生接口）。也可以指定数据库同步：taosx replica start -f td1:6030 -t td2:6030 db1 仅创建指定的数据库同步任务。
 
 2. 方法二
@@ -93,9 +95,9 @@ taosx replica start -i id [database...]
 使用上面已经创建的 Replica ID (id) 以在该同步任务中增加其它数据库。
 
 注意：
-- 多次使用该命令，不会创建重复任务，仅将所指定的数据库增加到相应任务中。
-- replica id 在一个 taosX 实例内是全局唯一的，与 source/sink 的组合无关
-- 为便于记忆，replica id 为一个随机常用单词，系统自动将 source/sink 组合对应到一个词库中取得一个唯一可用单词。
+1. 多次使用该命令，不会创建重复任务，仅将所指定的数据库增加到相应任务中。
+2. replica id 在一个 taosX 实例内是全局唯一的，与 source/sink 的组合无关
+3. 为便于记忆，replica id 为一个随机常用单词，系统自动将 source/sink 组合对应到一个词库中取得一个唯一可用单词。
 
 ### 查看任务状态
 
@@ -120,8 +122,8 @@ taosx replica stop id [db...]
 ```
 
 该命令作用如下：
-- 停止指定 Replica ID 下所有或指定数据库的双副本同步任务。
-- 使用 `taosx replica stop id1 db1` 表示停止 id1 replica 下 db1的同步任务。
+1. 停止指定 Replica ID 下所有或指定数据库的双副本同步任务。
+2. 使用 `taosx replica stop id1 db1` 表示停止 id1 replica 下 db1的同步任务。
 
 ### 重启双活任务
 
@@ -130,8 +132,8 @@ taosx replica restart id [db...]
 ```
 
 该命令作用如下：
-- 重启指定 Replica ID 下所有或指定数据库的双副本同步任务。
-- 使用 `taosx replica start id1 db1` 仅重启指定数据库 db1的同步任务。
+1. 重启指定 Replica ID 下所有或指定数据库的双副本同步任务。
+2. 使用 `taosx replica start id1 db1` 仅重启指定数据库 db1的同步任务。
 
 ### 查看同步进度
 
