@@ -66,13 +66,26 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 }
 
 int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
-  int32_t     code = 0;
-  int32_t     len = strlen(value) + 1;
-  int8_t      disable = 0;
-  char       *dataDirStr = taosMemoryMalloc(PATH_MAX);
-  char       *disableStr = taosMemoryMalloc(1 + 1);
-  const char *p = value;
+  int32_t code = 0;
+  int32_t len = strlen(value) + 1;
+  int8_t  disable = 0;
+  char   *dataDirStr = NULL, *disableStr = NULL;
+
   cfgLock(pCfg);
+
+  dataDirStr = taosMemoryMalloc(PATH_MAX);
+  if (dataDirStr == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  disableStr = taosMemoryMalloc(1 + 1);
+  if (disableStr == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  const char *p = value;
+
   while (*p) {
     if (*p == ' ') {
       break;
