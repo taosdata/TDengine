@@ -1195,14 +1195,14 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
   if (node->opType == OP_TYPE_IN && (!IS_VAR_DATA_TYPE(type))) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-    SListCell     *cell = listNode->pNodeList->pHead;
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
     out.columnData->info.type = type;
     out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
 
-    for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
-      SValueNode *valueNode = (SValueNode *)cell->pNode;
+    SNode* nodeItem = NULL;
+    FOREACH(nodeItem, listNode->pNodeList) {
+      SValueNode *valueNode = (SValueNode *)nodeItem;
       if (valueNode->node.resType.type != type) {
         int32_t overflow = 0;
         code = sclConvertValueToSclParam(valueNode, &out, &overflow);
@@ -1212,7 +1212,6 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
         }
 
         if (overflow) {
-          cell = cell->pNext;
           continue;
         }
 
@@ -1235,7 +1234,6 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
       taosArrayPush(group, &fgroup);
 
-      cell = cell->pNext;
     }
     colDataDestroy(out.columnData);
     taosMemoryFree(out.columnData);
@@ -1963,7 +1961,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == OP_TYPE_IN) {
-      FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type));
+      FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
         FLT_ERR_RET(TSDB_CODE_APP_ERROR);
@@ -4249,7 +4247,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    if (node->opType == OP_TYPE_NOT_IN || node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL ||
+    if (node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL ||
         node->opType == OP_TYPE_NOT_EQUAL) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
@@ -4323,36 +4321,46 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         }
       }
 
-      if (OP_TYPE_IN == node->opType && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {
+      if ((OP_TYPE_IN == node->opType || OP_TYPE_NOT_IN == node->opType) && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {
         fltError("invalid IN operator node, rightType:%d", nodeType(node->pRight));
         stat->code = TSDB_CODE_APP_ERROR;
         return DEAL_RES_ERROR;
       }
 
       SColumnNode *refNode = (SColumnNode *)node->pLeft;
-      SExprNode   *exprNode = NULL;
-      if (OP_TYPE_IN != node->opType) {
-        SValueNode  *valueNode = (SValueNode *)node->pRight;
+      SExprNode *  exprNode = NULL;
+      if (OP_TYPE_IN != node->opType && OP_TYPE_NOT_IN != node->opType) {
+        SValueNode *valueNode = (SValueNode *)node->pRight;
         if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) &&
             TSDB_DATA_TYPE_UBIGINT == valueNode->node.resType.type && valueNode->datum.u <= INT64_MAX) {
           valueNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
         }
         exprNode = &valueNode->node;
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
+        if (0 != type && type != refNode->node.resType.type) {
+          stat->scalarMode = true;
+        }
       } else {
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-        if (LIST_LENGTH(listNode->pNodeList) > 10) {
+        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
           stat->scalarMode = true;
-          return DEAL_RES_CONTINUE;
         }
+        int32_t type = refNode->node.resType.type;
         exprNode = &listNode->node;
-      }
-      int32_t type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
-      if (0 != type && type != refNode->node.resType.type) {
-        stat->scalarMode = true;
-        return DEAL_RES_CONTINUE;
+        SNode* nodeItem = NULL;
+        FOREACH(nodeItem, listNode->pNodeList) {
+          SValueNode *valueNode = (SValueNode *)nodeItem;
+          int32_t     tmp = vectorGetConvertType(type, valueNode->node.resType.type);
+          if (tmp != 0) {
+            stat->scalarMode = true;
+            type = tmp;
+          }
+        }
+        if (IS_NUMERIC_TYPE(type)){
+          exprNode->resType.type = type;
+        }
       }
     }
-
     return DEAL_RES_CONTINUE;
   }
 

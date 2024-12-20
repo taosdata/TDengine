@@ -212,6 +212,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
+,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5761.py
+,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5761-scalemode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
