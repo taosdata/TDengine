@@ -1,0 +1,73 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "yw86",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "num_of_records_per_req": 20000,
+    "thread_count": 8,
+    "create_table_thread_count": 10,
+    "result_file": "./insert_res_mix.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "continue_if_fail": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "no",
+                "vgroups": 8,
+                "replica": 1,
+                "precision": "ms",
+                "stt_trigger": 1,
+                "minRows": 100,
+                "WAL_RETENTION_PERIOD": 10,
+                "maxRows": 4096
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "yes",
+                    "auto_create_table":"no",
+                    "childtable_count": 10000,
+                    "insert_rows": 1728,
+                    "childtable_prefix": "d",
+                    "insert_mode": "stmt",
+                    "insert_interval": 0,
+                    "timestamp_step": 900000,
+                    "start_timestamp":"2022-09-01 10:00:00",
+                    "disorder_ratio": 0,
+                    "update_ratio": 0,
+                    "delete_ratio": 0,
+                    "continue_if_fail": "yes",
+                    "disorder_fill_interval": 0,
+                    "update_fill_interval": 0,
+                    "generate_row_rule": 0,
+                    "columns": [
+                        { "type": "binary",      "name": "val", "len": 64},
+                        { "type": "binary",      "name": "order_no", "len": 64},
+                        { "type": "binary",      "name": "production_no", "len": 64},
+                        { "type": "binary",      "name": "modal_no", "len": 64}
+
+                    ],
+                    "tags": [
+                        {  "type": "binary",  "name": "device_no",  "len": 64 ,"values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"] },
+                        { "type": "int",      "name": "channel_id", "max": 100, "min": 0},
+                        {  "type": "binary",  "name": "point_no",  "len": 64 ,"values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]},
+                        { "type": "int",      "name": "datatype", "max": 100, "min": 0},
+                        { "type": "int",      "name": "business_type", "max": 100, "min": 0},
+                        {  "type": "binary",  "name": "unit",  "len": 16 ,"values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]}
+                    ]
+                }
+            ]
+        }
+    ]
+}
