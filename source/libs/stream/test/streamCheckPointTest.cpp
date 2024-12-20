@@ -2,6 +2,31 @@
 #include "tstream.h"
 #include "streamInt.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+#pragma GCC diagnostic ignored "-Wpointer-arith"
+
+void initTaskLock(SStreamTask* pTask) {
+  TdThreadMutexAttr attr = {0};
+  int32_t code = taosThreadMutexAttrInit(&attr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = taosThreadMutexInit(&pTask->lock, &attr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = taosThreadMutexAttrDestroy(&attr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+}
+
 TEST(streamCheckpointTest, StreamTaskProcessCheckpointTriggerRsp) {
     SStreamTask* pTask = NULL;
     int64_t uid = 1111111111111111;
@@ -9,6 +34,8 @@ TEST(streamCheckpointTest, StreamTaskProcessCheckpointTriggerRsp) {
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    initTaskLock(pTask);
 
     code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -46,6 +73,8 @@ TEST(streamCheckpointTest, StreamTaskSetFailedCheckpointId) {
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
+    initTaskLock(pTask);
+
     code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
@@ -74,6 +103,8 @@ TEST(UploadCheckpointDataTest, UploadSuccess) {
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    initTaskLock(pTask);
 
     code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -112,6 +143,8 @@ TEST(UploadCheckpointDataTest, UploadDisabled) {
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    initTaskLock(pTask);
 
     code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -152,6 +185,8 @@ TEST(StreamTaskAlreadySendTriggerTest, AlreadySendTrigger) {
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
+    initTaskLock(pTask);
+
     code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
@@ -189,6 +224,8 @@ TEST(ChkptTriggerRecvMonitorHelperTest, chkptTriggerRecvMonitorHelper) {
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    initTaskLock(pTask);
 
     const char *path = "/tmp/backend5/stream";
     code = streamMetaOpen((path), NULL, NULL, NULL, 0, 0, NULL, &pTask->pMeta);
