@@ -440,7 +440,7 @@ export function getLocalTimezone() {
 export function parsinginZone(value, format) {
   if (!value) return value;
   let timezone = getLocalTimezone();
-  return moment.utc(value).tz(timezone).format(format)
+  return momentTimezone(value).tz(timezone).format(format);
 }
 
 export function sort(va, vb, order) {

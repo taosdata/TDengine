@@ -41,7 +41,7 @@
         <span style="color: #333" v-if="item.key !== 'version'">
           {{
             ["expire_time","service_time"].includes(item.key) && item.value !== "unlimited"
-              ? parsinginZone(item.value)
+              ? parsinginZone(item.value, "YYYY-MM-DD h:mm:ss")
               : item.value
           }}</span
         >
@@ -385,9 +385,9 @@ export default {
     },
     expireTime(data) {
       if (this.version_no_later_than_3230) {
-        return parsinginZone(Number(data) * 24 * 60 * 60 * 1000);
+        return parsinginZone(Number(data) * 24 * 60 * 60 * 1000, "YYYY-MM-DD");
       } else {
-        return parsinginZone(data);
+        return parsinginZone(data, "YYYY-MM-DD hh:mm:ss");
       }
     },
     formatLimits(data) {
