@@ -18,7 +18,7 @@ title: 与 Superset 集成
 
 #### 安装 TDengine Python 连接器
 TDengine Python 连接器从 `v2.1.18` 起带 Superset 连接驱动，会安装至 Superset 相应目录下并向 Superset 提供数据源服务   
-Superset 与 TDengine 之间使用 WebSocket 协议连接，另需安装支持此协议的 `taos-ws-py` 组件, 全部安装脚本如下：   
+Superset 与 TDengine 之间使用 WebSocket 协议连接，需安装支持此协议的 `taos-ws-py` 组件, 全部安装脚本如下：   
 ```bash
 pip3 install taospy
 pip3 install taos-ws-py
