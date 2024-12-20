@@ -351,7 +351,7 @@ class TDTestCase:
 
     def stop(self):
         tdSql.close()
-        # tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s successfully executed" % __file__)
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
