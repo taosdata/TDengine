@@ -8,6 +8,7 @@ title: 与 Superset 集成
 
 
 ## 前置条件 
+
 准备以下环境：
 - TDengine 集群已部署并正常运行（企业及社区版均可）
 - taosAdapter 已安装并正常运行。详细参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
