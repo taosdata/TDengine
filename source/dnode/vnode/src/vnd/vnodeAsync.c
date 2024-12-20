@@ -122,7 +122,7 @@ struct {
   const char *label;
   SVAsync    *async;
 } GVnodeAsyncs[] = {
-    [0] = {},
+    [0] = {NULL, NULL},
     [1] = {"vnode-commit", NULL},
     [2] = {"vnode-merge", NULL},
     [3] = {"vnode-compact", NULL},
