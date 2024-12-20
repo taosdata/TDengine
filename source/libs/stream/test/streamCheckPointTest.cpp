@@ -5,7 +5,7 @@
 TEST(streamCheckpointTest, StreamTaskProcessCheckpointTriggerRsp) {
     SStreamTask* pTask = NULL;
     int64_t uid = 1111111111111111;
-    SArray* array = taosArrayInit(4, sizeof(SStreamTask));
+    SArray* array = taosArrayInit(4, POINTER_BYTES);
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -35,12 +35,13 @@ TEST(streamCheckpointTest, StreamTaskProcessCheckpointTriggerRsp) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     tFreeStreamTask(pTask);
+    taosArrayDestroy(array);
 }
 
 TEST(streamCheckpointTest, StreamTaskSetFailedCheckpointId) {
     SStreamTask* pTask = NULL;
     int64_t uid = 1111111111111111;
-    SArray* array = taosArrayInit(4, sizeof(SStreamTask));
+    SArray* array = taosArrayInit(4, POINTER_BYTES);
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -62,12 +63,14 @@ TEST(streamCheckpointTest, StreamTaskSetFailedCheckpointId) {
     streamTaskSetFailedCheckpointId(pTask, pInfo->failedId - 1);
     ASSERT_EQ(pInfo->failedId, failedCheckpointId);
     tFreeStreamTask(pTask);
+    taosArrayDestroy(array);
 }
 
 TEST(UploadCheckpointDataTest, UploadSuccess) {
+    streamMetaInit();
     SStreamTask* pTask = NULL;
     int64_t uid = 1111111111111111;
-    SArray* array = taosArrayInit(4, sizeof(SStreamTask));
+    SArray* array = taosArrayInit(4, POINTER_BYTES);
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -96,12 +99,16 @@ TEST(UploadCheckpointDataTest, UploadSuccess) {
     int32_t result = uploadCheckpointData(pTask, checkpointId, dbRefId, type);
 
     EXPECT_EQ(result, TSDB_CODE_SUCCESS) << "uploadCheckpointData should return 0 on success";
+    tFreeStreamTask(pTask);
+    taosRemoveDir(path);
+    streamStateClose(pState, true);
+    taosArrayDestroy(array);
 }
 
 TEST(UploadCheckpointDataTest, UploadDisabled) {
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
-    SArray* array = taosArrayInit(4, sizeof(SStreamTask));
+    SArray* array = taosArrayInit(4, POINTER_BYTES);
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -131,12 +138,16 @@ TEST(UploadCheckpointDataTest, UploadDisabled) {
     int32_t result = uploadCheckpointData(pTask, checkpointId, dbRefId, type);
 
     EXPECT_NE(result, TSDB_CODE_SUCCESS) << "uploadCheckpointData should return 0 when backup type is disabled";
+
+    streamStateClose(pState, true);
+    tFreeStreamTask(pTask);
+    taosArrayDestroy(array);
 }
 
 TEST(StreamTaskAlreadySendTriggerTest, AlreadySendTrigger) {
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
-    SArray* array = taosArrayInit(4, sizeof(SStreamTask));
+    SArray* array = taosArrayInit(4, POINTER_BYTES);
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -167,13 +178,14 @@ TEST(StreamTaskAlreadySendTriggerTest, AlreadySendTrigger) {
 
     EXPECT_TRUE(result) << "The trigger message should have been sent to the downstream node";
 
-    taosArrayDestroy(pTask->chkInfo.pActiveInfo->pDispatchTriggerList);
+    tFreeStreamTask(pTask);
+    taosArrayDestroy(array);
 }
 
 TEST(ChkptTriggerRecvMonitorHelperTest, chkptTriggerRecvMonitorHelper) {
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
-    SArray* array = taosArrayInit(4, sizeof(SStreamTask));
+    SArray* array = taosArrayInit(4, POINTER_BYTES);
     int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
                                        false, 1, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -215,4 +227,7 @@ TEST(ChkptTriggerRecvMonitorHelperTest, chkptTriggerRecvMonitorHelper) {
 
     pTask->pMeta->fatalInfo.code = TSDB_CODE_FAILED;
     streamSetFatalError(pTask->pMeta, code, __func__, __LINE__);
+    tFreeStreamTask(pTask);
+    taosArrayDestroy(array);
+    taosArrayDestroy(array1);
 }
