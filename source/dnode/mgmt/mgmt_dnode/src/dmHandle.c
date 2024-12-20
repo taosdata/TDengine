@@ -475,7 +475,7 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
-extern void    tsdbAlterMaxCompactTasks();
+extern void    tsdbAlterNumCompactThreads();
 static int32_t dmAlterMaxCompactTask(const char *value) {
   int32_t max_compact_tasks;
   char   *endptr = NULL;
@@ -489,7 +489,7 @@ static int32_t dmAlterMaxCompactTask(const char *value) {
     dInfo("alter max compact tasks from %d to %d", tsNumOfCompactThreads, max_compact_tasks);
     tsNumOfCompactThreads = max_compact_tasks;
 #ifdef TD_ENTERPRISE
-    tsdbAlterMaxCompactTasks();
+    (void)tsdbAlterNumCompactThreads();
 #endif
   }
 
