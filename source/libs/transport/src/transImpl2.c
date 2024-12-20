@@ -99,6 +99,15 @@ typedef struct SSvrConn {
   int32_t fd;
 
 } SSvrConn;
+
+typedef struct {
+  char   *buf;
+  int32_t len;
+  int8_t  inited;
+  int32_t offset;
+  void   *data;
+
+} SEvtBuf;
 typedef struct SSvrRespMsg {
   SSvrConn     *pConn;
   STransMsg     msg;
@@ -109,6 +118,7 @@ typedef struct SSvrRespMsg {
   FilteFunc     func;
   int8_t        sent;
 
+  SEvtBuf buf;
 } SSvrRespMsg;
 
 #define ASYNC_ERR_JRET(thrd)                            \
@@ -126,14 +136,6 @@ static FORCE_INLINE void destroySmsg(SSvrRespMsg *smsg) {
   transFreeMsg(smsg->msg.pCont);
   taosMemoryFree(smsg);
 }
-typedef struct {
-  char   *buf;
-  int32_t len;
-  int8_t  inited;
-  int32_t offset;
-  void   *data;
-
-} SEvtBuf;
 typedef struct SWorkThrd {
   TdThread thread;
   // //uv_connect_t connect_req;
@@ -163,6 +165,8 @@ typedef struct SWorkThrd {
 
   int32_t       pipe_queue_fd[2];
   SAsyncHandle *asyncHandle;
+
+  void *pEvtMgt;
 } SWorkThrd2;
 typedef struct SServerObj {
   TdThread     thread;
@@ -374,10 +378,10 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
 
       if (code != 0) {
         tError("failed to send buf since %s", tstrerror(code));
+        evtBufClear(&pArg->sendBuf);
         pArg->sendFinishCb(pArg, code);
         return code;
       }
-      code = evtMgtRemove(pOpt, pArg->fd, EVT_WRITE, pArg);
       return code;
     }
   }
@@ -482,6 +486,7 @@ static int32_t evtMgtResize(SEvtMgt *pOpt, int32_t cap) {
 
 static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *arg) {
   // add new fd to the set
+  int8_t  rwRef = 0;
   int32_t code = 0;
   if (pOpt->evtFds < fd) {
     int32_t fdSize = pOpt->evtFdsSize;
@@ -499,19 +504,38 @@ static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *ar
     }
     pOpt->evtFds = fd;
   }
-  int8_t rwRef = 0;
-  if (fd != 0) {
+
+  SFdCbArg *p = taosHashGet(pOpt->pFdTable, &fd, sizeof(fd));
+  if (p != NULL) {
     if (events & EVT_READ) {
       FD_SET(fd, pOpt->evtReadSetIn);
       rwRef++;
     }
-
     if (events & EVT_WRITE) {
       FD_SET(fd, pOpt->evtWriteSetIn);
       rwRef++;
     }
-    pOpt->fd[pOpt->fdIdx++] = fd;
-    code = taosHashPut(pOpt->pFdTable, &fd, sizeof(fd), arg, sizeof(*arg));
+    p->rwRef += rwRef;
+    if (p->rwRef >= 2) {
+      p->rwRef = 2;
+    }
+  } else {
+    if (arg == NULL) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    if (fd != 0) {
+      if (events & EVT_READ) {
+        FD_SET(fd, pOpt->evtReadSetIn);
+        rwRef++;
+      }
+
+      if (events & EVT_WRITE) {
+        FD_SET(fd, pOpt->evtWriteSetIn);
+        rwRef++;
+      }
+      pOpt->fd[pOpt->fdIdx++] = fd;
+      code = taosHashPut(pOpt->pFdTable, &fd, sizeof(fd), arg, sizeof(*arg));
+    }
   }
 
   return 0;
@@ -899,6 +923,79 @@ _end:
   }
   return code;
 }
+static int32_t evtSvrHandleSendRespImpl(SSvrConn *pConn, SEvtBuf *pBuf) {
+  int32_t code = 0;
+  int32_t batchLimit = 32;
+  int32_t j = 0;
+  while (!QUEUE_IS_EMPTY(&pConn->resps.node)) {
+    queue *el = QUEUE_HEAD(&pConn->resps.node);
+    QUEUE_REMOVE(el);
+
+    SSvrRespMsg *pResp = QUEUE_DATA(el, SSvrRespMsg, q);
+    STransMsg   *pMsg = &pResp->msg;
+    if (pMsg->pCont == 0) {
+      pMsg->pCont = (void *)rpcMallocCont(0);
+      if (pMsg->pCont == NULL) {
+        return terrno;
+      }
+      pMsg->contLen = 0;
+    }
+    STransMsgHead *pHead = transHeadFromCont(pMsg->pCont);
+    pHead->traceId = pMsg->info.traceId;
+    pHead->hasEpSet = pMsg->info.hasEpSet;
+    pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+    pHead->compatibilityVer = htonl(((STrans *)pConn->pInst)->compatibilityVer);
+    pHead->version = TRANS_VER;
+    pHead->seqNum = taosHton64(pMsg->info.seq);
+    pHead->qid = taosHton64(pMsg->info.qId);
+    pHead->withUserInfo = pConn->userInited == 0 ? 1 : 0;
+
+    pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
+    pHead->code = htonl(pMsg->code);
+    pHead->msgLen = htonl(pMsg->contLen + sizeof(STransMsgHead));
+
+    char   *msg = (char *)pHead;
+    int32_t len = transMsgLenFromCont(pMsg->contLen);
+
+    STrans   *pInst = pConn->pInst;
+    STraceId *trace = &pMsg->info.traceId;
+    tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d, seqNum:%" PRId64 ", sid:%" PRId64 "",
+            transLabel(pInst), pConn, TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len, pMsg->info.seq,
+            pMsg->info.qId);
+    evtBufPush(pBuf, (char *)pHead, len);
+  }
+  return code;
+}
+static int32_t evtSvtPreSend(void *arg, SEvtBuf *buf, int32_t status) {
+  int32_t   code = 0;
+  SFdCbArg *pArg = arg;
+  SSvrConn *pConn = pArg->data;
+
+  code = evtSvrHandleSendRespImpl(pConn, buf);
+  return code;
+}
+
+static int32_t evtSvrSendCb(void *arg, SEvtBuf *buf, int32_t status) {
+  int32_t     code = 0;
+  SFdCbArg   *pArg = arg;
+  SSvrConn   *pConn = pArg->data;
+  SWorkThrd2 *pThrd = pConn->hostThrd;
+
+  return code;
+}
+static int32_t evtSvrSendFinishCb(void *arg, int32_t status) {
+  int32_t   code = 0;
+  SFdCbArg *pArg = arg;
+  SSvrConn *pConn = pArg->data;
+
+  SWorkThrd2 *pThrd = pConn->hostThrd;
+
+  if (QUEUE_IS_EMPTY(&pConn->resps.node)) {
+    // stop write evt
+    code = evtMgtRemove(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
+  }
+  return code;
+}
 void evtNewConnNotifyCb(void *async, int32_t status) {
   int32_t code = 0;
 
@@ -934,7 +1031,8 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
                     .arg = pArg,
                     .fd = pArg->acceptFd,
                     .readCb = evtSvrReadCb,
-                    .sendCb = NULL,
+                    .sendCb = evtSvrSendCb,
+                    .sendFinishCb = evtSvrSendFinishCb,
                     .data = pConn};
     code = evtMgtAdd(pEvtMgt, pArg->acceptFd, EVT_READ, &arg);
 
@@ -947,9 +1045,14 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
   return;
 }
 
-int32_t evtSvrHandleSendResp(SWorkThrd2 *pThrd, SSvrRespMsg *pResp) {
-  // TODO
-  int32_t code = 0;
+static int32_t evtSvrHandleSendResp(SWorkThrd2 *pThrd, SSvrRespMsg *pResp) {
+  int32_t   code = 0;
+  SSvrConn *pConn = pResp->pConn;
+  QUEUE_PUSH(&pConn->resps.node, &pResp->q);
+  if (QUEUE_IS_EMPTY(&pConn->resps.node)) {
+    return code;
+  }
+  code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
   return code;
 }
 void evtHandleRespCb(void *async, int32_t status) {
@@ -994,6 +1097,7 @@ void *transWorkerThread(void *arg) {
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
+  pThrd->pEvtMgt = pOpt;
   pOpt->hostThrd = pThrd;
 
   code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotifyCb, EVT_CONN_T, (void *)pThrd);
@@ -1764,25 +1868,16 @@ _end:
 }
 
 static int32_t evtCliSendCb(void *arg, int32_t status) {
-  int32_t   code = status;
-  SFdCbArg *pArg = arg;
-  SCliConn *pConn = pArg->data;
+  int32_t    code = status;
+  SFdCbArg  *pArg = arg;
+  SCliConn  *pConn = pArg->data;
   SCliThrd2 *pThrd = pConn->hostThrd;
   if (code != 0) {
     tError("failed to send request since %s", tstrerror(code));
     return code;
   }
-  while (!QUEUE_IS_EMPTY(&pConn->reqsSentOut.node)) {
-    queue *el = QUEUE_HEAD(&pConn->reqsSentOut.node);
-    QUEUE_REMOVE(el);
-
-    SCliReq *pCliMsg = QUEUE_DATA(el, SCliReq, q);
-    if (pCliMsg == NULL) {
-      continue;
-    }
-    STraceId *trace = &pCliMsg->msg.info.traceId;
-    tGDebug("success to send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pThrd->pid,
-            pCliMsg->ctx->epSet->eps[0].fqdn, pCliMsg->ctx->epSet->eps[0].port, pCliMsg->msg.info.ahandle);
+  if (QUEUE_IS_EMPTY(&pConn->reqsToSend2)) {
+    code = evtMgtRemove(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
   }
 
   return code;
