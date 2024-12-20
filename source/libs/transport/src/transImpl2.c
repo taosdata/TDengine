@@ -329,7 +329,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
     if (res & EVT_WRITE) {
       // handle err
     }
-  } else if (pArg->event == EVT_CONN_T) {
+  } else if (pArg->evtType == EVT_CONN_T) {
     if (res & EVT_READ) {
       SEvtBuf *pBuf = &pArg->buf;
       code = evtBufInit(pBuf);
@@ -758,11 +758,11 @@ static SSvrConn *createConn(void *tThrd, int32_t fd) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
-
+  QUEUE_INIT(&pConn->resps.node);
   //  code = initWQ(&pConn->wq);
   // TAOS_CHECK_GOTO(code, &lino, _end);
   // wqInited = 1;
-
+  pConn->hostThrd = pThrd;
   return pConn;
 _end:
   if (code != 0) {
@@ -816,12 +816,12 @@ static int32_t evtConnHandleReleaseReq(SSvrConn *pConn, STransMsgHead *phead) {
   int32_t code = 0;
   return code;
 }
-static int32_t evtSvrHandleRep(SSvrConn *pConn, char *req, int32_t len) {
+static int32_t evtSvrHandleReq(SSvrConn *pConn, char *req, int32_t len) {
   SWorkThrd2 *pThrd = pConn->hostThrd;
   STrans     *pInst = pThrd->pInst;
 
   int32_t        code = 0;
-  int32_t        msgLen = 0;
+  int32_t        msgLen = len;
   STransMsgHead *pHead = (STransMsgHead *)req;
   if (connMayGetUserInfo(pConn, &pHead, &msgLen) == true) {
     tDebug("%s conn %p get user info", transLabel(pInst), pConn);
@@ -910,7 +910,7 @@ static int32_t evtSvrReadCb(void *arg, SEvtBuf *buf, int32_t bytes) {
       memcpy(p->buf + msgLen, p->buf, p->len - msgLen);
       p->len -= msgLen;
 
-      code = evtSvrHandleRep(pConn, pMsg, msgLen);
+      code = evtSvrHandleReq(pConn, pMsg, msgLen);
       TAOS_CHECK_GOTO(terrno, &lino, _end);
     } else {
       break;
@@ -1048,10 +1048,11 @@ static int32_t evtSvrHandleSendResp(SWorkThrd2 *pThrd, SSvrRespMsg *pResp) {
   code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
   return code;
 }
-void evtHandleRespCb(void *async, int32_t status) {
+void evtSvrHandleAyncCb(void *async, int32_t status) {
   int32_t code = 0;
 
   SAsyncHandle *handle = async;
+  SWorkThrd2   *pThrd = handle->hostThrd;
   // SEvtMgt      *pEvtMgt = handle->data;
 
   queue wq;
@@ -1068,6 +1069,20 @@ void evtHandleRespCb(void *async, int32_t status) {
     QUEUE_REMOVE(el);
 
     SSvrRespMsg *pResp = QUEUE_DATA(el, SSvrRespMsg, q);
+
+    STransMsg  transMsg = pResp->msg;
+    SExHandle *exh1 = transMsg.info.handle;
+    int64_t    refId = transMsg.info.refId;
+    SExHandle *exh2 = transAcquireExHandle(uvGetConnRefOfThrd(pThrd), refId);
+    if (exh1 != exh2) {
+      tError("failed to acquire handle since %s", tstrerror(TSDB_CODE_REF_INVALID_ID));
+      continue;
+    }
+
+    pResp->seqNum = transMsg.info.seq;
+    pResp->pConn = exh2->handle;
+
+    transReleaseExHandle(uvGetConnRefOfThrd(pThrd), refId);
     code = evtSvrHandleSendResp(handle->hostThrd, pResp);
   }
 
@@ -1100,7 +1115,7 @@ void *transWorkerThread(void *arg) {
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
-  code = evtAsyncInit(pOpt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtHandleRespCb, EVT_ASYNC_T, (void *)pThrd);
+  code = evtAsyncInit(pOpt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtSvrHandleAyncCb, EVT_ASYNC_T, (void *)pThrd);
   if (code != 0) {
     tError("failed to create select op since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
@@ -1527,6 +1542,8 @@ static int32_t createCliConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliConn 
   pConn->bufSize = pInst->shareConnLimit;
   QUEUE_INIT(&pConn->reqsToSend2);
 
+  QUEUE_INIT(&pConn->reqsToSend.node);
+  QUEUE_INIT(&pConn->reqsSentOut.node);
   TAOS_CHECK_GOTO(createSocket(ip, port, &pConn->fd), &line, _end);
   TAOS_CHECK_GOTO(cliConnGetSockInfo(pConn), &line, _end);
 
@@ -1853,6 +1870,7 @@ static int32_t evtCliPreSendReq(void *arg, SEvtBuf *buf, int32_t status) {
     if (j >= batchLimit) {
       break;
     }
+    tDebug("%s send req %p, seq:%" PRId64, pInst->label, pCliMsg, pConn->seq);
   }
   return code;
 _end:
@@ -1867,9 +1885,12 @@ static int32_t evtCliSendCb(void *arg, int32_t status) {
   SFdCbArg  *pArg = arg;
   SCliConn  *pConn = pArg->data;
   SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
   if (code != 0) {
     tError("failed to send request since %s", tstrerror(code));
     return code;
+  } else {
+    tDebug("%s success to send out request", pInst->label);
   }
   if (QUEUE_IS_EMPTY(&pConn->reqsToSend2)) {
     code = evtMgtRemove(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
@@ -1935,13 +1956,14 @@ static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
 
   SCliConn *pConn = NULL;
   code = createCliConn(pThrd, fqdn, port, &pConn);
+  STrans *pInst = pThrd->pInst;
   if (code != 0) {
-    tError("failed to create conn since %s", tstrerror(code));
+    tError("%s failed to create conn since %s", pInst->label, tstrerror(code));
     return code;
   } else {
     QUEUE_PUSH(&pConn->reqsToSend2, &req->q);
     STraceId *trace = &req->msg.info.traceId;
-    tGDebug("success to create conn %p, src:%s, dst:%s", pConn, pConn->src, pConn->dst);
+    tGDebug("%s success to create conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
 
     SFdCbArg arg = {.evtType = EVT_CONN_T,
                     .arg = pConn,
