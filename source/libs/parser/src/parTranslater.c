@@ -2221,7 +2221,8 @@ static int32_t calcTypeBytes(SDataType dt) {
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_BLOB == dt.type) { // [TODO] fix rowSize check temporarily
-    return POINTER_BYTES; // return pointer size (8) for BLOB type
+    return dt.bytes + VARSTR_HEADER_SIZE_LONG;
+    return POINTER_BYTES; // return pointer size (8) for BLOB type ? should consider charset ?
   } else {
     return dt.bytes;
   }
