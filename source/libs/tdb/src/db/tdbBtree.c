@@ -1491,7 +1491,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
         ofpCell = tdbPageGetCell(ofp, 0);
 
         int lastKeyPage = 0;
-        if (nLeftKey <= maxLocal - sizeof(SPgno)) {
+        if (nLeftKey <= ofp->maxLocal - sizeof(SPgno)) {
           bytes = nLeftKey;
           lastKeyPage = 1;
           lastKeyPageSpace = ofp->maxLocal - sizeof(SPgno) - nLeftKey;

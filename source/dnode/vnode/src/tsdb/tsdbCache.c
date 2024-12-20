@@ -2635,23 +2635,15 @@ _exit:
 }
 
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey) {
-  int32_t code = 0, lino = 0;
-  // fetch schema
+  int32_t   code = 0, lino = 0;
   STSchema *pTSchema = NULL;
   int       sver = -1;
+  int       numKeys = 0;
+  SArray   *remainCols = NULL;
 
   TAOS_CHECK_RETURN(metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema));
 
-  // build keys & multi get from rocks
-  int     numCols = pTSchema->numOfCols;
-  int     numKeys = 0;
-  SArray *remainCols = NULL;
-
-  code = tsdbCacheCommit(pTsdb);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, %s commit failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-  }
+  int numCols = pTSchema->numOfCols;
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
