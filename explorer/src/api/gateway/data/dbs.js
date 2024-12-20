@@ -47,6 +47,18 @@ export async function getDBListReq(appId) {
   // return dbStruct;
 }
 
+export async function getStables(database) {
+  try {
+    let result = await sendSQLReq(
+      `show  \`${database}\`.stables`
+    );
+    return Array.from(result.data).flat(1);
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+}
+
 export function getDBStruct(dbName) {
   return executeDBOperations(`SELECT * FROM information_schema.ins_databases where name='${dbName}';`)
     .then(data => data[0] || {})

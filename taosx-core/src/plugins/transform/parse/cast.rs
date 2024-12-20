@@ -17,7 +17,7 @@ use thiserror::Error;
 
 use super::Parse;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Cast {
     r#as: IpcDataType,
     #[serde(skip_serializing_if = "Option::is_none")]

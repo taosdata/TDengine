@@ -1435,7 +1435,6 @@ pub async fn tmq_to_td(
     from: Dsn,
     actions: Vec<Action>,
     mut to: Dsn,
-    jobs: usize,
     cancel: CancellationToken,
     task_id: Option<String>,
     notify: crate::TaskNotifySender,
@@ -1446,7 +1445,7 @@ pub async fn tmq_to_td(
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
-        .unwrap_or(jobs); // 0 means auto
+        .unwrap_or(0); // 0 means auto
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
@@ -1513,7 +1512,7 @@ pub async fn tmq_to_td(
         if let Some(v) = to_params.get("token") {
             to.set("token", v);
         }
-        let group_id = group_id_hash(&from, &to);
+        let group_id = group_id_hash_by(&from, &to);
         tracing::info!("group.id not set, will use automatically generated group id: {group_id}");
         from_params.insert("group.id".to_string(), group_id);
         to.params = to_params;
@@ -1819,7 +1818,7 @@ pub async fn tmq_to_td(
                                     return Err(err);
                                 }
                                 let _ = notify
-                                    .send_async(crate::TaskNotify::Warn(format!(
+                                    .send_async(crate::TaskNotify::source_error(format!(
                                         "Consuming task {consumer_task_id} error: {err:#}"
                                     )))
                                     .await;
@@ -2051,7 +2050,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_show_subscriptions() -> anyhow::Result<()> {
+    async fn test_show_subscriptions_with_taos() -> anyhow::Result<()> {
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         let res = taos.query("show subscriptions").await;
         match res {

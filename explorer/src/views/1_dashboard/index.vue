@@ -15,7 +15,18 @@
     >
     <div class="content">
       <!-- <panelHeader :title="title"> </panelHeader> -->
-      <docs :category="'dashboard'" :lang="'Dashboard'" ></docs>
+      <docs v-if="!grafanaDashboard" :category="'dashboard'" :lang="'Dashboard'" ></docs>
+
+      <el-tabs v-else>
+        <el-tab-pane v-for="(item, index) in grafanaDashboard" :key="`dashboard-${index}`" :label="item.key">
+          <iframe
+            :src="item.url"
+            width="100%"
+            height="700"
+            frameborder="0"
+            scrolling="auto"></iframe>
+        </el-tab-pane>
+      </el-tabs>
       <!-- <ClusterInfo /> -->
       <!-- <docs :category="'tdinsight'" :lang="'tdinsight'" topic="TDinsight配置"></docs> -->
       <!-- <Query v-if="isQuery" />
@@ -39,6 +50,7 @@ export default {
   data() {
     return {
       isQuery: false,
+      grafanaDashboard: null,
     };
   },
   computed: {
@@ -53,6 +65,12 @@ export default {
     btnTitle() {
       return this.isQuery ? this.$t("dashboard.usage") : this.$t("route.sql");
     },
+  },
+  created() {
+    const grafana_dashboards = localStorage.getItem("local_grafana");
+    if (grafana_dashboards) {
+      this.grafanaDashboard = JSON.parse(grafana_dashboards);
+    }
   },
   // mounted() {
   //   Guide({

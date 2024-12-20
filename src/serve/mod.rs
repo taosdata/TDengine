@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use tracing::{info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
+use trigger::Strategy;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -47,6 +48,7 @@ pub use task::check_parser_timestamp_precision;
 use task::*;
 
 mod agent;
+mod backup;
 mod controller;
 mod data_sources;
 mod metrics;
@@ -188,7 +190,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(privileges::privileges_import)
             .service(metrics::profile)
             .service(filemeta)
-            .service(health);
+            .service(health)
+            .service(backup::get_backup_points);
     }
 }
 
@@ -339,8 +342,9 @@ impl Cli {
                     NewTask,
                     UpdateTask,
                     Labels,
+                    Strategy,
                     Task,
-                    TaskActivity,
+                    Activity,
                     Failed,
                     DataSourceInput,
                     DataSourceDefinition,
@@ -384,6 +388,8 @@ impl Cli {
                     PointDetail,
                     GetPointsHeaderReq,
                     AddPointReq,
+                    crate::serve::trigger::Strategy,
+                    crate::serve::backup::BackupPoint,
                 ),
                 responses(
                 )
@@ -433,6 +439,7 @@ impl Cli {
                 privileges::privileges_export,
                 privileges::privileges_import,
                 routes::cluster::get_cluster_connector_transferred,
+                crate::serve::backup::get_backup_points,
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),
@@ -441,6 +448,7 @@ impl Cli {
                 (name = "agents", description = "Agents Management"),
                 (name = "cluster", description = "Cluster Information"),
                 (name = "privileges", description = "Migrate Passwords and Privileges"),
+                (name = "backup", description = "Backup"),
             ),
         )]
         struct ApiDoc;

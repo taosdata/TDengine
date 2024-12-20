@@ -94,8 +94,10 @@
       ></TimezoneDatePicker>
 
       <div v-if="config.type == 'compose'">
-        <el-input  :placeholder="config.placeholder" v-model="data[field]" class="input-with-select" @blur="trimInput">
-          <el-select style="width: 120px;" v-model="data[field + '_type']" slot="prepend">
+        <el-input :placeholder="config.placeholder" v-model="data[field]" class="input-with-select" @blur="trimInput" 
+          :disabled="disabledValue"
+        >
+          <el-select style="width: 120px;" v-model="data[field + '_type']" slot="prepend" @change="handleDatatype">
             <el-option v-for="item in getOptions()"
               :key="item.value"
               v-bind="item"
@@ -381,6 +383,9 @@ export default {
     classMark() {
       return getFieldClassMarkName(this.parent + this.field);
     },
+    disabledValue() {
+      return this.config.disabledValues ? this.config.disabledValues.includes(this.data[this.field + '_type']): false
+    }
   },
   watch: {},
   created() {},
@@ -531,6 +536,11 @@ export default {
     trimInput() {
       // 在失去焦点时去除输入框值的前后空格
       this.data[this.field] = this.data[this.field].toString().trim();
+    },
+    handleDatatype() {
+      if (this.config.disabledValues && this.config.disabledValues.includes(this.data[this.field + '_type'])){
+        this.data[this.field] = ''
+      }
     }
   },
 };
@@ -569,6 +579,10 @@ export default {
     border-color: #bebcbc;
     .el-input__inner {
       box-shadow: none;
+      color: #16191f;
+      &:hover {
+        color: #16191f;
+      }
     }
   }
   ::v-deep .el-input-group__append {

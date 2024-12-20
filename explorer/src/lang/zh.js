@@ -231,6 +231,22 @@ export default {
     ticked: "等待下次执行",
     scheduled: "调度中"
   },
+  healthStatus: {
+    ready: 'Ready',
+    readyDesc: '数据源和目标端健康检查通过，可以进行数据读取和写入。',
+    idle: 'Idle',
+    idleDesc: '表示最近一段时间内（可配置）无数据处理（没有数据进入处理流程）。',
+    busy: 'Busy',
+    busyDesc: '表示写入队列已满。',
+    bounce: 'Bounce',
+    bounceDesc: '数据源和目标端均正常，但在写入过程中存在错误，一定周期内超出阈值，可能意味着存在大量非正常数据或正在发生数据丢失。',
+    source_error: 'SourceError',
+    source_errorDesc: '数据源错误导致无法进行读取。此时工作负载将尝试重连数据源。',
+    sink_error: 'SinkError',
+    sink_errorDesc:'写入端错误导致无法进行写入。',
+    fatal: 'Fatal',
+    fatalDesc: '无法恢复的错误，此时数据写入任务将退出。'
+  },
   systemUpdate: "系统更新",
   ignore: "忽略",
   update: "更新",
@@ -333,10 +349,10 @@ export default {
     timeRange: "时间区间",
     query: "查询",
     tbHeader: {
-      table: "超级表/普通表", 
+      table: "超级表/普通表",
       source: "源最新时间",
-      sink: "目标最新时间", 
-      difference: "源与目标的时间差", 
+      sink: "目标最新时间",
+      difference: "源与目标的时间差",
       sourceNum: "源数据",
       sinkNum: "目标数据",
       topic: "Topic",
@@ -384,13 +400,14 @@ export default {
     taskStop: "确认停止任务 {id} ？",
     taskStart: "确认开启任务 {id} ？",
     backupTip: "你确定{operate}备份任务 {id} ?",
+    restoreTip: "你确定{operate}恢复任务 {id} ?",
     backupDel: "你确定删除任务 {id} ?",
     stop: "停止",
     start: "开启",
   },
   route: {
     dataIn: "数据写入",
-    board: "面板",
+    board: "监控面板",
     data: "数据",
     dataOut: "数据输出",
     cluster: "集群",
@@ -486,7 +503,7 @@ export default {
     version: "版本",
     expiretime: "过期时间",
     createtime: "创建时间",
-    overview: "概览",
+    overview: "监控面板",
     cluster: "集群",
     cloud: "云",
     region: "地区",
@@ -1447,6 +1464,7 @@ export default {
     createat: "创建时间",
     via: "代理",
     status: "状态",
+    healthStatus: "健康状态",
     operation: "操作",
     addsource: "新建任务",
     sourcetype: "数据源类型",
@@ -1456,7 +1474,7 @@ export default {
     targetname: "名称",
     agentInfo: `
       1. 使用 PI 或 OPC-DA 数据源时，需启用代理。
-      <br /> 
+      <br />
       2. 其他情况下，如当数据源与 TDengine 集群网络隔离时，使用代理以提供跨网络访问数据源的能力。
     `,
 
@@ -2346,7 +2364,30 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
   taosuser: {
     users: "用户",
     backup: "备份",
+    restoreTask: "恢复任务",
+    backupForm: {
+      upcoming: "下次执行时间",
+      maxRetry: "错误重试次数",
+      retryInterval: "错误重试间隔",
+      fileDir: "备份文件路径",
+      backupMaxSize: "备份文件大小",
+      compressionLevel: "文件压缩等级",
+    },
+    compressionLevel: {
+      balanced: '兼具速度和压缩率',
+      best: '最佳压缩率',
+      fastest: '最快速度',
+    },
+    confirmDeleteBackupFile: "是否删除关联的备份文件？",
+    backupFile: "备份文件",
+    backupPoint: "备份节点",
+    backupFileSize: "累积文件大小",
+    backupFileCount: "备份数量",
+    confirmRestoreRange: "将节点范围在：",
+    restoreToDatabase: "恢复到数据库：",
+    conformDeleteRestoreTask: "是否删除恢复任务 ",
     datareplication: "数据同步",
+    restoreRange: "恢复节点范围",
     name: "名称",
     database: "数据库",
     topic: "主题",
@@ -2368,14 +2409,14 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
     password: "密码",
     subscription: "主题",
     subscribe: "订阅",
-    createbackup: "创建新备份",
+    createbackup: "创建备份计划",
     backupcycle: "备份周期",
     directory: "目录",
     addreplication: "创建新同步",
     isRestore: "是否确定进行数据恢复",
     fromsource: "来源",
     targetdsn: "目标DSN",
-    changebackup: "选择备份周期",
+    backupPlan: "备份计划",
     everyday: "每天",
     every7day: "每7天",
     every30day: "每30天",
@@ -2456,19 +2497,19 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
 
   <code>systemctl start taosx-agent</code>，
   使用以下命令检查代理服务状态：
-  
+
   <code>systemctl status taosx-agent</code>`,
     step3sub2window: `在Windows上，使用以下命令启动代理服务：
-  
+
   <code>sc.exe start taosx-agent</code>，
   使用以下命令检查代理服务状态：
-  
+
   <code>sc.exe query taosx-agent</code>。`,
     step3sub3linux: `如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
 
   <code>journalctl -u taosx-agent</code>`,
     step3sub3window: `在Windows上，您可以在以下位置检查日志文件：
-  
+
   <code>C:\\Program Files\\taosX\\log\\agent\\</code>`,
     step4sub1:
       '在资源管理器中刷新代理状态，以检查代理是否正确连接。当代理成功连接时，代理的状态将显示为"Idle"。',

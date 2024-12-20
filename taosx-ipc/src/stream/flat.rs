@@ -13,6 +13,10 @@ impl IpcMessage for FlatMessage {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
+    fn nrows(&self) -> usize {
+        self.records.iter().map(|r| r.record.num_rows()).sum()
+    }
 }
 
 impl FlatMessage {

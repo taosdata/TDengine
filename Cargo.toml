@@ -10,7 +10,7 @@ members = [
   "crates/taoslog",
   "crates/tokio-cron-scheduler",
   "explorer/server",
-  "tests/tools",
+  "tests/tools", "crates/spawners/x-replication",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -51,13 +51,13 @@ fundu = "2.0.1"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "fa2521c"
+rev = "afdfa8d"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
-version = "1.8.1"
+version = "1.9.0"
 rust-version = "1.78.0"
 
 [workspace.lints.clippy]

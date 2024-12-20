@@ -24,10 +24,10 @@ export function excuteStop(id) {
     });
 }
 
-export function excuteDel(id) {
+export function excuteDel(id, yesDeleteFile) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/tasks/${id}`,
+        url: `/tasks/${id}?after_delete=${yesDeleteFile ? "clear" : ""}`,
         method: "delete"
     });
 }

@@ -426,6 +426,11 @@ export function getDSN(driver = "tmq", subject = null) {
   }
 }
 
+export function getTimezoneAddition() {
+  const timezone = getLocalTimezone();
+  return moment.tz(timezone).format('Z');
+}
+
 // 获取时区
 export function getLocalTimezone() {
   return localStorage.getItem("timezone") || moment.tz.guess(true) || "UTC";

@@ -31,7 +31,7 @@ pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;
 pub use transform::Pipeline;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum Parser {
     Inner(transform::Parser),

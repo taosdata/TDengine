@@ -27,6 +27,14 @@ pub struct Regex {
     keep: bool,
 }
 
+impl std::cmp::PartialEq for Regex {
+    fn eq(&self, other: &Self) -> bool {
+        self.regex.to_string() == other.regex.to_string()
+            && self.select == other.select
+            && self.keep == other.keep
+    }
+}
+
 #[derive(Debug)]
 enum ExtractRule<'a> {
     CaptureNames(Vec<&'a str>),
