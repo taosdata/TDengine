@@ -57,6 +57,8 @@ namespace {
 extern "C" int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t sId, int32_t execId, SDataBuf *pMsg,
                                         int32_t rspCode);
 extern "C" int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t rspCode);
+extern "C" int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code);
+extern "C" int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code);
 
 int64_t insertJobRefId = 0;
 int64_t queryJobRefId = 0;
@@ -1306,13 +1308,16 @@ TEST(otherTest, function) {
   SSchTaskCallbackParam param = {0};
   SDataBuf dataBuf = {0};
   dataBuf.pData = taosMemoryMalloc(1);
-  dataBuf.pEpSet = taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
+  dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
   ASSERT_EQ(schHandleNotifyCallback(&param, &dataBuf, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
 
   SSchCallbackParamHeader param2 = {0};
-  SDataBuf dataBuf = {0};
+  dataBuf.pData = taosMemoryMalloc(1);
+  dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
   schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
   param2.isHbParam = true;
+  dataBuf.pData = taosMemoryMalloc(1);
+  dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
   schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
   
   schMgmt.jobRef = -1;
