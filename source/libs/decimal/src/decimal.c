@@ -171,17 +171,13 @@ int32_t varAdd(DecimalVar* pLeft, const DecimalVar* pRight) {
 }
 
 int32_t decimal64ToDataVal(const Decimal64* dec, SValue* pVal) {
-  pVal->words = taosMemoryCalloc(1, sizeof(DecimalWord));
-  if (!pVal->words) return terrno;
-  pVal->wordNum = DECIMAL_WORD_NUM(Decimal64);
-  pVal->words[0] = *dec->words;
+  VALUE_SET_TRIVIAL_DATUM(pVal, dec->words[0]);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t decimal128ToDataVal(const Decimal128* dec, SValue* pVal) {
-  pVal->words = taosMemCalloc(2, sizeof(DecimalWord));
-  if (!pVal->words) return terrno;
-  pVal->wordNum = DECIMAL_WORD_NUM(Decimal128);
-  memcpy(pVal->words, dec->words, sizeof(dec->words));
+  pVal->pData = taosMemCalloc(2, sizeof(DecimalWord));
+  if (!pVal->pData) return terrno;
+  valueSetDatum(pVal, TSDB_DATA_TYPE_DECIMAL, dec->words, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
   return TSDB_CODE_SUCCESS;
 }

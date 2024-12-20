@@ -193,7 +193,7 @@ static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t r
 
   pKey->pks[0].type = t;
   if (IS_NUMERIC_TYPE(t)) {
-    GET_TYPED_DATA(pKey->pks[0].val, int64_t, t, colDataGetNumData(pPkCol, rowIndex));
+    valueSetDatum(pKey->pks, t, colDataGetData(pPkCol, rowIndex), tDataTypes[t].bytes);
   } else {
     char* p = colDataGetVarData(pPkCol, rowIndex);
     pKey->pks[0].pData = (uint8_t*)varDataVal(p);
@@ -215,7 +215,7 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
     if (IS_VAR_DATA_TYPE(pPkCol->info.type)) {
       cur.pks[0].pData = (uint8_t*)colDataGetVarData(pPkCol, curIndex);
     } else {
-      memcpy(&cur.pks[0].val, colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
+      valueSetDatum(cur.pks, pPkCol->info.type, colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
     }
   }
 

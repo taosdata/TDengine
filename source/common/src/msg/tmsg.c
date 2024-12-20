@@ -11319,7 +11319,7 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
     if (IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)) {
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pOffsetVal->primaryKey.pData, pOffsetVal->primaryKey.nData));
     } else {
-      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pOffsetVal->primaryKey.val));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, VALUE_GET_TRIVIAL_DATUM(&pOffsetVal->primaryKey)));
     }
 
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
@@ -11350,7 +11350,7 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
         TAOS_CHECK_EXIT(
             tDecodeBinaryAlloc32(pDecoder, (void **)&pOffsetVal->primaryKey.pData, &pOffsetVal->primaryKey.nData));
       } else {
-        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pOffsetVal->primaryKey.val));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &VALUE_GET_TRIVIAL_DATUM(&pOffsetVal->primaryKey)));
       }
     }
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
@@ -11381,7 +11381,7 @@ void tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
       taosMemoryFree(tmp);
     } else {
       (void)snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%" PRId64, pVal->uid, pVal->ts,
-                     pVal->primaryKey.type, pVal->primaryKey.val);
+                     pVal->primaryKey.type, VALUE_GET_TRIVIAL_DATUM(&pVal->primaryKey));
     }
   }
 }
