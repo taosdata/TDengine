@@ -39,7 +39,7 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 }
 
 static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
-  while (0 == atomic_load_64(&pStmt->queue.qRemainNum)) {
+  while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
     taosUsleep(1);
     return false;
   }
@@ -53,7 +53,7 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
 
   *param = node;
 
-  (void)atomic_sub_fetch_64(&pStmt->queue.qRemainNum, 1);
+  (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
 
   return true;
 }
@@ -63,7 +63,7 @@ static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
   pStmt->queue.tail = param;
 
   pStmt->stat.bindDataNum++;
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+  (void)atomic_add_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
 }
 
 static int32_t stmtCreateRequest(STscStmt2* pStmt) {
@@ -77,7 +77,7 @@ static int32_t stmtCreateRequest(STscStmt2* pStmt) {
     }
     if (pStmt->db != NULL) {
       taosMemoryFreeClear(pStmt->exec.pRequest->pDb); 
-      pStmt->exec.pRequest->pDb = strdup(pStmt->db);
+      pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
     }
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
@@ -1012,10 +1012,10 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
   }
 
   SBoundColInfo* tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
-  if (tags_info->numOfBound <= 0 || tags_info->numOfCols <= 0) {
-    tscWarn("no tags or cols bound in sql, will not bound tags");
-    return TSDB_CODE_SUCCESS;
-  }
+  // if (tags_info->numOfBound <= 0 || tags_info->numOfCols <= 0) {
+  //   tscWarn("no tags or cols bound in sql, will not bound tags");
+  //   return TSDB_CODE_SUCCESS;
+  // }
 
   STableDataCxt** pDataBlock =
       (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
