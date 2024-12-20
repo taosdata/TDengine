@@ -259,8 +259,6 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt) {
   return code;
 }
 
-// int32_t selectUtilRange()
-
 static int32_t evtBufInit(SEvtBuf *evtBuf) {
   int32_t code = 0;
   if (evtBuf->inited == 0) {
@@ -275,6 +273,7 @@ static int32_t evtBufInit(SEvtBuf *evtBuf) {
   }
   return code;
 }
+
 static int32_t evtBufPush(SEvtBuf *evtBuf, char *buf, int32_t len) {
   int32_t code = 0;
   if (evtBuf->inited == 0) {
@@ -349,7 +348,6 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
 
     if (res & EVT_WRITE) {
       SEvtBuf *pBuf = &pArg->sendBuf;
-
       code = evtBufInit(pBuf);
       if (code != 0) {
         tError("failed to init wbuf since %s", tstrerror(code));
@@ -381,7 +379,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       if (code != 0) {
         tError("failed to send buf since %s", tstrerror(code));
       } else {
-        tError("succ to send buf since %s", tstrerror(code));
+        tDebug("succ to send buf");
       }
       return code;
     }
@@ -401,7 +399,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
   int32_t code = 0, res = 0, j, nfds = 0, active_Fds = 0;
 
   struct timeval ttv;
-  ttv.tv_sec = 5;  // 设置为5秒
+  ttv.tv_sec = 30;  // 设置为5秒
   ttv.tv_usec = 0;
   if (pOpt->resizeOutSets) {
     fd_set *readSetOut = NULL, *writeSetOut = NULL;
@@ -882,9 +880,10 @@ static int32_t evtSvrReadCb(void *arg, SEvtBuf *buf, int32_t bytes) {
   int32_t   lino = 0;
   SFdCbArg *pArg = arg;
   SSvrConn *pConn = pArg->data;
+  STrans   *pInst = pConn->pInst;
 
   if (bytes <= 0) {
-    tDebug("client %s closed", pConn->src);
+    tDebug("%s conn %p closed", transLabel(pInst), pConn);
     return TSDB_CODE_RPC_NETWORK_ERROR;
   }
 
@@ -929,7 +928,7 @@ _end:
   }
   return code;
 }
-static int32_t evtSvrHandleSendRespImpl(SSvrConn *pConn, SEvtBuf *pBuf) {
+static int32_t evtSvrPreSendImpl(SSvrConn *pConn, SEvtBuf *pBuf) {
   int32_t code = 0;
   int32_t batchLimit = 32;
   int32_t j = 0;
@@ -977,7 +976,7 @@ static int32_t evtSvrPreSend(void *arg, SEvtBuf *buf, int32_t status) {
   SFdCbArg *pArg = arg;
   SSvrConn *pConn = pArg->data;
 
-  code = evtSvrHandleSendRespImpl(pConn, buf);
+  code = evtSvrPreSendImpl(pConn, buf);
   return code;
 }
 
@@ -999,6 +998,8 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
 
   SAsyncHandle *handle = async;
   SEvtMgt      *pEvtMgt = handle->data;
+  SWorkThrd2   *pThrd = handle->hostThrd;
+  STrans       *pInst = pThrd->pInst;
 
   queue wq;
   QUEUE_INIT(&wq);
@@ -1018,11 +1019,11 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
 
     SSvrConn *pConn = createConn(pEvtMgt->hostThrd, pArg->acceptFd);
     if (pConn == NULL) {
-      tError("failed to create conn since %s", tstrerror(code));
+      tError("%s failed to create conn since %s", pInst->label, tstrerror(code));
       taosMemoryFree(pArg);
       continue;
     } else {
-      tDebug("success to create conn %p, src:%s, dst:%s", pConn, pConn->src, pConn->dst);
+      tDebug("%s success to create conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
     }
 
     SFdCbArg arg = {.evtType = EVT_CONN_T,
@@ -1035,7 +1036,7 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
     code = evtMgtAdd(pEvtMgt, pArg->acceptFd, EVT_READ, &arg);
 
     if (code != 0) {
-      tError("failed to add fd to evt since %s", tstrerror(code));
+      tError("%s failed to add fd to evt since %s", pInst->label, tstrerror(code));
     }
     taosMemoryFree(pArg);
   }
@@ -1905,12 +1906,14 @@ static int32_t evtCliSendCb(void *arg, int32_t status) {
 }
 
 static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
-  int32_t   code;
-  int32_t   line = 0;
-  SFdCbArg *pArg = arg;
-  SCliConn *pConn = pArg->data;
+  int32_t    code;
+  int32_t    line = 0;
+  SFdCbArg  *pArg = arg;
+  SCliConn  *pConn = pArg->data;
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
   if (bytes == 0) {
-    tDebug("client %s closed", pConn->src);
+    tDebug("%s client %p closed", pInst->label, pConn);
     return TSDB_CODE_RPC_NETWORK_ERROR;
   }
   SConnBuffer *p = &pConn->readBuf;
@@ -1946,11 +1949,11 @@ static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
       break;
     }
   }
-
+  tDebug("%s success to read resp", pInst->label);
   return code;
 _end:
   if (code != 0) {
-    tError("%s failed to handle resp at line %d since %s", __func__, line, tstrerror(code));
+    tError("%s %s failed to handle resp at line %d since %s", pInst->label, __func__, line, tstrerror(code));
   }
   return code;
 }
@@ -1988,6 +1991,7 @@ static void evtCliHandleAsyncCb(void *arg, int32_t status) {
   SEvtMgt      *pEvtMgt = handle->data;
 
   SCliThrd2 *pThrd = pEvtMgt->hostThrd;
+  STrans    *pInst = pThrd->pInst;
 
   queue wq;
   QUEUE_INIT(&wq);
@@ -2008,8 +2012,8 @@ static void evtCliHandleAsyncCb(void *arg, int32_t status) {
       continue;
     }
     STraceId *trace = &pReq->msg.info.traceId;
-    tGDebug("handle request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pThrd->pid, pReq->ctx->epSet->eps[0].fqdn,
-            pReq->ctx->epSet->eps[0].port, pReq->msg.info.ahandle);
+    tGDebug("%s handle request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pInst->label, pThrd->pid,
+            pReq->ctx->epSet->eps[0].fqdn, pReq->ctx->epSet->eps[0].port, pReq->msg.info.ahandle);
 
     code = evtHandleCliReq(pThrd, pReq);
   }
