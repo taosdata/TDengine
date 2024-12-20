@@ -316,7 +316,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
 
     scanPlan->execNode.nodeId = 1 + i;
     scanPlan->execNode.epSet.inUse = 0;
-    scanPlan->execNodeStat.tableNum = taosRand() % 30;
+    scanPlan->execNodeStat.tableNum = taosRand() % 100;
     addEpIntoEpSet(&scanPlan->execNode.epSet, "ep0", 6030);
     addEpIntoEpSet(&scanPlan->execNode.epSet, "ep1", 6030);
     addEpIntoEpSet(&scanPlan->execNode.epSet, "ep2", 6030);
@@ -982,6 +982,8 @@ TEST(queryTest, normalCase) {
   schedulerFreeJob(&job, 0);
 
   (void)taosThreadJoin(thread1, NULL);
+
+  schMgmt.jobRef = -1;
 }
 
 TEST(queryTest, readyFirstCase) {
@@ -1097,6 +1099,7 @@ TEST(queryTest, readyFirstCase) {
   schedulerFreeJob(&job, 0);
 
   (void)taosThreadJoin(thread1, NULL);
+  schMgmt.jobRef = -1;
 }
 
 TEST(queryTest, flowCtrlCase) {
@@ -1196,6 +1199,9 @@ TEST(queryTest, flowCtrlCase) {
   schedulerFreeJob(&job, 0);
 
   (void)taosThreadJoin(thread1, NULL);
+  schMgmt.jobRef = -1;
+
+  cleanupTaskQueue();
 }
 
 TEST(insertTest, normalCase) {
@@ -1260,6 +1266,7 @@ TEST(insertTest, normalCase) {
   schedulerDestroy();
 
   (void)taosThreadJoin(thread1, NULL);
+  schMgmt.jobRef = -1;
 }
 
 TEST(multiThread, forceFree) {
@@ -1282,9 +1289,11 @@ TEST(multiThread, forceFree) {
 
   schtTestStop = true;
   // taosSsleep(3);
+  
+  schMgmt.jobRef = -1;
 }
 
-TEST(otherTest, otherCase) {
+TEST(otherTest, function) {
   // excpet test
   (void)schReleaseJob(0);
   schFreeRpcCtx(NULL);
@@ -1293,6 +1302,36 @@ TEST(otherTest, otherCase) {
   ASSERT_EQ(schDumpEpSet(NULL, &ep), TSDB_CODE_SUCCESS);
   ASSERT_EQ(strcmp(schGetOpStr(SCH_OP_NULL), "NULL"), 0);
   ASSERT_EQ(strcmp(schGetOpStr((SCH_OP_TYPE)100), "UNKNOWN"), 0);
+
+  SSchTaskCallbackParam param = {0};
+  SDataBuf dataBuf = {0};
+  dataBuf.pData = taosMemoryMalloc(1);
+  dataBuf.pEpSet = taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
+  ASSERT_EQ(schHandleNotifyCallback(&param, &dataBuf, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
+
+  SSchCallbackParamHeader param2 = {0};
+  SDataBuf dataBuf = {0};
+  schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
+  param2.isHbParam = true;
+  schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
+  
+  schMgmt.jobRef = -1;
+}
+
+void schtReset() {
+  insertJobRefId = 0;
+  queryJobRefId = 0;
+  
+  schtJobDone = false;
+  schtMergeTemplateId = 0x4;
+  schtFetchTaskId = 0;
+  schtQueryId = 1;
+  
+  schtTestStop = false;
+  schtTestDeadLoop = false;
+  schtTestMTRunSec = 1;
+  schtTestPrintNum = 1000;
+  schtStartFetch = 0;
 }
 
 int main(int argc, char **argv) {
@@ -1302,7 +1341,17 @@ int main(int argc, char **argv) {
   }
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+
+  int code = 0;
+  for (int32_t i = 0; i < 10; ++i) {
+    schtReset();
+    code = RUN_ALL_TESTS();
+    if (code) {
+      break;
+    }
+  }
+  
+  return code;
 }
 
 #pragma GCC diagnostic pop

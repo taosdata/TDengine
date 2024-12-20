@@ -1293,6 +1293,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       }
       break;
     }
+/*
     case TDMT_SCH_QUERY_HEARTBEAT: {
       SCH_ERR_RET(schMakeHbRpcCtx(pJob, pTask, &rpcCtx));
 
@@ -1320,6 +1321,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       persistHandle = true;
       break;
     }
+*/    
     case TDMT_SCH_TASK_NOTIFY: {
       ETaskNotifyType* pType = param;
       STaskNotifyReq qMsg;
