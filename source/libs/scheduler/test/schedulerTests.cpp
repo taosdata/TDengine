@@ -59,6 +59,7 @@ extern "C" int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t
 extern "C" int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t rspCode);
 extern "C" int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code);
 extern "C" int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code);
+extern "C" int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask);
 
 int64_t insertJobRefId = 0;
 int64_t queryJobRefId = 0;
@@ -987,6 +988,153 @@ TEST(queryTest, normalCase) {
 
   schMgmt.jobRef = -1;
 }
+
+TEST(queryTest, rescheduleCase) {
+  void       *mockPointer = (void *)0x1;
+  char       *clusterId = "cluster1";
+  char       *dbname = "1.db1";
+  char       *tablename = "table1";
+  SVgroupInfo vgInfo = {0};
+  int64_t     job = 0;
+  SQueryPlan *dag = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, (SNode**)&dag);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
+
+  SQueryNodeLoad load = {0};
+  load.addr.epSet.numOfEps = 1;
+  TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  load.addr.epSet.eps[0].port = 6031;
+  assert(taosArrayPush(qnodeList, &load) != NULL);
+
+  code = schedulerInit();
+  ASSERT_EQ(code, 0);
+
+  schtBuildQueryDag(dag);
+
+  schtSetPlanToString();
+  schtSetExecNode();
+  schtSetAsyncSendMsgToServer();
+
+  int32_t queryDone = 0;
+
+  SRequestConnInfo conn = {0};
+  conn.pTrans = mockPointer;
+  SSchedulerReq req = {0};
+  req.pConn = &conn;
+  req.pNodeList = qnodeList;
+  req.pDag = dag;
+  req.sql = "select * from tb";
+  req.execFp = schtQueryCb;
+  req.cbParam = &queryDone;
+
+  code = schedulerExecJob(&req, &job);
+  ASSERT_EQ(code, 0);
+
+  SSchJob *pJob = NULL;
+  code = schAcquireJob(job, &pJob);
+  ASSERT_EQ(code, 0);
+
+  schedulerEnableReSchedule(true);
+
+  void *pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+    task->timeoutUsec = -1;
+
+    code = schRescheduleTask(pJob, task);
+    ASSERT_EQ(code, 0);
+
+    task->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }
+
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+
+    SDataBuf msg = {0};
+    void    *rmsg = NULL;
+    assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+    msg.msgType = TDMT_SCH_QUERY_RSP;
+    msg.pData = rmsg;
+
+    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+
+    ASSERT_EQ(code, 0);
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }
+
+
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+    task->timeoutUsec = -1;
+
+    code = schRescheduleTask(pJob, task);
+    ASSERT_EQ(code, 0);
+
+    task->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }
+
+
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+    if (JOB_TASK_STATUS_EXEC == task->status) {
+      SDataBuf msg = {0};
+      void    *rmsg = NULL;
+      assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+      msg.msgType = TDMT_SCH_QUERY_RSP;
+      msg.pData = rmsg;
+
+      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+
+      ASSERT_EQ(code, 0);
+    }
+
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }
+
+  while (true) {
+    if (queryDone) {
+      break;
+    }
+
+    taosUsleep(10000);
+  }
+
+  TdThreadAttr thattr;
+  assert(0 == taosThreadAttrInit(&thattr));
+
+  TdThread thread1;
+  assert(0 == taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
+
+  void *data = NULL;
+  req.syncReq = true;
+  req.pFetchRes = &data;
+
+  code = schedulerFetchRows(job, &req);
+  ASSERT_EQ(code, 0);
+
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
+  ASSERT_EQ(pRsp->completed, 1);
+  ASSERT_EQ(pRsp->numOfRows, 10);
+  taosMemoryFreeClear(data);
+
+  (void)schReleaseJob(job);
+
+  schedulerDestroy();
+
+  schedulerFreeJob(&job, 0);
+
+  (void)taosThreadJoin(thread1, NULL);
+
+  schMgmt.jobRef = -1;
+}
+
 
 TEST(queryTest, readyFirstCase) {
   void       *mockPointer = (void *)0x1;
