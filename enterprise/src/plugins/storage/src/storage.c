@@ -87,7 +87,11 @@ int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
   if (' ' == value[optLen] && strlen(value) > optLen + 1) {
     disableStr[0] = value[optLen + 1];
     disableStr[1] = 0;
-    if ((taosStr2int8(dataDirStr, &disable)) < 0) {
+    if ((taosStr2int8(disableStr, &disable)) < 0) {
+      code = TSDB_CODE_INVALID_CFG_VALUE;
+      goto _exit;
+    }
+    if (disable < 0 || disable > 1) {
       code = TSDB_CODE_INVALID_CFG_VALUE;
       goto _exit;
     }
@@ -107,10 +111,10 @@ int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
   for (int32_t i = 0; i < sz; ++i) {
     SDiskCfg *cfg = taosArrayGet(pItem->array, i);
     if (strcmp(cfg->dir, dataDirStr) == 0) {
+      uInfo("update tfs item:%s disable:%d", cfg->dir, cfg->disable);
+      dirFound = true;
       cfg->disable = disable;
       break;
-      dirFound = true;
-      uInfo("update tfs item:%s disable:%d", cfg->dir, cfg->disable);
     }
   }
 
