@@ -66,26 +66,18 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 }
 
 int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
-  int32_t code = 0;
-  int32_t len = strlen(value) + 1;
+  int32_t code = 0, lino = 0;
   int8_t  disable = 0;
-  char   *dataDirStr = NULL, *disableStr = NULL;
-
+  char   *dataDirStr = NULL;
+  char    disableStr[2] = {0};
   cfgLock(pCfg);
 
   dataDirStr = taosMemoryMalloc(PATH_MAX);
   if (dataDirStr == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
-  disableStr = taosMemoryMalloc(1 + 1);
-  if (disableStr == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
   const char *p = value;
-
   while (*p) {
     if (*p == ' ') {
       break;
@@ -102,21 +94,21 @@ int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
     disableStr[1] = 0;
     if ((taosStr2int8(disableStr, &disable)) < 0) {
       code = TSDB_CODE_INVALID_CFG_VALUE;
-      goto _exit;
+      TAOS_CHECK_EXIT(code);
     }
     if (disable < 0 || disable > 1) {
       code = TSDB_CODE_INVALID_CFG_VALUE;
-      goto _exit;
+      TAOS_CHECK_EXIT(code);
     }
   } else {
     code = TSDB_CODE_INVALID_CFG_VALUE;
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
 
   SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
   if (pItem == NULL) {
     code = TSDB_CODE_CFG_NOT_FOUND;
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
 
   int32_t sz = taosArrayGetSize(pItem->array);
@@ -133,7 +125,7 @@ int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
 
   if (!dirFound) {
     code = TSDB_CODE_INVALID_CFG_VALUE;
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
 
   bool update = false;
@@ -147,20 +139,17 @@ int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
 
   if (!update) {
     code = TSDB_CODE_INVALID_CFG_VALUE;
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
 
-  code = tfsUpdateDiskDisable(pTfs, dataDirStr, disable);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
+  TAOS_CHECK_GOTO(tfsUpdateDiskDisable(pTfs, dataDirStr, disable), &lino, _exit);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    uError("failed to update tfs item:%s disable:%d", dataDirStr, disable);
+    uError("failed to update tfs item:%s disable:%d, reason:%s, at line:%d", dataDirStr, disable, tstrerror(code),
+           lino);
   }
   cfgUnLock(pCfg);
   taosMemoryFree(dataDirStr);
-  taosMemoryFree(disableStr);
   TAOS_RETURN(code);
 }
