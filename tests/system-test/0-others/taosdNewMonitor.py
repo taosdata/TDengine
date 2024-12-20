@@ -23,85 +23,63 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
     hostPort = hostname + ":" + serverPort
 
     def telemetryInfoCheck(self, infoDict=''):
-        if  "ts" not in infoDict or len(infoDict["ts"]) == 0:
+        if  "ts" not in infoDict[0] or len(infoDict[0]["ts"]) == 0:
             tdLog.exit("ts is null!")
 
-        if "dnode_id" not in infoDict or infoDict["dnode_id"] != 1:
-            tdLog.exit("dnode_id is null!")
-
-        if "dnode_ep" not in infoDict:
-            tdLog.exit("dnode_ep is null!")
-
-        if "cluster_id" not in infoDict:
-            tdLog.exit("cluster_id is null!")
-
-        if "protocol" not in infoDict or infoDict["protocol"] != 1:
+        if "protocol" not in infoDict[0] or infoDict[0]["protocol"] != 2:
             tdLog.exit("protocol is null!")
 
-        if "cluster_info" not in infoDict :
-            tdLog.exit("cluster_info is null!")
+        if "tables" not in infoDict[0]:
+            tdLog.exit("tables is null!")
+
+        if infoDict[0]["tables"][0]["name"] != "taosd_dnodes_info":
+            tdLog.exit("taosd_dnodes_info is null!")
+
+        if infoDict[0]["tables"][1]["name"] != "taosd_dnodes_log_dirs":
+            tdLog.exit("taosd_dnodes_log_dirs is null!")
+
+        if infoDict[0]["tables"][2]["name"] != "taosd_dnodes_data_dirs":
+            tdLog.exit("taosd_dnodes_data_dirs is null!")
+        
+        if infoDict[0]["tables"][3]["name"] != "taosd_cluster_info":
+            tdLog.exit("taosd_cluster_info is null!")
 
         # cluster_info  ====================================
 
-        if "first_ep" not in infoDict["cluster_info"] or infoDict["cluster_info"]["first_ep"] == None:
-            tdLog.exit("first_ep is null!")
-
-        if "first_ep_dnode_id" not in infoDict["cluster_info"] or infoDict["cluster_info"]["first_ep_dnode_id"] != 1:
-            tdLog.exit("first_ep_dnode_id is null!")
-
-        if "version" not in infoDict["cluster_info"] or infoDict["cluster_info"]["version"] == None:
-            tdLog.exit("first_ep_dnode_id is null!")
-
-        if "master_uptime" not in infoDict["cluster_info"] or infoDict["cluster_info"]["master_uptime"] == None:
-            tdLog.exit("master_uptime is null!")
-
-        if "monitor_interval" not in infoDict["cluster_info"] or infoDict["cluster_info"]["monitor_interval"] !=5:
-            tdLog.exit("monitor_interval is null!")
-
-        if "vgroups_total" not in infoDict["cluster_info"] or infoDict["cluster_info"]["vgroups_total"] < 0:
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][0]["name"] != "cluster_uptime":
+            tdLog.exit("cluster_uptime is null!")
+        
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][1]["name"] != "dbs_total":
+            tdLog.exit("dbs_total is null!")
+        
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][4]["name"] != "vgroups_total":
             tdLog.exit("vgroups_total is null!")
 
-        if "vgroups_alive" not in infoDict["cluster_info"] or infoDict["cluster_info"]["vgroups_alive"] < 0:
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][5]["name"] != "vgroups_alive":
             tdLog.exit("vgroups_alive is null!")
 
-        if "connections_total" not in infoDict["cluster_info"] or infoDict["cluster_info"]["connections_total"] < 0 :
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][10]["name"] != "connections_total":
             tdLog.exit("connections_total is null!")
 
-        if "dnodes" not in infoDict["cluster_info"] or infoDict["cluster_info"]["dnodes"] == None :
-            tdLog.exit("dnodes is null!")
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][13]["name"] != "dnodes_total":
+            tdLog.exit("dnodes_total is null!")
 
-        dnodes_info = { "dnode_id": 1,"dnode_ep": self.hostPort,"status":"ready"}
-
-        for k ,v in dnodes_info.items():
-            if k not in infoDict["cluster_info"]["dnodes"][0] or v != infoDict["cluster_info"]["dnodes"][0][k] :
-                tdLog.exit("dnodes info is null!")
-
-        mnodes_info = { "mnode_id":1, "mnode_ep": self.hostPort,"role": "leader" }
-
-        for k ,v in mnodes_info.items():
-            if k not in infoDict["cluster_info"]["mnodes"][0] or v != infoDict["cluster_info"]["mnodes"][0][k] :
-                tdLog.exit("mnodes info is null!")
+        if infoDict[0]["tables"][4]["name"] != "taosd_vgroups_info":
+            tdLog.exit("taosd_vgroups_info is null!")
 
         # vgroup_infos  ====================================
 
         if "vgroup_infos" not in infoDict or infoDict["vgroup_infos"]== None:
             tdLog.exit("vgroup_infos is null!")
 
-        vgroup_infos_nums = len(infoDict["vgroup_infos"])
+        vgroup_infos_nums = len(infoDict[0]["tables"][3]["metric_groups"][0]["metrics"])   
 
         for  index in range(vgroup_infos_nums):
-            if "vgroup_id" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["vgroup_id"]<0:
-                tdLog.exit("vgroup_id is null!")
-            if "database_name" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["database_name"]) < 0:
-                tdLog.exit("database_name is null!")
-            if "tables_num" not in infoDict["vgroup_infos"][index]:
+            if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][0]["metrics"][0]["name"] != "tables_num":
                 tdLog.exit("tables_num is null!")
-            if "status" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["status"]) < 0 :
+
+            if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][0]["metrics"][0]["name"] != "status":
                 tdLog.exit("status is null!")
-            if "vnodes" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["vnodes"] ==None :
-                tdLog.exit("vnodes is null!")
-            if "dnode_id" not in infoDict["vgroup_infos"][index]["vnodes"][0] or infoDict["vgroup_infos"][index]["vnodes"][0]["dnode_id"] < 0 :
-                tdLog.exit("vnodes is null!")
 
         # grant_info  ====================================
 
