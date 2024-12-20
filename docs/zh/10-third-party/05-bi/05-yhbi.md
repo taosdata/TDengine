@@ -10,13 +10,10 @@ toc_max_heading_level: 4
 
 一旦数据源配置完成，永洪BI便能直接从TDengine中读取数据，并利用其强大的数据处理和分析功能，为用户提供丰富的数据展示、分析和预测能力。这意味着用户无须编写复杂的代码或进行烦琐的数据转换工作，即可轻松获取所需的业务洞察。
 
-## 安装永洪 BI
+## 前置条件
 
-确保永洪 BI 已经安装并运行（如果未安装，请到永洪科技官方下载页面下载）。
-
-## 安装JDBC驱动
-
-从 maven.org 下载 TDengine JDBC 连接器文件 “taos-jdbcdriver-3.2.7-dist.jar”，并安装在永洪 BI 的机器上。
+- 确保永洪 BI 已经安装并运行（如果未安装，请到永洪科技官方下载页面下载）。  
+- 安装JDBC驱动。从 maven.org 下载 TDengine JDBC 连接器文件 “taos-jdbcdriver-3.4.0-dist.jar”，并安装在永洪 BI 的机器上。
 
 ## 配置JDBC数据源
 
