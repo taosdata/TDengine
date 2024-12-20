@@ -782,7 +782,7 @@ static void destroryConn(SSvrConn *pConn) {
   taosMemoryFree(pConn);
 }
 
-bool uvConnMayGetUserInfo(SSvrConn *pConn, STransMsgHead **ppHead, int32_t *msgLen) {
+bool connMayGetUserInfo(SSvrConn *pConn, STransMsgHead **ppHead, int32_t *msgLen) {
   if (pConn->userInited) {
     return false;
   }
@@ -823,7 +823,7 @@ static int32_t evtSvrHandleRep(SSvrConn *pConn, char *req, int32_t len) {
   int32_t        code = 0;
   int32_t        msgLen = 0;
   STransMsgHead *pHead = (STransMsgHead *)req;
-  if (uvConnMayGetUserInfo(pConn, &pHead, &msgLen) == true) {
+  if (connMayGetUserInfo(pConn, &pHead, &msgLen) == true) {
     tDebug("%s conn %p get user info", transLabel(pInst), pConn);
   } else {
     if (pConn->userInited == 0) {
@@ -878,10 +878,11 @@ static int32_t evtSvrReadCb(void *arg, SEvtBuf *buf, int32_t bytes) {
   SFdCbArg *pArg = arg;
   SSvrConn *pConn = pArg->data;
 
-  if (bytes == 0) {
+  if (bytes <= 0) {
     tDebug("client %s closed", pConn->src);
     return TSDB_CODE_RPC_NETWORK_ERROR;
   }
+
   SConnBuffer *p = &pConn->readBuf;
   if (p->cap - p->len < bytes) {
     int32_t newCap = p->cap + bytes;
@@ -966,7 +967,7 @@ static int32_t evtSvrHandleSendRespImpl(SSvrConn *pConn, SEvtBuf *pBuf) {
   }
   return code;
 }
-static int32_t evtSvtPreSend(void *arg, SEvtBuf *buf, int32_t status) {
+static int32_t evtSvrPreSend(void *arg, SEvtBuf *buf, int32_t status) {
   int32_t   code = 0;
   SFdCbArg *pArg = arg;
   SSvrConn *pConn = pArg->data;
@@ -975,14 +976,6 @@ static int32_t evtSvtPreSend(void *arg, SEvtBuf *buf, int32_t status) {
   return code;
 }
 
-static int32_t evtSvrSendCb(void *arg, SEvtBuf *buf, int32_t status) {
-  int32_t     code = 0;
-  SFdCbArg   *pArg = arg;
-  SSvrConn   *pConn = pArg->data;
-  SWorkThrd2 *pThrd = pConn->hostThrd;
-
-  return code;
-}
 static int32_t evtSvrSendFinishCb(void *arg, int32_t status) {
   int32_t   code = 0;
   SFdCbArg *pArg = arg;
@@ -1031,7 +1024,7 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
                     .arg = pArg,
                     .fd = pArg->acceptFd,
                     .readCb = evtSvrReadCb,
-                    .sendCb = evtSvrSendCb,
+                    .sendCb = evtSvrPreSend,
                     .sendFinishCb = evtSvrSendFinishCb,
                     .data = pConn};
     code = evtMgtAdd(pEvtMgt, pArg->acceptFd, EVT_READ, &arg);
