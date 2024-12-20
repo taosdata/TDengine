@@ -11,6 +11,27 @@ env_scripts = ['''
     echo "* last published version: ${ver}"
     set_env "VER_NUMBER" "${ver}"
   end
+
+  # 获取编译器版本信息
+  gcc_version = exec cc -dumpversion
+  version = trim ${gcc_version.stdout}
+  if is_empty ${version}
+    set_env "CFLAGS" "-fno-builtin"
+  else
+    echo "GCC version: ${version}"
+
+    # 提取主版本号
+    version = semver_parse "${version}.0.0"
+    echo "Major version: ${version.major}"
+
+    # 比较主版本号是否大于 9
+    if greater_than ${version.major} 9
+        echo "GCC version is 10+"
+    else
+        echo "GCC version is 9 or lower, use -fno-builtin"
+        set_env "CFLAGS" "-fno-builtin"
+    end
+  end
   ''']
 
 [config]
@@ -32,6 +53,7 @@ args = ["build", "--profile", "${BUILD_PROFILE}", "${@}"]
 script = """
 echo VER_NUMBER=$VER_NUMBER
 echo BUILD_PROFILE=$BUILD_PROFILE
+echo CFLAGS=$CFLAGS
 """
 
 [tasks.taosx]
@@ -509,7 +531,6 @@ else
       arch = set "arm64"
     else
       arch = set "amd64"
-      version = set "3.96"
     end
     url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-${arch}_linux.tar.xz"
     echo ${url}
