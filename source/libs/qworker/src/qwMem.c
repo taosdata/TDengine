@@ -153,6 +153,7 @@ int32_t qwRetrieveJobInfo(QW_FPARAMS_DEF, SQWJobInfo** ppJob) {
     
     if (atomic_load_8(&pJob->destroyed)) {
       QW_UNLOCK(QW_READ, &pJob->lock);
+      taosHashRelease(gQueryMgmt.pJobInfo, pJob);
       continue;
     }
 
