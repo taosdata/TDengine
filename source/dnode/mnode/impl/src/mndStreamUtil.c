@@ -914,8 +914,7 @@ int32_t mndResetChkptReportInfo(SHashObj *pHash, int64_t streamId) {
   return TSDB_CODE_MND_STREAM_NOT_EXIST;
 }
 
-static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
-  int8_t status = atomic_load_8(&pStream->status);
+static void mndShowStreamStatus(char *dst, int8_t status) {
   if (status == STREAM_STATUS__NORMAL) {
     tstrncpy(dst, "ready", MND_STREAM_TRIGGER_NAME_SIZE);
   } else if (status == STREAM_STATUS__STOP) {
@@ -949,6 +948,41 @@ static void int64ToHexStr(int64_t id, char *pBuf, int32_t bufLen) {
 
   int32_t len = tintToHex(id, &pBuf[4]);
   varDataSetLen(pBuf, len + 2);
+}
+
+static int32_t isAllTaskPaused(SStreamObj *pStream, bool *pRes) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SStreamTaskIter *pIter = NULL;
+  bool             isPaused =  true;
+
+  taosRLockLatch(&pStream->lock);
+  code = createStreamTaskIter(pStream, &pIter);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = NULL;
+    code = streamTaskIterGetCurrent(pIter, &pTask);
+    TSDB_CHECK_CODE(code, lino, _end);
+
+    STaskId           id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+    STaskStatusEntry *pe = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
+    if (pe == NULL) {
+      continue;
+    }
+    if (pe->status != TASK_STATUS__PAUSE) {
+      isPaused = false;
+    }
+  }
+  (*pRes) = isPaused;
+
+_end:
+  destroyStreamTaskIter(pIter);
+  taosRUnLockLatch(&pStream->lock);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("error happens when get stream status, lino:%d, code:%s", lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows) {
@@ -999,7 +1033,15 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
 
   char status[20 + VARSTR_HEADER_SIZE] = {0};
   char status2[MND_STREAM_TRIGGER_NAME_SIZE] = {0};
-  mndShowStreamStatus(status2, pStream);
+  bool isPaused = false;
+  code = isAllTaskPaused(pStream, &isPaused);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  int8_t streamStatus = atomic_load_8(&pStream->status);
+  if (isPaused) {
+    streamStatus = STREAM_STATUS__PAUSE;
+  }
+  mndShowStreamStatus(status2, streamStatus);
   STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
