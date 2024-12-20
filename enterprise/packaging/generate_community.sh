@@ -54,37 +54,37 @@ cd $communityDir/release
 server_tar=$(ls *-server-*.tar.gz | grep -v Lite)
 [ "$server_tar" == "" ] && exit # build taoskeeper only with server
 
-echo "build taoskeeper"
-if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
-  arch=amd64
-elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
-  arch=386
-elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
-  arch=arm
-elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
-  arch=arm64
-elif [ "$cpuType" = "mips64" ]; then
-  arch=mips64le
-else
-  arch=$cpuType
-fi
-taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper -t ver=$version`
+# echo "build taoskeeper"
+# if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
+#   arch=amd64
+# elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
+#   arch=386
+# elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
+#   arch=arm
+# elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
+#   arch=arm64
+# elif [ "$cpuType" = "mips64" ]; then
+#   arch=mips64le
+# else
+#   arch=$cpuType
+# fi
+# taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper -t ver=$version`
 
-set -e
-# unpack server package and repack with taoskeeper binary and service file.
-prefix=$(echo $server_tar |grep -Eo ".*-server-[^\-]+")
-tar axf $server_tar
-[ -d "$prefix/taos" ] || mkdir $prefix/taos
-tar axf $prefix/package.tar.gz -C $prefix/taos/
-cp -f $taoskeeper_binary $prefix/taos/bin/
-cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
-cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
-cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
-rm -rf $prefix/taos $prefix/package.tar
-tar acf $server_tar $prefix
-echo "append taoskeeper to community server package"
-rm -rf $prefix/
-rm -rf build-taoskeeper
+# set -e
+# # unpack server package and repack with taoskeeper binary and service file.
+# prefix=$(echo $server_tar |grep -Eo ".*-server-[^\-]+")
+# tar axf $server_tar
+# [ -d "$prefix/taos" ] || mkdir $prefix/taos
+# tar axf $prefix/package.tar.gz -C $prefix/taos/
+# cp -f $taoskeeper_binary $prefix/taos/bin/
+# cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
+# cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
+# cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
+# rm -rf $prefix/taos $prefix/package.tar
+# tar acf $server_tar $prefix
+# echo "append taoskeeper to community server package"
+# rm -rf $prefix/
+# rm -rf build-taoskeeper
 
 osName=`cat /etc/os-release |grep ^NAME=|awk -F '=' '{print $2}'`
 # mv package to path:/nas/TDengine/version/
