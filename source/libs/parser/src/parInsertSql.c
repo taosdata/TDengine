@@ -793,7 +793,7 @@ int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, i
   }
 
   // Remove quotation marks
-  if (TK_NK_STRING == pToken->type && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_BLOB) { // [TODO] why excluded VARBINARY ?
+  if (TK_NK_STRING == pToken->type && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_BLOB) { // [BLOB] why excluded VARBINARY ?
     if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
       return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
     }

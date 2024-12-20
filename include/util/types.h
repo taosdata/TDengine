@@ -80,7 +80,7 @@ static FORCE_INLINE double taos_align_get_double(const char *pBuf) {
 
 typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define VARSTR_HEADER_SIZE sizeof(VarDataLenT)
-typedef uint32_t VarDataLenLongT; // maxVarDataLenLong: 2147483648 (2G) [TODO] can we support to 4G ?
+typedef uint32_t VarDataLenLongT; // maxVarDataLenLong: 2147483648 (2G) [BLOB] can we support to 4G ?
 #define VARSTR_HEADER_SIZE_LONG sizeof(VarDataLenLongT)
 
 #define varDataLen(v)  ((VarDataLenT *)(v))[0]

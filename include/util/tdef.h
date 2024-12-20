@@ -317,11 +317,6 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_JSON_TAG_LEN 16384
 #define TSDB_MAX_JSON_KEY_LEN 256
 
-// Why needs to minus sizeof(uint16_t) ?
-// Because add 2bytes colid in tRowBuildScanAddValue to make kvPayloadSize not overflow.
-// Minus TSDB_MAX_BYTES_PER_ROW to temporarily avoid int32 overflow when computing rowSize.
-#define TSDB_MAX_BLOB_DATA_LEN (INT32_MAX - VARSTR_HEADER_SIZE_LONG - sizeof(uint16_t) - TSDB_MAX_BYTES_PER_ROW)
-
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_MIN_LEN  8
 #define TSDB_PASSWORD_MAX_LEN  16
@@ -550,6 +545,11 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_NCHAR_LEN     TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_GEOMETRY_LEN  TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_VARBINARY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
+// [BLOB] Why needs to minus sizeof(uint16_t) ?
+// Because add 2bytes `colid` in tRowBuildScanAddValue to make `kvPayloadSize` not overflow.
+// Minus TSDB_MAX_BYTES_PER_ROW to temporarily avoid int32 overflow when computing rowSize.
+#define TSDB_MAX_BLOB_LEN      2147418110 // (INT32_MAX - sizeof(uint16_t) - 65536)
+#define TSDB_MAX_BLOB_DATA_LEN (TSDB_MAX_BLOB_LEN - VARSTR_HEADER_SIZE_LONG)
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))

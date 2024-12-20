@@ -2220,9 +2220,9 @@ static int32_t calcTypeBytes(SDataType dt) {
     return dt.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-  } else if (TSDB_DATA_TYPE_BLOB == dt.type) { // [TODO] fix rowSize check temporarily
+  } else if (TSDB_DATA_TYPE_BLOB == dt.type) { // [BLOB] fix rowSize check temporarily
     return dt.bytes + VARSTR_HEADER_SIZE_LONG;
-    return POINTER_BYTES; // return pointer size (8) for BLOB type ? should consider charset ?
+    // return POINTER_BYTES; // return pointer size (8) for BLOB type ? should consider charset ?
   } else {
     return dt.bytes;
   }
@@ -8754,6 +8754,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
   SNode*  pNode = NULL;
   char*   pFunc = NULL;
   bool    isAggrRollup = false;
+  bool    hasBlob = false;
 
   if (pRollupFuncs) {
     pFunc = ((SFunctionNode*)nodesListGetNode(pRollupFuncs, 0))->functionName;
@@ -8783,12 +8784,22 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     if (TSDB_CODE_SUCCESS == code && NULL != taosHashGet(pHash, pCol->colName, len)) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
-    if (TSDB_CODE_SUCCESS == code) { // no need to check BLOB type here as the max length should be guranteed by the code logic
+    if (TSDB_CODE_SUCCESS == code) { // [BLOB] no need to check BLOB type here as the max length should be guranteed by the code logic
       if ((TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
           (TSDB_DATA_TYPE_VARBINARY == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_NCHAR_LEN) ||
           (TSDB_DATA_TYPE_GEOMETRY == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_GEOMETRY_LEN)) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) { // [BLOB]
+      if (TSDB_DATA_TYPE_BLOB == pCol->dataType.type) {
+        if (!hasBlob) {
+          hasBlob = true;
+        }
+        if (calcTypeBytes(pCol->dataType) > TSDB_MAX_BLOB_LEN) {
+          code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+        }
       }
     }
 
@@ -8812,8 +8823,13 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     ++colIndex;
   }
 
-  if (TSDB_CODE_SUCCESS == code && rowSize > TSDB_MAX_BYTES_PER_ROW) { // [TODO] How to deal with the whole rowSize should not exceed TSDB_MAX_BYTES_PER_ROW ?
-    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
+  if (TSDB_CODE_SUCCESS == code && rowSize > TSDB_MAX_BYTES_PER_ROW) { // [BLOB] How to deal with the whole rowSize should not exceed TSDB_MAX_BYTES_PER_ROW ?
+    if (!hasBlob) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
+    } else if (rowSize > TSDB_MAX_BYTES_PER_ROW + TSDB_MAX_BLOB_LEN) {
+      // [BLOB] BLOB data, enlarge the max bytes per row close to INT32_MAX
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW + TSDB_MAX_BLOB_LEN);
+    }
   }
 
   return code;
