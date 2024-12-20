@@ -244,20 +244,37 @@ typedef struct {
   uint32_t offset;
 } SPrimaryKeyIndex;
 
+#define DATUM_MAX_SIZE 16
+
 struct SValue {
   int8_t type;
   union {
     int64_t val;
     struct {
-      uint8_t *pData;
+      uint8_t *pData; // free or no free???
       uint32_t nData;
-    };
-    struct {
-      DecimalWord *words;
-      int32_t      wordNum;
     };
   };
 };
+
+// TODO wjm remove type parameter maybe
+#define VALUE_GET_DATUM(pVal, type)  \
+  IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL ? (pVal)->pData : (void*)&(pVal)->val
+
+#define VALUE_GET_TRIVIAL_DATUM(pVal) ((pVal)->val)
+#define VALUE_SET_TRIVIAL_DATUM(pVal, v) (pVal)->val = v
+
+void valueSetDatum(SValue *pVal, int8_t type, const void *pDatum, uint32_t len);
+void valueCloneDatum(SValue *pDst, const SValue *pSrc, int8_t type);
+void valueClearDatum(SValue *pVal, int8_t type);
+
+//uint8_t*      valueGetVarDatum(const SValue *pVal);
+//uint32_t      valueGetVarNDatum(const SValue *pVal);
+//void          valueSetVarDatum(SValue *pVal, uint8_t *pData, uint32_t nData);
+
+//DecimalWord*  valueGetDecimalDatum(const SValue *pVal);
+//uint32_t      valueGetDecimalWordNum(const SValue *pVal);
+//void          valueSetDecimalDatum(SValue *pVal, DecimalWord *words, int32_t wordNum);
 
 #define TD_MAX_PK_COLS 2
 struct SRowKey {
