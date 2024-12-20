@@ -445,6 +445,8 @@ export default {
     backLogin: "Back to login",
     rememberMe: "Remember me",
     usernameTips: "Please enter the Username",
+    firstnameTips: "Please enter first name",
+    lastnameTips: "Please enter last name",
     passwordTips: "Please enter the Password",
     errorTip: "The user name or password is incorrect",
     servExceptionTip:
@@ -1093,6 +1095,8 @@ export default {
     signin: 'Submit',
     imageVerificationCode: 'Image Verification code',
     nameTips: "Please enter your name, maximum of 80 characters",
+    firstnameTips: "first name, maximum of 80 characters",
+    lastnameTips: "last name, maximum of 80 characters",
     phoneTips: "Please enter email",
     emailTips: "Please enter email",
     verificationCodeTips: "Please enter the verification code",

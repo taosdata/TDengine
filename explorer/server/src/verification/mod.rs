@@ -208,7 +208,8 @@ struct RequestBodyReportVerificationStatus<'a> {
     phone: &'a str,
     email: &'a str,
     code: &'a str,
-    name: &'a str,
+    firstname: &'a str,
+    lastname: &'a str,
     #[serde(rename = "taosdVersion")]
     taosd_version: &'a str,
     #[serde(rename = "explorerVersion")]
@@ -221,7 +222,8 @@ pub async fn report_verification_status_to_cloud(
     phone_email: &str,
     code: &str,
     lang: &str,
-    name: &str,
+    firstname: &str,
+    lastname: &str,
 ) -> anyhow::Result<u32> {
     let mut phone = "";
     let mut email = "";
@@ -237,8 +239,8 @@ pub async fn report_verification_status_to_cloud(
 
     let explorer_version = get_explore_version();
     let string_to_sign = format!(
-        "code={}&email={}&explorerVersion={}&name={}&phone={}&taosdVersion=",
-        code, email, explorer_version, name, phone
+        "code={}&email={}&explorerVersion={}&firstname={}&lastname={}&phone={}&taosdVersion=",
+        code, email, explorer_version, firstname, lastname, phone
     );
     tracing::debug!("string_to_sign: {}", string_to_sign);
 
@@ -246,7 +248,8 @@ pub async fn report_verification_status_to_cloud(
         phone,
         email,
         code,
-        name,
+        firstname,
+        lastname,
         taosd_version: "",
         explorer_version,
     };
@@ -545,7 +548,8 @@ mod tests {
             "test@example.com",
             "200",
             "zh_CN",
-            "Test Name",
+            "First Name",
+            "Last Name",
         )
         .await;
         assert!(res.is_err(), "{res:?}");
@@ -564,7 +568,8 @@ mod tests {
             "test@example.com",
             "200",
             "zh_CN",
-            "Test Name",
+            "First Name",
+            "Last Name",
         )
         .await;
         assert_eq!(res.unwrap(), 200);
@@ -584,7 +589,8 @@ mod tests {
             "13500000000",
             "200",
             "zh_CN",
-            "Test Name",
+            "First Name",
+            "Last Name",
         )
         .await;
         assert_eq!(res.unwrap(), 500);
