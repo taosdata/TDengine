@@ -390,6 +390,16 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
 
+#ifndef _STORAGE
+int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) { return TSDB_CODE_INVALID_CFG; }
+#else
+int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
+#endif
+
+int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
+  return cfgUpdateTfsItemDisable(pCfg, value, pTfs);
+}
+
 static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN],
                               int8_t *pNum) {
   int32_t code = TSDB_CODE_SUCCESS;
