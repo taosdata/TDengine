@@ -2131,6 +2131,32 @@ class TDCom:
         except Exception as e:
             # Handle any other exceptions that may occur
             print(f"An error occurred: {e}")
+            
+    def get_path(self, tool="taosd"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        elif ("tests" in selfPath):
+            projPath = selfPath[:selfPath.find("tests")]
+        else:
+            tdLog.exit(f"invalid path {selfPath}")
+
+        paths = []
+        exclude_dirs = ["packaging", ".git"]
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files or ("%s.exe"%tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if all(excl not in rootRealPath for excl in exclude_dirs):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+            tdLog.exit(f"{tool} not found in {projPath}")
+        else:
+            tdLog.info(f"{tool} found in {paths[0]}")    
+        
+        return paths[0]
+
 
 def is_json(msg):
     if isinstance(msg, str):
@@ -2141,24 +2167,6 @@ def is_json(msg):
             return False
     else:
         return False
-
-def get_path(tool="taosd"):
-    selfPath = os.path.dirname(os.path.realpath(__file__))
-    if ("community" in selfPath):
-        projPath = selfPath[:selfPath.find("community")]
-    else:
-        projPath = selfPath[:selfPath.find("tests")]
-
-    paths = []
-    for root, dirs, files in os.walk(projPath):
-        if ((tool) in files or ("%s.exe"%tool) in files):
-            rootRealPath = os.path.dirname(os.path.realpath(root))
-            if ("packaging" not in rootRealPath):
-                paths.append(os.path.join(root, tool))
-                break
-    if (len(paths) == 0):
-            return ""
-    return paths[0]
 
 def dict2toml(in_dict: dict, file:str):
     if not isinstance(in_dict, dict):

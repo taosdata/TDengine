@@ -82,7 +82,7 @@ class TAdapter:
     def init(self, path, remoteIP=""):
         self.path = path
         self.remoteIP = remoteIP
-        binPath = get_path() + "/../../../"
+        binPath = tdCom.get_path() + "/../../../"
         binPath = os.path.realpath(binPath)
 
         if path == "":
@@ -111,7 +111,7 @@ class TAdapter:
                 self.taosadapter_cfg_dict[key] = value
 
     def check_adapter(self):
-        if get_path(tool="taosadapter"):
+        if tdCom.get_path(tool="taosadapter"):
             return False
         else:
             return True
@@ -154,7 +154,7 @@ class TAdapter:
         tdLog.debug(f"taosadapter is deployed and configured by {self.cfg_path}")
 
     def start(self):
-        bin_path = get_path(tool="taosadapter")
+        bin_path = tdCom.get_path(tool="taosadapter")
 
         if (bin_path == ""):
             tdLog.exit("taosadapter not found!")
@@ -197,7 +197,7 @@ class TAdapter:
         """
             use this method, must deploy taosadapter
         """
-        bin_path = get_path(tool="taosadapter")
+        bin_path = tdCom.get_path(tool="taosadapter")
 
         if (bin_path == ""):
             tdLog.exit("taosadapter not found!")

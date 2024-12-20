@@ -297,15 +297,20 @@ class TDDnode:
             projPath = selfPath[:selfPath.find("tests")]
 
         paths = []
+        exclude_dirs = ["packaging", ".git"]
         for root, dirs, files in os.walk(projPath):
             if ((tool) in files or ("%s.exe"%tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
+                if all(excl not in rootRealPath for excl in exclude_dirs):
                     paths.append(os.path.join(root, tool))
                     break
         if (len(paths) == 0):
-                return ""
+            tdLog.exit(f"{tool} not found in {projPath}")
+        else:
+            tdLog.info(f"{tool} found in {paths[0]}")    
+        
         return paths[0]
+
 
     def starttaosd(self):
         binPath = self.getPath()
