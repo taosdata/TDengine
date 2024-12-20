@@ -1489,89 +1489,95 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
         if (IS_TRUE_STR(pToken->z, pToken->n)) {
-          pVal->value.val = TRUE_VALUE;
+          VALUE_SET_TRIVIAL_DATUM(&pVal->value, TRUE_VALUE);
         } else if (IS_FALSE_STR(pToken->z, pToken->n)) {
-          pVal->value.val = FALSE_VALUE;
-        } else if (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&pVal->value.val)) {
-          *(int8_t*)(&pVal->value.val) = (*(double*)&pVal->value.val == 0 ? FALSE_VALUE : TRUE_VALUE);
+          VALUE_SET_TRIVIAL_DATUM(&pVal->value, FALSE_VALUE);
+        } else if (TSDB_CODE_SUCCESS ==
+                   toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value))) {
+          int8_t v = (*(double*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value) == 0 ? FALSE_VALUE : TRUE_VALUE);
+          valueSetDatum(&pVal->value, TSDB_DATA_TYPE_BOOL, &v, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
         } else {
           return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
         }
       } else if (pToken->type == TK_NK_INTEGER) {
-        pVal->value.val = ((taosStr2Int64(pToken->z, NULL, 10) == 0) ? FALSE_VALUE : TRUE_VALUE);
+        int8_t v = ((taosStr2Int64(pToken->z, NULL, 10) == 0) ? FALSE_VALUE : TRUE_VALUE);
+        VALUE_SET_TRIVIAL_DATUM(&pVal->value, v);
       } else if (pToken->type == TK_NK_FLOAT) {
-        pVal->value.val = ((taosStr2Double(pToken->z, NULL) == 0) ? FALSE_VALUE : TRUE_VALUE);
+        int8_t v = ((taosStr2Double(pToken->z, NULL) == 0) ? FALSE_VALUE : TRUE_VALUE);
+        VALUE_SET_TRIVIAL_DATUM(&pVal->value, v);
       } else if ((pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN) &&
-                 (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&pVal->value.val))) {
-        *(int8_t*)(&pVal->value.val) = (*(double*)&pVal->value.val == 0 ? FALSE_VALUE : TRUE_VALUE);
+                 (TSDB_CODE_SUCCESS ==
+                  toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value)))) { // TODO wjm use valueGetDatum instead
+        int8_t v = *(double*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value) == 0 ? FALSE_VALUE : TRUE_VALUE;
+        valueSetDatum(&pVal->value, TSDB_DATA_TYPE_BOOL, &v, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
       } else {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_TINYINT: {
-      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
+      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid tinyint data", pToken->z);
-      } else if (!IS_VALID_TINYINT(pVal->value.val)) {
+      } else if (!IS_VALID_TINYINT(VALUE_GET_TRIVIAL_DATUM(&pVal->value))) {
         return buildSyntaxErrMsg(&pCxt->msg, "tinyint data overflow", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned tinyint data", pToken->z);
-      } else if (pVal->value.val > UINT8_MAX) {
+      } else if (VALUE_GET_TRIVIAL_DATUM(&pVal->value) > UINT8_MAX) {
         return buildSyntaxErrMsg(&pCxt->msg, "unsigned tinyint data overflow", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
+      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid smallint data", pToken->z);
-      } else if (!IS_VALID_SMALLINT(pVal->value.val)) {
+      } else if (!IS_VALID_SMALLINT(VALUE_GET_TRIVIAL_DATUM(&pVal->value))) {
         return buildSyntaxErrMsg(&pCxt->msg, "smallint data overflow", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned smallint data", pToken->z);
-      } else if (pVal->value.val > UINT16_MAX) {
+      } else if (VALUE_GET_TRIVIAL_DATUM(&pVal->value) > UINT16_MAX) {
         return buildSyntaxErrMsg(&pCxt->msg, "unsigned smallint data overflow", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_INT: {
-      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
+      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid int data", pToken->z);
-      } else if (!IS_VALID_INT(pVal->value.val)) {
+      } else if (!IS_VALID_INT(VALUE_GET_TRIVIAL_DATUM(&pVal->value))) {
         return buildSyntaxErrMsg(&pCxt->msg, "int data overflow", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_UINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned int data", pToken->z);
-      } else if (pVal->value.val > UINT32_MAX) {
+      } else if (VALUE_GET_TRIVIAL_DATUM(&pVal->value) > UINT32_MAX) {
         return buildSyntaxErrMsg(&pCxt->msg, "unsigned int data overflow", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_BIGINT: {
-      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
+      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid bigint data", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned bigint data", pToken->z);
       }
@@ -1587,7 +1593,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
         return buildSyntaxErrMsg(&pCxt->msg, "illegal float data", pToken->z);
       }
       float f = dv;
-      memcpy(&pVal->value.val, &f, sizeof(f));
+      valueSetDatum(&pVal->value, TSDB_DATA_TYPE_FLOAT, &f, sizeof(f));
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
@@ -1599,7 +1605,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       if (isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(&pCxt->msg, "illegal double data", pToken->z);
       }
-      pVal->value.val = *(int64_t*)&dv;
+      VALUE_SET_TRIVIAL_DATUM(&pVal->value, (*(int64_t*)&dv));
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {
@@ -1686,7 +1692,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      if (parseTime(pSql, pToken, timePrec, &pVal->value.val, &pCxt->msg, pCxt->pComCxt->timezone) != TSDB_CODE_SUCCESS) {
+      if (parseTime(pSql, pToken, timePrec, &VALUE_GET_TRIVIAL_DATUM(&pVal->value), &pCxt->msg,
+                    pCxt->pComCxt->timezone) != TSDB_CODE_SUCCESS) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid timestamp", pToken->z);
       }
       break;
