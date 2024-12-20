@@ -131,7 +131,7 @@ class Server {
     taosVersionStrToInt(td_version, &(rpcInit_.compatibilityVer));
   }
   void Start() {
-    //this->transSrv = rpcOpen(&this->rpcInit_);
+    this->transSrv = rpcOpen(&this->rpcInit_);
     taosMsleep(1000);
   }
   void SetSrvContinueSend(CB cb) {

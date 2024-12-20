@@ -352,6 +352,7 @@ int32_t transSendRequestWithId(void* pInit, const SEpSet* pEpSet, STransMsg* pRe
 int32_t transFreeConnById(void* pInit, int64_t transpointId);
 
 int32_t transSendResponse(STransMsg* msg);
+int32_t transSendResponse2(STransMsg* msg);
 int32_t transRegisterMsg(const STransMsg* msg);
 int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
 int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);

@@ -189,7 +189,7 @@ typedef int32_t (*__readCb)(void *arg, SEvtBuf *buf, int32_t status);
 typedef int32_t (*__sendFinishCb)(void *arg, int32_t status);
 typedef void (*__asyncCb)(void *arg, int32_t status);
 
-enum EVT_TYPE { EVT_ASYNC_T = 0, EVT_CONN_T = 1, EVT_SIGANL_T, EVT_NEW_CONN_T };
+enum EVT_TYPE { EVT_ASYNC_T = 0x1, EVT_CONN_T = 0x2, EVT_SIGANL_T = 0x4, EVT_NEW_CONN_T = 0x8 };
 
 typedef struct {
   int32_t fd;
@@ -1093,7 +1093,8 @@ void *transWorkerThread(void *arg) {
   pThrd->pEvtMgt = pOpt;
   pOpt->hostThrd = pThrd;
 
-  code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotifyCb, EVT_CONN_T, (void *)pThrd);
+  code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotifyCb, EVT_NEW_CONN_T,
+                      (void *)pThrd);
   if (code != 0) {
     tError("failed to create select op since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
@@ -1179,7 +1180,6 @@ void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads
       goto End;
     }
 
-    // QUEUE_INIT(&thrd->fdQueue.q);
     {
       int fd[2] = {0};
       code = pipe(fd);
@@ -1201,6 +1201,7 @@ void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads
       thrd->pipe_queue_fd[0] = fd2[0];
       thrd->pipe_queue_fd[1] = fd2[1];
     }
+    QUEUE_INIT(&thrd->conn);
 
     int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void *)(thrd));
     if (err == 0) {
@@ -1211,6 +1212,7 @@ void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads
       goto End;
     }
     thrd->inited = 1;
+    srv->pThreadObj[i] = thrd;
   }
   code = addHandleToAcceptloop(srv);
   if (code != 0) {
@@ -1454,7 +1456,7 @@ static int32_t createSocket(char *ip, int32_t port, int32_t *fd) {
   if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
   }
-
+  *fd = sockfd;
   return code;
 _end:
   if (code != 0) {
@@ -1523,12 +1525,12 @@ static int32_t createCliConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliConn 
   }
   QUEUE_INIT(&pConn->batchSendq);
   pConn->bufSize = pInst->shareConnLimit;
-  return code;
-
   QUEUE_INIT(&pConn->reqsToSend2);
 
   TAOS_CHECK_GOTO(createSocket(ip, port, &pConn->fd), &line, _end);
   TAOS_CHECK_GOTO(cliConnGetSockInfo(pConn), &line, _end);
+
+  *ppConn = pConn;
   return code;
 
 _end:
