@@ -156,6 +156,7 @@ import { parseTime, parsinginZone } from "@/utils";
 import moment from 'moment';
 import { getTableProgress, getVgroupProgress } from '@/api/explorer/datain';
 import MetricsCSV from './metricsCSV.vue'
+const METRIC_IN_ORDER = ["start_time", "execute_time", "created_stables", "created_tables", "received_batches", "processed_batches", "received_messages", "processed_messages", "processed_rows", "written_rows", "written_raw_blocks", "written_points", "rows_per_second", "points_per_second"];
 export default {
   props: {
     data: {
@@ -384,10 +385,29 @@ export default {
         value: metricsData[item],
       }));
       this.datas = array.map(v => {
-        let metrics = Object.keys(v.value).map((item) => ({
-          name: item,
-          value: v.value[item],
-        }));
+        let metrics = [];
+        for (let i = 0; i < METRIC_IN_ORDER.length; i++) {
+          let item = v.value[METRIC_IN_ORDER[i]];
+          if (item !== undefined) {
+            metrics.push({
+              name: METRIC_IN_ORDER[i],
+              value: item,
+            });
+          }
+        }
+        for (let key in v.value) {
+          if (!METRIC_IN_ORDER.includes(key)) {
+            metrics.push({
+              name: key,
+              value: v.value[key],
+            });
+          }
+        }
+
+        // metrics = Object.keys(v.value).map((item) => ({
+        //   name: item,
+        //   value: v.value[item],
+        // }));
         return { name: v.name, metrics }
       })
     },
