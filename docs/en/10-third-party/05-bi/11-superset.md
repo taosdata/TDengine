@@ -12,8 +12,8 @@ Through the Python connector of TDengine, Superset can support TDengine data sou
 ## Prerequisites
 
 Prepare the following environment:
-- TDengine cluster has been deployed and is running normally (both Enterprise and Community versions are available)
-- taosAdapter is installed and running normally, refer to [taosAdapter](../../../reference/components/taosAdapter)
+- TDengine is installed and running normally (both Enterprise and Community versions are available)
+- taosAdapter is running normally, refer to [taosAdapter](../../../reference/components/taosAdapter)
 - Apache Superset version 2.1.0 or above is already installed, refre to [Apache Superset](https://superset.apache.org/)
  
 ## Install TDengine Python Connector
