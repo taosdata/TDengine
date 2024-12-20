@@ -803,7 +803,7 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
       if (k == 0) {
         (void)vnodeACancel(task);
       } else {
-        (void)vnodeAWait(task);
+        vnodeAWait(task);
       }
     }
   }
