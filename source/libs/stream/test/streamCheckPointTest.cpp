@@ -155,7 +155,11 @@ TEST(StreamTaskAlreadySendTriggerTest, AlreadySendTrigger) {
     int64_t sendingCheckpointId = 123;
     TSKEY ts = taosGetTimestampMs();
 
-    STaskTriggerSendInfo triggerInfo = {.sendTs = ts, .recved = false, .nodeId = downstreamNodeId };
+    STaskTriggerSendInfo triggerInfo;
+    triggerInfo.sendTs = ts;
+    triggerInfo.recved = false;
+    triggerInfo.nodeId = downstreamNodeId;
+
     taosArrayPush(pTask->chkInfo.pActiveInfo->pDispatchTriggerList, &triggerInfo);
 
     pTask->chkInfo.pActiveInfo->dispatchTrigger = true;
@@ -194,7 +198,11 @@ TEST(ChkptTriggerRecvMonitorHelperTest, chkptTriggerRecvMonitorHelper) {
     int64_t sendingCheckpointId = 123;
     TSKEY ts = taosGetTimestampMs();
 
-    STaskTriggerSendInfo triggerInfo = {.sendTs = ts, .recved = false, .nodeId = downstreamNodeId };
+    STaskTriggerSendInfo triggerInfo;
+    triggerInfo.sendTs = ts;
+    triggerInfo.recved = false;
+    triggerInfo.nodeId = downstreamNodeId;
+
     taosArrayPush(pTask->chkInfo.pActiveInfo->pDispatchTriggerList, &triggerInfo);
 
     pTask->chkInfo.pActiveInfo->dispatchTrigger = true;
