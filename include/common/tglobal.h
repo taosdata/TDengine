@@ -114,6 +114,7 @@ extern int32_t tsRetentionSpeedLimitMB;
 
 extern const char *tsAlterCompactTaskKeywords;
 extern int32_t     tsNumOfCompactThreads;
+extern int32_t     tsNumOfRetentionThreads;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -291,6 +292,7 @@ extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsResolveFQDNRetryTime;
+extern bool    tsStreamCoverage;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
