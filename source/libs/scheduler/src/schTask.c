@@ -452,6 +452,8 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
   TAOS_MEMSET(&pTask->succeedAddr, 0, sizeof(pTask->succeedAddr));
 }
 
+#if 0
+
 int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32_t rspCode) {
   int32_t code = 0;
 
@@ -593,6 +595,7 @@ _return:
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
+#endif
 
 int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = taosHashPut(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
@@ -869,6 +872,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pTask->candidateAddrs || 1 != taosArrayGetSize(pTask->candidateAddrs)) {
@@ -900,6 +904,7 @@ _return:
 
   return code;
 }
+#endif
 
 int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask) {
   int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);
