@@ -219,7 +219,6 @@ async fn execute(
                 metrics.add_fetched_acks();
                 // add permit
                 permit_tx.send(()).ok();
-                metrics.sub_processing_batches();
                 // handle ack error
                 if !ack.success() {
                     metrics.add_ack_fails();
@@ -258,7 +257,7 @@ async fn execute(
                         ipc_writer
                             .write(&batch)
                             .context("Write batch to ipc writer error")?;
-                        metrics.add_processing_batches();
+                        metrics.add_sent_batches();
                     }
                     Err(_) => break,
                 }

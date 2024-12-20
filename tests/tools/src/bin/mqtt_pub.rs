@@ -1,5 +1,6 @@
 use std::{
     path::PathBuf,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -25,7 +26,7 @@ use tokio_util::sync::CancellationToken;
 use taosx_tools::{
     codec::{Compression, Encoding, Processor},
     csv_reader,
-    faker::DataFaker,
+    faker::SchemaFaker,
 };
 
 #[derive(Debug, clap::Parser)]
@@ -42,27 +43,22 @@ struct Args {
     password: Option<String>,
     #[clap(long = "keep_alive", short = 'k', default_value = "5s", value_parser = fundu::parse_duration)]
     keep_alive: Duration,
+    /// [default: `mqtt_pub_tool_` + random string]
     #[clap(long = "client_id", short = 'c')]
     client_id: Option<String>,
-    #[clap(long = "topic", short = 't')]
-    topic: Option<String>,
-    #[clap(long = "qos", short = 'q')]
-    qos: Option<u8>,
-    #[clap(long = "perallel", short = 'l', default_value_t = std::thread::available_parallelism().unwrap().get())]
-    perallel: usize,
+    /// [default: CPU cores]
+    #[clap(long = "perallel", short = 'l')]
+    perallel: Option<usize>,
+    /// The interval time for sending data, supporting units such as s/ms/Ms/ns
     #[clap(long = "interval", default_value = "100ms", value_parser = fundu::parse_duration)]
     interval: Duration,
     #[clap(long = "stdin", action = clap::ArgAction::SetTrue, conflicts_with = "interval")]
     stdin: bool,
-    #[clap(
-        long = "compress",
-        help = "payload compression, support: gzip, lz4, snappy, zstd"
-    )]
+    /// payload compression, support: gzip, lz4, snappy, zstd
+    #[clap(long = "compress")]
     compress: Option<Compression>,
-    #[clap(
-        long = "encoding",
-        help = "payload encoding, support GBK, GB18030, BIG5"
-    )]
+    /// payload encoding, support GBK, GB18030, BIG5
+    #[clap(long = "encoding")]
     encoding: Option<Encoding>,
     #[clap(long = "csv-header", value_delimiter = ',')]
     csv_headers: Option<Vec<String>>,
@@ -72,7 +68,7 @@ struct Args {
 
 /// TODO: qos=0 大数据量 publish 时，偶发性报错 I/O Connection reset by peer，订阅端会收到不合法的 json 字符串
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let client_id = args
@@ -90,7 +86,9 @@ async fn main() {
     }
     opts.set_keep_alive(args.keep_alive);
 
-    let perallel = args.perallel;
+    let perallel = args
+        .perallel
+        .unwrap_or_else(|| std::thread::available_parallelism().unwrap().get());
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     struct Data {
@@ -109,8 +107,10 @@ async fn main() {
         }
     }
 
+    let mut join_set = JoinSet::new();
+
     let (data_tx, data_rx) = flume::bounded(perallel);
-    let fetch_handle = match (args.schema, args.csv_file) {
+    match (args.schema, args.csv_file) {
         (None, Some(csv)) => {
             #[derive(Debug, serde::Serialize, serde::Deserialize)]
             struct CsvData {
@@ -119,8 +119,9 @@ async fn main() {
                 qos: u8,
             }
             let headers = args.csv_headers;
-            let reader = csv_reader::new_reader(headers.is_none(), csv).unwrap();
-            std::thread::spawn(move || {
+            let reader =
+                csv_reader::new_reader(headers.is_none(), csv).context("build csv reader error")?;
+            join_set.spawn_blocking(move || {
                 let headers = headers.map(csv::StringRecord::from);
                 for data in reader {
                     if data_tx.is_disconnected() {
@@ -128,7 +129,9 @@ async fn main() {
                     }
                     match data {
                         Ok(data) => {
-                            let data: CsvData = data.deserialize(headers.as_ref()).unwrap();
+                            let data: CsvData = data
+                                .deserialize(headers.as_ref())
+                                .context("get csv data error")?;
                             let data = Data::new(data.topic, data.payload.into_bytes(), data.qos);
                             if data_tx.send(data).is_err() {
                                 break;
@@ -139,39 +142,52 @@ async fn main() {
                         }
                     }
                 }
-                println!("csv end of file");
-            })
+                println!("stop read csv file");
+                anyhow::Ok(())
+            });
         }
         (Some(schema), None) => {
-            let faker = DataFaker::from_toml(schema).unwrap();
+            let faker = SchemaFaker::from_file(schema).map_err(anyhow::Error::new)?;
             let processor = (args.encoding, args.compress);
-            let topic = args.topic.clone().unwrap();
-            let qos = args.qos.unwrap_or_default();
-            std::thread::spawn(move || loop {
-                if data_tx.is_disconnected() {
-                    break;
+            for schema in faker.schema.into_iter() {
+                let payload = Arc::new(schema.payload);
+                for topic in schema.topics.into_iter() {
+                    let data_tx = data_tx.clone();
+                    let payload = payload.clone();
+                    join_set.spawn(async move {
+                        loop {
+                            if data_tx.is_disconnected() {
+                                break;
+                            }
+                            let payload = payload
+                                .clone()
+                                .rand_json()
+                                .context("gen fake data error")
+                                .and_then(|value| {
+                                    serde_json::to_vec(&value).context("serialize json error")
+                                })
+                                .and_then(|value| {
+                                    processor.process(value).context("processer process error")
+                                })
+                                .context("get value error")?;
+                            let data =
+                                Data::new(topic.next()?, payload, schema.qos.unwrap_or_default());
+                            if data_tx.send_async(data).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(())
+                    });
                 }
-                let payload = faker
-                    .rand_json()
-                    .context("gen fake data error")
-                    .and_then(|value| serde_json::to_vec(&value).context("serialize json error"))
-                    .and_then(|value| processor.process(value).context("processer process error"))
-                    .inspect_err(|e| println!("get value error: {e:#}"))
-                    .unwrap();
-                let data = Data::new(topic.clone(), payload, qos);
-                if data_tx.send(data).is_err() {
-                    break;
-                };
-            })
+            }
         }
         (Some(_), Some(_)) => unreachable!(),
-        (None, None) => panic!("schema or csv file is required"),
-    };
+        (None, None) => anyhow::bail!("schema or csv file is required"),
+    }
 
     let (client, mut event_loop) = rumqttc::v5::AsyncClient::new(opts, 1000);
 
     let token = CancellationToken::new();
-    let mut join_set = JoinSet::new();
     let (tx, rx) = flume::bounded(perallel);
     let (consumer_exit_tx, consumer_exit_rx) = flume::bounded::<()>(0);
     join_set.spawn({
@@ -228,12 +244,12 @@ async fn main() {
                 }
             }
             println!("total published: {published}");
+            Ok(())
         }
     });
 
     let Ok(WatchEvent::ConnAck) = rx.recv_async().await else {
-        println!("client connect error, exit");
-        return;
+        anyhow::bail!("client connect error, exit")
     };
 
     let stdin = args.stdin;
@@ -281,6 +297,7 @@ async fn main() {
                     }
                 }
                 drop(consumer_exit_tx);
+                Ok(())
             }
         });
     }
@@ -313,7 +330,8 @@ async fn main() {
     token.cancel();
     join_set.abort_all();
     while join_set.join_next().await.is_some() {}
-    fetch_handle.join().ok();
+
+    Ok(())
 }
 
 fn generate_random_string(length: usize) -> String {

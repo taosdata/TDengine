@@ -138,24 +138,31 @@ async fn assert_create_stable(
     req_id: u64,
     cancel: &CancellationToken,
 ) -> Result<(), FlatWriteError> {
-    match exec_sql_with_connection_retries(
-        pool,
-        taos,
-        sql,
-        req_id,
-        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-        cancel,
-    )
-    .await
-    {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            let code = err.code();
-            let errno: i32 = code.into();
-            tracing::warn!(sql, "Exec SQL error: {err:#}");
-            match errno {
-                0x032C | 0x0603 | 0x03C7 | 0x03D3 | 0x0360 => Ok(()),
-                _ => Err(err).context("Create stable error").map_err(Into::into),
+    loop {
+        match exec_sql_with_connection_retries(
+            pool,
+            taos,
+            sql,
+            req_id,
+            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+            cancel,
+        )
+        .await
+        {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                let code = err.code();
+                let errno: i32 = code.into();
+                tracing::warn!(sql, "Exec SQL error: {err:#}");
+                match errno {
+                    0x0603 | 0x0360 | 0x03C7 => return Ok(()),
+                    0x03D3 /* MND_TRANS_CONFLICT */ | 0x032C /* SDB_OBJ_CREATING */ => {
+                        // 等待一段时间后再次尝试创建，直到等到表已存在的错误后再退出
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
+                    _ => return Err(err).context("Create stable error").map_err(Into::into),
+                }
             }
         }
     }
@@ -684,19 +691,37 @@ pub async fn flat_write_with_raw_block(
                                                     let actual_columns =
                                                         HashSet::<_>::from_iter(desc_columns);
 
-                                                    taos.exec_many(
-                                                        stable
+                                                    'OUTER: for sql in stable
                                                         .columns()
                                                         .filter(|c| {
                                                             !actual_columns
                                                                 .contains(c.name.as_str())
                                                         })
                                                         .map(|c| {
-                                                            format!("ALTER TABLE {stable_name} ADD COLUMN {} {};",c.name, c.r#type)
-                                                        }),
-                                                    )
-                                                    .await
-                                                    .context("add columns error")?;
+                                                            format!( "ALTER TABLE {stable_name} ADD COLUMN `{}` {};", c.name, c.r#type )
+                                                        })
+                                                    {
+                                                        loop {
+                                                            if let Err(e) = taos.exec(&sql).await {
+                                                                match e.code().into() {
+                                                                    0x036B => {
+                                                                        // Column already exists
+                                                                        continue 'OUTER;
+                                                                    }
+                                                                    0x03D3 => {
+                                                                        // Conflict transaction not completed
+                                                                        tracing::warn!("add columns transaction conflict");
+                                                                        tokio::time::sleep(Duration::from_millis(100)).await;
+                                                                        continue;
+                                                                    }
+                                                                    code => {
+                                                                        tracing::error!(sql,code,"add columns error: {e:#}");
+                                                                        Err(e).context("add columns error")?
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 } else {
                                                     Err(err)?;
                                                 }
@@ -1667,6 +1692,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
         let cancel = cancel.clone();
         writer_set.spawn(
             async move {
+                let _guard = cancel.clone().drop_guard();
                 let mut taos = None;
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
@@ -1777,11 +1803,14 @@ pub async fn ipc_flat_stream_worker_concurrent(
     let mut batches = 0;
 
     loop {
-        if cancel.is_cancelled() && !upstream.is_cancelled() {
-            // Writer is failed
-            tracing::warn!("Writer may be failed, try join all workers");
+        if cancel.is_cancelled() {
+            if !upstream.is_cancelled() {
+                // Writer is failed
+                tracing::warn!("Writer may be failed, try join all workers");
+            }
             break;
         }
+
         if let Some(Err(err)) = writer_set
             .try_join_next()
             .transpose()
@@ -1790,31 +1819,33 @@ pub async fn ipc_flat_stream_worker_concurrent(
             error!(error = "Writer error: {err:#}");
             Err(err).context("IPC writer fail with error")?;
         }
-        if let Some(record) = stream.next().await {
-            batches += 1;
-            metrics_arc.ipc().add_received_batches(1);
-            match record {
-                Ok(record) => {
-                    msg_tx.send_async(record).await?;
-                }
-                Err(err) => {
-                    tracing::warn!("Consume message error: {err:#}");
-                    ack_tx
-                        .send_async(LushAck {
-                            code: 0xFFFF,
-                            message: Some(format!("Parse message error: {err:#}")),
-                            context: Some(
-                                json!({
-                                    "stream": "flat",
-                                })
-                                .to_string(),
-                            ),
-                        })
-                        .await?;
-                }
-            };
-        } else {
-            break;
+        tokio::select! {
+            Some(record) = stream.next() => {
+                batches += 1;
+                metrics_arc.ipc().add_received_batches(1);
+                match record {
+                    Ok(record) => {
+                        msg_tx.send_async(record).await?;
+                    }
+                    Err(err) => {
+                        tracing::warn!("Consume message error: {err:#}");
+                        ack_tx
+                            .send_async(LushAck {
+                                code: 0xFFFF,
+                                message: Some(format!("Parse message error: {err:#}")),
+                                context: Some(
+                                    json!({
+                                        "stream": "flat",
+                                    })
+                                    .to_string(),
+                                ),
+                            })
+                            .await?;
+                    }
+                };
+            }
+            _ = cancel.cancelled() => continue,
+            else => break
         }
     }
 

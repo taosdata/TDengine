@@ -50,7 +50,7 @@ async fn main() {
 
     let token = CancellationToken::new();
 
-    let faker = Arc::new(DataFaker::from_toml(args.schema).unwrap());
+    let faker = Arc::new(DataFaker::from_file(args.schema).unwrap());
 
     let mut config = ClientConfig::new();
     config.set("bootstrap.servers", args.servers);

@@ -1461,7 +1461,7 @@ pub fn pivot(
         .partition_by(vec![col(ts_field_name)])
         .order_by(vec![col(ts_field_name).sort(true, true)])
         .build()
-        .unwrap()
+        .context("build datafusion window error")?
         .alias("row_number");
 
     let window_func = df.window(vec![window]).context("add window func error")?;
