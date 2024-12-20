@@ -130,7 +130,9 @@ typedef struct {
   char   *buf;
   int32_t len;
   int8_t  inited;
+  int32_t offset;
   void   *data;
+
 } SEvtBuf;
 typedef struct SWorkThrd {
   TdThread thread;
@@ -255,7 +257,7 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt) {
 
 // int32_t selectUtilRange()
 
-static int32_t evtMayShoudInitBuf(SEvtBuf *evtBuf) {
+static int32_t evtBufInit(SEvtBuf *evtBuf) {
   int32_t code = 0;
   if (evtBuf->inited == 0) {
     evtBuf->buf = taosMemoryCalloc(1, 4096);
@@ -264,9 +266,48 @@ static int32_t evtMayShoudInitBuf(SEvtBuf *evtBuf) {
     } else {
       evtBuf->len = 4096;
       evtBuf->inited = 1;
+      evtBuf->offset = 0;
     }
   }
   return code;
+}
+static int32_t evtBufPush(SEvtBuf *evtBuf, char *buf, int32_t len) {
+  int32_t code = 0;
+  if (evtBuf->inited == 0) {
+    code = evtBufInit(evtBuf);
+    if (code != 0) {
+      return code;
+    }
+  }
+  int32_t need = evtBuf->offset + len;
+  if (need >= evtBuf->len) {
+    // TOOD opt need
+    char *tbuf = taosMemoryRealloc(evtBuf->buf, need);
+    if (tbuf == NULL) {
+      return terrno;
+    }
+    evtBuf->buf = tbuf;
+    evtBuf->len = need;
+  }
+  memcpy(evtBuf->buf + evtBuf->offset, buf, len);
+  evtBuf->offset += len;
+  return code;
+}
+
+static int32_t evtBufClear(SEvtBuf *evtBuf) {
+  int32_t code = 0;
+  if (evtBuf->inited) {
+    evtBuf->offset = 0;
+    memset(evtBuf->buf, 0, evtBuf->len);
+  }
+  return code;
+}
+
+static int32_t evtBufDestroy(SEvtBuf *evtBuf) {
+  if (evtBuf->inited) {
+    taosMemoryFree(evtBuf->buf);
+  }
+  return 0;
 }
 int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
   int32_t nBytes = 0;
@@ -287,7 +328,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
   } else if (pArg->event == EVT_CONN_T) {
     if (res & EVT_READ) {
       SEvtBuf *pBuf = &pArg->buf;
-      code = evtMayShoudInitBuf(pBuf);
+      code = evtBufInit(pBuf);
       if (code != 0) {
         tError("failed to init buf since %s", tstrerror(code));
         return code;
@@ -305,7 +346,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
     if (res & EVT_WRITE) {
       SEvtBuf *pBuf = &pArg->sendBuf;
 
-      code = evtMayShoudInitBuf(pBuf);
+      code = evtBufInit(pBuf);
       if (code != 0) {
         tError("failed to init wbuf since %s", tstrerror(code));
         return code;
@@ -1616,12 +1657,109 @@ static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
 
   return code;
 }
+bool connMayAddUserInfo(SCliConn *pConn, STransMsgHead **ppHead, int32_t *msgLen) {
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+  if (pConn->userInited == 1) {
+    return false;
+  }
+  STransMsgHead *pHead = *ppHead;
+  STransMsgHead *tHead = taosMemoryCalloc(1, *msgLen + sizeof(pInst->user));
+  if (tHead == NULL) {
+    return false;
+  }
+  memcpy((char *)tHead, (char *)pHead, TRANS_MSG_OVERHEAD);
+  memcpy((char *)tHead + TRANS_MSG_OVERHEAD, pInst->user, sizeof(pInst->user));
+
+  memcpy((char *)tHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user), (char *)pHead + TRANS_MSG_OVERHEAD,
+         *msgLen - TRANS_MSG_OVERHEAD);
+
+  tHead->withUserInfo = 1;
+  *ppHead = tHead;
+  *msgLen += sizeof(pInst->user);
+
+  pConn->pInitUserReq = tHead;
+  pConn->userInited = 1;
+  return true;
+}
 static int32_t evtCliPreSendReq(void *arg, SEvtBuf *buf, int32_t status) {
-   
-  int32_t   code = 0;
-  SFdCbArg *pArg = arg;
-  SCliConn *pConn = pArg->data;
-  
+  int32_t code = 0, line = 0;
+  code = evtBufInit(buf);
+  TAOS_CHECK_GOTO(code, &line, _end);
+
+  SFdCbArg  *pArg = arg;
+  SCliConn  *pConn = pArg->data;
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+
+  int32_t j = 0;
+  int32_t batchLimit = 16;
+  queue   reqToSend;
+  QUEUE_INIT(&reqToSend);
+  while (!QUEUE_IS_EMPTY(&pConn->reqsToSend2)) {
+    queue *el = QUEUE_HEAD(&pConn->reqsToSend2);
+    QUEUE_REMOVE(el);
+
+    SCliReq *pCliMsg = QUEUE_DATA(el, SCliReq, q);
+    SReqCtx *pCtx = pCliMsg->ctx;
+    pConn->seq++;
+
+    STransMsg *pReq = (STransMsg *)(&pCliMsg->msg);
+    if (pReq->pCont == 0) {
+      pReq->pCont = (void *)rpcMallocCont(0);
+      if (pReq->pCont == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pReq->contLen = 0;
+    }
+    int32_t        msgLen = transMsgLenFromCont(pReq->contLen);
+    STransMsgHead *pHead = transHeadFromCont(pReq->pCont);
+
+    char   *content = pReq->pCont;
+    int32_t contLen = pReq->contLen;
+    if (connMayAddUserInfo(pConn, &pHead, &msgLen)) {
+      content = transContFromHead(pHead);
+      contLen = transContLenFromMsg(msgLen);
+      pReq->pCont = (void *)pHead;
+    } else {
+      if (pConn->userInited == 0) {
+        return terrno;
+      }
+    }
+    if (pHead->comp == 0) {
+      pHead->noResp = (pReq->info.noResp ? 1 : 0);
+      pHead->msgType = pReq->msgType;
+      pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
+      pHead->traceId = pReq->info.traceId;
+      pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+      pHead->version = TRANS_VER;
+      pHead->compatibilityVer = htonl(pInst->compatibilityVer);
+    }
+    pHead->timestamp = taosHton64(pCliMsg->st);
+    pHead->seqNum = taosHton64(pConn->seq);
+    pHead->qid = taosHton64(pReq->info.qId);
+
+    pCliMsg->seq = pConn->seq;
+    pCliMsg->sent = 1;
+
+    QUEUE_PUSH(&pConn->reqsSentOut.node, &pCliMsg->q);
+
+    QUEUE_INIT(&pCliMsg->sendQ);
+    QUEUE_PUSH(&reqToSend, &pCliMsg->sendQ);
+
+    code = evtBufPush(buf, (char *)pHead, msgLen);
+    TAOS_CHECK_GOTO(code, &line, _end);
+    j++;
+
+    if (j >= batchLimit) {
+      break;
+    }
+  }
+  return code;
+_end:
+  if (code != 0) {
+    tError("%s failed to send request at line %d since %s", __func__, line, tstrerror(code));
+  }
   return code;
 }
 
@@ -1629,10 +1767,24 @@ static int32_t evtCliSendCb(void *arg, int32_t status) {
   int32_t   code = status;
   SFdCbArg *pArg = arg;
   SCliConn *pConn = pArg->data;
+  SCliThrd2 *pThrd = pConn->hostThrd;
   if (code != 0) {
     tError("failed to send request since %s", tstrerror(code));
     return code;
   }
+  while (!QUEUE_IS_EMPTY(&pConn->reqsSentOut.node)) {
+    queue *el = QUEUE_HEAD(&pConn->reqsSentOut.node);
+    QUEUE_REMOVE(el);
+
+    SCliReq *pCliMsg = QUEUE_DATA(el, SCliReq, q);
+    if (pCliMsg == NULL) {
+      continue;
+    }
+    STraceId *trace = &pCliMsg->msg.info.traceId;
+    tGDebug("success to send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pThrd->pid,
+            pCliMsg->ctx->epSet->eps[0].fqdn, pCliMsg->ctx->epSet->eps[0].port, pCliMsg->msg.info.ahandle);
+  }
+
   return code;
 }
 
@@ -1742,10 +1894,7 @@ static void evtHandleCliReqCb(void *arg, int32_t status) {
     tGDebug("handle request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pThrd->pid, pReq->ctx->epSet->eps[0].fqdn,
             pReq->ctx->epSet->eps[0].port, pReq->msg.info.ahandle);
 
-    if (pReq->msg.info.handle == 0) {
-      destroyReq(pReq);
-      continue;
-    }
+    code = evtHandleCliReq(pThrd, pReq);
   }
 }
 
