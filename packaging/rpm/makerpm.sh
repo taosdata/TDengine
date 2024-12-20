@@ -56,24 +56,23 @@ fi
 ${csudo}mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-# download taoskeeper and build
-if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
-  arch=amd64
-elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
-  arch=386
-elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
-  arch=arm
-elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
-  arch=arm64
-else
-  arch=$cpuType
-fi
+# # download taoskeeper and build
+# if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
+#   arch=amd64
+# elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
+#   arch=386
+# elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
+#   arch=arm
+# elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
+#   arch=arm64
+# else
+#   arch=$cpuType
+# fi
 
-cd ${top_dir}
-echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper -t ver-${tdengine_ver}"
-taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper -t ver-${tdengine_ver}`
-echo "taoskeeper_binary: ${taoskeeper_binary}"
-cd ${package_dir}
+# cd ${top_dir}
+# echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper -t ver-${tdengine_ver}"
+# taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper -t ver-${tdengine_ver}`
+# echo "taoskeeper_binary: ${taoskeeper_binary}"
 
 ${csudo}mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
@@ -106,4 +105,4 @@ mv ${output_dir}/TDengine-${tdengine_ver}.rpm ${output_dir}/${rpmname}
 
 cd ..
 ${csudo}rm -rf ${pkg_dir}
-rm -rf ${top_dir}/build-taoskeeper
+# rm -rf ${top_dir}/build-taoskeeper
