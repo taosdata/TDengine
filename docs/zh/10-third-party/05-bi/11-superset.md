@@ -8,15 +8,14 @@ title: 与 Superset 集成
 
 
 ## 前置条件 
-使 TDengine 成为 Apache Superset 数据源，需以下几方面准备工作：
+Apache Superset 连接 TDengine 数据源，需以下几方面准备工作：
 - TDengine 集群已部署并正常运行（企业及社区版均可）
 - taosAdapter 已安装并正常运行。详细参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
 - Apache Superset v2.1.0 或以上版本已安装。安装 Apache Superset 请参考 [官方文档](https://superset.apache.org/)
 
 
-## 安装 
+## 安装 TDengine Python 连接器
 
-#### 安装 TDengine Python 连接器
 TDengine Python 连接器从 `v2.1.18` 起带 Superset 连接驱动，会安装至 Superset 相应目录下并向 Superset 提供数据源服务   
 Superset 与 TDengine 之间使用 WebSocket 协议连接，需安装支持此协议的 `taos-ws-py` 组件, 全部安装脚本如下：   
 ```bash
@@ -24,9 +23,7 @@ pip3 install taospy
 pip3 install taos-ws-py
 ```
 
-## 配置
-
-#### Superset 中配置 TDengine 连接
+## 配置 TDengine 数据源
 
 **第 1 步**，进入新建数据库连接页面 "Superset" → "Setting" → "Database Connections" → "+DATABASE"   
 **第 2 步**，选择 TDengine 数据库连接。"SUPPORTED DATABASES" 下拉列表中选择 "TDengine" 项。  
@@ -53,7 +50,7 @@ taosws://root:taosdata@localhost:6041
 **第 5 步**，配置好连接串，点击 “TEST CONNECTION” 测试连接是否成功，测试通过后点击 “CONNECT” 按钮，完成连接。
        
 
-## 使用
+## 开始使用
 
 TDengine 数据源与其它数据源使用上无差别，这里简单介绍下数据查询：    
 1. Superset 界面点击右上角 “+” 号按钮，选择 “SQL query”, 进入查询界面  
@@ -63,7 +60,7 @@ TDengine 数据源与其它数据源使用上无差别，这里简单介绍下�
 5. 随后会在下方显示选定表的 SCHEMA 信息  
 6. 在 SQL 编辑器区域可输入符合 TDengine 语法的任意 SQL 语句执行
 
-## 示例
+## 示例效果
 
 我们选择 Superset Chart 模板中较流行的两个模板做了效果展示，以智能电表数据为例：  
 
