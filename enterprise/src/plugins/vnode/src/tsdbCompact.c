@@ -516,13 +516,7 @@ _exit:
   return code;
 }
 
-static struct {
-  TdThreadMutex mutex;
-  int32_t       numOfRunningCompactTasks;
-  int32_t       maxNumOfCompactTasks;
-} gCompactTaskStage;
-
-static int32_t tsdbCompactImpl(void *arg) {
+static int32_t tsdbCompact(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -540,13 +534,27 @@ static int32_t tsdbCompactImpl(void *arg) {
   };
 
   // begin task
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  tsdbBeginTaskOnFileSet(tsdb, compactArg->fid, &fset);
-  if (fset && (code = tsdbTFileSetInitCopy(tsdb, fset, &compactor.fset))) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
+
+  if (tsdb->bgTaskDisabled) {
+    tsdbInfo("vgId:%d, background task is disabled, skip compact", TD_VID(tsdb->pVnode));
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return 0;
+  }
+
+  tsdbBeginTaskOnFileSet(tsdb, compactArg->fid, EVA_TASK_COMPACT, &fset);
+  if (NULL == fset) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return 0;
+  }
+
+  code = tsdbTFileSetInitCopy(tsdb, fset, &compactor.fset);
+  if (code) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   // do compact
   if (compactor.fset && tsdbShouldCompact(&compactor)) {
@@ -557,9 +565,9 @@ static int32_t tsdbCompactImpl(void *arg) {
 _exit:
   // finish task
   if (compactor.fset) {
-    TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-    tsdbFinishTaskOnFileSet(tsdb, compactArg->fid);
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+    (void)taosThreadMutexLock(&tsdb->mutex);
+    tsdbFinishTaskOnFileSet(tsdb, compactArg->fid, EVA_TASK_COMPACT);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
   }
 
   // clear resources
@@ -574,116 +582,52 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCompact(void *arg);
-
-static void tsdbRescheduleCompactTask(void *arg) {
-  SCompactArg *compactArg = (SCompactArg *)arg;
-  STsdb       *tsdb = compactArg->tsdb;
-  bool         schedSuccess = false;
-
-  (void)taosThreadMutexLock(&tsdb->mutex);
-  if (!tsdb->bgTaskDisabled) {
-    STFileSet *fset;
-    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-      if (fset->fid == compactArg->fid) {
-        int32_t code =
-            vnodeAsync(&fset->channel, EVA_PRIORITY_NORMAL, tsdbCompact, tsdbCompactCancel, arg, &compactArg->taskid);
-        if (TSDB_CODE_SUCCESS == code) {
-          int64_t compactSize = 0;
-          if (fset->farr[TSDB_FTYPE_DATA]) {
-            compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
-          }
-
-          SSttLvl *lvl;
-          TARRAY2_FOREACH(fset->lvlArr, lvl) {
-            STFileObj *fobj;
-            TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
-          }
-
-          TAOS_UNUSED(tsdbUpdateCompMonitorTask(tsdb, fset->fid, &compactArg->taskid, compactSize));
-          schedSuccess = true;
-        }
-
-        break;
-      }
-    }
-  }
-
-  if (!schedSuccess) {
-    tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
-  }
-  (void)taosThreadMutexUnlock(&tsdb->mutex);
-  return;
-}
-
-static int32_t tsdbCompact(void *arg) {
-  bool reschedule = false;
-
-  // check if the number of running tasks exceeds the limit
-  (void)taosThreadMutexLock(&gCompactTaskStage.mutex);
-  if (gCompactTaskStage.numOfRunningCompactTasks >= gCompactTaskStage.maxNumOfCompactTasks) {
-    reschedule = true;
-  } else {
-    gCompactTaskStage.numOfRunningCompactTasks++;
-  }
-  (void)taosThreadMutexUnlock(&gCompactTaskStage.mutex);
-
-  // reschedule or do compact
-  if (reschedule) {
-    tsdbRescheduleCompactTask(arg);
-  } else {
-    (void)tsdbCompactImpl(arg);
-
-    (void)taosThreadMutexLock(&gCompactTaskStage.mutex);
-    gCompactTaskStage.numOfRunningCompactTasks--;
-    (void)taosThreadMutexUnlock(&gCompactTaskStage.mutex);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static void tsdbCompactCancel(void *arg) { taosMemoryFree(arg); }
 
 static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (!tsdb->bgTaskDisabled) {
-    int32_t minFid = tsdbKeyFid(tw->skey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
-    int32_t maxFid = tsdbKeyFid(tw->ekey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
+  if (tsdb->bgTaskDisabled) {
+    tsdbInfo("vgId:%d, background task is disabled, skip compact", TD_VID(tsdb->pVnode));
+    return 0;
+  }
 
-    STFileSet *fset;
-    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-      if (fset->fid < minFid || fset->fid > maxFid) continue;
+  int32_t minFid = tsdbKeyFid(tw->skey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
+  int32_t maxFid = tsdbKeyFid(tw->ekey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
 
-      code = tsdbTFileSetOpenChannel(fset);
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    if (fset->fid < minFid || fset->fid > maxFid) {
+      continue;
+    }
+
+    SCompactArg *arg = taosMemoryMalloc(sizeof(*arg));
+    if (arg == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    }
+
+    arg->tsdb = tsdb;
+    arg->fid = fset->fid;
+
+    code = vnodeAsync(COMPACT_TASK_ASYNC, EVA_PRIORITY_NORMAL, tsdbCompact, tsdbCompactCancel, arg, &fset->compactTask);
+    if (code) {
+      taosMemoryFree(arg);
       TSDB_CHECK_CODE(code, lino, _exit);
-
-      SCompactArg *arg = taosMemoryMalloc(sizeof(*arg));
-      if (arg == NULL) {
-        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    } else {
+      arg->taskid = fset->compactTask;
+      int64_t compactSize = 0;
+      if (fset->farr[TSDB_FTYPE_DATA]) {
+        compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
       }
 
-      arg->tsdb = tsdb;
-      arg->fid = fset->fid;
-
-      code = vnodeAsync(&fset->channel, EVA_PRIORITY_NORMAL, tsdbCompact, tsdbCompactCancel, arg, &arg->taskid);
-      if (code) {
-        taosMemoryFree(arg);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      } else {
-        int64_t compactSize = 0;
-        if (fset->farr[TSDB_FTYPE_DATA]) {
-          compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
-        }
-
-        SSttLvl *lvl;
-        TARRAY2_FOREACH(fset->lvlArr, lvl) {
-          STFileObj *fobj;
-          TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
-        }
-
-        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
+      SSttLvl *lvl;
+      TARRAY2_FOREACH(fset->lvlArr, lvl) {
+        STFileObj *fobj;
+        TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
       }
+
+      TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
     }
   }
 
@@ -702,26 +646,4 @@ int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw) {
   return code;
 }
 
-void tsdbAlterMaxCompactTasks() {
-  (void)taosThreadMutexLock(&gCompactTaskStage.mutex);
-  if (gCompactTaskStage.maxNumOfCompactTasks != tsNumOfCompactThreads) {
-    tsdbInfo("maxNumOfCompactTasks changed from %d to %d", gCompactTaskStage.maxNumOfCompactTasks,
-             tsNumOfCompactThreads);
-    gCompactTaskStage.maxNumOfCompactTasks = tsNumOfCompactThreads;
-  }
-  (void)taosThreadMutexUnlock(&gCompactTaskStage.mutex);
-}
-
-int32_t tsdbInitCompact() {
-  if (taosThreadMutexInit(&gCompactTaskStage.mutex, NULL) != TSDB_CODE_SUCCESS) {
-    return terrno;
-  }
-  gCompactTaskStage.numOfRunningCompactTasks = 0;
-  gCompactTaskStage.maxNumOfCompactTasks = tsNumOfCompactThreads;
-  return 0;
-}
-
-void tsdbCleanupCompact() {
-  (void)taosThreadMutexDestroy(&gCompactTaskStage.mutex);
-  return;
-}
+void tsdbAlterNumCompactThreads() { (void)vnodeAsyncSetWorkers(COMPACT_TASK_ASYNC, tsNumOfCompactThreads); }
