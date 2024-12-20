@@ -137,13 +137,13 @@ sudo apt install python3
 pip3 install toml
 ```
 
-To package taosX and taos-explorer, you can type this:
+To package taosX ,taos-explorer and plugins, you can type this:
 
 ```bash
 cd packaging
 python3 release.py -o taosx
 ```
-To package taosX-agent, you can type this:
+To package taosX-agent and plugins, you can type this:
 
 ```bash
 cd packaging
