@@ -40,6 +40,24 @@ add_test(
     COMMAND dataformatTest
 )
 
+# cosCpTest.cpp
+add_executable(cosCpTest "")
+target_sources(
+    cosCpTest
+    PRIVATE
+    "cosCpTest.cpp"
+)
+target_link_libraries(cosCpTest gtest gtest_main util common)
+target_include_directories(
+        cosCpTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME cosCpTest
+    COMMAND cosCpTest
+)
+
 if (${TD_LINUX})
     # tmsg test
     add_executable(tmsgTest "")
