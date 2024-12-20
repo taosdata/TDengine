@@ -114,7 +114,7 @@ typedef struct {
   int32_t sendCompleted;
 } STaskCheckpointReadyInfo;
 
-typedef struct {
+typedef struct STaskTriggerSendInfo {
   int64_t sendTs;
   int64_t recvTs;
   bool    recved;
