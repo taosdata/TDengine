@@ -5,9 +5,9 @@
 #include <unistd.h>
 #include "taos.h"
 
-int CTB_NUMS = 1000;
-int ROW_NUMS = 10;
-int CYC_NUMS = 5;
+int CTB_NUMS = 2;
+int ROW_NUMS = 2;
+int CYC_NUMS = 2;
 
 void do_query(TAOS* taos, const char* sql) {
   TAOS_RES* result = taos_query(taos, sql);
@@ -57,7 +57,7 @@ void do_stmt(TAOS* taos, const char* sql) {
     return;
   }
   int             fieldNum = 0;
-  TAOS_FIELD_STB* pFields = NULL;
+  TAOS_FIELD_ALL* pFields = NULL;
   //   code = taos_stmt2_get_stb_fields(stmt, &fieldNum, &pFields);
   //   if (code != 0) {
   //     printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
@@ -74,7 +74,7 @@ void do_stmt(TAOS* taos, const char* sql) {
   for (int i = 0; i < CTB_NUMS; i++) {
     tbs[i] = (char*)malloc(sizeof(char) * 20);
     sprintf(tbs[i], "ctb_%d", i);
-    createCtb(taos, tbs[i]);
+    // createCtb(taos, tbs[i]);
   }
   for (int r = 0; r < CYC_NUMS; r++) {
     // col params
@@ -138,7 +138,24 @@ void do_stmt(TAOS* taos, const char* sql) {
     end = clock();
     cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
     printf("stmt2-exec [%s] insert Time used: %f seconds\n", sql, cpu_time_used);
+
+    for (int i = 0; i < CTB_NUMS; i++) {
+      free(tags[i]);
+      free(paramv[i]);
+      free(ts[i]);
+      free(b[i]);
+    }
+    free(ts);
+    free(b);
+    free(ts_len);
+    free(b_len);
+    free(paramv);
+    free(tags);
   }
+  for (int i = 0; i < CTB_NUMS; i++) {
+    free(tbs[i]);
+  }
+  free(tbs);
 
   //   taos_stmt2_free_fields(stmt, pFields);
   taos_stmt2_close(stmt);
@@ -200,10 +217,9 @@ int main() {
     exit(1);
   }
 
-  sleep(3);
   do_stmt(taos, "insert into db.stb(tbname,ts,b,t1,t2) values(?,?,?,?,?)");
   // do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)");
-  do_taosc(taos);
+  // do_taosc(taos);
   taos_close(taos);
   taos_cleanup();
 }

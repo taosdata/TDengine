@@ -68,12 +68,12 @@ if [ -f %{_compiledir}/test/cfg/taosadapter.service ]; then
     cp %{_compiledir}/test/cfg/taosadapter.service %{buildroot}%{homepath}/cfg
 fi
 
-if [ -f %{_compiledir}/../build-taoskeeper/config/taoskeeper.toml ]; then
-    cp %{_compiledir}/../build-taoskeeper/config/taoskeeper.toml %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_compiledir}/test/cfg/taoskeeper.toml ]; then
+    cp %{_compiledir}/test/cfg/taoskeeper.toml %{buildroot}%{homepath}/cfg ||:
 fi
 
-if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper.service ]; then
-    cp %{_compiledir}/../build-taoskeeper/taoskeeper.service %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_compiledir}/test/cfg/taoskeeper.service ]; then
+    cp %{_compiledir}/test/cfg/taoskeeper.service %{buildroot}%{homepath}/cfg ||:
 fi
 
 if [ -f %{_compiledir}/../../../explorer/target/taos-explorer.service ]; then
@@ -104,8 +104,8 @@ if [ -f %{_compiledir}/../../../explorer/target/release/taos-explorer ]; then
     cp %{_compiledir}/../../../explorer/target/release/taos-explorer %{buildroot}%{homepath}/bin
 fi
 
-if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper ]; then
-    cp %{_compiledir}/../build-taoskeeper/taoskeeper %{buildroot}%{homepath}/bin
+if [ -f %{_compiledir}/build/bin//taoskeeper ]; then
+    cp %{_compiledir}/build/bin//taoskeeper %{buildroot}%{homepath}/bin
 fi
 
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
