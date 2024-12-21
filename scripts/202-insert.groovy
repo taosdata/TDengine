@@ -358,7 +358,7 @@ pipeline {
             }
             steps {
                 script {
-                    run_cases("cases_query_replica3.txt", "/home/m5.json", "3", "3", "-s -o 7200")
+                    run_cases("cases_query_replica3.txt", "/home/m6.json", "3", "3", "-s -o 30200")
                 }
             }
         }
