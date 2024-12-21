@@ -11,7 +11,7 @@ title: 与 Superset 集成
 
 准备以下环境：
 - TDengine 集群已部署并正常运行（企业及社区版均可）
-- taosAdapter 能够正常运行。详细参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
+- taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
 - Apache Superset v2.1.0 或以上版本已安装。安装 Apache Superset 请参考 [官方文档](https://superset.apache.org/)
 
 
