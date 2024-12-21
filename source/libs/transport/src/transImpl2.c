@@ -232,6 +232,18 @@ static void    evtMgtDestroy(SEvtMgt *pOpt);
 
 int32_t evtMgtHandle(SEvtMgt *pOpt, int32_t res, int32_t fd);
 
+static int32_t evtInitPipe(int32_t dst[2]) {
+  int32_t code = 0;
+  int     fd[2] = {0};
+  code = pipe(fd);
+  if (code < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    return code;
+  }
+  dst[0] = fd[0];
+  dst[1] = fd[1];
+  return code;
+}
 static int32_t evtMgtCreate(SEvtMgt **pOpt) {
   int32_t  code = 0;
   SEvtMgt *pRes = taosMemoryCalloc(1, sizeof(SEvtMgt));
@@ -398,9 +410,6 @@ int32_t evtMgtHandle(SEvtMgt *pOpt, int32_t res, int32_t fd) {
 static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
   int32_t code = 0, res = 0, j, nfds = 0, active_Fds = 0;
 
-  struct timeval ttv;
-  ttv.tv_sec = 30;  // 设置为5秒
-  ttv.tv_usec = 0;
   if (pOpt->resizeOutSets) {
     fd_set *readSetOut = NULL, *writeSetOut = NULL;
     int32_t sz = pOpt->evtFdsSize;
@@ -425,7 +434,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
 
   nfds = pOpt->evtFds + 1;
   // TODO lock or not
-  active_Fds = select(nfds, pOpt->evtReadSetOut, pOpt->evtWriteSetOut, NULL, &ttv);
+  active_Fds = select(nfds, pOpt->evtReadSetOut, pOpt->evtWriteSetOut, NULL, tv);
   if (active_Fds < 0) {
     return TAOS_SYSTEM_ERROR(errno);
   } else if (active_Fds == 0) {
@@ -1102,12 +1111,13 @@ void *transWorkerThread(void *arg) {
   struct timeval tv = {5, 0};
   setThreadName("trans-svr-work");
   SWorkThrd2 *pThrd = (SWorkThrd2 *)arg;
+  STrans     *pInst = pThrd->pInst;
 
   SEvtMgt *pOpt = NULL;
 
   code = evtMgtCreate(&pOpt);
   if (code != 0) {
-    tError("failed to create select op since %s", tstrerror(code));
+    tError("%s failed to create select op since %s", pInst->label, tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
@@ -1117,26 +1127,27 @@ void *transWorkerThread(void *arg) {
   code = evtAsyncInit(pOpt, pThrd->pipe_fd, &pThrd->notifyNewConnHandle, evtNewConnNotifyCb, EVT_NEW_CONN_T,
                       (void *)pThrd);
   if (code != 0) {
-    tError("failed to create select op since %s", tstrerror(code));
+    tError("%s failed to create evt since %s", pInst->label, tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
   code = evtAsyncInit(pOpt, pThrd->pipe_queue_fd, &pThrd->asyncHandle, evtSvrHandleAyncCb, EVT_ASYNC_T, (void *)pThrd);
   if (code != 0) {
-    tError("failed to create select op since %s", tstrerror(code));
+    tError("%s failed to create select op since %s", pInst->label, tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
   }
 
   while (!pThrd->quit) {
+    struct timeval tv = {30, 0};
     code = evtMgtDispath(pOpt, &tv);
     if (code != 0) {
-      tError("failed to dispatch since %s", tstrerror(code));
+      tError("%s failed to dispatch since %s", pInst->label, tstrerror(code));
       continue;
     }
   }
 _end:
   if (code != 0) {
-    tError("failed to do work %s", tstrerror(code));
+    tError("%s failed to do work %s", pInst->label, tstrerror(code));
   }
   evtMgtDestroy(pOpt);
   return NULL;
@@ -1170,14 +1181,15 @@ static int32_t addHandleToAcceptloop(void *arg) {
   return code;
 }
 
-void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInit) {
+void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *arg) {
   int32_t code = 0;
+  int32_t lino = 0;
+  STrans *pInst = arg;
 
   SServerObj2 *srv = taosMemoryCalloc(1, sizeof(SServerObj2));
   if (srv == NULL) {
     code = terrno;
-    tError("failed to init server since: %s", tstrerror(code));
-    return NULL;
+    TAOS_CHECK_EXIT(code);
   }
 
   srv->ip = ip;
@@ -1188,59 +1200,34 @@ void *transInitServer2(uint32_t ip, uint32_t port, char *label, int numOfThreads
   srv->pThreadObj = (SWorkThrd2 **)taosMemoryCalloc(srv->numOfThreads, sizeof(SWorkThrd2 *));
   if (srv->pThreadObj == NULL) {
     code = terrno;
-    return NULL;
+    TAOS_CHECK_EXIT(code);
   }
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd2 *thrd = (SWorkThrd2 *)taosMemoryCalloc(1, sizeof(SWorkThrd2));
-    thrd->pInst = pInit;
-    thrd->quit = false;
-    thrd->pInst = pInit;
+    thrd->pInst = arg;
     thrd->connRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
     if (thrd->connRefMgt < 0) {
       code = thrd->connRefMgt;
-      goto End;
+      TAOS_CHECK_EXIT(code);
     }
 
-    {
-      int fd[2] = {0};
-      code = pipe(fd);
-      if (code < 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
-        goto End;
-      }
-      thrd->pipe_fd[0] = fd[0];
-      thrd->pipe_fd[1] = fd[1];
-    }
-
-    {
-      int fd2[2] = {0};
-      code = pipe(fd2);
-      if (code < 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
-        goto End;
-      }
-      thrd->pipe_queue_fd[0] = fd2[0];
-      thrd->pipe_queue_fd[1] = fd2[1];
-    }
+    TAOS_CHECK_EXIT(evtInitPipe(thrd->pipe_fd));
+    TAOS_CHECK_EXIT(evtInitPipe(thrd->pipe_queue_fd));
     QUEUE_INIT(&thrd->conn);
 
-    int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void *)(thrd));
-    if (err == 0) {
-      tDebug("success to create worker-thread:%d", i);
-    } else {
-      // TODO: clear all other resource later
-      tError("failed to create worker-thread:%d", i);
-      goto End;
-    }
+    code = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void *)(thrd));
+    TAOS_CHECK_EXIT(code);
     thrd->inited = 1;
+    thrd->quit = false;
     srv->pThreadObj[i] = thrd;
   }
   code = addHandleToAcceptloop(srv);
-  if (code != 0) {
-    goto End;
-  }
+  TAOS_CHECK_EXIT(code);
   return NULL;
-End:
+_exit:
+  if (code != 0) {
+    tError("%s failed to init server at line %d since %s", pInst->label, lino, tstrerror(code));
+  }
   return NULL;
 }
 
@@ -2020,11 +2007,11 @@ static void evtCliHandleAsyncCb(void *arg, int32_t status) {
 }
 
 static void *cliWorkThread2(void *arg) {
-  int32_t        line = 0;
-  int32_t        code = 0;
-  char           threadName[TSDB_LABEL_LEN] = {0};
-  struct timeval tv = {30, 0};
-  SCliThrd2     *pThrd = (SCliThrd2 *)arg;
+  int32_t    line = 0;
+  int32_t    code = 0;
+  char       threadName[TSDB_LABEL_LEN] = {0};
+  SCliThrd2 *pThrd = (SCliThrd2 *)arg;
+  STrans    *pInst = pThrd->pInst;
 
   pThrd->pid = taosGetSelfPthreadId();
 
@@ -2044,68 +2031,60 @@ static void *cliWorkThread2(void *arg) {
   TAOS_CHECK_GOTO(code, &line, _end);
 
   while (!pThrd->quit) {
+    struct timeval tv = {30, 0};
     code = evtMgtDispath(pThrd->pEvtMgt, &tv);
     if (code != 0) {
-      tError("failed to dispatch since %s", tstrerror(code));
+      tError("%s failed to dispatch since %s", pInst->label, tstrerror(code));
       continue;
     } else {
-      tDebug("success to dispatch");
+      tDebug("%s success to dispatch", pInst->label);
     }
   }
 
-  tDebug("thread quit-thread:%08" PRId64 "", pThrd->pid);
+  tDebug("%s thread quit-thread:%08" PRId64 "", pInst->label, pThrd->pid);
   return NULL;
 _end:
   if (code != 0) {
-    tError("failed to do work %s", tstrerror(code));
+    tError("%s failed to do work %s", pInst->label, tstrerror(code));
   }
   return NULL;
 }
-void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInstRef) {
+void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *arg) {
   int32_t   code = 0;
+  int32_t   lino = 0;
   SCliObj2 *cli = taosMemoryCalloc(1, sizeof(SCliObj2));
   if (cli == NULL) {
-    TAOS_CHECK_GOTO(terrno, NULL, _err);
+    TAOS_CHECK_EXIT(terrno);
   }
 
-  STrans *pInst = pInstRef;
+  STrans *pInst = arg;
   memcpy(cli->label, label, TSDB_LABEL_LEN);
   cli->numOfThreads = numOfThreads;
   cli->pThreadObj = (SCliThrd2 **)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrd2 *));
   if (cli->pThreadObj == NULL) {
-    TAOS_CHECK_GOTO(terrno, NULL, _err);
+    TAOS_CHECK_EXIT(terrno);
   }
+
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrd2 *pThrd = NULL;
-    code = createThrdObj(pInstRef, &pThrd);
-    if (code != 0) {
-      goto _err;
-    }
-    int fd[2] = {0};
-
-    code = pipe(fd);
-    if (code != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_CHECK_GOTO(code, NULL, _err);
-    }
-    pThrd->pipe_queue_fd[0] = fd[0];
-    pThrd->pipe_queue_fd[1] = fd[1];
+    code = createThrdObj(arg, &pThrd);
+    TAOS_CHECK_EXIT(code);
     pThrd->pInst = pInst;
 
-    int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread2, (void *)(pThrd));
-    if (err != 0) {
-      destroyThrdObj(pThrd);
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_CHECK_GOTO(code, NULL, _err);
-    } else {
-      tDebug("success to create tranport-cli thread:%d", i);
-    }
+    code = evtInitPipe(pThrd->pipe_queue_fd);
+    TAOS_CHECK_EXIT(code);
+
+    code = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread2, (void *)(pThrd));
+    TAOS_CHECK_EXIT(code);
     pThrd->thrdInited = 1;
     cli->pThreadObj[i] = pThrd;
   }
   return cli;
 
-_err:
+_exit:
+  if (code != 0) {
+    tError("%s failed to init client since %s", pInst->label, tstrerror(code));
+  }
   if (cli) {
     for (int i = 0; i < cli->numOfThreads; i++) {
       // send quit msg
