@@ -372,13 +372,19 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 查询场景下 `filetype` 必须设置为 `query`。
 `query_times` 指定运行查询的次数，数值类型
 
-查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
+查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；
+interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
 
 其它通用参数详见[通用配置参数](#通用配置参数)。
 
 #### 执行指定查询语句的配置参数
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
+
+- **mixed_query** : 查询模式，取值 “yes” 为`混合查询`， "no" 为`正常查询` , 默认值为 “no”  
+  `混合查询`：`sqls` 中所有 sql 按 `threads` 线程数分组，每个线程执行一组， 线程中每个 sql 都需执行 `query_times` 次查询  
+  `正常查询`：`sqls` 中每个 sql 启动 `threads` 个线程，每个线程执行完 `query_times` 次后退出，下个 sql 需等待上个 sql 线程全部执行完退出后方可执行  
+  不管 `正常查询` 还是 `混合查询` ，执行查询总次数是相同的 ，查询总次数 = `sqls` 个数 * `threads` * `query_times`， 区别是 `正常查询` 每个 sql 都会启动 `threads` 个线程，而 `混合查询` 只启动一次 `threads` 个线程执行完所有 SQL, 两者启动线程次数不一样。
 
 - **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
@@ -390,7 +396,8 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 #### 查询超级表的配置参数
 
-查询超级表的配置参数在 `super_table_query` 中设置。
+查询超级表的配置参数在 `super_table_query` 中设置。   
+超级表查询的线程模式与上面介绍的指定查询语句查询的 `正常查询` 模式相同，不同之处是本 `sqls` 使用所有子表填充。  
 
 - **stblname** : 指定要查询的超级表的名称，必填。
 

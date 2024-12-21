@@ -385,21 +385,6 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **repeat_ts_max** : Numeric type, when composite primary key is enabled, specifies the maximum number of records with the same timestamp to be generated
 - **sqls** : Array of strings type, specifies the array of sql to be executed after the supertable is successfully created, the table name specified in sql must be prefixed with the database name, otherwise an unspecified database error will occur
 
-#### tsma Configuration Parameters
-
-Specify the configuration parameters for tsma in `super_tables` under `tsmas`, with the following specific parameters:
-
-- **name**: Specifies the name of the tsma, mandatory.
-
-- **function**: Specifies the function of the tsma, mandatory.
-
-- **interval**: Specifies the time interval for the tsma, mandatory.
-
-- **sliding**: Specifies the window time shift for the tsma, mandatory.
-
-- **custom**: Specifies custom configuration appended at the end of the tsma creation statement, optional.
-
-- **start_when_inserted**: Specifies when to create the tsma after how many rows are inserted, optional, default is 0.
 
 #### Tag and Data Column Configuration Parameters
 
@@ -477,6 +462,11 @@ For other common parameters, see Common Configuration Parameters.
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.
 
+- **mixed_query**  "yes": `Mixed Query`  "no": `Normal Query`,  default is "no"  
+`Mixed Query`: All SQL statements in `sqls` are grouped by the number of threads, with each thread executing one group. Each SQL statement in a thread needs to perform `query_times` queries.  
+`Normal Query `: Each SQL in `sqls` starts `threads` and exits after executing `query_times` times. The next SQL can only be executed after all previous SQL threads have finished executing and exited.  
+Regardless of whether it is a `Normal Query` or `Mixed Query`, the total number of query executions is the same. The total number of queries = `sqls` * `threads` * `query_times`. The difference is that `Normal Query` starts  `threads` for each SQL query, while ` Mixed Query` only starts  `threads` once to complete all SQL queries. The number of thread startups for the two is different.  
+
 - **query_interval** : Query interval, in seconds, default is 0.
 
 - **threads** : Number of threads executing the SQL query, default is 1.
@@ -487,7 +477,8 @@ Configuration parameters for querying specified tables (can specify supertables,
 
 #### Configuration Parameters for Querying Supertables
 
-Configuration parameters for querying supertables are set in `super_table_query`.
+Configuration parameters for querying supertables are set in `super_table_query`.  
+The thread mode of the super table query is the same as the `Normal Query` mode of the specified query statement described above, except that `sqls` is filled all sub tables.
 
 - **stblname** : The name of the supertable to query, required.
 
