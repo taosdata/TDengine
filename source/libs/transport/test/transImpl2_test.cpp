@@ -25,6 +25,8 @@
 using namespace std;
 
 const char *label = "APP";
+const char *svrLabel = "SERVER";
+const char *cliLabel = "CLIENT";
 const char *secret = "secret";
 const char *user = "user";
 const char *ckey = "ckey";
@@ -48,7 +50,7 @@ class Client {
     memcpy(tsTempDir, TD_TMP_DIR_PATH, strlen(TD_TMP_DIR_PATH));
     memset(&rpcInit_, 0, sizeof(rpcInit_));
     rpcInit_.localPort = 0;
-    rpcInit_.label = (char *)label;
+    rpcInit_.label = (char *)cliLabel;
     rpcInit_.numOfThreads = 1;
     rpcInit_.cfp = processResp;
     rpcInit_.user = (char *)user;
@@ -123,7 +125,8 @@ class Server {
 
     memcpy(rpcInit_.localFqdn, "localhost", strlen("localhost"));
     rpcInit_.localPort = port;
-    rpcInit_.label = (char *)label;
+    
+    rpcInit_.label = (char *)svrLabel;
     rpcInit_.numOfThreads = 1;
     rpcInit_.cfp = processReq;
     rpcInit_.user = (char *)user;
