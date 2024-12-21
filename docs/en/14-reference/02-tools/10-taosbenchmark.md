@@ -28,7 +28,9 @@ The command-line approach is a subset of the functionality of JSON configuration
 
 ### Running Without Command Line Arguments
 
-```bash
+
+Execute the following command to quickly experience taosBenchmark performing a write performance test on TDengine based on the default configuration.
+```shell
 taosBenchmark
 ```
 
@@ -39,7 +41,7 @@ After successful connection, a smart meter example database test, super meters, 
 
 When running taosBenchmark using command line parameters and controlling its behavior, the `-f <json file>` parameter cannot be used. All configuration parameters must be specified through the command line. Below is an example of using command line mode to test the write performance of taosBenchmark.
 
-```bash
+```shell
 taosBenchmark -I stmt -n 200 -t 100
 ```
 
@@ -49,7 +51,7 @@ The above command `taosBenchmark` will create a database named `test`, establish
 
 Running in configuration file mode provides all functions, so parameters can be configured to run in the configuration file.  
 
-```bash
+```shell
 taosBenchmark -f <json file>
 ```
 

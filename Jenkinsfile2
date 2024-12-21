@@ -402,6 +402,7 @@ pipeline {
         WKDIR = '/var/lib/jenkins/workspace'
         WK = '/var/lib/jenkins/workspace/TDinternal'
         WKC = '/var/lib/jenkins/workspace/TDinternal/community'
+        WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
         DOC_WKC = '/root/doc_ci_work'
         td_repo = 'TDengine'
         zh_doc_repo = 'docs.taosdata.com'

@@ -402,7 +402,7 @@ static bool isValidateTag(char* input) {
   return true;
 }
 
-int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf) {
+int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf, void *charsetCxt) {
   int32_t   retCode = TSDB_CODE_SUCCESS;
   cJSON*    root = NULL;
   SHashObj* keyHash = NULL;
@@ -471,8 +471,9 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
         goto end;
       }
       val.type = TSDB_DATA_TYPE_NCHAR;
-      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp, (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
-        uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue,
+      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp, (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen, charsetCxt)) {
+        uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC,
+               charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, jsonValue,
                strerror(terrno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
         taosMemoryFree(tmp);
@@ -612,10 +613,10 @@ static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
   return taosStr2Int32(buf, NULL, 10);
 }
 
-static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
+static void getStringFromAuthStr(const char* pStart, char* pStr, uint32_t dstLen, char** pNext) {
   char* p = strchr(pStart, '*');
   if (NULL == p) {
-    tstrncpy(pStr, pStart, strlen(pStart) + 1);
+    tstrncpy(pStr, pStart, dstLen);
     *pNext = NULL;
   } else {
     strncpy(pStr, pStart, p - pStart);
@@ -628,10 +629,10 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
 
 static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
   char* p = NULL;
-  getStringFromAuthStr(pStr, pUserAuth->user, &p);
+  getStringFromAuthStr(pStr, pUserAuth->user, TSDB_USER_LEN, &p);
   pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
-  getStringFromAuthStr(p, pUserAuth->tbName.dbname, &p);
-  getStringFromAuthStr(p, pUserAuth->tbName.tname, &p);
+  getStringFromAuthStr(p, pUserAuth->tbName.dbname, TSDB_DB_NAME_LEN, &p);
+  getStringFromAuthStr(p, pUserAuth->tbName.tname, TSDB_TABLE_NAME_LEN, &p);
   if (pUserAuth->tbName.tname[0]) {
     pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
   } else {

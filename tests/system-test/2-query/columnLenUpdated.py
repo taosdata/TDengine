@@ -104,7 +104,7 @@ class TDTestCase:
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         # time.sleep(2)
-        tdSql.query("create user testpy pass 'testpy'")
+        tdSql.query("create user testpy pass 'test123@#$'")
 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -117,7 +117,7 @@ class TDTestCase:
         checkNetworkStatus = ['0: unavailable', '1: network ok', '2: service ok', '3: service degraded', '4: exiting']
         netrole            = ['client', 'server']
 
-        keyDict = {'h':'', 'P':'6030', 'p':'testpy', 'u':'testpy', 'a':'', 'A':'', 'c':'', 'C':'', 's':'', 'r':'', 'f':'', \
+        keyDict = {'h':'', 'P':'6030', 'p':'test123@#$', 'u':'testpy', 'a':'', 'A':'', 'c':'', 'C':'', 's':'', 'r':'', 'f':'', \
                    'k':'', 't':'', 'n':'', 'l':'1024', 'N':'100', 'V':'', 'd':'db', 'w':'30', '-help':'', '-usage':'', '?':''}
 
         keyDict['h'] = self.hostname

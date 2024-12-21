@@ -39,11 +39,11 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
 static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
-  return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
+  return snprintf(buf, WAL_FILE_LEN, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
 static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
-  return sprintf(buf, "%s/meta-ver.tmp", pWal->path);
+  return snprintf(buf, WAL_FILE_LEN, "%s/meta-ver.tmp", pWal->path);
 }
 
 static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
@@ -326,7 +326,7 @@ static int32_t walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
     }
 
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
-    int32_t mtime = 0;
+    int64_t mtime = 0;
     if (taosStatFile(fnameStr, NULL, &mtime, NULL) < 0) {
       wError("vgId:%d, failed to stat file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
 
@@ -371,7 +371,8 @@ static int32_t walLogEntriesComplete(const SWal* pWal) {
 }
 
 static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
-  int32_t       code = 0;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  TdFilePtr     pFile = NULL;
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
   if (!pFileInfo) {
     TAOS_RETURN(TSDB_CODE_FAILED);
@@ -384,7 +385,7 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   if (taosStatFile(fnameStr, &fileSize, NULL, NULL) != 0) {
     wError("vgId:%d, failed to stat file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
     code = terrno;
-    TAOS_RETURN(code);
+    goto _exit;
   }
   int64_t records = TMAX(0, pFileInfo->lastVer - pFileInfo->firstVer + 1);
   int64_t lastEndOffset = records * sizeof(SWalIdxEntry);
@@ -393,9 +394,10 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
-  TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
+  pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   if (pFile == NULL) {
-    TAOS_RETURN(terrno);
+    code = terrno;
+    goto _exit;
   }
 
   wInfo("vgId:%d, trim idx file. file: %s, size: %" PRId64 ", offset: %" PRId64, pWal->cfg.vgId, fnameStr, fileSize,
@@ -404,11 +406,12 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   code = taosFtruncateFile(pFile, lastEndOffset);
   if (code < 0) {
     wError("vgId:%d, failed to truncate file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
-    TAOS_RETURN(code);
+    goto _exit;
   }
-  (void)taosCloseFile(&pFile);
 
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+_exit:
+  (void)taosCloseFile(&pFile);
+  TAOS_RETURN(code);
 }
 
 static void printFileSet(int32_t vgId, SArray* fileSet, const char* str) {
@@ -816,7 +819,7 @@ int32_t walRollFileInfo(SWal* pWal) {
 }
 
 int32_t walMetaSerialize(SWal* pWal, char** serialized) {
-  char   buf[30];
+  char   buf[WAL_JSON_BUF_SIZE];
   int    sz = taosArrayGetSize(pWal->fileInfoSet);
   cJSON* pRoot = cJSON_CreateObject();
   cJSON* pMeta = cJSON_CreateObject();
@@ -838,19 +841,19 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
   if (!cJSON_AddItemToObject(pRoot, "meta", pMeta)) {
     wInfo("vgId:%d, failed to add meta to root", pWal->cfg.vgId);
   }
-  (void)sprintf(buf, "%" PRId64, pWal->vers.firstVer);
+  snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.firstVer);
   if (cJSON_AddStringToObject(pMeta, "firstVer", buf) == NULL) {
     wInfo("vgId:%d, failed to add firstVer to meta", pWal->cfg.vgId);
   }
-  (void)sprintf(buf, "%" PRId64, pWal->vers.snapshotVer);
+  (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.snapshotVer);
   if (cJSON_AddStringToObject(pMeta, "snapshotVer", buf) == NULL) {
     wInfo("vgId:%d, failed to add snapshotVer to meta", pWal->cfg.vgId);
   }
-  (void)sprintf(buf, "%" PRId64, pWal->vers.commitVer);
+  (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.commitVer);
   if (cJSON_AddStringToObject(pMeta, "commitVer", buf) == NULL) {
     wInfo("vgId:%d, failed to add commitVer to meta", pWal->cfg.vgId);
   }
-  (void)sprintf(buf, "%" PRId64, pWal->vers.lastVer);
+  (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.lastVer);
   if (cJSON_AddStringToObject(pMeta, "lastVer", buf) == NULL) {
     wInfo("vgId:%d, failed to add lastVer to meta", pWal->cfg.vgId);
   }
@@ -871,23 +874,23 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
     }
     // cjson only support int32_t or double
     // string are used to prohibit the loss of precision
-    (void)sprintf(buf, "%" PRId64, pInfo->firstVer);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->firstVer);
     if (cJSON_AddStringToObject(pField, "firstVer", buf) == NULL) {
       wInfo("vgId:%d, failed to add firstVer to field", pWal->cfg.vgId);
     }
-    (void)sprintf(buf, "%" PRId64, pInfo->lastVer);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->lastVer);
     if (cJSON_AddStringToObject(pField, "lastVer", buf) == NULL) {
       wInfo("vgId:%d, failed to add lastVer to field", pWal->cfg.vgId);
     }
-    (void)sprintf(buf, "%" PRId64, pInfo->createTs);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->createTs);
     if (cJSON_AddStringToObject(pField, "createTs", buf) == NULL) {
       wInfo("vgId:%d, failed to add createTs to field", pWal->cfg.vgId);
     }
-    (void)sprintf(buf, "%" PRId64, pInfo->closeTs);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->closeTs);
     if (cJSON_AddStringToObject(pField, "closeTs", buf) == NULL) {
       wInfo("vgId:%d, failed to add closeTs to field", pWal->cfg.vgId);
     }
-    (void)sprintf(buf, "%" PRId64, pInfo->fileSize);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->fileSize);
     if (cJSON_AddStringToObject(pField, "fileSize", buf) == NULL) {
       wInfo("vgId:%d, failed to add fileSize to field", pWal->cfg.vgId);
     }

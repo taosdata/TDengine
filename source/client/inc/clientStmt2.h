@@ -150,6 +150,7 @@ typedef struct {
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
 
+  char         *db;
   int64_t       reqid;
   int32_t       errCode;
   tsem_t        asyncQuerySem;
@@ -222,7 +223,7 @@ int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags);
 int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx);
 int         stmtGetTagFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_E **fields);
 int         stmtGetColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_E **fields);
-int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_STB **fields);
+int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
 int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
 int         stmtGetParamTbName(TAOS_STMT2 *stmt, int *nums);
 int         stmtIsInsert2(TAOS_STMT2 *stmt, int *insert);

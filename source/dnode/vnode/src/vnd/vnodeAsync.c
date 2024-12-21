@@ -330,7 +330,7 @@ static int32_t vnodeAsyncInit(SVAsync **async, const char *label) {
     return terrno;
   }
 
-  strcpy((char *)((*async) + 1), label);
+  memcpy((char *)((*async) + 1), label, strlen(label) + 1);
   (*async)->label = (const char *)((*async) + 1);
 
   (void)taosThreadMutexInit(&(*async)->mutex, NULL);

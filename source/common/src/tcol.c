@@ -81,26 +81,42 @@ const char* getDefaultEncodeStr(uint8_t type) { return columnEncodeStr(getDefaul
 uint16_t getDefaultCompress(uint8_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_BOOL:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
+      return TSDB_COLVAL_COMPRESS_ZLIB;
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_TIMESTAMP:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_NCHAR:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
+      return TSDB_COLVAL_COMPRESS_ZLIB;
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_JSON:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_VARBINARY:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_DECIMAL:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_BLOB:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_GEOMETRY:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_MAX:
       return TSDB_COLVAL_COMPRESS_LZ4;
     default:
@@ -251,7 +267,7 @@ bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(encode)) {
-    strncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
   return checkColumnEncode(encode) && validColEncode(type, columnEncodeVal(encode));
@@ -268,7 +284,7 @@ bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(compress)) {
-    strncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
 
@@ -290,7 +306,7 @@ bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnLevelOrSetDefault(uint8_t type, char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(level)) {
-    strncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
   return checkColumnLevel(level) && validColCompressLevel(type, columnLevelVal(level));
@@ -314,7 +330,7 @@ void setColLevel(uint32_t* compress, uint8_t level) {
 
 int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
                                uint32_t* compress) {
-  if(compress == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  if (compress == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (check && !validColEncode(type, encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   setColEncode(compress, encode);
 

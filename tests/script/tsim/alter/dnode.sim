@@ -5,10 +5,10 @@ sql connect
 
 print ======== step1
 sql alter dnode 1 'resetlog'
-sql alter dnode 1 'monitor' '1'
-sql alter dnode 1 'monitor' '0'
-sql alter dnode 1 'monitor 1'
-sql alter dnode 1 'monitor 0'
+sql alter all dnodes 'monitor' '1'
+sql alter all dnodes 'monitor' '0'
+sql alter all dnodes 'monitor 1'
+sql alter all dnodes 'monitor 0'
 
 print ======== step2
 sql_error alter dnode 1 'resetquerycache'

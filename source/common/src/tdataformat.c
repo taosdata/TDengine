@@ -449,9 +449,11 @@ static int32_t tBindInfoCompare(const void *p1, const void *p2, const void *para
  * `infoSorted` is whether the bind information is sorted by column id
  * `pTSchema` is the schema of the table
  * `rowArray` is the array to store the rows
+ * `pOrdered` is the pointer to store ordered
+ * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                          SArray *rowArray) {
+                          SArray *rowArray, bool *pOrdered, bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -469,6 +471,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     return terrno;
   }
 
+  SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
 
@@ -506,6 +509,22 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    if (pOrdered && pDupTs) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        *pOrdered = true;
+        *pDupTs = false;
+      } else {
+        // no more compare if we already get disordered or duplicate rows
+        if (*pOrdered && !*pDupTs) {
+          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (code >= 0);
+          *pDupTs = (code == 0);
+        }
+      }
+      lastRowKey = rowKey;
     }
   }
 
@@ -1434,7 +1453,7 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY: {
       char tmpVal[32] = {0};
-      strncpy(tmpVal, val, vlen > 31 ? 31 : vlen);
+      tstrncpy(tmpVal, val, vlen > 31 ? 31 : vlen);
       printf("%s:%d type:%d vlen:%d, val:\"%s\"\n", tag, ln, (int32_t)type, vlen, tmpVal);
     } break;
     case TSDB_DATA_TYPE_FLOAT:
@@ -3036,7 +3055,8 @@ _exit:
   return code;
 }
 
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen) {
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                               checkWKBGeometryFn cgeos) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -3046,6 +3066,12 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
+    if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
+      code = igeos();
+      if (code) {
+        return code;
+      }
+    }
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
         if (pColData->cflag & COL_IS_KEY) {
@@ -3055,9 +3081,12 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       } else if (pBind->length[i] > buffMaxLen) {
-        uError("var data length too big, len:%d, max:%d", pBind->length[i], buffMaxLen);
-        return TSDB_CODE_INVALID_PARA;
+        return TSDB_CODE_PAR_VALUE_TOO_LONG;
       } else {
+        if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
+          code = cgeos((char *)pBind->buffer + pBind->buffer_length * i, (size_t)pBind->length[i]);
+          if (code) goto _exit;
+        }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
             pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
       }
@@ -3108,7 +3137,8 @@ _exit:
   return code;
 }
 
-int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen) {
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                                checkWKBGeometryFn cgeos) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -3118,6 +3148,13 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
+    if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
+      code = igeos();
+      if (code) {
+        return code;
+      }
+    }
+
     uint8_t *buf = pBind->buffer;
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
@@ -3133,9 +3170,12 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
           if (code) goto _exit;
         }
       } else if (pBind->length[i] > buffMaxLen) {
-        uError("var data length too big, len:%d, max:%d", pBind->length[i], buffMaxLen);
-        return TSDB_CODE_INVALID_PARA;
+        return TSDB_CODE_PAR_VALUE_TOO_LONG;
       } else {
+        if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
+          code = cgeos(buf, pBind->length[i]);
+          if (code) goto _exit;
+        }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
         buf += pBind->length[i];
       }
@@ -3214,9 +3254,11 @@ _exit:
  * `infoSorted` is whether the bind information is sorted by column id
  * `pTSchema` is the schema of the table
  * `rowArray` is the array to store the rows
+ * `pOrdered` is the pointer to store ordered
+ * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray) {
+                           SArray *rowArray, bool *pOrdered, bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -3245,6 +3287,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     }
   }
 
+  SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
 
@@ -3295,6 +3338,22 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    if (pOrdered && pDupTs) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        *pOrdered = true;
+        *pDupTs = false;
+      } else {
+        // no more compare if we already get disordered or duplicate rows
+        if (*pOrdered && !*pDupTs) {
+          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (code >= 0);
+          *pDupTs = (code == 0);
+        }
+      }
+      lastRowKey = rowKey;
     }
   }
 

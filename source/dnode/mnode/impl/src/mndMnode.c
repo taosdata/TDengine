@@ -248,6 +248,10 @@ bool mndIsMnode(SMnode *pMnode, int32_t dnodeId) {
 }
 
 void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
+  if (pMnode == NULL || pEpSet == NULL) {
+    return;
+  }
+
   SSdb   *pSdb = pMnode->pSdb;
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 0) {
@@ -722,10 +726,13 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   code = mndCreateMnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[40] = {0};
-  sprintf(obj, "%d", createReq.dnodeId);
-
-  auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen);
+  char    obj[40] = {0};
+  int32_t bytes = snprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
+  if ((uint32_t)bytes < sizeof(obj)) {
+    auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen);
+  } else {
+    mError("mnode:%d, failed to audit create req since %s", createReq.dnodeId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -877,7 +884,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[40] = {0};
-  sprintf(obj, "%d", dropReq.dnodeId);
+  (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen);
 
@@ -917,7 +924,9 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
     if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
       goto _out;
     }
 
@@ -927,7 +936,9 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, b1, false);
     if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
       goto _out;
     }
 
@@ -947,10 +958,8 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     STR_WITH_MAXSIZE_TO_VARSTR(b2, role, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
-    if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
-      goto _out;
-    }
+    if (code != 0) goto _err;
+
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
     if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
@@ -959,25 +968,16 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
-    if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
-      goto _out;
-    }
+    if (code != 0) goto _err;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
-    if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
-      goto _out;
-    }
+    if (code != 0) goto _err;
 
     int64_t roleTimeMs = (isDnodeOnline) ? pObj->roleTimeMs : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
-    if (code != 0) {
-      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
-      goto _out;
-    }
+    if (code != 0) goto _err;
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
@@ -986,6 +986,13 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   pShow->numOfRows += numOfRows;
 
 _out:
+  sdbRelease(pSdb, pSelfObj);
+  return numOfRows;
+
+_err:
+  mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
+  sdbCancelFetch(pSdb, pShow->pIter);
+  sdbRelease(pSdb, pObj);
   sdbRelease(pSdb, pSelfObj);
   return numOfRows;
 }
