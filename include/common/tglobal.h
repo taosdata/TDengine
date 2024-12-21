@@ -325,6 +325,8 @@ void    printConfigNotMatch(SArray *array);
 
 int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
 bool    isConifgItemLazyMode(SConfigItem *item);
+int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
+
 #ifdef __cplusplus
 }
 #endif

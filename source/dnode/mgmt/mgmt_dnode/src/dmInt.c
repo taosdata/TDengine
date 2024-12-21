@@ -69,6 +69,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   pMgmt->pData = pInput->pData;
   pMgmt->msgCb = pInput->msgCb;
+  pMgmt->pTfs = pInput->pTfs;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
