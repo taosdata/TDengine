@@ -6,15 +6,15 @@ slug: /tdengine-reference/tools/taosdump
 
 `taosdump` is a TDengine data backup/recovery tool provided for open source users, and the backed up data files adopt the standard [Apache AVRO](https://avro.apache.org/)
   Format, convenient for exchanging data with the external ecosystem.  
- Taosdump provides multiple data backup and recovery options to meet different data needs, and all supported options can be viewed through -- help.
+ Taosdump provides multiple data backup and recovery options to meet different data needs, and all supported options can be viewed through --help.
 
 ## Installation
 
 Taosdump provides two installation methods:
 
--Taosdump is the default installation component in the TDengine installation package, which can be used after installing TDengine. For how to install TDengine, please refer to [TDengine Installation](../../../get started/)
+- Taosdump is the default installation component in the TDengine installation package, which can be used after installing TDengine. For how to install TDengine, please refer to [TDengine Installation](../../../get-started/)
 
--Compile and install taos tools separately, refer to [taos tools](https://github.com/taosdata/taos-tools) .
+- Compile and install taos tools separately, refer to [taos tools](https://github.com/taosdata/taos-tools) .
 
 ## Common Use Cases
 
