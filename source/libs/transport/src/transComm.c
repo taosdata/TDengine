@@ -453,95 +453,6 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   return ret;
 }
 
-int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
-  QUEUE_INIT(&wq->node);
-  wq->freeFunc = (void (*)(void*))freeFunc;
-  wq->size = 0;
-  wq->inited = 1;
-  return 0;
-}
-void transQueuePush(STransQueue* q, void* arg) {
-  queue* node = arg;
-  QUEUE_PUSH(&q->node, node);
-  q->size++;
-}
-void* transQueuePop(STransQueue* q) {
-  if (q->size == 0) return NULL;
-
-  queue* head = QUEUE_HEAD(&q->node);
-  QUEUE_REMOVE(head);
-  q->size--;
-  return head;
-}
-int32_t transQueueSize(STransQueue* q) { return q->size; }
-
-void* transQueueGet(STransQueue* q, int idx) {
-  if (q->size == 0) return NULL;
-
-  while (idx-- > 0) {
-    queue* node = QUEUE_NEXT(&q->node);
-    if (node == &q->node) return NULL;
-  }
-  return NULL;
-}
-
-void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg), void* arg, void* dst, int32_t size) {
-  queue* d = dst;
-  queue* node = QUEUE_NEXT(&q->node);
-  while (node != &q->node) {
-    queue* next = QUEUE_NEXT(node);
-    if (filter && filter(node, arg)) {
-      QUEUE_REMOVE(node);
-      q->size--;
-      QUEUE_PUSH(d, node);
-      if (--size == 0) {
-        break;
-      }
-    }
-    node = next;
-  }
-}
-
-void* tranQueueHead(STransQueue* q) {
-  if (q->size == 0) return NULL;
-
-  queue* head = QUEUE_HEAD(&q->node);
-  return head;
-}
-
-void* transQueueRm(STransQueue* q, int i) {
-  // if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
-  //   return NULL;
-  // }
-  // if (i >= taosArrayGetSize(queue->q)) {
-  //   return NULL;
-  // }
-  // void* ptr = taosArrayGetP(queue->q, i);
-  // taosArrayRemove(queue->q, i);
-  // return ptr;
-  return NULL;
-}
-
-void transQueueRemove(STransQueue* q, void* e) {
-  if (q->size == 0) return;
-  queue* node = e;
-  QUEUE_REMOVE(node);
-  q->size--;
-}
-
-bool transQueueEmpty(STransQueue* q) { return q->size == 0 ? true : false; }
-
-void transQueueClear(STransQueue* q) {
-  if (q->inited == 0) return;
-  while (!QUEUE_IS_EMPTY(&q->node)) {
-    queue* h = QUEUE_HEAD(&q->node);
-    QUEUE_REMOVE(h);
-    if (q->freeFunc != NULL) (q->freeFunc)(h);
-    q->size--;
-  }
-}
-void transQueueDestroy(STransQueue* q) { transQueueClear(q); }
-
 static FORCE_INLINE int32_t timeCompare(const HeapNode* a, const HeapNode* b) {
   SDelayTask* arg1 = container_of(a, SDelayTask, node);
   SDelayTask* arg2 = container_of(b, SDelayTask, node);
@@ -2027,3 +1938,92 @@ int32_t transValidReqEpset(SReqEpSet* pReqEpSet) {
   }
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
+  QUEUE_INIT(&wq->node);
+  wq->freeFunc = (void (*)(void*))freeFunc;
+  wq->size = 0;
+  wq->inited = 1;
+  return 0;
+}
+void transQueuePush(STransQueue* q, void* arg) {
+  queue* node = arg;
+  QUEUE_PUSH(&q->node, node);
+  q->size++;
+}
+void* transQueuePop(STransQueue* q) {
+  if (q->size == 0) return NULL;
+
+  queue* head = QUEUE_HEAD(&q->node);
+  QUEUE_REMOVE(head);
+  q->size--;
+  return head;
+}
+int32_t transQueueSize(STransQueue* q) { return q->size; }
+
+void* transQueueGet(STransQueue* q, int idx) {
+  if (q->size == 0) return NULL;
+
+  while (idx-- > 0) {
+    queue* node = QUEUE_NEXT(&q->node);
+    if (node == &q->node) return NULL;
+  }
+  return NULL;
+}
+
+void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg), void* arg, void* dst, int32_t size) {
+  queue* d = dst;
+  queue* node = QUEUE_NEXT(&q->node);
+  while (node != &q->node) {
+    queue* next = QUEUE_NEXT(node);
+    if (filter && filter(node, arg)) {
+      QUEUE_REMOVE(node);
+      q->size--;
+      QUEUE_PUSH(d, node);
+      if (--size == 0) {
+        break;
+      }
+    }
+    node = next;
+  }
+}
+
+void* tranQueueHead(STransQueue* q) {
+  if (q->size == 0) return NULL;
+
+  queue* head = QUEUE_HEAD(&q->node);
+  return head;
+}
+
+void* transQueueRm(STransQueue* q, int i) {
+  // if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
+  //   return NULL;
+  // }
+  // if (i >= taosArrayGetSize(queue->q)) {
+  //   return NULL;
+  // }
+  // void* ptr = taosArrayGetP(queue->q, i);
+  // taosArrayRemove(queue->q, i);
+  // return ptr;
+  return NULL;
+}
+
+void transQueueRemove(STransQueue* q, void* e) {
+  if (q->size == 0) return;
+  queue* node = e;
+  QUEUE_REMOVE(node);
+  q->size--;
+}
+
+bool transQueueEmpty(STransQueue* q) { return q->size == 0 ? true : false; }
+
+void transQueueClear(STransQueue* q) {
+  if (q->inited == 0) return;
+  while (!QUEUE_IS_EMPTY(&q->node)) {
+    queue* h = QUEUE_HEAD(&q->node);
+    QUEUE_REMOVE(h);
+    if (q->freeFunc != NULL) (q->freeFunc)(h);
+    q->size--;
+  }
+}
+void transQueueDestroy(STransQueue* q) { transQueueClear(q); }

@@ -12,9 +12,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "theap.h"
 #include "transComm.h"
 #include "tversion.h"
-
 #ifdef TD_ACORE
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -1108,7 +1108,6 @@ void *transWorkerThread(void *arg) {
   int32_t code = 0;
   int32_t line = 0;
 
-  struct timeval tv = {5, 0};
   setThreadName("trans-svr-work");
   SWorkThrd2 *pThrd = (SWorkThrd2 *)arg;
   STrans     *pInst = pThrd->pInst;
@@ -1324,7 +1323,7 @@ typedef struct SCliConn {
 
   // SDelayTask *task;
 
-  // HeapNode node;  // for heap
+  HeapNode node;  // for heap
   int8_t   inHeap;
   int32_t  reqRefCnt;
   uint32_t clientIp;
@@ -1944,6 +1943,30 @@ _end:
   }
   return code;
 }
+#define REQS_ON_CONN(conn) (conn ? (transQueueSize(&conn->reqsToSend) + transQueueSize(&conn->reqsSentOut)) : 0)
+typedef struct {
+  void    *p;
+  HeapNode node;
+} SHeapNode;
+typedef struct {
+  // void*    p;
+  Heap *heap;
+  int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b);
+  int64_t lastUpdateTs;
+  int64_t lastConnFailTs;
+} SHeap;
+
+static int32_t compareHeapNode(const HeapNode *a, const HeapNode *b);
+static int32_t transHeapInit(SHeap *heap, int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b));
+static void    transHeapDestroy(SHeap *heap);
+
+static int32_t transHeapGet(SHeap *heap, SCliConn **p);
+static int32_t transHeapInsert(SHeap *heap, SCliConn *p);
+static int32_t transHeapDelete(SHeap *heap, SCliConn *p);
+static int32_t transHeapBalance(SHeap *heap, SCliConn *p);
+static int32_t transHeapUpdateFailTs(SHeap *heap, SCliConn *p);
+static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p);
+
 static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
   int32_t code = 0;
   char   *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
@@ -2099,4 +2122,128 @@ _exit:
 void transCloseClient2(void *arg) {
   int32_t code = 0;
   return;
+}
+
+static int32_t compareHeapNode(const HeapNode *a, const HeapNode *b) {
+  SCliConn *args1 = container_of(a, SCliConn, node);
+  SCliConn *args2 = container_of(b, SCliConn, node);
+
+  int32_t totalReq1 = REQS_ON_CONN(args1);
+  int32_t totalReq2 = REQS_ON_CONN(args2);
+  if (totalReq1 > totalReq2) {
+    return 0;
+  }
+  return 1;
+}
+static int32_t transHeapInit(SHeap *heap, int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b)) {
+  heap->heap = heapCreate(cmpFunc);
+  if (heap->heap == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  heap->cmpFunc = cmpFunc;
+  return 0;
+}
+static void transHeapDestroy(SHeap *heap) {
+  if (heap != NULL) {
+    heapDestroy(heap->heap);
+  }
+}
+
+static int32_t transHeapGet(SHeap *heap, SCliConn **p) {
+  if (heapSize(heap->heap) == 0) {
+    *p = NULL;
+    return -1;
+  }
+  HeapNode *minNode = heapMin(heap->heap);
+  if (minNode == NULL) {
+    *p = NULL;
+    return -1;
+  }
+  *p = container_of(minNode, SCliConn, node);
+  return 0;
+}
+static int32_t transHeapInsert(SHeap *heap, SCliConn *p) {
+  int32_t code = 0;
+  p->reqRefCnt++;
+  if (p->inHeap == 1) {
+    tTrace("failed to insert conn %p since already in heap", p);
+    return TSDB_CODE_DUP_KEY;
+  }
+
+  heapInsert(heap->heap, &p->node);
+  p->inHeap = 1;
+  p->lastAddHeapTime = taosGetTimestampMs();
+  p->heap = heap;
+  return 0;
+}
+static int32_t transHeapDelete(SHeap *heap, SCliConn *p) {
+  if (p->connnected == 0) {
+    TAOS_UNUSED(transHeapUpdateFailTs(heap, p));
+  }
+
+  if (p->inHeap == 0) {
+    tTrace("failed to del conn %p since not in heap", p);
+    return 0;
+  } else {
+    int64_t now = taosGetTimestampMs();
+    if (p->forceDelFromHeap == 0 && now - p->lastAddHeapTime < 10000) {
+      tTrace("conn %p not added/delete to heap frequently", p);
+      return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+    }
+  }
+
+  p->inHeap = 0;
+  p->reqRefCnt--;
+  if (p->reqRefCnt == 0) {
+    heapRemove(heap->heap, &p->node);
+    tTrace("conn %p delete from heap", p);
+  } else if (p->reqRefCnt < 0) {
+    tTrace("conn %p has %d reqs, not delete from heap,assert", p, p->reqRefCnt);
+  } else {
+    tTrace("conn %p has %d reqs, not delete from heap", p, p->reqRefCnt);
+  }
+  return 0;
+}
+static int32_t transHeapBalance(SHeap *heap, SCliConn *p) {
+  if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
+    return 0;
+  }
+  heapRemove(heap->heap, &p->node);
+  heapInsert(heap->heap, &p->node);
+  return 0;
+}
+static int32_t transHeapUpdateFailTs(SHeap *heap, SCliConn *p) {
+  heap->lastConnFailTs = taosGetTimestampMs();
+  return 0;
+}
+static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p) {
+  if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
+    return 0;
+  }
+  SCliThrd2 *pThrd = p->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+  int32_t    balanceLimit = pInst->shareConnLimit >= 4 ? pInst->shareConnLimit / 2 : 2;
+
+  SCliConn *topConn = NULL;
+  int32_t   code = transHeapGet(heap, &topConn);
+  if (code != 0) {
+    return code;
+  }
+
+  if (topConn == p) return code;
+
+  int32_t reqsOnTop = REQS_ON_CONN(topConn);
+  int32_t reqsOnCur = REQS_ON_CONN(p);
+
+  if (reqsOnTop >= balanceLimit && reqsOnCur < balanceLimit) {
+    TAOS_UNUSED(transHeapBalance(heap, p));
+  }
+  return code;
+}
+static int32_t cliGetConnOrCreateConn(SCliThrd2 *pThrd, SCliConn **ppConn) {
+  int32_t   code = 0;
+  SCliConn *pConn = NULL;
+
+  return code;
 }
