@@ -25,6 +25,7 @@ extern "C" {
 typedef struct SDnodeMgmt {
   SDnodeData                  *pData;
   SMsgCb                       msgCb;
+  STfs                        *pTfs;
   const char                  *path;
   const char                  *name;
   TdThread                     statusThread;

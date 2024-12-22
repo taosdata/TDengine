@@ -2201,7 +2201,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (code) {
         goto out;
       }
-    } else {
+    } else if (pStmt->bInfo.tbType == TSDB_CHILD_TABLE && pStmt->sql.autoCreateTbl) {
       code = stmtSetTbTags2(stmt, NULL);
       if (code) {
         return code;
