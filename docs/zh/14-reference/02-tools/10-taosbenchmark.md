@@ -92,7 +92,7 @@ taosBenchmark -f <json file>
 查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/taos-tools/tree/main/example)
 
 ## 命令行参数详解
-|  命令行 <img width=800>       |        功能说明      |
+| 支持命令行参数 短参数/长参数 | 功能说明 |
 | ---------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
 | -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
@@ -111,10 +111,10 @@ taosBenchmark -f <json file>
 | -S/--timestampstep \<stepLength>     | 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1 |
 | -n/--records \<recordNum>            | 每个子表插入的记录数，默认值为 10000  |
 | -d/--database \<dbName>              | 所使用的数据库的名称，默认值为 test  |
-| -b/--data-type \<colType>            | 超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT  |
+| -b/--data-type \<colType>            | 指定超级表普通列数据类型, 多个使用逗号分隔，默认值： "FLOAT,INT,FLOAT" 如：`taosBenchmark -b "FLOAT,BINARY(8),NCHAR(16)"`|
+| -A/--tag-type  \<tagType>            | 指定超级表标签列数据类型，多个使用逗号分隔，默认值： "INT,BINARY(24)"  如：`taosBenchmark -A "INT,BINARY(8),NCHAR(8)"`|
 | -l/--columns \<colNum>               | 超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`  |
 | -L/--partial-col-num \<colNum>       | 指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据 |
-| -A/--tag-type \<tagType>             | 超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如: <br> ```json taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)<br> ```  如果没有设置标签类型，默认是两个标签，其类型分别为 INT 和 BINARY(16) 注意：在有的 shell 比如 bash 命令里面 “()” 需要转义，则上述指令应为：<br>taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)<br> |
 | -w/--binwidth \<length>          | nchar 和 binary 类型的默认长度，默认值为 64 |
 | -m/--table-prefix \<tablePrefix> | 子表名称的前缀，默认值为 "d" |
 | -E/--escape-character            | 开关参数，指定在超级表和子表名称中是否使用转义字符。默认值为不使用 |
@@ -224,7 +224,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **name** : 数据库名。
 
-- **drop** : 插入前是否删除数据库，可选项为 "yes" 或者 "no", 为 "no" 时不创建。默认删除。
+- **drop** : 数据库已存在时是否删除重建，可选项为 "yes" 或 "no", 默认为 “yes”
 
 #### 流式计算相关配置参数
 
