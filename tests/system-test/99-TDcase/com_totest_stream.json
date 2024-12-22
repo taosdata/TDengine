@@ -31,7 +31,7 @@
                     "name": "meters",
                     "child_table_exists": "no",
                     "auto_create_table":"no",
-                    "childtable_count": 10000,
+                    "childtable_count": 1000,
                     "insert_rows": 1728,
                     "childtable_prefix": "d",
                     "insert_mode": "stmt2",
