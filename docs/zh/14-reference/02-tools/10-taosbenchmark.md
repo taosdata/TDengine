@@ -4,13 +4,13 @@ sidebar_label: taosBenchmark
 toc_max_heading_level: 4
 ---
 
-taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品的插入、查询及订阅性能测试，输出性能指标。
+taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品写入、查询及订阅性能测试，输出性能指标。
 
 ## 安装
 
 taosBenchmark 提供两种安装方式:
 
-- taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，如何安装 TDengine 可参考[TDengine 安装](../../../get-started/)。
+- taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，参考 [TDengine 安装](../../../get-started/)
 
 - 单独编译 taos-tools 并安装, 参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
@@ -22,7 +22,7 @@ taosBenchmark 支持三种运行模式:
 - 无参数模式
 - 命令行模式
 - JSON 配置文件模式
-命令行方式是 JSON 配置文件的功能子集，当即使用了命令行，又使用了配置文件，命令行指定的参数优先。  
+`命令行方式` 为 `JSON 配置文件方式` 功能子集，两者都使用时，命令行方式优先。  
 
 
 **在运行 taosBenchmark 之前要确保 TDengine 集群已经在正确运行。**
@@ -33,22 +33,22 @@ taosBenchmark 支持三种运行模式:
 taosBenchmark
 ```
 
-在无参数运行时，taosBenchmark 默认连接 `/etc/taos/taos.cfg` 中指定连接的 TDengine 集群。  
-连接成功后，会创建智能电表示例数据库 test，超级表 meters, 子表创建 1 万，每子表 1 万条记录，如果 test 库已存在，会先删除再新建。  
+在无参数运行时，taosBenchmark 默认连接 `/etc/taos/taos.cfg` 中指定的 TDengine 集群。  
+连接成功后，会默认创建智能电表示例数据库 test，创建超级表 meters, 创建子表 1 万，每子写入数据 1 万条，若 test 库已存在，默认会先删再建。  
 
 ### 使用命令行参数运行
 
-命令行支持的参数为插入功能中使用较为频繁的参数，查询与订阅功能不支持命令行方式  
+命令行支持的参数为写入功能中使用较为频繁的参数，查询与订阅功能不支持命令行方式  
 示例：
 ```bash
 taosBenchmark -d db -t 100 -n 1000 -T 4 -I stmt -y
 ```
 
-此命令表示使用 `taosBenchmark` 将创建一个名为 `db` 的数据库，并建立默认超级表 `meters`，子表 100 ，并使用参数绑定(stmt)方式为每张子表插入 1000 条记录。
+此命令表示使用 `taosBenchmark` 将创建一个名为 `db` 的数据库，并建立默认超级表 `meters`，子表 100 ，使用参数绑定(stmt)方式为每张子表写入 1000 条记录。
 
 ### 使用配置文件运行
 
-配置文件方式运行提供了全部功能，所以参数都可以配置在配置文件中运行
+配置文件方式运行提供了全部功能，所有命令行参数都可以在配置文件中配置运行
 
 ```bash
 taosBenchmark -f <json file>
@@ -92,7 +92,7 @@ taosBenchmark -f <json file>
 查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/taos-tools/tree/main/example)
 
 ## 命令行参数详解
-| 支持命令行参数 短参数/长参数 | 功能说明 |
+| 命令行参数                     | 功能说明                                         |
 | ---------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
 | -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
@@ -138,14 +138,14 @@ taosBenchmark -f <json file>
 
 #### 写入指标
 
-写入完成后，会在最后两行输出总结性的性能指标，输出格式如下：
+写入结束后会在最后两行输出总体性能指标，格式如下：
 ``` bash
 SUCC: Spent 8.527298 (real 8.117379) seconds to insert rows: 10000000 with 8 thread(s) into test 1172704.41 (real 1231924.74) records/second
 SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.1870ms, p99: 130.6660ms, max: 157.0830ms
 ```
 第一行写入速度统计：
  - Spent: 写入总耗时，单位秒，从开始写入第一个数据开始计时到最后一条数据结束，这里表示共花了 8.527298 秒
- - real : 写入总耗时（调用引擎），此耗时已抛去测试框架准备数据时间，纯统计在引擎调用上花费的时间，花费为 8.117379 秒，8.527298 - 8.117379 = 0.409919 秒则为测试框架准备数据消耗时间
+ - real : 写入总耗时（调用引擎），此耗时已抛去测试框架准备数据时间，纯统计在引擎调用上花费的时间，示例为 8.117379 秒，8.527298 - 8.117379 = 0.409919 秒则为测试框架准备数据消耗时间
  - rows : 写入总行数，为 1000 万条数据
  - threads: 写入线程数，这里是 8 个线程同时写入
  - records/second 写入速度 = `写入总耗时`/ `写入总行数` ， 括号中 `real` 同前，表示纯引擎写入速度
