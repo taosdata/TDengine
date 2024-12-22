@@ -27,4 +27,4 @@ INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/dnode/inc)
 AUX_SOURCE_DIRECTORY(src SRC)
 
 ADD_LIBRARY(storage STATIC ${SRC})
-TARGET_LINK_LIBRARIES(storage os util common)
+TARGET_LINK_LIBRARIES(storage os util common tfs)
