@@ -4,26 +4,27 @@ title: 与 Superset 集成
 ---
 ‌Apache Superset‌ 是一个现代的企业级商业智能（BI）Web 应用程序，主要用于数据探索和可视化。它由 Apache 软件基金会支持，是一个开源项目，它拥有活跃的社区和丰富的生态系统。Apache Superset 提供了直观的用户界面，使得创建、分享和可视化数据变得简单，同时支持多种数据源和丰富的可视化选项‌。
 
-通过 TDengine 的 Python 连接器, ‌Superset‌ 可支持 TDengine 数据源并提供数据展现、分析等功能
+通过 TDengine 的 Python 连接器, ‌Apache ‌Superset‌ 可支持 TDengine 数据源并提供数据展现、分析等功能
 
-## 安装 Apache Superset
 
-确保已安装 Apache Superset v2.1.0 及以上版本, 如未安装，请到其 [官网](https://superset.apache.org/) 安装
+## 前置条件 
 
-## 安装 TDengine
+准备以下环境：
+- TDengine 集群已部署并正常运行（企业及社区版均可）
+- taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
+- Apache Superset v2.1.0 或以上版本已安装。安装 Apache Superset 请参考 [官方文档](https://superset.apache.org/)
 
-TDengine 企业版及社区版均可支持，版本要求在 3.0 及以上
 
 ## 安装 TDengine Python 连接器
 
-TDengine Python 连接器从 `v2.1.18` 开始自带 Superset 连接驱动，安装程序会把连接驱动安装到 Superset 相应目录下并向 Superset 提供数据源服务   
-Superset 与 TDengine 之间使用 WebSocket 协议连接，所以需另安装支持 WebSocket 连接协议的组件 `taos-ws-py` , 全部安装脚本如下：   
+TDengine Python 连接器从 `v2.1.18` 起带 Superset 连接驱动，会安装至 Superset 相应目录下并向 Superset 提供数据源服务   
+Superset 与 TDengine 之间使用 WebSocket 协议连接，需安装支持此协议的 `taos-ws-py` 组件, 全部安装脚本如下：   
 ```bash
 pip3 install taospy
 pip3 install taos-ws-py
 ```
 
-## Superset 中配置 TDengine 连接
+## 配置 TDengine 数据源
 
 **第 1 步**，进入新建数据库连接页面 "Superset" → "Setting" → "Database Connections" → "+DATABASE"   
 **第 2 步**，选择 TDengine 数据库连接。"SUPPORTED DATABASES" 下拉列表中选择 "TDengine" 项。  
