@@ -12,10 +12,13 @@
 # -*- coding: utf-8 -*-
 
 import os
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
 
 class TDTestCase:
@@ -24,36 +27,9 @@ class TDTestCase:
         case1<sdsang>: [TD-12526] taosdump supports bool
         """
 
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-        self.tmpdir = "tmp"
 
-    def getPath(self, tool="taosdump"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
-        elif "/tests/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tests/")]
-        else:
-            tdLog.info("Cannot find %s in path: %s" % (tool, selfPath))
-            projPath = "/usr/local/taos/bin/"
 
-        paths = []
-        for root, dummy, files in os.walk(projPath):
-            if (tool) in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if len(paths) == 0:
-            return ""
-        return paths[0]
 
     def run(self):
         tdSql.prepare()
@@ -70,7 +46,7 @@ class TDTestCase:
         tdSql.execute("create table t3 using st tags(NULL)")
         tdSql.execute("insert into t3 values(1640000000000, NULL)")
 
-        binPath = self.getPath()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
         else:

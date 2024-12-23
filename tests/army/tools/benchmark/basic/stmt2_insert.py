@@ -12,47 +12,22 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
 
-class TDTestCase:
+class TDTestCase(TBase):
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases
         """
 
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
-    def getPath(self, tool="taosBenchmark"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
-        else:
-            projPath = selfPath[: selfPath.find("tests")]
-
-        paths = []
-        for root, dummy, files in os.walk(projPath):
-            if (tool) in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if len(paths) == 0:
-            tdLog.exit("taosBenchmark not found!")
-            return
-        else:
-            tdLog.info("taosBenchmark found in %s" % paths[0])
-            return paths[0]
 
     def testBenchmarkJson(self, benchmark, jsonFile):
         # exe insert 
@@ -85,17 +60,17 @@ class TDTestCase:
         
 
     def run(self):
-        benchmark = self.getPath()
+        benchmark = etool.benchMarkFile()
         ''' stmt2 engine have some problem
         # batch - auto-create-table(yes or no)
-        self.testBenchmarkJson(benchmark, "./taosbenchmark/json/stmt2_insert_batch_autoctb_yes.json")
-        self.testBenchmarkJson(benchmark, "./taosbenchmark/json/stmt2_insert_batch_autoctb_no.json")
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/stmt2_insert_batch_autoctb_yes.json")
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/stmt2_insert_batch_autoctb_no.json")
         # interlace - auto-create-table(yes or no)
-        self.testBenchmarkJson(benchmark, "./taosbenchmark/json/stmt2_insert_interlace_autoctb_yes.json")
-        self.testBenchmarkJson(benchmark, "./taosbenchmark/json/stmt2_insert_interlace_autoctb_no.json")
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/stmt2_insert_interlace_autoctb_yes.json")
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/stmt2_insert_interlace_autoctb_no.json")
         # csv - (batch or interlace)
-        self.testBenchmarkJson(benchmark, "./taosbenchmark/json/stmt2_insert_csv_interlace_autoctb_yes.json")
-        self.testBenchmarkJson(benchmark, "./taosbenchmark/json/stmt2_insert_csv_batch_autoctb_no.json")
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/stmt2_insert_csv_interlace_autoctb_yes.json")
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/stmt2_insert_csv_batch_autoctb_no.json")
         '''
 
 

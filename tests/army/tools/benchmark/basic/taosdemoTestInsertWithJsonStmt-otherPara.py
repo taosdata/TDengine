@@ -12,57 +12,32 @@
 # -*- coding: utf-8 -*-
 
 import os
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
 
-class TDTestCase:
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+class TDTestCase(TBase):
 
     # pylint: disable=R0201
-    def getPath(self, tool="taosBenchmark"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
-        elif "/tests/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tests/")]
-        else:
-            tdLog.info("cannot found %s in path: %s, use system's" % (tool, selfPath))
-            projPath = "/usr/local/taos/bin/"
-
-        paths = []
-        for root, dummy, files in os.walk(projPath):
-            if (tool) in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if len(paths) == 0:
-            return ""
-        return paths[0]
 
     def run(self):
         tdSql.query("select client_version()")
         client_ver = "".join(tdSql.queryResult[0])
         major_ver = client_ver.split(".")[0]
 
-        binPath = self.getPath()
+        binPath = etool.benchMarkFile()
         if binPath == "":
             tdLog.exit("taosBenchmark not found!")
         else:
             tdLog.info("taosBenchmark use %s" % binPath)
 
         # insert:  sample json
-        os.system("%s -f ./taosbenchmark/json/insert-sample-ts-stmt.json -y " % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/insert-sample-ts-stmt.json -y " % binPath)
         tdSql.execute("use dbtest123")
         tdSql.query("select c2 from stb0")
         tdSql.checkData(0, 0, 2147483647)
@@ -82,7 +57,7 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         # insert: timestamp and step
-        os.system("%s -f ./taosbenchmark/json/insert-timestep-stmt.json -y " % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/insert-timestep-stmt.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("show stables")
         if major_ver == "3":
@@ -106,7 +81,7 @@ class TDTestCase:
 
         # # insert:  disorder_ratio
         os.system(
-            "%s -f ./taosbenchmark/json/insert-disorder-stmt.json 2>&1  -y " % binPath
+            "%s -f ./tools/benchmark/basic/json/insert-disorder-stmt.json 2>&1  -y " % binPath
         )
         tdSql.execute("use db")
         if major_ver == "3":
@@ -138,7 +113,7 @@ class TDTestCase:
 
         # insert: test interlace parament
         os.system(
-            "%s -f ./taosbenchmark/json/insert-interlace-row-stmt.json -y " % binPath
+            "%s -f ./tools/benchmark/basic/json/insert-interlace-row-stmt.json -y " % binPath
         )
         tdSql.execute("use db")
         if major_ver == "3":
@@ -155,7 +130,7 @@ class TDTestCase:
         tdSql.execute("create database db")
         tdSql.execute("use db")
         os.system(
-            "%s -y -f ./taosbenchmark/json/insert-drop-exist-auto-N00-stmt.json "
+            "%s -y -f ./tools/benchmark/basic/json/insert-drop-exist-auto-N00-stmt.json "
             % binPath
         )  # drop = no, child_table_exists, auto_create_table varies
         tdSql.execute("use db")
@@ -186,7 +161,7 @@ class TDTestCase:
 
         tdSql.execute("drop database if exists db")
         os.system(
-            "%s -y -f ./taosbenchmark/json/insert-drop-exist-auto-Y00-stmt.json "
+            "%s -y -f ./tools/benchmark/basic/json/insert-drop-exist-auto-Y00-stmt.json "
             % binPath
         )  # drop = yes, child_table_exists, auto_create_table varies
         tdSql.execute("use db")

@@ -13,52 +13,27 @@
 
 import os
 import time
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
 
-class TDTestCase:
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+class TDTestCase(TBase):
 
         now = time.time()
         self.ts = int(round(now * 1000))
 
-    def getPath(self, tool="taosBenchmark"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
-        else:
-            projPath = selfPath[: selfPath.find("tests")]
-
-        paths = []
-        for root, dummy, files in os.walk(projPath):
-            if (tool) in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if len(paths) == 0:
-            tdLog.exit("taosBenchmark not found!")
-            return
-        else:
-            tdLog.info("taosBenchmark found in %s" % paths[0])
-            return paths[0]
 
     def run(self):
         tdSql.query("select client_version()")
         client_ver = "".join(tdSql.queryResult[0])
         major_ver = client_ver.split(".")[0]
 
-        binPath = self.getPath("taosBenchmark")
+        binPath = etool.benchMarkFile()
         if binPath == "":
             tdLog.exit("taosBenchmark not found!")
         else:
@@ -66,7 +41,7 @@ class TDTestCase:
 
         # insert: create one  or multiple tables per sql and insert multiple rows per sql
         # test case for https://jira.taosdata.com:18080/browse/TD-4985
-        os.system("%s -f ./taosbenchmark/json/insert-json-csv.json -y " % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/insert-json-csv.json -y " % binPath)
 
         tdSql.execute("use db")
         if major_ver == "3":

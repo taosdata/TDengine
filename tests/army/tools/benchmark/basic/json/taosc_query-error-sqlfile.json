@@ -14,7 +14,7 @@
   {
     "query_interval": 1,
     "concurrent":1,
-    "sql_file": "./taosbenchmark/json/query-error-sqls.txt",
+    "sql_file": "./tools/benchmark/basic/json/query-error-sqls.txt",
     "result": "taosc_query_specified-sqlfile"
   }
 }

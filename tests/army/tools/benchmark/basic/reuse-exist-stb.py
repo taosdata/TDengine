@@ -12,64 +12,36 @@
 # -*- coding: utf-8 -*-
 import os
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
 
-class TDTestCase:
+class TDTestCase(TBase):
     def caseDescription(self):
         """
         [TD-22190] taosBenchmark reuse exist stb test cases
         """
 
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
-    def getPath(self, tool="taosBenchmark"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
-        elif "/tests/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tests/")]
-        else:
-            tdLog.info("Cannot find %s in path: %s" % (tool, selfPath))
-            projPath = "/usr/local/taos/bin/"
-
-        paths = []
-        for root, dummy, files in os.walk(projPath):
-            if (tool) in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if len(paths) == 0:
-            tdLog.exit("taosBenchmark not found!")
-            return
-        else:
-            tdLog.info("taosBenchmark found in %s" % paths[0])
-            return paths[0]
 
     def run(self):
         tdSql.query("select client_version()")
         client_ver = "".join(tdSql.queryResult[0])
         major_ver = client_ver.split(".")[0]
 
-        binPath = self.getPath()
+        binPath = etool.benchMarkFile()
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
         tdSql.execute("use db")
         tdSql.execute("create table stb (ts timestamp, c0 int)  tags (t0 int)")
         tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
         #        sys.exit(0)
-        cmd = "%s -f ./taosbenchmark/json/reuse-exist-stb.json" % binPath
+        cmd = "%s -f ./tools/benchmark/basic/json/reuse-exist-stb.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from db.new_0")

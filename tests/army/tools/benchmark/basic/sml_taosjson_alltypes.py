@@ -11,13 +11,16 @@
 
 # -*- coding: utf-8 -*-
 import os
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
 
-def getPath(tool="taosBenchmark"):
+def etool.benchMarkFile()
     selfPath = os.path.dirname(os.path.realpath(__file__))
 
     if "community" in selfPath:
@@ -47,15 +50,12 @@ def getPath(tool="taosBenchmark"):
         return paths[0]
 
 
-class TDTestCase:
+class TDTestCase(TBase):
     def caseDescription(self):
         """
         [TD-21932] taosBenchmark sml test cases
         """
 
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
     def run(self):
         tdSql.query("select client_version()")
@@ -63,7 +63,7 @@ class TDTestCase:
         major_ver = client_ver.split(".")[0]
 
         binPath = getPath()
-        cmd = "%s -f ./taosbenchmark/json/sml_taosjson_alltypes.json" % binPath
+        cmd = "%s -f ./tools/benchmark/basic/json/sml_taosjson_alltypes.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

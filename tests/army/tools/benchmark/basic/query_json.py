@@ -14,53 +14,25 @@ import ast
 import os
 import re
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
 
-class TDTestCase:
+class TDTestCase(TBase):
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases
         """
 
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
-    def getPath(self, tool="taosBenchmark"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
-        elif "/tests/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tests/")]
-        else:
-            tdLog.info("Cannot find %s in path: %s" % (tool, selfPath))
-            projPath = "/usr/local/taos/bin/"
-
-        paths = []
-        for root, dummy, files in os.walk(projPath):
-            if (tool) in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if len(paths) == 0:
-            tdLog.exit("taosBenchmark not found!")
-            return
-        else:
-            tdLog.info("taosBenchmark found in %s" % paths[0])
-            return paths[0]
 
     def run(self):
-        binPath = self.getPath()
+        binPath = etool.benchMarkFile()
         os.system(
             "rm -f rest_query_specified-0 rest_query_super-0 taosc_query_specified-0 taosc_query_super-0"
         )
@@ -71,7 +43,7 @@ class TDTestCase:
         tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
         tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
         tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
-        cmd = "%s -f ./taosbenchmark/json/taosc_query.json" % binPath
+        cmd = "%s -f ./tools/benchmark/basic/json/taosc_query.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         with open("%s" % "taosc_query_specified-0", "r+") as f1:
@@ -84,7 +56,7 @@ class TDTestCase:
                 queryTaosc = line.strip().split()[0]
                 assert queryTaosc == "1", "result is %s != expect: 1" % queryTaosc
 
-        cmd = "%s -f ./taosbenchmark/json/rest_query.json" % binPath
+        cmd = "%s -f ./tools/benchmark/basic/json/rest_query.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
 

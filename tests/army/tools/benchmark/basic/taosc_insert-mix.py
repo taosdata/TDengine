@@ -13,56 +13,31 @@
 import os
 import subprocess
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
 
-class TDTestCase:
+class TDTestCase(TBase):
     def caseDescription(self):
         """
         taosBenchmark insert mix data
         """
 
     @classmethod
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
     @classmethod
-    def getPath(self, tool="taosBenchmark"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
-        elif "/tests/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tests/")]
-        else:
-            tdLog.info("cannot found %s in path: %s, use system's" % (tool, selfPath))
-            projPath = "/usr/local/taos/bin/"
-
-        paths = []
-        for root, dummy, files in os.walk(projPath):
-            if (tool) in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if len(paths) == 0:
-            return ""
-        return paths[0]
 
     @classmethod
     def run(self):
-        binPath = self.getPath()
+        binPath = etool.benchMarkFile()
         # mix 1 ~ 4
         for i in range(4):
-            cmd = "%s -f ./taosbenchmark/json/case-insert-mix%d.json" % (binPath, i + 1)
+            cmd = "%s -f ./tools/benchmark/basic/json/case-insert-mix%d.json" % (binPath, i + 1)
             tdLog.info("%s" % cmd)
             os.system("%s" % cmd)
 
