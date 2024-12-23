@@ -216,12 +216,28 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
     return 0;
   }
 
-  pRsp->dataLen = (int64_t)contLen * (int64_t)nmemb;
-  pRsp->data = taosMemoryMalloc(pRsp->dataLen + 1);
+  int64_t size = pRsp->dataLen + (int64_t)contLen * nmemb;
+  if (pRsp->data == NULL) {
+    pRsp->data = taosMemoryMalloc(size + 1);
+    if (pRsp->data == NULL) {
+      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t) size + 1, tstrerror(terrno));
+      return terrno;
+    }
+  } else {
+    char* p = taosMemoryRealloc(pRsp->data, size + 1);
+    if (p == NULL) {
+      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t) size + 1, tstrerror(terrno));
+      return terrno;
+    }
+
+    pRsp->data = p;
+  }
 
   if (pRsp->data != NULL) {
-    (void)memcpy(pRsp->data, pCont, pRsp->dataLen);
+    (void)memcpy(pRsp->data + pRsp->dataLen, pCont, pRsp->dataLen);
     pRsp->data[pRsp->dataLen] = 0;
+    pRsp->dataLen = size;
+
     uDebugL("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
     return pRsp->dataLen;
   } else {
