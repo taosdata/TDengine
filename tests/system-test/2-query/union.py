@@ -406,6 +406,14 @@ class TDTestCase:
         tdSql.checkRows(6)
         ##tdSql.execute("drop database ep_iot")
 
+    def test_case_for_nodes_match_node(self):
+        sql = "create table nt (ts timestamp, c1 int primary key, c2 int)"
+        tdSql.execute(sql, queryTimes=1)
+        sql = 'select diff (ts) from (select * from tt union select * from tt order by c1, case when ts < now - 1h then ts + 1h else ts end) partition by c1, case when ts < now - 1h then ts + 1h else ts end'
+        tdSql.error(sql, -2147473917)
+
+        pass
+
     def run(self):
         tdSql.prepare()
         self.test_TS_5630()
@@ -427,6 +435,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
         self.test_TD_33137()
+        self.test_case_for_nodes_match_node()
     
     def test_TD_33137(self):
         sql = "select 'asd' union all select 'asdasd'"
