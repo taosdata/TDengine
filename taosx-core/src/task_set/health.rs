@@ -617,7 +617,7 @@ pub fn health_checker(
                         match item {
                             Ok(notify) => {
                                 tracing::debug!(%notify.level, %notify.source, "{}", notify.message);
-                                if notify.level > EventLevel::Info {
+                                if notify.level > EventLevel::Warn {
                                     checker.push_metrics(errors(notify), metrics());
                                 }
                             }
