@@ -1808,10 +1808,10 @@ static int32_t createThrdObj(void *trans, SCliThrd2 **ppThrd) {
   if (pThrd == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _end);
   }
-
-  taosThreadMutexInit(&pThrd->msgMtx, NULL);
+  pThrd->pool = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
 
   QUEUE_INIT(&pThrd->msg);
+  taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
   *ppThrd = pThrd;
   return code;
@@ -2417,7 +2417,7 @@ static int32_t evtCliPreSendReq(void *arg, SEvtBuf *buf, int32_t status) {
     if (connMayAddUserInfo(pConn, &pHead, &msgLen)) {
       content = transContFromHead(pHead);
       contLen = transContLenFromMsg(msgLen);
-      pReq->pCont = (void *)pHead;
+      // pReq->pCont = (void *)pHead;
     } else {
       if (pConn->userInited == 0) {
         return terrno;
