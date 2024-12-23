@@ -370,20 +370,23 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { 
-    .showType = QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
-    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
+  {},
+  {},
+  {},
   { 
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_FILESETS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  },  
+  }, 
+  { 
+    .showType = QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  }, 
 };
 // clang-format on
 
