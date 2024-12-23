@@ -10,6 +10,7 @@ use crate::{
     sync_normal_table_schema, sync_super_table_schema, sync_super_table_schema_with_subs,
     tmq::{tmq_metric::TmqMetrics, *},
     tmq_to_td::migrate_data_schema,
+    utils::sql::BlockPartitionBy,
     Action,
 };
 use anyhow::{Context, Result};
@@ -17,6 +18,7 @@ use deadpool::managed::{Metrics, RecycleResult};
 use faststr::FastStr;
 use serde::Serialize;
 use taos::*;
+use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
 use super::{execute_many_sql, TaosConnection};
@@ -368,6 +370,157 @@ impl Clone for Worker {
     }
 }
 
+#[tracing::instrument(skip_all, fields(target.table = raw.table_name()))]
+pub(super) async fn write_with_raw_block(
+    actions: &[Action],
+    topic: &Topic,
+    source: &TaosPool,
+    target: &TaosPool,
+    taos: &Taos,
+    raw: &RawBlock,
+    source_table_name: Option<&str>,
+    metrics: &TmqMetrics,
+) -> anyhow::Result<()> {
+    if let Err(err) = taos.write_raw_block(raw).await {
+        let code = *err.code().deref();
+        tracing::debug!("Try to recover from error: {err}");
+        if let Some(source_table_name) = source_table_name {
+            match code {
+                0x0118 => {
+                    let from = source.get().await?;
+                    // sync schema
+                    // let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = database() and table_name = '{source_table_name}'")).await?;
+                    let source_stable_name =
+                        get_stable_name(&from, None, source_table_name).await?;
+                    if let Some(mut source_stable_name) = source_stable_name {
+                        if actions.is_empty() {
+                            migrate_data_schema(&raw.fields(), taos, source_table_name).await?;
+                        } else {
+                            for action in actions {
+                                match action {
+                                    Action::RenameTable(rename)
+                                    | Action::RenameSuperTable(rename) => {
+                                        rename.apply_in_place(&mut source_stable_name)?
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            migrate_data_schema(&raw.fields(), taos, &source_stable_name).await?;
+                        }
+                    } else {
+                        let table = raw.table_name().unwrap();
+                        migrate_data_schema(&raw.fields(), taos, table).await?;
+                    }
+                    taos.write_raw_block(raw)
+                        .await
+                        .context("Write raw block into target error after 0x0118 fix")?;
+                }
+                0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
+                    let from = source.get().await?;
+                    let database = topic.database.as_str();
+                    if topic.is_query() {
+                        // sync as normal table.
+                        sync_normal_table_schema(&from, source_table_name, actions, None, taos)
+                            .await
+                            .context("Create table error")?;
+                    }
+                    let super_table_name =
+                        get_stable_name(&from, Some(database), source_table_name).await?;
+                    // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+                    if let Some(stable) = super_table_name {
+                        let from = source.get().await?;
+                        let target_opts = Default::default();
+                        sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions)
+                            .await
+                            .context("Create super table error")?;
+                        // 临时代码，保证编译通过
+                        let metrics_arc =
+                            Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                        sync_super_table_schema_with_subs(
+                            &from,
+                            &stable,
+                            &[source_table_name],
+                            taos,
+                            None,
+                            &target_opts,
+                            true,
+                            actions,
+                            metrics_arc,
+                        )
+                        .await
+                        .context("Create sub table error")?;
+                        taos.write_raw_block(raw)
+                            .await
+                            .context("Write raw block into target error")?;
+                    } else {
+                        // normal table
+                        sync_normal_table_schema(&from, source_table_name, actions, None, taos)
+                            .await
+                            .context("Create table error")?;
+                        taos.write_raw_block(raw)
+                            .await
+                            .context("Write raw block into target error")?;
+                    }
+                }
+                0x060B => {
+                    let cancel = CancellationToken::new();
+                    let _guard = cancel.clone().drop_guard();
+                    let mut target_conn = Some(target.get().await?);
+                    let (_precision, min, max) = crate::utils::sql::get_timestamp_range(
+                        target,
+                        &mut target_conn,
+                        5,
+                        &cancel,
+                    )
+                    .await?;
+
+                    let valid = unsafe { raw.column_views()[0].as_timestamp_view() }
+                        .iter()
+                        .map(|v| {
+                            v.map(|ts| {
+                                let ts = ts.to_datetime_with_tz();
+                                ts > min && ts < max
+                            })
+                            .unwrap_or(false)
+                        })
+                        .collect_vec();
+
+                    let (valid, invalid) = raw.partition_by(&valid);
+                    if let Some(invalid) = invalid {
+                        tracing::warn!("Timestamp out of range block: {}", invalid.pretty_format());
+                        metrics.add_out_of_range_rows(invalid.nrows() as _);
+                    }
+                    if let Some(valid) = valid {
+                        taos.write_raw_block(&valid).await?;
+                    }
+                }
+                0x061B => {
+                    // Table schema is old.
+                    let _ = taos.describe(raw.table_name().unwrap()).await;
+                    let mut max_retries = 5;
+                    loop {
+                        if let Err(err) = taos.write_raw_block(raw).await {
+                            if max_retries == 0 {
+                                Err(err).context("Try to fix 0x061B error failed")?;
+                            } else {
+                                max_retries -= 1;
+                            }
+                        }
+                    }
+                }
+                _ => Err(err)?,
+            }
+        } else if let Some(meta) = raw.to_create() {
+            let sql = meta.to_string();
+            taos.exec(&sql)
+                .await
+                .with_context(|| format!("SQL: {sql}"))?;
+        } else {
+            Err(err)?
+        }
+    };
+    anyhow::Ok(())
+}
 impl Worker {
     async fn write_meta_fallback(&mut self, message: &RawMessage) -> Result<()> {
         let conn = self.target_connection.as_ref().unwrap();
@@ -591,7 +744,7 @@ impl Worker {
                         }
                     }
                 }
-                0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
+                0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     // let _ = conn;
                     // let _ = self.target_connection.take();
@@ -691,151 +844,82 @@ impl Worker {
 
             let with_raw = true;
             if with_raw {
-                let with_raw_block = async {
-                    if let Err(err) = taos.write_raw_block(raw).await {
-                        let code = *err.code().deref();
-                        tracing::debug!("Try to recover from error: {err}");
-                        if let Some(source_table_name) = source_table_name {
-                            match code {
-                                0x0118 => {
-                                    let from = self.source.get().await?;
-                                    // sync schema
-                                    // let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = database() and table_name = '{source_table_name}'")).await?;
-                                    let source_stable_name =
-                                        get_stable_name(&from, None, &source_table_name).await?;
-                                    if let Some(mut source_stable_name) = source_stable_name {
-                                        if actions.is_empty() {
-                                            migrate_data_schema(
-                                                &raw.fields(),
-                                                taos,
-                                                &source_table_name,
-                                            )
-                                            .await?;
-                                        } else {
-                                            for action in actions {
-                                                match action {
-                                                    Action::RenameTable(rename)
-                                                    | Action::RenameSuperTable(rename) => rename
-                                                        .apply_in_place(&mut source_stable_name)?,
-                                                    _ => (),
-                                                }
-                                            }
-                                            migrate_data_schema(
-                                                &raw.fields(),
-                                                taos,
-                                                &source_stable_name,
-                                            )
-                                            .await?;
-                                        }
-                                    } else {
-                                        let table = raw.table_name().unwrap();
-                                        migrate_data_schema(&raw.fields(), taos, table).await?;
-                                    }
-                                    taos.write_raw_block(raw).await.context(
-                                        "Write raw block into target error after 0x0118 fix",
-                                    )?;
-                                }
-                                0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
-                                    let from = self.source.get().await?;
-                                    let database = self.topic.database.as_str();
-                                    if self.topic.is_query() {
-                                        // sync as normal table.
-                                        sync_normal_table_schema(
-                                            &from,
-                                            &source_table_name,
-                                            actions,
-                                            None,
-                                            taos,
-                                        )
-                                        .await
-                                        .context("Create table error")?;
-                                    }
-                                    let super_table_name =
-                                        get_stable_name(&from, Some(database), &source_table_name)
-                                            .await?;
-                                    // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
-                                    if let Some(stable) = super_table_name {
-                                        let from = self.source.get().await?;
-                                        let target_opts = Default::default();
-                                        sync_super_table_schema(
-                                            &from,
-                                            &stable,
-                                            taos,
-                                            None,
-                                            &target_opts,
-                                            actions,
-                                        )
-                                        .await
-                                        .context("Create super table error")?;
-                                        // 临时代码，保证编译通过
-                                        let metrics_arc = Arc::new(CoreMetrics::Legacy(
-                                            LegacyToTaosMetrics::default(),
-                                        ));
-                                        sync_super_table_schema_with_subs(
-                                            &from,
-                                            &stable,
-                                            &[source_table_name],
-                                            taos,
-                                            None,
-                                            &target_opts,
-                                            true,
-                                            &self.options.actions,
-                                            metrics_arc,
-                                        )
-                                        .await
-                                        .context("Create sub table error")?;
-                                        taos.write_raw_block(raw)
-                                            .await
-                                            .context("Write raw block into target error")?;
-                                    } else {
-                                        // normal table
-                                        sync_normal_table_schema(
-                                            &from,
-                                            &source_table_name,
-                                            actions,
-                                            None,
-                                            taos,
-                                        )
-                                        .await
-                                        .context("Create table error")?;
-                                        taos.write_raw_block(raw)
-                                            .await
-                                            .context("Write raw block into target error")?;
-                                    }
-                                }
-                                0x061B => {
-                                    // Table schema is old.
-                                    let _ = taos.describe(raw.table_name().unwrap()).await;
-                                    let mut max_retries = 5;
-                                    loop {
-                                        if let Err(err) = taos.write_raw_block(raw).await {
-                                            if max_retries == 0 {
-                                                Err(err)
-                                                    .context("Try to fix 0x061B error failed")?;
-                                            } else {
-                                                max_retries -= 1;
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => Err(err)?,
-                            }
-                        } else if let Some(meta) = raw.to_create() {
-                            let sql = meta.to_string();
-                            taos.exec(&sql)
-                                .await
-                                .with_context(|| format!("SQL: {sql}"))?;
-                        } else {
-                            Err(err)?
-                        }
+                if let Err(err) = write_with_raw_block(
+                    actions,
+                    &self.topic,
+                    &self.source,
+                    &self.target,
+                    taos,
+                    raw,
+                    source_table_name.as_deref(),
+                    metrics,
+                )
+                .await
+                {
+                    tracing::warn!(
+                        table = raw.table_name(),
+                        "Write raw block error: {err}, try STMT mode"
+                    );
+                    let with_stmt = async {
+                        let mut stmt = Stmt::init(taos)
+                            .await
+                            .context("Write with stmt init error")?;
+                        let fields = raw.fields();
+                        let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
+                        let table = raw.table_name().unwrap();
+                        stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
+                            .await
+                            .context("Write with stmt prepare error")?;
+
+                        stmt.bind(raw.column_views())
+                            .await
+                            .context("Write with stmt bind error")?;
+                        stmt.add_batch()
+                            .await
+                            .context("Write with stmt add_batch error")?;
+                        stmt.execute()
+                            .await
+                            .context("Write with stmt execute error")?;
+                        anyhow::Ok(())
                     };
-                    anyhow::Ok(())
-                };
-                with_raw_block
-                    .await
-                    .inspect_err(|_| metrics.add_write_raw_fails(1))
-                    .with_context(raw_block_context)
-                    .context("Write raw block into target error")?
+                    if let Err(err) = with_stmt.await {
+                        tracing::warn!(
+                            table = raw.table_name(),
+                            "Write with stmt error: {err}, try SQL mode"
+                        );
+                        pub trait RawBlockToSql {
+                            fn to_sql(&self) -> String;
+                        }
+                        impl RawBlockToSql for RawBlock {
+                            fn to_sql(&self) -> String {
+                                let table = self.table_name().unwrap();
+                                let fields = self
+                                    .field_names()
+                                    .iter()
+                                    .map(|s| format!("`{s}`"))
+                                    .join(",");
+                                let values = self
+                                    .rows()
+                                    .map(|row| {
+                                        let row = row.map(|(_name, v)| v.to_sql_value()).join(",");
+                                        format!("({row})")
+                                    })
+                                    .join(" ");
+
+                                format!("INSERT INTO `{table}` ({fields}) VALUES {values}")
+                            }
+                        }
+
+                        let sql = raw.to_sql();
+                        if let Err(err) = taos.exec(&sql).await {
+                            tracing::warn!(table = raw.table_name(), "Write with sql error: {err}");
+                            metrics.add_write_raw_fails(1);
+                            Err(err)
+                                .with_context(raw_block_context)
+                                .context("Write raw block into target error")?;
+                        }
+                    }
+                }
             } else {
                 let with_stmt = async {
                     let mut stmt = Stmt::init(taos)
@@ -1252,7 +1336,16 @@ impl Worker {
                             }
                         }
                     }
-                    0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
+                    0x0603 => {
+                        // Fallback to sql method.
+                        tracing::debug!("Fallback to sql method due to: {err:#}.");
+                        let sqls = meta.iter().map(ToString::to_string).collect_vec();
+                        let _ = execute_many_sql(conn, sqls)
+                            .in_current_span()
+                            .await
+                            .context("Write raw meta with sql error");
+                    }
+                    0x032C | 0x0115 | 0x03C7 | 0x03D3 | 0x0900..=0x09FF => {
                         tokio::time::sleep(Duration::from_millis(500)).await;
                         // let _ = conn;
                         // let _ = self.target_connection.take();
@@ -1280,10 +1373,56 @@ impl Worker {
             if let Some(data) = &mut message.data {
                 match code {
                     // Table not exist error codes or invalid input.
-                    0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 => {
+                    0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000
+                    | 0x0603 => {
                         tracing::debug!("Fallback to block-by-block method due to: {err:#}.");
                         self.try_mutate_data(data)?;
                         self.write_blocks(data).await?;
+                    }
+                    // Timestamp out of range
+                    0x060B => {
+                        let cancel = CancellationToken::new();
+                        let _guard = cancel.clone().drop_guard();
+                        let (_precision, min, max) = crate::utils::sql::get_timestamp_range(
+                            &self.target,
+                            &mut self.target_connection,
+                            5,
+                            &cancel,
+                        )
+                        .await?;
+
+                        let valid = unsafe { data[0].column_views()[0].as_timestamp_view() }
+                            .iter()
+                            .map(|v| {
+                                v.map(|ts| {
+                                    let ts = ts.to_datetime_with_tz();
+                                    ts > min && ts < max
+                                })
+                                .unwrap_or(false)
+                            })
+                            .collect_vec();
+
+                        let mut blocks = data
+                            .iter()
+                            .filter_map(|block| {
+                                let (valid, invalid) = block.partition_by(&valid);
+                                if let Some(invalid) = invalid {
+                                    tracing::warn!(
+                                        "Timestamp out of range block: {}",
+                                        invalid.pretty_format()
+                                    );
+                                    self.metrics
+                                        .as_ref()
+                                        .tmq()
+                                        .add_out_of_range_rows(invalid.nrows() as _);
+                                }
+                                valid
+                            })
+                            .collect_vec();
+
+                        if !blocks.is_empty() {
+                            self.write_blocks(&mut blocks).await?;
+                        }
                     }
                     _ => {
                         self.try_mutate_data(data)?;

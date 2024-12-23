@@ -287,6 +287,22 @@ pub async fn get_metrics_arc(task_id: Option<String>) -> Arc<CoreMetrics> {
     get_metrics(task_id).await.expect("metrics not found")
 }
 
+pub async fn get_metrics_arc_or<F: Fn() -> Arc<CoreMetrics>>(
+    task_id: Option<i64>,
+    f: F,
+) -> Arc<CoreMetrics> {
+    if let Some(id) = task_id {
+        if let Some(metrics) = get_metrics(id).await {
+            return metrics;
+        }
+        let metrics = f();
+        let _ = GLOBAL_METRICS.insert_async(id, metrics.clone()).await;
+        metrics
+    } else {
+        f()
+    }
+}
+
 pub async fn get_metrics_arc_from_i64(task_id: Option<i64>) -> Arc<CoreMetrics> {
     let task_id = match task_id {
         Some(id) => id,
