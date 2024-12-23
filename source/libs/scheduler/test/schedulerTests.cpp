@@ -60,6 +60,10 @@ extern "C" int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t 
 extern "C" int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code);
 extern "C" int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code);
 extern "C" int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType);
+extern "C" int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
+extern "C" int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode);
+
 
 int64_t insertJobRefId = 0;
 int64_t queryJobRefId = 0;
@@ -1472,6 +1476,104 @@ TEST(otherTest, function) {
   
   schMgmt.jobRef = -1;
 }
+
+TEST(otherTest, branch) {
+  SSchJob job = {0};
+  SSchTask task = {0};
+  schValidateRspMsgType(&job, &task, TDMT_SCH_MERGE_FETCH_RSP);
+
+  task.lastMsgType = TDMT_SCH_MERGE_FETCH_RSP - 1;
+  schValidateRspMsgType(&job, &task, TDMT_SCH_MERGE_FETCH_RSP);
+
+  schValidateRspMsgType(&job, &task, 0);
+
+  schValidateRspMsgType(&job, &task, TDMT_SCH_QUERY_RSP);
+
+  task.lastMsgType = TDMT_SCH_QUERY_RSP - 1;
+  schValidateRspMsgType(&job, &task, TDMT_SCH_QUERY_RSP);
+
+  schProcessFetchRsp(&job, &task, NULL, -1);
+  schProcessFetchRsp(&job, &task, NULL, 0);
+
+  job.fetchRes = (void*)0x1;
+  schProcessFetchRsp(&job, &task, (char*)taosMemoryMalloc(0), 0);
+  job.fetchRes = NULL;
+
+  SDataBuf databuf = {0};
+  databuf.msgType = TDMT_VND_ALTER_TABLE_RSP;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_VND_SUBMIT_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_VND_DELETE_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_QUERY_RSP;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_QUERY_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+  
+
+  databuf.msgType = TDMT_SCH_EXPLAIN_RSP;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_EXPLAIN_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  job.attr.explainMode = EXPLAIN_MODE_ANALYZE;
+  databuf.msgType = TDMT_SCH_EXPLAIN_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  job.fetchRes = (void*)0x1;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+  job.fetchRes = NULL;
+
+  job.attr.explainMode = EXPLAIN_MODE_ANALYZE;
+  databuf.msgType = TDMT_SCH_EXPLAIN_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_DROP_TASK_RSP;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_LINK_BROKEN;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = 0;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.pData = taosMemoryMalloc(0);
+  schHandleHbCallback(NULL, &databuf, 0);
+
+  __async_send_cb_fn_t fp = NULL;
+  schGetCallbackFp(TDMT_SCH_TASK_NOTIFY, &fp);
+  schGetCallbackFp(0, &fp);
+
+  SQueryNodeEpId ep = {0};
+  schBuildAndSendHbMsg(&ep, NULL);
+
+  schBuildAndSendMsg(&job, &task, NULL, 0, NULL);
+  
+  schMgmt.jobRef = -1;
+}
+
 
 void schtReset() {
   insertJobRefId = 0;
