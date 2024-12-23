@@ -370,9 +370,27 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  {},
-  {},
-  {},
+  {
+    .showType = QUERY_NODE_CREATE_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_CREATE_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_DROP_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
   { 
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
