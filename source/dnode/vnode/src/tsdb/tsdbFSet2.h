@@ -68,8 +68,6 @@ bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 // stt
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
 void    tsdbSttLvlClear(SSttLvl **lvl);
-// open channel
-int32_t tsdbTFileSetOpenChannel(STFileSet *fset);
 
 struct STFileOp {
   tsdb_fop_t optype;
@@ -83,26 +81,30 @@ struct SSttLvl {
   TFileObjArray fobjArr[1];
 };
 
+struct STFileSetCond {
+  bool         running;
+  int32_t      numWait;
+  TdThreadCond cond;
+};
+
 struct STFileSet {
   int32_t      fid;
   int64_t      maxVerValid;
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
   TSttLvlArray lvlArr[1];             // level array
 
-  // background task
-  bool         channelOpened;
-  SVAChannelID channel;
-  bool         mergeScheduled;
-
-  // sttTrigger = 1
-  TdThreadCond beginTask;
-  bool         taskRunning;
-  int32_t      numWaitTask;
+  bool      mergeScheduled;
+  SVATaskID mergeTask;
+  SVATaskID compactTask;
+  SVATaskID retentionTask;
 
   // block commit variables
   TdThreadCond canCommit;
   int32_t      numWaitCommit;
   bool         blockCommit;
+
+  // conditions
+  struct STFileSetCond conds[2];
 };
 
 struct STFileSetRange {

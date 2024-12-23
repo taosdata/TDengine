@@ -509,6 +509,9 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   STag* pTag = NULL;
 
   for (int c = 0; c < tags->numOfBound; ++c) {
+    if (bind == NULL) {
+      break;
+    }
     if (bind[c].is_null && bind[c].is_null[0]) {
       continue;
     }

@@ -287,6 +287,55 @@ class TDTestCase:
         checkFiles('/mnt/data3/vnode/*/tsdb/v*',0)
         checkFiles('/mnt/data4/vnode/*/tsdb/v*',1)
 
+    def test_alter_disable_err_case(self):
+        tdLog.info("============== test_alter_disable_err_case test ===============")
+        tdDnodes.stop(1)
+        cfg={
+            '/mnt/data1 0 1 1' : 'dataDir',
+            '/mnt/data2 0 0 0' : 'dataDir'
+        }
+        tdSql.createDir('/mnt/data1')
+        tdSql.createDir('/mnt/data2')
+        tdDnodes.deploy(1,cfg)
+        tdDnodes.start(1)
+
+        tdSql.execute('alter dnode 1 "dataDir /mnt/data2 1"')
+        tdSql.error('alter dnode 1 "dataDir /mnt/errpath 1"')
+        tdSql.error('alter dnode 1 "dataDir /mnt/data2 3"')
+        tdSql.error('alter dnode 1 "dataDir /mnt/data2 ee"')
+
+    def test_alter_disable_case(self):
+        tdLog.info("============== test_alter_disable_case test ===============")
+        tdDnodes.stop(1)
+        cfg={
+            '/mnt/data1 0 1 1' : 'dataDir',
+            '/mnt/data2 0 0 0' : 'dataDir',
+            '/mnt/data3 0 0 0' : 'dataDir'
+        }
+        tdSql.createDir('/mnt/data1')
+        tdSql.createDir('/mnt/data2')
+        tdSql.createDir('/mnt/data3')
+        tdDnodes.deploy(1,cfg)
+        tdDnodes.start(1)
+
+        tdSql.execute('create database dbtest duration 3')
+        tdSql.execute('use dbtest')
+        tdSql.execute('create table stb (ts timestamp,c0 int) tags(t0 int)')
+        tdSql.execute('create table tb1 using stb tags(1)')
+        for i in range(1,600, 30):
+            tdSql.execute(f'insert into tb1 values(now-{i}d,10)')
+        tdSql.execute('flush database dbtest')
+
+        tdSql.execute('alter dnode 1 "dataDir /mnt/data2 1"')
+
+        tdSql.execute('create database dbtest1 duration 3')
+        tdSql.execute('use dbtest1')
+        tdSql.execute('create table stb (ts timestamp,c0 int) tags(t0 int)')
+        tdSql.execute('create table tb1 using stb tags(1)')
+        for i in range(1,600, 30):
+            tdSql.execute(f'insert into tb1 values(now-{i}d,10)')
+        tdSql.execute('flush database dbtest1')
+
     def run(self):
         self.basic()
         self.dir_not_exist()
@@ -297,8 +346,8 @@ class TDTestCase:
         self.trim_database()
         self.missing_middle_level()
         self.disable_create_new_file()
-        
-
+        self.test_alter_disable_err_case()
+        self.test_alter_disable_case()
 
     def stop(self):
         tdSql.close()

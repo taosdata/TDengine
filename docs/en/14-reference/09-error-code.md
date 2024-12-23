@@ -386,7 +386,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000260D | Tags number not matched                                      | Mismatched number of tag columns                             | Check and correct the SQL statement                          |
 | 0x8000260E | Invalid tag name                                             | Invalid or non-existent tag name                             | Check and correct the SQL statement                          |
 | 0x80002610 | Value is too long                                            | Value length exceeds limit                                   | Check and correct the SQL statement or API parameters        |
-| 0x80002611 | Password can not be empty                                    | Password is empty                                            | Use a valid password                                         |
+| 0x80002611 | Password too short or empty                                  | Password is empty or less than 8 chars                                       | Use a valid password                                         |
 | 0x80002612 | Port should be an integer that is less than 65535 and greater than 0 | Illegal port number                                          | Check and correct the port number                            |
 | 0x80002613 | Endpoint should be in the format of 'fqdn:port'              | Incorrect address format                                     | Check and correct the address information                    |
 | 0x80002614 | This statement is no longer supported                        | Feature has been deprecated                                  | Refer to the feature documentation                           |

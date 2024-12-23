@@ -250,6 +250,9 @@ void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 // inject stream errors
 void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 
+int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type);
+int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList);
+
 #ifdef __cplusplus
 }
 #endif

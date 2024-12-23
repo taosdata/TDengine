@@ -106,8 +106,8 @@ class TDTestCase:
         my_file = Path(f"{packagePath}/{packageName}")
         if not  my_file.exists():
             print(f"{packageName} is not exists")
-            tdLog.info(f"cd {packagePath} &&  wget https://www.tdengine.com/assets-download/3.0/{packageName}")
-            os.system(f"cd {packagePath} &&  wget https://www.tdengine.com/assets-download/3.0/{packageName}")
+            tdLog.info(f"cd {packagePath} &&  wget https://www.taosdata.com/assets-download/3.0/{packageName}")
+            os.system(f"cd {packagePath} &&  wget https://www.taosdata.com/assets-download/3.0/{packageName}")
         else: 
             print(f"{packageName} has been exists")
         os.system(f" cd {packagePath} &&  tar xvf  {packageName} && cd {packageTPath} &&  ./install.sh  -e no  " )
