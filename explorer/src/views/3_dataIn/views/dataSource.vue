@@ -1086,6 +1086,7 @@ export default {
         let index = this.topicList.findIndex(
           (item) => item.taskid == data.taskid
         );
+        const lastHealthStatus = this.topicList[index]['healthStatus']
         this.topicList.splice(
           index,
           1,
@@ -1098,7 +1099,7 @@ export default {
                 "Z"
               : "";
             item["taskActivities"] = activitList;
-            item["healthStatus"] = this.getHealthStatus(activitList)
+            item["healthStatus"] = this.getHealthStatus(activitList, lastHealthStatus)
             item["statusText"] = this.textOfstatus(item.status);
             return item;
           })[0]
@@ -1158,7 +1159,7 @@ export default {
           name = "circle-bg-green";
           break;
         case "busy":
-          name = "circle-bg-oringe";
+          name = "circle-bg-orange";
           break;
         case "bounce":
         case "source_error":
@@ -1173,13 +1174,12 @@ export default {
       }
       return name;
     },
-    getHealthStatus(activities) {
-      if (!activities[0]) return ''
-      const first = activities[0] || {}
-      if (first.status === 'health') {
-        return first.activity
+    getHealthStatus(activities, lastHealthStatus) {
+      for (const activity of activities) {
+        if (activity.status === 'health') {
+          return activity.activity !== lastHealthStatus ? activity.activity : lastHealthStatus
+        }
       }
-      return ''
     },
 
     filterHandler(value, row, column) {
@@ -1221,7 +1221,7 @@ export default {
         this.$set(this.topicList, index, {
           ...task,
           taskActivities: activitList,
-          healthStatus: this.getHealthStatus(activitList)
+          healthStatus: this.getHealthStatus(activitList, task.healthStatus)
         });
       });
     },
