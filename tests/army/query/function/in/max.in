@@ -26,3 +26,14 @@ select log(max(voltage) + 1) from ts_4893.meters
 select groupid, max(voltage) from ts_4893.meters group by groupid order by groupid
 select location, max(id) from ts_4893.meters group by location order by location
 select location, max(current) from ts_4893.meters group by location order by location
+select max(1)
+select max(cast(1 as tinyint))
+select max(cast(100 as smallint))
+select max(cast(100000 as int))
+select max(cast(10000000000 as bigint))
+select max(cast(1 as tinyint unsigned))
+select max(cast(100 as smallint unsigned))
+select max(cast(100000 as int unsigned))
+select max(cast(10000000000 as bigint unsigned))
+select max(cast(1.1 as float))
+select max(cast(1.1 as double))
