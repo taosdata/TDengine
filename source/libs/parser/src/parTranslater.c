@@ -2276,6 +2276,7 @@ static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
 
 // 0 means equal, 1 means the left shall prevail, -1 means the right shall prevail
 static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
+  if (l->type == TSDB_DATA_TYPE_NULL) return -1;
   if (l->type != r->type) {
     return 1;
   }
@@ -11416,7 +11417,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
 
   if (pSelect->hasInterpFunc) {
     // Temporary code
-    if (pStmt->pOptions->triggerType != STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    if (tsStreamCoverage == false && pStmt->pOptions->triggerType != STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Stream interp function only support force window close");
     }

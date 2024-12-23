@@ -797,14 +797,7 @@ int32_t mndStart(SMnode *pMnode) {
       return -1;
     }
     mndSetRestored(pMnode, true);
-  } else {
-    if (sdbPrepare(pMnode->pSdb) != 0) {
-      mError("failed to prepare sdb while start mnode");
-      return -1;
-    }
-    mndSetRestored(pMnode, true);
   }
-
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
 
   return mndInitTimer(pMnode);

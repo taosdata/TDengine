@@ -44,3 +44,15 @@ TARGET_INCLUDE_DIRECTORIES(
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+
+ADD_EXECUTABLE(execUtilTests execUtilTests.cpp)
+TARGET_LINK_LIBRARIES(
+        execUtilTests
+        PRIVATE os util common executor gtest_main qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        execUtilTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
