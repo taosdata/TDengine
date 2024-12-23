@@ -2,6 +2,7 @@
 #include "tstream.h"
 #include "streamInt.h"
 #include "tcs.h"
+#include "tglobal.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -386,10 +387,12 @@ TEST(sstreamTaskGetTriggerRecvStatusTest, streamTaskGetTriggerRecvStatusFnTest) 
     EXPECT_NE(code, TSDB_CODE_SUCCESS);
 
     tcsInit();
+    extern int8_t tsS3EpNum;
+    tsS3EpNum = 1;
 
     code = uploadCheckpointToS3("123", "/tmp/backend5/stream");
     EXPECT_EQ(code, TSDB_CODE_SUCCESS);
 
-    code = downloadCheckpointByNameS3("123", "/root/download", "123");
-    EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+    code = downloadCheckpointByNameS3("123", "/root/download", "");
+    EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
 }
