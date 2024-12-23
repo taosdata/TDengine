@@ -437,7 +437,7 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
   pTask->waitRetry = true;
 
   if (pTask->delayTimer) {
-    (void)taosTmrStop(pTask->delayTimer);
+    UNUSED(taosTmrStop(pTask->delayTimer));
   }
 
   schDropTaskOnExecNode(pJob, pTask);
@@ -761,7 +761,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   (void)atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
 
   if (pTask->delayTimer) {
-    (void)taosTmrStop(pTask->delayTimer);
+    UNUSED(taosTmrStop(pTask->delayTimer));
   }
 
   (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
