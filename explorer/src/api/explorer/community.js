@@ -214,7 +214,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -225,7 +225,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -666,7 +666,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -677,7 +677,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -886,7 +886,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -897,7 +897,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -1177,7 +1177,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -1188,7 +1188,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -1656,7 +1656,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -1667,7 +1667,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -2037,7 +2037,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -2048,7 +2048,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -2514,7 +2514,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -2525,7 +2525,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -2759,7 +2759,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -2770,7 +2770,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -3093,7 +3093,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -3104,7 +3104,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -3496,7 +3496,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -3507,7 +3507,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -3713,7 +3713,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -3724,7 +3724,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -4117,7 +4117,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -4128,7 +4128,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -4500,7 +4500,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -4511,7 +4511,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -4810,7 +4810,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -4821,7 +4821,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -5084,7 +5084,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -5095,7 +5095,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -5425,7 +5425,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -5436,7 +5436,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -5861,7 +5861,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the maximum write queue length for a single IPC connection.",
-              value: "0"
+              value: "1000"
             },
             {
               name: "max_errors_in_window",
@@ -5872,7 +5872,7 @@ export function getDataSources(lang) {
                 max: 10000
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
-              value: "0"
+              value: "10"
             }
           ],
         },
@@ -6082,7 +6082,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -6093,7 +6093,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -6241,6 +6241,7 @@ export function getDataSources(lang) {
                 type_value: "s",
                 pattern: null,
                 patternMsg: "只能输入正整数或者0",
+                required: true,
               },
             ],
           },
@@ -6534,7 +6535,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -6545,7 +6546,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -6750,7 +6751,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -6761,7 +6762,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -7037,7 +7038,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -7048,7 +7049,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -7508,7 +7509,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -7519,7 +7520,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -7879,7 +7880,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -7890,7 +7891,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -8350,7 +8351,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -8361,7 +8362,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -8593,7 +8594,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -8604,7 +8605,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -8923,7 +8924,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -8934,7 +8935,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -9312,7 +9313,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -9323,7 +9324,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -9526,7 +9527,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -9537,7 +9538,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -9920,7 +9921,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -9931,7 +9932,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -10293,7 +10294,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -10304,7 +10305,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -10596,7 +10597,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -10607,7 +10608,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -10865,7 +10866,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -10876,7 +10877,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -11197,7 +11198,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -11208,7 +11209,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
@@ -11627,7 +11628,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示一个 IPC 连接对应的写入队列长度最大值。",
-              value: "0",
+              value: "1000",
             },
             {
               name: "max_errors_in_window",
@@ -11638,7 +11639,7 @@ export function getDataSources(lang) {
                 max: 10000,
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
-              value: "0",
+              value: "10",
             },
           ],
         },
