@@ -1,0 +1,38 @@
+{
+    "filetype": "query",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "databases": "db",
+    "query_times": 2,
+    "query_mode": "rest",
+    "specified_table_query": {
+      "query_interval": 1,
+      "threads": 3,
+      "sqls": [
+        {
+          "sql": "select last_row(*) from db.stb0 ",
+          "result": "./query_res0.txt"
+        },
+        {
+          "sql": "select count(*) from db.stb00_1",
+          "result": "./query_res1.txt"
+        }
+      ]
+    },
+    "super_table_query": {
+      "stblname": "stb1",
+      "query_interval": 1,
+      "threads": 3,
+      "sqls": [
+        {
+          "sql": "select last_row(ts) from xxxx",
+          "result": "./query_res2.txt"
+        }
+      ]
+    }
+  }
+  
