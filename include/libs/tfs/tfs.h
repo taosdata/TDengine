@@ -319,6 +319,15 @@ bool tfsDiskSpaceAvailable(STfs *pTfs, int32_t level);
  */
 bool tfsDiskSpaceSufficient(STfs *pTfs, int32_t level, int32_t disk);
 
+/**
+ * @brief Update disk size of tfs.
+ *
+ * @param pTfs The fs object.
+ * @param dir The directory.
+ * @param disable The disable flag.
+ */
+int32_t tfsUpdateDiskDisable(STfs *pTfs, const char *dir, int8_t disable);
+
 #ifdef __cplusplus
 }
 #endif

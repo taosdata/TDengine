@@ -114,6 +114,7 @@ extern int32_t tsRetentionSpeedLimitMB;
 
 extern const char *tsAlterCompactTaskKeywords;
 extern int32_t     tsNumOfCompactThreads;
+extern int32_t     tsNumOfRetentionThreads;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -291,6 +292,7 @@ extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsResolveFQDNRetryTime;
+extern bool    tsStreamCoverage;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
@@ -323,6 +325,8 @@ void    printConfigNotMatch(SArray *array);
 
 int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
 bool    isConifgItemLazyMode(SConfigItem *item);
+int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
+
 #ifdef __cplusplus
 }
 #endif

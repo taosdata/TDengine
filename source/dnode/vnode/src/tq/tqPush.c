@@ -17,6 +17,9 @@
 #include "vnd.h"
 
 int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
+  if (pTq == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   if (taosHashGetSize(pTq->pPushMgr) <= 0) {
     return 0;
   }
@@ -64,6 +67,9 @@ int32_t tqPushMsg(STQ* pTq, tmsg_t msgType) {
 }
 
 int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
+  if (pTq == NULL || handle == NULL || pMsg == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t    vgId = TD_VID(pTq->pVnode);
   STqHandle* pHandle = (STqHandle*)handle;
 
@@ -101,6 +107,9 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
 }
 
 void tqUnregisterPushHandle(STQ* pTq, void *handle) {
+  if (pTq == NULL || handle == NULL) {
+    return;
+  }
   STqHandle *pHandle = (STqHandle*)handle;
   int32_t    vgId = TD_VID(pTq->pVnode);
 

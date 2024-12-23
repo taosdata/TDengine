@@ -16,58 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "simInt.h"
 
-bool simExecSuccess = false;
-bool abortExecution = false;
-bool useValgrind = false;
-
-void simHandleSignal(int32_t signo, void *sigInfo, void *context) {
-  simSystemCleanUp();
-  abortExecution = true;
-}
-
 int32_t main(int32_t argc, char *argv[]) {
-  char scriptFile[MAX_FILE_NAME_LEN] = "sim_main_test.sim";
-
-  for (int32_t i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "-c") == 0 && i < argc - 1) {
-      tstrncpy(configDir, argv[++i], 128);
-    } else if (strcmp(argv[i], "-f") == 0 && i < argc - 1) {
-      tstrncpy(scriptFile, argv[++i], MAX_FILE_NAME_LEN);
-    } else if (strcmp(argv[i], "-v") == 0) {
-      useValgrind = true;
-    } else {
-      printf("usage: %s [options] \n", argv[0]);
-      printf("       [-c config]: config directory, default is: %s\n", configDir);
-      printf("       [-f script]: script filename\n");
-      return 0;
-    }
-  }
-
-  if (!simSystemInit()) {
-    simError("failed to initialize the system");
-    simSystemCleanUp();
-    return -1;
-  }
-
-  simInfo("simulator is running ...");
-  taosSetSignal(SIGINT, simHandleSignal);
-
-  SScript *script = simParseScript(scriptFile);
-  if (script == NULL) {
-    simError("parse script file:%s failed", scriptFile);
-    return -1;
-  }
-
-  if (abortExecution) {
-    simError("execute abort");
-    return -1;
-  }
-
-  simScriptList[++simScriptPos] = script;
-  simExecuteScript(script);
-
-  int32_t ret = simExecSuccess ? 0 : -1;
-  simInfo("execute result %d", ret);
-
-  return ret;
+  // entry function used for unit testing.
+  return simEntry(argc, argv);
 }

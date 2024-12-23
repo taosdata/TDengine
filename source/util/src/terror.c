@@ -648,7 +648,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SINGLE_GROUP,          "Not a single-group g
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAGS_NOT_MATCHED,          "Tags number not matched")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TAG_NAME,          "Invalid tag name")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,   "Name or password too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PASSWD_EMPTY,              "Password can not be empty")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, "Password too short or empty")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PORT,              "Port should be an integer that is less than 65535 and greater than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ENDPOINT,          "Endpoint should be in the format of 'fqdn:port'")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_EXPRIE_STATEMENT,          "This statement is no longer supported")

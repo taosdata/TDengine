@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tglobal.h"
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
-#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
@@ -104,6 +104,7 @@ int32_t tsRetentionSpeedLimitMB = 0;    // unlimited
 
 const char *tsAlterCompactTaskKeywords = "max_compact_tasks";
 int32_t     tsNumOfCompactThreads = 2;
+int32_t     tsNumOfRetentionThreads = 1;
 
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
@@ -328,6 +329,7 @@ int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
 int     tsStreamAggCnt = 100000;
+bool    tsStreamCoverage = false;
 
 bool tsUpdateCacheBatch = true;
 
@@ -389,6 +391,16 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 #else
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
+
+#ifndef _STORAGE
+int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) { return TSDB_CODE_INVALID_CFG; }
+#else
+int32_t cfgUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
+#endif
+
+int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
+  return cfgUpdateTfsItemDisable(pCfg, value, pTfs);
+}
 
 static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN],
                               int8_t *pNum) {
@@ -733,6 +745,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tsmaDataDeleteMark", tsmaDataDeleteMark, 60 * 60 * 1000, INT64_MAX,
                                 CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "streamCoverage", tsStreamCoverage, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1462,6 +1477,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "bypassFlag");
   tsBypassFlag = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamCoverage");
+  tsStreamCoverage = pItem->bval;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2381,6 +2399,10 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
+  if (strcasecmp(name, "dataDir") == 0) {
+    code = TSDB_CODE_SUCCESS;
+    goto _exit;
+  }
 
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
@@ -2735,7 +2757,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
                                          {"tsmaDataDeleteMark", &tsmaDataDeleteMark},
                                          {"numOfRpcSessions", &tsNumOfRpcSessions},
-                                         {"bypassFlag", &tsBypassFlag}};
+                                         {"bypassFlag", &tsBypassFlag},
+                                         {"streamCoverage", &tsStreamCoverage}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

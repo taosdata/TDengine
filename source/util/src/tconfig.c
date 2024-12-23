@@ -501,11 +501,13 @@ int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **pItem, const char *name, c
 
   *pItem = cfgGetItem(pCfg, name);
   if (*pItem == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
-    TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
+    code = TSDB_CODE_CFG_NOT_FOUND;
+    goto _exit;
   }
-  TAOS_CHECK_RETURN(cfgSetItemVal(*pItem, name, value, stype));
 
+  TAOS_CHECK_GOTO(cfgSetItemVal(*pItem, name, value, stype), NULL, _exit);
+
+_exit:
   if (lock) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
   }
