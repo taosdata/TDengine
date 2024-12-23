@@ -770,7 +770,7 @@ static SSvrConn *createConn(void *tThrd, int32_t fd) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
-  QUEUE_INIT(&pConn->resps.node);
+  transQueueInit(&pConn->resps, NULL);
   //  code = initWQ(&pConn->wq);
   // TAOS_CHECK_GOTO(code, &lino, _end);
   // wqInited = 1;
@@ -941,8 +941,8 @@ static int32_t evtSvrPreSendImpl(SSvrConn *pConn, SEvtBuf *pBuf) {
   int32_t code = 0;
   int32_t batchLimit = 32;
   int32_t j = 0;
-  while (!QUEUE_IS_EMPTY(&pConn->resps.node)) {
-    queue *el = QUEUE_HEAD(&pConn->resps.node);
+  while (!transQueueEmpty(&pConn->resps)) {
+    queue *el = transQueuePop(&pConn->resps);
     QUEUE_REMOVE(el);
 
     SSvrRespMsg *pResp = QUEUE_DATA(el, SSvrRespMsg, q);
@@ -996,7 +996,7 @@ static int32_t evtSvrSendFinishCb(void *arg, int32_t status) {
 
   SWorkThrd2 *pThrd = pConn->hostThrd;
 
-  if (QUEUE_IS_EMPTY(&pConn->resps.node)) {
+  if (transQueueEmpty(&pConn->resps)) {
     // stop write evt
     code = evtMgtRemove(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
   }
@@ -1056,8 +1056,8 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
 static int32_t evtSvrHandleSendResp(SWorkThrd2 *pThrd, SSvrRespMsg *pResp) {
   int32_t   code = 0;
   SSvrConn *pConn = pResp->pConn;
-  QUEUE_PUSH(&pConn->resps.node, &pResp->q);
-  if (QUEUE_IS_EMPTY(&pConn->resps.node)) {
+  transQueuePush(&pConn->resps, &pResp->q);
+  if (transQueueEmpty(&pConn->resps)) {
     return code;
   }
   code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
@@ -1299,6 +1299,13 @@ void transCloseServer2(void *arg) {
   return;
 }
 // impl client with poll
+
+typedef struct SConnList {
+  queue   conns;
+  int32_t size;
+  int32_t totalSize;
+} SConnList;
+
 typedef struct SCliConn {
   int32_t ref;
   // uv_connect_t connReq;
@@ -1312,8 +1319,8 @@ typedef struct SCliConn {
   STransQueue reqsToSend;
   STransQueue reqsSentOut;
 
-  queue q;
-  // SConnList *list;
+  queue      q;
+  SConnList *list;
 
   STransCtx  ctx;
   bool       broken;  // link broken or not
@@ -1444,6 +1451,35 @@ typedef struct SCliObj2 {
   int         numOfThreads;
   SCliThrd2 **pThreadObj;
 } SCliObj2;
+#define REQS_ON_CONN(conn) (conn ? (transQueueSize(&conn->reqsToSend) + transQueueSize(&conn->reqsSentOut)) : 0)
+typedef struct {
+  void    *p;
+  HeapNode node;
+} SHeapNode;
+typedef struct {
+  // void*    p;
+  Heap *heap;
+  int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b);
+  int64_t lastUpdateTs;
+  int64_t lastConnFailTs;
+} SHeap;
+
+static int32_t compareHeapNode(const HeapNode *a, const HeapNode *b);
+static int32_t transHeapInit(SHeap *heap, int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b));
+static void    transHeapDestroy(SHeap *heap);
+
+static int32_t transHeapGet(SHeap *heap, SCliConn **p);
+static int32_t transHeapInsert(SHeap *heap, SCliConn *p);
+static int32_t transHeapDelete(SHeap *heap, SCliConn *p);
+static int32_t transHeapBalance(SHeap *heap, SCliConn *p);
+static int32_t transHeapUpdateFailTs(SHeap *heap, SCliConn *p);
+static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p);
+
+static int8_t  balanceConnHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn, SCliConn **pNewConn);
+static int32_t delConnFromHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn);
+static int32_t getOrCreateHeap(SHashObj *pConnHeapCache, char *key, SHeap **pHeap);
+
+static SCliConn *getConnFromHeap(SHashObj *pConnHeap, char *key);
 
 static int32_t createSocket(char *ip, int32_t port, int32_t *fd) {
   int32_t code = 0;
@@ -1502,16 +1538,123 @@ _end:
   }
   return code;
 }
-static int32_t createCliConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliConn **ppConn) {
+
+static int32_t getOrCreateConnList(SCliThrd2 *pThrd, const char *key, SConnList **ppList) {
+  int32_t    code = 0;
+  void      *pool = pThrd->pool;
+  size_t     klen = strlen(key);
+  SConnList *plist = taosHashGet((SHashObj *)pool, key, klen);
+  if (plist == NULL) {
+    SConnList list = {0};
+    QUEUE_INIT(&list.conns);
+    code = taosHashPut((SHashObj *)pool, key, klen, (void *)&list, sizeof(list));
+    if (code != 0) {
+      return code;
+    }
+
+    plist = taosHashGet(pool, key, klen);
+    if (plist == NULL) {
+      return TSDB_CODE_INVALID_PTR;
+    }
+    QUEUE_INIT(&plist->conns);
+    *ppList = plist;
+    tDebug("create conn list %p for key %s", plist, key);
+  } else {
+    *ppList = plist;
+  }
+  return 0;
+}
+static void addConnToPool(void *pool, SCliConn *conn) {
+  if (conn->status == ConnInPool) {
+    return;
+  }
+
+  SCliThrd2 *thrd = conn->hostThrd;
+  if (thrd->quit == true) {
+    return;
+  }
+
+  // cliResetConnTimer(conn);
+  if (conn->list == NULL && conn->dstAddr != NULL) {
+    conn->list = taosHashGet((SHashObj *)pool, conn->dstAddr, strlen(conn->dstAddr));
+  }
+
+  conn->status = ConnInPool;
+  QUEUE_INIT(&conn->q);
+  QUEUE_PUSH(&conn->list->conns, &conn->q);
+  conn->list->size += 1;
+  tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
+
+  conn->heapMissHit = 0;
+
+  if (conn->list->size >= 5) {
+    STaskArg *arg = taosMemoryCalloc(1, sizeof(STaskArg));
+    if (arg == NULL) return;
+    arg->param1 = conn;
+    arg->param2 = thrd;
+
+    STrans *pInst = thrd->pInst;
+    // conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, (10 * CONN_PERSIST_TIME(pInst->idleTime) /
+    // 3));
+  }
+}
+
+static int32_t getConnFromPool(SCliThrd2 *pThrd, const char *key, SCliConn **ppConn) {
+  int32_t code = 0;
+  void   *pool = pThrd->pool;
+  STrans *pInst = pThrd->pInst;
+
+  SConnList *plist = NULL;
+  code = getOrCreateConnList(pThrd, key, &plist);
+  if (code != 0) {
+    return code;
+  }
+
+  if (QUEUE_IS_EMPTY(&plist->conns)) {
+    if (plist->totalSize >= pInst->connLimitNum) {
+      return TSDB_CODE_RPC_MAX_SESSIONS;
+    }
+    return TSDB_CODE_RPC_NETWORK_BUSY;
+  }
+
+  queue *h = QUEUE_HEAD(&plist->conns);
+  plist->size -= 1;
+  QUEUE_REMOVE(h);
+
+  SCliConn *conn = QUEUE_DATA(h, SCliConn, q);
+  conn->status = ConnNormal;
+  QUEUE_INIT(&conn->q);
+  conn->list = plist;
+
+  tDebug("conn %p get from pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
+
+  *ppConn = conn;
+  return 0;
+}
+static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliConn **ppConn) {
   int32_t   code = 0;
   int32_t   line = 0;
   STrans   *pInst = pThrd->pInst;
-  SCliConn *pConn = taosMemoryCalloc(1, sizeof(SCliConn));
+  SCliConn *pConn = NULL;
+
+  char addr[TSDB_FQDN_LEN + 64] = {0};
+  snprintf(addr, sizeof(addr), "%s:%d", ip, port);
+  pConn = getConnFromHeap(pThrd->connHeapCache, addr);
+  if (pConn != NULL) {
+    *ppConn = pConn;
+    return code;
+  }
+
+  code = getConnFromPool(pThrd, addr, &pConn);
+  if (pConn != NULL) {
+    *ppConn = pConn;
+    return 0;
+  }
+
+  pConn = taosMemoryCalloc(1, sizeof(SCliConn));
   if (pConn == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _end);
   }
-  char addr[TSDB_FQDN_LEN + 64] = {0};
-  snprintf(addr, sizeof(addr), "%s:%d", ip, port);
   pConn->hostThrd = pThrd;
   pConn->dstAddr = taosStrdup(addr);
   pConn->ipStr = taosStrdup(ip);
@@ -1534,8 +1677,8 @@ static int32_t createCliConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliConn 
   pConn->bufSize = pInst->shareConnLimit;
   QUEUE_INIT(&pConn->reqsToSend2);
 
-  QUEUE_INIT(&pConn->reqsToSend.node);
-  QUEUE_INIT(&pConn->reqsSentOut.node);
+  transQueueInit(&pConn->reqsToSend, NULL);
+  transQueueInit(&pConn->reqsSentOut, NULL);
   TAOS_CHECK_GOTO(createSocket(ip, port, &pConn->fd), &line, _end);
   TAOS_CHECK_GOTO(cliConnGetSockInfo(pConn), &line, _end);
 
@@ -1746,6 +1889,43 @@ _exception:
   return code;
 }
 
+static int32_t evtCliRecycleConn(SCliConn *pConn) {
+  int32_t code = 0;
+
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+  tTrace("%s conn %p in-process req summary:reqsToSend:%d, reqsSentOut:%d, statusTableSize:%d", pInst->label, pConn,
+         transQueueSize(&pConn->reqsToSend), transQueueSize(&pConn->reqsSentOut), taosHashGetSize(pConn->pQTable));
+
+  if (transQueueSize(&pConn->reqsToSend) == 0 && transQueueSize(&pConn->reqsSentOut) == 0 &&
+      taosHashGetSize(pConn->pQTable) == 0) {
+    // cliResetConnTimer(conn);
+    pConn->forceDelFromHeap = 1;
+    code = delConnFromHeapCache(pThrd->connHeapCache, pConn);
+    if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
+      tDebug("%s conn %p failed to remove conn from heap cache since %s", pInst->label, pConn, tstrerror(code));
+
+      TAOS_UNUSED(transHeapMayBalance(pConn->heap, pConn));
+      return 1;
+    } else {
+      if (code != 0) {
+        tDebug("%s conn %p failed to remove conn from heap cache since %s", pInst->label, pConn, tstrerror(code));
+        return 0;
+      }
+    }
+    addConnToPool(pThrd->pool, pConn);
+    return 1;
+  } else if ((transQueueSize(&pConn->reqsToSend) == 0) && (transQueueSize(&pConn->reqsSentOut) == 0) &&
+             (taosHashGetSize(pConn->pQTable) != 0)) {
+    tDebug("%s conn %p do balance directly", pInst->label, pConn);
+    TAOS_UNUSED(transHeapMayBalance(pConn->heap, pConn));
+  } else {
+    // tTrace("%s conn %p may do balance", CONN_GET_INST_LABEL(conn), conn);
+    TAOS_UNUSED(transHeapMayBalance(pConn->heap, pConn));
+  }
+
+  return code;
+}
 static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
   int32_t code = 0;
 
@@ -1850,7 +2030,7 @@ static int32_t evtCliPreSendReq(void *arg, SEvtBuf *buf, int32_t status) {
     pCliMsg->seq = pConn->seq;
     pCliMsg->sent = 1;
 
-    QUEUE_PUSH(&pConn->reqsSentOut.node, &pCliMsg->q);
+    transQueuePush(&pConn->reqsSentOut, &pCliMsg->q);
 
     QUEUE_INIT(&pCliMsg->sendQ);
     QUEUE_PUSH(&reqToSend, &pCliMsg->sendQ);
@@ -1943,38 +2123,183 @@ _end:
   }
   return code;
 }
-#define REQS_ON_CONN(conn) (conn ? (transQueueSize(&conn->reqsToSend) + transQueueSize(&conn->reqsSentOut)) : 0)
-typedef struct {
-  void    *p;
-  HeapNode node;
-} SHeapNode;
-typedef struct {
-  // void*    p;
-  Heap *heap;
-  int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b);
-  int64_t lastUpdateTs;
-  int64_t lastConnFailTs;
-} SHeap;
+// #define REQS_ON_CONN(conn) (conn ? (transQueueSize(&conn->reqsToSend) + transQueueSize(&conn->reqsSentOut)) : 0)
 
-static int32_t compareHeapNode(const HeapNode *a, const HeapNode *b);
-static int32_t transHeapInit(SHeap *heap, int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b));
-static void    transHeapDestroy(SHeap *heap);
+// static int32_t compareHeapNode(const HeapNode *a, const HeapNode *b);
+// static int32_t transHeapInit(SHeap *heap, int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b));
+// static void    transHeapDestroy(SHeap *heap);
 
-static int32_t transHeapGet(SHeap *heap, SCliConn **p);
-static int32_t transHeapInsert(SHeap *heap, SCliConn *p);
-static int32_t transHeapDelete(SHeap *heap, SCliConn *p);
-static int32_t transHeapBalance(SHeap *heap, SCliConn *p);
-static int32_t transHeapUpdateFailTs(SHeap *heap, SCliConn *p);
-static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p);
+// static int32_t transHeapGet(SHeap *heap, SCliConn **p);
+// static int32_t transHeapInsert(SHeap *heap, SCliConn *p);
+// static int32_t transHeapDelete(SHeap *heap, SCliConn *p);
+// static int32_t transHeapBalance(SHeap *heap, SCliConn *p);
+// static int32_t transHeapUpdateFailTs(SHeap *heap, SCliConn *p);
+// static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p);
 
+// static int8_t  balanceConnHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn, SCliConn **pNewConn);
+static int32_t getOrCreateHeap(SHashObj *pConnHeapCache, char *key, SHeap **pHeap) {
+  int32_t code = 0;
+  size_t  klen = strlen(key);
+
+  SHeap *p = taosHashGet(pConnHeapCache, key, klen);
+  if (p == NULL) {
+    SHeap heap = {0};
+    code = transHeapInit(&heap, compareHeapNode);
+    if (code != 0) {
+      tError("failed to init heap cache for key:%s since %s", key, tstrerror(code));
+      return code;
+    }
+
+    code = taosHashPut(pConnHeapCache, key, klen, &heap, sizeof(heap));
+    if (code != 0) {
+      transHeapDestroy(&heap);
+      tError("failed to put heap to cache for key:%s since %s", key, tstrerror(code));
+      return code;
+    }
+    p = taosHashGet(pConnHeapCache, key, klen);
+    if (p == NULL) {
+      code = TSDB_CODE_INVALID_PARA;
+    }
+  }
+  *pHeap = p;
+  return code;
+}
+static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn *pConn, char *key) {
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+
+  tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
+  int32_t reqsNum = transQueueSize(&pConn->reqsToSend);
+  int32_t reqsSentOut = transQueueSize(&pConn->reqsSentOut);
+  int32_t stateNum = taosHashGetSize(pConn->pQTable);
+  int32_t totalReqs = reqsNum + reqsSentOut;
+
+  if (totalReqs >= pInst->shareConnLimit) {
+    // logConnMissHit(pConn);
+
+    if (pConn->list == NULL && pConn->dstAddr != NULL) {
+      pConn->list = taosHashGet((SHashObj *)pThrd->pool, pConn->dstAddr, strlen(pConn->dstAddr));
+      if (pConn->list != NULL) {
+        tTrace("conn %p get list %p from pool for key:%s", pConn, pConn->list, key);
+      }
+    }
+    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 4) {
+      tWarn("%s conn %p try to remove timeout msg since too many conn created", transLabel(pInst), pConn);
+
+      // TODO
+      //  if (cliConnRemoveTimeoutMsg(pConn)) {
+      //    tWarn("%s conn %p succ to remove timeout msg", transLabel(pInst), pConn);
+      //  }
+      return 1;
+    }
+    // check req timeout or not
+    return 1;
+  }
+
+  return 0;
+}
+static SCliConn *getConnFromHeap(SHashObj *pConnHeap, char *key) {
+  int32_t   code = 0;
+  SCliConn *pConn = NULL;
+  SHeap    *pHeap = NULL;
+
+  code = getOrCreateHeap(pConnHeap, key, &pHeap);
+  if (code != 0) {
+    tTrace("failed to get conn heap from cache for key:%s", key);
+    return NULL;
+  }
+
+  code = transHeapGet(pHeap, &pConn);
+  if (code != 0) {
+    tTrace("failed to get conn from heap cache for key:%s", key);
+    return NULL;
+  } else {
+    tTrace("conn %p get conn from heap cache for key:%s", pConn, key);
+    if (shouldSWitchToOtherConn(pConn, key)) {
+      SCliConn *pNewConn = NULL;
+      code = balanceConnHeapCache(pConnHeap, pConn, &pNewConn);
+      if (code == 1) {
+        tTrace("conn %p start to handle reqs", pNewConn);
+        return pNewConn;
+      }
+      return NULL;
+    }
+  }
+
+  return pConn;
+}
+static int32_t addConnToHeapCache(SHashObj *pConnHeapCacahe, SCliConn *pConn) {
+  SHeap  *p = NULL;
+  int32_t code = 0;
+
+  if (pConn->heap != NULL) {
+    p = pConn->heap;
+    tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d, add direct", pConn, pConn->dstAddr,
+           pConn->inHeap, pConn->reqRefCnt);
+  } else {
+    code = getOrCreateHeap(pConnHeapCacahe, pConn->dstAddr, &p);
+    if (code != 0) {
+      return code;
+    }
+    if (pConn->connnected == 0) {
+      int64_t now = taosGetTimestampMs();
+      if (now - p->lastConnFailTs < 3000) {
+        return TSDB_CODE_RPC_NETWORK_UNAVAIL;
+      }
+    }
+  }
+
+  code = transHeapInsert(p, pConn);
+  tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d", pConn, pConn->dstAddr, pConn->inHeap,
+         pConn->reqRefCnt);
+  return code;
+}
+
+static int32_t delConnFromHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn) {
+  if (pConn->heap != NULL) {
+    tTrace("conn %p try to delete from heap cache direct", pConn);
+    return transHeapDelete(pConn->heap, pConn);
+  }
+
+  SHeap *p = taosHashGet(pConnHeapCache, pConn->dstAddr, strlen(pConn->dstAddr));
+  if (p == NULL) {
+    tTrace("failed to get heap cache for key:%s, no need to del", pConn->dstAddr);
+    return 0;
+  }
+  int32_t code = transHeapDelete(p, pConn);
+  if (code != 0) {
+    tTrace("conn %p failed delete from heap cache since %s", pConn, tstrerror(code));
+  }
+  return code;
+}
+
+static int8_t balanceConnHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn, SCliConn **pNewConn) {
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+  SCliConn  *pTopConn = NULL;
+  if (pConn->heap != NULL && pConn->inHeap != 0) {
+    TAOS_UNUSED(transHeapBalance(pConn->heap, pConn));
+    if (transHeapGet(pConn->heap, &pTopConn) == 0 && pConn != pTopConn) {
+      int32_t curReqs = REQS_ON_CONN(pConn);
+      int32_t topReqs = REQS_ON_CONN(pTopConn);
+      if (curReqs > topReqs && topReqs < pInst->shareConnLimit) {
+        *pNewConn = pTopConn;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
 static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
   int32_t code = 0;
+  STrans *pInst = pThrd->pInst;
   char   *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
   int32_t port = EPSET_GET_INUSE_PORT(req->ctx->epSet);
+  char    addr[TSDB_FQDN_LEN + 64] = {0};
+  snprintf(addr, sizeof(addr), "%s:%d", fqdn, port);
 
   SCliConn *pConn = NULL;
-  code = createCliConn(pThrd, fqdn, port, &pConn);
-  STrans *pInst = pThrd->pInst;
+  code = getOrCreateConn(pThrd, fqdn, port, &pConn);
   if (code != 0) {
     tError("%s failed to create conn since %s", pInst->label, tstrerror(code));
     return code;
