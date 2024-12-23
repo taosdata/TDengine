@@ -29,6 +29,7 @@ Supports Rust 1.70 and above.
 
 | Rust Connector Version | Major Changes                                                                                         | TDengine Version   |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- | ------------------ |
+| v0.12.4                | Supported WebSocket STMT2.                                                                            | 3.3.5.0 and higher |
 | v0.12.3                | 1. Optimized WebSocket query and insert performance. <br/> 2. Supported VARBINARY and GEOMETRY types. | 3.3.0.0 and higher |
 | v0.12.0                | WebSocket supports compression.                                                                       | 3.2.3.0 and higher |
 | v0.11.0                | TMQ feature optimization.                                                                             | 3.2.0.0 and higher |
@@ -393,7 +394,47 @@ The Field structure provides methods for accessing field information.
 
 ### Parameter Binding
 
-Parameter binding functionality is mainly supported by the Stmt structure.
+> Tips: Stmt2 is recommended.
+
+#### Stmt2
+
+The Stmt2 structure provides functionality related to parameter binding, used for efficient writing.
+
+- `fn init(taos: &Q) -> RawResult<Self>`
+
+  - **Interface Description**: Initialize the parameter binding instance.
+  - **Parameter Description**:
+    - `taos`: Database connection instance.
+  - **Return Value**: On success, returns the initialized instance; on failure, returns an error.
+
+- `fn prepare(&mut self, sql: &str) -> RawResult<&mut Self>`
+
+  - **Interface Description**: Prepare the SQL statement to be bound.
+  - **Parameter Description**:
+    - `sql`: SQL statement to prepare.
+  - **Return Value**: On success, returns a mutable reference to itself; on failure, returns an error.
+
+- `fn bind(&mut self, params: &[Stmt2BindParam]) -> RawResult<&mut Self>`
+
+  - **Interface Description**: Bind parameters.
+  - **Parameter Description**:
+    - `params`: Array of parameters.
+  - **Return Value**: On success, returns a mutable reference to itself; on failure, returns an error.
+
+- `fn exec(&mut self) -> RawResult<usize>`
+
+  - **Interface Description**: Execute the statement.
+  - **Return Value**: On success, returns the number of affected rows; on failure, returns an error.
+
+- `fn affected_rows(&self) -> usize`
+
+  - **Interface Description**: Get the number of affected rows.
+  - **Return Value**: Number of affected rows.
+
+- `fn result_set(&self) -> RawResult<Q::AsyncResultSet>`
+
+  - **Interface Description**: Get the result set.
+  - **Return Value**: On success, returns the result set; on failure, returns an error.
 
 #### Stmt
 
