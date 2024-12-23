@@ -407,12 +407,10 @@ class TDTestCase:
         ##tdSql.execute("drop database ep_iot")
 
     def test_case_for_nodes_match_node(self):
-        sql = "create table nt (ts timestamp, c1 int primary key, c2 int)"
+        sql = "create table db.nt (ts timestamp, c1 int primary key, c2 int)"
         tdSql.execute(sql, queryTimes=1)
-        sql = 'select diff (ts) from (select * from tt union select * from tt order by c1, case when ts < now - 1h then ts + 1h else ts end) partition by c1, case when ts < now - 1h then ts + 1h else ts end'
+        sql = 'select diff (ts) from (select * from db.tt union select * from db.tt order by c1, case when ts < now - 1h then ts + 1h else ts end) partition by c1, case when ts < now - 1h then ts + 1h else ts end'
         tdSql.error(sql, -2147473917)
-
-        pass
 
     def run(self):
         tdSql.prepare()
