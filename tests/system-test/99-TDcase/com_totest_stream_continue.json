@@ -1,7 +1,7 @@
 {
     "filetype": "insert",
     "cfgdir": "/etc/taos",
-    "host": "yw86",
+    "host": "127.0.0.1",
     "port": 6030,
     "user": "root",
     "password": "taosdata",

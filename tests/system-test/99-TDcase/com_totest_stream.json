@@ -1,7 +1,7 @@
 {
     "filetype": "insert",
     "cfgdir": "/etc/taos",
-    "host": "yw86",
+    "host": "127.0.0.1",
     "port": 6030,
     "user": "root",
     "password": "taosdata",
@@ -11,7 +11,7 @@
     "create_table_thread_count": 10,
     "result_file": "./insert_res_mix.txt",
     "confirm_parameter_prompt": "no",
-    "insert_interval": 1,
+    "insert_interval": 0,
     "continue_if_fail": "yes",
     "databases": [
         {
