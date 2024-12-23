@@ -4679,17 +4679,17 @@ void valueSetDatum(SValue *pVal, int8_t type, const void *pDatum, uint32_t len) 
     pVal->nData = len;
   } else {
     switch (len) {
-      case sizeof(char):
-        pVal->val = *(char *)pDatum;
+      case sizeof(uint8_t):
+        pVal->val = *(uint8_t *)pDatum;
         break;
-      case sizeof(int16_t):
-        pVal->val = *(int16_t *)pDatum;
+      case sizeof(uint16_t):
+        pVal->val = *(uint16_t *)pDatum;
         break;
-      case sizeof(int32_t):
-        pVal->val = *(int32_t *)pDatum;
+      case sizeof(uint32_t):
+        pVal->val = *(uint32_t *)pDatum;
         break;
-      case sizeof(int64_t):
-        pVal->val = *(int64_t *)pDatum;
+      case sizeof(uint64_t):
+        pVal->val = *(uint64_t *)pDatum;
         break;
       default:
         // TODO wjm log some thing???
