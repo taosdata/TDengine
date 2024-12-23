@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
     const NUM_TABLES: usize = 10;
     const NUM_ROWS: usize = 10;
 
-    let mut datas = Vec::with_capacity(NUM_TABLES);
+    let mut params = Vec::with_capacity(NUM_TABLES);
     for i in 0..NUM_TABLES {
         let table_name = format!("d_bind_{}", i);
         let tags = vec![
@@ -42,12 +42,12 @@ async fn main() -> anyhow::Result<()> {
             ColumnView::from_floats(phases),
         ];
 
-        let data = Stmt2BindData::new(Some(table_name), Some(tags), Some(columns));
-        datas.push(data);
+        let param = Stmt2BindParam::new(Some(table_name), Some(tags), Some(columns));
+        params.push(param);
     }
 
-    // Bind datas to the prepared statement
-    stmt2.bind(&datas).await?;
+    // Bind params to the prepared statement
+    stmt2.bind(&params).await?;
 
     // Execute
     match stmt2.exec().await {
