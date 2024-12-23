@@ -13,8 +13,6 @@
 int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry);
 void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
-int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
-int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
 int     tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
@@ -137,6 +135,176 @@ int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntr
 }
 
 void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
+
+static int32_t metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+  int32_t code = 0;
+
+#ifdef USE_INVERTED_INDEX
+  if (pMeta->pTagIvtIdx == NULL || pCtbEntry == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  void       *data = pCtbEntry->ctbEntry.pTags;
+  const char *tagName = pSchema->name;
+
+  tb_uid_t    suid = pCtbEntry->ctbEntry.suid;
+  tb_uid_t    tuid = pCtbEntry->uid;
+  const void *pTagData = pCtbEntry->ctbEntry.pTags;
+  int32_t     nTagData = 0;
+
+  SArray *pTagVals = NULL;
+  code = tTagToValArray((const STag *)data, &pTagVals);
+  if (code) {
+    return code;
+  }
+
+  SIndexMultiTerm *terms = indexMultiTermCreate();
+  if (terms == NULL) {
+    return terrno;
+  }
+
+  int16_t nCols = taosArrayGetSize(pTagVals);
+  for (int i = 0; i < nCols; i++) {
+    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
+    char     type = pTagVal->type;
+
+    char   *key = pTagVal->pKey;
+    int32_t nKey = strlen(key);
+
+    SIndexTerm *term = NULL;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, NULL, 0);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      if (pTagVal->nData > 0) {
+        char *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
+        if (val == NULL) {
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
+        }
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, NULL);
+        if (len < 0) {
+          TAOS_CHECK_GOTO(len, NULL, _exception);
+        }
+        memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
+        type = TSDB_DATA_TYPE_VARCHAR;
+        term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
+        taosMemoryFree(val);
+      } else if (pTagVal->nData == 0) {
+        term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
+      }
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double val = *(double *)(&pTagVal->i64);
+      int    len = sizeof(val);
+      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      int val = *(int *)(&pTagVal->i64);
+      int len = sizeof(val);
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_BOOL, key, nKey, (const char *)&val, len);
+    }
+
+    if (term != NULL) {
+      int32_t ret = indexMultiTermAdd(terms, term);
+      if (ret < 0) {
+        metaError("vgId:%d, failed to add term to multi term, uid: %" PRId64 ", key: %s, type: %d, ret: %d",
+                  TD_VID(pMeta->pVnode), tuid, key, type, ret);
+      }
+    } else {
+      code = terrno;
+      goto _exception;
+    }
+  }
+  code = indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
+  indexMultiTermDestroy(terms);
+
+  taosArrayDestroy(pTagVals);
+#endif
+  return code;
+_exception:
+  indexMultiTermDestroy(terms);
+  taosArrayDestroy(pTagVals);
+  return code;
+}
+
+static int32_t metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+#ifdef USE_INVERTED_INDEX
+  if (pMeta->pTagIvtIdx == NULL || pCtbEntry == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  void       *data = pCtbEntry->ctbEntry.pTags;
+  const char *tagName = pSchema->name;
+
+  tb_uid_t    suid = pCtbEntry->ctbEntry.suid;
+  tb_uid_t    tuid = pCtbEntry->uid;
+  const void *pTagData = pCtbEntry->ctbEntry.pTags;
+  int32_t     nTagData = 0;
+
+  SArray *pTagVals = NULL;
+  int32_t code = tTagToValArray((const STag *)data, &pTagVals);
+  if (code) {
+    return code;
+  }
+
+  SIndexMultiTerm *terms = indexMultiTermCreate();
+  if (terms == NULL) {
+    return terrno;
+  }
+
+  int16_t nCols = taosArrayGetSize(pTagVals);
+  for (int i = 0; i < nCols; i++) {
+    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
+    char     type = pTagVal->type;
+
+    char   *key = pTagVal->pKey;
+    int32_t nKey = strlen(key);
+
+    SIndexTerm *term = NULL;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      term = indexTermCreate(suid, DEL_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, NULL, 0);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      if (pTagVal->nData > 0) {
+        char *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
+        if (val == NULL) {
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
+        }
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, NULL);
+        if (len < 0) {
+          TAOS_CHECK_GOTO(len, NULL, _exception);
+        }
+        memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
+        type = TSDB_DATA_TYPE_VARCHAR;
+        term = indexTermCreate(suid, DEL_VALUE, type, key, nKey, val, len);
+        taosMemoryFree(val);
+      } else if (pTagVal->nData == 0) {
+        term = indexTermCreate(suid, DEL_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
+      }
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double val = *(double *)(&pTagVal->i64);
+      int    len = sizeof(val);
+      term = indexTermCreate(suid, DEL_VALUE, type, key, nKey, (const char *)&val, len);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      int val = *(int *)(&pTagVal->i64);
+      int len = sizeof(val);
+      term = indexTermCreate(suid, DEL_VALUE, TSDB_DATA_TYPE_BOOL, key, nKey, (const char *)&val, len);
+    }
+    if (term != NULL) {
+      int32_t ret = indexMultiTermAdd(terms, term);
+      if (ret < 0) {
+        metaError("vgId:%d, failed to add term to multi term, uid: %" PRId64 ", key: %s, type: %d, ret: %d",
+                  TD_VID(pMeta->pVnode), tuid, key, type, ret);
+      }
+    } else {
+      code = terrno;
+      goto _exception;
+    }
+  }
+  code = indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
+  indexMultiTermDestroy(terms);
+  taosArrayDestroy(pTagVals);
+#endif
+  return code;
+_exception:
+  indexMultiTermDestroy(terms);
+  taosArrayDestroy(pTagVals);
+  return code;
+}
 
 // Entry Table
 static int32_t metaEntryTableUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, EMetaTableOp op) {
@@ -1838,7 +2006,7 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   return code;
 }
 
-int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
+int32_t metaHandleEntry(SMeta *pMeta, const SMetaEntry *pEntry) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   vgId = TD_VID(pMeta->pVnode);
   SMetaInfo info = {0};
