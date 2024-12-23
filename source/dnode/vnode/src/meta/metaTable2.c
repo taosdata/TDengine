@@ -599,7 +599,7 @@ static int32_t metaCheckAlterTableColumnReq(SMeta *pMeta, int64_t version, SVAlt
   TAOS_RETURN(code);
 }
 
-int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+static int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
@@ -703,7 +703,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   TAOS_RETURN(code);
 }
 
-int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+static int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
@@ -810,7 +810,7 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
   TAOS_RETURN(code);
 }
 
-int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+static int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
@@ -900,7 +900,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   TAOS_RETURN(code);
 }
 
-int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+static int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
@@ -1026,7 +1026,7 @@ static int32_t metaCheckUpdateTableTagValReq(SMeta *pMeta, int64_t version, SVAl
   TAOS_RETURN(code);
 }
 
-int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
@@ -1201,7 +1201,7 @@ static int32_t metaCheckUpdateTableMultiTagValueReq(SMeta *pMeta, int64_t versio
   TAOS_RETURN(code);
 }
 
-int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+static int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   code = metaCheckUpdateTableMultiTagValueReq(pMeta, version, pReq);
@@ -1380,7 +1380,7 @@ static int32_t metaCheckUpdateTableOptionsReq(SMeta *pMeta, int64_t version, SVA
   return code;
 }
 
-int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+static int32_t metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = 0;
 
   code = metaCheckUpdateTableOptionsReq(pMeta, version, pReq);
@@ -1464,7 +1464,7 @@ int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   TAOS_RETURN(code);
 }
 
-int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+static int32_t metaUpdateTableColCompress(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (NULL == pReq->tbName || strlen(pReq->tbName) == 0) {
@@ -1824,4 +1824,30 @@ int32_t metaDropMultipleTables(SMeta *pMeta, int64_t version, SArray *uidArray) 
     }
   }
   return code;
+}
+
+int32_t metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  pMeta->changed = true;
+  switch (pReq->action) {
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+      return metaAddTableColumn(pMeta, version, pReq, pRsp);
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+      return metaDropTableColumn(pMeta, version, pReq, pRsp);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      return metaAlterTableColumnBytes(pMeta, version, pReq, pRsp);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      return metaAlterTableColumnName(pMeta, version, pReq, pRsp);
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
+      return metaUpdateTableTagValue(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+      return metaUpdateTableMultiTagValue(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      return metaUpdateTableOptions(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      return metaUpdateTableColCompress(pMeta, version, pReq);
+    default:
+      return terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+      break;
+  }
 }
