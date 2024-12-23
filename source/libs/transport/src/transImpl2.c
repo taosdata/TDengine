@@ -1037,6 +1037,7 @@ static int32_t evtSvrPreSendImpl(SSvrConn *pConn, SEvtBuf *pBuf) {
             transLabel(pInst), pConn, TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len, pMsg->info.seq,
             pMsg->info.qId);
     evtBufPush(pBuf, (char *)pHead, len);
+    pResp->sent = 1;
     if (j++ > batchLimit) {
       break;
     }
