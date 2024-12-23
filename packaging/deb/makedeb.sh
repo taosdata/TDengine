@@ -75,6 +75,9 @@ fi
 if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
 fi
+if [ -f "${compile_dir}/test/cfg/taoskeeper.toml" ]; then
+    cp ${compile_dir}/test/cfg/taoskeeper.toml		${pkg_dir}${install_home_path}/cfg || :
+fi
 if [ -f "${compile_dir}/test/cfg/taoskeeper.service" ]; then
     cp ${compile_dir}/test/cfg/taoskeeper.service	${pkg_dir}${install_home_path}/cfg || :
 fi
@@ -107,7 +110,7 @@ if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
 fi
 if [ -f "${compile_dir}/build/bin/taoskeeper" ]; then
-    cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
+    cp ${compile_dir}/build/bin/taoskeeper                    ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 if [ -f "${compile_dir}/../../../explorer/target/release/taos-explorer" ]; then

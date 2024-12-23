@@ -770,8 +770,8 @@ extern void tsdbStopAllCompTask(STsdb *tsdb);
 
 int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
-  SArray       *channelArray = taosArrayInit(0, sizeof(SVAChannelID));
-  if (channelArray == NULL) {
+  SArray       *asyncTasks = taosArrayInit(0, sizeof(SVATaskID));
+  if (asyncTasks == NULL) {
     return terrno;
   }
 
@@ -783,30 +783,31 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   // collect channel
   STFileSet *fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    if (fset->channelOpened) {
-      if (taosArrayPush(channelArray, &fset->channel) == NULL) {
-        taosArrayDestroy(channelArray);
-        (void)taosThreadMutexUnlock(&pTsdb->mutex);
-        return terrno;
-      }
-      fset->channel = (SVAChannelID){0};
-      fset->mergeScheduled = false;
-      tsdbFSSetBlockCommit(fset, false);
-      fset->channelOpened = false;
+    if (taosArrayPush(asyncTasks, &fset->mergeTask) == NULL       //
+        || taosArrayPush(asyncTasks, &fset->compactTask) == NULL  //
+        || taosArrayPush(asyncTasks, &fset->retentionTask) == NULL) {
+      taosArrayDestroy(asyncTasks);
+      (void)taosThreadMutexUnlock(&pTsdb->mutex);
+      return terrno;
     }
+    fset->mergeScheduled = false;
+    tsdbFSSetBlockCommit(fset, false);
   }
 
   (void)taosThreadMutexUnlock(&pTsdb->mutex);
 
   // destroy all channels
-  for (int32_t i = 0; i < taosArrayGetSize(channelArray); i++) {
-    SVAChannelID *channel = taosArrayGet(channelArray, i);
-    int32_t       code = vnodeAChannelDestroy(channel, true);
-    if (code) {
-      tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
+  for (int32_t k = 0; k < 2; k++) {
+    for (int32_t i = 0; i < taosArrayGetSize(asyncTasks); i++) {
+      SVATaskID *task = taosArrayGet(asyncTasks, i);
+      if (k == 0) {
+        (void)vnodeACancel(task);
+      } else {
+        vnodeAWait(task);
+      }
     }
   }
-  taosArrayDestroy(channelArray);
+  taosArrayDestroy(asyncTasks);
 
 #ifdef TD_ENTERPRISE
   tsdbStopAllCompTask(pTsdb);
@@ -934,9 +935,6 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
       // bool    skipMerge = false;
       int32_t numFile = TARRAY2_SIZE(lvl->fobjArr);
       if (numFile >= sttTrigger && (!fset->mergeScheduled)) {
-        code = tsdbTFileSetOpenChannel(fset);
-        TSDB_CHECK_CODE(code, lino, _exit);
-
         SMergeArg *arg = taosMemoryMalloc(sizeof(*arg));
         if (arg == NULL) {
           code = terrno;
@@ -946,7 +944,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         arg->tsdb = fs->tsdb;
         arg->fid = fset->fid;
 
-        code = vnodeAsync(&fset->channel, EVA_PRIORITY_HIGH, tsdbMerge, taosAutoMemoryFree, arg, NULL);
+        code = vnodeAsync(MERGE_TASK_ASYNC, EVA_PRIORITY_HIGH, tsdbMerge, taosAutoMemoryFree, arg, &fset->mergeTask);
         TSDB_CHECK_CODE(code, lino, _exit);
         fset->mergeScheduled = true;
       }
@@ -1202,42 +1200,61 @@ _out:
 
 void tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr) { tsdbTFileSetRangeArrayDestroy(fsrArr); }
 
-void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
+void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task, STFileSet **fset) {
+  // Here, sttTrigger is protected by tsdb->mutex, so it is safe to read it without lock
   int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
 
   tsdbFSGetFSet(tsdb->pFS, fid, fset);
-  if (sttTrigger == 1 && (*fset)) {
-    for (;;) {
-      if ((*fset)->taskRunning) {
-        (*fset)->numWaitTask++;
-
-        (void)taosThreadCondWait(&(*fset)->beginTask, &tsdb->mutex);
-
-        tsdbFSGetFSet(tsdb->pFS, fid, fset);
-
-        (*fset)->numWaitTask--;
-      } else {
-        (*fset)->taskRunning = true;
-        break;
-      }
-    }
-    tsdbInfo("vgId:%d begin task on file set:%d", TD_VID(tsdb->pVnode), fid);
+  if (*fset == NULL) {
+    return;
   }
+
+  struct STFileSetCond *cond = NULL;
+  if (sttTrigger == 1 || task == EVA_TASK_COMMIT) {
+    cond = &(*fset)->conds[0];
+  } else {
+    cond = &(*fset)->conds[1];
+  }
+
+  while (1) {
+    if (cond->running) {
+      cond->numWait++;
+      (void)taosThreadCondWait(&cond->cond, &tsdb->mutex);
+      cond->numWait--;
+    } else {
+      cond->running = true;
+      break;
+    }
+  }
+
+  tsdbInfo("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  return;
 }
 
-void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
+void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task) {
+  // Here, sttTrigger is protected by tsdb->mutex, so it is safe to read it without lock
   int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
-  if (sttTrigger == 1) {
-    STFileSet *fset = NULL;
-    tsdbFSGetFSet(tsdb->pFS, fid, &fset);
-    if (fset != NULL && fset->taskRunning) {
-      fset->taskRunning = false;
-      if (fset->numWaitTask > 0) {
-        (void)taosThreadCondSignal(&fset->beginTask);
-      }
-      tsdbInfo("vgId:%d finish task on file set:%d", TD_VID(tsdb->pVnode), fid);
-    }
+
+  STFileSet *fset = NULL;
+  tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+  if (fset == NULL) {
+    return;
   }
+
+  struct STFileSetCond *cond = NULL;
+  if (sttTrigger == 1 || task == EVA_TASK_COMMIT) {
+    cond = &fset->conds[0];
+  } else {
+    cond = &fset->conds[1];
+  }
+
+  cond->running = false;
+  if (cond->numWait > 0) {
+    (void)taosThreadCondSignal(&cond->cond);
+  }
+
+  tsdbInfo("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  return;
 }
 
 struct SFileSetReader {
