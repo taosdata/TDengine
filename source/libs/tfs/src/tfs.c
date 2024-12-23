@@ -726,3 +726,22 @@ int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
 
   TAOS_RETURN(0);
 }
+
+int32_t tfsUpdateDiskDisable(STfs *pTfs, const char *dir, int8_t disable) {
+  TAOS_UNUSED(tfsLock(pTfs));
+  for (int32_t level = 0; level < pTfs->nlevel; level++) {
+    STfsTier *pTier = &pTfs->tiers[level];
+    for (int32_t disk = 0; disk < pTier->ndisk; ++disk) {
+      STfsDisk *pDisk = pTier->disks[disk];
+      if (strcmp(pDisk->path, dir) == 0) {
+        pDisk->disable = disable;
+        TAOS_UNUSED(tfsUnLock(pTfs));
+        fInfo("disk %s is %s", dir, disable ? "disabled" : "enabled");
+        TAOS_RETURN(TSDB_CODE_SUCCESS);
+      }
+    }
+  }
+  TAOS_UNUSED(tfsUnLock(pTfs));
+  fError("failed to update disk disable since %s not found", dir);
+  TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+}

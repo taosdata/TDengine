@@ -1049,12 +1049,16 @@ _return:
 
   if (code || rsp) {
     bool rsped = false;
+
+    ctx = NULL;
+    (void)qwAcquireTaskCtx(QW_FPARAMS(), &ctx);
+
     if (ctx) {
       qwDbgSimulateRedirect(qwMsg, ctx, &rsped);
       qwDbgSimulateDead(QW_FPARAMS(), ctx, &rsped);
     }
 
-    if (!rsped) {
+    if (!rsped && ctx) {
       code = qwBuildAndSendFetchRsp(ctx, qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
       if (TSDB_CODE_SUCCESS != code) {
         QW_TASK_ELOG("fetch rsp send fail, msgType:%s, handle:%p, code:%x - %s, dataLen:%d",
@@ -1067,6 +1071,8 @@ _return:
       qwFreeFetchRsp(rsp);
       rsp = NULL;
     }
+
+    qwReleaseTaskCtx(mgmt, ctx);    
   } else {
     // qwQuickRspFetchReq(QW_FPARAMS(), ctx, qwMsg, code);
   }

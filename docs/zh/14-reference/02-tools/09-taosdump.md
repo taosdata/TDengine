@@ -4,26 +4,17 @@ sidebar_label: taosdump
 toc_max_heading_level: 4
 ---
 
-taosdump 是一个支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个运行中的 TDengine 集群中的工具应用程序。
+taosdump 是为开源用户提供的 TDengine 数据备份/恢复工具，备份数据文件采用标准 [ Apache AVRO ](https://avro.apache.org/) 格式，方便与外界生态交换数据。taosdump 提供多种数据备份及恢复选项来满足不同需求，可通过 --help 查看支持的全部选项。
 
-taosdump 可以用数据库、超级表或普通表作为逻辑数据单元进行备份，也可以对数据库、超级
-表和普通表中指定时间段内的数据记录进行备份。使用时可以指定数据备份的目录路径，如果
-不指定位置，taosdump 默认会将数据备份到当前目录。
-
-如果指定的位置已经有数据文件，taosdump 会提示用户并立即退出，避免数据被覆盖。这意味着同一路径只能被用于一次备份。
-如果看到相关提示，请小心操作。
-
-taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数据、环境设置、
-硬件信息、服务端配置或集群的拓扑结构。taosdump 使用
-[ Apache AVRO ](https://avro.apache.org/)作为数据文件格式来存储备份数据。
 
 ## 安装
 
-taosdump 有两种安装方式:
+taosdump 提供两种安装方式:
 
-- 安装 taosTools 官方安装包, 请从[发布历史页面](https://docs.taosdata.com/releases/tools/)页面找到 taosTools 并下载安装。
+- taosdump 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，可参考[TDengine 安装](../../../get-started/)
 
-- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+- 单独编译 taos-tools 并安装, 参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+
 
 ## 常用使用场景
 
@@ -31,9 +22,11 @@ taosdump 有两种安装方式:
 
 1.  备份所有数据库：指定 `-A` 或 `--all-databases` 参数；
 2.  备份多个指定数据库：使用 `-D db1,db2,...` 参数；
-3.  备份指定数据库中的某些超级表或普通表：使用 `dbname stbname1 stbname2 tbname1 tbname2 ...` 参数，注意这种输入序列第一个参数为数据库名称，且只支持一个数据库，第二个和之后的参数为该数据库中的超级表或普通表名称，中间以空格分隔；
+3.  备份指定数据库中某些超级表或普通表：使用 `dbname stbname1 stbname2 tbname1 tbname2 ...` 参数，注意这种输入序列第一个参数为数据库名称，且只支持一个数据库，第二个和之后的参数为该数据库中的超级表或普通表名称，中间以空格分隔；
 4.  备份系统 log 库：TDengine 集群通常会包含一个系统数据库，名为 `log`，这个数据库内的数据为 TDengine 自我运行的数据，taosdump 默认不会对 log 库进行备份。如果有特定需求对 log 库进行备份，可以使用 `-a` 或 `--allow-sys` 命令行参数。
 5.  “宽容”模式备份：taosdump 1.4.1 之后的版本提供 `-n` 参数和 `-L` 参数，用于备份数据时不使用转义字符和“宽容”模式，可以在表名、列名、标签名没使用转义字符的情况下减少备份数据时间和备份数据占用空间。如果不确定符合使用 `-n` 和 `-L` 条件时请使用默认参数进行“严格”模式进行备份。转义字符的说明请参考[官方文档](../../taos-sql/escape)。
+6.  `-o` 参数指定的目录下如果已存在备份文件，为防止数据被覆盖，taosdump 会报错并退出，请更换其它空目录或清空原来数据后再备份。 
+7.  目前 taosdump 不支持数据断点继备功能，一旦数据备份中断，需要从头开始。如果备份需要很长时间，建议使用（-S -E 选项）指定开始/结束时间进行分段备份的方法，
 
 :::tip
 - taosdump 1.4.1 之后的版本提供 `-I` 参数，用于解析 avro 文件 schema 和数据，如果指定 `-s` 参数将只解析 schema。
@@ -45,7 +38,9 @@ taosdump 有两种安装方式:
 
 ### taosdump 恢复数据
 
-恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。
+- 恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。  
+- taosdump 支持数据恢复至新数据库名下，参数是 -W, 详细见命令行参数说明。
+
 
 :::tip
 taosdump 内部使用 TDengine stmt binding API 进行恢复数据的写入，为提高数据恢复性能，目前使用 16384 为一次写入批次。如果备份数据中有比较多列数据，可能会导致产生 "WAL size exceeds limit" 错误，此时可以通过使用 `-B` 参数调整为一个更小的值进行尝试。
@@ -108,6 +103,13 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              the table name.(Version 2.5.3)
   -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is
                              8.
+  -W, --rename=RENAME-LIST   Rename database name with new name during
+                             importing data. RENAME-LIST: 
+                             "db1=newDB1|db2=newDB2" means rename db1 to newDB1
+                             and rename db2 to newDB2 (Version 2.5.4)
+  -k, --retry-count=VALUE    Set the number of retry attempts for connection or
+                             query failures
+  -z, --retry-sleep-ms=VALUE retry interval sleep time, unit ms
   -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service
   -R, --restful              Use RESTful interface to connect TDengine
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
@@ -115,10 +117,6 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
-  -W, --rename=RENAME-LIST   Rename database name with new name during
-                             importing data. RENAME-LIST: 
-                             "db1=newDB1|db2=newDB2" means rename db1 to newDB1
-                             and rename db2 to newDB2 (Version 2.5.4)
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
