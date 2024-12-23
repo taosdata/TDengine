@@ -23,6 +23,9 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
     hostPort = hostname + ":" + serverPort
 
     def telemetryInfoCheck(self, infoDict=''):
+        if len(infoDict) == 0:
+            return
+        
         if  "ts" not in infoDict[0] or len(infoDict[0]["ts"]) == 0:
             tdLog.exit("ts is null!")
 
@@ -34,12 +37,51 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
 
         if infoDict[0]["tables"][0]["name"] != "taosd_dnodes_info":
             tdLog.exit("taosd_dnodes_info is null!")
+        
+        # dnode_info  ====================================
+
+        dnode_infos =  ['disk_engine', 'system_net_in', 'vnodes_num', 'system_net_out', 'uptime', 'has_mnode', 'io_read_disk', 'error_log_count',
+        'io_read', 'cpu_cores', 'has_qnode', 'has_snode', 'disk_total', 'mem_engine', 'info_log_count', 'cpu_engine', 'io_write_disk',
+        'debug_log_count', 'disk_used', 'mem_total', 'io_write', 'masters', 'cpu_system',
+        'trace_log_count', 'mem_free']
+        index = 0
+        for elem in dnode_infos:
+            tdLog.debug(f"elem: {index},{elem}")
+            if infoDict[0]["tables"][0]["metric_groups"][0]["metrics"][index]["name"] != elem:
+                tdLog.exit(f"{elem} is null!")
+            index += 1
 
         if infoDict[0]["tables"][1]["name"] != "taosd_dnodes_log_dirs":
             tdLog.exit("taosd_dnodes_log_dirs is null!")
 
+        # logdir
+        if infoDict[0]["tables"][1]["metric_groups"][0]["tags"][3]["name"] != "data_dir_name":
+            tdLog.exit("data_dir_name is null!")
+
+        if infoDict[0]["tables"][1]["metric_groups"][0]["metrics"][0]["name"] != "total":
+            tdLog.exit("total is null!")
+
+        if infoDict[0]["tables"][1]["metric_groups"][0]["metrics"][1]["name"] != "used":
+            tdLog.exit("used is null!")
+        
+        if infoDict[0]["tables"][1]["metric_groups"][0]["metrics"][2]["name"] != "avail":
+            tdLog.exit("avail is null!")
+
         if infoDict[0]["tables"][2]["name"] != "taosd_dnodes_data_dirs":
             tdLog.exit("taosd_dnodes_data_dirs is null!")
+
+        # data_dir
+        if infoDict[0]["tables"][2]["metric_groups"][0]["tags"][3]["name"] != "data_dir_name":
+            tdLog.exit("data_dir_name is null!")
+
+        if infoDict[0]["tables"][2]["metric_groups"][0]["metrics"][0]["name"] != "avail":
+            tdLog.exit("total is null!")
+
+        if infoDict[0]["tables"][2]["metric_groups"][0]["metrics"][1]["name"] != "total":
+            tdLog.exit("used is null!")
+        
+        if infoDict[0]["tables"][2]["metric_groups"][0]["metrics"][2]["name"] != "used":
+            tdLog.exit("avail is null!")
         
         if infoDict[0]["tables"][3]["name"] != "taosd_cluster_info":
             tdLog.exit("taosd_cluster_info is null!")
@@ -64,118 +106,35 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][13]["name"] != "dnodes_total":
             tdLog.exit("dnodes_total is null!")
 
-        if infoDict[0]["tables"][4]["name"] != "taosd_vgroups_info":
-            tdLog.exit("taosd_vgroups_info is null!")
+        # grant_info  ====================================
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][15]["name"] != "grants_expire_time":
+            tdLog.exit("grants_expire_time is null!")
+
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][16]["name"] != "grants_timeseries_used":
+            tdLog.exit("grants_timeseries_used is null!")
+        
+        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][17]["name"] != "grants_timeseries_total":
+            tdLog.exit("grants_timeseries_total is null!")
 
         # vgroup_infos  ====================================
 
-        if "vgroup_infos" not in infoDict or infoDict["vgroup_infos"]== None:
-            tdLog.exit("vgroup_infos is null!")
-
-        vgroup_infos_nums = len(infoDict[0]["tables"][3]["metric_groups"][0]["metrics"])   
-
+        vgroup_infos_nums = len(infoDict[0]["tables"][4]["metric_groups"])   
+    
         for  index in range(vgroup_infos_nums):
-            if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][0]["metrics"][0]["name"] != "tables_num":
+            if infoDict[0]["tables"][4]["metric_groups"][index]["metrics"][0]["name"] != "tables_num":
                 tdLog.exit("tables_num is null!")
 
-            if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][0]["metrics"][0]["name"] != "status":
+            if infoDict[0]["tables"][4]["metric_groups"][index]["metrics"][1]["name"] != "status":
                 tdLog.exit("status is null!")
+        
+        if infoDict[0]["tables"][5]["name"] != "taosd_dnodes_status":
+            tdLog.exit("taosd_dnodes_status is null!")
 
-        # grant_info  ====================================
+        if infoDict[0]["tables"][6]["name"] != "taosd_mnodes_info":
+            tdLog.exit("taosd_mnodes_info is null!")
 
-        if "grant_info" not in infoDict or infoDict["grant_info"]== None:
-            tdLog.exit("grant_info is null!")
-
-        if "expire_time" not in infoDict["grant_info"] or not infoDict["grant_info"]["expire_time"] > 0:
-            tdLog.exit("expire_time is null!")
-
-        if "timeseries_used" not in infoDict["grant_info"]:# or not infoDict["grant_info"]["timeseries_used"] > 0:
-            tdLog.exit("timeseries_used is null!")
-
-        if "timeseries_total" not in infoDict["grant_info"] or not infoDict["grant_info"]["timeseries_total"] > 0:
-            tdLog.exit("timeseries_total is null!")
-
-        # dnode_info  ====================================
-
-        if "dnode_info" not in infoDict or infoDict["dnode_info"]== None:
-            tdLog.exit("dnode_info is null!")
-
-        dnode_infos =  ['uptime', 'cpu_engine', 'cpu_system', 'cpu_cores', 'mem_engine', 'mem_system', 'mem_total', 'disk_engine',
-        'disk_used', 'disk_total', 'net_in', 'net_out', 'io_read', 'io_write', 'io_read_disk', 'io_write_disk', 'req_select',
-        'req_select_rate', 'req_insert', 'req_insert_success', 'req_insert_rate', 'req_insert_batch', 'req_insert_batch_success',
-        'req_insert_batch_rate', 'errors', 'vnodes_num', 'masters', 'has_mnode', 'has_qnode', 'has_snode']
-        for elem in dnode_infos:
-            if elem not in infoDict["dnode_info"] or  infoDict["dnode_info"][elem] < 0:
-                tdLog.exit(f"{elem} is null!")
-
-        # dnode_info  ====================================
-
-        if "disk_infos" not in infoDict or infoDict["disk_infos"]== None:
-            tdLog.exit("disk_infos is null!")
-
-        # bug for data_dir
-        if "datadir" not in infoDict["disk_infos"] or len(infoDict["disk_infos"]["datadir"]) <=0 :
-            tdLog.exit("datadir is null!")
-
-        if "name" not in infoDict["disk_infos"]["datadir"][0] or len(infoDict["disk_infos"]["datadir"][0]["name"]) <= 0:
-            tdLog.exit("name is null!")
-
-        if "level" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["level"] < 0:
-            tdLog.exit("level is null!")
-
-        if "avail" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["avail"] <= 0:
-            tdLog.exit("avail is null!")
-
-        if "used" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["used"] <= 0:
-            tdLog.exit("used is null!")
-
-        if "total" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["total"] <= 0:
-            tdLog.exit("total is null!")
-
-
-        if "logdir" not in infoDict["disk_infos"] or infoDict["disk_infos"]["logdir"]== None:
-            tdLog.exit("logdir is null!")
-
-        if "name" not in infoDict["disk_infos"]["logdir"] or len(infoDict["disk_infos"]["logdir"]["name"]) <= 0:
-            tdLog.exit("name is null!")
-
-        if "avail" not in infoDict["disk_infos"]["logdir"] or infoDict["disk_infos"]["logdir"]["avail"] <= 0:
-            tdLog.exit("avail is null!")
-
-        if "used" not in infoDict["disk_infos"]["logdir"] or infoDict["disk_infos"]["logdir"]["used"] <= 0:
-            tdLog.exit("used is null!")
-
-        if "total" not in infoDict["disk_infos"]["logdir"] or infoDict["disk_infos"]["logdir"]["total"] <= 0:
-            tdLog.exit("total is null!")
-
-        if "tempdir" not in infoDict["disk_infos"] or infoDict["disk_infos"]["tempdir"]== None:
-            tdLog.exit("tempdir is null!")
-
-        if "name" not in infoDict["disk_infos"]["tempdir"] or len(infoDict["disk_infos"]["tempdir"]["name"]) <= 0:
-            tdLog.exit("name is null!")
-
-        if "avail" not in infoDict["disk_infos"]["tempdir"] or infoDict["disk_infos"]["tempdir"]["avail"] <= 0:
-            tdLog.exit("avail is null!")
-
-        if "used" not in infoDict["disk_infos"]["tempdir"] or infoDict["disk_infos"]["tempdir"]["used"] <= 0:
-            tdLog.exit("used is null!")
-
-        if "total" not in infoDict["disk_infos"]["tempdir"] or infoDict["disk_infos"]["tempdir"]["total"] <= 0:
-            tdLog.exit("total is null!")
-
-        # log_infos  ====================================
-
-        if "log_infos" not in infoDict or infoDict["log_infos"]== None:
-            tdLog.exit("log_infos is null!")
-
-        if "summary" not in infoDict["log_infos"] or len(infoDict["log_infos"]["summary"])!= 4:
-            tdLog.exit("summary is null!")
-
-        if "total" not in infoDict["log_infos"]["summary"][0] or infoDict["log_infos"]["summary"][0]["total"] < 0 :
-            tdLog.exit("total is null!")
-
-        if "level" not in infoDict["log_infos"]["summary"][0] or infoDict["log_infos"]["summary"][0]["level"] not in ["error" ,"info" , "debug" ,"trace"]:
-            tdLog.exit("level is null!")
+        if infoDict[0]["tables"][7]["name"] != "taosd_vnodes_info":
+            tdLog.exit("taosd_vnodes_info is null!")
 
     def do_GET(self):
         """
