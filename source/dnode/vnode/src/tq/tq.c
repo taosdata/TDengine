@@ -152,10 +152,9 @@ void tqClose(STQ* pTq) {
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
 
-  int32_t vgId = pTq->pStreamMeta->vgId;
   streamMetaClose(pTq->pStreamMeta);
 
-  qDebug("vgId:%d end to close tq", vgId);
+  qDebug("vgId:%d end to close tq", pTq->pStreamMeta != NULL ? pTq->pStreamMeta->vgId : -1);
   taosMemoryFree(pTq);
 }
 

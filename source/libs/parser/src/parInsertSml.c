@@ -357,10 +357,11 @@ end:
 int32_t smlInitHandle(SQuery** query) {
   int32_t lino = 0;
   int32_t code = 0;
-  *query = NULL;
   SQuery* pQuery = NULL;
   SVnodeModifyOpStmt* stmt = NULL;
+  TSDB_CHECK_NULL(query, code, lino, end, TSDB_CODE_INVALID_PARA);
 
+  *query = NULL;
   code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
   TSDB_CHECK_CODE(code, lino, end);
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;

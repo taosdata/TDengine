@@ -17,33 +17,41 @@
 #include "tq.h"
 
 int32_t tqBuildFName(char** data, const char* path, char* name) {
-  if (data == NULL || path == NULL || name == NULL) {
-    return TSDB_CODE_INVALID_MSG;
-  }
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  char*     fname = NULL;
+  TSDB_CHECK_NULL(data, code, lino, END, TSDB_CODE_INVALID_MSG);
+  TSDB_CHECK_NULL(path, code, lino, END, TSDB_CODE_INVALID_MSG);
+  TSDB_CHECK_NULL(name, code, lino, END, TSDB_CODE_INVALID_MSG);
   int32_t len = strlen(path) + strlen(name) + 2;
-  char*   fname = taosMemoryCalloc(1, len);
-  if(fname == NULL) {
-    return terrno;
-  }
-  int32_t code = tsnprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
-  if (code < 0){
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosMemoryFree(fname);
-    return code;
-  }
+  fname = taosMemoryCalloc(1, len);
+  TSDB_CHECK_NULL(fname, code, lino, END, terrno);
+  code = tsnprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
+  TSDB_CHECK_CODE(code, lino, END);
+
   *data = fname;
-  return TDB_CODE_SUCCESS;
+  fname = NULL;
+
+END:
+  if (code != 0){
+    tqError("%s failed at %d since %s", __func__, lino, tstrerror(code));
+  }
+  taosMemoryFree(fname);
+  return code;
 }
 
 int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
-  if (pTq == NULL || name == NULL) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-  int32_t   code = TDB_CODE_SUCCESS;
-  int32_t   lino = 0;
-  void*     pMemBuf = NULL;
+  int32_t    code = TDB_CODE_SUCCESS;
+  int32_t    lino = 0;
+  void*      pMemBuf = NULL;
+  TdFilePtr  pFile = NULL;
+  STqOffset *pOffset = NULL;
+  void      *pIter = NULL;
 
-  TdFilePtr pFile = taosOpenFile(name, TD_FILE_READ);
+  TSDB_CHECK_NULL(pTq, code, lino, END, TSDB_CODE_INVALID_MSG);
+  TSDB_CHECK_NULL(name, code, lino, END, TSDB_CODE_INVALID_MSG);
+
+  pFile = taosOpenFile(name, TD_FILE_READ);
   TSDB_CHECK_NULL(pFile, code, lino, END, TDB_CODE_SUCCESS);
 
   int64_t ret = 0;
@@ -68,25 +76,20 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
     STqOffset offset = {0};
     code = tqMetaDecodeOffsetInfo(&offset, pMemBuf, size);
     TSDB_CHECK_CODE(code, lino, END);
-    code = taosHashPut(pTq->pOffset, offset.subKey, strlen(offset.subKey), &offset, sizeof(STqOffset));
-    if (code != TDB_CODE_SUCCESS) {
-      tDeleteSTqOffset(&offset);
-      goto END;
-    }
+    pOffset = &offset;
+    code = taosHashPut(pTq->pOffset, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset));
+    TSDB_CHECK_CODE(code, lino, END);
+    pOffset = NULL;
 
     tqInfo("tq: offset restore from file to tdb, size:%d, hash size:%d subkey:%s", total, taosHashGetSize(pTq->pOffset), offset.subKey);
     taosMemoryFree(pMemBuf);
     pMemBuf = NULL;
   }
 
-  void *pIter = NULL;
   while ((pIter = taosHashIterate(pTq->pOffset, pIter))) {
-    STqOffset* pOffset = (STqOffset*)pIter;
-    code = tqMetaSaveOffset(pTq, pOffset);
-    if(code != 0){
-      taosHashCancelIterate(pTq->pOffset, pIter);
-      goto END;
-    }
+    STqOffset* offset = (STqOffset*)pIter;
+    code = tqMetaSaveOffset(pTq, offset);
+    TSDB_CHECK_CODE(code, lino, END);
   }
 
 END:
@@ -95,6 +98,9 @@ END:
   }
   taosCloseFile(&pFile);
   taosMemoryFree(pMemBuf);
+
+  tDeleteSTqOffset(pOffset);
+  taosHashCancelIterate(pTq->pOffset, pIter);
 
   return code;
 }
