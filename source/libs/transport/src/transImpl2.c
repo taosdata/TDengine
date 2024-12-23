@@ -451,10 +451,10 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
   for (j = 0; j < nfds && active_Fds > 0; j++) {
     int32_t fd = pOpt->fd[j];
     res = 0;
-    if (FD_ISSET(fd, pOpt->evtReadSetOut)) {
+    if ((fd > 0) && FD_ISSET(fd, pOpt->evtReadSetOut)) {
       res |= EVT_READ;
     }
-    if (FD_ISSET(fd, pOpt->evtWriteSetOut)) {
+    if ((fd > 0) && FD_ISSET(fd, pOpt->evtWriteSetOut)) {
       res |= EVT_WRITE;
     }
 
@@ -1557,11 +1557,12 @@ static int32_t transHeapBalance(SHeap *heap, SCliConn *p);
 static int32_t transHeapUpdateFailTs(SHeap *heap, SCliConn *p);
 static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p);
 
+static int32_t getOrCreateHeapCache(SHashObj *pConnHeapCache, char *key, SHeap **pHeap);
 static int8_t  balanceConnHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn, SCliConn **pNewConn);
 static int32_t delConnFromHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn);
-static int32_t getOrCreateHeap(SHashObj *pConnHeapCache, char *key, SHeap **pHeap);
 
-static SCliConn *getConnFromHeap(SHashObj *pConnHeap, char *key);
+static SCliConn *getConnFromHeapCache(SHashObj *pConnHeap, char *key);
+static int32_t   addConnToHeapCache(SHashObj *pConnHeap, SCliConn *pConn);
 
 static int32_t createSocket(char *ip, int32_t port, int32_t *fd) {
   int32_t code = 0;
@@ -1721,7 +1722,7 @@ static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliCon
 
   char addr[TSDB_FQDN_LEN + 64] = {0};
   snprintf(addr, sizeof(addr), "%s:%d", ip, port);
-  pConn = getConnFromHeap(pThrd->connHeapCache, addr);
+  pConn = getConnFromHeapCache(pThrd->connHeapCache, addr);
   if (pConn != NULL) {
     *ppConn = pConn;
     return code;
@@ -1762,6 +1763,12 @@ static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliCon
   transQueueInit(&pConn->reqsSentOut, NULL);
   TAOS_CHECK_GOTO(createSocket(ip, port, &pConn->fd), &line, _end);
   TAOS_CHECK_GOTO(cliConnGetSockInfo(pConn), &line, _end);
+
+  pConn->connnected = 1;
+  addConnToHeapCache(pThrd->connHeapCache, pConn);
+
+  pConn->list = taosHashGet(pThrd->pool, addr, strlen(addr));
+  pConn->list->totalSize += 1;
 
   *ppConn = pConn;
   return code;
@@ -1812,6 +1819,33 @@ static int32_t createThrdObj(void *trans, SCliThrd2 **ppThrd) {
 
   QUEUE_INIT(&pThrd->msg);
   taosThreadMutexInit(&pThrd->msgMtx, NULL);
+
+  pThrd->destroyAhandleFp = pInst->destroyFp;
+
+  pThrd->fqdn2ipCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pThrd->fqdn2ipCache == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
+  }
+
+  pThrd->batchCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pThrd->batchCache == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
+  }
+
+  pThrd->connHeapCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pThrd->connHeapCache == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+  }
+
+  pThrd->pIdConnTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (pThrd->connHeapCache == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+  }
+
+  pThrd->pQIdBuf = taosArrayInit(8, sizeof(int64_t));
+  if (pThrd->pQIdBuf == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+  }
 
   *ppThrd = pThrd;
   return code;
@@ -2524,29 +2558,17 @@ static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
       break;
     }
   }
-  tDebug("%s success to read resp", pInst->label);
+  tDebug("%s conn %p success to read resp", pInst->label, pConn);
   return code;
 _end:
   if (code != 0) {
-    tError("%s %s failed to handle resp at line %d since %s", pInst->label, __func__, line, tstrerror(code));
+    tError("%s %s conn %p failed to handle resp at line %d since %s", pInst->label, __func__, pConn, line,
+           tstrerror(code));
   }
   return code;
 }
-// #define REQS_ON_CONN(conn) (conn ? (transQueueSize(&conn->reqsToSend) + transQueueSize(&conn->reqsSentOut)) : 0)
 
-// static int32_t compareHeapNode(const HeapNode *a, const HeapNode *b);
-// static int32_t transHeapInit(SHeap *heap, int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b));
-// static void    transHeapDestroy(SHeap *heap);
-
-// static int32_t transHeapGet(SHeap *heap, SCliConn **p);
-// static int32_t transHeapInsert(SHeap *heap, SCliConn *p);
-// static int32_t transHeapDelete(SHeap *heap, SCliConn *p);
-// static int32_t transHeapBalance(SHeap *heap, SCliConn *p);
-// static int32_t transHeapUpdateFailTs(SHeap *heap, SCliConn *p);
-// static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p);
-
-// static int8_t  balanceConnHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn, SCliConn **pNewConn);
-static int32_t getOrCreateHeap(SHashObj *pConnHeapCache, char *key, SHeap **pHeap) {
+static int32_t getOrCreateHeapCache(SHashObj *pConnHeapCache, char *key, SHeap **pHeap) {
   int32_t code = 0;
   size_t  klen = strlen(key);
 
@@ -2607,12 +2629,12 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn *pConn, char *key) {
 
   return 0;
 }
-static SCliConn *getConnFromHeap(SHashObj *pConnHeap, char *key) {
+static SCliConn *getConnFromHeapCache(SHashObj *pConnHeap, char *key) {
   int32_t   code = 0;
   SCliConn *pConn = NULL;
   SHeap    *pHeap = NULL;
 
-  code = getOrCreateHeap(pConnHeap, key, &pHeap);
+  code = getOrCreateHeapCache(pConnHeap, key, &pHeap);
   if (code != 0) {
     tTrace("failed to get conn heap from cache for key:%s", key);
     return NULL;
@@ -2646,7 +2668,7 @@ static int32_t addConnToHeapCache(SHashObj *pConnHeapCacahe, SCliConn *pConn) {
     tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d, add direct", pConn, pConn->dstAddr,
            pConn->inHeap, pConn->reqRefCnt);
   } else {
-    code = getOrCreateHeap(pConnHeapCacahe, pConn->dstAddr, &p);
+    code = getOrCreateHeapCache(pConnHeapCacahe, pConn->dstAddr, &p);
     if (code != 0) {
       return code;
     }
@@ -2815,6 +2837,10 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
   }
 
   STrans *pInst = arg;
+  if (pInst->connLimitNum >= 512) {
+    pInst->connLimitNum = 512;
+  }
+
   memcpy(cli->label, label, TSDB_LABEL_LEN);
   cli->numOfThreads = numOfThreads;
   cli->pThreadObj = (SCliThrd2 **)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrd2 *));
@@ -2975,9 +3001,9 @@ static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p) {
   }
   return code;
 }
-static int32_t cliGetConnOrCreateConn(SCliThrd2 *pThrd, SCliConn **ppConn) {
-  int32_t   code = 0;
-  SCliConn *pConn = NULL;
+// static int32_t cliGetConnOrCreateConn(SCliThrd2 *pThrd, SCliConn **ppConn) {
+//   int32_t   code = 0;
+//   SCliConn *pConn = NULL;
 
-  return code;
-}
+//   return code;
+// }

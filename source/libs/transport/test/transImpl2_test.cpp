@@ -303,13 +303,14 @@ class TransEnv : public ::testing::Test {
 };
 
 TEST_F(TransEnv, 01sendAndReq) {
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < 100; i++) {
     SRpcMsg req = {0}, resp = {0};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
     tr->cliSendReq(&req);
-    taosMsleep(100000);
+    //taosMsleep(100000);
     assert(resp.code == 0);
   }
+  taosMsleep(20000);
 }
