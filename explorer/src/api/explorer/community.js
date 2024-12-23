@@ -224,7 +224,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -676,7 +676,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -896,7 +896,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -1187,7 +1187,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -1666,7 +1666,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -2047,7 +2047,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -2524,7 +2524,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -2769,7 +2769,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -3103,7 +3103,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -3506,7 +3506,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -3723,7 +3723,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -4127,7 +4127,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -4510,7 +4510,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -4820,7 +4820,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -5094,7 +5094,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -5435,7 +5435,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -5871,7 +5871,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000
               },
-              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Bounce alert.",
+              description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
             }
           ],
@@ -6092,7 +6092,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -6545,7 +6545,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -6761,7 +6761,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -7048,7 +7048,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -7519,7 +7519,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -7890,7 +7890,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -8361,7 +8361,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -8604,7 +8604,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -8934,7 +8934,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -9323,7 +9323,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -9537,7 +9537,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -9931,7 +9931,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -10304,7 +10304,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -10607,7 +10607,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -10876,7 +10876,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -11208,7 +11208,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
@@ -11638,7 +11638,7 @@ export function getDataSources(lang) {
                 min: 0,
                 max: 10000,
               },
-              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Bounce 警告。",
+              description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
             },
           ],
