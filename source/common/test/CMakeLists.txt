@@ -58,6 +58,24 @@ add_test(
     COMMAND cosCpTest
 )
 
+# cosTest.cpp
+add_executable(cosTest "")
+target_sources(
+    cosTest
+    PRIVATE
+    "cosTest.cpp"
+)
+target_link_libraries(cosTest gtest gtest_main util common)
+target_include_directories(
+        cosTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME cosTest
+    COMMAND cosTest
+)
+
 if (${TD_LINUX})
     # tmsg test
     add_executable(tmsgTest "")
