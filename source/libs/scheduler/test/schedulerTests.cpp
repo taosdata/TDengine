@@ -1008,6 +1008,9 @@ TEST(queryTest, rescheduleCase) {
   load.addr.epSet.eps[0].port = 6031;
   assert(taosArrayPush(qnodeList, &load) != NULL);
 
+  TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode1.ep");
+  assert(taosArrayPush(qnodeList, &load) != NULL);
+
   code = schedulerInit();
   ASSERT_EQ(code, 0);
 
@@ -1078,7 +1081,6 @@ TEST(queryTest, rescheduleCase) {
     task->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }
-
 
   pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {

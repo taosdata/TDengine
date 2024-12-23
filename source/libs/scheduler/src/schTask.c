@@ -189,7 +189,6 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   }
 
   pTask->failedExecId = pTask->execId;
-  pTask->failedSeriousId = pTask->seriousId;
 
   int8_t jobStatus = 0;
   if (schJobNeedToStop(pJob, &jobStatus)) {
@@ -1381,6 +1380,7 @@ int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
 
   for (int32_t i = 0; i < level->taskNum; ++i) {
     SSchTask *pTask = taosArrayGet(level->subTasks, i);
+    pTask->failedSeriousId = pJob->seriousId - 1;
     pTask->seriousId = pJob->seriousId;
     
     SCH_TASK_DLOG("task seriousId set to 0x%" PRIx64, pTask->seriousId);
