@@ -9,14 +9,13 @@ Apache Superset provides an intuitive user interface that makes creating, sharin
 
 Through the Python connector of TDengine, Superset can support TDengine data sources and provide functions such as data presentation and analysis  
 
-## Install Apache Superset
+## Prerequisites
 
-Ensure that Apache Superset v2.1.0 or above is installed. If not, please visit [official website](https://superset.apache.org/) to install  
-
-## Install TDengine
-
-Both TDengine Enterprise Edition and Community Edition are supported, with version requirements of 3.0 or higher  
-
+Prepare the following environment:
+- TDengine is installed and running normally (both Enterprise and Community versions are available)
+- taosAdapter is running normally, refer to [taosAdapter](../../../reference/components/taosAdapter)
+- Apache Superset version 2.1.0 or above is already installed, refre to [Apache Superset](https://superset.apache.org/)
+ 
 ## Install TDengine Python Connector
 
 The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.18 and later, which will be automatically installed in the Superset directory and provide data source services.  

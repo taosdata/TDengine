@@ -5791,7 +5791,6 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
 
   // make sure only release once
   void* p = pReader->pReadSnap;
-  TSDB_CHECK_NULL(p, code, lino, _end, TSDB_CODE_INVALID_PARA);
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, false);
     pReader->pReadSnap = NULL;
