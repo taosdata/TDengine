@@ -1,0 +1,159 @@
+#
+# Jamfile to build CUnit - Source root Directory
+# (see http://www.freetype.org/jam/index.html)
+#
+# Copyright (C) 2004-2006  Jerry St.Clair
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU Library General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#---------------------------------------------------------------------------
+
+SubDir TOP CUnit ;
+
+SubDirHdrs $(CUNIT_HDR_DIR) $(CUNIT_WIN_DIR) ;
+
+# set location for target, source, and temporary files
+LOCATE_TARGET = $(BUILD_DIR)$(SLASH)CUnit ;
+
+SEARCH_SOURCE +=
+  $(TOP)$(SLASH)CUnit
+  $(TOP)$(SLASH)CUnit$(SLASH)Headers
+  $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Framework
+  ;
+
+SOURCES =
+  InternalPoolMalloc.c
+  MessageHandlers.c
+  CUError.c
+  MyMem.c
+  TestDB.c
+  TestRun.c
+  Util.c 
+  ;
+
+if $(BUILD_AUTOMATED)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Automated ; 
+  SOURCES += Automated.c ; 
+}
+if $(BUILD_BASIC)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Basic ; 
+  SOURCES += Basic.c ; 
+}
+if $(BUILD_CONSOLE)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Console ; 
+  SOURCES += Console.c ; 
+}
+if $(BUILD_CURSES)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Curses ; 
+  SOURCES += Curses.c ; 
+}
+if $(BUILD_WINDOWS)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Win ; 
+  SOURCES += Win.c ; 
+}
+
+if $(BUILD_SHARED_LIB)
+{
+  if $(NT)
+  {
+    # extra symbolic targets for building CUnit library
+    DEPENDS cunit CUnit libcunit : $(CUNIT_LIB_NAME)$(SUFSHR) ;
+    
+    SubDirCcFlags -DCU_DLL -DCU_BUILD_DLL ;
+
+    Main $(CUNIT_LIB_NAME)$(SUFSHR) : $(SOURCES) ;
+    MakeLocate $(CUNIT_LIB_NAME)$(SUFSHR) : $(BUILD_DIR) ;
+
+    if $(BCCROOT) || ( $(TOOLSET) = BORLANDC )
+    { 
+      LINKFLAGS on $(CUNIT_LIB_NAME)$(SUFSHR) += -WD -lGi ; 
+    }
+    else if $(MSVCNT) || ( $(TOOLSET) = VISUALC )
+    { 
+      LINKFLAGS on $(CUNIT_LIB_NAME)$(SUFSHR) = $(LINKFLAGS) /DLL /IMPLIB:$(BUILD_DIR)$(SLASH)$(CUNIT_LIB_NAME)_dll$(SUFLIB) ; 
+    }
+    else if $(MINGW) || ( $(TOOLSET) = MINGW )
+    {
+      SubDirCcFlags -fPIC ;
+      LINKFLAGS on $(CUNIT_LIB_NAME)$(SUFSHR) +=
+          -shared
+          libcunit_dll.def
+          -Wl,--out-implib,$(BUILD_DIR)$(SLASH)$(CUNIT_LIB_NAME)_dll$(SUFLIB)
+          ;
+    }
+    else
+    { 
+      EXIT Building of CUnit shared library is not supported for this compiler on Windows. ; 
+    }
+
+    MakeImportLibrary $(CUNIT_LIB_NAME)$(SUFSHR) : $(CUNIT_LIB_NAME)_dll$(SUFLIB) ;
+
+    # install import library
+    if $(INSTALL_LIB_DIR)
+    { 
+      InstallLib $(INSTALL_LIB_DIR) : $(CUNIT_LIB_NAME)_dll$(SUFLIB) ; 
+    }
+  
+    # install shared library
+    if $(INSTALL_BIN_DIR)
+    { 
+      InstallBin $(INSTALL_BIN_DIR) : $(CUNIT_LIB_NAME)$(SUFSHR) ; 
+    }
+
+  }
+
+  else if $(UNIX) || ( $(OS) = LINUX )
+  {
+    # extra symbolic targets for building CUnit library
+    DEPENDS cunit CUnit libcunit : $(CUNIT_LIB_NAME)$(SUFSHR).$(VERSION).$(RELEASE) ;
+    
+    Main $(CUNIT_LIB_NAME)$(SUFSHR).$(VERSION).$(RELEASE) : $(SOURCES) ;
+    MakeLocate $(CUNIT_LIB_NAME)$(SUFSHR).$(VERSION).$(RELEASE) : $(BUILD_DIR) ;
+
+    CCFLAGS on $(SOURCES) += -fPIC ;
+    LINKFLAGS on $(CUNIT_LIB_NAME)$(SUFSHR).$(VERSION).$(RELEASE) +=
+        -shared
+        -Wl,-soname,$(CUNIT_LIB_NAME)$(SUFSHR).$(VERSION_MAJOR)
+        ;
+  
+    # install shared library
+    if $(INSTALL_LIB_DIR)
+    {
+      InstallLib $(INSTALL_BIN_DIR) : $(CUNIT_LIB_NAME)$(SUFSHR).$(VERSION).$(RELEASE) ;
+    }
+  }
+}
+
+if $(BUILD_STATIC_LIB)
+{
+  Library $(CUNIT_LIB_NAME) : $(SOURCES) ;
+  MakeLocate $(CUNIT_LIB_NAME)$(SUFLIB) : $(BUILD_DIR) ;
+
+  # install static library
+  if $(INSTALL_LIB_DIR)
+  {
+    InstallLib $(INSTALL_LIB_DIR) : $(CUNIT_LIB_NAME)$(SUFLIB) ;
+  }
+
+}
+
+SubInclude TOP CUnit Headers ;
+SubInclude TOP CUnit Sources Test ;
+
+
