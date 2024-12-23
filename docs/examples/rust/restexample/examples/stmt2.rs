@@ -28,6 +28,7 @@ async fn main() -> anyhow::Result<()> {
         let mut currents = Vec::with_capacity(NUM_ROWS);
         let mut voltages = Vec::with_capacity(NUM_ROWS);
         let mut phases = Vec::with_capacity(NUM_ROWS);
+
         for j in 0..NUM_ROWS {
             timestamps.push(1648432611249 + j as i64);
             currents.push(10.3 + j as f32);
