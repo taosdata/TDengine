@@ -281,6 +281,9 @@ TEST_F(TfsTest, 04_File) {
       const STfsFile *pf2 = tfsReaddir(pDir);
       EXPECT_EQ(pf2, nullptr);
 
+      pDir->pDir = taosOpenDir(fulldir);
+      EXPECT_NE(pDir->pDir, nullptr);
+
       tfsClosedir(pDir);
     }
 
@@ -783,5 +786,49 @@ TEST_F(TfsTest, 06_Exception) {
   taosMemoryFreeClear(pTfs);
 
   STfs tfs = {0};
-  EXPECT_EQ(tfsDiskSpaceAvailable(&tfs, -1), 0);
+  STfsTier *pTier = &tfs.tiers[0];
+  EXPECT_EQ(tfsDiskSpaceAvailable(&tfs, -1), false);
+  tfs.nlevel = 2;
+  pTier->ndisk = 3;
+  pTier->nAvailDisks = 1;
+  EXPECT_EQ(tfsDiskSpaceAvailable(&tfs, 0), false);
+  pTier->disks[0] = &disk;
+  EXPECT_EQ(tfsDiskSpaceAvailable(&tfs, 0), false);
+
+  EXPECT_EQ(tfsDiskSpaceSufficient(&tfs, -1, 0), false);
+  EXPECT_EQ(tfsDiskSpaceSufficient(&tfs, tfs.nlevel + 1, 0), false);
+  EXPECT_EQ(tfsDiskSpaceSufficient(&tfs, 0, -1), false);
+  EXPECT_EQ(tfsDiskSpaceSufficient(&tfs, 0, pTier->ndisk), false);
+
+  EXPECT_EQ(tfsGetDisksAtLevel(&tfs, -1), 0);
+  EXPECT_EQ(tfsGetDisksAtLevel(&tfs, tfs.nlevel), 0);
+
+  EXPECT_EQ(tfsGetLevel(&tfs), tfs.nlevel);
+
+  for (int32_t l = 0; l < tfs.nlevel; ++l) {
+    EXPECT_EQ(taosThreadSpinInit(&tfs.tiers[l].lock, 0), 0);
+  }
+
+  SDiskID diskID = {0};
+  disk.size.avail = TFS_MIN_DISK_FREE_SIZE;
+  EXPECT_EQ(tfsAllocDisk(&tfs, tfs.nlevel, &diskID), 0);
+  tfs.nlevel = 0;
+  diskID.level = 0;
+  EXPECT_EQ(tfsAllocDisk(&tfs, 0, &diskID), 0);
+  tfs.nlevel = 2;
+
+  diskID.id = 10;
+  EXPECT_EQ(tfsMkdirAt(&tfs, NULL, diskID), TSDB_CODE_FS_INVLD_CFG);
+
+  EXPECT_NE(tfsMkdirRecurAt(&tfs, NULL, diskID), 0);
+
+  const char *rname = "";
+  EXPECT_EQ(tfsRmdir(&tfs, rname), 0);
+
+  EXPECT_EQ(tfsSearch(&tfs, -1, NULL), -1);
+  EXPECT_EQ(tfsSearch(&tfs, tfs.nlevel, NULL), -1);
+
+  for (int32_t l = 0; l < tfs.nlevel; ++l) {
+    EXPECT_EQ(taosThreadSpinDestroy(&tfs.tiers[l].lock), 0);
+  }
 }

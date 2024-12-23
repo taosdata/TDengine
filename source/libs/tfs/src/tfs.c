@@ -245,13 +245,13 @@ void tfsDirname(const STfsFile *pFile, char *dest) {
   tstrncpy(tname, pFile->aname, TSDB_FILENAME_LEN);
   tstrncpy(dest, taosDirName(tname), TSDB_FILENAME_LEN);
 }
-
+#if 0
 void tfsAbsoluteName(STfs *pTfs, SDiskID diskId, const char *rname, char *aname) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
 
   (void)snprintf(aname, TSDB_FILENAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
 }
-
+#endif
 int32_t tfsRemoveFile(const STfsFile *pFile) { return taosRemoveFile(pFile->aname); }
 
 int32_t tfsCopyFile(const STfsFile *pFile1, const STfsFile *pFile2) {
@@ -340,7 +340,7 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
 
   TAOS_RETURN(0);
 }
-
+#if 0
 bool tfsDirExistAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
   char      aname[TMPNAME_LEN];
@@ -348,7 +348,7 @@ bool tfsDirExistAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   (void)snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
   return taosDirExist(aname);
 }
-
+#endif
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
   if (rname[0] == 0) {
     TAOS_RETURN(0);
