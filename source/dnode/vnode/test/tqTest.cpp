@@ -37,11 +37,11 @@ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
-STqOffset offset = {.subKey = "testtest", .val = {.type = TMQ_OFFSET__LOG, .version = 8923}};
-
 void tqWriteOffset() {
   TdFilePtr pFile = taosOpenFile(TQ_OFFSET_NAME, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
 
+  STqOffset offset = {.val = {.type = TMQ_OFFSET__LOG, .version = 8923}};
+  strcpy(offset.subKey, "testtest");
   int32_t    bodyLen;
   int32_t    code;
   tEncodeSize(tEncodeSTqOffset, &offset, bodyLen, code);

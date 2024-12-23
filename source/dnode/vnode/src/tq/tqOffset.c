@@ -26,8 +26,7 @@ int32_t tqBuildFName(char** data, const char* path, char* name) {
   int32_t len = strlen(path) + strlen(name) + 2;
   fname = taosMemoryCalloc(1, len);
   TSDB_CHECK_NULL(fname, code, lino, END, terrno);
-  code = tsnprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
-  TSDB_CHECK_CODE(code, lino, END);
+  (void)tsnprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
 
   *data = fname;
   fname = NULL;
