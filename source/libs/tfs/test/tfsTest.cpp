@@ -13,6 +13,7 @@
 #include "os.h"
 
 #include "tfs.h"
+#include "tfsInt.h"
 
 class TfsTest : public ::testing::Test {
  protected:
@@ -743,4 +744,44 @@ TEST_F(TfsTest, 05_MultiDisk) {
   }
 
   tfsClose(pTfs);
+}
+
+TEST_F(TfsTest, 06_Exception) {
+  // tfsDisk.c
+  STfsDisk *pDisk = NULL;
+  EXPECT_EQ(tfsNewDisk(0, 0, 0, NULL, &pDisk), TSDB_CODE_INVALID_PARA);
+
+  STfsDisk disk = {0};
+  EXPECT_EQ(tfsUpdateDiskSize(&disk), TSDB_CODE_INVALID_PARA);
+
+  // tfsTier.c
+  STfsTier tfsTier = {0};
+  EXPECT_EQ(taosThreadSpinInit(&tfsTier.lock, 0), 0);
+  EXPECT_EQ(tfsAllocDiskOnTier(&tfsTier), TSDB_CODE_FS_NO_VALID_DISK);
+
+  tfsTier.ndisk = 3;
+  tfsTier.nAvailDisks = 1;
+
+  tfsTier.disks[1] = &disk;
+  disk.disable = 1;
+  EXPECT_EQ(tfsAllocDiskOnTier(&tfsTier), TSDB_CODE_FS_NO_VALID_DISK);
+  disk.disable = 0;
+  disk.size.avail = 0;
+  EXPECT_EQ(tfsAllocDiskOnTier(&tfsTier), TSDB_CODE_FS_NO_VALID_DISK);
+
+  tfsTier.ndisk = TFS_MAX_DISKS_PER_TIER;
+  SDiskCfg diskCfg = {0};
+  tstrncpy(diskCfg.dir, "testDataDir", TSDB_FILENAME_LEN);
+  EXPECT_EQ(tfsMountDiskToTier(&tfsTier, &diskCfg, 0), TSDB_CODE_FS_TOO_MANY_MOUNT);
+  EXPECT_EQ(taosThreadSpinDestroy(&tfsTier.lock), 0);
+
+  // tfs.c
+  STfs *pTfs = NULL;
+  EXPECT_EQ(tfsOpen(0, -1, &pTfs), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tfsOpen(0, 0, &pTfs), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tfsOpen(0, TFS_MAX_DISKS + 1, &pTfs), TSDB_CODE_INVALID_PARA);
+  taosMemoryFreeClear(pTfs);
+
+  STfs tfs = {0};
+  EXPECT_EQ(tfsDiskSpaceAvailable(&tfs, -1), 0);
 }

@@ -16,6 +16,10 @@
 #ifndef _TD_TFS_INT_H_
 #define _TD_TFS_INT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "os.h"
 
 #include "taosdef.h"
