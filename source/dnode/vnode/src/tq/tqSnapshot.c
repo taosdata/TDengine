@@ -89,7 +89,7 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
   TSDB_CHECK_NULL(ppData, code, lino, end, TSDB_CODE_INVALID_MSG);
 
   code = tdbTbcNext(pReader->pCur, &pKey, &kLen, &pVal, &vLen);
-  TSDB_CHECK_CODE(code, lino, end);
+  TSDB_CHECK_CONDITION(code == 0, code, lino, end, TDB_CODE_SUCCESS);
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   TSDB_CHECK_NULL(*ppData, code, lino, end, terrno);
