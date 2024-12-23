@@ -55,9 +55,8 @@ int32_t cosInitEnv() {
   // const char *accessKeySecret = "cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX";
   // const char *bucketName = "test-bucket";
   const char *hostname = "192.168.1.52:9000";
-  const char *accessKeyId = "fGPPyYjzytw05nw44ViA";
-  const char *accessKeySecret = "vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ";
-
+  const char *accessKeyId = "zOgllR6bSnw2Ah3mCNel";
+  const char *accessKeySecret = "cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX";
   const char *bucketName = "ci-bucket19";
 
   tstrncpy(&tsS3Hostname[0][0], hostname, TSDB_FQDN_LEN);
@@ -98,31 +97,77 @@ _exit:
 TEST(testCase, cosCpPut) {
   int32_t code = 0, lino = 0;
 
-  long        objectSize = 128 * 1024 * 1024;
-  char const *objectName = "testObject";
+  int8_t with_cp = 0;
+  char  *data = nullptr;
+
+  const long  objectSize = 65 * 1024 * 1024;
+  char const *objectName = "cosut.bin";
+  const char  object_name[] = "cosut.bin";
+
+  EXPECT_EQ(std::string(object_name), objectName);
 
   EXPECT_EQ(cosInitEnv(), TSDB_CODE_SUCCESS);
-  EXPECT_EQ(s3Size(objectName), -1);
-  s3EvictCache("", 0);
+  EXPECT_EQ(s3Begin(), TSDB_CODE_SUCCESS);
+
+  {
+    data = (char *)taosMemoryCalloc(1, objectSize);
+    if (!data) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    for (int i = 0; i < objectSize / 2; ++i) {
+      data[i * 2 + 1] = 1;
+    }
+
+    char path[PATH_MAX] = {0};
+    char path_download[PATH_MAX] = {0};
+    int  ds_len = strlen(TD_DIRSEP);
+    int  tmp_len = strlen(tsTempDir);
+
+    (void)snprintf(path, PATH_MAX, "%s", tsTempDir);
+    if (strncmp(tsTempDir + tmp_len - ds_len, TD_DIRSEP, ds_len) != 0) {
+      (void)snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", TD_DIRSEP);
+      (void)snprintf(path + tmp_len + ds_len, PATH_MAX - tmp_len - ds_len, "%s", object_name);
+    } else {
+      (void)snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", object_name);
+    }
+
+    tstrncpy(path_download, path, strlen(path) + 1);
+    tstrncpy(path_download + strlen(path), ".download", strlen(".download") + 1);
+
+    TdFilePtr fp = taosOpenFile(path, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_WRITE_THROUGH);
+    GTEST_ASSERT_NE(fp, nullptr);
+
+    int n = taosWriteFile(fp, data, objectSize);
+    GTEST_ASSERT_EQ(n, objectSize);
+
+    code = taosCloseFile(&fp);
+    GTEST_ASSERT_EQ(code, 0);
+
+    code = s3PutObjectFromFile2(path, objectName, with_cp);
+    GTEST_ASSERT_EQ(code, 0);
+
+    with_cp = 1;
+    code = s3PutObjectFromFile2(path, objectName, with_cp);
+    GTEST_ASSERT_EQ(code, 0);
+
+    EXPECT_EQ(s3Size(objectName), objectSize);
+
+    s3End();
+    s3EvictCache("", 0);
+
+    taosMemoryFree(data);
+
+    EXPECT_EQ(taosRemoveFile(path), TSDB_CODE_SUCCESS);
+  }
 
   return;
 
 _exit:
-  std::cout << "code: " << code << std::endl;
-}
+  if (data) {
+    taosMemoryFree(data);
+    s3End();
+  }
 
-TEST(testCase, cosCpPutSize) {
-  int32_t code = 0, lino = 0;
-
-  long        objectSize = 128 * 1024 * 1024;
-  char const *objectName = "testObject";
-
-  EXPECT_EQ(cosInitEnv(), TSDB_CODE_SUCCESS);
-  EXPECT_EQ(s3Size(objectName), -1);
-  s3EvictCache("", 0);
-
-  return;
-
-_exit:
   std::cout << "code: " << code << std::endl;
 }
