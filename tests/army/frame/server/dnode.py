@@ -224,17 +224,28 @@ class TDDnode:
             (self.index, self.cfgPath))
     
     def getPath(self, tool="taosd"):
+        if platform.system().lower() == 'windows':
+            tool += ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
-        else:
+        elif ("tests" in selfPath):
             projPath = selfPath[:selfPath.find("tests")]
+        else:
+            tdLog.exit("can't find community or tests in path %s" % selfPath)
+
 
         paths = []
         exclude_dirs = ["packaging", ".git"]
+
+        binPath = os.path.join(projPath, "debug", "build", "bin")
+        if tool in binPath:
+            paths.append(binPath)
+            return paths[0]
+        
         for root, dirs, files in os.walk(projPath):
-            if ((tool) in files or ("%s.exe"%tool) in files):
+            if tool in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if all(excl not in rootRealPath for excl in exclude_dirs):
                     paths.append(os.path.join(root, tool))
@@ -245,6 +256,7 @@ class TDDnode:
             tdLog.info(f"{tool} found in {paths[0]}")    
         
         return paths[0]
+
             
     def starttaosd(self):
         binPath = self.getPath()

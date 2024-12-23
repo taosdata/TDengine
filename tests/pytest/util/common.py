@@ -2133,6 +2133,8 @@ class TDCom:
             print(f"An error occurred: {e}")
             
     def get_path(self, tool="taosd"):
+        if platform.system().lower() == 'windows':
+            tool += ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -2140,12 +2142,19 @@ class TDCom:
         elif ("tests" in selfPath):
             projPath = selfPath[:selfPath.find("tests")]
         else:
-            tdLog.exit(f"invalid path {selfPath}")
+            tdLog.exit("can't find community or tests in path %s" % selfPath)
+
 
         paths = []
         exclude_dirs = ["packaging", ".git"]
+
+        binPath = os.path.join(projPath, "debug", "build", "bin")
+        if tool in binPath:
+            paths.append(binPath)
+            return paths[0]
+        
         for root, dirs, files in os.walk(projPath):
-            if ((tool) in files or ("%s.exe"%tool) in files):
+            if tool in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if all(excl not in rootRealPath for excl in exclude_dirs):
                     paths.append(os.path.join(root, tool))
