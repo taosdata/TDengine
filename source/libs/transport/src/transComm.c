@@ -597,52 +597,6 @@ SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg,
   return task;
 }
 
-void transPrintEpSet(SEpSet* pEpSet) {
-  if (pEpSet == NULL) {
-    tTrace("NULL epset");
-    return;
-  }
-  char buf[512] = {0};
-  int  len = tsnprintf(buf, sizeof(buf), "epset:{");
-  for (int i = 0; i < pEpSet->numOfEps; i++) {
-    if (i == pEpSet->numOfEps - 1) {
-      len += tsnprintf(buf + len, sizeof(buf) - len, "%d. %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
-    } else {
-      len += tsnprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
-    }
-  }
-  len += tsnprintf(buf + len, sizeof(buf) - len, "}");
-  tTrace("%s, inUse:%d", buf, pEpSet->inUse);
-}
-bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {
-  if (a == NULL && b == NULL) {
-    return true;
-  } else if (a == NULL || b == NULL) {
-    return false;
-  }
-
-  if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
-    return false;
-  }
-  for (int i = 0; i < a->numOfEps; i++) {
-    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
-      return false;
-    }
-  }
-  return true;
-}
-bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
-  if (a->numOfEps != b->numOfEps) {
-    return false;
-  }
-  for (int i = 0; i < a->numOfEps; i++) {
-    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
-      return false;
-    }
-  }
-  return true;
-}
-
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
@@ -2027,3 +1981,49 @@ void transQueueClear(STransQueue* q) {
   }
 }
 void transQueueDestroy(STransQueue* q) { transQueueClear(q); }
+
+void transPrintEpSet(SEpSet* pEpSet) {
+  if (pEpSet == NULL) {
+    tTrace("NULL epset");
+    return;
+  }
+  char buf[512] = {0};
+  int  len = tsnprintf(buf, sizeof(buf), "epset:{");
+  for (int i = 0; i < pEpSet->numOfEps; i++) {
+    if (i == pEpSet->numOfEps - 1) {
+      len += tsnprintf(buf + len, sizeof(buf) - len, "%d. %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    } else {
+      len += tsnprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    }
+  }
+  len += tsnprintf(buf + len, sizeof(buf) - len, "}");
+  tTrace("%s, inUse:%d", buf, pEpSet->inUse);
+}
+bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {
+  if (a == NULL && b == NULL) {
+    return true;
+  } else if (a == NULL || b == NULL) {
+    return false;
+  }
+
+  if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
+}
+bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
+}
