@@ -6,9 +6,12 @@ title: 与 Superset 集成
 
 通过 TDengine 的 Python 连接器, ‌Superset‌ 可支持 TDengine 数据源并提供数据展现、分析等功能
 
-## 安装 Apache Superset
+## 前置条件 
 
-确保已安装 Apache Superset v2.1.0 及以上版本, 如未安装，请到其 [官网](https://superset.apache.org/) 安装
+准备以下环境：
+- TDengine 云服务实例已正常运行
+- taosAdapter 在云服务实例中正常运行。详细参考 [taosAdapter 使用手册](https://docs.taosdata.com/reference/components/taosadapter/)
+- Apache Superset v2.1.0 或以上版本已安装。安装 Apache Superset 请参考 [官方文档](https://superset.apache.org/)
 
 ## 安装 TDengine Python 连接器
 
