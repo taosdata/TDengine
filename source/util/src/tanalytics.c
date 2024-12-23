@@ -216,30 +216,33 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
     return 0;
   }
 
-  int64_t size = pRsp->dataLen + (int64_t)contLen * nmemb;
+  int64_t newDataSize = (int64_t) contLen * nmemb;
+  int64_t size = pRsp->dataLen + newDataSize;
+
   if (pRsp->data == NULL) {
     pRsp->data = taosMemoryMalloc(size + 1);
     if (pRsp->data == NULL) {
       uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t) size + 1, tstrerror(terrno));
-      return terrno;
+      return 0;   // return the recv length, if failed, return 0
     }
   } else {
     char* p = taosMemoryRealloc(pRsp->data, size + 1);
     if (p == NULL) {
       uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t) size + 1, tstrerror(terrno));
-      return terrno;
+      return 0;   // return the recv length, if failed, return 0
     }
 
     pRsp->data = p;
   }
 
   if (pRsp->data != NULL) {
-    (void)memcpy(pRsp->data + pRsp->dataLen, pCont, pRsp->dataLen);
-    pRsp->data[pRsp->dataLen] = 0;
-    pRsp->dataLen = size;
+    (void)memcpy(pRsp->data + pRsp->dataLen, pCont, newDataSize);
 
-    uDebugL("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
-    return pRsp->dataLen;
+    pRsp->dataLen = size;
+    pRsp->data[size] = 0;
+
+    uDebugL("curl response is received, len:%" PRId64 ", content:%s", size, pRsp->data);
+    return newDataSize;
   } else {
     pRsp->dataLen = 0;
     uError("failed to malloc curl response");
