@@ -603,11 +603,11 @@ int32_t checkItemDyn(SConfigItem *pItem, bool isServer) {
     return TSDB_CODE_SUCCESS;
   }
   if (isServer) {
-    if (pItem->dynScope == CFG_DYN_ENT_CLIENT || pItem->dynScope == CFG_DYN_ENT_CLIENT_LAZY) {
+    if (pItem->dynScope == CFG_DYN_CLIENT || pItem->dynScope == CFG_DYN_CLIENT_LAZY) {
       return TSDB_CODE_INVALID_CFG;
     }
   } else {
-    if (pItem->dynScope == CFG_DYN_ENT_SERVER || pItem->dynScope == CFG_DYN_ENT_SERVER_LAZY) {
+    if (pItem->dynScope == CFG_DYN_SERVER || pItem->dynScope == CFG_DYN_SERVER_LAZY) {
       return TSDB_CODE_INVALID_CFG;
     }
   }
