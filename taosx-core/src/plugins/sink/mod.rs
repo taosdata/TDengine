@@ -2883,7 +2883,7 @@ async fn consume_flat_record(
                             qid.add_sub_batch_id();
                             tracing::warn!("Contains invalid timestamp, filter out them");
                             // filter timestamp.
-                            let min = get_minimum_timestamp(
+                            let (_, min) = get_minimum_timestamp(
                                 pool,
                                 taos,
                                 DEFAULT_MAX_RETRIES_FOR_CONNECTION,
