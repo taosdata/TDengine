@@ -454,7 +454,8 @@ struct tm *taosGmTimeR(const time_t *timep, struct tm *result) {
     return NULL;
   }
 #ifdef WINDOWS
-  return gmtime_s(result, timep);
+  errno_t code = gmtime_s(result, timep);
+  return (code == 0) ? result : NULL;
 #else
   return gmtime_r(timep, result);
 #endif
