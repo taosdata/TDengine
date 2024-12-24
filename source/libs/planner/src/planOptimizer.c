@@ -6060,10 +6060,21 @@ static int32_t stbJoinOptCreateTagScanNode(SLogicNode* pJoin, SNodeList** ppList
   }
 
   SNode* pNode = NULL;
+  SName* pPrev = NULL;
   FOREACH(pNode, pList) {
     code = stbJoinOptRewriteToTagScan(pJoin, pNode);
     if (code) {
       break;
+    }
+
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (pScan->pVgroupList && 1 == pScan->pVgroupList->numOfVgroups) {
+      if (NULL == pPrev || 0 == strcmp(pPrev->dbname, pScan->tableName.dbname)) {
+        pPrev = &pScan->tableName;
+        continue;
+      }
+
+      pScan->needSplit = true;
     }
   }
 
@@ -6156,6 +6167,7 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
   }
 
   int32_t i = 0;
+  SName* pPrev = NULL;
   SNode*  pNode = NULL;
   FOREACH(pNode, pList) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -6173,6 +6185,16 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
     *(srcScan + i++) = pScan->pVgroupList->numOfVgroups <= 1;
 
     pScan->scanType = SCAN_TYPE_TABLE;
+
+    if (pScan->pVgroupList && 1 == pScan->pVgroupList->numOfVgroups) {
+      if (NULL == pPrev || 0 == strcmp(pPrev->dbname, pScan->tableName.dbname)) {
+        pPrev = &pScan->tableName;
+        continue;
+      }
+
+      pScan->needSplit = true;
+      *(srcScan + i - 1) = false;
+    }
   }
 
   *ppList = pList;
