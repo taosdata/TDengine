@@ -740,7 +740,7 @@ class TDTestCase:
                 tdLog.info(f"create {func_name} functions success, using {self.libchange_udf_normal}")
                 break
                 
-        tdSql.query(f"select {func_name}(c8) from db.t1")
+        tdSql.error(f"select {func_name}(c8) from db.t1", TSDB_CODE_TSC_INTERNAL_ERROR)
         tdSql.execute(f"drop function {func_name}")
         tdSql.error(f"select {func_name}(num1) from db.tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
         
