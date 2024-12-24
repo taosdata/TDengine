@@ -46,7 +46,7 @@ static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
   return snprintf(buf, WAL_FILE_LEN, "%s/meta-ver.tmp", pWal->path);
 }
 
-static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
+FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
   int32_t       code = 0, lino = 0;
   int32_t       sz = taosArrayGetSize(pWal->fileInfoSet);
   int64_t       retVer = -1;
