@@ -351,6 +351,7 @@
             <div
               class="status-operation"
               style="display: flex; white-space: nowrap"
+              v-if="showHealthStatus.includes(scope.row.status)"
             >
               <el-tooltip
                 placement="bottom"
@@ -525,6 +526,7 @@ export default {
       showErrStatus: ['waiting','suspending','suspended','failed','interrupted'],
       permitDeleteStatus: ['completed','stopped','failed', 'interrupted', 'ticked'],
       multipleSelection: [],
+      showHealthStatus: ['running', 'stopping', 'waiting', 'resumed']
     };
   },
   computed: {
