@@ -88,7 +88,7 @@ For external database sources InfluxDB and OpenTSDB, you need Java SDK and [Mave
 
 ```bash
 # In Ubuntu 22.04+
-sudo apt install openjdk-18-jdk maven
+sudo apt install openjdk-11-jdk maven
 ```
 
 For OPC-UA/OPC-DA data sources, you need [Go 1.20+](https://go.dev/doc/install):
@@ -133,7 +133,6 @@ cargo make build-all
 You need python3 environment and some packages from PyPI for packaging.
 
 ```bash
-sudo apt install python3
 pip3 install toml
 ```
 
@@ -203,17 +202,40 @@ To run the specific test case(s) from above list with `nextest`:
 cargo nextest run --workspace <case-name>
 ```
 
-To run the e2e test case(s), it can be completed by the following operation(Before executing the above command, please confirm that you have correctly remembered the username and password locally in the build step):
+Before executing the above command, please confirm that you have correctly remembered the username and password locally in the build step.
+To run the e2e test case(s), it can be completed by the following operation.
+
 
 ```bash
 cd tests/e2e
 cp setenv.sh.example setenv.sh
 source setenv.sh
 poetry install
-# run sanity test cases
-pytest -sv --timeout=300 -m sanity
+```
+
+run all test cases:
+```bash
+poetry run pytest 
 
 ```
+More ways to run cases:
+```bash
+# activate venv, then pytest can be run directly
+poetry shell
+
+# run a single case
+pytest -sv opcua_test.py::test_sanity
+
+# run all opcua cases
+pytest -sv opcua_test.py
+
+# run cases by marker
+pytest -sv -m sanity
+
+# run case by keyword
+pytest -sv opcua_test.py -k observe
+```
+To run e2e tests, you need to deploy third-party data sources in advance and modify the tests/e2e/config/env.yaml file to configure the data source environment
 At present, because some test cases rely on external third-party data sources, the test cases depend on the specified testing environment. We are still trying to add third-party data sources to one-click deployment.
 
 ## 8. Releasing
