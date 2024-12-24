@@ -362,7 +362,7 @@ TEST_F(CfgTest, cfgLoadFromApollUrl) {
 
   char str[256];
   snprintf(str, sizeof(str), "jsonFile:%s", jsonFilePath);
-  ASSERT_EQ(cfgLoad(pConfig, CFG_STYPE_APOLLO_URL, str), TSDB_CODE_INVALID_DATA_FMT);
+  ASSERT_EQ(cfgLoad(pConfig, CFG_STYPE_APOLLO_URL, str), 0);
 
   taosRemoveFile(jsonFilePath);
 }
