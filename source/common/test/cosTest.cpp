@@ -81,12 +81,16 @@ int32_t cosInitEnv() {
 TEST(testCase, cosCpPutError) {
   int32_t code = 0, lino = 0;
 
-  long        objectSize = 128 * 1024 * 1024;
   char const *objectName = "testObject";
 
   EXPECT_EQ(cosInitEnv(), TSDB_CODE_SUCCESS);
   EXPECT_EQ(s3Begin(), TSDB_CODE_SUCCESS);
+
+#if defined(USE_S3)
   EXPECT_EQ(s3Size(objectName), -1);
+#else
+  EXPECT_EQ(s3Size(objectName), 0);
+#endif
 
   s3EvictCache("", 0);
 
@@ -155,7 +159,11 @@ TEST(testCase, cosCpPut) {
     code = s3PutObjectFromFile2(path, objectName, with_cp);
     GTEST_ASSERT_EQ(code, 0);
 
+#if defined(USE_S3)
     EXPECT_EQ(s3Size(objectName), objectSize);
+#else
+    EXPECT_EQ(s3Size(objectName), 0);
+#endif
 
     s3End();
     s3EvictCache("", 0);
