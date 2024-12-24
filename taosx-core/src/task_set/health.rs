@@ -39,6 +39,7 @@ pub enum State {
     Initial = 0, // 初始化
     Ready,       // 准备就绪
     Idle,        // 空闲
+    Active,      // 活跃
     Busy,        // 繁忙
     Bounce,      // 偶发错误
     SourceError, // 数据源错误
@@ -420,16 +421,19 @@ impl HealthChecker {
     // }
 
     /// Check if the system is busy.
-    fn is_busy(&self) -> bool {
+    fn is_busy(&self) -> Option<(bool, MessageMetrics)> {
         if self.messages_in_window.is_empty() {
-            return false;
+            return None;
         }
         let messages: MessageMetrics = self.messages_in_window.iter().sum();
         if messages.sink_messages == 0 {
-            return false;
+            return Some((false, messages));
         }
         let busy_ratio = messages.in_queue() as f64 / self.options.max_queue_length as f64;
-        messages.in_queue() > 0 && busy_ratio >= self.options.busy_threshold
+        Some((
+            messages.in_queue() > 0 && busy_ratio >= self.options.busy_threshold,
+            messages,
+        ))
     }
     fn get_state(&self) -> State {
         let last_state = self.state;
@@ -442,15 +446,24 @@ impl HealthChecker {
                 State::Fatal => {
                     return State::Fatal;
                 }
-                _ => {
-                    if is_busy {
+                _ => match is_busy {
+                    Some((true, _)) => {
                         return State::Busy;
-                    } else if self.total_messages.sink_messages > 0 {
-                        return State::Idle;
-                    } else {
+                    }
+                    Some((false, messages)) => {
+                        if messages.sink_messages > 0 {
+                            if last_state == State::Initial {
+                                return State::Ready;
+                            }
+                            return State::Active;
+                        } else {
+                            return State::Idle;
+                        }
+                    }
+                    _ => {
                         return State::Ready;
                     }
-                }
+                },
             }
         }
         let errors: ErrorMetrics = self.errors_in_window.iter().sum();
@@ -469,13 +482,21 @@ impl HealthChecker {
         if errors.transform > 0 || errors.framework > 0 {
             return State::Bounce;
         }
-        if is_busy {
-            return State::Busy;
+
+        match is_busy {
+            Some((true, _)) => State::Busy,
+            Some((false, messages)) => {
+                if messages.sink_messages > 0 {
+                    if last_state == State::Initial {
+                        return State::Ready;
+                    }
+                    State::Active
+                } else {
+                    State::Idle
+                }
+            }
+            _ => State::Ready,
         }
-        if last_state == State::Initial && self.total_messages.sink_messages > 0 {
-            return State::Ready;
-        }
-        State::Idle
     }
 }
 
