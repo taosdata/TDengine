@@ -980,7 +980,7 @@ static int32_t evtSvrReadCb(void *arg, SEvtBuf *buf, int32_t bytes) {
         TAOS_CHECK_GOTO(terrno, &lino, _end);
       }
       memcpy(pMsg, p->buf, msgLen);
-      memcpy(p->buf + msgLen, p->buf, p->len - msgLen);
+      memmove(p->buf, p->buf + msgLen, p->len - msgLen);
       p->len -= msgLen;
 
       code = evtSvrHandleReq(pConn, pMsg, msgLen);
@@ -2550,7 +2550,7 @@ static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
         TAOS_CHECK_GOTO(terrno, &line, _end);
       }
       memcpy(pMsg, p->buf, msgLen);
-      memcpy(p->buf + msgLen, p->buf, p->len - msgLen);
+      memmove(p->buf, p->buf + msgLen, p->len - msgLen);
       p->len -= msgLen;
 
       code = evtCliHandleResp(pConn, pMsg, msgLen);
@@ -2840,6 +2840,9 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
   STrans *pInst = arg;
   if (pInst->connLimitNum >= 512) {
     pInst->connLimitNum = 512;
+  }
+  if (pInst->shareConnLimit <= 0) {
+    pInst->shareConnLimit = 32;
   }
 
   memcpy(cli->label, label, TSDB_LABEL_LEN);
