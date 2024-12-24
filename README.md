@@ -322,20 +322,28 @@ cd /root/TDinternal/community/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
-## 8.5 Tsbs Test
+## 8.5 TSBS Test
 
-cd /usr/local/src/ && apt install git && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp 
-1. modify ip and host in test.ini 
-2. set up passwordless login between the client and server; otherwise, you'll need to configure a server password.
+1. Clone the code
+```bash
+cd /root && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp
 ```
-clientIP="192.168.0.203"   #client ip
-clientHost="trd03"         #client hostname
-serverIP="192.168.0.204"   #server ip
-serverHost="trd04"         #server hostname
-serverPass="taosdata123"   #server root password
+2. Modify IP and host of client and server in `test.ini`
+```ini
+clientIP="192.168.0.203"   # client ip
+clientHost="trd03"         # client hostname
+serverIP="192.168.0.204"   # server ip
+serverHost="trd04"         # server hostname
 ```
-3. run command:
- ```bash nohup bash tsdbComparison.sh > test.log & ```
+3. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+```ini
+serverPass="taosdata123"   # server root password
+```
+4. Run the following command to start the test:
+ ```bash
+nohup bash tsdbComparison.sh > test.log &
+```
+5. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
 
 ### 8.6 Crash_gen Test
 
