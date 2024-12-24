@@ -58,6 +58,8 @@ add_test(
     COMMAND cosCpTest
 )
 
+if(TD_LINUX)
+
 # cosTest.cpp
 add_executable(cosTest "")
 target_sources(
@@ -75,6 +77,8 @@ add_test(
     NAME cosTest
     COMMAND cosTest
 )
+
+endif()
 
 if (${TD_LINUX})
     # tmsg test
