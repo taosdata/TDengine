@@ -197,7 +197,7 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   code = metaDecodeEntry(pDecoder, &metaEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = metaHandleEntry2(pMeta, &metaEntry);
+  code = metaHandleEntry(pMeta, &metaEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
