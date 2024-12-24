@@ -1066,7 +1066,7 @@ static int32_t mndUpdateArbHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *me
 }
 
 bool mndUpdateArbGroupByCheckSync(SArbGroup *pGroup, int32_t vgId, char *member0Token, char *member1Token,
-                                  bool newIsSync, SArbGroup *pNewGroup) {
+                                  bool newIsSync, SArbGroup *pNewGroup, int32_t code) {
   bool updateIsSync = false;
 
   (void)taosThreadMutexLock(&pGroup->mutex);
@@ -1089,6 +1089,7 @@ bool mndUpdateArbGroupByCheckSync(SArbGroup *pGroup, int32_t vgId, char *member0
   if (pGroup->isSync != newIsSync) {
     mndArbGroupDupObj(pGroup, pNewGroup);
     pNewGroup->isSync = newIsSync;
+    pNewGroup->code = code;
 
     mInfo("vgId:%d, arb isSync updating, new isSync:%d", vgId, newIsSync);
     updateIsSync = true;
@@ -1099,7 +1100,8 @@ _OVER:
   return updateIsSync;
 }
 
-static int32_t mndUpdateArbSync(SMnode *pMnode, int32_t vgId, char *member0Token, char *member1Token, bool newIsSync) {
+static int32_t mndUpdateArbSync(SMnode *pMnode, int32_t vgId, char *member0Token, char *member1Token, bool newIsSync,
+                                int32_t rsp_code) {
   int32_t    code = 0;
   SArbGroup *pGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &vgId);
   if (pGroup == NULL) {
@@ -1110,7 +1112,8 @@ static int32_t mndUpdateArbSync(SMnode *pMnode, int32_t vgId, char *member0Token
   }
 
   SArbGroup newGroup = {0};
-  bool      updateIsSync = mndUpdateArbGroupByCheckSync(pGroup, vgId, member0Token, member1Token, newIsSync, &newGroup);
+  bool      updateIsSync =
+      mndUpdateArbGroupByCheckSync(pGroup, vgId, member0Token, member1Token, newIsSync, &newGroup, rsp_code);
   if (updateIsSync) {
     if (mndPullupArbUpdateGroup(pMnode, &newGroup) != 0) {
       mInfo("failed to pullup update arb sync, vgId:%d, since %s", vgId, terrstr());
@@ -1186,6 +1189,7 @@ static int32_t mndProcessArbCheckSyncRsp(SRpcMsg *pRsp) {
     TAOS_RETURN(code);
   }
 
+  mInfo("vgId:%d, arb check-sync-rsp received, errCode:%d", syncRsp.vgId, syncRsp.errCode);
   if (mndArbCheckToken(arbToken, syncRsp.arbToken) != 0) {
     mInfo("skip update arb sync for vgId:%d, arb token mismatch, local:[%s] msg:[%s]", syncRsp.vgId, arbToken,
           syncRsp.arbToken);
@@ -1194,7 +1198,8 @@ static int32_t mndProcessArbCheckSyncRsp(SRpcMsg *pRsp) {
   }
 
   bool newIsSync = (syncRsp.errCode == TSDB_CODE_SUCCESS);
-  if ((code = mndUpdateArbSync(pMnode, syncRsp.vgId, syncRsp.member0Token, syncRsp.member1Token, newIsSync)) != 0) {
+  if ((code = mndUpdateArbSync(pMnode, syncRsp.vgId, syncRsp.member0Token, syncRsp.member1Token, newIsSync,
+                               syncRsp.errCode)) != 0) {
     mInfo("failed to update arb sync for vgId:%d, since:%s", syncRsp.vgId, terrstr());
     goto _OVER;
   }
@@ -1333,8 +1338,16 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
                           &lino, _OVER);
     }
 
+    char strSync[100] = {0};
+    sprintf(strSync, "%d,%d", pGroup->isSync, pGroup->code);
+    char sync[100 + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(sync, strSync, 100 + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->isSync, false), pGroup, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)sync, false), pGroup, &lino, _OVER);
+
+    // pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    // RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->code, false), pGroup, &lino,
+    // _OVER);
 
     if (pGroup->assignedLeader.dnodeId != 0) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

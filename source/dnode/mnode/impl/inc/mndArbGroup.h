@@ -41,7 +41,7 @@ int32_t mndSetDropArbGroupCommitLogs(STrans *pTrans, SArbGroup *pGroup);
 bool mndUpdateArbGroupByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMember, int64_t nowMs, int32_t dnodeId,
                                   SArbGroup *pNewGroup);
 bool mndUpdateArbGroupByCheckSync(SArbGroup *pGroup, int32_t vgId, char *member0Token, char *member1Token,
-                                  bool newIsSync, SArbGroup *pNewGroup);
+                                  bool newIsSync, SArbGroup *pNewGroup, int32_t code);
 bool mndUpdateArbGroupBySetAssignedLeader(SArbGroup *pGroup, int32_t vgId, char *memberToken, int32_t errcode,
                                           SArbGroup *pNewGroup);
 
