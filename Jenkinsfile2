@@ -81,7 +81,7 @@ def check_docs(){
         file_only_tdgpt_change_except = sh (
             script: '''
                 cd ${WKC}
-                echo ${file_no_doc_changed} | grep -Ev ${tdgpt_file} ||:
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev ${tdgpt_file} ||:
             ''',
             returnStdout: true
         ).trim()
