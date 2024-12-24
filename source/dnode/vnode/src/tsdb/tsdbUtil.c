@@ -699,9 +699,11 @@ int32_t tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) 
 }
 
 void tsdbRowClose(STSDBRowIter *pIter) {
-  if (pIter->pRow->type == TSDBROW_ROW_FMT) {
+  if (pIter->pRow && pIter->pRow->type == TSDBROW_ROW_FMT) {
     tRowIterClose(&pIter->pIter);
   }
+  pIter->pRow = NULL;
+  pIter->pIter = NULL;
 }
 
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
