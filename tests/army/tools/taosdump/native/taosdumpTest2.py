@@ -25,15 +25,6 @@ import random
 
 
 class TDTestCase(TBase):
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-
-        self.ts = 1601481600000
-        self.numberOfTables = 1
-        self.numberOfRecords = 150
-
-
     def generateString(self, length):
         chars = string.ascii_uppercase + string.ascii_lowercase
         v = ""
@@ -42,6 +33,10 @@ class TDTestCase(TBase):
         return v
 
     def run(self):
+        self.ts = 1601481600000
+        self.numberOfTables = 1
+        self.numberOfRecords = 150
+
         if not os.path.exists("./taosdumptest/tmp"):
             os.makedirs("./taosdumptest/tmp")
         else:

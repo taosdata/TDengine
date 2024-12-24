@@ -103,7 +103,7 @@ class TDTestCase(TBase):
 
         tdSql.query("select * from st where usntag is null")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
 

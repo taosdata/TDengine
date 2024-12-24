@@ -22,14 +22,6 @@ from frame import *
 
 
 class TDTestCase(TBase):
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-
-        self.ts = 1625068800000000000  # this is timestamp  "2021-07-01 00:00:00"
-        self.numberOfTables = 10
-        self.numberOfRecords = 100
-
     def checkCommunity(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if "community" in selfPath:
@@ -92,6 +84,9 @@ class TDTestCase(TBase):
             print("other time precision not valid , please check! ")
 
     def run(self):
+        self.ts = 1625068800000000000  # this is timestamp  "2021-07-01 00:00:00"
+        self.numberOfTables = 10
+        self.numberOfRecords = 100
 
         # clear envs
         os.system("rm -rf ./taosdumptest/")

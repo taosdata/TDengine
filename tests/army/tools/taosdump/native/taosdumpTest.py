@@ -22,14 +22,6 @@ from frame import *
 
 
 class TDTestCase(TBase):
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-
-        self.ts = 1538548685000
-        self.numberOfTables = 10000
-        self.numberOfRecords = 100
-
     def checkCommunity(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if "community" in selfPath:
@@ -39,6 +31,10 @@ class TDTestCase(TBase):
 
 
     def run(self):
+        self.ts = 1538548685000
+        self.numberOfTables = 10000
+        self.numberOfRecords = 100
+
         if not os.path.exists("./taosdumptest/tmp1"):
             os.makedirs("./taosdumptest/tmp1")
         else:
