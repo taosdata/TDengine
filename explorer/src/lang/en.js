@@ -258,6 +258,8 @@ export default {
     idleDesc: 'Indicates no data processing for a configurable period, meaning no data has entered the processing flow recently.',
     active: 'Active',
     activeDesc: 'Indicates data is ingesting.',
+    pending: 'Pending',
+    pendingDesc: 'Indicates no data written into target in this period with source keep ingesting.',
     busy: 'Busy',
     busyDesc: 'Indicates that the write queue is full.',
     bounce: 'Bounce',
