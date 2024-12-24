@@ -36,9 +36,9 @@ class TDTestCase(TBase):
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(2)
-        tdDnodes.stopAll()
+        sc.dnodeStopAll()
         time.sleep(2)
-        tdDnodes.start(1)
+        sc.dnodeStart(1)
         time.sleep(2)
 
         psCmd = "ps -ef|grep -w taosBenchmark| grep -v grep | awk '{print $2}'"
