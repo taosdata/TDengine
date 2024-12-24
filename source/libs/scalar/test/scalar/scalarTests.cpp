@@ -391,6 +391,26 @@ TEST(constantTest, bigint_add_bigint) {
   nodesDestroyNode(res);
 }
 
+TEST(constantTest, ubigint_add_ubigint) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_UBIGINT, &scltLeftV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_UBIGINT, &scltRightV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_UBIGINT, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_UBIGINT);
+  ASSERT_FLOAT_EQ(v->datum.d, (scltLeftV + scltRightV));
+  nodesDestroyNode(res);
+}
+
 TEST(constantTest, double_sub_bigint) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -417,6 +437,66 @@ TEST(constantTest, tinyint_and_smallint) {
   code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_TINYINT, &scltLeftV);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &scltRightV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(v->datum.i, (int64_t)scltLeftV & (int64_t)scltRightV);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, utinyint_and_usmallint) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_UTINYINT, &scltLeftV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_USMALLINT, &scltRightV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(v->datum.i, (int64_t)scltLeftV & (int64_t)scltRightV);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, uint_and_usmallint) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_UINT, &scltLeftV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_USMALLINT, &scltRightV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(v->datum.i, (int64_t)scltLeftV & (int64_t)scltRightV);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, ubigint_and_uint) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_UBIGINT, &scltLeftV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_UINT, &scltRightV);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   code = scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -491,6 +571,53 @@ TEST(constantTest, int_greater_double) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, scltLeftV > scltRightVd);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, binary_greater_equal_varbinary) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  char   binaryStr[64] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)sprintf(&binaryStr[2], "%d", scltRightV);
+  varDataSetLen(binaryStr, strlen(&binaryStr[2]));
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_VARBINARY, binaryStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, binaryStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(v->datum.b, scltLeftV < scltRightVd);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, binary_equal_geo) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  char   geoRawStr[64] = "POLYGON((30 10, 40 40, 20 40, 10 20, 30 10))";
+  char   geoStr[64] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)sprintf(&geoStr[2], "%s", geoRawStr);
+  varDataSetLen(geoStr, strlen(&geoStr[2]));
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_GEOMETRY, geoStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, geoStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(v->datum.b, scltLeftV < scltRightVd);
   nodesDestroyNode(res);
 }
 
@@ -2106,7 +2233,7 @@ TEST(columnTest, int_column_in_double_list) {
   SNode       *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
   int32_t      leftv[5] = {1, 2, 3, 4, 5};
   double       rightv1 = 1.1, rightv2 = 2.2, rightv3 = 3.3;
-  bool         eRes[5] = {true, true, true, false, false};
+  bool         eRes[5] = {false, false, false, false, false};
   SSDataBlock *src = NULL;
   int32_t      rowNum = sizeof(leftv) / sizeof(leftv[0]);
   int32_t      code = TSDB_CODE_SUCCESS;

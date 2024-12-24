@@ -68,10 +68,19 @@ static bool  tmqAddJsonArrayItem(cJSON *array, cJSON *item){
 }
 
 
-static int32_t  tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen);
-static tb_uid_t processSuid(tb_uid_t suid, char* db) { return suid + MurmurHash3_32(db, strlen(db)); }
+static int32_t  tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLen);
+static tb_uid_t processSuid(tb_uid_t suid, char* db) {
+  if (db == NULL) {
+    return suid;
+  }
+  return suid + MurmurHash3_32(db, strlen(db));
+}
 static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id, int8_t t,
                                  SColCmprWrapper* pColCmprRow, cJSON** pJson) {
+  if (schemaRow == NULL || name == NULL || pColCmprRow == NULL || pJson == NULL) {
+    uError("invalid parameter, schemaRow:%p, name:%p, pColCmprRow:%p, pJson:%p", schemaRow, name, pColCmprRow, pJson);
+    return;
+  }
   int32_t code = TSDB_CODE_SUCCESS;
   int8_t  buildDefaultCompress = 0;
   if (pColCmprRow->nCols <= 0) {
@@ -186,6 +195,9 @@ end:
 }
 
 static int32_t setCompressOption(cJSON* json, uint32_t para) {
+  if (json == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   uint8_t encode = COMPRESS_L1_TYPE_U32(para);
   int32_t code = 0;
   if (encode != 0) {
@@ -219,6 +231,10 @@ end:
   return code;
 }
 static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** pJson) {
+  if (alterData == NULL || pJson == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SMAlterStbReq req = {0};
   cJSON*        json = NULL;
   char*         string = NULL;
@@ -362,6 +378,10 @@ end:
 }
 
 static void processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
+  if (metaRsp == NULL || pJson == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SVCreateStbReq req = {0};
   SDecoder       coder;
 
@@ -382,6 +402,10 @@ end:
 }
 
 static void processAlterStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
+  if (metaRsp == NULL || pJson == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SVCreateStbReq req = {0};
   SDecoder       coder = {0};
   uDebug("alter stable data:%p", metaRsp);
@@ -402,6 +426,10 @@ end:
 }
 
 static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
+  if (json == NULL || pCreateReq == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   STag*   pTag = (STag*)pCreateReq->ctb.pTag;
   char*   sname = pCreateReq->ctb.stbName;
   char*   name = pCreateReq->name;
@@ -502,6 +530,10 @@ end:
 }
 
 static void buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs, cJSON** pJson) {
+  if (pJson == NULL || pCreateReq == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   int32_t code = 0;
   char*   string = NULL;
   cJSON*  json = cJSON_CreateObject();
@@ -531,6 +563,10 @@ end:
 }
 
 static void processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
+  if (pJson == NULL || metaRsp == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SDecoder           decoder = {0};
   SVCreateTbBatchReq req = {0};
   SVCreateTbReq*     pCreateReq;
@@ -561,6 +597,10 @@ end:
 }
 
 static void processAutoCreateTable(SMqDataRsp* rsp, char** string) {
+  if (rsp == NULL || string == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SDecoder*      decoder = NULL;
   SVCreateTbReq* pCreateReq = NULL;
   int32_t        code = 0;
@@ -611,6 +651,10 @@ end:
 }
 
 static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
+  if (pJson == NULL || metaRsp == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SDecoder     decoder = {0};
   SVAlterTbReq vAlterTbReq = {0};
   char*        string = NULL;
@@ -850,6 +894,10 @@ end:
 }
 
 static void processDropSTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
+  if (pJson == NULL || metaRsp == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SDecoder     decoder = {0};
   SVDropStbReq req = {0};
   cJSON*       json = NULL;
@@ -884,6 +932,10 @@ end:
   *pJson = json;
 }
 static void processDeleteTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
+  if (pJson == NULL || metaRsp == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SDeleteRes req = {0};
   SDecoder   coder = {0};
   cJSON*     json = NULL;
@@ -921,6 +973,10 @@ end:
 }
 
 static void processDropTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
+  if (pJson == NULL || metaRsp == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SDecoder         decoder = {0};
   SVDropTbBatchReq req = {0};
   cJSON*           json = NULL;
@@ -958,7 +1014,11 @@ end:
   *pJson = json;
 }
 
-static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
+static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SVCreateStbReq req = {0};
   SDecoder       coder;
   SMCreateStbReq pReq = {0};
@@ -973,8 +1033,8 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
-  int32_t len = metaLen - sizeof(SMsgHead);
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
     code = TSDB_CODE_INVALID_PARA;
@@ -1068,7 +1128,11 @@ end:
   return code;
 }
 
-static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
+static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SVDropStbReq req = {0};
   SDecoder     coder = {0};
   SMDropStbReq pReq = {0};
@@ -1083,8 +1147,8 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
-  int32_t len = metaLen - sizeof(SMsgHead);
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVDropStbReq(&coder, &req) < 0) {
     code = TSDB_CODE_INVALID_PARA;
@@ -1173,11 +1237,19 @@ typedef struct SVgroupCreateTableBatch {
 } SVgroupCreateTableBatch;
 
 static void destroyCreateTbReqBatch(void* data) {
+  if (data == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SVgroupCreateTableBatch* pTbBatch = (SVgroupCreateTableBatch*)data;
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
-static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
+static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SVCreateTbBatchReq req = {0};
   SDecoder           coder = {0};
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -1195,8 +1267,8 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
-  int32_t len = metaLen - sizeof(SMsgHead);
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVCreateTbBatchReq(&coder, &req) < 0) {
     code = TSDB_CODE_INVALID_PARA;
@@ -1359,11 +1431,19 @@ typedef struct SVgroupDropTableBatch {
 } SVgroupDropTableBatch;
 
 static void destroyDropTbReqBatch(void* data) {
+  if (data == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SVgroupDropTableBatch* pTbBatch = (SVgroupDropTableBatch*)data;
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
-static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
+static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SVDropTbBatchReq req = {0};
   SDecoder         coder = {0};
   int32_t          code = TSDB_CODE_SUCCESS;
@@ -1380,8 +1460,8 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
-  int32_t len = metaLen - sizeof(SMsgHead);
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVDropTbBatchReq(&coder, &req) < 0) {
     code = TSDB_CODE_INVALID_PARA;
@@ -1475,7 +1555,11 @@ end:
   return code;
 }
 
-static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
+static int32_t taosDeleteData(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SDeleteRes req = {0};
   SDecoder   coder = {0};
   char       sql[256] = {0};
@@ -1484,8 +1568,8 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
   uDebug("connId:0x%" PRIx64 " delete data, meta:%p, len:%d", *(int64_t*)taos, meta, metaLen);
 
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
-  int32_t len = metaLen - sizeof(SMsgHead);
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeDeleteRes(&coder, &req) < 0) {
     code = TSDB_CODE_INVALID_PARA;
@@ -1510,7 +1594,11 @@ end:
   return code;
 }
 
-static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
+static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SVAlterTbReq   req = {0};
   SDecoder       dcoder = {0};
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -1527,8 +1615,8 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
-  int32_t len = metaLen - sizeof(SMsgHead);
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&dcoder, data, len);
   if (tDecodeSVAlterTbReq(&dcoder, &req) < 0) {
     code = TSDB_CODE_INVALID_PARA;
@@ -1632,7 +1720,8 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
 
 int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pData, const char* tbname,
                                                 TAOS_FIELD* fields, int numFields, int64_t reqid) {
-  if (!taos || !pData || !tbname) {
+  if (taos == NULL || pData == NULL || tbname == NULL) {
+    uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -1693,7 +1782,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 }
 
 int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const char* tbname, int64_t reqid) {
-  if (!taos || !pData || !tbname) {
+  if (taos == NULL || pData == NULL || tbname == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -1749,6 +1838,10 @@ end:
 }
 
 static void* getRawDataFromRes(void* pRetrieve) {
+  if (pRetrieve == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return NULL;
+  }
   void* rawData = NULL;
   // deal with compatibility
   if (*(int64_t*)pRetrieve == 0) {
@@ -1760,6 +1853,10 @@ static void* getRawDataFromRes(void* pRetrieve) {
 }
 
 static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
+  if (rsp == NULL || pHashObj == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   // find schema data info
   int32_t       code = 0;
   SVCreateTbReq pCreateReq = {0};
@@ -1819,11 +1916,19 @@ typedef struct {
 } tbInfo;
 
 static void tmqFreeMeta(void* data) {
+  if (data == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   STableMeta* pTableMeta = *(STableMeta**)data;
   taosMemoryFree(pTableMeta);
 }
 
 static void freeRawCache(void* data) {
+  if (data == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   rawCacheInfo* pRawCache = (rawCacheInfo*)data;
   taosHashCleanup(pRawCache->pMetaHash);
   taosHashCleanup(pRawCache->pNameHash);
@@ -1842,6 +1947,10 @@ static int32_t initRawCacheHash() {
 }
 
 static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrapper* pSW) {
+  if (rawData == NULL || pTableMeta == NULL || pSW == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return false;
+  }
   char* p = (char*)rawData;
   // | version | total length | total rows | blankFill | total columns | flag seg| block group id | column schema | each
   // column length |
@@ -1877,6 +1986,10 @@ static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrappe
 }
 
 static int32_t getRawCache(SHashObj** pVgHash, SHashObj** pNameHash, SHashObj** pMetaHash, void* key) {
+  if (pVgHash == NULL || pNameHash == NULL || pMetaHash == NULL || key == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = 0;
   void*   cacheInfo = taosHashGet(writeRawCache, &key, POINTER_BYTES);
   if (cacheInfo == NULL) {
@@ -1905,6 +2018,10 @@ end:
 }
 
 static int32_t buildRawRequest(TAOS* taos, SRequestObj** pRequest, SCatalog** pCatalog, SRequestConnInfo* conn) {
+  if (taos == NULL || pRequest == NULL || pCatalog == NULL || conn == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = 0;
   RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, pRequest, 0));
   (*pRequest)->syncQuery = true;
@@ -1924,26 +2041,38 @@ end:
 }
 
 typedef int32_t _raw_decode_func_(SDecoder* pDecoder, SMqDataRsp* pRsp);
-static int32_t  decodeRawData(SDecoder* decoder, void* data, int32_t dataLen, _raw_decode_func_ func,
+static int32_t  decodeRawData(SDecoder* decoder, void* data, uint32_t dataLen, _raw_decode_func_ func,
                               SMqRspObj* rspObj) {
-   int8_t dataVersion = *(int8_t*)data;
-   if (dataVersion >= MQ_DATA_RSP_VERSION) {
-     data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
-     dataLen -= sizeof(int8_t) + sizeof(int32_t);
+  if (decoder == NULL || data == NULL || func == NULL || rspObj == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int8_t dataVersion = *(int8_t*)data;
+  if (dataVersion >= MQ_DATA_RSP_VERSION) {
+    data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
+    if (dataLen < sizeof(int8_t) + sizeof(int32_t)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    dataLen -= sizeof(int8_t) + sizeof(int32_t);
   }
 
-   rspObj->resIter = -1;
-   tDecoderInit(decoder, data, dataLen);
-   int32_t code = func(decoder, &rspObj->dataRsp);
-   if (code != 0) {
-     SET_ERROR_MSG("decode mq taosx data rsp failed");
+  rspObj->resIter = -1;
+  tDecoderInit(decoder, data, dataLen);
+  int32_t code = func(decoder, &rspObj->dataRsp);
+  if (code != 0) {
+    SET_ERROR_MSG("decode mq taosx data rsp failed");
   }
-   return code;
+  return code;
 }
 
 static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj* pMetaHash,
                                 SVCreateTbReq* pCreateReqDst, SCatalog* pCatalog, SRequestConnInfo* conn, SName* pName,
                                 STableMeta** pMeta, SSchemaWrapper* pSW, void* rawData, int32_t retry) {
+  if (pVgHash == NULL || pNameHash == NULL || pMetaHash == NULL || pCatalog == NULL || conn == NULL || pName == NULL ||
+      pMeta == NULL || pSW == NULL || rawData == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t     code = 0;
   STableMeta* pTableMeta = NULL;
   tbInfo*     tmpInfo = (tbInfo*)taosHashGet(pNameHash, pName->tname, strlen(pName->tname));
@@ -2000,7 +2129,11 @@ end:
   return code;
 }
 
-static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
+static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) {
+  if (taos == NULL || data == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t   code = TSDB_CODE_SUCCESS;
   SQuery*   pQuery = NULL;
   SMqRspObj rspObj = {0};
@@ -2073,7 +2206,11 @@ end:
   return code;
 }
 
-static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
+static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, uint32_t dataLen) {
+  if (taos == NULL || data == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t   code = TSDB_CODE_SUCCESS;
   SQuery*   pQuery = NULL;
   SMqRspObj rspObj = {0};
@@ -2162,6 +2299,10 @@ end:
 }
 
 static void processSimpleMeta(SMqMetaRsp* pMetaRsp, cJSON** meta) {
+  if (pMetaRsp == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   if (pMetaRsp->resMsgType == TDMT_VND_CREATE_STB) {
     processCreateStb(pMetaRsp, meta);
   } else if (pMetaRsp->resMsgType == TDMT_VND_ALTER_STB) {
@@ -2182,6 +2323,10 @@ static void processSimpleMeta(SMqMetaRsp* pMetaRsp, cJSON** meta) {
 }
 
 static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
+  if (pMsgRsp == NULL || string == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return;
+  }
   SDecoder        coder;
   SMqBatchMetaRsp rsp = {0};
   int32_t         code = 0;
@@ -2228,7 +2373,10 @@ end:
 }
 
 char* tmq_get_json_meta(TAOS_RES* res) {
-  if (res == NULL) return NULL;
+  if (res == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return NULL;
+  }
   uDebug("tmq_get_json_meta res:%p", res);
   if (!TD_RES_TMQ_META(res) && !TD_RES_TMQ_METADATA(res) && !TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
@@ -2256,6 +2404,10 @@ char* tmq_get_json_meta(TAOS_RES* res) {
 void tmq_free_json_meta(char* jsonMeta) { taosMemoryFreeClear(jsonMeta); }
 
 static int32_t getOffSetLen(const SMqDataRsp* pRsp) {
+  if (pRsp == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SEncoder coder = {0};
   tEncoderInit(&coder, NULL, 0);
   if (tEncodeSTqOffsetVal(&coder, &pRsp->reqOffset) < 0) return -1;
@@ -2267,44 +2419,48 @@ static int32_t getOffSetLen(const SMqDataRsp* pRsp) {
 
 typedef int32_t __encode_func__(SEncoder* pEncoder, const SMqDataRsp* pRsp);
 static int32_t  encodeMqDataRsp(__encode_func__* encodeFunc, SMqDataRsp* rspObj, tmq_raw_data* raw) {
-   int32_t  len = 0;
-   int32_t  code = 0;
-   SEncoder encoder = {0};
-   void*    buf = NULL;
-   tEncodeSize(encodeFunc, rspObj, len, code);
-   if (code < 0) {
-     code = TSDB_CODE_INVALID_MSG;
-     goto FAILED;
+  if (raw == NULL || encodeFunc == NULL || rspObj == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
   }
-   len += sizeof(int8_t) + sizeof(int32_t);
-   buf = taosMemoryCalloc(1, len);
-   if (buf == NULL) {
-     code = terrno;
-     goto FAILED;
+  uint32_t len = 0;
+  int32_t  code = 0;
+  SEncoder encoder = {0};
+  void*    buf = NULL;
+  tEncodeSize(encodeFunc, rspObj, len, code);
+  if (code < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
   }
-   tEncoderInit(&encoder, buf, len);
-   if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
-     code = TSDB_CODE_INVALID_MSG;
-     goto FAILED;
+  len += sizeof(int8_t) + sizeof(int32_t);
+  buf = taosMemoryCalloc(1, len);
+  if (buf == NULL) {
+    code = terrno;
+    goto FAILED;
   }
-   int32_t offsetLen = getOffSetLen(rspObj);
-   if (offsetLen <= 0) {
-     code = TSDB_CODE_INVALID_MSG;
-     goto FAILED;
+  tEncoderInit(&encoder, buf, len);
+  if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
   }
-   if (tEncodeI32(&encoder, offsetLen) < 0) {
-     code = TSDB_CODE_INVALID_MSG;
-     goto FAILED;
+  int32_t offsetLen = getOffSetLen(rspObj);
+  if (offsetLen <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
   }
-   if (encodeFunc(&encoder, rspObj) < 0) {
-     code = TSDB_CODE_INVALID_MSG;
-     goto FAILED;
+  if (tEncodeI32(&encoder, offsetLen) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
   }
-   tEncoderClear(&encoder);
+  if (encodeFunc(&encoder, rspObj) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
+  }
+  tEncoderClear(&encoder);
 
-   raw->raw = buf;
-   raw->raw_len = len;
-   return code;
+  raw->raw = buf;
+  raw->raw_len = len;
+  return code;
 FAILED:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);
@@ -2312,13 +2468,14 @@ FAILED:
 }
 
 int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
-  if (!raw || !res) {
+  if (raw == NULL || res == NULL) {
+    uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
   }
   SMqRspObj* rspObj = ((SMqRspObj*)res);
   if (TD_RES_TMQ_META(res)) {
     raw->raw = rspObj->metaRsp.metaRsp;
-    raw->raw_len = rspObj->metaRsp.metaRspLen;
+    raw->raw_len = rspObj->metaRsp.metaRspLen >= 0 ? rspObj->metaRsp.metaRspLen : 0;
     raw->raw_type = rspObj->metaRsp.resMsgType;
     uDebug("tmq get raw type meta:%p", raw);
   } else if (TD_RES_TMQ(res)) {
@@ -2378,6 +2535,10 @@ static int32_t writeRawInit() {
 }
 
 static int32_t writeRawImpl(TAOS* taos, void* buf, uint32_t len, uint16_t type) {
+  if (taos == NULL || buf == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (writeRawInit() != 0) {
     return TSDB_CODE_INTERNAL_ERROR;
   }
@@ -2415,8 +2576,9 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
   return writeRawImpl(taos, raw.raw, raw.raw_len, raw.raw_type);
 }
 
-static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen) {
+static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLen) {
   if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
   }
   SMqBatchMetaRsp rsp = {0};

@@ -282,9 +282,6 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 # listen to ip:port address
 #listen = "0.0.0.0:6050"
 
-# database url
-#database_url = "sqlite:taosx.db"
-
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
 
@@ -383,6 +380,16 @@ Linux 下 `journalctl` 查看日志的命令如下：
 ```bash
 journalctl -u taosx [-f]
 ```
+
+### 从旧版本升级
+
+从 3.3.5.0/3.3.4.11 版本开始，不再在 systemd 服务文件预置 `DATABASE_URL=` 环境变量。如果在配置文件中使用了自定义 `data_dir` 参数，从旧版本升级后，必须将数据库文件从旧版本移动到自定义目录中。以 `data_dir = "/path/to/data"` 为例，执行以下命令：
+
+```shell
+mv /var/lib/taos/taosx/taosx.db* /path/to/data/
+```
+
+之后再重启服务（此行为仅影响 Linux 系统）。
 
 ## taosX 监控指标
 

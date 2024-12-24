@@ -89,7 +89,7 @@ int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
     case JOIN_TYPE_RIGHT: {
       switch (pJoin->subType) {
         case JOIN_STYPE_OUTER:          
-          pJoin->joinFp = hLeftJoinDo;
+          //pJoin->joinFp = hLeftJoinDo; TOOPEN
           break;
         default:
           break;

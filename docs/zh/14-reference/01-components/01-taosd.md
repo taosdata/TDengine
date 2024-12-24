@@ -59,7 +59,7 @@ taosd 命令行参数如下
 |telemetryReporting     |          |支持动态修改 立即生效       |是否上传 telemetry，0：不上传，1：上传，默认值 1|
 |telemetryServer        |          |不支持动态修改             |telemetry 服务器地址|
 |telemetryPort          |          |不支持动态修改             |telemetry 服务器端口编号|
-|telemetryInterval      |          |支持动态修改 立即生效       |telemetry 上传时间间隔，单位为秒，默认 43200|
+|telemetryInterval      |          |支持动态修改 立即生效       |telemetry 上传时间间隔，单位为秒，默认 86400|
 |crashReporting         |          |支持动态修改 立即生效       |是否上传 crash 信息；0：不上传，1：上传；默认值  1|
 
 ### 查询相关

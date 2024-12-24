@@ -236,6 +236,7 @@ typedef struct SFltBuildGroupCtx {
   SFilterInfo *info;
   SArray      *group;
   int32_t      code;
+  bool         ignore;
 } SFltBuildGroupCtx;
 
 typedef struct {
@@ -266,6 +267,7 @@ struct SFilterInfo {
   int8_t           *blkUnitRes;
   void             *pTable;
   SArray           *blkList;
+  bool             isStrict;
 
   SFilterPCtx pctx;
 };

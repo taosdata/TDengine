@@ -320,9 +320,8 @@ extern SQueryMgmt gQueryMgmt;
       case QW_PHASE_POST_QUERY:                \
       case QW_PHASE_PRE_CQUERY:                \
       case QW_PHASE_POST_CQUERY:               \
-        atomic_store_8(&(ctx)->phase, _value); \
-        break;                                 \
       default:                                 \
+        atomic_store_8(&(ctx)->phase, _value); \
         break;                                 \
     }                                          \
   } while (0)
@@ -478,6 +477,8 @@ extern SQueryMgmt gQueryMgmt;
     }                                                                                              \
   } while (0)
 
+
+#if 0
 #define QW_UNLOCK(type, _lock)                                                                      \
   do {                                                                                              \
     if (QW_READ == (type)) {                                                                        \
@@ -506,6 +507,16 @@ extern SQueryMgmt gQueryMgmt;
       }                                                                                             \
     }                                                                                               \
   } while (0)
+#else 
+#define QW_UNLOCK(type, _lock)                                                                      \
+  do {                                                                                              \
+    if (QW_READ == (type)) {                                                                        \
+      taosRUnLockLatch(_lock);                                                                      \
+    } else {                                                                                        \
+      taosWUnLockLatch(_lock);                                                                      \
+    }                                                                                               \
+  } while (0)
+#endif
 
 extern SQWorkerMgmt gQwMgmt;
 
