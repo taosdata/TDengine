@@ -85,8 +85,12 @@ TEST(testCase, cosCpPutError) {
   char const *objectName = "testObject";
 
   EXPECT_EQ(cosInitEnv(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(s3Begin(), TSDB_CODE_SUCCESS);
   EXPECT_EQ(s3Size(objectName), -1);
+
   s3EvictCache("", 0);
+
+  s3End();
 
   return;
 
