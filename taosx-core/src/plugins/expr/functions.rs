@@ -1,6 +1,5 @@
-use std::any::TypeId;
-
 use rhai::{Dynamic, ImmutableString, FLOAT};
+use std::any::TypeId;
 
 #[allow(dead_code)]
 pub fn append(s: ImmutableString, append: ImmutableString) -> ImmutableString {
@@ -27,6 +26,22 @@ pub fn replacen(
 #[allow(dead_code)]
 pub fn truncate(s: ImmutableString, n: rhai::INT) -> ImmutableString {
     s.as_str().chars().take(n as _).collect::<String>().into()
+}
+
+#[allow(dead_code)]
+pub fn between_time_range(s: ImmutableString, l_sec: i64, r_sec: i64) -> bool {
+    let (now, t) = match chrono::DateTime::parse_from_rfc3339(&s) {
+        Ok(dt) => (
+            chrono::Utc::now().with_timezone(&dt.timezone()).timestamp(),
+            dt.timestamp(),
+        ),
+        Err(_) => (chrono::Local::now().timestamp(), 0),
+    };
+
+    let l_timestamp = now + l_sec;
+    let r_timestamp = now + r_sec;
+
+    t > l_timestamp && t < r_timestamp
 }
 
 #[allow(dead_code)]

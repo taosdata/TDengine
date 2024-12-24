@@ -114,6 +114,7 @@ impl Expr {
         engine.register_fn("replace", functions::replacen);
         engine.register_fn("truncate", functions::truncate);
         engine.register_fn("add_or_set", functions::add_or_set);
+        engine.register_fn("between_time_range", functions::between_time_range);
         let engine = Arc::new(engine);
         let ast = engine.compile(&expr)?;
         // let ast = engine.compile_expression(&expr)?;
@@ -253,6 +254,7 @@ impl Expr {
             let res: rhai::Dynamic = match self.engine.eval_ast_with_scope(&mut scope, &self.ast) {
                 Ok(v) => v,
                 Err(e) => {
+                    println!("Error: {:?}", e);
                     if self.null_if_error {
                         rhai::Dynamic::UNIT
                     } else {
@@ -513,6 +515,38 @@ mod tests {
         let values = expr.eval_as(&batch, DataType::Boolean).unwrap();
         dbg!(&values);
         assert_eq!(values.as_boolean().iter().collect_vec(), [Some(true)]);
+    }
+
+    fn get_time_str(n: i64) -> String {
+        let dt = chrono::Utc::now() + chrono::Duration::seconds(n);
+        dt.to_rfc3339()
+    }
+
+    #[test]
+    fn test_check_time_range() {
+        let a = StringArray::from(vec![
+            Some(get_time_str(-2)),
+            Some(get_time_str(-90)),
+            Some(get_time_str(60)),
+            Some(get_time_str(-604801)),
+            Some(get_time_str(3600)),
+        ]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+        dbg!(&batch);
+
+        // 测试7天前到当前时间
+        let expr = Expr::try_new(r#"between_time_range(a, -604800, 0)"#, true).unwrap();
+        let values = expr.eval_as(&batch, DataType::Boolean).unwrap();
+        assert_eq!(
+            values.as_boolean().iter().collect_vec(),
+            [
+                Some(true),
+                Some(true),
+                Some(false),
+                Some(false),
+                Some(false)
+            ]
+        );
     }
 
     #[test]
