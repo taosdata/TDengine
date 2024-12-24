@@ -342,7 +342,7 @@ jobs:
             }
           EOF
           }
-          PR_INFO="Coverage test results for taosX and its plugins\n
+          PR_INFO="Testing coverage report for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
@@ -368,7 +368,7 @@ jobs:
             }
           EOF
           }
-          PR_INFO="Coverage test results for taosX and its plugins\n
+          PR_INFO="Testing coverage report for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
