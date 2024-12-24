@@ -273,6 +273,7 @@ TEST_F(CfgTest, cfgDumpCfgS3) {
   cfgDumpCfgS3(pConfig, true, false);
 }
 
+#ifndef WINDOWS
 TEST_F(CfgTest, cfgLoadFromEnvVar) {
   SConfig *pConfig = NULL;
   int32_t  code = cfgInit(&pConfig);
@@ -302,6 +303,7 @@ TEST_F(CfgTest, cfgLoadFromEnvVar) {
 
   ASSERT_EQ(cfgLoad(pConfig, CFG_STYPE_ENV_VAR, "test_bool"), TSDB_CODE_SUCCESS);
 }
+#endif
 
 TEST_F(CfgTest, cfgLoadFromEnvCmd) {
   SConfig *pConfig = NULL;
