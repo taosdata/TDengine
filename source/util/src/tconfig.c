@@ -517,7 +517,7 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pItem == NULL) {
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+    TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL: {
@@ -627,6 +627,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     cfgUnLock(pCfg);
     TAOS_RETURN(code);
   }
+
   if ((pItem->category == CFG_CATEGORY_GLOBAL) && alterType == CFG_ALTER_DNODE) {
     uError("failed to config:%s, not support update global config on only one dnode", name);
     cfgUnLock(pCfg);
