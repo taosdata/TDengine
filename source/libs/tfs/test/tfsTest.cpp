@@ -749,10 +749,11 @@ TEST_F(TfsTest, 05_MultiDisk) {
   tfsClose(pTfs);
 }
 
-TEST_F(TfsTest, 06_Exception) {
+TEST_F(TfsTest, 06_Misc) {
   // tfsDisk.c
   STfsDisk *pDisk = NULL;
   EXPECT_EQ(tfsNewDisk(0, 0, 0, NULL, &pDisk), TSDB_CODE_INVALID_PARA);
+  EXPECT_NE(tfsNewDisk(0, 0, 0, "", &pDisk), 0);
 
   STfsDisk disk = {0};
   EXPECT_EQ(tfsUpdateDiskSize(&disk), TSDB_CODE_INVALID_PARA);
@@ -827,6 +828,33 @@ TEST_F(TfsTest, 06_Exception) {
 
   EXPECT_EQ(tfsSearch(&tfs, -1, NULL), -1);
   EXPECT_EQ(tfsSearch(&tfs, tfs.nlevel, NULL), -1);
+
+  diskCfg.level = -1;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.level = TFS_MAX_TIERS;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.level = 0;
+  diskCfg.primary = -1;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.primary = 2;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.primary = 1;
+  diskCfg.disable = -1;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.disable = 2;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.disable = 0;
+  diskCfg.level = 1;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.level = 0;
+  diskCfg.primary = 0;
+  tstrncpy(diskCfg.dir, "testDataDir1", TSDB_FILENAME_LEN);
+  EXPECT_NE(tfsCheckAndFormatCfg(&tfs, &diskCfg), 0);
+
+  TdFilePtr pFile = taosCreateFile("testDataDir1", TD_FILE_CREATE);
+  EXPECT_NE(pFile, nullptr);
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  EXPECT_EQ(taosRemoveFile("testDataDir1"), 0);
 
   for (int32_t l = 0; l < tfs.nlevel; ++l) {
     EXPECT_EQ(taosThreadSpinDestroy(&tfs.tiers[l].lock), 0);

@@ -19,7 +19,6 @@
 
 static int32_t   tfsMount(STfs *pTfs, SDiskCfg *pCfg);
 static int32_t   tfsCheck(STfs *pTfs);
-static int32_t   tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg);
 static int32_t   tfsFormatDir(char *idir, char *odir);
 static int32_t   tfsGetDiskByName(STfs *pTfs, const char *dir, STfsDisk **ppDisk);
 static int32_t   tfsOpendirImpl(STfs *pTfs, STfsDir *pDir);
@@ -515,7 +514,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
+int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   int32_t code = 0;
   char    dirName[TSDB_FILENAME_LEN] = "\0";
 
@@ -577,32 +576,32 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
 }
 
 static int32_t tfsFormatDir(char *idir, char *odir) {
+  int32_t   code = 0, lino = 0;
   wordexp_t wep = {0};
+  int32_t   dirLen = 0;
+  char      tmp[PATH_MAX] = {0};
 
-  int32_t code = wordexp(idir, &wep, 0);
+  code = wordexp(idir, &wep, 0);
   if (code != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(code));
+    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(code));
   }
 
-  char tmp[PATH_MAX] = {0};
-  if (taosRealPath(wep.we_wordv[0], tmp, PATH_MAX) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    wordfree(&wep);
-    TAOS_RETURN(code);
-  }
+  TAOS_CHECK_EXIT(taosRealPath(wep.we_wordv[0], tmp, PATH_MAX));
 
-  int32_t dirLen = strlen(tmp);
+  dirLen = strlen(tmp);
   if (dirLen < 0 || dirLen >= TSDB_FILENAME_LEN) {
-    wordfree(&wep);
-    code = TSDB_CODE_OUT_OF_RANGE;
-    fError("failed to mount %s to FS since %s, real path:%s, len:%d", idir, tstrerror(code), tmp, dirLen);
-    TAOS_RETURN(code);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_RANGE);
   }
 
   tstrncpy(odir, tmp, TSDB_FILENAME_LEN);
 
+_exit:
   wordfree(&wep);
-  TAOS_RETURN(0);
+  if (code != 0) {
+    fError("failed to mount %s to FS at line %d since %s, real path:%s, len:%d", idir, lino, tstrerror(code), tmp,
+           dirLen);
+  }
+  TAOS_RETURN(code);
 }
 
 static int32_t tfsCheck(STfs *pTfs) {
