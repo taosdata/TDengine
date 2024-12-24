@@ -17,9 +17,10 @@ function print_color() {
 TDENGINE_DIR="/root/TDinternal/community"
 BRANCH=""
 TDENGINE_GCDA_DIR="/root/TDinternal/community/debug/"
+LCOV_DIR="/usr/local/bin"
 
 # Parse command line parameters
-while getopts "hd:b:f:c:u:i:" arg; do
+while getopts "hd:b:f:c:u:i:l:" arg; do
   case $arg in
     d)
       TDENGINE_DIR=$OPTARG
@@ -39,14 +40,18 @@ while getopts "hd:b:f:c:u:i:" arg; do
     i)
       BRANCH_BUILD=$OPTARG
       ;;
+    l)
+      LCOV_DIR=$OPTARG
+      ;;
     h)
-      echo "Usage: $(basename $0) -d [TDengine dir] -b [Test branch] -i [Build test branch] -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case]"
+      echo "Usage: $(basename $0) -d [TDengine dir] -b [Test branch] -i [Build test branch] -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case] -l [Lcov dir]"
       echo "                  -d [TDengine dir] [default /root/TDinternal/community; eg: /home/TDinternal/community] "
       echo "                  -b [Test branch] [default local branch; eg:cover/3.0] "
       echo "                  -i [Build test branch] [default no:not build, but still install ;yes:will build and install ] "
       echo "                  -f [TDengine gcda dir] [default /root/TDinternal/community/debug; eg:/root/TDinternal/community/debug/community/source/dnode/vnode/CMakeFiles/vnode.dir/src/tq/] "
       echo "                  -c [Test single case/all cases] [default null; -c all : include parallel_test/longtimeruning_cases.task and all unit cases; -c task : include parallel_test/longtimeruning_cases.task; single case: eg: -c './test.sh -f tsim/stream/streamFwcIntervalFill.sim' ] "
       echo "                  -u [Unit test case] [default null;  eg: './schedulerTest' ] "
+      echo "                  -l [Lcov bin dir] [default /usr/local/bin;  eg: '/root/TDinternal/community/tests/lcov-1.14/bin' ] "
       exit 0
       ;;
     ?)
@@ -59,13 +64,14 @@ done
 # Check if the command name is provided
 if [ -z "$TDENGINE_DIR" ]; then
   echo "Error: TDengine dir is required."
-  echo "Usage: $(basename $0) -d [TDengine dir] -b [Test branch] -i [Build test branch]  -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case]  "
+  echo "Usage: $(basename $0) -d [TDengine dir] -b [Test branch] -i [Build test branch]  -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case] -l [Lcov dir] "
   echo "                        -d [TDengine dir] [default /root/TDinternal/community; eg: /home/TDinternal/community] "
   echo "                        -b [Test branch] [default local branch; eg:cover/3.0] "   
   echo "                        -i [Build test branch] [default no:not build, but still install ;yes:will build and install ] "
   echo "                        -f [TDengine gcda dir] [default /root/TDinternal/community/debug; eg:/root/TDinternal/community/debug/community/source/dnode/vnode/CMakeFiles/vnode.dir/src/tq/]  " 
   echo "                        -c [Test casingle case/all casesse] [default null; -c all : include parallel_test/longtimeruning_cases.task and all unit cases; -c task : include parallel_test/longtimeruning_cases.task; single case: eg: -c './test.sh -f tsim/stream/streamFwcIntervalFill.sim' ]  " 
   echo "                        -u [Unit test case] [default null;  eg: './schedulerTest' ] "
+  echo "                        -l [Lcov bin dir] [default /usr/local/bin;  eg: '/root/TDinternal/community/tests/lcov-1.14/bin' ] "
   exit 1
 fi
 
@@ -299,11 +305,18 @@ function lcovFunc {
         print_color "$GREEN" "Test gcda file dir is default: /root/TDinternal/community/debug"
     fi
 
+    if [ -n "$LCOV_DIR" ]; then
+        LCOV_DIR="$LCOV_DIR"
+        print_color "$GREEN" "Lcov bin dir: $LCOV_DIR "
+    else
+        print_color "$GREEN" "Lcov bin dir is default"
+    fi
+
     # collect data
-    lcov -d "$TDENGINE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
+    $LCOV_DIR/lcov -d "$TDENGINE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
 
     # remove exclude paths
-    lcov --remove coverage.info \
+    $LCOV_DIR/lcov --remove coverage.info \
         '*/contrib/*' '*/test/*' '*/packaging/*' '*/taos-tools/*' '*/taosadapter/*' '*/TSZ/*' \
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c' '/*/enterprise/*' '*/docs/*' '*/sim/*'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
@@ -316,7 +329,7 @@ function lcovFunc {
 
     # generate result
     echo "generate result"
-    lcov -l --rc lcov_branch_coverage=1 coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
+    $LCOV_DIR/lcov -l --rc lcov_branch_coverage=1 coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
 
 }
 
@@ -373,8 +386,14 @@ if [ ! -f "$COVERAGE_INFO" ]; then
     exit 1
 fi
 
+if [ -n "$LCOV_DIR" ]; then
+    LCOV_DIR="$LCOV_DIR"
+    print_color "$GREEN" "Lcov bin dir: $LCOV_DIR "
+else
+    print_color "$GREEN" "Lcov bin dir is default"
+fi
 # Generate local HTML reports
-genhtml "$COVERAGE_INFO"  --branch-coverage --function-coverage --output-directory "$OUTPUT_DIR"
+$LCOV_DIR/genhtml "$COVERAGE_INFO"  --branch-coverage --function-coverage --output-directory "$OUTPUT_DIR"
 
 # Check whether the report was generated successfully
 if [ $? -eq 0 ]; then

@@ -24,7 +24,6 @@ static int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int6
 #ifdef BUILD_NO_CALL
 static int32_t deleteCheckpoint(const char* id);
 #endif
-static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
 static int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask);
 static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
                                           int32_t transId, int32_t srcTaskId);
@@ -1355,7 +1354,7 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
   }
 }
 
-static int32_t uploadCheckpointToS3(const char* id, const char* path) {
+int32_t uploadCheckpointToS3(const char* id, const char* path) {
   int32_t code = 0;
   int32_t nBytes = 0;
   /*

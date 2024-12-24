@@ -179,6 +179,33 @@ taos> select trim(trailing '空格blank' from '空格blank空格中Tes空格blan
 ===================================================================
  空格blank空格中Tes空格blank空                                    |
 
+taos> select trim(both from nch1) from ts_4893.meters order by ts limit 5
+      trim(both from nch1)      |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+
+taos> select trim(leading from nch1) from ts_4893.meters order by ts limit 5
+    trim(leading from nch1)     |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+
+taos> select trim(trailing from nch1) from ts_4893.meters order by ts limit 5
+    trim(trailing from nch1)    |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+
 taos> select trim(nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
       trim(nch2 from nch1)      |
 =================================

@@ -348,6 +348,7 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   req.compactId = compactId;
   req.vgId = pVgroup->vgId;
   req.dnodeId = dnodeid;
+  terrno = 0;
 
   mInfo("vgId:%d, build compact vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSVKillCompactReq(NULL, 0, &req);
@@ -367,8 +368,10 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  if ((contLen = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
-    terrno = contLen;
+  mTrace("vgId:%d, build compact vnode config req, contLen:%d", pVgroup->vgId, contLen);
+  int32_t ret = 0;
+  if ((ret = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
+    terrno = ret;
     return NULL;
   }
   *pContLen = contLen;
@@ -400,6 +403,8 @@ static int32_t mndAddKillCompactAction(SMnode *pMnode, STrans *pTrans, SVgObj *p
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_VND_KILL_COMPACT;
+
+  mTrace("trans:%d, kill compact msg len:%d", pTrans->id, contLen);
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);

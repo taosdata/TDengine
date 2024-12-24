@@ -203,3 +203,41 @@ sql select a.ts, b.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1;
 if $rows != 8 then
   return -1
 endi
+
+sql select * from testb.stb1 a join testb.st2 b where a.ts = b.ts and a.t = b.t;
+if $rows != 4 then
+  return -1
+endi
+sql select * from testb.stb1 a join testb1.stb21 b where a.ts = b.ts and a.t = b.t;
+if $rows != 4 then
+  return -1
+endi
+sql select * from testb.stb1 b join testb1.stb21 a where a.ts = b.ts and a.t = b.t;
+if $rows != 4 then
+  return -1
+endi
+sql select * from testb.stb1 a join testb1.stb21 b where b.ts = a.ts and b.t = a.t;
+if $rows != 4 then
+  return -1
+endi
+sql select * from testb.stb1 b join testb1.stb21 a where b.ts = a.ts and b.t = a.t;
+if $rows != 4 then
+  return -1
+endi
+sql select * from testb.stb1 b join testb1.stb21 a where a.ts = b.ts and b.t = a.t;
+if $rows != 4 then
+  return -1
+endi
+sql select * from testb.stb1 b join testb1.stb21 a where b.ts = a.ts and a.t = b.t;
+if $rows != 4 then
+  return -1
+endi
+sql select * from testb.stb1 a, testb1.stb21 b where a.ts = b.ts and a.t = b.t;
+if $rows != 4 then
+  return -1
+endi
+sql select * from testb.stb1 a join testb1.stb21 b on a.ts = b.ts and a.t = b.t;
+if $rows != 4 then
+  return -1
+endi
+

@@ -6,6 +6,7 @@
 
 #include "tarray.h"
 #include "tcompare.h"
+#include "tdatablock.h"
 
 namespace {
 }  // namespace
@@ -473,4 +474,68 @@ TEST(tsma, reverse_unit) {
   ASSERT_FALSE(tsmaIntervalCheck(2, 'y', 2, 'y', TSDB_TIME_PRECISION_NANO));
   ASSERT_FALSE(tsmaIntervalCheck(12, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
   ASSERT_TRUE(tsmaIntervalCheck(3, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+}
+
+template <int16_t type, typename ValType, typename F>
+void dataBlockNullTest(const F& setValFunc) {
+  int32_t         totalRows = 16;
+  SColumnInfoData columnInfoData = createColumnInfoData(type, tDataTypes[type].bytes, 0);
+  SColumnDataAgg  columnDataAgg = {.numOfNull = 0};
+
+  auto checkNull = [totalRows, &columnInfoData, &columnDataAgg](uint32_t row, bool expected) {
+    EXPECT_EQ(colDataIsNull_s(&columnInfoData, row), expected);
+    EXPECT_EQ(colDataIsNull_t(&columnInfoData, row, IS_VAR_DATA_TYPE(columnInfoData.info.type)), expected);
+    EXPECT_EQ(colDataIsNull(&columnInfoData, totalRows, row, NULL), expected);
+    columnDataAgg.numOfNull = totalRows;
+    EXPECT_EQ(colDataIsNull(&columnInfoData, totalRows, row, &columnDataAgg), columnInfoData.hasNull);
+    columnDataAgg.numOfNull = 0;
+    EXPECT_EQ(colDataIsNull(&columnInfoData, totalRows, row, &columnDataAgg), false);
+  };
+
+  columnInfoData.hasNull = false;
+  checkNull(0, false);
+  checkNull(1, false);
+  checkNull(2, false);
+  checkNull(totalRows - 2, false);
+  checkNull(totalRows - 1, false);
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    columnInfoData.varmeta.offset = (int32_t*)taosMemoryCalloc(totalRows, sizeof(int32_t));
+  } else {
+    columnInfoData.pData = (char*)taosMemoryCalloc(totalRows, tDataTypes[type].bytes);
+    columnInfoData.nullbitmap = (char*)taosMemoryCalloc(((totalRows - 1) >> NBIT) + 1, 1);
+    ValType val = 1;
+    setValFunc(&columnInfoData, 1, &val);
+    val = 2;
+    setValFunc(&columnInfoData, 2, &val);
+  }
+  colDataSetNULL(&columnInfoData, 0);
+  colDataSetNNULL(&columnInfoData, 3, totalRows - 3);
+  checkNull(0, true);
+  checkNull(1, false);
+  checkNull(2, false);
+  checkNull(totalRows - 2, true);
+  checkNull(totalRows - 1, true);
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    taosMemoryFreeClear(columnInfoData.varmeta.offset);
+  } else {
+    taosMemoryFreeClear(columnInfoData.pData);
+    taosMemoryFreeClear(columnInfoData.nullbitmap);
+    checkNull(0, false);
+    checkNull(1, false);
+    checkNull(2, false);
+    checkNull(totalRows - 2, false);
+    checkNull(totalRows - 1, false);
+  }
+}
+
+TEST(utilTest, tdatablockTestNull) {
+  dataBlockNullTest<TSDB_DATA_TYPE_TINYINT, int8_t>(colDataSetInt8);
+  dataBlockNullTest<TSDB_DATA_TYPE_SMALLINT, int16_t>(colDataSetInt16);
+  dataBlockNullTest<TSDB_DATA_TYPE_INT, int32_t>(colDataSetInt32);
+  dataBlockNullTest<TSDB_DATA_TYPE_BIGINT, int64_t>(colDataSetInt64);
+  dataBlockNullTest<TSDB_DATA_TYPE_FLOAT, float>(colDataSetFloat);
+  dataBlockNullTest<TSDB_DATA_TYPE_DOUBLE, double>(colDataSetDouble);
+  dataBlockNullTest<TSDB_DATA_TYPE_VARCHAR, int64_t>(colDataSetInt64);
 }

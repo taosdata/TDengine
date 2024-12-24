@@ -419,6 +419,7 @@ Core dir: {core_dir}
             send_msg(notification_robot_url, get_msg(text))
         else:
             send_msg(alert_robot_url, get_msg(text))    
+            send_msg(notification_robot_url, get_msg(text))
                 
         #send_msg(get_msg(text)) 
     except Exception as e:

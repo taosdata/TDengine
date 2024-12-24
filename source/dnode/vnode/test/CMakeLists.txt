@@ -1,29 +1,27 @@
-MESSAGE(STATUS "vnode unit test")
+MESSAGE(STATUS "tq unit test")
 
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
-AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
-# add_executable(tqTest "")
-# target_sources(tqTest
-#     PRIVATE
-#     "tqMetaTest.cpp"
-# )
-# target_include_directories(tqTest
-#     PUBLIC
-#     "${TD_SOURCE_DIR}/include/server/vnode/tq"
-#     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-# )
+IF(NOT TD_WINDOWS)
+    add_executable(tqTest tqTest.cpp)
+    target_include_directories(tqTest
+            PUBLIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
 
-# target_link_libraries(tqTest
-#     tq
-#     gtest_main
-# )
-# enable_testing()
-# add_test(
-#     NAME tq_test
-#     COMMAND tqTest
-# )
+    TARGET_LINK_LIBRARIES(
+            tqTest
+            PUBLIC os util common vnode gtest_main
+    )
+
+    enable_testing()
+
+    add_test(
+            NAME tq_test
+            COMMAND tqTest
+    )
+ENDIF()
 
 # ADD_EXECUTABLE(tsdbSmaTest tsdbSmaTest.cpp)
 # TARGET_LINK_LIBRARIES(

@@ -603,3 +603,58 @@ taos> select location, min(id) from ts_4893.meters group by location order by lo
 ===================================
  beijing            |           0 |
 
+taos> select min(1)
+        min(1)         |
+========================
+                     1 |
+
+taos> select min(cast(1 as tinyint))
+ min(cast(1 as tinyint)) |
+==========================
+                       1 |
+
+taos> select min(cast(100 as smallint))
+ min(cast(100 as smallint)) |
+=============================
+                        100 |
+
+taos> select min(cast(100000 as int))
+ min(cast(100000 as int)) |
+===========================
+                   100000 |
+
+taos> select min(cast(10000000000 as bigint))
+ min(cast(10000000000 as bigint)) |
+===================================
+                      10000000000 |
+
+taos> select min(cast(1 as tinyint unsigned))
+ min(cast(1 as tinyint unsigned)) |
+===================================
+                                1 |
+
+taos> select min(cast(100 as smallint unsigned))
+ min(cast(100 as smallint unsigned)) |
+======================================
+                                 100 |
+
+taos> select min(cast(100000 as int unsigned))
+ min(cast(100000 as int unsigned)) |
+====================================
+                            100000 |
+
+taos> select min(cast(10000000000 as bigint unsigned))
+ min(cast(10000000000 as bigint unsigned)) |
+============================================
+                               10000000000 |
+
+taos> select min(cast(1.1 as float))
+ min(cast(1.1 as float)) |
+==========================
+           1.1000000e+00 |
+
+taos> select min(cast(1.1 as double))
+ min(cast(1.1 as double))  |
+============================
+         1.100000000000000 |
+

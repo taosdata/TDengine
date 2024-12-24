@@ -189,7 +189,6 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   }
 
   pTask->failedExecId = pTask->execId;
-  pTask->failedSeriousId = pTask->seriousId;
 
   int8_t jobStatus = 0;
   if (schJobNeedToStop(pJob, &jobStatus)) {
@@ -438,7 +437,7 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
   pTask->waitRetry = true;
 
   if (pTask->delayTimer) {
-    taosTmrStop(pTask->delayTimer);
+    UNUSED(taosTmrStop(pTask->delayTimer));
   }
 
   schDropTaskOnExecNode(pJob, pTask);
@@ -451,6 +450,8 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
   pTask->childReady = 0;
   TAOS_MEMSET(&pTask->succeedAddr, 0, sizeof(pTask->succeedAddr));
 }
+
+#if 0
 
 int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32_t rspCode) {
   int32_t code = 0;
@@ -593,6 +594,7 @@ _return:
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
+#endif
 
 int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = taosHashPut(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
@@ -759,7 +761,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   (void)atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
 
   if (pTask->delayTimer) {
-    taosTmrStop(pTask->delayTimer);
+    UNUSED(taosTmrStop(pTask->delayTimer));
   }
 
   (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
@@ -869,6 +871,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pTask->candidateAddrs || 1 != taosArrayGetSize(pTask->candidateAddrs)) {
@@ -900,6 +903,7 @@ _return:
 
   return code;
 }
+#endif
 
 int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask) {
   int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);
@@ -1376,6 +1380,7 @@ int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
 
   for (int32_t i = 0; i < level->taskNum; ++i) {
     SSchTask *pTask = taosArrayGet(level->subTasks, i);
+    pTask->failedSeriousId = pJob->seriousId - 1;
     pTask->seriousId = pJob->seriousId;
     
     SCH_TASK_DLOG("task seriousId set to 0x%" PRIx64, pTask->seriousId);

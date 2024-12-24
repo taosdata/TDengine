@@ -477,6 +477,8 @@ extern SQueryMgmt gQueryMgmt;
     }                                                                                              \
   } while (0)
 
+
+#if 0
 #define QW_UNLOCK(type, _lock)                                                                      \
   do {                                                                                              \
     if (QW_READ == (type)) {                                                                        \
@@ -505,6 +507,16 @@ extern SQueryMgmt gQueryMgmt;
       }                                                                                             \
     }                                                                                               \
   } while (0)
+#else 
+#define QW_UNLOCK(type, _lock)                                                                      \
+  do {                                                                                              \
+    if (QW_READ == (type)) {                                                                        \
+      taosRUnLockLatch(_lock);                                                                      \
+    } else {                                                                                        \
+      taosWUnLockLatch(_lock);                                                                      \
+    }                                                                                               \
+  } while (0)
+#endif
 
 extern SQWorkerMgmt gQwMgmt;
 

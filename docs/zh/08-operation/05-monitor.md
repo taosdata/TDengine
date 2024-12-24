@@ -145,3 +145,47 @@ toasX 的配置文件(默认 /etc/taos/taosx.toml) 中与 monitor 相关的配�
 #### 限制
 
 只有在以 server 模式运行 taosX 时，与监控相关的配置才生效。
+
+## explorer 集成监控面板
+
+explorer 支持集成已有的 grafana dashboard。
+
+### 配置 grafana
+
+编辑 grafana.ini, 修改以下配置项。配置 root_url, 可能对现有的 grafana 使用习惯有所影响，为了集成到 explorer 是需要如此配置的, 方便通过 explorer 做服务代理。
+
+``` toml
+[server]
+# If you use reverse proxy and sub path specify full url (with sub path)
+root_url = http://ip:3000/grafana
+# Serve Grafana from subpath specified in `root_url` setting. By default it is set to `false` for compatibility reasons.
+serve_from_sub_path = true
+
+[security]
+# set to true if you want to allow browsers to render Grafana in a <frame>, <iframe>, <embed> or <object>. default is false.
+allow_embedding = true
+```
+
+### 配置 Explorer
+
+修改 explorer.toml, 其中 dashboard 配置的 url 中的 ip, 应该配置为可以通过 explorer 服务器能够访问到的 grafana 服务的内网地址。
+
+``` toml
+[grafana]
+# The token of the Grafana server, which is used to access the Grafana server.
+token = ""
+
+# The URL of the Grafana dashboard, which is used to display the monitoring data of the TDengine cluster.
+# You can configure multiple Grafana dashboards.
+[grafana.dashboards]
+TDengine3 = "http://ip:3000/d/000000001/tdengine3?theme=light&kiosk=tv"
+taosX = "http://ip:3000/d/000000002/taosx?theme=light&kiosk=tv"
+```
+
+如下图(grafana V-8.5.27)，获取 api key, 请注意添加只读权限的 apikey, 否则有安全风险。
+
+![获取 grafana apikey](./pic/grafana-apikey.png)
+
+如下图(grafana V-8.5.27)，获取 dashboard url, 获取的 url 请额外加上参数：theme=light&kiosk=tv.
+
+![获取 grafana dashboard](./pic/grafana-dashboard.png)

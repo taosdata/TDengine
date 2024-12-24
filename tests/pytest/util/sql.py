@@ -155,6 +155,9 @@ class TDSql:
 
         try:
             self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+            self.queryRows = len(self.queryResult)
+            self.queryCols = len(self.cursor.description)
         except BaseException as e:
             tdLog.info("err:%s" % (e))
             expectErrNotOccured = False
@@ -165,10 +168,6 @@ class TDSql:
         if expectErrNotOccured:
             tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
         else:
-            self.queryRows = 0
-            self.queryCols = 0
-            self.queryResult = None
-
             if fullMatched:
                 if expectedErrno != None:
                     expectedErrno_rest = expectedErrno & 0x0000ffff
