@@ -610,6 +610,7 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
   int32_t     nCol;
   SArray     *ctxArray = pTsdb->rCache.ctxArray;
   STsdbRowKey tsdbRowKey = {0};
+  STSDBRowIter iter = {0};
 
   STbData *pIMem = tsdbGetTbDataFromMemTable(imem, suid, uid);
 
@@ -641,7 +642,6 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
 
   tsdbRowGetKey(pMemRow, &tsdbRowKey);
 
-  STSDBRowIter iter = {0};
   TAOS_CHECK_EXIT(tsdbRowIterOpen(&iter, pMemRow, pTSchema));
 
   int32_t iCol = 0;
@@ -685,7 +685,6 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
     STsdbRowKey tsdbRowKey = {0};
     tsdbRowGetKey(pMemRow, &tsdbRowKey);
 
-    STSDBRowIter iter = {0};
     TAOS_CHECK_EXIT(tsdbRowIterOpen(&iter, pMemRow, pTSchema));
 
     int32_t iCol = 0;
@@ -2470,6 +2469,7 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
   int            numKeys = TARRAY_SIZE(pCidList);
   MemNextRowIter iter = {0};
   SSHashObj     *iColHash = NULL;
+  STSDBRowIter   rowIter = {0};
 
   // 1, get from mem, imem filtered with delete info
   TAOS_CHECK_EXIT(memRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pReadSnap, pr));
@@ -2490,7 +2490,6 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
   STsdbRowKey rowKey = {0};
   tsdbRowGetKey(pRow, &rowKey);
 
-  STSDBRowIter rowIter = {0};
   TAOS_CHECK_EXIT(tsdbRowIterOpen(&rowIter, pRow, pTSchema));
 
   int32_t iCol = 0, jCol = 0, jnCol = TARRAY_SIZE(pLastArray);
@@ -2564,7 +2563,6 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
       STsdbRowKey tsdbRowKey = {0};
       tsdbRowGetKey(pRow, &tsdbRowKey);
 
-      STSDBRowIter rowIter = {0};
       TAOS_CHECK_EXIT(tsdbRowIterOpen(&rowIter, pRow, pTSchema));
 
       iCol = 0;
