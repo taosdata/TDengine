@@ -48,7 +48,7 @@ typedef struct SStmtTableCache {
 } SStmtTableCache;
 
 typedef struct SStmtQueryResInfo {
-  TAOS_FIELD *fields;
+  TAOS_FIELD_E *fields;
   TAOS_FIELD *userFields;
   uint32_t    numOfCols;
   int32_t     precision;

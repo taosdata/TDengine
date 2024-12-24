@@ -1722,6 +1722,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
+      // TODO wjm
       // precision check
       // scale auto fit
       code = decimal64ToDataVal(&dec, &pVal->value);

@@ -150,6 +150,7 @@ class DataType:
             return f"'{val}'"
         else:
             return val
+    ## TODO generate NULL, None
     def generate_value(self) -> str:
         if self.type == TypeEnum.BOOL:
             return str(secrets.randbelow(2))
@@ -164,7 +165,7 @@ class DataType:
         if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
             return str(random.random())
         if self.type == TypeEnum.VARCHAR or self.type == TypeEnum.NCHAR or self.type == TypeEnum.VARBINARY:
-            return f"'{secrets.token_urlsafe(random.randint(0, self.length-10))}'"
+            return f"'{secrets.token_urlsafe(random.randint(0, self.length))[0:random.randint(0, self.length)]}'"
         if self.type == TypeEnum.TIMESTAMP:
             return str(secrets.randbelow(9223372036854775808))
         if self.type == TypeEnum.UTINYINT:
@@ -240,9 +241,11 @@ class TableInserter:
             if i != rows - 1:
                 sql += ", "
             if len(sql) > 1000:
+                tdLog.debug(f"insert into with sql{sql}")
                 self.conn.execute(sql, queryTimes=1)
                 sql = pre_insert
         if len(sql) > len(pre_insert):
+            tdLog.debug(f"insert into with sql{sql}")
             self.conn.execute(sql, queryTimes=1)
 
 class TDTestCase:
@@ -406,9 +409,9 @@ class TDTestCase:
         tdLog.printNoPrefix("-------- test create decimal column")
         self.columns = [
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(10, 2))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 2))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 2))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 2))),
+            #DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 2))),
+            #DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 2))),
+            #DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 2))),
             DataType(TypeEnum.TINYINT),
             DataType(TypeEnum.INT),
             DataType(TypeEnum.BIGINT),

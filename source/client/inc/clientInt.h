@@ -202,7 +202,7 @@ typedef struct SReqResultInfo {
   SExecResult    execRes;
   const char*    pRspMsg;
   const char*    pData;
-  TAOS_FIELD*    fields;      // todo, column names are not needed.
+  TAOS_FIELD_E*  fields;      // todo, column names are not needed.
   TAOS_FIELD*    userFields;  // the fields info that return to user
   uint32_t       numOfCols;
   int32_t*       length;
@@ -313,7 +313,7 @@ void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4);
-int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols, const SExtSchema* pExtSchema);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);

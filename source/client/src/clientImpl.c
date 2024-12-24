@@ -28,6 +28,8 @@
 #include "tref.h"
 #include "tsched.h"
 #include "tversion.h"
+#include "decimal.h"
+
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo);
 
@@ -313,7 +315,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   code = qParseSql(&cxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
     if ((*pQuery)->haveResultSet) {
-      code = setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
+      code = setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols, (*pQuery)->pResExtSchema);
       setResPrecision(&pRequest->body.resInfo, (*pQuery)->precision);
     }
   }
@@ -515,7 +517,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
 
-int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
+int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols, const SExtSchema* pExtSchema) {
   if (pResInfo == NULL || pSchema == NULL || numOfCols <= 0) {
     tscError("invalid paras, pResInfo == NULL || pSchema == NULL || numOfCols <= 0");
     return TSDB_CODE_INVALID_PARA;
@@ -528,7 +530,7 @@ int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32
   if (pResInfo->userFields != NULL) {
     taosMemoryFree(pResInfo->userFields);
   }
-  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD_E));
   if (NULL == pResInfo->fields) return terrno;
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
   if (NULL == pResInfo->userFields) {
@@ -552,6 +554,8 @@ int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32
       pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
       pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+    } else if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
+      decimalFromTypeMod(pExtSchema[i].typeMod, &pResInfo->fields[i].precision, &pResInfo->fields[i].scale);
     }
 
     tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
@@ -2134,6 +2138,37 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
+    TAOS_FIELD_E* pField = pResultInfo->fields + i;
+    int32_t type = pField->type;
+    int32_t bufLen = 0;
+    char* p = NULL;
+    if (!IS_DECIMAL_TYPE(type) || !pResultInfo->pCol[i].pData) {
+      continue;
+    } else {
+      bufLen = 64;
+      p = taosMemoryRealloc(pResultInfo->convertBuf[i], bufLen * pResultInfo->numOfRows);
+      pField->bytes = bufLen;
+    }
+    if (!p) return terrno;
+    pResultInfo->convertBuf[i] = p;
+
+    for (int32_t j = 0; j < pResultInfo->numOfRows; ++j) {
+      int32_t code = decimalToStr((DecimalWord*)(pResultInfo->pCol[i].pData + j * tDataTypes[type].bytes), pField->precision, pField->scale, p, bufLen);
+      p += bufLen;
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+    // TODO wjm handle NULL???
+    // TODO wjm use vardatalen???
+    pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
+    pResultInfo->row[i] = pResultInfo->pCol[i].pData;
+  }
+  return 0;
+}
+
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) * 3 + sizeof(uint64_t) +
          numOfCols * (sizeof(int8_t) + sizeof(int32_t));
@@ -2471,7 +2506,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   if (convertUcs4) {
     code = doConvertUCS4(pResultInfo, colLength);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = convertDecimalType(pResultInfo);
+  }
   return code;
 }
 
