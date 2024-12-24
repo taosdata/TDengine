@@ -10,9 +10,11 @@
  */
 
 #include <gtest/gtest.h>
-#include <iostream>
-#include "osFile.h"
 #include "tconfig.h"
+
+#ifndef WINDOWS
+#include "osFile.h"
+#endif
 
 class CfgTest : public ::testing::Test {
  protected:
@@ -303,7 +305,6 @@ TEST_F(CfgTest, cfgLoadFromEnvVar) {
 
   ASSERT_EQ(cfgLoad(pConfig, CFG_STYPE_ENV_VAR, "test_bool"), TSDB_CODE_SUCCESS);
 }
-#endif
 
 TEST_F(CfgTest, cfgLoadFromEnvCmd) {
   SConfig *pConfig = NULL;
@@ -368,3 +369,5 @@ TEST_F(CfgTest, cfgLoadFromApollUrl) {
 
   taosRemoveFile(jsonFilePath);
 }
+
+#endif
