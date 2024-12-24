@@ -355,6 +355,13 @@ static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
   return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
 }
 
+static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
+  if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
+}
+
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   SNode* pTagCond = NULL;
   // todo check tag condition for subtable
@@ -399,6 +406,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return authDropStable(pCxt, (SDropSuperTableStmt*)pStmt);
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      return authDropVtable(pCxt, (SDropVirtualTableStmt*)pStmt);
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return authAlterTable(pCxt, (SAlterTableStmt*)pStmt);

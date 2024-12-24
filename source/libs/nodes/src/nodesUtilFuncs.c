@@ -527,6 +527,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       code = makeNode(type, sizeof(SDropSuperTableStmt), &pNode);
       break;
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      code = makeNode(type, sizeof(SDropSuperTableStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       code = makeNode(type, sizeof(SAlterTableStmt), &pNode);
@@ -1408,7 +1411,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_TABLE_STMT:
       nodesDestroyList(((SDropTableStmt*)pNode)->pTables);
       break;
-    case QUERY_NODE_DROP_SUPER_TABLE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT: // no pointer field
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT: {

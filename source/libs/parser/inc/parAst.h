@@ -229,6 +229,7 @@ SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables
 SNode* createDropTableClause(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createDropTableStmt(SAstCreateContext* pCxt, bool withOpt, SNodeList* pTables);
 SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable);
+SNode* createDropVirtualTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions);
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     SDataType dataType);

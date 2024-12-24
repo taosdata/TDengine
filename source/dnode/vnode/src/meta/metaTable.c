@@ -120,8 +120,8 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   return 0;
 }
 
-static int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
-                                    STableMetaRsp *pMetaRsp, int8_t tableType) {
+int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
+                             STableMetaRsp *pMetaRsp, int8_t tableType) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pRef) {
     return TSDB_CODE_INVALID_PARA;

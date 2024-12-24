@@ -481,6 +481,14 @@ static int32_t collectMetaKeyFromDropStable(SCollectMetaKeyCxt* pCxt, SDropSuper
                                 AUTH_TYPE_WRITE, pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromDropVtable(SCollectMetaKeyCxt* pCxt, SDropVirtualTableStmt* pStmt) {
+  if (pStmt->withOpt) {
+    return reserveTableUidInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  }
+  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+                                AUTH_TYPE_WRITE, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1071,6 +1079,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return collectMetaKeyFromDropStable(pCxt, (SDropSuperTableStmt*)pStmt);
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      return collectMetaKeyFromDropVtable(pCxt, (SDropVirtualTableStmt*)pStmt);
     case QUERY_NODE_ALTER_TABLE_STMT:
       return collectMetaKeyFromAlterTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:

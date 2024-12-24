@@ -330,6 +330,7 @@ typedef enum ENodeType {
   QUERY_NODE_S3MIGRATE_DATABASE_STMT,
   QUERY_NODE_CREATE_VTABLE_STMT,
   QUERY_NODE_CREATE_VSUBTABLE_STMT,
+  QUERY_NODE_DROP_VIRTUAL_TABLE_STMT,
   // placeholder for [154, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
@@ -3355,6 +3356,7 @@ typedef struct {
   uint64_t suid;  // for tmq in wal format
   int64_t  uid;
   int8_t   igNotExists;
+  int8_t   isVirtual;
 } SVDropTbReq;
 
 typedef struct {

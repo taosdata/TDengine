@@ -298,6 +298,14 @@ typedef struct SDropSuperTableStmt {
   bool      withOpt;
 } SDropSuperTableStmt;
 
+typedef struct SDropVirtualTableStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+  bool      withOpt;
+} SDropVirtualTableStmt;
+
 typedef struct SAlterTableStmt {
   ENodeType       type;
   char            dbName[TSDB_DB_NAME_LEN];

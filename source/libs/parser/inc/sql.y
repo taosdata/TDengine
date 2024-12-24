@@ -399,6 +399,7 @@ cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B) USING full_table_name
   specific_cols_opt(D) TAGS NK_LP tags_literal_list(E) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E); }
 cmd ::= DROP TABLE with_opt(A) multi_drop_clause(B).                              { pCxt->pRootNode = createDropTableStmt(pCxt, A, B); }
 cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B, C); }
+cmd ::= DROP VTABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropVirtualTableStmt(pCxt, A, B, C); }
 
 cmd ::= ALTER TABLE alter_table_clause(A).                                        { pCxt->pRootNode = A; }
 cmd ::= ALTER STABLE alter_table_clause(A).                                       { pCxt->pRootNode = setAlterSuperTableType(A); }

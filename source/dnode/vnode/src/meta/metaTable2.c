@@ -17,6 +17,8 @@
 
 extern int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry);
 extern int32_t metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp);
+extern int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
+                                    STableMetaRsp *pMetaRsp, int8_t tableType);
 extern int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 extern int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntry);
 extern void    metaFetchEntryFree(SMetaEntry **ppEntry);
@@ -494,6 +496,141 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
 #endif
 }
 
+static int32_t metaBuildCreateVirtualNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == ppRsp) {
+    return code;
+  }
+
+  *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == *ppRsp) {
+    return terrno;
+  }
+
+  code = metaUpdateVtbMetaRsp(pEntry->uid, pEntry->name, &pEntry->ntbEntry.schemaRow, &pEntry->colRef, *ppRsp, TSDB_VIRTUAL_TABLE);
+  if (code) {
+    taosMemoryFreeClear(*ppRsp);
+    return code;
+  }
+
+  return code;
+}
+
+static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
+  // check request
+  int32_t code = metaCheckCreateNormalTableReq(pMeta, version, pReq);
+  if (code) {
+    if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST != code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+                __FILE__, __LINE__, tstrerror(code), version, pReq->name);
+    }
+    TAOS_RETURN(code);
+  }
+
+  SMetaEntry entry = {
+      .version = version,
+      .type = TSDB_VIRTUAL_TABLE,
+      .uid = pReq->uid,
+      .name = pReq->name,
+      .ntbEntry.btime = pReq->btime,
+      .ntbEntry.ttlDays = pReq->ttl,
+      .ntbEntry.commentLen = pReq->commentLen,
+      .ntbEntry.comment = pReq->comment,
+      .ntbEntry.schemaRow = pReq->ntb.schemaRow,
+      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+      .colRef = pReq->colRef
+  };
+
+  code = metaBuildCreateVirtualNormalTableRsp(pMeta, &entry, ppRsp);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
+  }
+
+  // handle entry
+  code = metaHandleEntry2(pMeta, &entry);
+  if (TSDB_CODE_SUCCESS == code) {
+    metaInfo("vgId:%d, normal table:%s uid %" PRId64 " is created, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+             pReq->uid, version);
+  } else {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
+  }
+  TAOS_RETURN(code);
+#if 0
+  metaTimeSeriesNotifyCheck(pMeta);
+#endif
+}
+
+static int32_t metaBuildCreateVirtualChildTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == ppRsp) {
+    return code;
+  }
+
+  *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == *ppRsp) {
+    return terrno;
+  }
+
+  code = metaUpdateVtbMetaRsp(pEntry->uid, pEntry->name, NULL, &pEntry->colRef, *ppRsp, TSDB_VIRTUAL_CHILD_TABLE);
+  if (code) {
+    taosMemoryFreeClear(*ppRsp);
+    return code;
+  }
+  (*ppRsp)->suid = pEntry->ctbEntry.suid;
+
+  return code;
+}
+
+static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
+  // check request
+  int32_t code = metaCheckCreateChildTableReq(pMeta, version, pReq);
+  if (code) {
+    if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST != code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+                __FILE__, __LINE__, tstrerror(code), version, pReq->name);
+    }
+    TAOS_RETURN(code);
+  }
+
+  SMetaEntry entry = {
+      .version = version,
+      .type = TSDB_VIRTUAL_CHILD_TABLE,
+      .uid = pReq->uid,
+      .name = pReq->name,
+      .ctbEntry.btime = pReq->btime,
+      .ctbEntry.ttlDays = pReq->ttl,
+      .ctbEntry.commentLen = pReq->commentLen,
+      .ctbEntry.comment = pReq->comment,
+      .ctbEntry.suid = pReq->ctb.suid,
+      .ctbEntry.pTags = pReq->ctb.pTag,
+      .colRef = pReq->colRef
+  };
+
+  code = metaBuildCreateVirtualChildTableRsp(pMeta, &entry, ppRsp);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
+  }
+
+  // handle entry
+  code = metaHandleEntry2(pMeta, &entry);
+  if (TSDB_CODE_SUCCESS == code) {
+    metaInfo("vgId:%d, normal table:%s uid %" PRId64 " is created, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+             pReq->uid, version);
+  } else {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
+  }
+  TAOS_RETURN(code);
+#if 0
+  metaTimeSeriesNotifyCheck(pMeta);
+#endif
+}
+
 // Drop Normal Table
 
 // Alter Normal Table
@@ -504,6 +641,10 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
     code = metaCreateChildTable(pMeta, version, pReq, ppRsp);
   } else if (TSDB_NORMAL_TABLE == pReq->type) {
     code = metaCreateNormalTable(pMeta, version, pReq, ppRsp);
+  } else if (TSDB_VIRTUAL_TABLE == pReq->type) {
+    code = metaCreateVirtualNormalTable(pMeta, version, pReq, ppRsp);
+  } else if (TSDB_VIRTUAL_CHILD_TABLE == pReq->type) {
+    code = metaCreateVirtualChildTable(pMeta, version, pReq, ppRsp);
   } else {
     code = TSDB_CODE_INVALID_MSG;
   }
@@ -535,10 +676,18 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
       .uid = pReq->uid,
   };
 
-  if (pReq->suid == 0) {
-    entry.type = -TSDB_NORMAL_TABLE;
+  if (pReq->isVirtual) {
+    if (pReq->suid == 0) {
+      entry.type = -TSDB_VIRTUAL_TABLE;
+    } else {
+      entry.type = -TSDB_VIRTUAL_CHILD_TABLE;
+    }
   } else {
-    entry.type = -TSDB_CHILD_TABLE;
+    if (pReq->suid == 0) {
+      entry.type = -TSDB_NORMAL_TABLE;
+    } else {
+      entry.type = -TSDB_CHILD_TABLE;
+    }
   }
   code = metaHandleEntry2(pMeta, &entry);
   if (code) {

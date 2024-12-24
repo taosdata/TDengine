@@ -15700,8 +15700,37 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
     code = getTableHashVgroup(pCxt, pClause->dbName, pClause->tableName, &info);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pClause->ignoreNotExists};
+    SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pClause->ignoreNotExists, .isVirtual = false};
     req.name = pClause->tableName;
+    code = addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req);
+  }
+
+over:
+  taosMemoryFreeClear(pTableMeta);
+  return code;
+}
+
+static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDropVirtualTableStmt* pStmt,
+                                                  const SName* name, int8_t* tableType, SHashObj* pVgroupHashmap) {
+  STableMeta* pTableMeta = NULL;
+  int32_t     code = getTargetMeta(pCxt, name, &pTableMeta, false);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(name, pCxt->pTargetTables);
+    *tableType = pTableMeta->tableType;
+  }
+
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pStmt->ignoreNotExists) {
+    code = TSDB_CODE_SUCCESS;
+    goto over;
+  }
+
+  SVgroupInfo info = {0};
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pStmt->ignoreNotExists, .isVirtual = true};
+    req.name = pStmt->tableName;
     code = addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req);
   }
 
@@ -15809,7 +15838,7 @@ static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) 
     }
     SName name = {0};
     toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
-    int32_t code = getTargetName(pCxt, &name, pTableName);
+    code = getTargetName(pCxt, &name, pTableName);
     if (TSDB_CODE_SUCCESS != code) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pClause->dbName,
                                      pClause->tableName);
@@ -15909,6 +15938,67 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
 
   return rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
+}
+
+static int32_t rewriteDropVirtualTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SDropVirtualTableStmt* pStmt = (SDropVirtualTableStmt*)pQuery->pRoot;
+  if (!pStmt->withOpt) {
+    PAR_RET(code);
+  }
+
+  SNode* pNode = NULL;
+  char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
+
+  for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
+    if (pStmt->tableName[i] == '\0') {
+      break;
+    }
+    if (!isdigit(pStmt->tableName[i])) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: `%s`.`%s`",
+                                     pStmt->dbName, pStmt->tableName);
+    }
+  }
+
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+  code = getTargetName(pCxt, &name, pTableName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pStmt->dbName,
+                                   pStmt->tableName);
+  }
+  tstrncpy(pStmt->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
+
+  TAOS_RETURN(rewriteDropTableWithMetaCache(pCxt));
+}
+
+static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
+  SDropVirtualTableStmt* pStmt = (SDropVirtualTableStmt*)pQuery->pRoot;
+  int8_t          tableType;
+  SNode*          pNode;
+  SArray*         pBufArray = NULL;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SName           name = {0};
+  SHashObj*       pVgroupHashmap = NULL;
+
+  PAR_ERR_JRET(rewriteDropVirtualTableWithOpt(pCxt, pQuery));
+
+  pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (NULL == pVgroupHashmap) {
+    return terrno;
+  }
+
+  taosHashSetFreeFp(pVgroupHashmap, destroyDropTbReqBatch);
+
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+  PAR_ERR_JRET(buildDropVirtualTableVgroupHashmap(pCxt, pStmt, &name, &tableType, pVgroupHashmap));
+
+  PAR_ERR_JRET(serializeVgroupsDropTableBatch(pVgroupHashmap, &pBufArray));
+  PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
+
+_return:
+  taosHashCleanup(pVgroupHashmap);
+  return code;
 }
 
 static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQuery) {
@@ -17294,6 +17384,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       code = rewriteDropSuperTable(pCxt, pQuery);
       break;
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      code = rewriteDropVirtualTable(pCxt, pQuery);
+      break;
     case QUERY_NODE_ALTER_TABLE_STMT:
       code = rewriteAlterTable(pCxt, pQuery);
       break;
@@ -17325,6 +17418,7 @@ static int32_t toMsgType(ENodeType type) {
     case QUERY_NODE_ALTER_TABLE_STMT:
       return TDMT_VND_ALTER_TABLE;
     case QUERY_NODE_DROP_TABLE_STMT:
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
       return TDMT_VND_DROP_TABLE;
     default:
       break;
