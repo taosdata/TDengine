@@ -38,7 +38,7 @@
                     "update_fill_interval": 25,
                     "generate_row_rule": 2,
                     "columns": [
-                        { "type": "bool",        "name": "bc", "encode":"bit-packing", "compress":"zstd", "level":"high" },
+                        { "type": "bool",        "name": "bc", "encode":"disabled", "compress":"disabled" },
                         { "type": "float",       "name": "fc", "encode":"delta-d", "compress":"zlib", "level":"medium", "max": 100, "min": 0 },
                         { "type": "double",      "name": "dc", "encode":"delta-d", "compress":"xz", "level":"low", "max": 100, "min": 0 },
                         { "type": "tinyint",     "name": "ti", "encode":"delta-i", "compress":"zstd", "level":"high", "max": 100, "min": 0 },

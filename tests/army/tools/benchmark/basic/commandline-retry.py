@@ -20,6 +20,7 @@ from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame import *
+from frame.srvCtl import *
 
 
 class TDTestCase(TBase):
@@ -27,8 +28,6 @@ class TDTestCase(TBase):
         """
         [TD-19985] taosBenchmark retry test cases
         """
-
-
 
     def run(self):
         binPath = etool.benchMarkFile()
