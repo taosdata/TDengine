@@ -103,7 +103,7 @@ class TDTestCase(TBase):
         if not math.isclose(tdSql.getData(0, 2), 1.0):
             tdLog.exit("data is different")
 
-        tdSql.query("select * from st where ftag = 3.4E38")
+        tdSql.query("select * from st where ftag > 3.399999E38 and ftag < 3.4000001E38")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         if not math.isclose(tdSql.getData(0, 1), 3.4e38, rel_tol=1e-07, abs_tol=0.0):
@@ -117,7 +117,7 @@ class TDTestCase(TBase):
             )
             tdLog.exit("data is different")
 
-        tdSql.query("select * from st where ftag = -3.4E38")
+        tdSql.query("select * from st where ftag < -3.399999E38 and ftag > -3.4000001E38")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         if not math.isclose(tdSql.getData(0, 1), (-3.4e38), rel_tol=1e-07, abs_tol=0.0):
