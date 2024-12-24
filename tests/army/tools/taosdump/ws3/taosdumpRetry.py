@@ -53,16 +53,13 @@ class TDTestCase:
         case1<sdsang>: [TS-3072] taosdump dump escaped db name test
         """
 
-
-
-
     def exec(self, command):
         tdLog.info(command)
         return os.system(command)
 
     def findPrograme(self):
         # taosdump 
-        taosdump = self.etool.taosDumpFile()
+        taosdump = etool.taosDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:
@@ -76,7 +73,7 @@ class TDTestCase:
             tdLog.info("benchmark found in %s" % benchmark)
 
         # taosadapter
-        taosadapter = self.getPath("taosadapter")
+        taosadapter = etool.taosAdapterFile()
         if taosadapter == "":
             tdLog.exit("taosadapter not found!")
         else:

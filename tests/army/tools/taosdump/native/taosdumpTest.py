@@ -71,7 +71,7 @@ class TDTestCase:
             sql += "(%d, %d, 'nchar%d')" % (currts + i, i % 100, i % 100)
         tdSql.execute(sql)
 
-        binPath = self.etool.taosDumpFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
         else:

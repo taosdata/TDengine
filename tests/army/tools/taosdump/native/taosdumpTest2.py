@@ -68,7 +68,7 @@ class TDTestCase:
                     break
             tdSql.execute(sql)
 
-        binPath = self.etool.taosDumpFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
         else:

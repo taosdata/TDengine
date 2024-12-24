@@ -110,7 +110,7 @@ class TDTestCase:
         if not os.path.exists("./taosdumptest/dumptmp3"):
             os.makedirs("./taosdumptest/dumptmp3")
 
-        binPath = self.etool.taosDumpFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
         else:

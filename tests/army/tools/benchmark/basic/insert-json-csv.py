@@ -23,11 +23,6 @@ from frame import *
 
 
 class TDTestCase(TBase):
-
-        now = time.time()
-        self.ts = int(round(now * 1000))
-
-
     def run(self):
         tdSql.query("select client_version()")
         client_ver = "".join(tdSql.queryResult[0])

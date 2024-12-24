@@ -32,19 +32,7 @@ class TDTestCase(TBase):
         cmd = "%s -T 1 -t 2 -n 10 -y" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
-
-        '''
-        taosPath = self.getPath("taos")
-        cmd = f"{taosPath} -s 'select count(*) from test.meters'"
-        tdLog.info(f"{cmd}")
-        cmdOutput = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        tdLog.info(f"{cmdOutput}")
-        if "20 |" in cmdOutput:
-            tdLog.info("count of records is correct!")
-        else:
-            tdLog.exit("count of records is incorrect")
-        '''    
-
+ 
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

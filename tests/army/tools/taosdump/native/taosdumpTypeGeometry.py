@@ -35,7 +35,7 @@ class TDTestCase:
 
     def findPrograme(self):
         # taosdump 
-        taosdump = self.etool.taosDumpFile()
+        taosdump = etool.taosDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:

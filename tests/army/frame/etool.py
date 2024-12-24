@@ -23,15 +23,23 @@ import frame.epath
 import frame.eos
 from frame.log import *
 
+# taosdump
 def taosDumpFile():
     bmFile = frame.epath.binFile("taosdump")
     if frame.eos.isWin():
         bmFile += ".exe"
     return bmFile
 
-
+# taosBenchmark
 def benchMarkFile():
     bmFile = frame.epath.binFile("taosBenchmark")
+    if frame.eos.isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# taosAdapter
+def taosAdapterFile():
+    bmFile = frame.epath.binFile("taosAdapter")
     if frame.eos.isWin():
         bmFile += ".exe"
     return bmFile
