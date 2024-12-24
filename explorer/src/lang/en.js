@@ -256,6 +256,8 @@ export default {
     readyDesc: 'The health check between the source and target systems has passed, allowing data reading and writing.',
     idle: 'Idle',
     idleDesc: 'Indicates no data processing for a configurable period, meaning no data has entered the processing flow recently.',
+    active: 'Active',
+    activeDesc: 'Indicates data is ingesting.',
     busy: 'Busy',
     busyDesc: 'Indicates that the write queue is full.',
     bounce: 'Bounce',
