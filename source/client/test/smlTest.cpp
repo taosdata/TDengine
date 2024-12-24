@@ -276,6 +276,7 @@ TEST(testCase, smlParseCols_Test) {
   info->dataFormat = false;
   SSmlLineInfo elements = {0};
   info->msgBuf = msgBuf;
+  ASSERT_EQ(smlInitHandle(NULL), TSDB_CODE_INVALID_PARA);
 
   const char *data =
       "st,t=1 cb\\=in=\"pass\\,it "

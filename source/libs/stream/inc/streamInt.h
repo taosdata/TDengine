@@ -252,6 +252,8 @@ void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 
 int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type);
 int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList);
+int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
+int32_t uploadCheckpointToS3(const char* id, const char* path);
 
 #ifdef __cplusplus
 }
