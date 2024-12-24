@@ -655,6 +655,7 @@ typedef struct SQuery {
   SArray*         pDbList;
   SArray*         pPlaceholderValues;
   SNode*          pPrepareRoot;
+  SExtSchema*     pResExtSchema;
 } SQuery;
 
 void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);

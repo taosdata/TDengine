@@ -14329,10 +14329,15 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
   return code;
 }
 
-static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* numOfCols, SSchema** pSchema, SExtSchema** ppExtSchemas) {
   *numOfCols = LIST_LENGTH(pProjections);
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
+    return terrno;
+  }
+  if (ppExtSchemas) *ppExtSchemas = taosMemoryCalloc(*numOfCols, sizeof(SExtSchema));
+  if (!ppExtSchemas) {
+    taosMemoryFreeClear(*pSchema);
     return terrno;
   }
 
@@ -14346,6 +14351,9 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
     } else {
       (*pSchema)[index].type = pExpr->resType.type;
       (*pSchema)[index].bytes = pExpr->resType.bytes;
+      if (ppExtSchemas) {
+        (*ppExtSchemas)[index].typeMod = calcTypeMod(&pExpr->resType);
+      }
     }
     (*pSchema)[index].colId = index + 1;
     if ('\0' != pExpr->userAlias[0]) {
@@ -14520,7 +14528,7 @@ static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchem
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
+int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema, SExtSchema** ppExtSchemas) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
   }
@@ -14528,7 +14536,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
   switch (nodeType(pRoot)) {
     case QUERY_NODE_SELECT_STMT:
     case QUERY_NODE_SET_OPERATOR:
-      return extractQueryResultSchema(getProjectList(pRoot), numOfCols, pSchema);
+      return extractQueryResultSchema(getProjectList(pRoot), numOfCols, pSchema, ppExtSchemas);
     case QUERY_NODE_EXPLAIN_STMT:
       return extractExplainResultSchema(numOfCols, pSchema);
     case QUERY_NODE_DESCRIBE_STMT: {
@@ -18011,7 +18019,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
 
   if (pQuery->haveResultSet) {
     taosMemoryFreeClear(pQuery->pResSchema);
-    if (TSDB_CODE_SUCCESS != extractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema)) {
+    taosMemoryFreeClear(pQuery->pResExtSchema);
+    if (TSDB_CODE_SUCCESS != extractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema, &pQuery->pResExtSchema)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 

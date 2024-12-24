@@ -44,6 +44,8 @@ int32_t decimal128FromStr(const char* str, int32_t len, uint8_t* precision, uint
 int32_t decimal64ToDataVal(const Decimal64* dec, SValue* pVal);
 int32_t decimal128ToDataVal(const Decimal128* dec, SValue* pVal);
 
+int32_t decimalToStr(DecimalWord* pDec, int8_t precision, int8_t scale, char* pBuf, int32_t bufLen);
+
 typedef struct DecimalVar DecimalVar;
 
 typedef struct SDecimalVarOps {
@@ -52,12 +54,24 @@ typedef struct SDecimalVarOps {
     int32_t (*multiply)(DecimalVar* pLeft, const DecimalVar* pRight);
 } SDecimalVarOps;
 
+typedef struct SWideInteger {
+  int32_t wordNum;
+  DecimalWord *words;
+} SWideInteger;
+
+// TODO wjm rename it
 typedef struct SWideIntegerOps {
   uint8_t wordNum;
+  int32_t (*abs)(DecimalWord* pInt);
   int32_t (*add)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
   int32_t (*subtract)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
   int32_t (*multiply)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
   int32_t (*divide)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+  int32_t (*mod)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+  bool (*lt)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+  bool (*gt)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+  bool (*eq)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
+  int32_t (*toStr)(DecimalWord* pInt, char* pBuf, int32_t bufLen);
 } SWideIntegerOps;
 
 #ifdef __cplusplus
