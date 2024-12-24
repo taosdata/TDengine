@@ -21,7 +21,7 @@ from frame.caseBase import *
 from frame import *
 
 
-class TDTestCase:
+class TDTestCase(TBase):
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)

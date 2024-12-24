@@ -21,7 +21,7 @@ from frame.caseBase import *
 from frame import *
 
 
-class TDTestCase:
+class TDTestCase(TBase):
     def caseDescription(self):
         """
         case1<sdsang>: [TD-12655] taosdump supports unsigned big int
