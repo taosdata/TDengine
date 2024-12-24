@@ -10,6 +10,8 @@
 ###################################################################
 from util.cases import *
 from util.sql import *
+from util.dnodes import *
+from util.log import *
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
@@ -19,6 +21,26 @@ class TDTestCase:
 
     def run(self):
         tdSql.execute('CREATE DATABASE db vgroups 1 replica 2;')
+
+        time.sleep(1)
+
+        tdSql.query("show db.vgroups;")
+
+        if(tdSql.queryResult[0][4] == "follower") and (tdSql.queryResult[0][6] == "leader"):
+            tdLog.info("stop dnode2")
+            sc.dnodeStop(2)
+
+        if(tdSql.queryResult[0][6] == "follower") and (tdSql.queryResult[0][4] == "leader"):
+            tdLog.info("stop dnode 3")
+            sc.dnodeStop(3)
+
+        tdLog.info("wait 10 seconds")
+        time.sleep(10)
+
+        tdSql.query("show db.vgroups;")
+
+        if(tdSql.queryResult[0][4] != "assigned") and (tdSql.queryResult[0][6] != "assigned"):
+            tdLog.exit("failed to set aasigned")
 
     def stop(self):
         tdSql.close()
