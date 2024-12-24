@@ -69,7 +69,7 @@ class TDTestCase:
         os.system("%s -i %s -g" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
 
         found = False
         for i in range(len(dbresult)):
@@ -88,7 +88,7 @@ class TDTestCase:
         tdSql.query("show tables")
         tdSql.checkRows(3)
 
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         print(dbresult)
         for i in range(len(dbresult)):
             assert (
@@ -100,7 +100,7 @@ class TDTestCase:
         tdSql.query("select jtag->'location' from st")
         tdSql.checkRows(3)
 
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         print(dbresult)
         found = False
         for i in range(len(dbresult)):
@@ -118,7 +118,7 @@ class TDTestCase:
         tdSql.query("select jtag from st")
         tdSql.checkRows(3)
 
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         print(dbresult)
         found = False
         for i in range(len(dbresult)):

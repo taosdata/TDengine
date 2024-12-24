@@ -85,7 +85,7 @@ class TDTestCase:
         os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
 
         found = False
         for i in range(len(dbresult)):

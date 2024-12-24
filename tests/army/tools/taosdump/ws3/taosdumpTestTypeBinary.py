@@ -68,7 +68,7 @@ class TDTestCase:
         os.system("%s -R -i %s" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
 
         found = False
         for i in range(len(dbresult)):
@@ -86,7 +86,7 @@ class TDTestCase:
 
         tdSql.query("show tables")
         tdSql.checkRows(2)
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         print(dbresult)
         for i in range(len(dbresult)):
             assert dbresult[i][0] in ("t1", "t2")

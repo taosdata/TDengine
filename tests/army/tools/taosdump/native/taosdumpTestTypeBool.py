@@ -66,7 +66,7 @@ class TDTestCase:
         os.system("%s -i %s" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
 
         found = False
         for i in range(len(dbresult)):
@@ -84,7 +84,7 @@ class TDTestCase:
 
         tdSql.query("show tables")
         tdSql.checkRows(3)
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         print(dbresult)
         for i in range(len(dbresult)):
             assert (
@@ -95,7 +95,7 @@ class TDTestCase:
 
         tdSql.query("select btag from st")
         tdSql.checkRows(3)
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         print(dbresult)
 
         tdSql.query("select * from st where btag = true")

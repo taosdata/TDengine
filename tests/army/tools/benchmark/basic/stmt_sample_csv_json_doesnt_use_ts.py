@@ -26,8 +26,6 @@ class TDTestCase(TBase):
         [TD-11510] taosBenchmark test cases
         """
 
-
-
     def run(self):
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/stmt_sample_doesnt_use_ts.json" % binPath
@@ -47,7 +45,8 @@ class TDTestCase(TBase):
         tdSql.query("select distinct(t0) from db.stb")
         tdSql.checkRows(2)
 
-        dbresult = tdSql.queryResult
+        
+        dbresult = tdSql.res
         if dbresult[0][0] not in (17, None):
             tdLog.exit("result[0][0]: {}".format(dbresult[0][0]))
         else:

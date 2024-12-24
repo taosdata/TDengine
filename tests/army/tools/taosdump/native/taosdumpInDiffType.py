@@ -69,7 +69,7 @@ class TDTestCase:
         os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
 
         found = False
         for i in range(len(dbresult)):
@@ -83,7 +83,7 @@ class TDTestCase:
         tdSql.execute("use db")
 
         tdSql.query("SELECT * from tb")
-        for i in range(1, len(tdSql.queryResult[0])):
+        for i in range(1, len(tdSql.res[0])):
             tdSql.checkData(0, i, None)
 
     def stop(self):

@@ -34,7 +34,7 @@ class TDTestCase(TBase):
         os.system("%s" % cmd)
 
         tdSql.query("select * from test.meters")
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         for i in range(len(dbresult[0])):
             if i in (1, 2) and dbresult[0][i] is None:
                 tdLog.exit("result[0][%d] is NULL, which should not be" % i)

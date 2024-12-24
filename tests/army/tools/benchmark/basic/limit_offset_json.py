@@ -38,7 +38,7 @@ class TDTestCase(TBase):
         tdSql.checkRows(8)
 
         #        tdSql.query("select * from db.stb")
-        #        dbresult = tdSql.queryResult
+        #        dbresult = tdSql.res
         #        print(dbresult)
         #        if dbresult != []:
         #            for i in range(len(dbresult[0])):

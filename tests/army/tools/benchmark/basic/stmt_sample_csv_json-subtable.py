@@ -62,7 +62,7 @@ class TDTestCase(TBase):
         tdSql.query("select distinct(t0) from db.stb")
         tdSql.checkRows(2)
 
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         if dbresult[0][0] not in (17, None):
             tdLog.exit("result[0][0]: {}".format(dbresult[0][0]))
         else:

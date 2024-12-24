@@ -36,7 +36,7 @@ class TDTestCase(TBase):
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("select count(*) from db.t0")
-        rows = tdSql.queryResult[0]
+        rows = tdSql.res[0]
         tdSql.query("select * from db.t0")
         for row in range(rows[0]):
             tdSql.checkData(row, 1, 1)

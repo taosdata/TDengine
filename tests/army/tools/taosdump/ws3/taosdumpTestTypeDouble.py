@@ -75,7 +75,7 @@ class TDTestCase:
         os.system("%s -R -i %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
 
         found = False
         for i in range(len(dbresult)):
@@ -133,7 +133,7 @@ class TDTestCase:
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where dbtag is null")
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         print(dbresult)
 
         tdSql.checkRows(1)

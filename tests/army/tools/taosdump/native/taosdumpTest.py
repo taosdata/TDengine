@@ -91,7 +91,7 @@ class TDTestCase:
         tdSql.execute("use newdb")
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(4)
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         # 6--duration,7--keep0,keep1,keep
 
         isCommunity = self.checkCommunity()
@@ -116,7 +116,7 @@ class TDTestCase:
 
         tdSql.query("show tables")
         tdSql.checkRows(2)
-        dbresult = tdSql.queryResult
+        dbresult = tdSql.res
         print(dbresult)
         for i in range(len(dbresult)):
             assert (dbresult[i][0] == "t1") or (dbresult[i][0] == "t2")

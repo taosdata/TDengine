@@ -28,7 +28,7 @@ class TDTestCase(TBase):
 
     def run(self):
         tdSql.query("select client_version()")
-        client_ver = "".join(tdSql.queryResult[0])
+        client_ver = "".join(tdSql.res[0])
         major_ver = client_ver.split(".")[0]
 
         binPath = etool.benchMarkFile()
@@ -40,7 +40,7 @@ class TDTestCase(TBase):
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("select count(*) from db.stb")
-        rows = tdSql.queryResult[0]
+        rows = tdSql.res[0]
         tdSql.query("select * from db.stb")
         for row in range(rows[0]):
             if major_ver == "3":
