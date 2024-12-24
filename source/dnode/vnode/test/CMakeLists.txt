@@ -3,23 +3,25 @@ MESSAGE(STATUS "tq unit test")
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
 
-add_executable(tqTest tqTest.cpp)
-target_include_directories(tqTest
-        PUBLIC
-        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
+IF(NOT TD_WINDOWS)
+    add_executable(tqTest tqTest.cpp)
+    target_include_directories(tqTest
+            PUBLIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
 
-TARGET_LINK_LIBRARIES(
-        tqTest
-        PUBLIC os util common vnode gtest_main
-)
+    TARGET_LINK_LIBRARIES(
+            tqTest
+            PUBLIC os util common vnode gtest_main
+    )
 
-enable_testing()
+    enable_testing()
 
-add_test(
-        NAME tq_test
-        COMMAND tqTest
-)
+    add_test(
+            NAME tq_test
+            COMMAND tqTest
+    )
+ENDIF()
 
 # ADD_EXECUTABLE(tsdbSmaTest tsdbSmaTest.cpp)
 # TARGET_LINK_LIBRARIES(

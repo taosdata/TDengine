@@ -95,7 +95,7 @@ END:
   if (code != 0){
     tqError("%s failed at %d since %s", __func__, lino, tstrerror(code));
   }
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   taosMemoryFree(pMemBuf);
 
   tDeleteSTqOffset(pOffset);

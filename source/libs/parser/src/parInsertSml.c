@@ -123,7 +123,7 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
       val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;
     } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
-      code = smlMbsToUcs4(kv->value, kv->length, (void**)&val.pData, &val.nData, kv->length * TSDB_NCHAR_SIZE, charsetCxt);
+      code = smlMbsToUcs4(kv->value, kv->length, (void**)&val.pData, (int32_t*)&val.nData, kv->length * TSDB_NCHAR_SIZE, charsetCxt);
       TSDB_CHECK_CODE(code, lino, end);
     } else {
       (void)memcpy(&val.i64, &(kv->value), kv->length);
@@ -316,7 +316,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
       }
       if (kv->type == TSDB_DATA_TYPE_NCHAR) {
-        ret = smlMbsToUcs4(kv->value, kv->length, (void**)&pVal->value.pData, &pVal->value.nData, pColSchema->bytes - VARSTR_HEADER_SIZE, charsetCxt);
+        ret = smlMbsToUcs4(kv->value, kv->length, (void**)&pVal->value.pData, (int32_t*)&pVal->value.nData, pColSchema->bytes - VARSTR_HEADER_SIZE, charsetCxt);
         TSDB_CHECK_CODE(ret, lino, end);
       } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
         pVal->value.nData = kv->length;
@@ -345,7 +345,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 end:
   if (ret != 0){
     uError("%s failed at %d since %s", __func__, lino, tstrerror(ret));
-    buildInvalidOperationMsg(&pBuf, tstrerror(ret));
+    ret = buildInvalidOperationMsg(&pBuf, tstrerror(ret));
   }
   insDestroyBoundColInfo(&bindTags);
   tdDestroySVCreateTbReq(pCreateTblReq);
