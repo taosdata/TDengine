@@ -57,7 +57,7 @@ TEST(log, misc) {
   EXPECT_EQ(taosInitLog("taoslog", 1, true), 0);
 
   taosOpenNewSlowLogFile();
-  taosLogObjSetTimeStamp(INT64_MIN);
+  taosLogObjSetToday(INT64_MIN);
   taosPrintSlowLog("slow log test");
 
   // test taosInitLogOutput

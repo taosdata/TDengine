@@ -541,7 +541,7 @@ void taosResetLog() {
   }
 }
 
-void taosLogObjSetTimeStamp(int64_t ts) { tsLogObj.timestampToday = ts; }
+void taosLogObjSetToday(int64_t ts) { tsLogObj.timestampToday = ts; }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
   TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE);

@@ -23,7 +23,7 @@ extern "C" {
 #include "tlog.h"
 
 void taosOpenNewSlowLogFile();
-void taosLogObjSetTimeStamp(int64_t ts);
+void taosLogObjSetToday(int64_t ts);
 
 #ifdef __cplusplus
 }
