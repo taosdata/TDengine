@@ -50,7 +50,7 @@ This is a [more detailed parameter binding example](https://github.com/taosdata/
 <TabItem label="Rust" value="rust">
 
 ```rust
-{{#include docs/examples/rust/restexample/examples/stmt.rs}}
+{{#include docs/examples/rust/restexample/examples/stmt2.rs}}
 ```
 
 </TabItem>
