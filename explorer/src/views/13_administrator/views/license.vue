@@ -41,7 +41,7 @@
         <span style="color: #333" v-if="item.key !== 'version'">
           {{
             ["expire_time","service_time"].includes(item.key) && item.value !== "unlimited"
-              ? parsinginZone(item.value, "YYYY-MM-DD h:mm:ss")
+              ? parsinginZone(item.value, "YYYY-MM-DD HH:mm:ss")
               : item.value
           }}</span
         >
@@ -283,77 +283,109 @@ export default {
       this.getData();
       this.getGrantsFull();
     },
-    addUdf() {},
+    async to_timestamp_local(t) {
+      if (!t) {
+        return t;
+      }
+      this.timestamp_local_map = this.timestamp_local_map || {};
+      if (this.timestamp_local_map[t]) {
+        return this.timestamp_local_map[t];
+      }
+
+      let to_timestamp_res = await sendSQLReq(`select to_timestamp('${t}', 'yyyy-mm-dd hh:mi:ss')`);
+      if (to_timestamp_res.data.length > 0) {
+        this.timestamp_local_map[t] = to_timestamp_res.data[0][0];
+        return to_timestamp_res.data[0][0];
+      }
+      return t;
+    },
     async getData() {
       try {
         // let cols = [];
         // 不管是任何版本都show grants
-        await sendSQLReq(`show grants;`).then((res) => {
+        let res = await sendSQLReq(`show grants;`);
+        let array = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              // cols.push({ header: item[0], value: item[0] });
+              return [item[0], data[index]];
+            })
+          );
+        });
+        let allLicence = [];
+        if (array.length > 0) {
+          let keys = Object.keys(array[0]);
+          for (let i = 0; i < keys.length; i++) {
+            let key = keys[i];
+            let value = array[0][key]; 
+            if ((key == "expire_time" || key == "service_time") && /^\d{4}/.test(array[0][key])) {
+              value = await this.to_timestamp_local(value);
+            }
+            allLicence.push({ key, value });
+          }
+        }
+        
+        this.licenseList = allLicence.filter(
+          (item) => item.value.indexOf("{") == -1
+        );
+        // console.log("this.licenseList", this.licenseList);
+
+        if (this.version_no_later_than_3230) {
+          this.tableData = allLicence
+            .filter((item) => item.value.indexOf("{") == 0)
+            .map((data) => {
+              return JSON.parse(data.value);
+            });
+        }
+   
+        if (!this.version_no_later_than_3230) {
+          res = await sendSQLReq(`show grants full;`);
           let array = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
-                // cols.push({ header: item[0], value: item[0] });
                 return [item[0], data[index]];
               })
             );
           });
-          let allLicence =
-            array.length > 0
-              ? Object.keys(array[0]).map((key) => {
-                  return {
-                    key: key,
-                    value: array[0][key],
-                  };
-                })
-              : [];
-          this.licenseList = allLicence.filter(
-            (item) => item.value.indexOf("{") == -1
-          );
-          if (this.version_no_later_than_3230) {
-            this.tableData = allLicence
-              .filter((item) => item.value.indexOf("{") == 0)
-              .map((data) => {
-                return JSON.parse(data.value);
-              });
-          }
-        });
-        if (!this.version_no_later_than_3230) {
-          await sendSQLReq(`show grants full;`).then((res) => {
-            let array = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
- 
-            let allData = array
-              .filter((item) => item.limits.indexOf("{") == 0)
-              .map((data) => {
-                return {
-                  ...JSON.parse(data.limits),
-                  type: data.display_name || data.grant_name,
-                  grant: data.grant_name,
-                  expire_time: data.expireTime,
-                };
-              })
-            // 3.3.0.0 之前不显示 mysql、postgres、oracle
-            this.tableData = allData
-            .filter(v => !['mysql', 'postgres', 'oracle', '__future_datain__'].includes(v.grant));
 
-            // 3.3.0.0 之后增加 mysql、postgres
-            if (this.version_greater_than_3300) {
-              this.tableData = allData
-                .filter(v => !['oracle'].includes(v.grant));
-            } 
-            // 3.3.0.1 之后增加 oracle
-            if (this.version_greater_than_3301){
-              this.tableData = allData.filter(v => !['__future_datain__'].includes(v.grant));
-            } 
-            this.advancedTableData = array
-              .filter((item) => item.limits.indexOf("{") == -1)
-            console.log("this.tableData", this.tableData, this.advancedTableData);
-          });
+          let allData = [];
+          for (let i = 0; i < array.length; i++) {
+            let data = array[i];
+            if (data.limits.indexOf("{") === 0) {
+              let item = JSON.parse(data.limits);
+              if (/^\d{4}/.test(item.expireTime)) {
+                item.expireTime = await this.to_timestamp_local(item.expireTime);
+              }
+              item.type = data.display_name || data.grant_name
+              item.grant = data.grant_name;
+              allData.push(item);
+            }
+          }
+
+          // 3.3.0.0 之前不显示 mysql、postgres、oracle
+          this.tableData = allData
+          .filter(v => !['mysql', 'postgres', 'oracle', '__future_datain__'].includes(v.grant));
+
+          // 3.3.0.0 之后增加 mysql、postgres
+          if (this.version_greater_than_3300) {
+            this.tableData = allData
+              .filter(v => !['oracle'].includes(v.grant));
+          } 
+          // 3.3.0.1 之后增加 oracle
+          if (this.version_greater_than_3301){
+            this.tableData = allData.filter(v => !['__future_datain__'].includes(v.grant));
+          } 
+
+          this.advancedTableData = [];
+          for (let i = 0; i < array.length; i++) {
+            let data = array[i];
+            if (data.limits.indexOf("{") === -1) {
+              if (/^\d{4}/.test(data.expire)) {
+                data.expire = await this.to_timestamp_local(data.expire);
+              }
+              this.advancedTableData.push(data);
+            }
+          }
         }
         this.loading = false;
       } catch (error) {
@@ -387,12 +419,12 @@ export default {
       if (this.version_no_later_than_3230) {
         return parsinginZone(Number(data) * 24 * 60 * 60 * 1000, "YYYY-MM-DD");
       } else {
-        return parsinginZone(data, "YYYY-MM-DD hh:mm:ss");
+        return parsinginZone(data, "YYYY-MM-DD HH:mm:ss");
       }
     },
     formatLimits(data) {
       if (data) {
-        console.log('data',data);
+        // console.log('data',data);
         return data == 'unlimited' ? 'unlimited' : data.split('/')[1]
       } else {
         return 'n/a'
