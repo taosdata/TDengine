@@ -728,6 +728,38 @@ class TDTestCase:
         tdSql.error(f"select {func_name}(num1) from db.tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
         tdLog.info(f"change udf test finished, using {lib_name}")
         
+    def test_change_udf_reverse(self):
+        tdSql.execute("create database if not exists db  duration 100")
+        tdSql.execute("use db")
+        
+        func_name = "udf_reverse"
+        tdSql.execute(f"create function {func_name} as '%s' outputtype nchar(256)"%self.libchange_udf_normal)
+        functions = tdSql.getResult("show functions")
+        for function in functions:
+            if f"{func_name}" in function[0]:
+                tdLog.info(f"create {func_name} functions success, using {self.libchange_udf_normal}")
+                break
+                
+        tdSql.query(f"select {func_name}(c8) from db.t1")
+        tdSql.execute(f"drop function {func_name}")
+        tdSql.error(f"select {func_name}(num1) from db.tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
+        
+        self.test_change_udf_normal("change_udf_normal")
+        tdSql.execute(f"create function {func_name} as '%s' outputtype varchar(256)"%self.libchange_udf_normal)
+        functions = tdSql.getResult("show functions")
+        for function in functions:
+            if f"{func_name}" in function[0]:
+                tdLog.info(f"create {func_name} functions success, using {self.libchange_udf_normal}")
+                break
+                
+        tdSql.query(f"select {func_name}(c8) from db.t1 order by ts")
+        tdSql.checkData(0,0, None)
+        tdSql.checkData(1,0, "1yranib")
+        tdSql.checkData(2,0, "2yranib")
+        tdSql.checkData(3,0, "3yranib")
+        
+        
+             
     def unexpected_using_test(self):
         tdSql.execute("use db ")
         
@@ -768,6 +800,7 @@ class TDTestCase:
         
         self.unexpected_using_test()
         self.create_udf_function()
+        self.test_change_udf_reverse()
         self.basic_udf_query()
         self.loop_kill_udfd()
         tdSql.execute(" drop function udf1 ")
