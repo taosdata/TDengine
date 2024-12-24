@@ -148,10 +148,7 @@ async fn task_opts_init(
             transform: vec![],
             from: from.clone(),
             to: to_dsn.clone(),
-            parser: task
-                .parser
-                .as_ref()
-                .map(|v| serde_json::from_value(v.clone()).unwrap()),
+            parser,
             health: task.trigger.as_ref().map(|v| v.health),
             cancel,
             // port_pool: ONCE,
