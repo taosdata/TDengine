@@ -9,6 +9,7 @@ file_no_doc_changed = '1'
 file_only_tdgpt_change_except = '1'
 tdgpt_file = "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics"
 
+
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
