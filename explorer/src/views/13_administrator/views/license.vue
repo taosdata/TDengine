@@ -38,16 +38,9 @@
         :label="$INDUSTRY && item.key == 'version' ? $t('header.power') : $t(`topic.${item.key}`)"
         :labelStyle="style"
       >
-        <span style="color: #333" v-if="item.key !== 'version'">
-          {{
-            ["expire_time","service_time"].includes(item.key) && item.value !== "unlimited"
-              ? parsinginZone(item.value, "YYYY-MM-DD HH:mm:ss")
-              : item.value
-          }}</span
-        >
+        <span style="color: #333" v-if="item.key !== 'version'">{{ item.value }}</span>
         <span style="color: #333" v-else>
           <span style="padding-left: 2px">{{ serverVersion }}</span>
-          <!-- {{ item.value }} -->
         </span>
       </el-descriptions-item>
     </el-descriptions>
@@ -71,7 +64,7 @@
           prop="expire"
         >
           <template slot-scope="scope">
-            <span>{{ scope.row.expire == 'unlimited' ? 'unlimited' : expireTime(scope.row.expire) }}</span>
+            <span>{{ scope.row.expire == 'unlimited' ? 'unlimited' : scope.row.expire_local_ }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -110,7 +103,7 @@
         v-if="!version_no_later_than_3230"
       >
         <template slot-scope="scope">
-          <span>{{ scope.row.expireTime == 'unlimited' ? 'unlimited' : expireTime(scope.row.expireTime) }}</span>
+          <span>{{ scope.row.expire == 'unlimited' ? 'unlimited' : scope.row.expire_local_ }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -177,7 +170,6 @@
   </div>
 </template>
 <script>
-import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
 import { activeLicence } from "@/api/explorer/licence";
 import { parsinginZone, getBrowserLang } from "@/utils";
@@ -283,27 +275,13 @@ export default {
       this.getData();
       this.getGrantsFull();
     },
-    async to_timestamp_local(t) {
-      if (!t) {
-        return t;
-      }
-      this.timestamp_local_map = this.timestamp_local_map || {};
-      if (this.timestamp_local_map[t]) {
-        return this.timestamp_local_map[t];
-      }
-
-      let to_timestamp_res = await sendSQLReq(`select to_timestamp('${t}', 'yyyy-mm-dd hh:mi:ss')`);
-      if (to_timestamp_res.data.length > 0) {
-        this.timestamp_local_map[t] = to_timestamp_res.data[0][0];
-        return to_timestamp_res.data[0][0];
-      }
-      return t;
+    maybe_a_json(str) {
+      return /^{.*}$/.test(str);
     },
     async getData() {
       try {
-        // let cols = [];
-        // 不管是任何版本都show grants
-        let res = await sendSQLReq(`show grants;`);
+        // 老版本没有 service_time
+        let res = await sendSQLReq(`select *, cast(expire_time as timestamp) as expire_time_local_${this.version_no_later_than_3230 ? "" : ", cast(service_time as timestamp) as service_time_local_"} from information_schema.ins_grants;`);
         let array = res.data.map((data) => {
           return Object.fromEntries(
             res.column_meta.map((item, index) => {
@@ -318,28 +296,28 @@ export default {
           for (let i = 0; i < keys.length; i++) {
             let key = keys[i];
             let value = array[0][key]; 
-            if ((key == "expire_time" || key == "service_time") && /^\d{4}/.test(array[0][key])) {
-              value = await this.to_timestamp_local(value);
-            }
+            if (key.endsWith("_local_")) {
+              continue;
+            } else if (array[0][key + "_local_"] && /^\d{4}/.test(value)) {
+              value = array[0][key + "_local_"]
+            } 
             allLicence.push({ key, value });
           }
         }
         
         this.licenseList = allLicence.filter(
-          (item) => item.value.indexOf("{") == -1
+          (item) => !this.maybe_a_json(item.value)
         );
-        // console.log("this.licenseList", this.licenseList);
 
         if (this.version_no_later_than_3230) {
+          // TODO 还要测试一个老版本
           this.tableData = allLicence
-            .filter((item) => item.value.indexOf("{") == 0)
+            .filter((item) => this.maybe_a_json(item.value))
             .map((data) => {
               return JSON.parse(data.value);
             });
-        }
-   
-        if (!this.version_no_later_than_3230) {
-          res = await sendSQLReq(`show grants full;`);
+        } else {
+          res = await sendSQLReq(`select *, cast(expire as timestamp) as expire_local_ from information_schema.ins_grants_full;`);
           let array = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
@@ -351,13 +329,12 @@ export default {
           let allData = [];
           for (let i = 0; i < array.length; i++) {
             let data = array[i];
-            if (data.limits.indexOf("{") === 0) {
+            if (this.maybe_a_json(data.limits)) {
               let item = JSON.parse(data.limits);
-              if (/^\d{4}/.test(item.expireTime)) {
-                item.expireTime = await this.to_timestamp_local(item.expireTime);
-              }
               item.type = data.display_name || data.grant_name
               item.grant = data.grant_name;
+              item.expire_local_ = data.expire_local_;
+              item.expire = data.expire;
               allData.push(item);
             }
           }
@@ -379,10 +356,7 @@ export default {
           this.advancedTableData = [];
           for (let i = 0; i < array.length; i++) {
             let data = array[i];
-            if (data.limits.indexOf("{") === -1) {
-              if (/^\d{4}/.test(data.expire)) {
-                data.expire = await this.to_timestamp_local(data.expire);
-              }
+            if (!this.maybe_a_json(data.limits)) {
               this.advancedTableData.push(data);
             }
           }
