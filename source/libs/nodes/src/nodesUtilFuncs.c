@@ -1640,6 +1640,7 @@ void nodesDestroyNode(SNode* pNode) {
         taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
         taosMemoryFreeClear(pQuery->pCmdMsg);
       }
+      taosMemoryFreeClear(pQuery->pResExtSchema);
       taosArrayDestroy(pQuery->pDbList);
       taosArrayDestroy(pQuery->pTableList);
       taosArrayDestroy(pQuery->pTargetTableList);
