@@ -46,7 +46,7 @@ static FORCE_INLINE bool mJoinBlkReachThreshold(SMJoinOperatorInfo* pInfo, int64
     return blkRows >= pInfo->ctx.mergeCtx.blkThreshold;
   }
   
-  return (pInfo->execInfo.resRows + blkRows) >= pInfo->ctx.mergeCtx.limit;
+  return (pInfo->execInfo.resRows + blkRows) >= pInfo->ctx.mergeCtx.limit || blkRows >= pInfo->ctx.mergeCtx.blkThreshold;
 }
 
 
