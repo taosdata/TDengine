@@ -213,7 +213,7 @@ poetry install
 pytest -sv --timeout=300 -m sanity
 
 ```
-
+At present, because some test cases rely on external third-party data sources, the test cases depend on the specified testing environment. We are still trying to add third-party data sources to one-click deployment.
 
 ## 8. Releasing
 
