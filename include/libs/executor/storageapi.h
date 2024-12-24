@@ -83,6 +83,7 @@ typedef struct SMetaEntry {
   uint8_t* pBuf;
 
   SColCmprWrapper colCmpr;  // col compress alg
+  SColRefWrapper  colRef;   // col reference for virtual table
 } SMetaEntry;
 
 typedef struct SMetaReader {

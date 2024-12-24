@@ -387,8 +387,19 @@ cmd ::= CREATE TABLE not_exists_opt(B) USING full_table_name(C)
   NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { pCxt->pRootNode = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
+cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
+  NK_LP column_def_list(C) NK_RP.                                                 { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C); }
+cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
+  NK_LP specific_column_ref_list(C) NK_RP USING full_table_name(D)
+  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, C, NULL, D, E, F); }
+cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
+  NK_LP column_ref_list(C) NK_RP USING full_table_name(D)
+  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, C, D, E, F); }
+cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B) USING full_table_name(C)
+  specific_cols_opt(D) TAGS NK_LP tags_literal_list(E) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E); }
 cmd ::= DROP TABLE with_opt(A) multi_drop_clause(B).                              { pCxt->pRootNode = createDropTableStmt(pCxt, A, B); }
 cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B, C); }
+cmd ::= DROP VTABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropVirtualTableStmt(pCxt, A, B, C); }
 
 cmd ::= ALTER TABLE alter_table_clause(A).                                        { pCxt->pRootNode = A; }
 cmd ::= ALTER STABLE alter_table_clause(A).                                       { pCxt->pRootNode = setAlterSuperTableType(A); }
@@ -465,6 +476,20 @@ column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).               
 // column_def(A) ::= column_name(B) type_name(C).                                 { A = createColumnDefNode(pCxt, &B, C, NULL); }
 column_def(A) ::= column_name(B) type_name(C) column_options(D).                  { A = createColumnDefNode(pCxt, &B, C, D); }
 
+%type specific_column_ref_list                                                               { SNodeList* }
+%destructor specific_column_ref_list                                                         { nodesDestroyList($$); }
+specific_column_ref_list(A) ::= specific_column_ref(B).                                      { A = createNodeList(pCxt, B); }
+specific_column_ref_list(A) ::= specific_column_ref_list(B) NK_COMMA specific_column_ref(C). { A = addNodeToList(pCxt, B, C); }
+
+specific_column_ref(A) ::= column_name(B) FROM table_name(C) NK_DOT column_name(D).          { A = createColumnRefNode(pCxt, &B, &C, &D); }
+
+%type column_ref_list                                                             { SNodeList* }
+%destructor column_ref_list                                                       { nodesDestroyList($$); }
+column_ref_list(A) ::= column_ref(B).                                             { A = createNodeList(pCxt, B); }
+column_ref_list(A) ::= column_ref_list(B) NK_COMMA column_ref(C).                 { A = addNodeToList(pCxt, B, C); }
+
+column_ref(A) ::= table_name(B) NK_DOT column_name(C).                            { A = createColumnRefNode(pCxt, NULL, &B, &C); }
+
 %type type_name                                                                   { SDataType }
 %destructor type_name                                                             { }
 type_name(A) ::= BOOL.                                                            { A = createDataType(TSDB_DATA_TYPE_BOOL); }
@@ -516,6 +541,7 @@ table_options(A) ::= table_options(B) ROLLUP NK_LP rollup_func_list(C) NK_RP.   
 table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { A = setTableOption(pCxt, B, TABLE_OPTION_TTL, &C); }
 table_options(A) ::= table_options(B) SMA NK_LP col_name_list(C) NK_RP.           { A = setTableOption(pCxt, B, TABLE_OPTION_SMA, C); }
 table_options(A) ::= table_options(B) DELETE_MARK duration_list(C).               { A = setTableOption(pCxt, B, TABLE_OPTION_DELETE_MARK, C); }
+table_options(A) ::= table_options(B) VIRTUAL NK_INTEGER(C).                      { A = setTableOption(pCxt, B, TABLE_OPTION_VIRTUAL, &C); }
 
 alter_table_options(A) ::= alter_table_option(B).                                 { A = createAlterTableOptions(pCxt); A = setTableOption(pCxt, A, B.type, &B.val); }
 alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).          { A = setTableOption(pCxt, B, C.type, &C.val); }
@@ -1710,3 +1736,4 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
 column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptionsPK(pCxt, B); }
 column_options(A) ::= column_options(B) NK_ID(C) NK_STRING(D).                    { A = setColumnOptions(pCxt, B, &C, &D); }
+column_options(A) ::= column_options(B) FROM table_name(C) NK_DOT column_name(D). { A = setColumnReference(pCxt, B, &C, &D); }

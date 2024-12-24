@@ -2268,6 +2268,15 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_DELETE_MARK:
       ((STableOptions*)pOptions)->pDeleteMark = pVal;
       break;
+    case TABLE_OPTION_VIRTUAL: {
+      int64_t virtual = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
+      if (virtual != 0 && virtual != 1) {
+        pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      } else {
+        ((STableOptions*)pOptions)->allowVirtual = virtual;
+      }
+      break;
+    }
     default:
       break;
   }
@@ -2284,6 +2293,7 @@ SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   CHECK_MAKE_NODE(pOptions);
   pOptions->commentNull = true;
   pOptions->bPrimaryKey = false;
+  pOptions->hasRef = false;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2299,6 +2309,24 @@ EColumnOptionType getColumnOptionType(const char* optionType) {
   }
   return 0;
 }
+
+SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SToken* pTableRef, SToken* pColumnRef) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkTableName(pCxt, pTableRef));
+  CHECK_NAME(checkColumnName(pCxt, pColumnRef));
+
+  if (NULL == pTableRef || NULL == pColumnRef) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+  ((SColumnOptions*)pOptions)->hasRef = true;
+  COPY_STRING_FORM_ID_TOKEN(((SColumnOptions*)pOptions)->refTable, pTableRef);
+  COPY_STRING_FORM_ID_TOKEN(((SColumnOptions*)pOptions)->refColumn, pColumnRef);
+  return pOptions;
+_err:
+  nodesDestroyNode(pOptions);
+  return NULL;
+}
+
 SNode* setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
   ((SColumnOptions*)pOptions)->bPrimaryKey = true;
@@ -2351,6 +2379,29 @@ _err:
   return NULL;
 }
 
+SNode* createColumnRefNode(SAstCreateContext* pCxt, SToken* pColName, SToken* pRefTableName, SToken* pRefColName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pColName));
+  CHECK_NAME(checkColumnName(pCxt, pRefColName));
+  CHECK_NAME(checkTableName(pCxt, pRefTableName));
+
+  SColumnRefNode* pCol = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
+  CHECK_MAKE_NODE(pCol);
+  if (pColName) {
+    COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
+  }
+  if (!pRefTableName || !pRefColName) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+  COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, pRefTableName);
+  COPY_STRING_FORM_ID_TOKEN(pCol->refColName, pRefColName);
+  return (SNode*)pCol;
+_err:
+  return NULL;
+}
+
 SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
@@ -2382,6 +2433,52 @@ SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
   if (pLen) len = taosStr2Int32(pLen->z, NULL, 10);
   SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = len};
   return dt;
+}
+
+SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols) {
+  SCreateVTableStmt * pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VTABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pCols = pCols;
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyList(pCols);
+  return NULL;
+}
+
+SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                 SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
+                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateVSubTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VSUBTABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
+  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pSpecificTags = pSpecificTags;
+  pStmt->pValsOfTags = pValsOfTags;
+  pStmt->pSpecificColRefs = pSpecificColRefs;
+  pStmt->pColRefs = pColRefs;
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  nodesDestroyList(pSpecificTags);
+  nodesDestroyList(pValsOfTags);
+  nodesDestroyList(pSpecificColRefs);
+  nodesDestroyList(pColRefs);
+  return NULL;
 }
 
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
@@ -2500,6 +2597,22 @@ SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool withOpt, bool igno
   CHECK_PARSER_STATUS(pCxt);
   SDropSuperTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_SUPER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->withOpt = withOpt;
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createDropVirtualTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropVirtualTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
