@@ -101,10 +101,8 @@ bool tsLogEmbedded = 0;
 bool tsAsyncLog = true;
 #ifdef ASSERT_NOT_CORE
 bool tsAssert = false;
-#define LOG_BUFFER_WAIT_SEC 20
 #else
 bool tsAssert = true;
-#define LOG_BUFFER_WAIT_SEC 2
 #endif
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
@@ -444,7 +442,7 @@ static OldFileKeeper *taosOpenNewFile() {
 static void *taosThreadToCloseOldFile(void *param) {
   if (!param) return NULL;
   OldFileKeeper *oldFileKeeper = (OldFileKeeper *)param;
-  taosSsleep(LOG_BUFFER_WAIT_SEC);
+  taosSsleep(20);
   taosWLockLatch(&tsLogRotateLatch);
   taosCloseLogByFd(oldFileKeeper->pOldFile);
   taosKeepOldLog(oldFileKeeper->keepName);
