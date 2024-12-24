@@ -424,6 +424,12 @@ mod tests {
         .await
         .unwrap();
     }
+    async fn drop_database(dsn: &str, db_name: &str) {
+        let taos = TaosBuilder::from_dsn(dsn).unwrap().build().await.unwrap();
+        taos.exec(format!("drop database if exists `{}`", db_name))
+            .await
+            .unwrap();
+    }
 
     #[tokio::test]
     async fn test_table_meta_querier_with_taos() {
@@ -487,5 +493,7 @@ mod tests {
         assert!(!is_child);
 
         clear_database(&dsn).await.unwrap();
+
+        drop_database("taos:///", db_name).await;
     }
 }

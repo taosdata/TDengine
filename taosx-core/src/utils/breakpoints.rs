@@ -1,10 +1,13 @@
 use crate::get_data_dir;
 use anyhow::Context;
 use flate2::{write::GzEncoder, Compression};
-use std::{io::Write, path::PathBuf};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+};
 use tracing::{debug, info};
 
-fn breakpoints_db_dir(task_id: &str) -> PathBuf {
+pub fn breakpoints_db_dir(task_id: &str) -> PathBuf {
     let path = get_data_dir();
     path.join("tasks").join(task_id).join("breakpoints")
 }
@@ -21,18 +24,17 @@ impl BreakpointDb {
         }
     }
 
-    pub async fn new_with_task(id: &str) -> anyhow::Result<Self> {
-        let path = breakpoints_db_dir(id);
-        // create db file
+    pub fn open(path: &Path) -> anyhow::Result<Self> {
         if !path.exists() {
-            tokio::fs::create_dir_all(&path).await?;
+            std::fs::create_dir_all(path)?;
         }
 
         let mut retries = 0;
         let max_retries = 5;
         loop {
-            match sled::open(&path) {
+            match sled::open(path) {
                 Ok(db) => {
+                    tracing::debug!("sled open db file success: {:?}", path);
                     return Ok(BreakpointDb::new(db));
                 }
                 Err(err) => {
@@ -45,10 +47,15 @@ impl BreakpointDb {
                         err,
                         retries
                     );
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    std::thread::sleep(std::time::Duration::from_secs(1));
                 }
             }
         }
+    }
+
+    pub async fn new_with_task(id: &str) -> anyhow::Result<Self> {
+        let path = breakpoints_db_dir(id);
+        tokio::task::spawn_blocking(move || Self::open(path.as_path())).await?
     }
 
     pub async fn set(&self, key: &str, value: &str) -> anyhow::Result<()> {

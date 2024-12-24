@@ -7,7 +7,6 @@ use std::{
     io::{Read, Write},
     iter::zip,
     net::SocketAddr,
-    num::NonZeroUsize,
     str::FromStr,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
@@ -212,7 +211,8 @@ async fn ipc_tcp_forward(
     info!("Reading batches");
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
 
-    let (tables_cache_tx, tables_cache_rx) = ring_channel(NonZeroUsize::new(50).unwrap());
+    let (tables_cache_tx, tables_cache_rx) =
+        ring_channel(crate::global::agent_in_memory_cache_capacity());
 
     let mut cause_error = None;
     const MAX_LAST_RETRIES: usize = 10; // allow 5 times retry in last 2 minutes;
@@ -963,6 +963,7 @@ async fn consume_lush_record_with_transform(
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
     breakpoint_db: BreakpointDb,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode with transform");
@@ -1092,7 +1093,7 @@ async fn consume_lush_record_with_transform(
             .await;
             // transform tables 消息
             let message: transform::Message = parser
-                .parse_message_from_records(&full_record, false)
+                .parse_message_from_records(task_id, &full_record, false)
                 .with_context(|| {
                     format!(
                         "failed to transform Tables message, super table: {}",
@@ -1206,7 +1207,7 @@ async fn consume_lush_record_with_transform(
                         )
                         })?;
                     let message: transform::Message =
-                        parser.parse_message_from_records(&record_batch, true).with_context(|| {
+                        parser.parse_message_from_records(task_id, &record_batch, true).with_context(|| {
                             format!("transform failed for super table: {}", super_table)
                         })?;
 
@@ -2773,6 +2774,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     if cancel.is_cancelled() {
         tracing::warn!("Task is cancelled");
@@ -2809,14 +2811,16 @@ async fn consume_flat_record(
         if num_rows == 0 {
             continue;
         }
+
         let instant = std::time::Instant::now();
         let batch = tokio::task::spawn_blocking({
             let parser = parser.clone();
             let batch = batch.clone();
-            move || parser.parse_message_from_records(&batch, true)
+            move || parser.parse_message_from_records(task_id, &batch, true)
         })
         .await?
         .context("Transformer parse error")?;
+
         if tracing::event_enabled!(tracing::Level::TRACE) {
             let elapsed = instant.elapsed();
             tracing::trace!(cost = ?elapsed, "Parse message elapsed: {:?}", elapsed);
@@ -2829,11 +2833,13 @@ async fn consume_flat_record(
                 if message.is_empty() {
                     continue;
                 }
+
                 if unsafe { crate::global::DRY_RUN } {
                     *count += num_rows;
                     metrics.add_processed_rows(num_rows as u64);
                     continue;
                 }
+
                 let factor = message
                     .iter()
                     .map(|message| message.records.num_rows())
@@ -2988,7 +2994,9 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     // debug_assert!(qid.batch_id() > 0);
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
+        let raw_rows = record.nrows();
         metrics.add_received_batches(1);
+        metrics.add_received_messages(raw_rows as u64);
         let taos = pool.get().await?;
         let mut taos = Some(taos);
         info!("Writing batch");
@@ -3006,6 +3014,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 lush_model_config,
                 lush_table_cache.clone(),
                 breakpoint_db.as_ref().unwrap().clone(),
+                task_id.unwrap_or(0),
             )
             .await
         } else {
@@ -3034,7 +3043,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             });
 
             if notifier
-                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                 .is_err()
             {
                 bail!("write batch error: {err:#}");
@@ -3054,10 +3063,11 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                     ),
                 })
                 .context("write ack error");
-            tracing::info!(acks = acks.load(Ordering::SeqCst), "ack done");
+            tracing::debug!(acks = acks.load(Ordering::SeqCst), "ack done");
         }
         acks.fetch_add(1, Ordering::SeqCst);
         metrics.add_processed_batches(1);
+        metrics.add_processed_messages(raw_rows as u64);
         drop(taos);
     }
     println!("finished, totally {count} rows");
@@ -3101,6 +3111,8 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
+        let raw_rows = record.nrows();
+        metrics.add_received_messages(raw_rows as u64);
         let n = consume_point_record(
             pool,
             &mut taos,
@@ -3110,8 +3122,9 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             context.target_precision,
             metrics,
         )
-        .await?;
-        Ok(n)
+        .await;
+        metrics.add_processed_messages(raw_rows as u64);
+        n
     }
 
     let context = WriterContext {
@@ -3151,7 +3164,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                     Err(err) => {
                         metrics.add_failed_batches(1);
                         tracing::warn!("Writing batch error: {err:#}");
-                        let _ = notifier.send(crate::TaskNotify::Error(format!("{:#}", err)));
+                        let _ = notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)));
                         let _ = ipc_ack_writer.lock().await.ack(LushAck {
                             code: 0,
                             message: Some(err.to_string()),
@@ -3182,6 +3195,7 @@ async fn ipc_flat_stream_worker(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     tokio::pin!(stream);
@@ -3199,6 +3213,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 metrics_arc,
                 batch_counter,
+                task_id,
             )
             .await;
         }
@@ -3214,6 +3229,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
+                task_id,
             )
             .await
         }
@@ -3229,6 +3245,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
+                task_id,
             )
             .await
         }
@@ -3244,6 +3261,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
+                task_id,
             )
             .await
         }
@@ -3265,6 +3283,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     let stream = ipc_reader.into_stream();
     let sink = futures_util::sink::unfold(ipc_ack_writer, |mut ack_writer, ack| async move {
@@ -3287,6 +3306,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
         ipc_error_strategy,
         metrics_arc,
         batch_counter,
+        task_id,
     )
     .in_current_span()
     .await
@@ -3483,6 +3503,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
             ipc_error_strategy,
             metrics_arc.clone(),
             batch_counter,
+            task_id.unwrap_or(0),
         )
         .await
         .inspect_err(|err| {
@@ -3553,9 +3574,8 @@ pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> 
     Ok(())
 }
 
-#[ignore]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_handle_point_message_init() {
+async fn test_handle_point_message_init_with_taos() {
     use crate::runners::opc::config::model::PointConfig;
     use crate::runners::opc::OpcType;
 
@@ -3822,6 +3842,7 @@ impl IpcStreamWorker {
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
         notifier: Option<&crate::TaskNotifySender>,
+        task_id: i64,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3851,6 +3872,7 @@ impl IpcStreamWorker {
                     self.target_precision,
                     metrics,
                     notifier,
+                    task_id,
                 )
                 .await?;
                 Ok(count)
@@ -3896,6 +3918,7 @@ impl IpcStreamWorker {
                         lush_model_config.clone(),
                         table_tag_cache,
                         self.breakpoint_db.as_ref().unwrap().clone(),
+                        task_id,
                     )
                     .await;
                     if is_tables {
@@ -4372,6 +4395,7 @@ pub async fn channel_based_transformer(
                         ipc_error_strategy,
                         get_metrics_arc_from_i64(task_id).await,
                         batch_counter,
+                        task_id.unwrap_or(0),
                     )
                     .in_current_span()
                     .await

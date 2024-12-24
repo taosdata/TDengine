@@ -15,6 +15,7 @@ use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use taosx_core::task_set::prelude::HealthOpts;
 use taosx_core::utils::files::decompress_and_write_file;
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
@@ -71,21 +72,12 @@ pub struct Task {
     /// The target of the stream.
     pub to: String,
 
-    /// Number of jobs for task running.
-    pub jobs: u16,
+    /// The health check options.
+    pub health: Option<HealthOpts>,
 
     /// Agent Id
     #[serde(skip_serializing_if = "Option::is_none")]
     pub via: Option<i64>,
-
-    /// Compression level when need (for backup only)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub compression_level: Option<u8>,
-
-    /// Force for some risking steps.
-    #[serde(default)]
-    #[serde(skip_serializing_if = "is_false")]
-    pub force: bool,
 
     /// Created time.
     created_at: DateTime<Utc>,
@@ -117,9 +109,6 @@ pub struct Task {
     /// break points
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakpoints: Option<String>,
-}
-const fn is_false(b: &bool) -> bool {
-    *b
 }
 
 async fn new_channel(endpoint: String) -> anyhow::Result<Channel> {

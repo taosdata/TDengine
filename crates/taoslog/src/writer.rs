@@ -477,7 +477,7 @@ pub enum TaosLogWriter<'a> {
     Null(std::io::Empty),
 }
 
-impl<'a> std::io::Write for TaosLogWriter<'a> {
+impl std::io::Write for TaosLogWriter<'_> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
             TaosLogWriter::Rolling(w) => w.write(buf),

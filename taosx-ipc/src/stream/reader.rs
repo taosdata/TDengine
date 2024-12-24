@@ -985,9 +985,9 @@ impl LushMessageInsert {
             .map(|field| {
                 self.metadata
                     .init()
-                    .and_then(|init| init.column_data_type(field.name()))
+                    .and_then(|init| dbg!(init.column_data_type(dbg!(field.name()))))
                     .cloned()
-                    .unwrap()
+                    .unwrap_or_else(|| field.data_type().into())
             })
             .collect_vec();
         parse_column_view_with_types(&self.records.record, &ty)
@@ -1725,11 +1725,19 @@ impl LushMessage {
 // pub struct LushMessageTables(Vec<LushInsertAttrs>);
 pub trait IpcMessage: Any + Send + Sync {
     fn as_any(&self) -> &dyn Any;
+    fn nrows(&self) -> usize;
 }
 
 impl IpcMessage for LushMessage {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn nrows(&self) -> usize {
+        match self {
+            LushMessage::Tables(_, _) => 0,
+            LushMessage::Insert(v) => v.iter().map(|v| v.num_rows()).sum(),
+            LushMessage::Control(_) => 0,
+        }
     }
 }
 
@@ -1761,14 +1769,8 @@ impl<R: Read> Iterator for IpcReader<R> {
 }
 
 #[test]
-#[ignore] // todo: fix this test
 fn file_reader() -> anyhow::Result<()> {
     use std::io::prelude::*;
-
-    // #[cfg(not(target_os = "windows"))]
-    // let stream = std::os::unix::net::UnixStream::connect("../taosx.sock")?;
-    // #[cfg(target_os = "windows")]
-    // let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
 
     let mut file = std::fs::File::open("./examples/dotnet/dotnet.arrow.zstd")?;
     let mut bytes = vec![];

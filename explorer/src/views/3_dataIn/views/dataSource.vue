@@ -151,23 +151,7 @@
         >
           <template slot-scope="scope">
             <span>
-              <i
-                class="el-circle"
-                style="background-color: #e6a23c"
-                v-if="
-                  scope.row.taskActivities &&
-                  scope.row.taskActivities[0]?.level == 'warn'
-                "
-              ></i>
-              <i
-                :class="['el-circle', 'err-circle']"
-                style="background-color: #fe6c6c"
-                v-else-if="
-                  scope.row.taskActivities &&
-                  scope.row.taskActivities[0]?.level == 'error'
-                "
-              ></i>
-              <i class="el-circle" style="background-color: #67c23a" v-else></i>
+              <i  class="el-circle" :class="getStatusClass(scope.row.healthStatus)"></i>
             </span>
             <span style="padding-left: 5px">{{ scope.row.taskid }}</span>
           </template>
@@ -353,6 +337,37 @@
             </template> -->
           </template>
         </el-table-column>
+
+        <el-table-column
+          :label="$t('datasource.healthStatus')"
+          prop="healthStatus"
+          min-width="170"
+          sortable
+          :sort-method="getSortMethod('healthStatus')"
+          :filters="healthStatusFilters"
+          :filter-method="filterHandler"
+        >
+          <template slot-scope="scope">
+            <div
+              class="status-operation"
+              style="display: flex; white-space: nowrap"
+              v-if="showHealthStatus.includes(scope.row.status)"
+            >
+              <el-tooltip
+                placement="bottom"
+                effect="light"
+                popper-class="datain"
+              >
+                <div
+                  slot="content"
+                  v-html="scope.row.healthStatus ? $t('healthStatus.'+ scope.row.healthStatus +'Desc') :''"
+                  style="max-height: 200px; overflow: auto"
+                ></div>
+                <span style="width: 80px; display: inline-block">{{ scope.row.healthStatus ? $t('healthStatus.'+ scope.row.healthStatus) : '' }}</span>
+              </el-tooltip>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.operation')"
           width="190"
@@ -497,6 +512,8 @@ export default {
       dataSourceFilters: [],
       dataSourceMap: {},
       statusFilters: [],
+      healthStatusFilters: [],
+      healthStatusFilterSet: {},
       requestIng: false,
       parsinginZone,
       taskActivities: [],
@@ -509,6 +526,7 @@ export default {
       showErrStatus: ['waiting','suspending','suspended','failed','interrupted'],
       permitDeleteStatus: ['completed','stopped','failed', 'interrupted', 'ticked'],
       multipleSelection: [],
+      showHealthStatus: ['running', 'stopping', 'waiting', 'resumed']
     };
   },
   computed: {
@@ -1046,6 +1064,18 @@ export default {
       await this.getList();
       await this.handleTaskActivities();
       this.$refs.dataSourceTable.clearSelection();
+      
+    },
+    getHealthStatusFilters() {
+      this.topicList.forEach((item) => {
+        if (!this.healthStatusFilterSet[item.healthStatus]) {
+          this.healthStatusFilters.push({
+            value: item.healthStatus,
+            text: item.healthStatus,
+          });
+          this.healthStatusFilterSet[item.healthStatus] = true;
+        }
+      })
     },
     async refreshCurrentTask(data) {
       try {
@@ -1058,6 +1088,7 @@ export default {
         let index = this.topicList.findIndex(
           (item) => item.taskid == data.taskid
         );
+        const lastHealthStatus = this.topicList[index]['healthStatus']
         this.topicList.splice(
           index,
           1,
@@ -1070,6 +1101,7 @@ export default {
                 "Z"
               : "";
             item["taskActivities"] = activitList;
+            item["healthStatus"] = this.getHealthStatus(activitList, lastHealthStatus)
             item["statusText"] = this.textOfstatus(item.status);
             return item;
           })[0]
@@ -1121,6 +1153,37 @@ export default {
       }
       return style;
     },
+    getStatusClass(status) {
+      let name = "";
+      switch (status) {
+        case "ready":
+        case "idle":
+          name = "circle-bg-green";
+          break;
+        case "busy":
+          name = "circle-bg-orange";
+          break;
+        case "bounce":
+        case "source_error":
+        case "sink_error":
+          name = "circle-bg-pink";
+          break;
+        case "fatal":
+          name = "err-circle";
+          break;
+        default:
+          name = "circle-bg-green";
+      }
+      return name;
+    },
+    getHealthStatus(activities, lastHealthStatus) {
+      for (const activity of activities) {
+        if (activity.status === 'health') {
+          return activity.activity !== lastHealthStatus ? activity.activity : lastHealthStatus
+        }
+      }
+    },
+
     filterHandler(value, row, column) {
       const property = column["property"];
       return row[property] === value;
@@ -1160,6 +1223,7 @@ export default {
         this.$set(this.topicList, index, {
           ...task,
           taskActivities: activitList,
+          healthStatus: this.getHealthStatus(activitList, task.healthStatus)
         });
       });
     },
@@ -1172,6 +1236,7 @@ export default {
     handleSetInterval() {
       this.timer = setInterval(() => {
         this.handleTaskActivities();
+        this.getHealthStatusFilters()
       }, 10000);
     },
     clickAgent(row, column, cell, event) {
@@ -1484,6 +1549,16 @@ export default {
 }
 .err-circle {
   animation: circle 1s infinite;
+  background-color: #fe6c6c
+}
+.circle-bg-pink {
+  background-color: pink;
+}
+.circle-bg-green {
+  background-color: #67c23a;
+}
+.circle-bg-orange {
+  background-color: #e6a23c;
 }
 .my-alert ::v-deep.el-alert .el-alert__description {
   font-size: 14px;

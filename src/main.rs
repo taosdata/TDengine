@@ -2,10 +2,11 @@ use std::backtrace::Backtrace;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
+use clap::ArgMatches;
+use clap::{parser::ValueSource, CommandFactory, FromArgMatches, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use notify::EventKind;
@@ -119,7 +120,7 @@ struct OptArgs {
     /// Be careful to use this, we suggest only use it when failed at first time.
     ///
     /// We'll warn you various kind of risks before really running a task.
-    #[clap(short, long, global = true)]
+    #[clap(short, long, global = true, default_value = "false", hide = true)]
     yes_i_really_mean_it: bool,
 
     #[clap(
@@ -198,6 +199,9 @@ struct Global {
 
     #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN", global = true, hide = true)]
     dry_run: Option<bool>,
+
+    #[clap(long, env = "SQL_TAG_CACHE_CAPACITY", global = true, hide = true)]
+    sql_tag_cache_capacity: Option<usize>,
 }
 
 #[serde_as]
@@ -221,7 +225,6 @@ struct LogOpts {
         default_missing_value = "true",
         value_parser = compress_arg_parser,
     )]
-
     /// Enable compress for log files.
     #[serde_as(as = "Option<FromInto<CompressType>>")]
     compress: Option<bool>,
@@ -362,8 +365,8 @@ pub enum ArgsError {
     MissingRequiredArgument(String),
     #[error("Argument parsing error: {0}")]
     ParseError(#[from] twelf::Error),
-    // #[error("Argument parsing error: {0}")]
-    // ClapError(#[from] clap::Error),
+    #[error("Argument parsing error: {0}")]
+    ClapError(#[from] clap::Error),
 }
 
 fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
@@ -403,34 +406,12 @@ fn get_effective_config_path(args: &Args) -> PathBuf {
 
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
-        let mut args = Args::parse();
+        let args = Args::command().get_matches();
+        Self::init_with_arg_matches(&args)
+    }
+    fn init_with_arg_matches(matches: &ArgMatches) -> Result<Args, ArgsError> {
+        let mut args = Args::from_arg_matches(matches)?;
         let path = get_effective_config_path(&args);
-        // let path = if let Ok(c) = Args::try_parse() {
-        //     c.opt_args
-        //         .config
-        //         .map(|p| {
-        //             if p.exists() {
-        //                 Ok(p)
-        //             } else {
-        //                 Err(ArgsError::ConfigNotFound(p.display().to_string()))
-        //             }
-        //         })
-        //         .transpose()?
-        // } else {
-        //     None
-        // }
-        // .unwrap_or_else(|| {
-        //     if cfg!(windows) {
-        //         std::path::Path::new("C:\\")
-        //             .join("TDengine")
-        //             .join("cfg")
-        //             .join("taosx.toml")
-        //     } else {
-        //         std::path::Path::new("/etc")
-        //             .join(build::CUS_PROMPT)
-        //             .join("taosx.toml")
-        //     }
-        // });
         let mut layers = vec![];
         if path.exists() {
             layers.push(Layer::Toml(path))
@@ -439,7 +420,7 @@ impl Args {
             "{}X_",
             build::CUS_PROMPT.to_uppercase()
         ))));
-        layers.push(Layer::Clap(Args::command().get_matches()));
+        layers.push(Layer::Clap(matches.clone()));
 
         let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
         let default_log_opts = LogOpts::new();
@@ -457,7 +438,7 @@ impl Args {
             }
             _ => {}
         }
-        args.global.merge_from(configurable_opts.global);
+        args.global.merge_from(configurable_opts.global, matches);
         args.global.instance_id = Some(
             *INSTANCE_ID.get_or_init(|| args.global.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)),
         );
@@ -465,7 +446,6 @@ impl Args {
             args.monitor.merge_from(monitor_cfg);
         }
         args.global.jobs = executor_worker_threads(args.global.jobs);
-        let matches = Args::command().get_matches();
 
         if let Some(Commands::Serve(cli)) = &mut args.commands {
             let mut serve = configurable_opts.serve.unwrap_or_default();
@@ -490,13 +470,46 @@ impl Args {
             }
             cli.merge_from(serve);
         }
+
+        // Set environment variables.
+        set_env_data_dir(
+            args.global
+                .data_dir
+                .clone()
+                .unwrap_or_else(get_env_data_dir),
+        );
+        set_env_log_home_dir(
+            args.global
+                .logs_home
+                .clone()
+                .unwrap_or_else(get_env_log_dir),
+        );
+        let args_log_path = args
+            .global
+            .log
+            .as_ref()
+            .and_then(|opts| opts.path.clone())
+            .and_then(|p| p.to_str().map(ToString::to_string));
+        set_env_log_home_dir(args_log_path.unwrap_or_else(get_env_log_dir));
+        set_env_plugins_home_dir(
+            args.global
+                .plugins_home
+                .clone()
+                .unwrap_or_else(get_env_plugin_dir),
+        );
+        set_env_log_keep_days(
+            args.global
+                .log
+                .as_ref()
+                .and_then(|opts| opts.keep_days.map(|days| days as i64))
+                .or(args.global.log_keep_days),
+        );
         Ok(args)
     }
 }
 
 impl Global {
-    pub fn merge_from(&mut self, rhs: Self) -> &mut Self {
-        let matches = Args::command().get_matches();
+    pub fn merge_from(&mut self, rhs: Self, matches: &ArgMatches) -> &mut Self {
         macro_rules! update_if_none {
             ($f:ident) => {
                 match matches.value_source(stringify!($f)) {
@@ -789,44 +802,22 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     tracing::info!("{}", s);
 }
 
+fn is_root_directory<P: AsRef<Path>>(path: P) -> bool {
+    let path = path.as_ref();
+    if cfg!(target_os = "windows") {
+        // Windows root directory check
+        path.parent().is_none() && path.is_absolute()
+    } else {
+        // Unix-like root directory check
+        path == Path::new("/")
+    }
+}
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
     let mut args = Args::init()?;
-    set_env_data_dir(
-        args.global
-            .data_dir
-            .clone()
-            .unwrap_or_else(get_env_data_dir),
-    );
-    set_env_log_home_dir(
-        args.global
-            .logs_home
-            .clone()
-            .unwrap_or_else(get_env_log_dir),
-    );
-    let args_log_path = args
-        .global
-        .log
-        .as_ref()
-        .and_then(|opts| opts.path.clone())
-        .and_then(|p| p.to_str().map(ToString::to_string));
-    set_env_log_home_dir(args_log_path.unwrap_or_else(get_env_log_dir));
-    set_env_plugins_home_dir(
-        args.global
-            .plugins_home
-            .clone()
-            .unwrap_or_else(get_env_plugin_dir),
-    );
-    set_env_log_keep_days(
-        args.global
-            .log
-            .as_ref()
-            .and_then(|opts| opts.keep_days.map(|days| days as i64))
-            .or(args.global.log_keep_days),
-    );
 
     // Set a panic hook
     std::panic::set_hook(Box::new(|info| {
@@ -880,26 +871,26 @@ fn main() -> Result<()> {
     let config_file = get_effective_config_path(&args);
     let mut _notify_watcher = None;
     if let Some(handle) = handle {
-        let mut watcher = notify::recommended_watcher({
-            let config_file = config_file.clone();
-            move |event: notify::Result<notify::Event>| {
-                let event = match event {
-                    Ok(event) => event,
-                    Err(e) => {
-                        tracing::error!("notify event error: {e}");
-                        return;
-                    }
-                };
-                log_level_reload(event, &config_file, &handle, tracing_level_filter);
-            }
-        })?;
-        watcher
-            .watch(
-                config_file.parent().context("get config dir error")?,
-                notify::RecursiveMode::NonRecursive,
-            )
-            .context("start watch config file error")?;
-        _notify_watcher = Some(watcher);
+        let parent = config_file.parent().context("get config dir error")?;
+        if config_file.exists() && is_root_directory(parent) {
+            let mut watcher = notify::recommended_watcher({
+                let config_file = config_file.clone();
+                move |event: notify::Result<notify::Event>| {
+                    let event = match event {
+                        Ok(event) => event,
+                        Err(e) => {
+                            tracing::error!("notify event error: {e}");
+                            return;
+                        }
+                    };
+                    log_level_reload(event, &config_file, &handle, tracing_level_filter);
+                }
+            })?;
+            watcher
+                .watch(parent, notify::RecursiveMode::NonRecursive)
+                .context("start watch config file error")?;
+            _notify_watcher = Some(watcher);
+        }
     }
     tracing::info!(
         "listen on config file {} data change",
@@ -923,6 +914,11 @@ fn main() -> Result<()> {
     if args.global.dry_run.unwrap_or(false) {
         tracing::info!("dry run mode enabled");
         unsafe { taosx_core::global::DRY_RUN = true };
+    }
+
+    let sql_tag_cache_capacity = args.global.sql_tag_cache_capacity.unwrap_or(0);
+    if sql_tag_cache_capacity > 0 {
+        unsafe { taosx_core::global::SQL_TAG_CACHE_CAPACITY = sql_tag_cache_capacity };
     }
 
     print_effective_config(&level_filter, &args);
@@ -1176,5 +1172,61 @@ mod tests {
             matches.get_one("log.reservedDiskSize"),
             Some(&"3GB".to_string())
         )
+    }
+    #[test]
+    fn is_root() {
+        let paths = ["/", "/home", "C:\\", "C:\\Users", "D:\\", "D:\\Documents"];
+
+        for path in &paths {
+            let path_obj = Path::new(path);
+            if is_root_directory(path_obj) {
+                println!("{:?} is a root directory", path_obj);
+            } else {
+                println!("{:?} is not a root directory", path_obj);
+            }
+        }
+    }
+
+    #[test]
+    fn test_args() {
+        std::env::remove_var("TAOSX_DATA_DIR");
+        std::env::remove_var("TAOSX_LOGS_HOME");
+        std::env::remove_var("DATABASE_URL");
+
+        let args = shlex::split("taosx serve --data-dir ./tests/cli/data/").unwrap();
+        let matches = dbg!(Args::command()).get_matches_from(args);
+        let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
+        if let Commands::Serve(cli) = args.commands.unwrap() {
+            assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data/taosx.db");
+        }
+
+        std::env::remove_var("TAOSX_DATA_DIR");
+        std::env::remove_var("TAOSX_LOGS_HOME");
+        std::env::set_var("DATABASE_URL", "sqlite:./tests/cli/data2/taosx.db");
+        let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
+        if let Commands::Serve(cli) = args.commands.unwrap() {
+            assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data2/taosx.db");
+        }
+
+        std::env::remove_var("TAOSX_DATA_DIR");
+        std::env::remove_var("TAOSX_LOGS_HOME");
+        std::env::remove_var("DATABASE_URL");
+        let args = shlex::split("taosx serve").unwrap();
+        let matches = dbg!(Args::command()).get_matches_from(args);
+        let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
+        #[cfg(unix)]
+        if let Commands::Serve(cli) = args.commands.unwrap() {
+            assert_eq!(
+                cli.get_database_url(),
+                "sqlite:/var/lib/taos/taosx/taosx.db"
+            );
+        }
+        std::env::remove_var("TAOSX_LOGS_HOME");
+        std::env::remove_var("DATABASE_URL");
+        std::env::set_var("TAOSX_DATA_DIR", "./tests/cli/data");
+        let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
+        if let Commands::Serve(cli) = args.commands.unwrap() {
+            assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data/taosx.db");
+        }
     }
 }

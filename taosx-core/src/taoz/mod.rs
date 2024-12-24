@@ -1,95 +1,194 @@
-//! TaosX's backup file format
-//!
-//!
-
+use anyhow::bail;
+use chrono::{DateTime, Local, Utc};
 use std::io::Result as IoResult;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::path::Path;
 use std::path::PathBuf;
-
-use chrono::Local;
 use taos::taos_query::common::RawData;
 use taos::*;
-use tokio::fs::File;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 
-mod header;
-
 use crate::dsv::DataSourceValidation;
-use async_compression::{tokio::write::ZstdEncoder, Level};
+use async_compression::tokio::write::ZstdEncoder;
 pub use header::*;
+use tokio::fs::File;
 use tokio::io::BufReader;
 
-type ZFileInner = ZCodec<ZstdEncoder<BufReader<tokio::fs::File>>>;
+mod header;
+
+type ZFileInner = ZCodec<ZstdEncoder<BufReader<File>>>;
 
 /// Construct a backup file with name pattern `{prefix}-{timestamp}.z`.
 ///
 /// Automatically create new file when file reach the max_file_size
 pub struct ZFile {
-    path: PathBuf,
-    file: ZCodec<ZstdEncoder<BufReader<tokio::fs::File>>>,
-    prefix: PathBuf,
-    level: Level,
-    current_size: usize,
-    max_file_size: u64,
+    /// taosx version
     api_version: String,
+    /// taosd version
     server_version: String,
-    move_to: Option<PathBuf>,
-}
+    /// 文件所在的目录
+    dir: PathBuf,
+    /// 文件名：$TOPIC-$TIMESTAMP-$VG_ID-$INDEX.z
+    name: (String, Option<DateTime<Utc>>, i32, u64),
+    /// 压缩级别
+    compression_level: async_compression::Level,
 
-async fn new_z_file(
-    prefix: impl AsRef<Path>,
-    compression_level: Level,
-    api_version: &str,
-    server_version: &str,
-) -> IoResult<(PathBuf, ZFileInner)> {
-    let prefix = prefix.as_ref().to_path_buf();
-    let now = Local::now();
-    let timestamp = now.timestamp();
-    let path = PathBuf::from(format!("{}-{timestamp}.z", prefix.display()));
-    let file = File::create(&path).await?;
-    let wtr = BufReader::new(file);
-    let wtr = ZstdEncoder::with_quality(wtr, compression_level);
-    let mut file = ZCodec::new(wtr);
-    file.write_head_async(&Header::new(api_version, server_version, None))
-        .await?;
-    Ok((path, file))
+    /// 最大文件大小
+    max_file_size: u64,
+    /// 文件写完后，移动到的目录
+    move_to: Option<PathBuf>,
+
+    /// writer
+    file: ZFileInner,
+    /// 当前文件大小
+    current_size: usize,
 }
 
 impl ZFile {
     pub async fn new(
-        prefix: impl AsRef<Path>,
-        compression_level: Level,
         api_version: &str,
         server_version: &str,
+        file_dir: impl AsRef<Path>,
+        file_name: (&str, Option<DateTime<Utc>>, i32, u64),
+        compression_level: async_compression::Level,
+        max_file_size: u64,
+        move_to: Option<PathBuf>,
     ) -> IoResult<Self> {
-        let prefix = prefix.as_ref().to_path_buf();
-        let (file_name, file) =
-            new_z_file(&prefix, compression_level, api_version, server_version).await?;
-        let max_file_size = 1024 * 1024 * 1024;
+        let writer = ZFile::new_writer(
+            api_version,
+            server_version,
+            &file_dir,
+            file_name,
+            compression_level,
+        )
+        .await?;
+
         Ok(Self {
-            path: file_name,
-            file,
-            prefix,
-            level: compression_level,
-            current_size: 0,
-            max_file_size,
             api_version: api_version.to_string(),
             server_version: server_version.to_string(),
-            move_to: None,
+            dir: file_dir.as_ref().to_path_buf(),
+            name: (
+                file_name.0.to_string(),
+                file_name.1,
+                file_name.2,
+                file_name.3,
+            ),
+            compression_level,
+            max_file_size,
+            move_to,
+            file: writer,
+            current_size: 0,
         })
     }
 
-    pub fn set_max_file_size(&mut self, max_file_size: u64) {
-        self.max_file_size = max_file_size;
+    fn get_file_name(&self) -> String {
+        Self::file_name((self.name.0.as_str(), self.name.1, self.name.2, self.name.3))
     }
 
-    pub fn set_move_to(&mut self, move_to: Option<PathBuf>) {
-        self.move_to = move_to;
+    fn file_name(name: (&str, Option<DateTime<Utc>>, i32, u64)) -> String {
+        let ts = match name.1 {
+            None => Utc::now().timestamp(),
+            Some(t) => t.timestamp(),
+        };
+        format!("{}-{}-{}-{}.z", name.0, ts, name.2, name.3)
+    }
+
+    pub fn parse_file_name(file_name: &str) -> anyhow::Result<(String, DateTime<Utc>, i32, u64)> {
+        if !file_name.ends_with(".z") {
+            bail!("invalid backup file name: {}", file_name);
+        }
+        let splits = file_name
+            .trim_end_matches(".z")
+            .split('-')
+            .collect::<Vec<_>>();
+        if splits.len() != 4 {
+            bail!("invalid backup file name: {}", file_name);
+        }
+
+        let topic = splits[0].to_string();
+        let ts = splits[1]
+            .parse::<i64>()
+            .map_err(|_| anyhow::anyhow!("invalid timestamp in backup file name: {}", file_name))?;
+        let ts = DateTime::from_timestamp(ts, 0).ok_or(anyhow::anyhow!(
+            "invalid timestamp in backup file name: {}",
+            file_name
+        ))?;
+        let vg_id = splits[2]
+            .parse::<i32>()
+            .map_err(|_| anyhow::anyhow!("invalid vgroup id in backup file name: {}", file_name))?;
+        let index = splits[3]
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("invalid index in backup file name: {}", file_name))?;
+
+        Ok((topic, ts, vg_id, index))
+    }
+
+    async fn new_writer(
+        api_version: &str,
+        server_version: &str,
+        dir: impl AsRef<Path>,
+        name: (&str, Option<DateTime<Utc>>, i32, u64),
+        compression_level: async_compression::Level,
+    ) -> IoResult<ZFileInner> {
+        let file_name = Self::file_name(name);
+        let path = dir.as_ref().to_path_buf().join(&file_name);
+
+        let file = File::create(&path).await?;
+        let wtr = BufReader::new(file);
+        let wtr = ZstdEncoder::with_quality(wtr, compression_level);
+        let mut file = ZCodec::new(wtr);
+        file.write_head_async(&Header::new(api_version, server_version, None))
+            .await?;
+        Ok(file)
+    }
+
+    // pub async fn new(
+    //     api_version: &str,
+    //     server_version: &str,
+    //     prefix: impl AsRef<Path>,
+    //     compression_level: async_compression::Level,
+    //     max_file_size: u64,
+    //     move_to: Option<PathBuf>,
+    // ) -> IoResult<Self> {
+    //     let prefix = prefix.as_ref().to_path_buf();
+    //     let (file_name, file) =
+    //         ZFile::new_z_file(api_version, server_version, &prefix, compression_level).await?;
+    //     Ok(Self {
+    //         api_version: api_version.to_string(),
+    //         server_version: server_version.to_string(),
+    //         path: file_name,
+    //         prefix,
+    //         compression_level,
+    //         max_file_size,
+    //         move_to,
+    //         file,
+    //         current_size: 0,
+    //     })
+    // }
+
+    #[deprecated]
+    #[allow(unused)]
+    async fn new_z_file(
+        api_version: &str,
+        server_version: &str,
+        prefix: impl AsRef<Path>,
+        compression_level: async_compression::Level,
+    ) -> IoResult<(PathBuf, ZFileInner)> {
+        let prefix = prefix.as_ref().to_path_buf();
+        let now = Local::now();
+        let timestamp = now.timestamp();
+        let path = PathBuf::from(format!("{}-{timestamp}.z", prefix.display()));
+        let file = File::create(&path).await?;
+        let wtr = BufReader::new(file);
+        let wtr = ZstdEncoder::with_quality(wtr, compression_level);
+        let mut file = ZCodec::new(wtr);
+        file.write_head_async(&Header::new(api_version, server_version, None))
+            .await?;
+        Ok((path, file))
     }
 
     pub async fn check_or_next(&mut self) -> IoResult<()> {
@@ -97,25 +196,34 @@ impl ZFile {
             self.file.flush().await?;
             self.file.shutdown().await?;
 
-            match &self.move_to {
-                Some(new_dir) => {
-                    // move the current file to a new path
-                    let file_path = &self.path;
-                    if let Some(file_name) = file_path.file_name() {
-                        let new_path = new_dir.clone().join(file_name);
-                        tokio::fs::rename(file_path, new_path).await?;
-                    }
-                }
-                None => {
-                    // nothing
-                }
+            // 如果 name.1 为空，即：没有指定备份点的时间戳，则使用当前时间作为备份点的时间戳，并更新文件名
+            if self.name.1.is_none() {
+                let now = Utc::now();
+                let new_name =
+                    Self::file_name((self.name.0.as_str(), Some(now), self.name.2, self.name.3));
+                tokio::fs::rename(
+                    self.dir.clone().join(self.get_file_name()),
+                    self.dir.clone().join(&new_name),
+                )
+                .await?;
+                self.name.1 = Some(now);
             }
 
-            (self.path, self.file) = new_z_file(
-                &self.prefix,
-                self.level,
+            // 如果 move_to 不为空，则将备份文件移动到 move_to 目录
+            if let Some(new_dir) = &self.move_to {
+                let path = self.dir.clone().join(self.get_file_name());
+                let new_path = new_dir.clone().join(self.get_file_name());
+                tokio::fs::rename(path, new_path).await?;
+            }
+
+            // create a new ZFile
+            self.name.3 += 1;
+            self.file = ZFile::new_writer(
                 &self.api_version,
                 &self.server_version,
+                &self.dir.as_path(),
+                (self.name.0.as_str(), self.name.1, self.name.2, self.name.3),
+                self.compression_level,
             )
             .await?;
             self.current_size = 0;
@@ -157,7 +265,10 @@ impl ZFile {
     }
 
     pub async fn shutdown(&mut self) -> IoResult<()> {
-        tracing::debug!("shutdown file {}", self.prefix.display());
+        tracing::debug!(
+            "shutdown file {}",
+            self.dir.clone().join(self.get_file_name()).display()
+        );
         self.file.shutdown().await?;
         Ok(())
     }

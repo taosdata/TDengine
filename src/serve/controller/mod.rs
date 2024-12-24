@@ -23,28 +23,12 @@ use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::runners::kafka::KAFKA_ID;
 use taosx_core::runners::mqtt::MQTT_ID;
+use taosx_core::task_set::prelude::{HealthNotify, HealthState};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 use utoipa::*;
 use uuid::Uuid;
-
-use crate::build;
-use crate::serve::controller::agent::Activity;
-use taosx_core::core_metrics::clear_metrics;
-use taosx_core::dsv::DataSourceValidation;
-use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::runners::opc::config::csv::CsvParser;
-use taosx_core::runners::opc::config::OPCConfig;
-use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
-use taosx_core::QueryDataSourceReq;
-use taosx_core::{
-    get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
-};
-
-use super::data_sources::DataSourceDefinition;
-use super::scheduler::agent::{AgentId, TaskId};
-use super::scheduler::TaskScheduler;
 
 use self::agent::{
     Agent, AgentActivityFilter, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
@@ -52,6 +36,24 @@ use self::agent::{
 };
 use self::transferred::Transferred;
 use self::trigger::Strategy;
+use super::data_sources::DataSourceDefinition;
+use super::scheduler::agent::{AgentId, TaskId};
+use super::scheduler::TaskScheduler;
+use crate::build;
+pub use crate::serve::controller::agent::Activity;
+use crate::serve::rpc::encode_csv_config_file;
+use crate::serve::task::DeleteTaskParam;
+use taosx_core::core_metrics::clear_metrics;
+use taosx_core::dsv::DataSourceValidation;
+use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::runners::opc::config::csv::CsvParser;
+use taosx_core::runners::opc::config::OPCConfig;
+use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
+use taosx_core::utils::get_string_content_from_param_value;
+use taosx_core::QueryDataSourceReq;
+use taosx_core::{
+    get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
+};
 
 pub(crate) mod agent;
 pub mod license;
@@ -325,13 +327,12 @@ impl TaskControllerRef {
             task.load_breakpoints().await?;
             push_task_activity(
                 &self.pool,
-                &TaskActivity::info(id, "Automatically wake up task.".to_string(), "waken"),
+                &Activity::info(id, "Automatically wake up task.".to_string(), "waken"),
             )
             .await?;
             if let Err(err) = self.scheduler.push_task(task).await {
                 tracing::error!(task.id = id, "Push task to scheduler error: {err:?}");
-                push_task_activity(&self.pool, &TaskActivity::failed(id, format!("{:#}", err)))
-                    .await?;
+                push_task_activity(&self.pool, &Activity::failed(id, format!("{:#}", err))).await?;
             }
         }
         Ok(())
@@ -374,6 +375,10 @@ pub(super) enum Schedule {
 }
 
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
+    if activity.id == 0 || activity.id == -1 {
+        tracing::debug!("task id is 0 or -1, ignore activity");
+        return Ok(());
+    }
     let exists = sqlx::query!("select id, status from tasks where id = ?", activity.id)
         .fetch_optional(pool)
         .in_current_span()
@@ -444,6 +449,15 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         "suspended" => {
             sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
                 .bind(activity.status.as_str())
+                .bind(activity.id)
+                .execute(txn.as_mut())
+                .in_current_span()
+                .await
+                .context("Update task properties error")?;
+        }
+        "health" => {
+            sqlx::query("UPDATE tasks SET health = ? WHERE id = ?")
+                .bind(activity.activity.as_str())
                 .bind(activity.id)
                 .execute(txn.as_mut())
                 .in_current_span()
@@ -619,9 +633,6 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
-use crate::serve::rpc::encode_csv_config_file;
-use taosx_core::utils::get_string_content_from_param_value;
-
 async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
     let dsn_clone = dsn.clone();
     let mut map = BTreeMap::new();
@@ -784,7 +795,7 @@ impl TaskController {
             if !self.agent_alive(via).await {
                 self.scheduler
                     .global_state
-                    .send_task_activity(TaskActivity::error(
+                    .send_task_activity(Activity::error(
                         task.id,
                         format!("Agent {} is not alive", via),
                     ));
@@ -884,6 +895,13 @@ impl TaskController {
             from.set("use.topic.name", topic);
             tracing::info!("Set oneshot topic name: {}", topic);
         };
+        if let Some(trigger) = task.trigger.as_ref() {
+            // 备份计划：将 upcoming 添加到 dsn 中
+            if let Some(upcoming) = trigger.upcoming {
+                from.set("upcoming", upcoming.to_rfc3339().to_string());
+            }
+            // TODO: 备份计划：校验 interval 要小于 WAL_RETENTION_PERIOD
+        }
         let agent = if let Some(id) = task.via {
             let agent = self
                 .get_agent_by_id(id)
@@ -958,6 +976,15 @@ impl TaskController {
         .await?;
         let id: i64 = res.last_insert_rowid();
 
+        let backup_topic = if let ("tmq", "local") = (from.driver.as_str(), to.driver.as_str()) {
+            let task_id = Some(id.to_string());
+            let oneshot_topic =
+                taosx_core::tmq_to_local::conf::BackupConfig::group_id(&task_id, &from, &to);
+            Some(oneshot_topic)
+        } else {
+            None
+        };
+
         let set_id = |from: &mut Dsn,
                       field_to_build: &str,
                       build_switch_name: &str,
@@ -969,7 +996,7 @@ impl TaskController {
                 .context(context)?;
             if from
                 .get(build_switch_name)
-                .is_some_and(|s| s.to_ascii_lowercase() == "true")
+                .is_some_and(|s| s.eq_ignore_ascii_case("true"))
             {
                 from.set(
                     field_to_build,
@@ -1001,14 +1028,28 @@ impl TaskController {
             }
             _ => {}
         }
-        sqlx::query("update tasks set `from` = ? where id = ?")
-            .bind(from.to_string())
-            .bind(id)
-            .execute(txn.as_mut())
-            .in_current_span()
-            .await
-            .context("update task error")?;
 
+        match backup_topic {
+            None => {
+                sqlx::query("update tasks set `from` = ? where id = ?")
+                    .bind(from.to_string())
+                    .bind(id)
+                    .execute(txn.as_mut())
+                    .in_current_span()
+                    .await
+                    .context("update task error")?;
+            }
+            Some(oneshot_topic) => {
+                sqlx::query("update tasks set `from` = ?,`oneshot_topic` = ? where id = ?")
+                    .bind(from.to_string())
+                    .bind(oneshot_topic)
+                    .bind(id)
+                    .execute(txn.as_mut())
+                    .in_current_span()
+                    .await
+                    .context("update task error")?;
+            }
+        }
         txn.commit().await.context("commit update task txn error")?;
 
         tracing::info!(task.name, task.via, "release creation lock");
@@ -1241,7 +1282,11 @@ impl TaskController {
         Ok(None)
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
-    pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
+    pub async fn delete(
+        &self,
+        id: i64,
+        params: Option<DeleteTaskParam>,
+    ) -> anyhow::Result<Option<TaskDetail>> {
         if !self.scheduler.stop_if_safe_to_delete(id).await {
             bail!("Task is in scheduler, please stop it first");
         }
@@ -1270,6 +1315,10 @@ impl TaskController {
 
         let mut task = task.unwrap();
         task.backport_labels();
+        if let Some(params) = params {
+            task.after_delete = params.after_delete;
+        }
+
         let task_out = task.clone();
         let pool = self.pool.clone();
         let scheduler = self.scheduler.clone();
@@ -1278,6 +1327,7 @@ impl TaskController {
                 scheduler.wait_task(task.id).await;
                 tracing::info!("task {id} successfully stopped");
                 if let Some(topic) = task.oneshot_topic.as_deref() {
+                    tracing::info!("drop oneshot topic: {}", topic);
                     let mut dsn: Dsn = task.from.parse()?;
                     let _ = dsn.subject.take();
                     let builder =
@@ -1303,10 +1353,38 @@ impl TaskController {
                 }
 
                 if let Some(action) = task.after_delete.as_deref() {
-                    if task.to.starts_with("local") && action == "clear" {
-                        let dsn: Dsn = task.to.parse()?;
-                        // std::mem::drop(task);
-                        tokio::spawn(async move { taosx_core::utils::clear_local(&dsn).await });
+                    if action == "clear" {
+                        let from = task.from.parse::<Dsn>()?;
+                        let to = task.to.parse::<Dsn>()?;
+                        match (from.driver.as_str(), to.driver.as_str()) {
+                            ("tmq", "local") => {
+                                if let Some(path) = to.path.as_deref() {
+                                    let dir = std::path::Path::new(path)
+                                        .join(task.id.to_string())
+                                        .canonicalize()
+                                        .map_err(|err| {
+                                            anyhow::Error::from(err).context(format!(
+                                                "failed to canonicalize path: {}, task: {}",
+                                                path, task.id
+                                            ))
+                                        })?
+                                        .display()
+                                        .to_string();
+                                    tokio::spawn(async move {
+                                        // 删除目录下的所有文件
+                                        taosx_core::utils::clear_local_dir(dir.as_str()).await
+                                    });
+                                }
+                            }
+                            (_, "local") => {
+                                let dsn: Dsn = task.to.parse()?;
+                                // std::mem::drop(task);
+                                tokio::spawn(
+                                    async move { taosx_core::utils::clear_local(&dsn).await },
+                                );
+                            }
+                            _ => {}
+                        }
                     }
                 }
                 sqlx::query!("DELETE FROM tasks where id = ?", id)
@@ -1322,13 +1400,10 @@ impl TaskController {
                     transform: vec![],
                     to,
                     parser: None,
-                    jobs: 0,
-                    compression_level: None,
-                    force: false,
+                    health: None,
                     cancel: Default::default(),
                     with_agent: None,
                     breakpoints: None,
-                    transferred: None,
                     task_id: Some(task.id.to_string()),
                     notify: tx,
                 };
@@ -2272,34 +2347,9 @@ pub struct Task {
     #[sqlx(default)]
     pub breakpoints: Option<String>,
 }
-// /// Task Activity
-// #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::FromRow)]
-// pub struct TaskActivity {
-//     /// Task id.
-//     #[schema(read_only)]
-//     pub id: i64,
-//     /// Stopped time.
-//     #[schema(read_only)]
-//     #[serde(with = "datetime_format")]
-//     at: DateTime<Utc>,
-
-//     /// Level
-//     level: LevelFilter,
-
-//     /// Activity
-//     #[schema(read_only)]
-//     pub activity: String,
-
-//     /// Activity result.
-//     pub status: String,
-//     /// Context
-//     #[schema(read_only)]
-//     context: Option<String>,
-// }
-pub type TaskActivity = Activity;
 
 #[allow(dead_code)]
-impl TaskActivity {
+impl Activity {
     pub fn stop(id: i64) -> Self {
         Self {
             id,
@@ -2553,6 +2603,21 @@ impl TaskActivity {
             activity: format!("Agent {agent_id} resumed"),
             status: "resumed".to_string(),
             context: None,
+        }
+    }
+
+    pub fn health_state(id: i64, state: HealthNotify) -> Self {
+        Self {
+            id,
+            at: state.at,
+            level: if state.state >= HealthState::Busy {
+                LevelFilter::Warn
+            } else {
+                LevelFilter::Info
+            },
+            activity: format!("{}", state.state),
+            status: "health".to_string(),
+            context: Some(json!(state).into()),
         }
     }
 }
@@ -3202,7 +3267,7 @@ pub struct TaskFilter {
     in_scheduler: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
+#[derive(Serialize, Deserialize, Default, Clone, IntoParams, Debug)]
 #[serde(default)]
 pub struct TaskDecorator {
     expand: Option<bool>,
@@ -3402,7 +3467,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
     async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
@@ -3440,7 +3504,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
-    async fn test_task_offset() -> anyhow::Result<()> {
+    async fn test_task_offset_with_taos() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "taos=info");
         tracing_subscriber_init()?;
 
@@ -3485,7 +3549,11 @@ mod tests {
         ])
         .await?;
 
-        taos.exec_many(["drop database if exists db2"]).await?;
+        taos.exec_many([
+            "drop database if exists ws_abc2",
+            "create database if not exists ws_abc2",
+        ])
+        .await?;
 
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
 
@@ -3493,7 +3561,7 @@ mod tests {
             r#"
         {
             "from": "tmq:///ws_abc1",
-            "to":"taos:///db2",
+            "to":"taos:///ws_abc2",
             "force": true
         }
         "#,
@@ -3521,7 +3589,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
     async fn test_max_activities_per_entity() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
@@ -3562,10 +3629,9 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn legacy_edition_check() -> anyhow::Result<()> {
+    async fn legacy_edition_check_with_taos() -> anyhow::Result<()> {
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
-        let from = Dsn::from_str("taos+ws://192.168.1.40:6041")?;
+        let from = Dsn::from_str("taos://")?;
         let to = Dsn::from_str("taos+ws://localhost:6041")?;
         license::validate_task(&from, &to, Some(&controller.pool)).await?;
         Ok(())
@@ -3573,7 +3639,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
-    async fn active_active_edition_check() -> anyhow::Result<()> {
+    async fn active_active_edition_check_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber_init();
         let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;
         let to = Dsn::from_str("taos+ws://localhost:6041/test")?;

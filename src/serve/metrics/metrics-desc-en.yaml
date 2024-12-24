@@ -14,7 +14,7 @@ total_written_points: Total points written successfully, may greater than actual
 total_rows_per_second: Average number of rows written per second
 total_points_per_second: Average number of points written per second
 start_time: Task start time (reset each time the task is restarted)
-written_rows: Total rows written to TDengine in this task run. (may greater than actual value when there are duplicate records)
+written_rows: Total rows written to TDengine in this task run. (sum of the affected rows returned by the execution)
 written_points: Total points written successfully in this task run (equal to written_rows multiplied by the number of columns in the data block)
 execute_time: Task execute time for this task run
 rows_per_second: Average number of rows written per second for this task run
@@ -38,10 +38,11 @@ messages: Total number of messages received via TMQ in this task run
 messages_of_meta: Total number of messages with type "Meta" received via TMQ in this task run
 messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ in this task run
 write_raw_fails: Total times of failed to write TMQ messages in this task run
+success_messages: Total number of messages succeeded via TMQ in this task run
 total_received_batches: Total number of data batches received via IPC Stream
 total_processed_batches: Total number of data batches successfully processed by taosx
 total_failed_batches: Total number of data batches failed to process
-total_processed_rows: Total number of rows successfully processed. (equal to the sum of the number of data rows contained in the batch containing data)
+total_processed_rows: Total number of rows successfully processed. (before transform)
 total_inserted_sqls: Total number of INSERT SQLs successfully executed by taosx
 total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
 total_created_stables: Total number of super tables that taosX try to created. (may greater than successfully created super tables)
@@ -51,6 +52,7 @@ total_drained_rows: Total number of rows filtered out to write in case of timest
 total_failed_points: Total number of points failed to write
 total_written_raw_blocks: Total number of raw blocks successfully written
 total_failed_raw_blocks: Total number of raw blocks failed to write
+total_success_messages: Total number of messages successfully written
 received_batches: Number of data batches received via IPC Stream in this task run
 processed_batches: Number of data batches successfully processed by taosx in this task run
 failed_batches: Number of data batches failed to process in this task run
@@ -83,3 +85,5 @@ total_csv_files_completed_rows: Total number of rows in CSV files completed
 csv_files: Number of CSV files
 csv_files_completed: Number of CSV files completed in this task run
 csv_files_completed_rows: Number of rows in CSV files completed in this task run
+received_messages: Total number of messages received in this task run
+processed_messages: Total number of messages processed in this task run

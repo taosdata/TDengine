@@ -57,13 +57,21 @@
         <el-form :model="registerValidateForm" ref="registerValidateForm" :rules="registerFormRules" label-width="0px"
           class="demo-dynamic">
           
-          <div style="margin-bottom: 20px">
+          <div style="">
             <p class="lable-form">
               <span>{{ $t("register.name") }}</span>
             </p>
-            <el-form-item prop="name" label>
+            <el-form-item prop="name" label v-if="!isLocaleLanguageEn">
               <el-input ref="name" :placeholder="$t('register.nameTips')" v-model="registerValidateForm.name"></el-input>
             </el-form-item>
+            <div v-else style="display: flex; justify-content: space-between;">
+              <el-form-item prop="firstname" style="width: 49%;">
+                <el-input ref="firstname" :placeholder="$t('register.firstnameTips')" v-model="registerValidateForm.firstname"></el-input>
+              </el-form-item>
+              <el-form-item prop="lastname" style="width: 49%;">
+                <el-input ref="lastname" :placeholder="$t('register.lastnameTips')" v-model="registerValidateForm.lastname"></el-input>
+              </el-form-item>
+            </div>
           </div>
           <div style="margin-bottom: 20px">
             <p class="lable-form">
@@ -211,6 +219,8 @@ export default {
       buttonTextOfGetVerificationCode: this.$t("register.getVerificationCode"),
       registerValidateForm: {
         name: "",
+        firstname: "",
+        lastname: "",
         phone_email: "",
         verification_code: "",
       },
@@ -233,8 +243,25 @@ export default {
         name: [
           {
             required: true,
+            min: 2,
             max: 80,
             message: this.$t("register.nameTips"),
+            trigger: "change",
+          },
+        ],
+        firstname: [
+          {
+            required: true,
+            max: 80,
+            message: this.$t("register.firstnameTips"),
+            trigger: "change",
+          },
+        ],
+        lastname: [
+          {
+            required: true,
+            max: 80,
+            message: this.$t("register.lastnameTips"),
             trigger: "change",
           },
         ],
@@ -372,8 +399,19 @@ export default {
           localStorage.removeItem("native_url");
         }
         
-        if (res && res.dashboard) {
-          localStorage.setItem("local_grafana", res.dashboard);
+        if (res && res.grafana && res.grafana.dashboards) {
+          const grafana_dashboards = [];
+          for (let key in res.grafana.dashboards) {
+            grafana_dashboards.push({
+              key,
+              url: res.grafana.dashboards[key].replace(/^https?:\/\/[^\/]+/, "")
+            });
+          }
+          if (grafana_dashboards.length > 0) {
+            localStorage.setItem("local_grafana", JSON.stringify(grafana_dashboards));
+          } else {
+            localStorage.removeItem("local_grafana");
+          }
         }
         if (res && res.grpc) {
           localStorage.setItem("local_endpoint", res.grpc);
@@ -521,8 +559,20 @@ export default {
           // 提交注册接口
           this.registerValidateForm.ts = this.ts;
           this.registerValidateForm.lang = localStorage.getItem('local_language') || '';
+          const validatePostData = {
+            ts: this.ts,
+            lang: localStorage.getItem('local_language') || '',
+            phone_email: this.registerValidateForm.phone_email,
+            verification_code: this.registerValidateForm.verification_code,
+          }
+          if (this.isLocaleLanguageEn) {
+            validatePostData.firstname = this.registerValidateForm.firstname;
+            validatePostData.lastname = this.registerValidateForm.lastname;
+          } else {
+            validatePostData.name = this.registerValidateForm.name;
+          }
 
-          const result = await getVerificationResult(this.registerValidateForm)
+          const result = await getVerificationResult(validatePostData)
           if (result && result.code == 0) {
             switch (result.data) {
               case 'pass':
@@ -738,7 +788,7 @@ export default {
       width: 680px;
     }
   }
-  .content-reginster {
+  .content-register {
     padding: 60px calc(50vw - 600px);
   }
   // .plans {

@@ -62,6 +62,18 @@ impl CoreMetrics {
     }
 }
 
+impl std::ops::Deref for CoreMetrics {
+    type Target = CommonMetrics;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            CoreMetrics::Legacy(legacy) => &legacy.com,
+            CoreMetrics::TMQ(tmq) => &tmq.com,
+            CoreMetrics::IPC(ipc) => &ipc.com,
+        }
+    }
+}
+
 /// CommonMetrics is a data structure to store metrics that are common to all task types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommonMetrics {
@@ -79,6 +91,8 @@ pub struct CommonMetrics {
     pub execute_time: AtomicU64,
     pub written_rows: AtomicU64,
     pub written_points: AtomicU64,
+    pub received_messages: AtomicU64,
+    pub processed_messages: AtomicU64,
 }
 
 impl Default for CommonMetrics {
@@ -95,6 +109,8 @@ impl Default for CommonMetrics {
             execute_time: AtomicU64::new(0),
             written_rows: AtomicU64::new(0),
             written_points: AtomicU64::new(0),
+            received_messages: AtomicU64::new(0),
+            processed_messages: AtomicU64::new(0),
         }
     }
 }
@@ -123,6 +139,23 @@ impl CommonMetrics {
         self.written_points.store(0, SeqCst);
         self.execute_time.store(0, SeqCst);
         self.last_persist_time.reset();
+    }
+
+    pub fn received_messages(&self) -> u64 {
+        self.received_messages.load(SeqCst)
+    }
+    pub fn processed_messages(&self) -> u64 {
+        self.processed_messages.load(SeqCst)
+    }
+
+    #[inline]
+    pub fn add_received_messages(&self, n: u64) {
+        self.received_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_processed_messages(&self, n: u64) {
+        self.processed_messages.fetch_add(n, SeqCst);
     }
 }
 
@@ -189,6 +222,25 @@ pub trait TaskMetrics: Into<CoreMetrics> + Serialize {
         self.com().total_written_points.fetch_add(n, SeqCst);
         self.com().written_points.fetch_add(n, SeqCst);
     }
+
+    #[inline]
+    fn add_received_messages(&self, n: u64) {
+        self.com().received_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    fn add_processed_messages(&self, n: u64) {
+        self.com().processed_messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    fn received_messages(&self) {
+        self.com().received_messages();
+    }
+    #[inline]
+    fn processed_messages(&self) {
+        self.com().processed_messages();
+    }
 }
 
 lazy_static! {
@@ -229,7 +281,7 @@ pub async fn get_metrics(task_id: i64) -> Option<Arc<CoreMetrics>> {
 #[inline]
 pub async fn get_metrics_arc(task_id: Option<String>) -> Arc<CoreMetrics> {
     let task_id = match task_id {
-        Some(id) => id.parse::<i64>().unwrap(),
+        Some(id) => id.parse::<i64>().unwrap_or(-1),
         _ => -1,
     };
     get_metrics(task_id).await.expect("metrics not found")
@@ -509,7 +561,11 @@ unsafe impl Sync for TaskStartTime {}
 
 /// Save every 10 seconds
 pub async fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<()>) {
-    let metrics_arc = get_metrics(task_id).await.unwrap();
+    let metrics_arc = if let Some(arc) = get_metrics(task_id).await {
+        arc
+    } else {
+        return;
+    };
     tokio::spawn(
         async move {
             tracing::info!("start");
