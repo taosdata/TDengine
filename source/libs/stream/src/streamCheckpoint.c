@@ -21,8 +21,9 @@
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t deleteCheckpointFile(const char* id, const char* name);
 static int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t checkpointId);
+#ifdef BUILD_NO_CALL
 static int32_t deleteCheckpoint(const char* id);
-static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
+#endif
 static int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask);
 static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
                                           int32_t transId, int32_t srcTaskId);
@@ -998,7 +999,7 @@ static int32_t doFindNotSendUpstream(SStreamTask* pTask, SArray* pList, SArray**
   return 0;
 }
 
-static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList) {
+int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList) {
   const char*            id = pTask->id.idStr;
   SArray*                pList = pTask->upstreamInfo.pList;  // send msg to retrieve checkpoint trigger msg
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
@@ -1353,7 +1354,7 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
   }
 }
 
-static int32_t uploadCheckpointToS3(const char* id, const char* path) {
+int32_t uploadCheckpointToS3(const char* id, const char* path) {
   int32_t code = 0;
   int32_t nBytes = 0;
   /*
@@ -1492,6 +1493,7 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path, int64_t che
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t deleteCheckpoint(const char* id) {
   if (id == NULL || strlen(id) == 0) {
     stError("deleteCheckpoint parameters invalid");
@@ -1504,6 +1506,7 @@ int32_t deleteCheckpoint(const char* id) {
   }
   return 0;
 }
+#endif
 
 int32_t deleteCheckpointFile(const char* id, const char* name) {
   char object[128] = {0};

@@ -597,13 +597,11 @@ extern void    tsdbEnableBgTask(STsdb *pTsdb);
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
   TAOS_CHECK_RETURN(tsdbDisableAndCancelAllBgTask(pVnode->pTsdb));
   TAOS_CHECK_RETURN(vnodeSyncCommit(pVnode));
-  TAOS_CHECK_RETURN(vnodeAChannelDestroy(&pVnode->commitChannel, true));
   return 0;
 }
 
 static int32_t vnodeEnableBgTask(SVnode *pVnode) {
   tsdbEnableBgTask(pVnode->pTsdb);
-  TAOS_CHECK_RETURN(vnodeAChannelInit(1, &pVnode->commitChannel));
   return 0;
 }
 

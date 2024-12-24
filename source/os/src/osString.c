@@ -405,8 +405,6 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   size_t ucs4_input_len = mbsLength;
   size_t outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
-    char buf[512] = {0};
-    snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s %d %d", strerror(terrno), errno, EILSEQ);
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosReleaseConv(idx, conv, M2C, charsetCxt);
     return false;
