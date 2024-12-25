@@ -661,7 +661,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   tsLogObj.lines = (int32_t)(filesize / 60);
 
   if (taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END) < 0) {
-    TAOS_CHECK_EXIT(code = terrno ? terrno : -1);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   (void)snprintf(name, sizeof(name),
@@ -669,7 +669,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
                  "                new log file\n"
                  "==================================================\n");
   if (taosWriteFile(tsLogObj.logHandle->pFile, name, (uint32_t)strlen(name)) <= 0) {
-    TAOS_CHECK_EXIT(code = terrno ? terrno : -1);
+    TAOS_CHECK_EXIT(terrno);
   }
 
 _exit:
