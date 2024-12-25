@@ -854,6 +854,7 @@ TEST_F(TfsTest, 06_Misc) {
   TdFilePtr pFile = taosCreateFile("testDataDir1", TD_FILE_CREATE);
   EXPECT_NE(pFile, nullptr);
   EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  EXPECT_EQ(taosCloseFile(&pFile), 0);
   EXPECT_EQ(taosRemoveFile("testDataDir1"), 0);
 
   for (int32_t l = 0; l < tfs.nlevel; ++l) {
