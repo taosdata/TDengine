@@ -607,9 +607,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   }
 
   vDebug("vgId:%d, start to process write request %s, index:%" PRId64 ", applied:%" PRId64 ", state.applyTerm:%" PRId64
-         ", conn.applyTerm:%" PRId64,
+         ", conn.applyTerm:%" PRId64 ", contLen:%d",
          TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver, pVnode->state.applied, pVnode->state.applyTerm,
-         pMsg->info.conn.applyTerm);
+         pMsg->info.conn.applyTerm, pMsg->contLen);
 
   if (!(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm)) {
     return terrno = TSDB_CODE_INTERNAL_ERROR;
@@ -843,7 +843,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   SReadHandle handle = {.vnode = pVnode, .pMsgCb = &pVnode->msgCb, .pWorkerCb = pInfo->workerCb};
   initStorageAPI(&handle.api);
   int32_t code = TSDB_CODE_SUCCESS;
-  bool redirected = false;
+  bool    redirected = false;
 
   switch (pMsg->msgType) {
     case TDMT_SCH_QUERY:
@@ -2145,7 +2145,7 @@ static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t ver) {
         pVnode->config.hashBegin, pVnode->config.hashEnd, ver);
 
   // TODO: trim meta of tables from TDB per hash range [pVnode->config.hashBegin, pVnode->config.hashEnd]
-  code = metaTrimTables(pVnode->pMeta);
+  code = metaTrimTables(pVnode->pMeta, ver);
 
   return code;
 }
