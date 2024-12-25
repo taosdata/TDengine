@@ -72,7 +72,7 @@ kafka_consuming_partitions: Number of partitions being consumed
 kafka_consumed_messages: Number of messages has been consumed
 total_kafka_consumed_messages: Total consumed messages since task started
 mqtt_fetched_messages: Total number of messages fetched in this task run
-mqtt_dumped_messages: Number of messages dumped in this task run 
+mqtt_dumped_messages: Number of messages dumped in this task run
 mqtt_fetched_acks: Total number of ACKs received in this task run
 mqtt_ack_fails: Total number of ACK failures in this task run
 mqtt_unprocessed_messages: Number of messages currently in the cache queue in this task run
@@ -85,3 +85,7 @@ total_csv_files_completed_rows: Total number of rows in CSV files completed
 csv_files: Number of CSV files
 csv_files_completed: Number of CSV files completed in this task run
 csv_files_completed_rows: Number of rows in CSV files completed in this task run
+received_messages: Total number of messages received in this task run
+processed_messages: Total number of messages processed in this task run
+out_of_range_rows: Number of rows out of time range in this task run
+total_out_of_range_rows: Total number of rows out of time range

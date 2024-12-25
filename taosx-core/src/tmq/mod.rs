@@ -8,6 +8,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
 
+use crate::utils::sql::connect_taos_root;
 use crate::{dsv::DataSourceValidation, utils};
 
 pub mod tmq_metric;
@@ -749,11 +750,17 @@ pub(crate) async fn check_tmq_dsn(
     }
 }
 
-pub(crate) fn group_id_hash(from: &Dsn, to: &Dsn) -> String {
+pub(crate) fn group_id_hash_by(from: &Dsn, to: &Dsn) -> String {
+    let data = vec![from.to_string(), to.to_string()];
+    generate_hash(data)
+}
+
+pub(crate) fn generate_hash(data: Vec<String>) -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
-    hasher.update(from.to_string());
-    hasher.update(to.to_string());
+    for s in data {
+        hasher.update(s);
+    }
     let id = hasher.finalize();
     let mut group_id = format!("x{:x}", id);
     group_id.truncate(12);
@@ -762,18 +769,13 @@ pub(crate) fn group_id_hash(from: &Dsn, to: &Dsn) -> String {
 
 pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     let mut dsn = dsn.clone();
-    if dsn.subject.is_none() {
-        return DataSourceValidation::invalid(
-            dsn.driver.clone(),
-            format!(
-                "invalid dsn: {}, cause: subject is required in tmq dsn",
-                dsn
-            ),
-        );
-    }
+
+    // 如果没有设置 group.id, 则自动生成一个
     if !dsn.params.contains_key("group.id") {
-        dsn.params
-            .insert("group.id".to_string(), "test_tmq_is_valid".to_string());
+        dsn.params.insert(
+            "group.id".to_string(),
+            generate_hash(vec![dsn.to_string(), Local::now().to_rfc3339().to_string()]),
+        );
     }
 
     let validation = check_tmq_dsn(dsn.clone()).await;
@@ -802,9 +804,149 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupObject {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topic: Option<String>,
+    pub db_name: String,
+    pub db_sql: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stable_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stable_sql: Option<String>,
+}
+
+impl TryFrom<&Dsn> for BackupObject {
+    type Error = anyhow::Error;
+
+    fn try_from(dsn: &Dsn) -> std::result::Result<Self, Self::Error> {
+        let task_id = utils::parse_key_in_dsn::<String>(dsn, "task_id")?;
+        let topic = utils::parse_key_in_dsn::<String>(dsn, "topic")?;
+        let db_name = utils::parse_key_in_dsn::<String>(dsn, "db_name")?
+            .ok_or(anyhow::anyhow!("parameter: db_name not found"))?;
+        let db_sql = utils::parse_key_in_dsn::<String>(dsn, "db_sql")?
+            .ok_or(anyhow::anyhow!("parameter: db_sql not found"))?;
+        let stable_name = utils::parse_key_in_dsn::<String>(dsn, "stable_name")?;
+        let stable_sql = utils::parse_key_in_dsn::<String>(dsn, "stable_sql")?;
+        Ok(Self {
+            task_id,
+            topic,
+            db_name,
+            db_sql,
+            stable_name,
+            stable_sql,
+        })
+    }
+}
+
+impl BackupObject {
+    /// 从 taos 中查询出 BackupObject，只支持查询 $DATABASE 和 $STABLE_NAME
+    /// dsn 的格式为： tmq://$HOST:$PORT/$DATABASE?stable=$STABLE_NAME
+    /// $DATABASE 不能为空，$STABLE_NAME 可以为空
+    pub async fn try_from_taos(dsn: &Dsn) -> Result<Option<BackupObject>> {
+        let taos = connect_taos_root(dsn).await?;
+
+        let db_name = dsn.subject.as_ref();
+        if db_name.is_none() {
+            return Ok(None);
+        }
+        let db_name = db_name.unwrap();
+
+        // 查询 database
+        let sql = format!(
+            "SELECT name FROM information_schema.ins_databases WHERE name = '{}'",
+            db_name
+        );
+        tracing::debug!("query taos with sql: {}", sql);
+        let database: Option<String> = taos.query_one(sql).await?;
+        if database.is_none() {
+            return Ok(None);
+        }
+        let database = database.unwrap();
+
+        // 查询 database 的创建语句
+        let sql = format!("SHOW CREATE DATABASE `{}`", db_name);
+        tracing::debug!("query taos with sql: {}", sql);
+        let (_db, db_sql) = taos
+            .query_one::<_, (String, String)>(sql)
+            .await?
+            .ok_or(anyhow::anyhow!("failed to get create database sql"))?;
+
+        let mut backup_obj = BackupObject {
+            task_id: None,
+            topic: None,
+            db_name: database,
+            db_sql,
+            stable_name: None,
+            stable_sql: None,
+        };
+
+        let stable = utils::parse_key_in_dsn::<String>(dsn, "stable")?;
+        if let Some(stable) = stable {
+            // 查询 stable
+            let sql = format!(
+                "SELECT stable_name FROM information_schema.ins_stables WHERE db_name = '{}' AND stable_name = '{}'",
+                db_name, stable
+            );
+            tracing::debug!("query taos with sql: {}", sql);
+            let stable_name: Option<String> = taos.query_one(sql).await?;
+            if stable_name.is_none() {
+                return Ok(None);
+            }
+            let stable_name = stable_name.unwrap();
+
+            // 查询 stable 的创建语句
+            let sql = format!("SHOW CREATE STABLE `{}`.`{}`", db_name, stable);
+            tracing::debug!("query taos with sql: {}", sql);
+            let (_stable, stable_sql) = taos
+                .query_one::<_, (String, String)>(sql)
+                .await?
+                .ok_or(anyhow::anyhow!("failed to get create stable sql"))?;
+            backup_obj.stable_name = Some(stable_name);
+            backup_obj.stable_sql = Some(stable_sql);
+        }
+
+        Ok(Some(backup_obj))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_deserialize_backup_object() {
+        let topic_meta = r#"{
+            "topic": "x123",
+            "db_name": "x123",
+            "db_sql": "CREATE DATABASE IF NOT EXISTS x123",
+            "stable_name": "x123_stable",
+            "stable_sql": "CREATE TABLE IF NOT EXISTS x123_stable (ts TIMESTAMP, f1 INT) TAGS(t1 INT)"
+        }"#;
+
+        let topic_meta: BackupObject = serde_json::from_str(topic_meta).unwrap();
+        assert_eq!(topic_meta.topic, Some("x123".to_string()));
+        assert_eq!(topic_meta.db_name, "x123");
+        assert_eq!(topic_meta.db_sql, "CREATE DATABASE IF NOT EXISTS x123");
+        assert_eq!(topic_meta.stable_name, Some("x123_stable".to_string()));
+        assert_eq!(
+            topic_meta.stable_sql,
+            Some(
+                "CREATE TABLE IF NOT EXISTS x123_stable (ts TIMESTAMP, f1 INT) TAGS(t1 INT)"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn test_group_id_hash() {
+        let data = vec!["hello".to_string(), "world".to_string()];
+        let group_id = generate_hash(data);
+        assert_eq!(group_id.len(), 12);
+        assert_eq!(group_id, "x936a185caaa");
+    }
 
     #[test]
     fn test_stop_at() {
@@ -853,10 +995,7 @@ mod tests {
         assert!(!dsv.valid);
         assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!(
-            "invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
-            dsv.message.unwrap()
-        );
+        assert!(dsv.message.is_some());
     }
 
     #[tokio::test]

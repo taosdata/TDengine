@@ -82,3 +82,7 @@ total_csv_files_completed_rows: CSV 文件已处理完成行数
 csv_files: CSV 文件总数量
 csv_files_completed: 本次运行此任务 CSV 文件已处理完成数量
 csv_files_completed_rows: 本次运行此任务 CSV 文件已处理完成行数
+received_messages: 本次运行此任务接收到的消息总数
+processed_messages: 本次运行此任务已经处理的消息总数
+out_of_range_rows: 本次运行此任务超出时间范围的行数
+total_out_of_range_rows: 累计超出时间范围的行数

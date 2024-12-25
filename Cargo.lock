@@ -568,7 +568,7 @@ dependencies = [
 
 [[package]]
 name = "arrow-compute-ext"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -1166,6 +1166,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "bon"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f265cdb2e8501f1c952749e78babe8f1937be92c98120e5f78fc72d634682bad"
+dependencies = [
+ "bon-macros",
+ "rustversion",
+]
+
+[[package]]
+name = "bon-macros"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38aa5c627cd7706490e5b003d685f8b9d69bc343b1a00b9fdd01e75fdf6827cf"
+dependencies = [
+ "darling 0.20.10",
+ "ident_case",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.90",
+]
+
+[[package]]
 name = "borsh"
 version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1396,9 +1421,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.38"
+version = "0.4.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
+checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -2774,7 +2799,7 @@ dependencies = [
 
 [[package]]
 name = "futures-ext"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "futures",
  "futures-core",
@@ -4298,7 +4323,7 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=fa2521c#fa2521ca87613cc85eb6492644e9d2b80304ac81"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -7584,7 +7609,7 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=fa2521c#fa2521ca87613cc85eb6492644e9d2b80304ac81"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -7599,7 +7624,7 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=fa2521c#fa2521ca87613cc85eb6492644e9d2b80304ac81"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
 dependencies = [
  "anyhow",
  "derive_more 1.0.0",
@@ -7611,7 +7636,7 @@ dependencies = [
 
 [[package]]
 name = "taos-explorer"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "actix-cors",
  "actix-embed",
@@ -7636,6 +7661,7 @@ dependencies = [
  "log",
  "mockito",
  "rand 0.8.5",
+ "regex",
  "reqwest 0.11.27",
  "rust-embed 6.8.1",
  "rustls 0.23.19",
@@ -7662,7 +7688,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=fa2521c#fa2521ca87613cc85eb6492644e9d2b80304ac81"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7672,7 +7698,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=fa2521c#fa2521ca87613cc85eb6492644e9d2b80304ac81"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7695,7 +7721,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=fa2521c#fa2521ca87613cc85eb6492644e9d2b80304ac81"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7735,7 +7761,7 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=fa2521c#fa2521ca87613cc85eb6492644e9d2b80304ac81"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7787,7 +7813,7 @@ dependencies = [
 
 [[package]]
 name = "taosx"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "actix-cors",
  "actix-files",
@@ -7842,6 +7868,7 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "shadow-rs 0.35.2",
+ "shlex",
  "socket2",
  "sqlx",
  "strum",
@@ -7875,7 +7902,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-agent"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -7911,11 +7938,12 @@ dependencies = [
 
 [[package]]
 name = "taosx-core"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "actix-web",
  "anyhow",
  "arrow",
+ "arrow-array",
  "arrow-cast-guess-precision",
  "arrow-compute-ext",
  "arrow-flight",
@@ -7929,6 +7957,7 @@ dependencies = [
  "bitfield",
  "bitflags 2.6.0",
  "bitvec",
+ "bon",
  "bytes",
  "cfg-if",
  "chardetng",
@@ -7937,6 +7966,7 @@ dependencies = [
  "clap",
  "config",
  "convert_case 0.6.0",
+ "crossbeam",
  "csv",
  "csv-async",
  "dashmap 6.1.0",
@@ -8002,6 +8032,7 @@ dependencies = [
  "socket2",
  "sqlx",
  "sqlx-postgres",
+ "strum",
  "sysinfo 0.32.1",
  "taos",
  "taoslog",
@@ -8052,7 +8083,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-metrics"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "bincode",
  "flume",
@@ -8064,7 +8095,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-tools"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9592,6 +9623,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f360fc0b24296329c78fda852a1e9ae82de9cf7b27dae4b7f62f118f77b9ed"
 dependencies = [
  "tap",
+]
+
+[[package]]
+name = "x-spawner-replication"
+version = "1.9.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "flume",
+ "taosx-core",
 ]
 
 [[package]]

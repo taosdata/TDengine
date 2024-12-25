@@ -83,14 +83,14 @@ pub struct Header {
 
 impl Header {
     pub fn new(
-        taosx: impl Into<String>,
-        server: impl Into<String>,
+        taosx_version: impl Into<String>,
+        taosd_version: impl Into<String>,
         database: impl Into<Option<String>>,
     ) -> Self {
         Self {
             version: Z_CURRENT_VERSION,
-            api_version: Some(taosx.into()),
-            server_version: Some(server.into()),
+            api_version: Some(taosx_version.into()),
+            server_version: Some(taosd_version.into()),
             created: Local::now(),
             database: database.into(),
         }
@@ -234,10 +234,10 @@ impl taos::AsyncInlinable for Header {
 #[cfg(test)]
 mod tests {
     use super::Header;
+    use taos::{Inlinable, InlinableWrite};
+
     #[test]
     fn test_inline() {
-        use taos::{Inlinable, InlinableWrite};
-
         let header = Header::new("1.6.0", "3.3.0.0", "abc".to_string());
         let mut bytes = vec![0; 32];
 

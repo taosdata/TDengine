@@ -36,7 +36,7 @@ export default {
       isCollapse: false,
       language:  localStorage.getItem('local_language'),
       permission_routes: [
-          {
+        {
             path: "/dashboard",
             title: "route.board",
             icon: "dashboard",
@@ -46,19 +46,19 @@ export default {
             // role: ["1"],
           },
           {
-            path: "/dataIn",
-            title: "route.dataIn",
-            icon: "dataIn",
-            meta: {
-              show: true, //目前oem暂时不支持datain，后续根据taosx修改需要开放
-            },
-          },
-          {
             path: "/explorer",
             title: "route.console",
             icon: "explorer",
             meta: {
               show: true,
+            },
+          },
+          {
+            path: "/dataIn",
+            title: "route.dataIn",
+            icon: "dataIn",
+            meta: {
+              show: true, //目前oem暂时不支持datain，后续根据taosx修改需要开放
             },
           },
           {
