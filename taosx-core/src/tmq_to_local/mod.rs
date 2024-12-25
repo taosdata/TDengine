@@ -314,6 +314,9 @@ pub async fn tmq_to_local(
         config.set_backup_point_gen_mode(BackupPointGenMode::ByTimeout);
     }
 
+    // load metrics
+    let metrics = get_metrics_arc(task_id.clone()).await;
+
     // 根据 jobs 创建 consumer
     let consumers = config.create_consumer(jobs).await?;
 
@@ -340,8 +343,14 @@ pub async fn tmq_to_local(
             assignments: Arc::new(RwLock::new(HashMap::new())),
             man: man.clone(),
             cancel: cancel.clone(),
+            metrics: metrics.clone(),
         };
 
+        // metrics 增加 consumer 数量
+        let metrics = metrics.tmq();
+        metrics.consumers.fetch_add(1, SeqCst);
+
+        // 启动 worker
         join_set.spawn(async move { task.run().await }.in_current_span());
     }
 
@@ -370,6 +379,7 @@ struct BackupWorker {
     assignments: Arc<RwLock<HashMap<(String, VGroupId), i64>>>,
     man: Arc<ZFileMan>,
     cancel: CancellationToken,
+    metrics: Arc<CoreMetrics>,
 }
 
 impl BackupWorker {
@@ -442,6 +452,8 @@ impl BackupWorker {
     async fn run_impl(&self) -> Result<()> {
         tracing::debug!("tmq_to_local worker run with config: {:?}", self.config);
 
+        let metrics = self.metrics.tmq();
+
         let mut stream = self.consumer.stream();
         while let Some((offset, message)) = stream.try_next().await? {
             // 通过 topic, vg_id 可以获取到当前的 offset
@@ -475,6 +487,7 @@ impl BackupWorker {
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Meta)
                         .await?;
                     self.man.flush_vgroup(vg_id).await?;
+                    metrics.add_messages_of_meta(1);
                 }
                 MessageSet::Data(data) => {
                     let raw = data.as_raw_data().await?;
@@ -482,6 +495,7 @@ impl BackupWorker {
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Data)
                         .await?;
                     self.man.flush_vgroup(vg_id).await?;
+                    metrics.add_messages_of_data(1);
                 }
                 MessageSet::MetaData(_meta, data) => {
                     let raw = data.as_raw_data().await?;
@@ -489,9 +503,11 @@ impl BackupWorker {
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Both)
                         .await?;
                     self.man.flush_vgroup(vg_id).await?;
+                    metrics.add_messages_of_data(1);
                 }
             }
             self.consumer.commit(offset).await?;
+            metrics.add_messages(1);
         }
 
         Ok(())
@@ -975,5 +991,10 @@ mod tests {
         backup.await.unwrap();
 
         // clean up
+        std::fs::remove_dir_all(back_dir).unwrap();
+        taos.exec_many([
+            format!("DROP TOPIC IF EXISTS `{topic}`"),
+            format!("DROP DATABASE IF EXISTS `{database}`"),
+        ])
     }
 }

@@ -1,4 +1,13 @@
+use crate::core_metrics::{get_metrics_arc, CoreMetrics};
+use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
+use crate::local_to_taos::file_watcher::FileWatcher;
+use crate::taoz::{ZCodec, ZFile, ZMessage};
+use crate::tmq::BackupObject;
+use crate::tmq_to_local::LocalConfig;
+use crate::utils;
+use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
 use anyhow::{bail, Context, Result};
+use faststr::FastStr;
 use flume::Receiver;
 use itertools::Itertools;
 use std::collections::BTreeMap;
@@ -13,16 +22,22 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
-use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
-use crate::local_to_taos::file_watcher::FileWatcher;
-use crate::taoz::{ZCodec, ZFile, ZMessage};
-use crate::tmq::BackupObject;
-use crate::tmq_to_local::LocalConfig;
-use crate::utils;
-use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
-
 mod conf;
 mod file_watcher;
+
+/// local_to_taos 的 metrics 统计信息
+/// 处理过的文件数量
+const PROCESSED_FILES: FastStr = FastStr::from_static_str("backup_processed_files");
+/// 处理过的文件的字节数
+const PROCESSED_BYTES: FastStr = FastStr::from_static_str("backup_processed_bytes");
+/// 处理过的数据行数
+const PROCESSED_ROWS: FastStr = FastStr::from_static_str("backup_processed_rows");
+/// 处理成功的最后一条记录的时间戳
+#[allow(unused)]
+const PROCESSED_CURRENT: FastStr = FastStr::from_static_str("backup_processed_current");
+/// 处理过但失败的数据行数
+#[allow(unused)]
+const FAILED_ROWS: FastStr = FastStr::from_static_str("backup_failed_rows");
 
 /// 从本地备份恢复到 taos
 /// 1. 备份文件对应某个备份对象：database 或 database.stable，在 target 中：
@@ -68,6 +83,9 @@ pub async fn local_to_taos(
     let watcher = FileWatcher::from(config.clone());
     let stop_flag = watcher.get_stop_flag();
 
+    // load metrics
+    let metrics_arc = get_metrics_arc(task_id.clone()).await;
+
     let (tx, rx) = flume::unbounded();
     // 创建 RestoreWorker
     let mut join_set = JoinSet::new();
@@ -79,6 +97,7 @@ pub async fn local_to_taos(
             rx,
             backup_config: config.clone(),
             backup_obj: config.backup_obj.clone(),
+            metrics: metrics_arc.clone(),
         };
         join_set.spawn(async move { worker.run().await }.in_current_span());
     }
@@ -157,16 +176,28 @@ struct RestoreWorker {
     backup_config: LocalRestoreConfig,
     backup_obj: BackupObject,
     rx: Receiver<PathBuf>,
+    metrics: Arc<CoreMetrics>,
 }
 
 impl RestoreWorker {
+    /// 从 channel 中获取备份文件的路径，然后恢复到 taos
     async fn run(&mut self) -> Result<()> {
         tracing::info!("RestoreWorker {} started", self.id);
         let taos = self.backup_config.connect_taos().await?;
 
         while let Ok(file) = self.rx.recv() {
             tracing::info!("restore file: {:?}", file);
-            restore(self.id, file, &taos, self.backup_obj.stable_name.as_deref()).await?;
+            restore(
+                self.id,
+                file,
+                &taos,
+                self.backup_obj.stable_name.as_deref(),
+                self.metrics.clone(),
+            )
+            .await?;
+
+            let metrics = self.metrics.ipc();
+            metrics.add_extra_metric(&PROCESSED_FILES, 1);
         }
         tracing::info!("RestoreWorker {} stopped", self.id);
         Ok(())
@@ -338,10 +369,20 @@ pub async fn local_to_taos_previous(from: Dsn, mut to: Dsn) -> Result<()> {
                 taos.exec(format!("use `{}`", topic.database)).await?;
             }
 
+            /// TODO: invalid metrics
+            let metrics = get_metrics_arc(None).await;
+
             let table = topic.table.as_ref().map(|t| t.table.clone());
             let handle = tokio::spawn(async move {
                 for (_ts, path) in files {
-                    let res = restore(task_id, path.path(), &taos, table.as_deref()).await;
+                    let res = restore(
+                        task_id,
+                        path.path(),
+                        &taos,
+                        table.as_deref(),
+                        metrics.clone(),
+                    )
+                    .await;
                     if res.is_err() {
                         drop(sem);
                         return res;
@@ -369,6 +410,7 @@ async fn restore(
     path: impl AsRef<Path>,
     taos: &Taos,
     table: Option<&str>,
+    metrics: Arc<CoreMetrics>,
 ) -> Result<()> {
     let path = path.as_ref();
     tracing::info!("[{}] restore with file: {:?}", id, path.display());
@@ -394,6 +436,8 @@ async fn restore(
             bail!("Backup source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }
     }
+
+    let metrics = metrics.ipc();
 
     let mut rows = 0;
     loop {
@@ -433,12 +477,15 @@ async fn restore(
                                 }
                             }
                         };
+
+                        metrics.add_extra_metric(&PROCESSED_BYTES, meta.raw_len() as u64);
                     }
                     ZMessage::Data(data) => {
                         for mut raw in data {
                             if let Some(name) = table {
                                 raw.with_table_name(name);
                             }
+                            let bytes = raw.as_raw_bytes().len() as u64;
                             rows += raw.nrows();
                             if let Err(err) = taos.write_raw_block(&raw).await {
                                 if err.to_string().contains("[0x2603]") {
@@ -461,6 +508,7 @@ async fn restore(
                                     Err(err).context("write raw block error")?;
                                 }
                             };
+                            metrics.add_extra_metric(&PROCESSED_BYTES, bytes);
                         }
                         tracing::debug!("[{id}] current rows: {}", rows);
                     }
@@ -501,6 +549,7 @@ async fn restore(
                                 }
                             }
                         };
+                        metrics.add_extra_metric(&PROCESSED_BYTES, meta.raw_len() as u64);
                     }
                 }
             }
@@ -514,10 +563,13 @@ async fn restore(
             }
         }
     }
-    let mut zo = path.to_path_buf();
-    zo.set_extension("zo");
-    tokio::fs::write(zo, "").await?;
+
+    // let mut zo = path.to_path_buf();
+    // zo.set_extension("zo");
+    // tokio::fs::write(zo, "").await?;
     drop(reader);
+
+    metrics.add_extra_metric(&PROCESSED_ROWS, rows as u64);
 
     tracing::info!(
         "[{}] totally write {} rows from file {}",
