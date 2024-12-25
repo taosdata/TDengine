@@ -17,6 +17,7 @@
 #include "tglobal.h"
 #include "tskiplist.h"
 #include "tutil.h"
+#include "indexFstDfa.h"  
 
 class UtilEnv : public ::testing::Test {
  protected:
@@ -403,6 +404,23 @@ TEST_F(UtilComm, testCompress) {
       cmpFunc(a, b, j);
     } 
   }
+}
+TEST_F(UtilComm, testfstDfa) {
+  {
+    FstDfaBuilder *builder = dfaBuilderCreate(NULL);
+    ASSERT_TRUE(builder != NULL);
+    dfaBuilderDestroy(builder);
+ }
+  {
+    SArray *pInst = taosArrayInit(32, sizeof(uint8_t));
+    for (int32_t i = 0; i < 26; i++) {
+      uint8_t v = 'a' + i;
+      taosArrayPush(pInst, &v); 
+    }
+    FstDfaBuilder *builder = dfaBuilderCreate(pInst);
+    FstDfa *dfa = dfaBuilderBuild(builder); 
+    dfaBuilderDestroy(builder);
+ }
 }
 
 
