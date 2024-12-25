@@ -166,7 +166,7 @@ int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppF
   int32_t  lino;
   STsdbFD *pFD = NULL;
   int32_t  szPage = pTsdb->pVnode->config.tsdbPageSize;
-  int32_t  szBlobPage = pTsdb->pVnode->config.blobPageSize = 65536; // [BLOB] [TODO]
+  int32_t  szBlobPage = pTsdb->pVnode->config.blobPageSize; // [BLOB] [TODO]
 
   *ppFD = NULL;
 

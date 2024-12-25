@@ -57,7 +57,8 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE,
                                    .s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL,
                                    .s3Compact = TSDB_DEFAULT_S3_COMPACT,
-                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
+                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE,
+                                   .blobPageSize = TSDB_DEFAULT_PAGE_SIZE * 16};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
