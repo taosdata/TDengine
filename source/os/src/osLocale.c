@@ -84,7 +84,7 @@ int32_t taosSetSystemLocale(const char *inLocale) {
   if (NULL == locale) {
     terrno = TSDB_CODE_INVALID_PARA;
     uError("failed to set locale:%s", inLocale);
-    return terrno;
+    return 0;
   }
 
   tstrncpy(tsLocale, locale, TD_LOCALE_LEN);

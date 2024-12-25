@@ -308,6 +308,7 @@ typedef struct {
   int64_t            dbUid;
   SArbGroupMember    members[TSDB_ARB_GROUP_MEMBER_NUM];
   int8_t             isSync;
+  int32_t            code;
   SArbAssignedLeader assignedLeader;
   int64_t            version;
 
