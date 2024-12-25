@@ -1,0 +1,8 @@
+[
+    {
+      "host": "localhost",
+      "username": "root",
+      "workdir": "/root",
+      "thread": 1
+    }
+]
