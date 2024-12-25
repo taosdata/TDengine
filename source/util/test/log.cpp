@@ -98,11 +98,15 @@ TEST(log, misc) {
   EXPECT_NE(pCrashMsg, nullptr);
   tstrncpy(pCrashMsg, "crashMsg", 16);
 
+#if !defined(_TD_DARWIN_64) && !defined(WINDOWS)
   pid_t pid = taosGetPId();
   EXPECT_EQ(pid > 0, true);
   siginfo_t sigInfo = {0};
   sigInfo.si_pid = pid;
   taosLogCrashInfo(nodeType, pCrashMsg, strlen(pCrashMsg), 0, &sigInfo);
+#else
+  taosLogCrashInfo(nodeType, pCrashMsg, strlen(pCrashMsg), 0, nullptr);
+#endif
 
   char crashInfo[PATH_MAX] = {0};
   snprintf(crashInfo, sizeof(crashInfo), "%s%s.%sCrashLog", tsLogDir, TD_DIRSEP, nodeType);
