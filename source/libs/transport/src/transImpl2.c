@@ -2209,7 +2209,7 @@ static FORCE_INLINE void destroyReqAndAhanlde(void *param) {
   destroyReqWrapper(pReq, pThrd);
 }
 
-int32_t cliHandleState_mayHandleReleaseResp(SCliConn *conn, STransMsgHead *pHead) {
+int32_t cliHandleStateMayHandleReleaseResp(SCliConn *conn, STransMsgHead *pHead) {
   int32_t    code = 0;
   SCliThrd2 *pThrd = conn->hostThrd;
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE || pHead->msgType == TDMT_SCH_TASK_RELEASE + 1) {
@@ -2258,7 +2258,7 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn *conn, STransMsgHead *pHead
   }
   return 0;
 }
-int32_t cliHandleState_mayCreateAhandle(SCliConn *conn, STransMsgHead *pHead, STransMsg *pResp) {
+int32_t cliHandleStateMayCreateAhandle(SCliConn *conn, STransMsgHead *pHead, STransMsg *pResp) {
   int32_t code = 0;
   int64_t qId = taosHton64(pHead->qid);
   if (qId == 0) {
@@ -2284,7 +2284,7 @@ static FORCE_INLINE void cliConnClearInitUserMsg(SCliConn *conn) {
     conn->pInitUserReq = NULL;
   }
 }
-int32_t cliHandleState_mayUpdateStateTime(SCliConn *pConn, SCliReq *pReq) {
+int32_t cliHandleStateMayUpdateStateTime(SCliConn *pConn, SCliReq *pReq) {
   int64_t qid = pReq->msg.info.qId;
   if (qid > 0) {
     STransCtx *pUserCtx = taosHashGet(pConn->pQTable, &qid, sizeof(qid));
@@ -2295,7 +2295,7 @@ int32_t cliHandleState_mayUpdateStateTime(SCliConn *pConn, SCliReq *pReq) {
   return 0;
 }
 
-int32_t cliHandleState_mayUpdateStateCtx(SCliConn *pConn, SCliReq *pReq) {
+int32_t cliHandleStateMayUpdateStateCtx(SCliConn *pConn, SCliReq *pReq) {
   int32_t    code = 0;
   int64_t    qid = pReq->msg.info.qId;
   SReqCtx   *pCtx = pReq->ctx;
@@ -2336,7 +2336,7 @@ static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
 
   cliConnClearInitUserMsg(pConn);
 
-  if (cliHandleState_mayHandleReleaseResp(pConn, pHead)) {
+  if (cliHandleStateMayHandleReleaseResp(pConn, pHead)) {
     if (evtCliRecycleConn(pConn)) {
       return code;
     }
@@ -2344,7 +2344,7 @@ static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
 
   code = cliGetReqBySeq(pConn, seq, pHead->msgType, &pReq);
   if (code == TSDB_CODE_OUT_OF_RANGE) {
-    code = cliHandleState_mayCreateAhandle(pConn, pHead, &resp);
+    code = cliHandleStateMayCreateAhandle(pConn, pHead, &resp);
     if (code == 0) {
       code = evtCliBuildRespFromCont(NULL, &resp, pHead);
       code = cliNotifyCb(pConn, NULL, &resp);
@@ -2363,7 +2363,7 @@ static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
       return 0;
     }
   } else {
-    code = cliHandleState_mayUpdateStateTime(pConn, pReq);
+    code = cliHandleStateMayUpdateStateTime(pConn, pReq);
     if (code != 0) {
       tDebug("%s conn %p failed to update state time sid:%" PRId64 " since %s", CONN_GET_INST_LABEL(pConn), pConn, qId,
              tstrerror(code));
@@ -2486,7 +2486,10 @@ static int32_t evtCliPreSendReq(void *arg, SEvtBuf *buf, int32_t status) {
     if (j >= batchLimit) {
       break;
     }
-    tDebug("%s send req %p, seq:%" PRId64, pInst->label, pCliMsg, pConn->seq);
+    STraceId *trace = &pReq->info.traceId;
+    tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d, seqNum:%" PRId64 ", sid:%" PRId64 "",
+            CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, contLen, pConn->seq,
+            pReq->info.qId);
   }
   return code;
 _end:
