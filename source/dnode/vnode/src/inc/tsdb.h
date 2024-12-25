@@ -651,6 +651,7 @@ struct SRowMerger {
 typedef struct {
   char       *path;
   int32_t     szPage;
+  int32_t     szBlobPage;
   int32_t     flag;
   TdFilePtr   pFD;
   int64_t     pgno;

@@ -89,12 +89,83 @@ _exit:
   return code;
 }
 
+static int32_t blobOpenFileImpl(STsdbFD *pFD) {
+  int32_t     code = 0;
+  int32_t     lino;
+  const char *path = pFD->path;
+  int32_t     szBlobPage = pFD->szBlobPage; // [BLOB] [TODO] should use a flag to indicate whether it is blob or not.
+  int32_t     flag = pFD->flag;
+  int64_t     lc_size = 0;
+
+  pFD->pFD = taosOpenFile(path, flag);
+  if (pFD->pFD == NULL) {
+    if (tsS3Enabled && pFD->lcn > 1 && !strncmp(path + strlen(path) - 5, ".data", 5)) {
+      char lc_path[TSDB_FILENAME_LEN];
+      tstrncpy(lc_path, path, TSDB_FQDN_LEN);
+
+      int32_t     vid = 0;
+      const char *object_name = taosDirEntryBaseName((char *)path);
+      (void)sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
+
+      char *dot = strrchr(lc_path, '.');
+      if (!dot) {
+        tsdbError("unexpected path: %s", lc_path);
+        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ENOENT), lino, _exit);
+      }
+      snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", pFD->lcn);
+
+      pFD->pFD = taosOpenFile(lc_path, flag);
+      if (pFD->pFD == NULL) {
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
+      }
+      if (taosStatFile(lc_path, &lc_size, NULL, NULL) < 0) {
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
+      }
+    } else {
+      tsdbInfo("no file: %s", path);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    }
+    pFD->s3File = 1;
+  }
+
+  pFD->pBuf = taosMemoryCalloc(1, szBlobPage);
+  if (pFD->pBuf == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  }
+
+  if (lc_size > 0) {
+    SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
+    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+
+    pFD->szFile = lc_size + chunksize * (pFD->lcn - 1);
+  }
+
+  // not check file size when reading data files.
+  if (flag != TD_FILE_READ /* && !pFD->s3File*/) {
+    if (!lc_size && taosStatFile(path, &pFD->szFile, NULL, NULL) < 0) {
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    }
+  }
+
+  if (pFD->szFile % szBlobPage != 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
+  }
+  pFD->szFile = pFD->szFile / szBlobPage;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 // =============== PAGE-WISE FILE ===============
 int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppFD, int32_t lcn) {
   int32_t  code = 0;
   int32_t  lino;
   STsdbFD *pFD = NULL;
   int32_t  szPage = pTsdb->pVnode->config.tsdbPageSize;
+  int32_t  szBlobPage = pTsdb->pVnode->config.blobPageSize; // [BLOB]
 
   *ppFD = NULL;
 
@@ -107,7 +178,7 @@ int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppF
   strcpy(pFD->path, path);
   pFD->szPage = szPage;
   pFD->flag = flag;
-  pFD->szPage = szPage;
+  pFD->szBlobPage = szBlobPage; // [BLOB]
   pFD->pgno = 0;
   pFD->lcn = lcn;
   pFD->pTsdb = pTsdb;
@@ -203,6 +274,74 @@ _exit:
   return code;
 }
 
+static int32_t blobWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *encryptKey) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (!pFD->pFD) {
+    code = blobOpenFileImpl(pFD);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (pFD->pgno > 0) {
+    int64_t offset = PAGE_OFFSET(pFD->pgno, pFD->szPage);
+    if (pFD->s3File && pFD->lcn > 1) {
+      SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
+      int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+      int64_t    chunkoffset = chunksize * (pFD->lcn - 1);
+
+      offset -= chunkoffset;
+    }
+
+    int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
+    if (n < 0) {
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    }
+
+    code = taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (encryptAlgorithm == DND_CA_SM4) {
+      // if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
+      unsigned char PacketData[128];
+      int           NewLen;
+      int32_t       count = 0;
+      while (count < pFD->szPage) {
+        SCryptOpts opts = {0};
+        opts.len = 128;
+        opts.source = pFD->pBuf + count;
+        opts.result = PacketData;
+        opts.unitLen = 128;
+        // strncpy(opts.key, tsEncryptKey, 16);
+        tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
+
+        NewLen = CBC_Encrypt(&opts);
+
+        memcpy(pFD->pBuf + count, PacketData, NewLen);
+        count += NewLen;
+      }
+      // tsdbDebug("CBC_Encrypt count:%d %s", count, __FUNCTION__);
+    }
+
+    ASSERT(pFD->szBlobPage > 0);
+    n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szBlobPage);
+    if (n < 0) {
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    }
+
+    if (pFD->szFile < pFD->pgno) {
+      pFD->szFile = pFD->pgno;
+    }
+  }
+  pFD->pgno = 0;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;
   int32_t lino;
@@ -273,6 +412,76 @@ _exit:
   return code;
 }
 
+static int32_t blobReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgorithm, char *encryptKey) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (!pFD->pFD) {
+    code = blobOpenFileImpl(pFD);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  int64_t offset = PAGE_OFFSET(pgno, pFD->szBlobPage);
+  if (pFD->lcn > 1) {
+    SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
+    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+    int64_t    chunkoffset = chunksize * (pFD->lcn - 1);
+
+    offset -= chunkoffset;
+  }
+
+  // seek
+  int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
+  if (n < 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  }
+
+  // read
+  n = taosReadFile(pFD->pFD, pFD->pBuf, pFD->szBlobPage);
+  if (n < 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  } else if (n < pFD->szBlobPage) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
+  //}
+
+  if (encryptAlgorithm == DND_CA_SM4) {
+    // if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
+    unsigned char PacketData[128];
+    int           NewLen;
+
+    int32_t count = 0;
+    while (count < pFD->szBlobPage) {
+      SCryptOpts opts = {0};
+      opts.len = 128;
+      opts.source = pFD->pBuf + count;
+      opts.result = PacketData;
+      opts.unitLen = 128;
+      // strncpy(opts.key, tsEncryptKey, 16);
+      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
+
+      NewLen = CBC_Decrypt(&opts);
+
+      memcpy(pFD->pBuf + count, PacketData, NewLen);
+      count += NewLen;
+    }
+    // tsdbDebug("CBC_Decrypt count:%d %s", count, __FUNCTION__);
+  }
+
+  // check
+  if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szBlobPage)) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
+
+  pFD->pgno = pgno;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
                       char *encryptKey) {
   int32_t code = 0;
@@ -298,6 +507,45 @@ int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t
     int64_t nWrite = TMIN(PAGE_CONTENT_SIZE(pFD->szPage) - bOffset, size - n);
     memcpy(pFD->pBuf + bOffset, pBuf + n, nWrite);
 
+    pgno++;
+    bOffset = 0;
+    n += nWrite;
+  } while (n < size);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+// [BLOB]
+int32_t blobWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
+                      char *encryptKey) {
+  int32_t code = 0;
+  int32_t lino;
+  int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szBlobPage);
+  int64_t pgno = OFFSET_PGNO(fOffset, pFD->szBlobPage);
+  int64_t bOffset = fOffset % pFD->szBlobPage;
+  int64_t n = 0;
+
+  do {
+    if (pFD->pgno != pgno) {
+      code = blobWriteFilePage(pFD, encryptAlgorithm, encryptKey);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      if (pgno <= pFD->szFile) {
+        code = blobReadFilePage(pFD, pgno, encryptAlgorithm, encryptKey);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else {
+        pFD->pgno = pgno;
+      }
+    }
+
+    int64_t nWrite = TMIN(PAGE_CONTENT_SIZE(pFD->szBlobPage) - bOffset, size - n);
+    memcpy(pFD->pBuf + bOffset, pBuf + n, nWrite);
+
+    ASSERT(pFD->szBlobPage > 0);
     pgno++;
     bOffset = 0;
     n += nWrite;
