@@ -361,14 +361,14 @@ cd /root && git clone -b master https://github.com/taosdata/taos-test-framework 
 ```bash
 apt install -y python3-pip && pip3 install poetry && cd /root/taos-test-framework && yes | bash reinstall.sh
 ```
-3. Prepare env:
+3. Prepare environment variables:
 ```bash
 mkdir -p /root/.taostest && echo "TEST_ROOT=/root/TestNG" >> /root/.taostest/.env
 ```
 4. Configure passwdless login:
 ```bash
 yes | ssh-keygen -t rsa -b 2048 -N "" -f "$HOME/.ssh/testng"
-cat $HOME/.ssh/testng.pub >> ~/.ssh/authorized_keys
+cat $HOME/.ssh/testng.pub >> $HOME/.ssh/authorized_keys
 ```
 5. Run test script:
 ```bash
