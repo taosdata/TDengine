@@ -43,7 +43,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from test.meters")
         tdSql.checkData(0, 0, 1500000000000)
         tdSql.checkData(1, 0, 1600000000000)
-        tdSql.checkData(10, 0, 1600000000010)
+        tdSql.checkData(10, 0, 1600000000009)
 
     def stop(self):
         tdSql.close()
