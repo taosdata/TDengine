@@ -238,6 +238,8 @@ export default {
     idleDesc: '表示最近一段时间内（可配置）无数据处理（没有数据进入处理流程）。',
     active: 'Active',
     activeDesc: '表示数据正在正常处理中。',
+    pending: 'Pending',
+    pendingDesc: '表示数据源仍然在发送数据但没有数据实际入库。',
     busy: 'Busy',
     busyDesc: '表示写入队列已满。',
     bounce: 'Bounce',
