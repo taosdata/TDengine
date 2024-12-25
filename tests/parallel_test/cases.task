@@ -409,7 +409,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_vgroups.py
+,,n,system-test,python3 ./test.py -f 0-others/dumpsdb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
+
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_insert.py
