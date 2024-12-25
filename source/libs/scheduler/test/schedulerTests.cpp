@@ -61,7 +61,7 @@ extern "C" int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t 
 extern "C" int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code);
 extern "C" int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType);
-extern "C" int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
+//extern "C" int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
 extern "C" int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode);
 extern "C" void schInitTaskRetryTimes(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel);
 extern "C" int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask);
