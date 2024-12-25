@@ -248,7 +248,7 @@ Or run script to build test environment:
 
 ```bash
 chmod +x setup_test.sh && ./setup_test.sh
-
+```
 
 run all test cases:
 ```bash
