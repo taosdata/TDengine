@@ -196,13 +196,15 @@ sudo systemctl start taosx
 sudo systemctl start taos-explorer
 ```
 
-Or run script to start all services:
+Open your web-browser to with url <http://localhost:6060> and find how to create a new agent.
+
+
+You can also run the following script to start all services, and create a default agent locally:
 
 ```bash
 chmod +x start_services.sh && ./start_services.sh
 ```
 
-Open your web-browser to with url <http://localhost:6060> and enjoy!
 
 ## 7. Testing
 
