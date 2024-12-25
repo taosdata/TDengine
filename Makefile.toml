@@ -105,7 +105,7 @@ args = [
 
 [tasks.taosx-agent]
 command = "cargo"
-args = ["build", "--release", "-p", "taosx-agent"]
+args = ["build", "--profile", "${BUILD_PROFILE}", "-p", "taosx-agent"]
 
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc"]
@@ -215,6 +215,14 @@ condition = { files_exist = ["plugins/opentsdb/target/taosx-opentsdb.jar"] }
 script = """
 sudo mkdir -p ${PLUGINS_HOME}/opentsdb
 sudo cp plugins/opentsdb/target/taosx-opentsdb.jar  ${PLUGINS_HOME}/opentsdb/
+"""
+
+[tasks.install-agent]
+condition = { files_exist = ["target/${BUILD_PROFILE}/taosx-agent"] }
+script = """
+sudo cp target/${BUILD_PROFILE}/taosx-agent /usr/bin/
+sudo cp target/taosx-agent.service /etc/systemd/system/
+sudo systemctl daemon-reload
 """
 
 [tasks.install]
@@ -774,7 +782,7 @@ command = "cargo"
 args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]
 
 [tasks.install-locally]
-dependencies = ["install-plugins"]
+dependencies = ["install-plugins", "install-agent"]
 script = """
 sudo cp target/taosx.service target/${BUILD_PROFILE}/taos-explorer.service /etc/systemd/system/
 sudo cp target/${BUILD_PROFILE}/taosx target/${BUILD_PROFILE}/taos-explorer /usr/bin/

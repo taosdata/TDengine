@@ -138,6 +138,18 @@ You can optionally build external plugins such as InfluxDB, OpenTSDB, OPC-UA/DA,
 cargo make plugins
 ```
 
+You can optionally build taosx-agent by:
+
+```bash
+cargo make build -p taosx-agent
+```
+
+Or build taosx/taos-explorer/taosx-agent all:
+
+```bash
+cargo make build-all-with-agent
+```
+
 ## 4. Packaging
 
 You need python3 environment and some packages from PyPI for packaging.
