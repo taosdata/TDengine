@@ -178,7 +178,10 @@ Open your web-browser to with url <http://localhost:6060> and enjoy!
 
 ## 7. Testing
 
+Before starting to run test cases, TDengine 3.0 version needs to be deployed locally in advance. For the method of installing TDengine, see the link: [Install TDengine](https://github.com/taosdata/TDinternal?tab=readme-ov-file#6-installing)
+
 At least 4 cores 16GB of hardware resources are required to run unit tests effectively.
+
 To run Rust all the unitest cases is simple:
 
 ```bash
