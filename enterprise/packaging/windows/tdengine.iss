@@ -137,8 +137,19 @@ var
   InstallKey: String;
 begin
   // Check for any VC++ 2015-2022 Redistributable (14.x versions)
-  InstallKey := 'SOFTWARE\Classes\Installer\Dependencies\VC,redist.x64,amd64,14';
-  Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey)
+  InstallKey := 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+  Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey);
+  
+  if not Result then
+  begin
+    InstallKey := 'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+    Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey);
+  end;
+  
+  if Result then
+    Log('find VC++ Redistributable x64,version 14.0+')
+  else
+    Log('find VC++ Redistributable x64，need to install version 14.0');
 end;
 
 function InitializeSetup(): Boolean;
