@@ -14,6 +14,15 @@ class TDTestCase:
         tdSql.execute("drop database if exists test;")
         
         tdCases.taosBenchmarkExec("-t 2 -n 1000000 -b int,float,nchar -y")
+        
+        while True:
+            tdSql.query("select d0.ts from test.d0;")
+            num1 = tdSql.queryRows
+            tdSql.query("select d0.ts from test.d1;")
+            num2 = tdSql.queryRows
+            if num1 == 1000000 and num2 == 1000000:
+                break
+            time.sleep(1)
 
     def ts5803(self):           
         tdSql.query("select d0.ts,d0.c1,d0.c2 from test.d0 join test.d1 on d0.ts=d1.ts;")
