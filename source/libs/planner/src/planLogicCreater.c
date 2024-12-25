@@ -710,6 +710,8 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
   if (NULL != pStmtName) {
     snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
+  pCol->node.bindTupleFuncIdx = pExpr->bindTupleFuncIdx;
+  pCol->node.tupleFuncIdx = pExpr->tupleFuncIdx;
   return pCol;
 }
 
