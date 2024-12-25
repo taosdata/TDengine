@@ -55,16 +55,10 @@ int32_t validateQueryPlanNode(SValidatePlanContext* pCxt, SQueryPlan* pPlan) {
     SNode* pSubNode = NULL;
     SNodeListNode* pSubplans = (SNodeListNode*)pNode;
     FOREACH(pSubNode, pSubplans->pNodeList) {
-      if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pNode)) {
-        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-        break;
-      }
-      
       code = doValidatePhysiNode(pCxt, pSubNode);
-      if (code) {
-        break;
-      }
+      if (code) break;
     }
+    if (code) break;
   }
 
   return code;
@@ -142,24 +136,7 @@ int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode* pNode = NULL;
-  FOREACH(pNode, pPlan->pSubplans) {
-    if (QUERY_NODE_NODE_LIST != nodeType(pNode)) {
-      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-      break;
-    }
-
-    SNode* pSubNode = NULL;
-    SNodeListNode* pSubplans = (SNodeListNode*)pNode;
-    FOREACH(pSubNode, pSubplans->pNodeList) {
-      code = doValidatePhysiNode(&cxt, pSubNode);
-      if (code) {
-        break;
-      }
-    }
-    if (code) {
-      break;
-    }
-  }
+  code = validateQueryPlanNode(&cxt, pPlan);
 
   destoryValidatePlanContext(&cxt);
   return code;
