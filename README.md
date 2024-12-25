@@ -123,6 +123,12 @@ Build the system using cargo-make:
 
 ```bash
 cd taosx
+cargo make build-all-with-agent
+```
+
+
+```bash
+cd taosx
 cargo make build-all
 ```
 
@@ -177,6 +183,7 @@ After installation, you can start taosx and taos-explorer service with systemd:
 sudo systemctl start taosx
 sudo systemctl start taos-explorer
 ```
+
 
 Open your web-browser to with url <http://localhost:6060> and enjoy!
 
