@@ -12,6 +12,8 @@
 # -*- coding: utf-8 -*-
 
 import os
+import subprocess
+
 import frame
 import frame.etool
 from frame.log import *

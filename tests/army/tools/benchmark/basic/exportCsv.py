@@ -107,7 +107,7 @@ class TDTestCase(TBase):
         benchmark = etool.benchMarkFile()
 
         # do check
-        json = "tools/benchmark/json/exportCsv.json"
+        json = "tools/benchmark/basic/json/exportCsv.json"
         self.checkExportCsv(benchmark, json)
 
     def stop(self):
