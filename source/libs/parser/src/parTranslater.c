@@ -7378,7 +7378,7 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
   if (nodesIsExprNode(*pNode)) {
     ((SExprNode*)*pNode)->bindTupleFuncIdx = pCxt->bindTupleFuncIdx;
     int32_t len = strlen(((SExprNode*)*pNode)->aliasName);
-    tsnprintf(((SExprNode*)*pNode)->aliasName + len, TSDB_COL_NAME_EXLEN, "%d", pCxt->bindTupleFuncIdx);
+    tsnprintf(((SExprNode*)*pNode)->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pCxt->bindTupleFuncIdx);
     SFunctionNode* pFunc = (SFunctionNode*)*pNode;
   }
   return DEAL_RES_CONTINUE;

@@ -123,6 +123,8 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           tstrncpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias, TSDB_COL_NAME_LEN);
           tstrncpy(pCol->colName, ((SExprNode*)pExpr)->aliasName, TSDB_COL_NAME_LEN);
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
+          pCol->node.bindTupleFuncIdx = ((SExprNode*)(*pNode))->bindTupleFuncIdx;
+          pCol->node.tupleFuncIdx = ((SExprNode*)(*pNode))->tupleFuncIdx;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
             setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
           }
