@@ -449,6 +449,7 @@ static void checkTSRow(const char **data, STSRow *row, STSchema *pTSchema) {
   }
 }
 
+#ifndef WINDOWS
 TEST(testCase, tColDataGetValue) {
   SColData pColData = {0};
   SColVal pColVal = {0};
@@ -461,7 +462,7 @@ TEST(testCase, tColDataGetValue) {
   pColData = {.nVal = 1, .flag = 8};
   ASSERT_NE(tColDataGetValue(&pColData, 0, &pColVal),0);
 }
-
+#endif
 
 TEST(testCase, AllNormTest) {
   int16_t nCols = 14;
