@@ -165,7 +165,7 @@ int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppF
   int32_t  lino;
   STsdbFD *pFD = NULL;
   int32_t  szPage = pTsdb->pVnode->config.tsdbPageSize;
-  int32_t  szBlobPage = pTsdb->pVnode->config.blobPageSize; // [BLOB]
+  int32_t  szBlobPage = pTsdb->pVnode->config.blobPageSize = 65536; // [BLOB] [TODO]
 
   *ppFD = NULL;
 
@@ -482,43 +482,6 @@ _exit:
   return code;
 }
 
-int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
-                      char *encryptKey) {
-  int32_t code = 0;
-  int32_t lino;
-  int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
-  int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
-  int64_t bOffset = fOffset % pFD->szPage;
-  int64_t n = 0;
-
-  do {
-    if (pFD->pgno != pgno) {
-      code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      if (pgno <= pFD->szFile) {
-        code = tsdbReadFilePage(pFD, pgno, encryptAlgorithm, encryptKey);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      } else {
-        pFD->pgno = pgno;
-      }
-    }
-
-    int64_t nWrite = TMIN(PAGE_CONTENT_SIZE(pFD->szPage) - bOffset, size - n);
-    memcpy(pFD->pBuf + bOffset, pBuf + n, nWrite);
-
-    pgno++;
-    bOffset = 0;
-    n += nWrite;
-  } while (n < size);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
 // [BLOB]
 int32_t blobWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
                       char *encryptKey) {
@@ -546,6 +509,46 @@ int32_t blobWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t
     memcpy(pFD->pBuf + bOffset, pBuf + n, nWrite);
 
     ASSERT(pFD->szBlobPage > 0);
+    pgno++;
+    bOffset = 0;
+    n += nWrite;
+  } while (n < size);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
+                      char *encryptKey) {
+  int32_t code = 0;
+  int32_t lino;
+  int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
+  int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
+  int64_t bOffset = fOffset % pFD->szPage;
+  int64_t n = 0;
+
+  // [BLOB] [TODO]
+  return blobWriteFile(pFD, offset, pBuf, size, encryptAlgorithm, encryptKey);
+
+  do {
+    if (pFD->pgno != pgno) {
+      code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      if (pgno <= pFD->szFile) {
+        code = tsdbReadFilePage(pFD, pgno, encryptAlgorithm, encryptKey);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else {
+        pFD->pgno = pgno;
+      }
+    }
+
+    int64_t nWrite = TMIN(PAGE_CONTENT_SIZE(pFD->szPage) - bOffset, size - n);
+    memcpy(pFD->pBuf + bOffset, pBuf + n, nWrite);
+
     pgno++;
     bOffset = 0;
     n += nWrite;
