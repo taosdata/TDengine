@@ -36,10 +36,7 @@ class TDTestCase(TBase):
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases
-        """
-
-
-    
+        """    
     # check correct    
     def checkCorrect(self, csvFile, allRows, interlaceRows):
         # open as csv 
@@ -110,7 +107,7 @@ class TDTestCase(TBase):
         benchmark = etool.benchMarkFile()
 
         # do check
-        json = "taosbenchmark/json/exportCsv.json"
+        json = "tools/benchmark/json/exportCsv.json"
         self.checkExportCsv(benchmark, json)
 
     def stop(self):

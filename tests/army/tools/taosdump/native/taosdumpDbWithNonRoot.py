@@ -27,9 +27,6 @@ class TDTestCase(TBase):
         case1<sdsang>: [TD-20506] taosdump dump db with non-root
         """
 
-
-
-
     def run(self):
         tdSql.prepare()
 
@@ -77,9 +74,10 @@ class TDTestCase(TBase):
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        tdSql.execute("create user test pass '123456'")
+        pwd = "Taos@123456"
+        tdSql.execute(f"create user test pass '{pwd}'")
 
-        os.system("%s -utest -p123456 -D db -o %s -T 1" % (binPath, self.tmpdir))
+        os.system(f"%s -utest -p{pwd} -D db -o %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.execute("drop database db")
         #        sys.exit(1)
