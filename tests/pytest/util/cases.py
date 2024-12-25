@@ -183,6 +183,6 @@ class TDCases:
             tdLog.info(cmdStr1)
             os.system(cmdStr1)
             
-        time.sleep(15)
+        time.sleep(5)
        
 tdCases = TDCases()

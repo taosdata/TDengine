@@ -16,12 +16,13 @@ class TDTestCase:
         tdCases.taosBenchmarkExec("-t 2 -n 1000000 -b int,float,nchar -y")
         
         while True:
-            tdSql.query("select d0.ts from test.d0;")
+            tdSql.query("select ts from test.d0;")
             num1 = tdSql.queryRows
-            tdSql.query("select d0.ts from test.d1;")
+            tdSql.query("select ts from test.d1;")
             num2 = tdSql.queryRows
             if num1 == 1000000 and num2 == 1000000:
                 break
+            tdLog.info(f"waiting for data ready, d0: {num1}, d1: {num2}")
             time.sleep(1)
 
     def ts5803(self):           
