@@ -238,7 +238,7 @@ pytest -sv -m sanity
 # run case by keyword
 pytest -sv opcua_test.py -k observe
 ```
-To run e2e tests, you need to deploy third-party data sources in advance and modify the tests/e2e/config/env.yaml file to configure the data source environment
+To run e2e tests, you need to deploy third-party data sources in advance and modify the tests/e2e/config/env.yaml file to configure the data source environment.
 At present, because some test cases rely on external third-party data sources, the test cases depend on the specified testing environment. We are still trying to add third-party data sources to one-click deployment.
 
 ## 8. Releasing
