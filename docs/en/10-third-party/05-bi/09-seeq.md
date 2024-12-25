@@ -13,13 +13,11 @@ Seeq is advanced analytics software for the manufacturing and Industrial Interne
 
 Through the TDengine Java connector, Seeq can easily support querying time-series data provided by TDengine and offer data presentation, analysis, prediction, and other functions.
 
-## Seeq Installation Method
+## Prerequisites
 
-Download the relevant software from [Seeq's official website](https://www.seeq.com/customer-download), such as Seeq Server and Seeq Data Lab, etc. Seeq Data Lab needs to be installed on a different server from Seeq Server and interconnected through configuration. For detailed installation and configuration instructions, refer to the [Seeq Knowledge Base](https://support.seeq.com/kb/latest/cloud/).
+- Seeq has been installed. Download the relevant software from [Seeq's official website](https://www.seeq.com/customer-download), such as Seeq Server and Seeq Data Lab, etc. Seeq Data Lab needs to be installed on a different server from Seeq Server and interconnected through configuration. For detailed installation and configuration instructions, refer to the [Seeq Knowledge Base](https://support.seeq.com/kb/latest/cloud/).
 
-### TDengine Local Instance Installation Method
-
-Please refer to the [official documentation](../../../get-started).
+- TDengine local instance has been installed. Please refer to the [official documentation](../../../get-started). If using TDengine Cloud, please go to https://cloud.taosdata.com apply for an account and log in to see how to access TDengine Cloud.
 
 ## Configuring Seeq to Access TDengine
 
