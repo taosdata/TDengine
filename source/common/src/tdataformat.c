@@ -2672,7 +2672,8 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
 int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-  if (iVal < 0 && iVal >= pColData->nVal || pColData->flag <= 0){
+  if (iVal < 0 || iVal >= pColData->nVal ||
+      (pColData->flag <= 0 || pColData->flag >= sizeof(tColDataGetValueImpl)/POINTER_BYTES)){
     return TSDB_CODE_INVALID_PARA;
   }
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
