@@ -988,7 +988,10 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
           copyNumericCols(pData, pDumpInfo, pColData, dumpedRows, asc);
         } else {  // varchar/nchar type
           for (int32_t j = pDumpInfo->rowIndex; rowIndex < dumpedRows; j += step) {
-            tColDataGetValue(pData, j, &cv);
+            code = tColDataGetValue(pData, j, &cv);
+            if (code) {
+              return code;
+            }
             code = doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
             if (code) {
               return code;
@@ -3762,7 +3765,10 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
 
     SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     if (pData->cid == pSupInfo->colId[i]) {
-      tColDataGetValue(pData, rowIndex, &cv);
+      code = tColDataGetValue(pData, rowIndex, &cv);
+      if (code) {
+        return code;
+      }
       code = doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       if (code) {
         return code;

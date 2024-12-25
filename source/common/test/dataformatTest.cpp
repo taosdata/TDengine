@@ -449,6 +449,12 @@ static void checkTSRow(const char **data, STSRow *row, STSchema *pTSchema) {
   }
 }
 
+TEST(testCase, tColDataGetValue) {
+  SColData pColData = {0};
+  SColVal pColVal = {0};
+  ASSERT_NE(tColDataGetValue(&pColData),0);
+}
+
 TEST(testCase, AllNormTest) {
   int16_t nCols = 14;
   STSRow *row = nullptr;

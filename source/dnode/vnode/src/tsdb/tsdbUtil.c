@@ -582,7 +582,9 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
       tBlockDataGetColData(pRow->pBlockData, pTColumn->colId, &pColData);
 
       if (pColData) {
-        tColDataGetValue(pColData, pRow->iRow, pColVal);
+        if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0){
+          tsdbError("tsdbRowGetColVal: failed to get value from colData");
+        }
       } else {
         *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
       }
@@ -632,7 +634,9 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
     }
 
     if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
-      tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv);
+      if (tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv) != 0){
+        return NULL;
+      }
       ++pIter->iColData;
       return &pIter->cv;
     } else {
@@ -1193,7 +1197,10 @@ static int32_t tBlockDataUpsertBlockRow(SBlockData *pBlockData, SBlockData *pBlo
       cv = COL_VAL_NONE(pColDataTo->cid, pColDataTo->type);
       if (flag == 0 && (code = tColDataAppendValue(pColDataTo, &cv))) goto _exit;
     } else {
-      tColDataGetValue(pColDataFrom, iRow, &cv);
+      code = tColDataGetValue(pColDataFrom, iRow, &cv);
+      if (code != 0){
+        goto _exit;
+      }
 
       if (flag) {
         code = tColDataUpdateValue(pColDataTo, &cv, flag > 0);
