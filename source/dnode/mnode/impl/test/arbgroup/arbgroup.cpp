@@ -127,7 +127,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, false);
     ASSERT_NE(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
@@ -142,7 +142,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, false);
     ASSERT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
@@ -157,7 +157,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, true);
     ASSERT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
