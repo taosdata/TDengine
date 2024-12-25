@@ -1645,7 +1645,6 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
         metaFetchEntryFree(&pOldEntry);
         return code;
       }
-      // TAOS_CHECK_RETURN(metaGetSubtables(pMeta, pEntry->uid, uids));
       TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type));
     } else if (deltaCol == -1) {
       int16_t cid = -1;
@@ -1667,7 +1666,6 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
           metaFetchEntryFree(&pOldEntry);
           return code;
         }
-        // TAOS_CHECK_RETURN(metaGetSubtables(pMeta, pEntry->uid, uids));
         TAOS_CHECK_RETURN(tsdbCacheDropSTableColumn(pTsdb, uids, cid, hasPrimaryKey));
       }
     }

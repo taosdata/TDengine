@@ -2992,6 +2992,7 @@ TEST(apiTest, catalogGetTableIndex_test) {
   catalogDestroy();
 }
 
+
 TEST(apiTest, catalogGetDBCfg_test) {
   struct SCatalog  *pCtg = NULL;
   SRequestConnInfo  connInfo = {0};

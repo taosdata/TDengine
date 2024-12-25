@@ -99,14 +99,16 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 ### 8. 配置高级选项
 
-**高级选项** 区域是默认折叠的，点击右侧 `>` 可以展开，如下图所示：
+import AdvancedOptions from './_02-advanced_options.mdx'
 
-**最大读取并发数** 数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。
+<AdvancedOptions/>
 
-**批次大小** 单次发送的最大消息数或行数。默认是 10000。
+### 9. 异常处理策略
 
-![postgres-07.png](pic/postgres-07.png)
+import Contributing from './_03-exception-handling-strategy.mdx'
 
-### 9. 创建完成
+<Contributing />
+
+### 10. 创建完成
 
 点击 **提交** 按钮，完成创建 PostgreSQL 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

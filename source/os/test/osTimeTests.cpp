@@ -94,6 +94,35 @@ TEST(osTimeTests, taosLocalTime) {
 #endif
 }
 
+TEST(osTimeTests, taosGmTimeR) {
+  // Test 1: Test when both timep and result are not NULL
+  time_t     timep = 1617531000;  // 2021-04-04 18:10:00
+  struct tm  tmInfo;
+  ASSERT_NE(taosGmTimeR(&timep, &tmInfo), nullptr);
+
+  char buf[128];
+  taosStrfTime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
+  ASSERT_STREQ(buf, "2021-04-04T10:10:00");
+}
+
+TEST(osTimeTests, taosTimeGm) {
+  char *timestr= "2021-04-04T18:10:00";
+  struct tm tm = {0};
+
+  taosStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  int64_t seconds = taosTimeGm(&tm);
+  ASSERT_EQ(seconds, 1617559800);
+}
+
+TEST(osTimeTests, taosMktime) {
+  char *timestr= "2021-04-04T18:10:00";
+  struct tm tm = {0};
+
+  taosStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  time_t seconds = taosMktime(&tm, NULL);
+  ASSERT_EQ(seconds, 1617531000);
+}
+
 TEST(osTimeTests, invalidParameter) {
   void          *retp = NULL;
   int32_t        reti = 0;
