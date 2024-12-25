@@ -7438,6 +7438,18 @@ static bool invalidColsAlias(SFunctionNode* pFunc) {
   return false;
 }
 
+static int32_t getSelectFuncIndex(SNodeList* FuncNodeList, SNode* pSelectFunc) {
+  SNode* pNode = NULL;
+  int32_t selectFuncIndex = 0;
+  FOREACH(pNode, FuncNodeList) {
+    ++selectFuncIndex;
+    if (nodesEqualNode(pNode, pSelectFunc)) {
+      return selectFuncIndex;
+    }
+  }
+  return 0;
+}
+
 static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList) {
   int32_t code = hasInvalidColsFunction(pCxt, *nodeList);
   if (TSDB_CODE_SUCCESS != code) {
@@ -7469,26 +7481,30 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
     }
     SNode* pNewNode = NULL;
     int32_t nums = 0;
-    int32_t selectFuncNum = 0;
+    int32_t selectFuncCount = 0;
     FOREACH(pTmpNode, *nodeList) {
       if (QUERY_NODE_FUNCTION == nodeType(pTmpNode)) {
         SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
         if (strcasecmp(pFunc->functionName, "cols") == 0) {
-          ++selectFuncNum;
           SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
-          if(nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
+          if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
             code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
             parserError("Invalid cols function, the first parameter must be a select function");
             goto _end;
           }
-          nodesListMakeStrictAppend(&tmpFuncNodeList, pSelectFunc);
+          int32_t selectFuncIndex = getSelectFuncIndex(tmpFuncNodeList, pSelectFunc);
+          if (selectFuncIndex == 0) {
+            ++selectFuncCount;
+            selectFuncIndex = selectFuncCount;
+            nodesListMakeStrictAppend(&tmpFuncNodeList, pSelectFunc);
+          }
           // start from index 1, because the first parameter is select function which needn't to output.
           for (int i = 1; i < pFunc->pParameterList->length; ++i) {
             SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
 
             code = nodesCloneNode(pExpr, &pNewNode);
             if (nodesIsExprNode(pNewNode)) {
-              SBindTupleFuncCxt pCxt = {selectFuncNum};
+              SBindTupleFuncCxt pCxt = {selectFuncIndex};
               nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
             } else {
               code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
