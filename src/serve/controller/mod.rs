@@ -48,6 +48,7 @@ use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::runners::opc::config::csv::CsvParser;
 use taosx_core::runners::opc::config::OPCConfig;
+use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::utils::get_string_content_from_param_value;
 use taosx_core::QueryDataSourceReq;
@@ -925,7 +926,7 @@ impl TaskController {
             tracing::info!("Set oneshot topic name: {}", topic);
         };
         if let Some(trigger) = task.trigger.as_ref() {
-            // 备份计划：将 upcoming 添加到 dsn 中
+            // 备份计划：将 upcoming 和 interval 添加到 dsn 中
             if let Some(upcoming) = &trigger.upcoming {
                 from.set("upcoming", upcoming.to_rfc3339().to_string());
             }
@@ -952,6 +953,9 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         license::validate_task(&from, &to, Some(&self.pool)).await?;
+        if let ("tmq", "local") = (from.driver.as_str(), to.driver.as_str()) {
+            BackupConfigBuilder::new(None, &from, &to).build().await?;
+        }
 
         if task.via.is_none() {
             validate_dsn(&from).await.ok()?;
