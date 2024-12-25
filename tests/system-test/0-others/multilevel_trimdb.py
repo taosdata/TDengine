@@ -116,6 +116,8 @@ class TDTestCase:
         #regular old && new
         os.system("%staosBenchmark -N -d dbtest -t 100 -n 5500000 -l 1023 -y" % binPath)
 
+        #taosBenchmark -N -d dbtest -t 100 -n 5500000 -l 1023 -y -h mys02d02 -P 6030 -Q
+
         #tdSql.execute('trim database dbtest')
         #time.sleep(3)
         #checkFiles('/mnt/data1/vnode/*/tsdb/v*',1)
