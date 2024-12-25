@@ -157,7 +157,7 @@ begin
   Result :=True
   if not IsVC2015x64Installed() then  
   begin
-    MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) before install TDengine', mbInformation, MB_OK);
+    MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) version 14.x before install TDengine', mbInformation, MB_OK);
     Result :=False
   end;
 end;
