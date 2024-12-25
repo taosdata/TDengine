@@ -40,6 +40,46 @@ add_test(
     COMMAND dataformatTest
 )
 
+# cosCpTest.cpp
+add_executable(cosCpTest "")
+target_sources(
+    cosCpTest
+    PRIVATE
+    "cosCpTest.cpp"
+)
+target_link_libraries(cosCpTest gtest gtest_main util common)
+target_include_directories(
+        cosCpTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME cosCpTest
+    COMMAND cosCpTest
+)
+
+if(TD_LINUX)
+
+# cosTest.cpp
+add_executable(cosTest "")
+target_sources(
+    cosTest
+    PRIVATE
+    "cosTest.cpp"
+)
+target_link_libraries(cosTest gtest gtest_main util common)
+target_include_directories(
+        cosTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME cosTest
+    COMMAND cosTest
+)
+
+endif()
+
 if (${TD_LINUX})
     # tmsg test
     add_executable(tmsgTest "")

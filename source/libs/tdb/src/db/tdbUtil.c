@@ -66,3 +66,10 @@ int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size) {
   *size = szBytes / szPage;
   return 0;
 }
+
+void tdbCloseDir(TdDirPtr *ppDir) {
+  int32_t ret = taosCloseDir(ppDir);
+  if (ret) {
+    tdbError("failed to close directory, reason:%s", tstrerror(ret));
+  }
+}
