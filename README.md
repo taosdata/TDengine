@@ -123,12 +123,6 @@ Build the system using cargo-make:
 
 ```bash
 cd taosx
-cargo make build-all-with-agent
-```
-
-
-```bash
-cd taosx
 cargo make build-all
 ```
 
@@ -180,6 +174,12 @@ taosX is delivered along with TDengine Enterprise Edition, so you do not need to
 cargo make install-locally
 ```
 
+You can also complete the build and install of taosx/agent/taos-explorer/plugins with one click by executing the following shell script:
+
+```bash
+chmod +x build_install.sh && ./build_install.sh
+```
+
 ## 6. Running
 
 You can run taosx and taos-explorer without installation:
@@ -196,6 +196,11 @@ sudo systemctl start taosx
 sudo systemctl start taos-explorer
 ```
 
+Or run script to start all services:
+
+```bash
+chmod +x start_services.sh && ./start_services.sh
+```
 
 Open your web-browser to with url <http://localhost:6060> and enjoy!
 
@@ -231,13 +236,17 @@ cargo nextest run --workspace <case-name>
 Before executing the above command, please confirm that you have correctly remembered the username and password locally in the build step.
 To run the e2e test case(s), it can be completed by the following operation.
 
-
 ```bash
 cd tests/e2e
 cp setenv.sh.example setenv.sh
 source setenv.sh
 poetry install
 ```
+Or run script to build test environment:
+
+```bash
+chmod +x setup_test.sh && ./setup_test.sh
+
 
 run all test cases:
 ```bash
