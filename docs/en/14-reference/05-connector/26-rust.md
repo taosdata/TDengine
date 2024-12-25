@@ -29,7 +29,7 @@ Supports Rust 1.70 and above.
 
 | Rust Connector Version | Major Changes                                                                                         | TDengine Version   |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- | ------------------ |
-| v0.12.4                | Supported WebSocket STMT2.                                                                            | 3.3.5.0 and higher |
+| v0.12.4                | Optimized the performance of WebSocket connection parameter binding.                                  | 3.3.5.0 and higher |
 | v0.12.3                | 1. Optimized WebSocket query and insert performance. <br/> 2. Supported VARBINARY and GEOMETRY types. | 3.3.0.0 and higher |
 | v0.12.0                | WebSocket supports compression.                                                                       | 3.2.3.0 and higher |
 | v0.11.0                | TMQ feature optimization.                                                                             | 3.2.0.0 and higher |
