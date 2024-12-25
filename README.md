@@ -351,6 +351,26 @@ nohup bash tsdbComparison.sh > test.log &
 cd TDinternal/community/tests/pytest/ && ./crash_gen.sh
 ```
 
+## 8.5 TestNG Test
+
+1. Clone the code:
+```bash
+cd /root && git clone -b master https://github.com/taosdata/taos-test-framework && git clone -b master https://github.com/taosdata/TestNG
+```
+2. Build taostest:
+```bash
+apt install -y python3-pip && pip3 install poetry && cd /root/taos-test-framework && yes | bash reinstall.sh
+```
+3. Prepare env:
+```bash
+mkdir -p /root/.taostest && echo "TEST_ROOT=/root/TestNG" >> /root/.taostest/.env
+```
+4. Run test script:
+ ```bash
+/root/TestNG/scripts/run.sh -m /root/TestNG/scripts/testng.json -t /root/TestNG/scripts/testng_cases.txt -l /root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S") -d debug -o 12000 -f False
+```
+5. When the test is done, the result can be found in `/root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S")` directory.
+
 # 9 Releasing
 
 TDengine Enterprise installers can be found on the corporate NAS server:
