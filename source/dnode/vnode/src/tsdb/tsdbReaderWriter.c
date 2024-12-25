@@ -147,9 +147,10 @@ static int32_t blobOpenFileImpl(STsdbFD *pFD) {
     }
   }
 
-  if (pFD->szFile % szBlobPage != 0) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
-  }
+  // [BLOB] [TODO] why remove ?
+  // if (pFD->szFile % szBlobPage != 0) {
+  //   TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
+  // }
   pFD->szFile = pFD->szFile / szBlobPage;
 
 _exit:
