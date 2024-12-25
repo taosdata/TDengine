@@ -298,7 +298,7 @@ typedef struct {
     union {
       int64_t val;
       struct {
-        uint32_t nData;
+        int32_t nData;
         uint8_t *pData;
       };
     } value;
@@ -325,7 +325,8 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
     }
     return sizeof(SLastColV0) + pLastColV0->colVal.value.nData;
   } else {
-    pLastCol->colVal.value.val = pLastColV0->colVal.value.val;
+    // TODO wjm what if the type is decimal??
+    VALUE_SET_TRIVIAL_DATUM(&pLastCol->colVal.value, pLastColV0->colVal.value.val);
     return sizeof(SLastColV0);
   }
 }
@@ -417,7 +418,8 @@ static int32_t tsdbCacheSerializeV0(char const *value, SLastCol *pLastCol) {
     }
     return sizeof(SLastColV0) + pLastCol->colVal.value.nData;
   } else {
-    pLastColV0->colVal.value.val = pLastCol->colVal.value.val;
+    // TODO wjm what if the type is decimal??
+    VALUE_SET_TRIVIAL_DATUM(&pLastColV0->colVal.value, pLastCol->colVal.value.val);
     return sizeof(SLastColV0);
   }
 
@@ -1326,7 +1328,7 @@ static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus ca
       taosMemoryFreeClear(pPKValue->pData);
       pPKValue->nData = 0;
     } else {
-      pPKValue->val = 0;
+      valueClearDatum(pPKValue, pPKValue->type);
     }
   }
   pLastCol->rowKey.numOfPKs = 0;
@@ -1336,7 +1338,7 @@ static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus ca
     taosMemoryFreeClear(pLastCol->colVal.value.pData);
     pLastCol->colVal.value.nData = 0;
   } else {
-    pLastCol->colVal.value.val = 0;
+    valueClearDatum(&pLastCol->colVal.value, pLastCol->colVal.value.type);
   }
 
   pLastCol->colVal = COL_VAL_NONE(pLastCol->colVal.cid, pLastCol->colVal.value.type);
@@ -1690,11 +1692,12 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   tsdbRowGetKey(&lRow, &tsdbRowKey);
 
   {
+    SValue tsVal = {.type = TSDB_DATA_TYPE_TIMESTAMP};
+    VALUE_SET_TRIVIAL_DATUM(&tsVal, lRow.pBlockData->aTSKEY[lRow.iRow]);
     SLastUpdateCtx updateCtx = {
         .lflag = LFLAG_LAST,
         .tsdbRowKey = tsdbRowKey,
-        .colVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP,
-                                                                       .val = lRow.pBlockData->aTSKEY[lRow.iRow]}))};
+        .colVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, tsVal)};
     if (!taosArrayPush(ctxArray, &updateCtx)) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
@@ -3835,7 +3838,9 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
         }
         if (slotIds[iCol] == 0) {
           STColumn *pTColumn = &pTSchema->columns[0];
-          *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowKey.key.ts}));
+          SValue    val = {.type = pTColumn->type};
+          VALUE_SET_TRIVIAL_DATUM(&val, rowKey.key.ts);
+          *pColVal = COL_VAL_VALUE(pTColumn->colId, val);
 
           SLastCol colTmp = {.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID};
           TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&colTmp, NULL), &lino, _err);
@@ -4003,7 +4008,9 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
       }
       if (slotIds[iCol] == 0) {
         STColumn *pTColumn = &pTSchema->columns[0];
-        *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowKey.key.ts}));
+        SValue    val = {.type = pTColumn->type};
+        VALUE_SET_TRIVIAL_DATUM(&val, rowKey.key.ts);
+        *pColVal = COL_VAL_VALUE(pTColumn->colId, val);
 
         SLastCol colTmp = {.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID};
         TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&colTmp, NULL), &lino, _err);
