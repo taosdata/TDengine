@@ -92,6 +92,12 @@ cd taosx
 cargo make build-all
 ```
 
+You can optionally build external plugins such as InfluxDB, OpenTSDB, OPC-UA/DA, by:
+
+```bash
+cargo make plugins
+```
+
 ## 4. Packaging
 
 You need python3 environment and some packages from PyPI for packaging.
