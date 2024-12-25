@@ -45,6 +45,8 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   char              *sep = NULL;
   SDbObj            *pDb = NULL;
 
+  mInfo("retrieve compact detail");
+
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
     if (sep &&
