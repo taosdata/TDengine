@@ -136,7 +136,8 @@ function IsVC2015x64Installed(): Boolean;
 var
   InstallKey: String;
 begin
-  InstallKey := 'SOFTWARE\Classes\Installer\Dependencies\VC,redist.x64,amd64,14.40,bundle';
+  // Check for any VC++ 2015-2022 Redistributable (14.x versions)
+  InstallKey := 'SOFTWARE\Classes\Installer\Dependencies\VC,redist.x64,amd64,14';
   Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey)
 end;
 
