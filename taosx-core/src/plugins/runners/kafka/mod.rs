@@ -493,7 +493,10 @@ async fn execute(
                             anyhow::bail!("Kafka IPC writer error with code: {}", ack.code());
                         }
                     }
-                    ack_tx.send(ack).unwrap();
+                    if let Err(err) = ack_tx.send(ack) {
+                        tracing::error!("Kafka ack send error, seems task aborted: {err:#}");
+                        break;
+                    }
                 }
                 tracing::info!("Kafka ACK reader finished");
                 Ok(ExitStatus::Finished)
