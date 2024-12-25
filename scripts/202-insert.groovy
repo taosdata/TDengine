@@ -56,13 +56,13 @@ def build_package(internal_root, new_version) {
         cd ${WORK_DIR}/testnglog
         rm -rf debug*
         if [ -d "${WORK_DIR}/debugNoSan" ]; then
-           mv ${WORK_DIR}/debugNoSan  ${WORK_DIR}/testnglog 
+           mv ${WORK_DIR}/debugNoSan  ${WORK_DIR}/testnglog
 		   echo "Moved debugNoSan to testnglog."
         else
            echo "Directory ${WORK_DIR}/debugNoSan does not exist. Skipping move."
 		fi
         if [ -d "${WORK_DIR}/debugSan" ]; then
-           mv ${WORK_DIR}/debugSan  ${WORK_DIR}/testnglog 
+           mv ${WORK_DIR}/debugSan  ${WORK_DIR}/testnglog
 		   echo "Moved debugSan to testnglog."
         else
            echo "Directory ${WORK_DIR}/debugSan does not exist. Skipping move."
@@ -85,7 +85,7 @@ def build_package(internal_root, new_version) {
 		rm ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
 		rm ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
 		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
-		#rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/* 
+		#rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/*
 		cd ${INTERNAL_ROOT}/community/tests/ci
         time ./container_build_newmachine.sh -w ${WORK_DIR} -e
 		cd ${INTERNAL_ROOT}/community/tests/parallel_test
@@ -142,7 +142,7 @@ def run_cases(case_list_file, host_config_file, replicas, query_policy, extra_fl
                 echo "export DATABASE_QUERY_POLICY=''' + query_policy + '''" >>/tmp/${JOB_NAME}.env
             '''
         }
-        // add parameters of sending to feishu robot 
+        // add parameters of sending to feishu robot
         sh '''
             cd ${INTERNAL_ROOT}
             git log -5 |grep commit| head -1|awk '{print $2}'  > tmp1.csv
@@ -165,9 +165,9 @@ def run_cases(case_list_file, host_config_file, replicas, query_policy, extra_fl
         echo "community_commit_id: [" + community_commit_id + "]"
         sh '''
             echo "export JOB_NAME=${JOB_NAME} " >>/tmp/${JOB_NAME}.env
-            echo "export BUILD_NUMBER=${BUILD_NUMBER} " >>/tmp/${JOB_NAME}.env  
+            echo "export BUILD_NUMBER=${BUILD_NUMBER} " >>/tmp/${JOB_NAME}.env
             echo "export community_commit_id=''' + community_commit_id + '''" >>/tmp/${JOB_NAME}.env
-            echo "export enterprise_commit_id=''' + enterprise_commit_id + '''" >>/tmp/${JOB_NAME}.env                        
+            echo "export enterprise_commit_id=''' + enterprise_commit_id + '''" >>/tmp/${JOB_NAME}.env
         '''
 
         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -177,7 +177,7 @@ def run_cases(case_list_file, host_config_file, replicas, query_policy, extra_fl
                 cp -rf ${INTERNAL_ROOT}/community/release ${WORK_DIR}/testnglog/''' + date_tag + '''
                 cd $TESTNG_ROOT/scripts
                 source /tmp/${JOB_NAME}.env
-                time ./run.sh -m ''' + host_config_file + ''' -t ''' + case_list_file + ''' -l ${WORK_DIR}/testnglog/''' + date_tag + ''' ''' + extra_flag + ''' -v ${NEW_VERSION} -w ${FILE_WEB_SERVER}'''  + date_tag + ''' -f  '''  + send2feishu + ''' 
+                time ./run.sh -m ''' + host_config_file + ''' -t ''' + case_list_file + ''' -l ${WORK_DIR}/testnglog/''' + date_tag + ''' ''' + extra_flag + ''' -v ${NEW_VERSION} -w ${FILE_WEB_SERVER}'''  + date_tag + ''' -f  '''  + send2feishu + '''
             '''
         }
         /*sh '''
@@ -214,8 +214,8 @@ pipeline {
                                 hostname
                                 date
                                 service docker restart
-                                
-                                
+
+
                             '''
                             if (check_cases_to_run() == 0) {
                                 sync_source("${TDINTERNAL_BRANCH_NAME}", "${COMMUNITY_BRANCH_NAME}", "${INTERNAL_ROOT}")
@@ -268,7 +268,7 @@ pipeline {
             }
             steps {
                 script {
-                    run_cases("cases_insert_replica1.txt", "/home/m.json", "1", "", "-s -o 7200")
+                    run_cases("cases_insert_replica1.txt", "/home/m.json", "1", "", "-s -o 86400")
                 }
             }
         }
@@ -278,7 +278,7 @@ pipeline {
             }
             steps {
                 script {
-                    run_cases("cases_insert_replica3.txt", "/home/m5.json", "3", "", "-s -o 7200")
+                    run_cases("cases_insert_replica3.txt", "/home/m5.json", "3", "", "-s -o 86400")
                 }
             }
         }
@@ -288,7 +288,7 @@ pipeline {
             }
             steps {
                 script {
-                    run_cases("cases_cluster.txt", "/home/m1.json", "1", "", "-s -o 7200")
+                    run_cases("cases_cluster.txt", "/home/m1.json", "1", "", "-s -o 86400")
                 }
             }
         }
@@ -298,7 +298,7 @@ pipeline {
             }
             steps {
                 script {
-                    run_cases("cases_cluster.txt", "/home/m1.json", "3", "", "-s -o 7200")
+                    run_cases("cases_cluster.txt", "/home/m1.json", "3", "", "-s -o 86400")
                 }
             }
         }
@@ -312,7 +312,7 @@ pipeline {
                         cd ${INTERNAL_ROOT}/community/tests/parallel_test
                         export DEFAULT_RETRY_TIME=3
                         date
-                        time ./run.sh -e -m /home/m.json -t longtimeruning_cases.task -b ${TDINTERNAL_BRANCH_NAME}_${BUILD_NUMBER} -l ${WORK_DIR}/testnglog/ -o 2400 
+                        time ./run.sh -e -m /home/m.json -t longtimeruning_cases.task -b ${TDINTERNAL_BRANCH_NAME}_${BUILD_NUMBER} -l ${WORK_DIR}/testnglog/ -o 2400
                     '''
                 }
             }
@@ -327,7 +327,7 @@ pipeline {
                         cd ${INTERNAL_ROOT}/community/tests/parallel_test
                         export DEFAULT_RETRY_TIME=3
                         date
-                        time ./run.sh -e -m /home/m_ci.json -t cases.task -b ${TDINTERNAL_BRANCH_NAME}_${BUILD_NUMBER} -l ${WORK_DIR}/testnglog/ -o 1800 
+                        time ./run.sh -e -m /home/m_ci.json -t cases.task -b ${TDINTERNAL_BRANCH_NAME}_${BUILD_NUMBER} -l ${WORK_DIR}/testnglog/ -o 1800
                     '''
                 }
             }
@@ -389,7 +389,7 @@ pipeline {
             }
         }
         */
-        
+
     }
     post {
         success {
