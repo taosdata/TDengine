@@ -921,10 +921,12 @@ impl TaskController {
         };
         if let Some(trigger) = task.trigger.as_ref() {
             // 备份计划：将 upcoming 添加到 dsn 中
-            if let Some(upcoming) = trigger.upcoming {
+            if let Some(upcoming) = &trigger.upcoming {
                 from.set("upcoming", upcoming.to_rfc3339().to_string());
             }
-            // TODO: 备份计划：校验 interval 要小于 WAL_RETENTION_PERIOD
+            if let Some((interval, _)) = &trigger.interval {
+                from.set("interval", interval.to_string());
+            }
         }
         let agent = if let Some(id) = task.via {
             let agent = self

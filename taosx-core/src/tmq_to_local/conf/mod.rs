@@ -26,6 +26,8 @@ pub struct BackupConfig {
     pub stable: Option<String>,
     /// 下次执行时间
     pub upcoming: Option<DateTime<Utc>>,
+    /// 备份周期
+    pub interval: Option<Duration>,
     /// 备份点的生成方式
     pub backup_point_gen_mode: BackupPointGenMode,
     #[allow(dead_code)]
@@ -276,6 +278,7 @@ impl BackupConfigBuilder {
                 "select stable_name from information_schema.ins_stables where db_name = '{}'",
                 database.as_str()
             );
+            tracing::debug!("query with sql: {}", sql);
             let stables: Vec<String> = taos.query(sql).await?.deserialize().try_collect().await?;
             if !stables.contains(stable) {
                 bail!("stable `{}` not exists", stable);
@@ -284,6 +287,20 @@ impl BackupConfigBuilder {
 
         // upcoming
         let upcoming = utils::parse_datetime_in_dsn(&self.from, "upcoming")?;
+
+        // interval
+        let interval = utils::parse_duration_in_dsn(&self.from, "interval")?;
+        if let Some(interval) = interval {
+            let sql = format!("SELECT `wal_retention_period` FROM information_schema.ins_databases WHERE name = '{}'", &database);
+            tracing::debug!("query with sql: {}", sql);
+            let wal_retention_period: u64 = taos.query_one(sql).await?.unwrap();
+            if interval.as_secs() >= wal_retention_period {
+                bail!(
+                    "interval must be less than wal_retention_period: {}",
+                    wal_retention_period
+                );
+            }
+        }
 
         // backup_point_gen_mode
         let backup_point_gen_mode = BackupPointGenMode::try_from_dsn(&self.from)
@@ -325,6 +342,7 @@ impl BackupConfigBuilder {
             database,
             stable,
             upcoming,
+            interval,
             backup_point_gen_mode,
             error_retry_max,
             error_retry_interval,
