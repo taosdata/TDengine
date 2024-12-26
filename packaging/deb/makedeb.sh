@@ -44,27 +44,27 @@ mkdir -p ${pkg_dir}${install_home_path}/include
 #mkdir -p ${pkg_dir}${install_home_path}/init.d
 mkdir -p ${pkg_dir}${install_home_path}/script
 
-# download taoskeeper and build
-if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
-  arch=amd64
-elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
-  arch=386
-elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
-  arch=arm
-elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
-  arch=arm64
-else
-  arch=$cpuType
-fi
+# # download taoskeeper and build
+# if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
+#   arch=amd64
+# elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
+#   arch=386
+# elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
+#   arch=arm
+# elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
+#   arch=arm64
+# else
+#   arch=$cpuType
+# fi
 
-echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper -t ver-${tdengine_ver}"
-echo "$top_dir=${top_dir}"
-taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper -t ver-${tdengine_ver}`
-echo "taoskeeper_binary: ${taoskeeper_binary}"
+# echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper -t ver-${tdengine_ver}"
+# echo "$top_dir=${top_dir}"
+# taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper -t ver-${tdengine_ver}`
+# echo "taoskeeper_binary: ${taoskeeper_binary}"
 
 # copy config files
-cp $(dirname ${taoskeeper_binary})/config/taoskeeper.toml ${pkg_dir}${install_home_path}/cfg
-cp $(dirname ${taoskeeper_binary})/taoskeeper.service ${pkg_dir}${install_home_path}/cfg
+# cp $(dirname ${taoskeeper_binary})/config/taoskeeper.toml ${pkg_dir}${install_home_path}/cfg
+# cp $(dirname ${taoskeeper_binary})/taoskeeper.service ${pkg_dir}${install_home_path}/cfg
 
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
 cp ${compile_dir}/../packaging/cfg/taosd.service    ${pkg_dir}${install_home_path}/cfg
@@ -75,7 +75,12 @@ fi
 if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
 fi
-
+if [ -f "${compile_dir}/test/cfg/taoskeeper.toml" ]; then
+    cp ${compile_dir}/test/cfg/taoskeeper.toml		${pkg_dir}${install_home_path}/cfg || :
+fi
+if [ -f "${compile_dir}/test/cfg/taoskeeper.service" ]; then
+    cp ${compile_dir}/test/cfg/taoskeeper.service	${pkg_dir}${install_home_path}/cfg || :
+fi
 if [ -f "${compile_dir}/../../../explorer/target/taos-explorer.service" ]; then
     cp ${compile_dir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
 fi
@@ -83,7 +88,7 @@ if [ -f "${compile_dir}/../../../explorer/server/example/explorer.toml" ]; then
     cp ${compile_dir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
 fi
 
-cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
+# cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
 #cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
@@ -103,6 +108,9 @@ cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
+fi
+if [ -f "${compile_dir}/build/bin/taoskeeper" ]; then
+    cp ${compile_dir}/build/bin/taoskeeper                    ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 if [ -f "${compile_dir}/../../../explorer/target/release/taos-explorer" ]; then
@@ -185,7 +193,7 @@ else
   exit 1
 fi
 
-rm -rf ${pkg_dir}/build-taoskeeper
+# rm -rf ${pkg_dir}/build-taoskeeper
 # make deb package
 dpkg -b ${pkg_dir} $debname
 echo "make deb package success!"

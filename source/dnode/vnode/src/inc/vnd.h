@@ -55,15 +55,31 @@ typedef enum {
   EVA_PRIORITY_LOW,
 } EVAPriority;
 
-int32_t vnodeAsyncOpen(int32_t numOfThreads);
+typedef enum {
+  EVA_TASK_COMMIT = 1,
+  EVA_TASK_MERGE,
+  EVA_TASK_COMPACT,
+  EVA_TASK_RETENTION,
+} EVATaskT;
+
+#define COMMIT_TASK_ASYNC    1
+#define MERGE_TASK_ASYNC     2
+#define COMPACT_TASK_ASYNC   3
+#define RETENTION_TASK_ASYNC 4
+
+int32_t vnodeAsyncOpen();
 void    vnodeAsyncClose();
 int32_t vnodeAChannelInit(int64_t async, SVAChannelID* channelID);
 int32_t vnodeAChannelDestroy(SVAChannelID* channelID, bool waitRunning);
-int32_t vnodeAsync(SVAChannelID* channelID, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*),
-                   void* arg, SVATaskID* taskID);
+int32_t vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*), void* arg,
+                   SVATaskID* taskID);
+int32_t vnodeAsyncC(SVAChannelID* channelID, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*),
+                    void* arg, SVATaskID* taskID);
 void    vnodeAWait(SVATaskID* taskID);
 int32_t vnodeACancel(SVATaskID* taskID);
 int32_t vnodeAsyncSetWorkers(int64_t async, int32_t numWorkers);
+
+const char* vnodeGetATaskName(EVATaskT task);
 
 // vnodeBufPool.c
 typedef struct SVBufPoolNode SVBufPoolNode;

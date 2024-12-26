@@ -4,22 +4,17 @@ sidebar_label: taosdump
 slug: /tdengine-reference/tools/taosdump
 ---
 
-taosdump is a tool application that supports backing up data from a running TDengine cluster and restoring the backed-up data to the same or another running TDengine cluster.
-
-taosdump can back up data using databases, supertables, or basic tables as logical data units, and can also back up data records within a specified time period from databases, supertables, and basic tables. You can specify the directory path for data backup; if not specified, taosdump defaults to backing up data to the current directory.
-
-If the specified location already has data files, taosdump will prompt the user and exit immediately to avoid data being overwritten. This means the same path can only be used for one backup.
-If you see related prompts, please operate carefully.
-
-taosdump is a logical backup tool, it should not be used to back up any raw data, environment settings, hardware information, server configuration, or cluster topology. taosdump uses [Apache AVRO](https://avro.apache.org/) as the data file format to store backup data.
+`taosdump` is a TDengine data backup/recovery tool provided for open source users, and the backed up data files adopt the standard [Apache AVRO](https://avro.apache.org/)
+  Format, convenient for exchanging data with the external ecosystem.  
+ Taosdump provides multiple data backup and recovery options to meet different data needs, and all supported options can be viewed through --help.
 
 ## Installation
 
-There are two ways to install taosdump:
+Taosdump provides two installation methods:
 
-- Install the official taosTools package, please find taosTools on the [release history page](../../../release-history/taostools/) and download it for installation.
+- Taosdump is the default installation component in the TDengine installation package, which can be used after installing TDengine. For how to install TDengine, please refer to [TDengine Installation](../../../get-started/)
 
-- Compile taos-tools separately and install, please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
+- Compile and install taos tools separately, refer to [taos tools](https://github.com/taosdata/taos-tools) .
 
 ## Common Use Cases
 
@@ -30,6 +25,9 @@ There are two ways to install taosdump:
 3. Backup certain supertables or basic tables in a specified database: use the `dbname stbname1 stbname2 tbname1 tbname2 ...` parameter, note that this input sequence starts with the database name, supports only one database, and the second and subsequent parameters are the names of the supertables or basic tables in that database, separated by spaces;
 4. Backup the system log database: TDengine clusters usually include a system database named `log`, which contains data for TDengine's own operation, taosdump does not back up the log database by default. If there is a specific need to back up the log database, you can use the `-a` or `--allow-sys` command line parameter.
 5. "Tolerant" mode backup: Versions after taosdump 1.4.1 provide the `-n` and `-L` parameters, used for backing up data without using escape characters and in "tolerant" mode, which can reduce backup data time and space occupied when table names, column names, and label names do not use escape characters. If unsure whether to use `-n` and `-L`, use the default parameters for "strict" mode backup. For an explanation of escape characters, please refer to the [official documentation](../../sql-manual/escape-characters/).
+6. If a backup file already exists in the directory specified by the `-o` parameter, to prevent data from being overwritten, taosdump will report an error and exit. Please replace it with another empty directory or clear the original data before backing up.
+7. Currently, taosdump does not support data breakpoint backup function. Once the data backup is interrupted, it needs to be started from scratch.
+ If the backup takes a long time, it is recommended to use the (-S -E options) method to specify the start/end time for segmented backup.
 
 :::tip
 
@@ -42,7 +40,8 @@ There are two ways to install taosdump:
 
 ### taosdump Restore Data
 
-Restore data files from a specified path: use the `-i` parameter along with the data file path. As mentioned earlier, the same directory should not be used to back up different data sets, nor should the same path be used to back up the same data set multiple times, otherwise, the backup data will cause overwriting or multiple backups.
+- Restore data files from a specified path: use the `-i` parameter along with the data file path. As mentioned earlier, the same directory should not be used to back up different data sets, nor should the same path be used to back up the same data set multiple times, otherwise, the backup data will cause overwriting or multiple backups.
+- taosdump supports data recovery to a new database name with the parameter `-W`, please refer to the command line parameter description for details.
 
 :::tip
 taosdump internally uses the TDengine stmt binding API to write restored data, currently using 16384 as a batch for writing. If there are many columns in the backup data, it may cause a "WAL size exceeds limit" error, in which case you can try adjusting the `-B` parameter to a smaller value.
@@ -105,6 +104,13 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              the table name.(Version 2.5.3)
   -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is
                              8.
+  -W, --rename=RENAME-LIST   Rename database name with new name during
+                             importing data. RENAME-LIST: 
+                             "db1=newDB1|db2=newDB2" means rename db1 to newDB1
+                             and rename db2 to newDB2 (Version 2.5.4)
+  -k, --retry-count=VALUE    Set the number of retry attempts for connection or
+                             query failures
+  -z, --retry-sleep-ms=VALUE retry interval sleep time, unit ms
   -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service
   -R, --restful              Use RESTful interface to connect TDengine
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
@@ -112,10 +118,6 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
-  -W, --rename=RENAME-LIST   Rename database name with new name during
-                             importing data. RENAME-LIST: 
-                             "db1=newDB1|db2=newDB2" means rename db1 to newDB1
-                             and rename db2 to newDB2 (Version 2.5.4)
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.

@@ -11147,6 +11147,7 @@ void tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
 }
 
 void tOffsetDestroy(void *param) {
+  if (param == NULL) return;
   STqOffsetVal *pVal = (STqOffsetVal *)param;
   if (IS_VAR_DATA_TYPE(pVal->primaryKey.type)) {
     taosMemoryFreeClear(pVal->primaryKey.pData);
@@ -11154,6 +11155,7 @@ void tOffsetDestroy(void *param) {
 }
 
 void tDeleteSTqOffset(void *param) {
+  if (param == NULL) return;
   STqOffset *pVal = (STqOffset *)param;
   tOffsetDestroy(&pVal->val);
 }

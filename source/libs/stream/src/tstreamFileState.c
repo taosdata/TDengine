@@ -771,18 +771,6 @@ void deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLe
   }
 }
 
-int32_t resetRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
-  int32_t code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, keyLen);
-  int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
-  if (pFileState->searchBuff != NULL) {
-    deleteHashSortRowBuff(pFileState, pKey);
-  }
-  if (code_buff == TSDB_CODE_SUCCESS || code_file == TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_SUCCESS;
-  }
-  return TSDB_CODE_FAILED;
-}
-
 static int32_t recoverSessionRowBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -970,10 +958,6 @@ int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId
   char keyBuf[128] = {0};
   TAOS_UNUSED(tsnprintf(keyBuf, sizeof(keyBuf), "%s:%" PRId64 "", TASK_KEY, checkpointId));
   return streamDefaultDel_rocksdb(pFileState->pFileStore, keyBuf);
-}
-
-int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list) {
-  return streamDefaultIterGet_rocksdb(pFileState->pFileStore, TASK_KEY, NULL, list);
 }
 
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
@@ -1328,9 +1312,9 @@ int32_t streamFileStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, voi
   return streamStateParTagGetKVByCur_rocksdb(pCur, pKey, NULL, NULL);
 }
 
-SSHashObj* getGroupIdCache(SStreamFileState* pFileState) { return pFileState->pGroupIdMap; }
-
-void setFillInfo(SStreamFileState* pFileState) { pFileState->hasFillCatch = false; }
+SSHashObj* getGroupIdCache(SStreamFileState* pFileState) {
+  return pFileState->pGroupIdMap;
+}
 
 void clearExpiredState(SStreamFileState* pFileState) {
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -1362,6 +1346,7 @@ _end:
   }
 }
 
+#ifdef BUILD_NO_CALL
 int32_t getStateSearchRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                               int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1414,6 +1399,7 @@ _end:
   }
   return code;
 }
+#endif
 
 int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
                            int32_t* pVLen, int32_t* pWinCode) {

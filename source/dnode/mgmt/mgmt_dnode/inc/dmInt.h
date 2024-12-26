@@ -25,6 +25,7 @@ extern "C" {
 typedef struct SDnodeMgmt {
   SDnodeData                  *pData;
   SMsgCb                       msgCb;
+  STfs                        *pTfs;
   const char                  *path;
   const char                  *name;
   TdThread                     statusThread;
@@ -69,6 +70,7 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
 int32_t dmStartConfigThread(SDnodeMgmt *pMgmt);
 int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
+void    dmStopConfigThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusInfoThread(SDnodeMgmt *pMgmt);
 int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
 void    dmStopNotifyThread(SDnodeMgmt *pMgmt);

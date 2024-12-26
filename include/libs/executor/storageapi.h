@@ -405,7 +405,6 @@ typedef struct SStateStore {
   int32_t (*streamStateFillGetGroupKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
   int32_t (*streamStateGetKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
-  void (*streamStateSetFillInfo)(SStreamState* pState);
   void (*streamStateClearExpiredState)(SStreamState* pState);
 
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
@@ -471,7 +470,6 @@ typedef struct SStateStore {
   int32_t (*streamStateBegin)(SStreamState* pState);
   void (*streamStateCommit)(SStreamState* pState);
   void (*streamStateDestroy)(SStreamState* pState, bool remove);
-  int32_t (*streamStateDeleteCheckPoint)(SStreamState* pState, TSKEY mark);
   void (*streamStateReloadInfo)(SStreamState* pState, TSKEY ts);
   void (*streamStateCopyBackend)(SStreamState* src, SStreamState* dst);
 

@@ -1,6 +1,7 @@
 #include "qwInt.h"
 #include "qworker.h"
 
+#if 0
 void qwSetConcurrentTaskNumCb(int32_t taskNum) {
   int32_t finTaskNum = TMIN(taskNum, tsNumOfQueryThreads * QW_DEFAULT_THREAD_TASK_NUM);
   
@@ -33,6 +34,7 @@ void qwIncConcurrentTaskNumCb(void) {
 
   //TODO
 }
+#endif
 
 int32_t qwInitJobInfo(QW_FPARAMS_DEF, SQWJobInfo* pJob) {
   pJob->pSessions= taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -153,6 +155,7 @@ int32_t qwRetrieveJobInfo(QW_FPARAMS_DEF, SQWJobInfo** ppJob) {
     
     if (atomic_load_8(&pJob->destroyed)) {
       QW_UNLOCK(QW_READ, &pJob->lock);
+      taosHashRelease(gQueryMgmt.pJobInfo, pJob);
       continue;
     }
 
