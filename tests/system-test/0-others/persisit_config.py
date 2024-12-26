@@ -10,7 +10,6 @@ class TDTestCase:
     updatecfgDict = {
         "supportVnodes":"1000",
         "tmqMaxTopicNum":"30",
-        "maxShellConns":"1000",
         "monitorFqdn":"localhost:9033",
         "tmqRowSize":"1000",
         "ttlChangeOnWrite":"1",

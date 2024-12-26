@@ -60,7 +60,6 @@ EEncryptScope tsiEncryptScope = 0;
 char tsEncryptKey[17] = {0};
 
 // common
-int32_t tsMaxShellConns = 50000;
 int32_t tsShellActivityTimer = 3;  // second
 
 // memory pool
@@ -82,7 +81,6 @@ int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
 int32_t tsShareConnLimit = 10;
 int32_t tsReadTimeout = 900;
-int32_t tsTimeToGetAvailableConn = 500000;
 
 int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;
@@ -502,7 +500,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -727,9 +727,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readTimeout", tsReadTimeout, 64, 24 * 3600 * 7, CFG_SCOPE_BOTH,
                                 CFG_DYN_BOTH_LAZY, CFG_CATEGORY_GLOBAL));
 
-  tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 10000000);
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "timeToGetAvailableConn", tsTimeToGetAvailableConn, 20, 1000000, CFG_SCOPE_BOTH,
-                                CFG_DYN_BOTH_LAZY, CFG_CATEGORY_GLOBAL));
   tsNumOfTaskQueueThreads = tsNumOfCores * 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 16);
 
@@ -745,8 +742,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tsmaDataDeleteMark", tsmaDataDeleteMark, 60 * 60 * 1000, INT64_MAX,
                                 CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "streamCoverage", tsStreamCoverage, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "streamCoverage", tsStreamCoverage, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -837,7 +835,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1022,13 +1019,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600 * 7);
     pItem->i32 = tsReadTimeout;
-    pItem->stype = stype;
-  }
-
-  pItem = cfgGetItem(pCfg, "timeToGetAvailableConn");
-  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
-    pItem->i32 = tsTimeToGetAvailableConn;
     pItem->stype = stype;
   }
 
@@ -1457,9 +1447,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readTimeout");
   tsReadTimeout = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timeToGetAvailableConn");
-  tsTimeToGetAvailableConn = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "experimental");
   tsExperimental = pItem->bval;
 
@@ -1507,9 +1494,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "supportVnodes");
   tsNumOfSupportVnodes = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxShellConns");
-  tsMaxShellConns = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "statusInterval");
   tsStatusInterval = pItem->i32;
 
@@ -1541,9 +1525,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readTimeout");
   tsReadTimeout = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timeToGetAvailableConn");
-  tsTimeToGetAvailableConn = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfCommitThreads");
   tsNumOfCommitThreads = pItem->i32;

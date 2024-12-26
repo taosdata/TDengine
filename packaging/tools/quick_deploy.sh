@@ -152,7 +152,6 @@ maxNumOfDistinctRes         10000000
 timezone                    UTC-8
 locale                      en_US.UTF-8
 charset                     UTF-8
-maxShellConns               100000
 maxConnections              100000
 audit                       0
 auditFqdn                   localhost

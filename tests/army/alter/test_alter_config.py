@@ -526,11 +526,6 @@ class TDTestCase:
                     "category": "global"
                 },
                 {
-                    "name": "maxShellConns",
-                    "value": 25000,
-                    "category": "global"
-                },
-                {
                     "name": "numOfRpcSessions",
                     "value": 15000,
                     "category": "global"

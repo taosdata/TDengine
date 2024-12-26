@@ -186,7 +186,6 @@ class TDDnode:
         self.cfg("maxVnodeConnections", "30000")
         self.cfg("maxMgmtConnections", "30000")
         self.cfg("maxMeterConnections", "30000")
-        self.cfg("maxShellConns", "30000")
         self.cfg("locale", "en_US.UTF-8")
         self.cfg("charset", "UTF-8")
         self.cfg("asyncLog", "0")

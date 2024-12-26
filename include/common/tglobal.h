@@ -68,7 +68,6 @@ extern EEncryptScope tsiEncryptScope;
 extern char tsEncryptKey[];
 
 // common
-extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsCompressMsgSize;
 extern int64_t tsTickPerMin[3];
@@ -95,7 +94,6 @@ extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsShareConnLimit;
 extern int32_t tsReadTimeout;
-extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;

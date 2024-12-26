@@ -283,26 +283,28 @@ int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb) {
   STscObj* pTscObj = pRequest->pTscObj;
 
-  SParseContext cxt = {.requestId = pRequest->requestId,
-                       .requestRid = pRequest->self,
-                       .acctId = pTscObj->acctId,
-                       .db = pRequest->pDb,
-                       .topicQuery = topicQuery,
-                       .pSql = pRequest->sqlstr,
-                       .sqlLen = pRequest->sqlLen,
-                       .pMsg = pRequest->msgBuf,
-                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                       .pTransporter = pTscObj->pAppInfo->pTransporter,
-                       .pStmtCb = pStmtCb,
-                       .pUser = pTscObj->user,
-                       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
-                       .enableSysInfo = pTscObj->sysInfo,
-                       .svrVer = pTscObj->sVer,
-                       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
-                       .isStmtBind = pRequest->isStmtBind,
-                       .setQueryFp = setQueryRequest,
-                       .timezone = pTscObj->optionInfo.timezone,
-                       .charsetCxt = pTscObj->optionInfo.charsetCxt,};
+  SParseContext cxt = {
+      .requestId = pRequest->requestId,
+      .requestRid = pRequest->self,
+      .acctId = pTscObj->acctId,
+      .db = pRequest->pDb,
+      .topicQuery = topicQuery,
+      .pSql = pRequest->sqlstr,
+      .sqlLen = pRequest->sqlLen,
+      .pMsg = pRequest->msgBuf,
+      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+      .pTransporter = pTscObj->pAppInfo->pTransporter,
+      .pStmtCb = pStmtCb,
+      .pUser = pTscObj->user,
+      .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
+      .enableSysInfo = pTscObj->sysInfo,
+      .svrVer = pTscObj->sVer,
+      .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
+      .isStmtBind = pRequest->isStmtBind,
+      .setQueryFp = setQueryRequest,
+      .timezone = pTscObj->optionInfo.timezone,
+      .charsetCxt = pTscObj->optionInfo.charsetCxt,
+  };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -333,7 +335,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode, pRequest->pTscObj->optionInfo.charsetCxt);
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode,
+                              pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
@@ -2308,7 +2311,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
                                          varDataVal(dst) + CHAR_BYTES, pResultInfo->charsetCxt);
           if (length <= 0) {
             tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
-              pResultInfo->charsetCxt != NULL ? ((SConvInfo *)(pResultInfo->charsetCxt))->charset : tsCharset);
+                     pResultInfo->charsetCxt != NULL ? ((SConvInfo*)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
           varDataSetLen(dst, length + CHAR_BYTES * 2);
@@ -2598,7 +2601,6 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = NULL;
-  rpcInit.sessions = 16;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
@@ -2608,7 +2610,6 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
-  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.readTimeout = tsReadTimeout;
   if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
     tscError("faild to convert taos version from str to int, errcode:%s", terrstr());

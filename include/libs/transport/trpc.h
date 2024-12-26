@@ -89,7 +89,6 @@ typedef struct SRpcInit {
   uint16_t localPort;     // local port
   char    *label;         // for debug purpose
   int32_t  numOfThreads;  // number of threads to handle connections
-  int32_t  sessions;      // number of sessions allowed
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
   int32_t  compatibilityVer;
@@ -126,7 +125,6 @@ typedef struct SRpcInit {
 
   int32_t connLimitNum;
   int32_t connLimitLock;
-  int32_t timeToGetConn;
   int8_t  supportBatch;  // 0: no batch, 1. batch
   int32_t shareConnLimit;
   int8_t  shareConn;             // 0: no share, 1. share

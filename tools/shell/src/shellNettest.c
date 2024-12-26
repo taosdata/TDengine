@@ -28,11 +28,9 @@ static void shellWorkAsClient() {
   taosEncryptPass_c((uint8_t *)("_pwd"), strlen("_pwd"), pass);
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = 1;
-  rpcInit.sessions = 16;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "_dnd";
-  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
   taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   clientRpc = rpcOpen(&rpcInit);
@@ -121,7 +119,6 @@ static void shellWorkAsServer() {
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = 2;
   rpcInit.cfp = (RpcCfp)shellProcessMsg;
-  rpcInit.sessions = 10;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
 

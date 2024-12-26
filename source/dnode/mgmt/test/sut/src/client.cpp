@@ -46,7 +46,6 @@ void TestClient::DoInit() {
   rpcInit.label = (char*)"shell";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = processClientRsp;
-  rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = 30 * 1000;
   rpcInit.user = (char*)this->user;

@@ -108,11 +108,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
-  pRpc->timeToGetConn = pInit->timeToGetConn;
-  if (pRpc->timeToGetConn == 0) {
-    pRpc->timeToGetConn = 10 * 1000;
-  }
-  pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
 
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);

@@ -400,7 +400,6 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.label = "DNODE-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
-  rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
@@ -429,7 +428,6 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.shareConnLimit = tsShareConnLimit * 2;
   rpcInit.shareConn = 1;
-  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.notWaitAvaliableConn = 0;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
@@ -454,7 +452,6 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.label = "DNODE-STA-CLI";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
-  rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
@@ -479,7 +476,6 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
   rpcInit.shareConnLimit = tsShareConnLimit * 2;
-  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
 
@@ -504,7 +500,6 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.label = "DNODE-SYNC-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
-  rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
@@ -529,7 +524,6 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
   rpcInit.shareConnLimit = tsShareConnLimit * 8;
-  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
 
@@ -581,7 +575,6 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
-  rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
