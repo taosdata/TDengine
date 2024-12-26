@@ -149,12 +149,13 @@ void ctgTestInitLogFile() {
     return;
   }
 
-  const char   *defaultLogFileNamePrefix = "taoslog";
+  const char   *defaultLogFileNamePrefix = "catalogTest";
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
   tmrDebugFlag = 159;
+  tsNumOfLogLines = 1000000000;
   TAOS_STRCPY(tsLogDir, TD_LOG_DIR_PATH);
 
   (void)ctgdEnableDebug("api", true);
