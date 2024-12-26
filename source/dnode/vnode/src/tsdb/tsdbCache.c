@@ -596,20 +596,20 @@ static int32_t tsdbUpdateSkm(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t 
 static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray);
 
 int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
-  int32_t     code = 0;
-  int32_t     lino = 0;
-  STsdb      *pTsdb = imem->pTsdb;
-  SArray     *pMemDelData = NULL;
-  SArray     *pSkyline = NULL;
-  int64_t     iSkyline = 0;
-  STbDataIter tbIter = {0};
-  TSDBROW    *pMemRow = NULL;
-  STSchema   *pTSchema = NULL;
-  SSHashObj  *iColHash = NULL;
-  int32_t     sver;
-  int32_t     nCol;
-  SArray     *ctxArray = pTsdb->rCache.ctxArray;
-  STsdbRowKey tsdbRowKey = {0};
+  int32_t code = 0, lino = 0;
+
+  STsdb       *pTsdb = imem->pTsdb;
+  SArray      *pMemDelData = NULL;
+  SArray      *pSkyline = NULL;
+  int64_t      iSkyline = 0;
+  STbDataIter  tbIter = {0};
+  TSDBROW     *pMemRow = NULL;
+  STSchema    *pTSchema = NULL;
+  SSHashObj   *iColHash = NULL;
+  int32_t      sver;
+  int32_t      nCol;
+  SArray      *ctxArray = pTsdb->rCache.ctxArray;
+  STsdbRowKey  tsdbRowKey = {0};
   STSDBRowIter iter = {0};
 
   STbData *pIMem = tsdbGetTbDataFromMemTable(imem, suid, uid);
@@ -2017,9 +2017,52 @@ _exit:
   TAOS_RETURN(code);
 }
 
+static int32_t tsdbCacheGetBatchFromLru2(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr,
+                                         int8_t ltype, SArray *keyArray) {
+  int32_t code = 0, lino = 0;
+
+  SArray    *remainCols = NULL;
+  SArray    *ignoreFromRocks = NULL;
+  SLRUCache *pCache = pTsdb->lruCache;
+  SArray    *pCidList = pr->pCidList;
+  int        numKeys = TARRAY_SIZE(pCidList);
+
+  LRUHandle *h = taosLRUCacheLookup(pCache, &uid, sizeof(uid));
+  SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
+  if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
+    // 1, get array from lru w.r.t. ltype and cids
+    // 2, pack pLastArray from lru array
+
+    SLastCol lastCol = *pLastCol;
+    if (TSDB_CODE_SUCCESS != (code = tsdbCacheReallocSLastCol(&lastCol, NULL))) {
+      tsdbLRUCacheRelease(pCache, h, false);
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+
+    if (taosArrayPush(pLastArray, &lastCol) == NULL) {
+      code = terrno;
+      tsdbLRUCacheRelease(pCache, h, false);
+      goto _exit;
+    }
+  } else {
+    ASSERT(0);
+  }
+
+_exit:
+  if (remainCols) {
+    taosArrayDestroy(remainCols);
+  }
+  if (ignoreFromRocks) {
+    taosArrayDestroy(ignoreFromRocks);
+  }
+
+  TAOS_RETURN(code);
+}
+
 static int32_t tsdbCacheGetBatchFromLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr,
                                         int8_t ltype, SArray *keyArray) {
-  int32_t    code = 0, lino = 0;
+  int32_t code = 0, lino = 0;
+
   SArray    *remainCols = NULL;
   SArray    *ignoreFromRocks = NULL;
   SLRUCache *pCache = pTsdb->lruCache;
