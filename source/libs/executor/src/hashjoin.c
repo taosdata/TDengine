@@ -83,6 +83,8 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
   return code;
 }
 
+#ifdef HASH_JOIN_FULL
+
 int32_t hLeftJoinHandleSeqRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
   bool allFetched = false;
   SHJoinCtx* pCtx = &pJoin->ctx;
@@ -346,4 +348,5 @@ int32_t hLeftJoinDo(struct SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
+#endif
 

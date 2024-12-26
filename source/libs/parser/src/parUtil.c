@@ -57,8 +57,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid tag name: %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
       return "Name or password too long";
-    case TSDB_CODE_PAR_PASSWD_EMPTY:
-      return "Password can not be empty";
+    case TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY:
+      return "Password too short or empty";
     case TSDB_CODE_PAR_INVALID_PORT:
       return "Port should be an integer that is less than 65535 and greater than 0";
     case TSDB_CODE_PAR_INVALID_ENDPOINT:

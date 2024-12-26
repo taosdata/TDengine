@@ -3524,9 +3524,10 @@ static void eliminateProjPushdownProjIdx(SNodeList* pParentProjects, SNodeList* 
   }
 }
 
-static int32_t eliminateProjOptFindProjPrefixWithOrderCheck(SProjectLogicNode* pProj, SProjectLogicNode* pChild, SNodeList** pNewChildTargets, bool *orderMatch) {
+static int32_t eliminateProjOptFindProjPrefixWithOrderCheck(SProjectLogicNode* pProj, SProjectLogicNode* pChild,
+                                                            SNodeList** pNewChildTargets, bool* orderMatch) {
   int32_t code = 0;
-  SNode* pProjection = NULL, *pChildTarget = NULL;
+  SNode * pProjection = NULL, *pChildTarget = NULL;
   *orderMatch = true;
   FORBOTH(pProjection, pProj->pProjections, pChildTarget, pChild->node.pTargets) {
     if (!pProjection) break;
@@ -3557,7 +3558,7 @@ static int32_t eliminateProjOptPushTargetsToSetOpChildren(SProjectLogicNode* pSe
   FOREACH(pChildProj, pSetOp->node.pChildren) {
     if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChildProj)) {
       SProjectLogicNode* pChildLogic = (SProjectLogicNode*)pChildProj;
-      SNodeList* pNewChildTargetsForChild = NULL;
+      SNodeList*         pNewChildTargetsForChild = NULL;
       code = eliminateProjOptFindProjPrefixWithOrderCheck(pSetOp, pChildLogic, &pNewChildTargetsForChild, &orderMatch);
       if (TSDB_CODE_SUCCESS != code) break;
       nodesDestroyList(pChildLogic->node.pTargets);
@@ -3584,8 +3585,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   if (NULL == pProjectNode->node.pParent) {
     SNodeList* pNewChildTargets = NULL;
     SNode *    pProjection = NULL, *pChildTarget = NULL;
-    isSetOpProj =
-        QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
+    isSetOpProj = QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
     if (isSetOpProj) {
       // For sql: select ... from (select ... union all select ...);
       // When eliminating the outer proj (the outer select), we have to make sure that the outer proj projections and
@@ -3649,8 +3649,10 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     // if pChild is a project logic node, remove its projection which is not reference by its target.
     if (needReplaceTargets) {
       alignProjectionWithTarget(pChild);
-      // Since we have eliminated the outer proj, we need to push down the new targets to the children of the set operation.
-      if (isSetOpProj && orderMatch && !sizeMatch) code = eliminateProjOptPushTargetsToSetOpChildren((SProjectLogicNode*)pChild);
+      // Since we have eliminated the outer proj, we need to push down the new targets to the children of the set
+      // operation.
+      if (isSetOpProj && orderMatch && !sizeMatch)
+        code = eliminateProjOptPushTargetsToSetOpChildren((SProjectLogicNode*)pChild);
     }
   }
   pCxt->optimized = true;
@@ -4326,7 +4328,8 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
   return lastRowScanOptGetColAndSetDataType(pNode, pContext, true);
 }
 
-static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, SNodeList* pLastRowCols, bool erase, int32_t pkBytes) {
+static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, SNodeList* pLastRowCols, bool erase,
+                                         int32_t pkBytes) {
   SNode* pTarget = NULL;
   WHERE_EACH(pTarget, pTargets) {
     bool   found = false;
@@ -5442,7 +5445,8 @@ static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo, SNode* pCondit
 static bool tbCntScanOptIsEligibleScan(STbCntScanOptInfo* pInfo) {
   if (0 != strcmp(pInfo->pScan->tableName.dbname, TSDB_INFORMATION_SCHEMA_DB) ||
       0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_TABLES) || NULL != pInfo->pScan->pGroupTags ||
-      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_DISK_USAGE)) {
+      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_DISK_USAGE) ||
+      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_FILESETS)) {
     return false;
   }
   if (1 == pInfo->pScan->pVgroupList->numOfVgroups && MNODE_HANDLE == pInfo->pScan->pVgroupList->vgroups[0].vgId) {
@@ -6056,10 +6060,21 @@ static int32_t stbJoinOptCreateTagScanNode(SLogicNode* pJoin, SNodeList** ppList
   }
 
   SNode* pNode = NULL;
+  SName* pPrev = NULL;
   FOREACH(pNode, pList) {
     code = stbJoinOptRewriteToTagScan(pJoin, pNode);
     if (code) {
       break;
+    }
+
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (pScan->pVgroupList && 1 == pScan->pVgroupList->numOfVgroups) {
+      if (NULL == pPrev || 0 == strcmp(pPrev->dbname, pScan->tableName.dbname)) {
+        pPrev = &pScan->tableName;
+        continue;
+      }
+
+      pScan->needSplit = true;
     }
   }
 
@@ -6152,6 +6167,7 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
   }
 
   int32_t i = 0;
+  SName* pPrev = NULL;
   SNode*  pNode = NULL;
   FOREACH(pNode, pList) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -6169,6 +6185,16 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
     *(srcScan + i++) = pScan->pVgroupList->numOfVgroups <= 1;
 
     pScan->scanType = SCAN_TYPE_TABLE;
+
+    if (pScan->pVgroupList && 1 == pScan->pVgroupList->numOfVgroups) {
+      if (NULL == pPrev || 0 == strcmp(pPrev->dbname, pScan->tableName.dbname)) {
+        pPrev = &pScan->tableName;
+        continue;
+      }
+
+      pScan->needSplit = true;
+      *(srcScan + i - 1) = false;
+    }
   }
 
   *ppList = pList;

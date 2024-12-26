@@ -12,7 +12,8 @@ sidebar_label: taosX-Agent
 - `endpoint`: 必填，`taosX` 的 GRPC 服务地址。
 - `token`: 必填，在 `Explorer` 上创建 `Agent` 时，产生的 Token。
 - `instanceId`：当前 taosx-agent 服务的实例 ID，如果同一台机器上启动了多个 taosx-agent 实例，必须保证各个实例的实例 ID 互不相同。
-- `compression`: 非必填，可配置为 `ture` 或 `false`, 默认为 `false`。配置为`true`, 则开启 `Agent` 和 `taosX` 通信数据压缩。
+- `compression`: 非必填，可配置为 `true` 或 `false`, 默认为 `false`。配置为`true`, 则开启 `Agent` 和 `taosX` 通信数据压缩。
+- `in_memory_cache_capacity`: 非必填，表示可在内存中缓存的最大消息批次数，可配置为大于 0 的整数。默认为 `64`。
 - `log_level`: 非必填，日志级别，默认为 `info`, 同 `taosX` 一样，支持 `error`，`warn`，`info`，`debug`，`trace` 五级。已弃用，请使用 `log.level` 代替。
 - `log_keep_days`：非必填，日志保存天数，默认为 `30` 天。已弃用，请使用 `log.keepDays` 代替。
 - `log.path`：日志文件存放的目录。
@@ -43,6 +44,10 @@ sidebar_label: taosX-Agent
 # enable communication data compression between Agent and taosX
 #
 #compression = true
+
+# In-memory cache capacity
+#
+#in_memory_cache_capacity = 64
 
 # log configuration
 [log]

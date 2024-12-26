@@ -54,9 +54,25 @@
 
 namespace {
 
-extern "C" int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg,
+extern "C" int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t sId, int32_t execId, SDataBuf *pMsg,
                                         int32_t rspCode);
 extern "C" int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t rspCode);
+extern "C" int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code);
+extern "C" int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code);
+extern "C" int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType);
+//extern "C" int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
+extern "C" int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode);
+extern "C" void schInitTaskRetryTimes(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel);
+extern "C" int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_t execId);
+extern "C" int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schNotifyTaskOnExecNode(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
+extern "C" int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schLaunchTaskImpl(void *param);
+extern "C" void schHandleTimerEvent(void *param, void *tmrId);
+
 
 int64_t insertJobRefId = 0;
 int64_t queryJobRefId = 0;
@@ -316,7 +332,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
 
     scanPlan->execNode.nodeId = 1 + i;
     scanPlan->execNode.epSet.inUse = 0;
-    scanPlan->execNodeStat.tableNum = taosRand() % 30;
+    scanPlan->execNodeStat.tableNum = taosRand() % 100;
     addEpIntoEpSet(&scanPlan->execNode.epSet, "ep0", 6030);
     addEpIntoEpSet(&scanPlan->execNode.epSet, "ep1", 6030);
     addEpIntoEpSet(&scanPlan->execNode.epSet, "ep2", 6030);
@@ -591,7 +607,7 @@ void *schtSendRsp(void *param) {
     msg.msgType = TDMT_VND_SUBMIT_RSP;
     msg.pData = rmsg;
 
-    (void)schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+    (void)schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }
@@ -621,7 +637,7 @@ void *schtCreateFetchRspThread(void *param) {
   msg.msgType = TDMT_SCH_MERGE_FETCH_RSP;
   msg.pData = rmsg;
 
-  code = schHandleResponseMsg(pJob, pJob->fetchTask, pJob->fetchTask->execId, &msg, 0);
+  code = schHandleResponseMsg(pJob, pJob->fetchTask, pJob->fetchTask->seriousId, pJob->fetchTask->execId, &msg, 0);
 
   (void)schReleaseJob(job);
 
@@ -925,7 +941,7 @@ TEST(queryTest, normalCase) {
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
-    code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -941,7 +957,7 @@ TEST(queryTest, normalCase) {
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
-      code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
       ASSERT_EQ(code, 0);
     }
@@ -982,7 +998,158 @@ TEST(queryTest, normalCase) {
   schedulerFreeJob(&job, 0);
 
   (void)taosThreadJoin(thread1, NULL);
+
+  schMgmt.jobRef = -1;
 }
+
+TEST(queryTest, rescheduleCase) {
+  void       *mockPointer = (void *)0x1;
+  char       *clusterId = "cluster1";
+  char       *dbname = "1.db1";
+  char       *tablename = "table1";
+  SVgroupInfo vgInfo = {0};
+  int64_t     job = 0;
+  SQueryPlan *dag = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, (SNode**)&dag);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
+
+  SQueryNodeLoad load = {0};
+  load.addr.epSet.numOfEps = 1;
+  TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  load.addr.epSet.eps[0].port = 6031;
+  assert(taosArrayPush(qnodeList, &load) != NULL);
+
+  TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode1.ep");
+  assert(taosArrayPush(qnodeList, &load) != NULL);
+
+  code = schedulerInit();
+  ASSERT_EQ(code, 0);
+
+  schtBuildQueryDag(dag);
+
+  schtSetPlanToString();
+  schtSetExecNode();
+  schtSetAsyncSendMsgToServer();
+
+  int32_t queryDone = 0;
+
+  SRequestConnInfo conn = {0};
+  conn.pTrans = mockPointer;
+  SSchedulerReq req = {0};
+  req.pConn = &conn;
+  req.pNodeList = qnodeList;
+  req.pDag = dag;
+  req.sql = "select * from tb";
+  req.execFp = schtQueryCb;
+  req.cbParam = &queryDone;
+
+  code = schedulerExecJob(&req, &job);
+  ASSERT_EQ(code, 0);
+
+  SSchJob *pJob = NULL;
+  code = schAcquireJob(job, &pJob);
+  ASSERT_EQ(code, 0);
+
+  schedulerEnableReSchedule(true);
+
+  void *pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+    task->timeoutUsec = -1;
+
+    code = schRescheduleTask(pJob, task);
+    ASSERT_EQ(code, 0);
+
+    task->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }
+
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+
+    SDataBuf msg = {0};
+    void    *rmsg = NULL;
+    assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+    msg.msgType = TDMT_SCH_QUERY_RSP;
+    msg.pData = rmsg;
+
+    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+
+    ASSERT_EQ(code, 0);
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }
+
+
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+    task->timeoutUsec = -1;
+
+    code = schRescheduleTask(pJob, task);
+    ASSERT_EQ(code, 0);
+
+    task->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }
+
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+    if (JOB_TASK_STATUS_EXEC == task->status) {
+      SDataBuf msg = {0};
+      void    *rmsg = NULL;
+      assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+      msg.msgType = TDMT_SCH_QUERY_RSP;
+      msg.pData = rmsg;
+
+      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
+
+      ASSERT_EQ(code, 0);
+    }
+
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }
+
+  while (true) {
+    if (queryDone) {
+      break;
+    }
+
+    taosUsleep(10000);
+  }
+
+  TdThreadAttr thattr;
+  assert(0 == taosThreadAttrInit(&thattr));
+
+  TdThread thread1;
+  assert(0 == taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
+
+  void *data = NULL;
+  req.syncReq = true;
+  req.pFetchRes = &data;
+
+  code = schedulerFetchRows(job, &req);
+  ASSERT_EQ(code, 0);
+
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
+  ASSERT_EQ(pRsp->completed, 1);
+  ASSERT_EQ(pRsp->numOfRows, 10);
+  taosMemoryFreeClear(data);
+
+  (void)schReleaseJob(job);
+
+  schedulerDestroy();
+
+  schedulerFreeJob(&job, 0);
+
+  (void)taosThreadJoin(thread1, NULL);
+
+  schMgmt.jobRef = -1;
+}
+
 
 TEST(queryTest, readyFirstCase) {
   void       *mockPointer = (void *)0x1;
@@ -1040,7 +1207,7 @@ TEST(queryTest, readyFirstCase) {
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
-    code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+    code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -1057,7 +1224,7 @@ TEST(queryTest, readyFirstCase) {
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
-      code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+      code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
       ASSERT_EQ(code, 0);
     }
@@ -1097,6 +1264,7 @@ TEST(queryTest, readyFirstCase) {
   schedulerFreeJob(&job, 0);
 
   (void)taosThreadJoin(thread1, NULL);
+  schMgmt.jobRef = -1;
 }
 
 TEST(queryTest, flowCtrlCase) {
@@ -1163,7 +1331,7 @@ TEST(queryTest, flowCtrlCase) {
         msg.msgType = TDMT_SCH_QUERY_RSP;
         msg.pData = rmsg;
 
-        code = schHandleResponseMsg(pJob, task, task->execId, &msg, 0);
+        code = schHandleResponseMsg(pJob, task, task->seriousId, task->execId, &msg, 0);
 
         ASSERT_EQ(code, 0);
       }
@@ -1196,6 +1364,9 @@ TEST(queryTest, flowCtrlCase) {
   schedulerFreeJob(&job, 0);
 
   (void)taosThreadJoin(thread1, NULL);
+  schMgmt.jobRef = -1;
+
+  cleanupTaskQueue();
 }
 
 TEST(insertTest, normalCase) {
@@ -1260,6 +1431,7 @@ TEST(insertTest, normalCase) {
   schedulerDestroy();
 
   (void)taosThreadJoin(thread1, NULL);
+  schMgmt.jobRef = -1;
 }
 
 TEST(multiThread, forceFree) {
@@ -1282,9 +1454,11 @@ TEST(multiThread, forceFree) {
 
   schtTestStop = true;
   // taosSsleep(3);
+  
+  schMgmt.jobRef = -1;
 }
 
-TEST(otherTest, otherCase) {
+TEST(otherTest, function) {
   // excpet test
   (void)schReleaseJob(0);
   schFreeRpcCtx(NULL);
@@ -1293,6 +1467,296 @@ TEST(otherTest, otherCase) {
   ASSERT_EQ(schDumpEpSet(NULL, &ep), TSDB_CODE_SUCCESS);
   ASSERT_EQ(strcmp(schGetOpStr(SCH_OP_NULL), "NULL"), 0);
   ASSERT_EQ(strcmp(schGetOpStr((SCH_OP_TYPE)100), "UNKNOWN"), 0);
+
+  SSchTaskCallbackParam param = {0};
+  SDataBuf dataBuf = {0};
+  dataBuf.pData = taosMemoryMalloc(1);
+  dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
+  ASSERT_EQ(schHandleNotifyCallback(&param, &dataBuf, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
+
+  SSchCallbackParamHeader param2 = {0};
+  dataBuf.pData = taosMemoryMalloc(1);
+  dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
+  schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
+  param2.isHbParam = true;
+  dataBuf.pData = taosMemoryMalloc(1);
+  dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
+  schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
+  
+  schMgmt.jobRef = -1;
+}
+
+TEST(otherTest, branch) {
+  SSchJob job = {0};
+  SSchTask task = {0};
+  memset(&schMgmt, 0, sizeof(schMgmt));
+  
+  schValidateRspMsgType(&job, &task, TDMT_SCH_MERGE_FETCH_RSP);
+
+  task.lastMsgType = TDMT_SCH_MERGE_FETCH_RSP - 1;
+  schValidateRspMsgType(&job, &task, TDMT_SCH_MERGE_FETCH_RSP);
+
+  schValidateRspMsgType(&job, &task, 0);
+
+  schValidateRspMsgType(&job, &task, TDMT_SCH_QUERY_RSP);
+
+  task.lastMsgType = TDMT_SCH_QUERY_RSP - 1;
+  schValidateRspMsgType(&job, &task, TDMT_SCH_QUERY_RSP);
+
+  schProcessFetchRsp(&job, &task, NULL, -1);
+  schProcessFetchRsp(&job, &task, NULL, 0);
+
+  job.fetchRes = (void*)0x1;
+  schProcessFetchRsp(&job, &task, (char*)taosMemoryMalloc(0), 0);
+  job.fetchRes = NULL;
+
+  SDataBuf databuf = {0};
+  databuf.msgType = TDMT_VND_ALTER_TABLE_RSP;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_VND_SUBMIT_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_VND_DELETE_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_QUERY_RSP;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_QUERY_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+  
+
+  databuf.msgType = TDMT_SCH_EXPLAIN_RSP;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_EXPLAIN_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+  job.status = 0;
+
+  job.attr.explainMode = EXPLAIN_MODE_ANALYZE;
+  databuf.msgType = TDMT_SCH_EXPLAIN_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  job.fetchRes = (void*)0x1;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+  job.fetchRes = NULL;
+
+  job.attr.explainMode = EXPLAIN_MODE_ANALYZE;
+  databuf.msgType = TDMT_SCH_EXPLAIN_RSP;
+  databuf.pData = taosMemoryMalloc(0);
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_DROP_TASK_RSP;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = TDMT_SCH_LINK_BROKEN;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.msgType = 0;
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessResponseMsg(&job, &task, &databuf, 0);
+
+  databuf.pData = taosMemoryMalloc(0);
+  schHandleHbCallback(NULL, &databuf, 0);
+
+  __async_send_cb_fn_t fp = NULL;
+  schGetCallbackFp(TDMT_SCH_TASK_NOTIFY, &fp);
+  schGetCallbackFp(0, &fp);
+
+  SQueryNodeEpId ep = {0};
+  schBuildAndSendHbMsg(&ep, NULL);
+
+  schBuildAndSendMsg(&job, &task, NULL, 0, NULL);
+
+  SSchLevel level = {0};
+  SSubplan subplan;
+  memset(&subplan, 0, sizeof(subplan));
+  job.attr.queryJob = true;
+  schMgmt.cfg.schPolicy = SCH_ALL;
+  task.plan = &subplan;
+  schInitTaskRetryTimes(&job, &task, &level);
+  job.attr.queryJob = false;
+  memset(&schMgmt.cfg, 0, sizeof(schMgmt.cfg));
+  memset(&level, 0, sizeof(level));
+
+  schRecordTaskSucceedNode(&job, &task);
+
+  schDropTaskExecNode(&job, &task, NULL, 0);
+
+  task.execNodes = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  schDropTaskExecNode(&job, &task, NULL, 0);
+
+  int32_t execId = 0;
+  task.execId = 1;
+  (void)taosHashPut(task.execNodes, &execId, sizeof(execId), &execId, sizeof(execId));
+  schDropTaskExecNode(&job, &task, NULL, execId);
+  task.execId = 0;
+  taosHashCleanup(task.execNodes);
+  task.execNodes = NULL;
+
+  job.status = JOB_TASK_STATUS_FAIL;
+  schProcessOnTaskFailure(&job, &task, 0);
+  job.status = 0;
+
+  task.status = JOB_TASK_STATUS_FAIL;
+  schProcessOnTaskFailure(&job, &task, 0);
+  task.status = 0;
+
+  task.level = &level;
+  schProcessOnTaskFailure(&job, &task, TSDB_CODE_SCH_TIMEOUT_ERROR);
+  memset(&level, 0, sizeof(level));
+  task.level = NULL;
+
+  subplan.subplanType = SUBPLAN_TYPE_SCAN;
+  task.plan = &subplan;
+  SEpSet epset = {0};
+  epset.numOfEps = 127;
+  schChkUpdateRedirectCtx(&job, &task, &epset, 0);
+
+  schChkUpdateRedirectCtx(&job, &task, NULL, 0);
+  task.plan = NULL;
+
+  schPushTaskToExecList(&job, &task);
+
+  job.execTasks = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+  taosHashPut(job.execTasks, &task.taskId, sizeof(task.taskId), &task, POINTER_BYTES);
+  schPushTaskToExecList(&job, &task);
+  taosHashCleanup(job.execTasks);
+  job.execTasks = NULL;
+
+  bool needRetry = false;
+  task.timeoutUsec = SCH_MAX_TASK_TIMEOUT_USEC / 2 + 1;
+  task.retryTimes = 0;
+  task.maxRetryTimes = 0;
+  schTaskCheckSetRetry(&job, &task, TSDB_CODE_SCH_TIMEOUT_ERROR, &needRetry);
+
+  task.execId = 0;
+  task.retryTimes = 0;
+  task.maxRetryTimes = 100;
+  task.maxExecTimes = 1;
+  schTaskCheckSetRetry(&job, &task, TSDB_CODE_SCH_TIMEOUT_ERROR, &needRetry);
+
+
+  task.execId = 0;
+  task.retryTimes = 0;
+  task.maxRetryTimes = 100;
+  task.maxExecTimes = 100;
+  task.lastMsgType = TDMT_SCH_LINK_BROKEN;
+  schTaskCheckSetRetry(&job, &task, TSDB_CODE_SCH_TIMEOUT_ERROR, &needRetry);
+
+  schSetAddrsFromNodeList(&job, &task);
+
+  schSwitchTaskCandidateAddr(&job, &task);
+
+
+  task.candidateAddrs = taosArrayInit(SCHEDULE_DEFAULT_MAX_NODE_NUM, sizeof(SQueryNodeAddr));
+  SQueryNodeAddr addr = {0};
+  taosArrayPush(task.candidateAddrs, &addr);
+  taosArrayPush(task.candidateAddrs, &addr);
+  schMgmt.cfg.schPolicy = SCH_LOAD_SEQ;
+  task.candidateIdx = 1;
+  schSwitchTaskCandidateAddr(&job, &task);
+
+  schMgmt.cfg.schPolicy = SCH_RANDOM;
+  schSwitchTaskCandidateAddr(&job, &task);
+  taosArrayDestroy(task.candidateAddrs);
+  task.candidateAddrs = NULL;
+  memset(&schMgmt.cfg, 0, sizeof(schMgmt.cfg));
+  task.candidateIdx = 0;
+
+  schDropTaskOnExecNode(&job, &task);
+
+  schNotifyTaskOnExecNode(&job, &task, TASK_NOTIFY_FINISHED);
+
+  schLaunchRemoteTask(&job, &task);
+
+  SSchTaskCtx* pCtx = (SSchTaskCtx*)taosMemoryCalloc(1, sizeof(SSchTaskCtx));
+  pCtx->jobRid = -1;
+  schLaunchTaskImpl((void*)pCtx);
+
+  task.plan = &subplan;
+  subplan.subplanType = SUBPLAN_TYPE_SCAN;
+  job.attr.needFlowCtrl = true;
+  level.taskNum = 1000;
+  task.level = &level;
+  schLaunchTask(&job, &task);
+  task.plan = NULL;
+  task.level = NULL;
+  job.attr.needFlowCtrl = false;
+
+  SSchTimerParam param = {0};
+  param.rId = -1;
+  schHandleTimerEvent(&param, NULL);
+
+  job.execTasks = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+  task.delayExecMs = 1;
+  schMgmt.timer = NULL;
+  schDelayLaunchTask(&job, &task);
+  task.delayExecMs = 0;
+  taosHashCleanup(job.execTasks);
+  job.execTasks = NULL;
+
+  job.fetchRes = (void*)0x1;
+  schLaunchFetchTask(&job);
+  job.fetchRes = NULL;
+
+  job.fetchTask = &task;
+  job.attr.localExec = true;
+  job.attr.queryJob = true;
+  subplan.subplanType = SUBPLAN_TYPE_MERGE;
+  task.plan = &subplan;
+  void* p = taosMemoryCalloc(1, 1024);
+  schMgmt.queryMgmt = p;
+  schLaunchFetchTask(&job);
+  memset(&job, 0, sizeof(job));
+  memset(&subplan, 0, sizeof(subplan));
+  task.plan = NULL;
+  taosMemoryFreeClear(schMgmt.queryMgmt);
+
+  // flow ctrl
+
+  job.flowCtrl = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  SEp sep = {0};
+  SSchFlowControl nctrl = {0};
+  nctrl.taskList = taosArrayInit(1, POINTER_BYTES);
+  taosHashPut(job.flowCtrl, &sep, sizeof(SEp), &nctrl, sizeof(nctrl));
+  schFreeFlowCtrl(&job);
+
+
+
+  schMgmt.jobRef = -1;
+}
+
+
+void schtReset() {
+  insertJobRefId = 0;
+  queryJobRefId = 0;
+  
+  schtJobDone = false;
+  schtMergeTemplateId = 0x4;
+  schtFetchTaskId = 0;
+  schtQueryId = 1;
+  
+  schtTestStop = false;
+  schtTestDeadLoop = false;
+  schtTestMTRunSec = 1;
+  schtTestPrintNum = 1000;
+  schtStartFetch = 0;
 }
 
 int main(int argc, char **argv) {
@@ -1302,7 +1766,17 @@ int main(int argc, char **argv) {
   }
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+
+  int code = 0;
+  for (int32_t i = 0; i < 10; ++i) {
+    schtReset();
+    code = RUN_ALL_TESTS();
+    if (code) {
+      break;
+    }
+  }
+  
+  return code;
 }
 
 #pragma GCC diagnostic pop

@@ -116,7 +116,7 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     (void)strdequote(pPassword);
     if (strtrim(pPassword) <= 0) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
     } else if (invalidPassword(pPassword)) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
     }
@@ -1838,6 +1838,10 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   pOptions->dnodeListStr[0] = 0;
+  pOptions->compactInterval = TSDB_DEFAULT_COMPACT_INTERVAL;
+  pOptions->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
+  pOptions->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
+  pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -1882,6 +1886,10 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->withArbitrator = -1;
   pOptions->encryptAlgorithm = -1;
   pOptions->dnodeListStr[0] = 0;
+  pOptions->compactInterval = -1;
+  pOptions->compactStartTime = -1;
+  pOptions->compactEndTime = -1;
+  pOptions->compactTimeOffset = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2029,6 +2037,24 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       } else {
         COPY_STRING_FORM_STR_TOKEN(pDbOptions->dnodeListStr, (SToken*)pVal);
       }
+      break;
+    case DB_OPTION_COMPACT_INTERVAL:
+      if (TK_NK_INTEGER == ((SToken*)pVal)->type) {
+        pDbOptions->compactInterval = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      } else {
+        pDbOptions->pCompactIntervalNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      }
+      break;
+    case DB_OPTION_COMPACT_TIME_RANGE:
+      pDbOptions->pCompactTimeRangeList = pVal;
+      break;
+    case DB_OPTION_COMPACT_TIME_OFFSET:
+      if (TK_NK_INTEGER == ((SToken*)pVal)->type) {
+        pDbOptions->compactTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      } else {
+        pDbOptions->pCompactTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      }
+      break;
     default:
       break;
   }
@@ -2037,6 +2063,8 @@ _err:
   nodesDestroyNode(pOptions);
   return NULL;
 }
+
+
 
 SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
   return setDatabaseOptionImpl(pCxt, pOptions, type, pVal, false);
@@ -2047,6 +2075,7 @@ SNode* setAlterDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOp
   switch (pAlterOption->type) {
     case DB_OPTION_KEEP:
     case DB_OPTION_RETENTIONS:
+    case DB_OPTION_COMPACT_TIME_RANGE:
       return setDatabaseOptionImpl(pCxt, pOptions, pAlterOption->type, pAlterOption->pList, true);
     default:
       break;
@@ -2148,6 +2177,30 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
   pStmt->pEnd = pEnd;
   return (SNode*)pStmt;
 _err:
+  nodesDestroyNode(pStart);
+  nodesDestroyNode(pEnd);
+  return NULL;
+}
+
+SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
+                                SNode* pEnd) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pDbName) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
+    pCxt->errCode = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  SCompactVgroupsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COMPACT_VGROUPS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pDbName = pDbName;
+  pStmt->vgidList = vgidList;
+  pStmt->pStart = pStart;
+  pStmt->pEnd = pEnd;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pDbName);
+  nodesDestroyList(vgidList);
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
   return NULL;
@@ -2887,13 +2940,16 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
     *slash = '\0';
     struct in_addr addr;
     if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
-      int prefix = atoi(slash + 1);
-      if (prefix < 0 || prefix > 32) {
-        code = TSDB_CODE_PAR_INVALID_IP_RANGE;
-      } else {
-        pIpRange->ip = addr.s_addr;
-        pIpRange->mask = prefix;
-        code = TSDB_CODE_SUCCESS;
+      int32_t prefix = 0;
+      code = taosStr2int32(slash + 1, &prefix);
+      if (code == 0) {
+        if (prefix < 0 || prefix > 32) {
+          code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+        } else {
+          pIpRange->ip = addr.s_addr;
+          pIpRange->mask = prefix;
+          code = TSDB_CODE_SUCCESS;
+        }
       }
     } else {
       code = TSDB_CODE_PAR_INVALID_IP_RANGE;

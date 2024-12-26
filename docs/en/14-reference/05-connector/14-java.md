@@ -6,7 +6,7 @@ slug: /tdengine-reference/client-libraries/java
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import RequestId from "./_request_id.mdx";
+import RequestId from "../../assets/resources/_request_id.mdx";
 
 `taos-jdbcdriver` is the official Java connector for TDengine, allowing Java developers to develop applications that access the TDengine database. `taos-jdbcdriver` implements the interfaces of the JDBC driver standard.
 
@@ -18,45 +18,45 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 :::
 
-## JDBC and JRE Compatibility
+## JDBC and JRE Version Compatibility
 
-- JDBC: Supports JDBC 4.2, with some features like schemaless writing and data subscription provided separately  
-- JRE: Supports JRE 8 and above
+- JDBC: Supports JDBC 4.2 and above. 
+- JRE: Supports JRE 8 and above.
 
 ## Supported Platforms
 
-Native connection supports the same platforms as the TDengine client driver.
-REST connection supports all platforms that can run Java.
+- Native connection supports the same platforms as the TDengine client driver.
+- WebSocket/REST connection supports all platforms that can run Java.
 
 ## Version History
 
-| taos-jdbcdriver Version |                                                                        Main Changes                                                                        |   TDengine Version    |
-| :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------: |
-|        3.4.0        | 1. Replaced fastjson library with jackson; 2. WebSocket uses a separate protocol identifier; 3. Optimized background thread usage to avoid user misuse leading to timeouts.     |       -        |
-|        3.3.4        | 1. Fixed getInt error when data type is float     |       -        |
-|        3.3.3        | 1. Fixed memory leak caused by closing WebSocket statement      |       -        |
-|        3.3.2        | 1. Optimized parameter binding performance under WebSocket connection; 2. Improved support for mybatis      |       -        |
-|        3.3.0        | 1. Optimized data transmission performance under WebSocket connection; 2. Supports skipping SSL verification, off by default      |        3.3.2.0 and higher         |
-|        3.2.11        | Fixed a bug in closing result set in Native connection      |        -         |
-|        3.2.10        | 1. REST/WebSocket connections support data compression during transmission; 2. WebSocket automatic reconnection mechanism, off by default; 3. Connection class provides methods for schemaless writing; 4. Optimized data fetching performance for native connections; 5. Fixed some known issues; 6. Metadata retrieval functions can return a list of supported functions.      |        -         |
-|        3.2.9         | Fixed bug in closing WebSocket prepareStatement                                    |        -         |
-|        3.2.8         | Optimized auto-commit, fixed manual commit bug in WebSocket, optimized WebSocket prepareStatement using a single connection, metadata supports views                                       |        -         |
-|        3.2.7         | Supports VARBINARY and GEOMETRY types, added timezone setting support for native connections. Added WebSocket automatic reconnection feature.                                                                      | 3.2.0.0 and higher |
-|        3.2.5         |                                                      Data subscription adds committed() and assignment() methods                                                       | 3.1.0.3 and higher |
-|        3.2.4         |                                   Data subscription adds enable.auto.commit parameter under WebSocket connection, as well as unsubscribe() method.                                   |         -          |
-|        3.2.3         |                                                         Fixed ResultSet data parsing failure in some cases                                                          |         -          |
-|        3.2.2         |                                                           New feature: Data subscription supports seek function.                                                           | 3.0.5.0 and higher |
-|        3.2.1         | New feature: WebSocket connection supports schemaless and prepareStatement writing. Change: consumer poll returns result set as ConsumerRecord, which can be accessed through value() method. | 3.0.3.0 and higher |
-|        3.2.0         |                                                                Connection issues, not recommended for use                                                                |         -          |
-|        3.1.0         |                                                               WebSocket connection supports subscription function                                                               |         -          |
-|    3.0.1 - 3.0.4     |                             Fixed data parsing errors in result sets under some conditions. 3.0.1 compiled in JDK 11 environment, other versions recommended for JDK 8                             |         -          |
-|        3.0.0         |                                                                   Supports TDengine 3.0                                                                    | 3.0.0.0 and higher |
-|        2.0.42        |                                                        Fixed wasNull interface return value in WebSocket connection                                                        |         -          |
-|        2.0.41        |                                                          Fixed username and password encoding method in REST connection                                                          |         -          |
-|   2.0.39 - 2.0.40    |                                                              Added REST connection/request timeout settings                                                              |         -          |
-|        2.0.38        |                                                             JDBC REST connection adds batch fetching function                                                             |         -          |
-|        2.0.37        |                                                                  Added support for json tag                                                                  |         -          |
-|        2.0.36        |                                                               Added support for schemaless writing                                                               |         -          |
+| taos-jdbcdriver Version |                                                                        Major Changes                                                                        |   TDengine Version    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+|        3.4.0        | 1. Replaced fastjson library with jackson. <br/> 2. WebSocket uses a separate protocol identifier. <br/> 3. Optimized background thread usage to avoid user misuse leading to timeouts.    |       -        |
+|        3.3.4        | Fixed getInt error when data type is float.     |       -        |
+|        3.3.3        | Fixed memory leak caused by closing WebSocket statement.      |       -        |
+|        3.3.2        | 1. Optimized parameter binding performance under WebSocket connection. <br/> 2. Improved support for mybatis.      |       -        |
+|        3.3.0        | 1. Optimized data transmission performance under WebSocket connection. <br/> 2. Supports skipping SSL verification, off by default.      |        3.3.2.0 and higher         |
+|        3.2.11        | Fixed a bug in closing result set in Native connection.      |        -         |
+|        3.2.10        | 1. REST/WebSocket connections support data compression during transmission. <br/> 2. WebSocket automatic reconnection mechanism, off by default. <br/> 3. Connection class provides methods for schemaless writing. <br/> 4. Optimized data fetching performance for native connections. <br/> 5. Fixed some known issues.  <br/> 6. Metadata retrieval functions can return a list of supported functions.     |        -         |
+|        3.2.9         | Fixed bug in closing WebSocket prepareStatement.                                    |        -         |
+|        3.2.8         | 1. Optimized auto-commit. <br/> 2. Fixed manual commit bug in WebSocket. <br/> 3. Optimized WebSocket prepareStatement using a single connection. <br/> 4. Metadata supports views.                                       |        -         |
+|        3.2.7         | 1. Supports VARBINARY and GEOMETRY types. <br/> 2. Added timezone setting support for native connections. <br/> 3. Added WebSocket automatic reconnection feature.                                                                     | 3.2.0.0 and higher |
+|        3.2.5         | Data subscription adds committed() and assignment() methods.                                                       | 3.1.0.3 and higher |
+|        3.2.4         | Data subscription adds enable.auto.commit parameter under WebSocket connection, as well as unsubscribe() method.                                  |         -          |
+|        3.2.3         | Fixed ResultSet data parsing failure in some cases.                                                          |         -          |
+|        3.2.2         | New feature: Data subscription supports seek function.                                                         | 3.0.5.0 and higher |
+|        3.2.1         | 1. WebSocket connection supports schemaless and prepareStatement writing. <br/> 2. Consumer poll returns result set as ConsumerRecord, which can be accessed through value() method. | 3.0.3.0 and higher |
+|        3.2.0         | Connection issues, not recommended for use.                                                                |         -          |
+|        3.1.0         | WebSocket connection supports subscription function.                                                               |         -          |
+|    3.0.1 - 3.0.4     | Fixed data parsing errors in result sets under some conditions. 3.0.1 compiled in JDK 11 environment, other versions recommended for JDK 8.                             |         -          |
+|        3.0.0         | Supports TDengine 3.0                                                                    | 3.0.0.0 and higher |
+|        2.0.42        | Fixed wasNull interface return value in WebSocket connection.                                                        |         -          |
+|        2.0.41        | Fixed username and password encoding method in REST connection.                                                          |         -          |
+|   2.0.39 - 2.0.40    | Added REST connection/request timeout settings.                                                              |         -          |
+|        2.0.38        | JDBC REST connection adds batch fetching function.                                                             |         -          |
+|        2.0.37        | Added support for json tag.                                                                  |         -          |
+|        2.0.36        | Added support for schemaless writing.                                                               |         -          |
 
 ## Exceptions and Error Codes
 

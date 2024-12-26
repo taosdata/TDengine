@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-//#define TM_YEAR_BASE 1970 //origin
+// #define TM_YEAR_BASE 1970 //origin
 #define TM_YEAR_BASE 1900  // slguan
 
 // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
@@ -345,8 +345,7 @@ char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
 #endif
 }
 
-size_t
-taosStrfTime(char *s, size_t maxsize, char const *format, struct tm const *t){
+size_t taosStrfTime(char *s, size_t maxsize, char const *format, struct tm const *t) {
   if (!s || !format || !t) return 0;
   return strftime(s, maxsize, format, t);
 }
@@ -379,7 +378,7 @@ int32_t taosTime(time_t *t) {
   if (t == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  time_t r = time(t); 
+  time_t r = time(t);
   if (r == (time_t)-1) {
     return TAOS_SYSTEM_ERROR(errno);
   }
@@ -433,15 +432,15 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
     return result;
   }
   int64_t tzw = 0;
-  #ifdef _MSC_VER
-    #if _MSC_VER >= 1900
-      tzw = _timezone;
-    #endif
-  #endif
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  tzw = _timezone;
+#endif
+#endif
   return user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday, timep->tm_hour, timep->tm_min,
                        timep->tm_sec, tzw);
 #else
-  time_t r = tz != NULL ? mktime_z(tz, timep) : mktime(timep);
+  time_t r = (tz != NULL ? mktime_z(tz, timep) : mktime(timep));
   if (r == (time_t)-1) {
     terrno = TAOS_SYSTEM_ERROR(errno);
   }
@@ -450,18 +449,19 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
 #endif
 }
 
-struct tm *taosGmTimeR(const time_t *timep, struct tm *result){
+struct tm *taosGmTimeR(const time_t *timep, struct tm *result) {
   if (timep == NULL || result == NULL) {
     return NULL;
   }
 #ifdef WINDOWS
-  return gmtime_s(result, timep);
+  errno_t code = gmtime_s(result, timep);
+  return (code == 0) ? result : NULL;
 #else
   return gmtime_r(timep, result);
 #endif
 }
 
-time_t taosTimeGm(struct tm *tmp){
+time_t taosTimeGm(struct tm *tmp) {
   if (tmp == NULL) {
     return -1;
   }
@@ -530,7 +530,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
   }
   return result;
 #else
-  res = tz != NULL ? localtime_rz(tz, timep, result): localtime_r(timep, result);
+  res = (tz != NULL ? localtime_rz(tz, timep, result) : localtime_r(timep, result));
   if (res == NULL && buf != NULL) {
     (void)snprintf(buf, bufSize, "NaN");
   }
@@ -544,8 +544,8 @@ int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   int32_t code = 0;
 #ifdef WINDOWS
-  LARGE_INTEGER        t;
-  FILETIME             f;
+  LARGE_INTEGER t;
+  FILETIME      f;
 
   GetSystemTimeAsFileTime(&f);
   t.QuadPart = f.dwHighDateTime;

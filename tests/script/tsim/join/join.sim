@@ -57,6 +57,22 @@ sql insert into ctb22 using st2 tags(2) values('2023-10-16 09:10:12', 110222, 11
 sql insert into ctb23 using st2 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);
 sql insert into ctb24 using st2 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);
 
+sql drop database if exists testb1;
+sql create database testb1 vgroups 1 PRECISION 'us';
+sql use testb1;
+
+sql create table stb21(ts timestamp, f int,g int) tags (t int);
+sql insert into ctb11 using stb21 tags(1) values('2023-10-16 09:10:11', 110111, 1101110);
+sql insert into ctb12 using stb21 tags(2) values('2023-10-16 09:10:12', 110112, 1101120);
+sql insert into ctb13 using stb21 tags(3) values('2023-10-16 09:10:13', 110113, 1101130);
+sql insert into ctb14 using stb21 tags(4) values('2023-10-16 09:10:14', 110114, 1101140);
+
+sql create table st22(ts timestamp, f int, g int) tags (t int);
+sql insert into ctb21 using st22 tags(1) values('2023-10-16 09:10:11', 110221, 1102210);
+sql insert into ctb22 using st22 tags(2) values('2023-10-16 09:10:12', 110222, 1102220);
+sql insert into ctb23 using st22 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);
+sql insert into ctb24 using st22 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);
+
 sql drop database if exists testc;
 sql create database testc vgroups 3;
 sql use testc;

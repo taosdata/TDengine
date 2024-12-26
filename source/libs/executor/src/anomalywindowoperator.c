@@ -273,8 +273,8 @@ static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock*
   int32_t      code = createOneDataBlock(pSrc, true, &pDst);
 
   if (code != 0) return code;
-  if (pDst == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  if (taosArrayPush(pInfo->anomalySup.blocks, &pDst) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pDst == NULL) return code;
+  if (taosArrayPush(pInfo->anomalySup.blocks, &pDst) == NULL) return terrno;
 
   return 0;
 }

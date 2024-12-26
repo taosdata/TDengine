@@ -39,14 +39,14 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
 static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
-  return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
+  return snprintf(buf, WAL_FILE_LEN, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
 static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
-  return sprintf(buf, "%s/meta-ver.tmp", pWal->path);
+  return snprintf(buf, WAL_FILE_LEN, "%s/meta-ver.tmp", pWal->path);
 }
 
-static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
+FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
   int32_t       code = 0, lino = 0;
   int32_t       sz = taosArrayGetSize(pWal->fileInfoSet);
   int64_t       retVer = -1;
@@ -819,7 +819,7 @@ int32_t walRollFileInfo(SWal* pWal) {
 }
 
 int32_t walMetaSerialize(SWal* pWal, char** serialized) {
-  char   buf[30];
+  char   buf[WAL_JSON_BUF_SIZE];
   int    sz = taosArrayGetSize(pWal->fileInfoSet);
   cJSON* pRoot = cJSON_CreateObject();
   cJSON* pMeta = cJSON_CreateObject();
@@ -841,19 +841,19 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
   if (!cJSON_AddItemToObject(pRoot, "meta", pMeta)) {
     wInfo("vgId:%d, failed to add meta to root", pWal->cfg.vgId);
   }
-  (void)sprintf(buf, "%" PRId64, pWal->vers.firstVer);
+  snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.firstVer);
   if (cJSON_AddStringToObject(pMeta, "firstVer", buf) == NULL) {
     wInfo("vgId:%d, failed to add firstVer to meta", pWal->cfg.vgId);
   }
-  (void)sprintf(buf, "%" PRId64, pWal->vers.snapshotVer);
+  (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.snapshotVer);
   if (cJSON_AddStringToObject(pMeta, "snapshotVer", buf) == NULL) {
     wInfo("vgId:%d, failed to add snapshotVer to meta", pWal->cfg.vgId);
   }
-  (void)sprintf(buf, "%" PRId64, pWal->vers.commitVer);
+  (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.commitVer);
   if (cJSON_AddStringToObject(pMeta, "commitVer", buf) == NULL) {
     wInfo("vgId:%d, failed to add commitVer to meta", pWal->cfg.vgId);
   }
-  (void)sprintf(buf, "%" PRId64, pWal->vers.lastVer);
+  (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.lastVer);
   if (cJSON_AddStringToObject(pMeta, "lastVer", buf) == NULL) {
     wInfo("vgId:%d, failed to add lastVer to meta", pWal->cfg.vgId);
   }
@@ -874,23 +874,23 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
     }
     // cjson only support int32_t or double
     // string are used to prohibit the loss of precision
-    (void)sprintf(buf, "%" PRId64, pInfo->firstVer);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->firstVer);
     if (cJSON_AddStringToObject(pField, "firstVer", buf) == NULL) {
       wInfo("vgId:%d, failed to add firstVer to field", pWal->cfg.vgId);
     }
-    (void)sprintf(buf, "%" PRId64, pInfo->lastVer);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->lastVer);
     if (cJSON_AddStringToObject(pField, "lastVer", buf) == NULL) {
       wInfo("vgId:%d, failed to add lastVer to field", pWal->cfg.vgId);
     }
-    (void)sprintf(buf, "%" PRId64, pInfo->createTs);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->createTs);
     if (cJSON_AddStringToObject(pField, "createTs", buf) == NULL) {
       wInfo("vgId:%d, failed to add createTs to field", pWal->cfg.vgId);
     }
-    (void)sprintf(buf, "%" PRId64, pInfo->closeTs);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->closeTs);
     if (cJSON_AddStringToObject(pField, "closeTs", buf) == NULL) {
       wInfo("vgId:%d, failed to add closeTs to field", pWal->cfg.vgId);
     }
-    (void)sprintf(buf, "%" PRId64, pInfo->fileSize);
+    (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->fileSize);
     if (cJSON_AddStringToObject(pField, "fileSize", buf) == NULL) {
       wInfo("vgId:%d, failed to add fileSize to field", pWal->cfg.vgId);
     }

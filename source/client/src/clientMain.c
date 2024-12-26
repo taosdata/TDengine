@@ -109,8 +109,10 @@ static timezone_t setConnnectionTz(const char* val){
 
   time_t    tx1 = taosGetTimestampSec();
   char output[TD_TIMEZONE_LEN] = {0};
-  taosFormatTimezoneStr(tx1, val, tz, output);
-  code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
+  code = taosFormatTimezoneStr(tx1, val, tz, output);
+  if (code == 0){
+    code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
+  }
   if (code != 0){
     tscError("failed to put timezone %s to map", val);
   }
@@ -122,23 +124,23 @@ END:
 
 static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char* val){
   if (taos == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    return terrno = TSDB_CODE_INVALID_PARA;
   }
 
 #ifdef WINDOWS
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE){
-    return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
+    return terrno = TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
   }
 #endif
 
   if (option < TSDB_OPTION_CONNECTION_CLEAR || option >= TSDB_MAX_OPTIONS_CONNECTION){
-    return TSDB_CODE_INVALID_PARA;
+    return terrno = TSDB_CODE_INVALID_PARA;
   }
 
   int32_t code = taos_init();
   // initialize global config
   if (code != 0) {
-    return code;
+    return terrno = code;
   }
 
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
@@ -208,7 +210,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
 
 END:
   releaseTscObj(*(int64_t *)taos);
-  return code;
+  return terrno = code;
 }
 
 int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...){
@@ -292,7 +294,6 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     *rid = pObj->id;
@@ -424,7 +425,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
 
   void *pReq = taosMemoryMalloc(msgLen);
   if (pReq == NULL) {
-    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    fp(param, terrno, taos, 0, NULL);
     releaseTscObj(connId);
     return;
   }
@@ -438,7 +439,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
 
   SFetchWhiteListInfo *pParam = taosMemoryMalloc(sizeof(SFetchWhiteListInfo));
   if (pParam == NULL) {
-    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    fp(param, terrno, taos, 0, NULL);
     taosMemoryFree(pReq);
     releaseTscObj(connId);
     return;
@@ -449,7 +450,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   pParam->userParam = param;
   SMsgSendInfo *pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pSendInfo == NULL) {
-    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    fp(param, terrno, taos, 0, NULL);
     taosMemoryFree(pParam);
     taosMemoryFree(pReq);
     releaseTscObj(connId);
@@ -2167,17 +2168,41 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     pStmt->semWaited = true;
   }
 
-  int32_t code = 0;
+  SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
+  if (NULL == hashTbnames) {
+    tscError("stmt2 bind failed: %s", tstrerror(terrno));
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < bindv->count; ++i) {
     if (bindv->tbnames && bindv->tbnames[i]) {
+      if (pStmt->sql.stbInterlaceMode) {
+        if (tSimpleHashGet(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i])) != NULL) {
+          code = terrno = TSDB_CODE_PAR_TBNAME_DUPLICATED;
+          tscError("stmt2 bind failed: %s %s", tstrerror(terrno), bindv->tbnames[i]);
+          goto out;
+        }
+
+        code = tSimpleHashPut(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i]), NULL, 0);
+        if (code) {
+          goto out;
+        }
+      }
+
       code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
-        return code;
+        goto out;
       }
     }
 
     if (bindv->tags && bindv->tags[i]) {
       code = stmtSetTbTags2(stmt, bindv->tags[i]);
+      if (code) {
+        goto out;
+      }
+    } else if (pStmt->bInfo.tbType == TSDB_CHILD_TABLE && pStmt->sql.autoCreateTbl) {
+      code = stmtSetTbTags2(stmt, NULL);
       if (code) {
         return code;
       }
@@ -2188,26 +2213,29 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         tscError("invalid bind num %d", bind->num);
-        terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-        return terrno;
+        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        goto out;
       }
 
       int32_t insert = 0;
       (void)stmtIsInsert2(stmt, &insert);
       if (0 == insert && bind->num > 1) {
         tscError("only one row data allowed for query");
-        terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-        return terrno;
+        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        goto out;
       }
 
       code = stmtBindBatch2(stmt, bind, col_idx);
       if (TSDB_CODE_SUCCESS != code) {
-        return code;
+        goto out;
       }
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+out:
+  tSimpleHashCleanup(hashTbnames);
+
+  return code;
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
@@ -2249,29 +2277,29 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
   return stmtIsInsert2(stmt, insert);
 }
 
-int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
-  if (stmt == NULL || count == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+// int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
+//   if (stmt == NULL || count == NULL) {
+//     tscError("NULL parameter for %s", __FUNCTION__);
+//     terrno = TSDB_CODE_INVALID_PARA;
+//     return terrno;
+//   }
 
-  if (field_type == TAOS_FIELD_COL) {
-    return stmtGetColFields2(stmt, count, fields);
-  } else if (field_type == TAOS_FIELD_TAG) {
-    return stmtGetTagFields2(stmt, count, fields);
-  } else if (field_type == TAOS_FIELD_QUERY) {
-    return stmtGetParamNum2(stmt, count);
-  } else if (field_type == TAOS_FIELD_TBNAME) {
-    return stmtGetParamTbName(stmt, count);
-  } else {
-    tscError("invalid parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-}
+//   if (field_type == TAOS_FIELD_COL) {
+//     return stmtGetColFields2(stmt, count, fields);
+//   } else if (field_type == TAOS_FIELD_TAG) {
+//     return stmtGetTagFields2(stmt, count, fields);
+//   } else if (field_type == TAOS_FIELD_QUERY) {
+//     return stmtGetParamNum2(stmt, count);
+//   } else if (field_type == TAOS_FIELD_TBNAME) {
+//     return stmtGetParamTbName(stmt, count);
+//   } else {
+//     tscError("invalid parameter for %s", __FUNCTION__);
+//     terrno = TSDB_CODE_INVALID_PARA;
+//     return terrno;
+//   }
+// }
 
-int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields) {
+int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
   if (stmt == NULL || count == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -2293,13 +2321,7 @@ int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fie
   return stmtGetStbColFields2(stmt, count, fields);
 }
 
-void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
-  (void)stmt;
-  if (!fields) return;
-  taosMemoryFree(fields);
-}
-
-DLL_EXPORT void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) {
+DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {
   (void)stmt;
   if (!fields) return;
   taosMemoryFree(fields);

@@ -137,6 +137,8 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
 }
 
 int32_t initTaskQueue() {
+  memset(&taskQueue, 0, sizeof(taskQueue));
+  
   taskQueue.wrokrerPool.name = "taskWorkPool";
   taskQueue.wrokrerPool.min = tsNumOfTaskQueueThreads;
   taskQueue.wrokrerPool.max = tsNumOfTaskQueueThreads;
@@ -625,7 +627,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
         taosHashCancelIterate(pSrc->vgHash, pIter);
         freeVgInfo(*pDst);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       pIter = taosHashIterate(pSrc->vgHash, pIter);

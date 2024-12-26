@@ -63,6 +63,12 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
   pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;
+
+  // file set iterate
+  pReader->fileSetReaderOpen = tsdbFileSetReaderOpen;
+  pReader->fileSetReadNext = tsdbFileSetReaderNext;
+  pReader->fileSetGetEntryField = tsdbFileSetGetEntryField;
+  pReader->fileSetReaderClose = tsdbFileSetReaderClose;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -185,7 +191,6 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateFillGetGroupKVByCur = streamStateFillGetGroupKVByCur;
   pStore->streamStateGetKVByCur = streamStateGetKVByCur;
 
-  pStore->streamStateSetFillInfo = streamStateSetFillInfo;
   pStore->streamStateClearExpiredState = streamStateClearExpiredState;
 
   pStore->streamStateSessionAddIfNotExist = streamStateSessionAddIfNotExist;
@@ -237,7 +242,6 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateBegin = streamStateBegin;
   pStore->streamStateCommit = streamStateCommit;
   pStore->streamStateDestroy = streamStateDestroy;
-  pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
   pStore->streamStateReloadInfo = streamStateReloadInfo;
   pStore->streamStateCopyBackend = streamStateCopyBackend;
 }
