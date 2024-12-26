@@ -377,6 +377,7 @@ import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import { Message } from "element-ui";
 import { getDBListReq, getStables } from "@/api/gateway/data/dbs.js";
 import { validDir } from '@/utils/validate';
+import { getMetrics } from "@/api/explorer/datain";
 import { parsinginZone, decrypt, getTimezoneAddition } from '@/utils';
 import { backupMockData } from '@/const';
 export default {
@@ -511,6 +512,9 @@ export default {
       this.currentId = id;
       this.backupActiveTab = "backupFile";
       this.historyList = await getBackupHistory(this.currentId);
+    },
+    async displayMetrics(id) {
+      getMetrics(id);
     },
     async showBackupHistory() {
       this.historyList = await getBackupHistory(this.currentId);
@@ -751,10 +755,15 @@ export default {
       this.$refs.ruleForm.validate(async (valid) => {
         if (valid) {
           const postData = this.constructPostData();
-          if (this.currentId) {
-            await editBackup(this.currentId, postData);
-          } else {
-            await addBackupData(postData);
+          try {
+            if (this.currentId) {
+              await editBackup(this.currentId, postData);
+            } else {
+              await addBackupData(postData);
+            }
+          } catch (err) {
+            this.$error(err);
+            return;
           }
           
           Message.success(this.$t('operateSucc'));

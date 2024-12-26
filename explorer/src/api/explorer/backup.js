@@ -56,6 +56,12 @@ export function addBackupData(data) {
     url: `/tasks?lang=${language}`,
     method: "post",
     data
+  }).then(res => {
+    if (res.code === 65535 && res.message) {
+      return Promise.reject(res.message);
+    } else {
+      return res;
+    }
   });
 }
 
@@ -66,6 +72,12 @@ export function editBackup(id, data) {
     url: `/tasks/${id}`,
     method: "patch",
     data
+  }).then(res => {
+    if (res.code === 65535 && res.message) {
+      return Promise.reject(res.message);
+    } else {
+      return res;
+    }
   });
 }
 
@@ -75,6 +87,12 @@ export function deleteBackup(id) {
     baseURL: process.env.VUE_APP_X_API,
     url: `/tasks/${id}`,
     method: "delete"
+  }).then(res => {
+    if (res.code === 65535 && res.message) {
+      return Promise.reject(res.message);
+    } else {
+      return res;
+    }
   });
 }
 
@@ -88,5 +106,11 @@ export function restorBackupData(clusterID, data) {
     url: `/tasks?lang=${language}&labels=type::restore,cluster-id::${clusterID}`,
     method: "post",
     data
+  }).then(res => {
+    if (res.code === 65535 && res.message) {
+      return Promise.reject(res.message);
+    } else {
+      return res;
+    }
   });
 }
