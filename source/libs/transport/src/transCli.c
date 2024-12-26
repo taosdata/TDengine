@@ -151,7 +151,6 @@ typedef struct SCliThrd {
   TdThreadMutex msgMtx;
   SDelayQueue*  delayQueue;
   SDelayQueue*  timeoutQueue;
-  SDelayQueue*  waitConnQueue;
   uint64_t      nextTimeout;  // next timeout
   STrans*       pInst;        //
 
@@ -159,8 +158,6 @@ typedef struct SCliThrd {
   SHashObj* fqdn2ipCache;
   SCvtAddr* pCvtAddr;
 
-  SHashObj* failFastCache;
-  SHashObj* batchCache;
   SHashObj* connHeapCache;
 
   SCliReq* stopMsg;
@@ -2355,19 +2352,10 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
 
-  if ((code = transDQCreate(pThrd->loop, &pThrd->waitConnQueue)) != 0) {
-    TAOS_CHECK_GOTO(code, NULL, _end);
-  }
-
   pThrd->destroyAhandleFp = pInst->destroyFp;
 
   pThrd->fqdn2ipCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->fqdn2ipCache == NULL) {
-    TAOS_CHECK_GOTO(terrno, NULL, _end);
-  }
-
-  pThrd->batchCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  if (pThrd->batchCache == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
@@ -2414,10 +2402,7 @@ _end:
 
     transDQDestroy(pThrd->delayQueue, NULL);
     transDQDestroy(pThrd->timeoutQueue, NULL);
-    transDQDestroy(pThrd->waitConnQueue, NULL);
     taosHashCleanup(pThrd->fqdn2ipCache);
-    taosHashCleanup(pThrd->failFastCache);
-    taosHashCleanup(pThrd->batchCache);
     taosHashCleanup(pThrd->pIdConnTable);
     taosArrayDestroy(pThrd->pQIdBuf);
 
@@ -2441,7 +2426,6 @@ static void destroyThrdObj(SCliThrd* pThrd) {
 
   transDQDestroy(pThrd->delayQueue, destroyReqAndAhanlde);
   transDQDestroy(pThrd->timeoutQueue, NULL);
-  transDQDestroy(pThrd->waitConnQueue, NULL);
 
   tDebug("thread destroy %" PRId64, pThrd->pid);
   for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
@@ -2452,24 +2436,6 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   taosArrayDestroy(pThrd->timerList);
   taosMemoryFree(pThrd->loop);
   taosHashCleanup(pThrd->fqdn2ipCache);
-
-  void** pIter = taosHashIterate(pThrd->batchCache, NULL);
-  while (pIter != NULL) {
-    SCliBatchList* pBatchList = (SCliBatchList*)(*pIter);
-    while (!QUEUE_IS_EMPTY(&pBatchList->wq)) {
-      queue* h = QUEUE_HEAD(&pBatchList->wq);
-      QUEUE_REMOVE(h);
-
-      SCliBatch* pBatch = QUEUE_DATA(h, SCliBatch, listq);
-      cliDestroyBatch(pBatch);
-    }
-    taosMemoryFree(pBatchList->ip);
-    taosMemoryFree(pBatchList->dst);
-    taosMemoryFree(pBatchList);
-
-    pIter = (void**)taosHashIterate(pThrd->batchCache, pIter);
-  }
-  taosHashCleanup(pThrd->batchCache);
 
   void* pIter2 = taosHashIterate(pThrd->connHeapCache, NULL);
   while (pIter2 != NULL) {
