@@ -248,7 +248,7 @@ cd tests/e2e && poetry install
 run all test cases under the directory ```tests/e2e```:
 
 ```bash
-cd tests/e2e && cp setenv.sh.example setenv.sh && source setenv.sh && poetry run pytest 
+cd tests/e2e && cp setenv.sh.example setenv.sh && source setenv.sh && poetry run pytest -m sanity
 
 ```
 More ways to run cases:
