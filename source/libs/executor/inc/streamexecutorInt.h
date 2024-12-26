@@ -161,6 +161,9 @@ int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowI
 int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
                         bool filter);
 int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
+int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
+                                         STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
+                                         struct SOperatorInfo** pOptrInfo);
 
 #ifdef __cplusplus
 }

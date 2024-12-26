@@ -40,7 +40,7 @@
 #define STREAM_DATA_SCAN_OP_NAME            "StreamDataScanOperator"
 #define STREAM_DATA_SCAN_OP_STATE_NAME      "StreamDataScanFillHistoryState"
 #define STREAM_DATA_SCAN_OP_CHECKPOINT_NAME "StreamDataScanOperator_Checkpoint"
-#define IS_INVALID_RANGE(range)               (range.pGroupIds == NULL)
+#define IS_INVALID_RANGE(range)             (range.pGroupIds == NULL)
 
 bool hasDataPrimaryKeyCol(SSteamOpBasicInfo* pInfo) { return pInfo->primaryPkIndex != -1; }
 
@@ -56,9 +56,8 @@ static int32_t getMaxTsKeyInfo(SStreamScanInfo* pInfo, SSDataBlock* pBlock, TSKE
     lastPkLen = colDataGetRowLength(pPkColDataInfo, pBlock->info.rows - 1);
   }
 
-  code = pInfo->stateStore.streamStateGetAndSetTsData(&pInfo->tsDataState, pBlock->info.id.uid, pCurTs,
-                                                                     ppPkVal, pBlock->info.window.ekey, pLastPkVal,
-                                                                     lastPkLen, pWinCode);
+  code = pInfo->stateStore.streamStateGetAndSetTsData(&pInfo->tsDataState, pBlock->info.id.uid, pCurTs, ppPkVal,
+                                                      pBlock->info.window.ekey, pLastPkVal, lastPkLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -69,11 +68,11 @@ _end:
 }
 
 static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  int32_t              lino = 0;
-  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
-  SStreamScanInfo*     pInfo = pOperator->info;
-  SStreamTaskInfo*     pStreamInfo = &pTaskInfo->streamInfo;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
+  SStreamScanInfo* pInfo = pOperator->info;
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   while (1) {
@@ -91,8 +90,8 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
 
     SSDataBlock* pBlock = pPacked->pDataBlock;
     if (pBlock->info.parTbName[0]) {
-      code = pInfo->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId,
-                                                                    pBlock->info.parTbName);
+      code =
+          pInfo->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -185,13 +184,13 @@ _end:
 }
 
 static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  int32_t              lino = 0;
-  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
-  SStreamScanInfo*     pInfo = pOperator->info;
-  SStorageAPI*         pAPI = &pTaskInfo->storageAPI;
-  SStreamTaskInfo*     pStreamInfo = &pTaskInfo->streamInfo;
-  int32_t              totalBlocks = taosArrayGetSize(pInfo->pBlockLists);
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
+  SStreamScanInfo* pInfo = pOperator->info;
+  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+  int32_t          totalBlocks = taosArrayGetSize(pInfo->pBlockLists);
 
   if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
     pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -350,13 +349,13 @@ _end:
 }
 
 int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  int32_t              lino = 0;
-  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
-  const char*          id = GET_TASKID(pTaskInfo);
-  SStorageAPI*         pAPI = &pTaskInfo->storageAPI;
-  SStreamScanInfo*     pInfo = pOperator->info;
-  SStreamTaskInfo*     pStreamInfo = &pTaskInfo->streamInfo;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
+  const char*      id = GET_TASKID(pTaskInfo);
+  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
+  SStreamScanInfo* pInfo = pOperator->info;
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
 
   qDebug("stream scan started, %s", id);
 
@@ -510,8 +509,8 @@ void streamDataScanReleaseState(SOperatorInfo* pOperator) {
 }
 
 void streamDataScanReloadState(SOperatorInfo* pOperator) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  int32_t              lino = 0;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   SStreamScanInfo* pInfo = pOperator->info;
   code = pInfo->stateStore.streamStateReloadTsDataState(&pInfo->tsDataState);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -637,10 +636,9 @@ static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, SSDataBlock
       groupId = getDataGroupId(pInfo, srcUid, srcStartTsCol[i], ver, pVal, &hasGroupId);
     }
 
-    STimeWindow win = getSlidingWindow(srcStartTsCol, srcEndTsCol, srcGp, &pInfo->interval, &pSrcBlock->info,
-                                       &i, pInfo->partitionSup.needCalc);
-    pInfo->stateStore.streamStateMergeAndSaveScanRange(&pInfo->tsDataState, &win, groupId,
-                                                                      srcUidData[i]);
+    STimeWindow win = getSlidingWindow(srcStartTsCol, srcEndTsCol, srcGp, &pInfo->interval, &pSrcBlock->info, &i,
+                                       pInfo->partitionSup.needCalc);
+    pInfo->stateStore.streamStateMergeAndSaveScanRange(&pInfo->tsDataState, &win, groupId, srcUidData[i]);
   }
 
 _end:
@@ -748,9 +746,9 @@ _end:
 }
 
 static int32_t prepareDataRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
-  SOperatorParam* pOpParam = NULL;
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SOperatorParam*          pOpParam = NULL;
   STableScanOperatorParam* pTableScanParam = NULL;
 
   resetTableScanInfo(pInfo->pTableScanOp->info, &pRange->win, -1);
@@ -766,7 +764,7 @@ static int32_t prepareDataRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange) 
   pTableScanParam->tableSeq = false;
   int32_t size = tSimpleHashGetSize(pRange->pUIds);
   pTableScanParam->pUidList = taosArrayInit(size, sizeof(uint64_t));
-  QUERY_CHECK_NULL( pTableScanParam->pUidList, code, lino, _end, terrno);
+  QUERY_CHECK_NULL(pTableScanParam->pUidList, code, lino, _end, terrno);
 
   void*   pIte = NULL;
   int32_t iter = 0;
@@ -823,7 +821,7 @@ static int32_t doDataRangeScan(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
       pInfo->pRecoverRes = pTsdbBlock;
       break;
     } else {
-      pInfo->curRange = (SScanRange) {0};
+      pInfo->curRange = (SScanRange){0};
     }
   }
 
@@ -835,12 +833,12 @@ _end:
 }
 
 static int32_t doStreamRecalculateBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  int32_t              lino = 0;
-  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
-  SStreamTaskInfo*     pStreamInfo = &pTaskInfo->streamInfo;
-  char*                pTaskIdStr = GET_TASKID(pTaskInfo);
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+  char*            pTaskIdStr = GET_TASKID(pTaskInfo);
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   while (1) {
@@ -893,10 +891,10 @@ _end:
 }
 
 int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  int32_t              lino = 0;
-  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
-  const char*          id = GET_TASKID(pTaskInfo);
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
+  const char*      id = GET_TASKID(pTaskInfo);
   SStreamScanInfo* pInfo = pOperator->info;
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
@@ -984,15 +982,15 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
                                          SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
-  int32_t              code = TSDB_CODE_SUCCESS;
-  int32_t              lino = 0;
-  SArray*              pColIds = NULL;
-  SScanPhysiNode*      pScanPhyNode = &pTableScanNode->scan;
-  SDataBlockDescNode*  pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
-  SStreamScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
-  SOperatorInfo*       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  const char*          idstr = pTaskInfo->id.str;
-  SStorageAPI*         pAPI = &pTaskInfo->storageAPI;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SArray*             pColIds = NULL;
+  SScanPhysiNode*     pScanPhyNode = &pTableScanNode->scan;
+  SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
+  SStreamScanInfo*    pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
+  SOperatorInfo*      pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  const char*         idstr = pTaskInfo->id.str;
+  SStorageAPI*        pAPI = &pTaskInfo->storageAPI;
 
   if (pInfo == NULL || pOperator == NULL) {
     code = terrno;
