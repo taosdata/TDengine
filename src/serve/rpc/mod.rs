@@ -640,13 +640,16 @@ impl FlightService for FlightServiceImpl {
             self.spawn_sender.clone(),
         )
         .await
-        .map_err(|err| Status::unavailable(err.to_string()))?;
+        .map_err(|err| {
+            tracing::error!(task_id, "Failed to create put stream: {err:#}");
+            Status::unavailable(err.to_string())
+        })?;
 
         Ok(Response::new(Box::pin(
-            put_stream
-                .into_flight_put_result()
-                .await
-                .map_err(|err| Status::unavailable(err.to_string()))?,
+            put_stream.into_flight_put_result().await.map_err(|err| {
+                tracing::error!(task_id, "Failed to put result into stream: {err:#}");
+                Status::unavailable(err.to_string())
+            })?,
         )))
     }
 

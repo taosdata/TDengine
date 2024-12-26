@@ -614,6 +614,8 @@ struct VerificationReqBody {
     captcha: Option<String>,
     lang: Option<String>,
     name: Option<String>,
+    firstname: Option<String>,
+    lastname: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -712,12 +714,32 @@ async fn check_verification_code(
             _ => "en_US",
         };
 
+        let mut firstname = body.firstname.as_deref();
+        let mut lastname = body.lastname.as_deref();
+
+        // 传递 name 说明前端是中文模式；
+        // 如果 name 以中文字符开头，则把第一个字作为 lastname, 其余作为 firstname
+        // 否则，整个 name 作为 firstname
+        if body.name.is_some() {
+            let name = body.name.as_deref().unwrap();
+            let start_with_zh = regex::Regex::new(r"^[\u4e00-\u9fa5].+$").unwrap();
+            if start_with_zh.is_match(name) {
+                let ch0_len = name.chars().next().unwrap().len_utf8();
+                firstname.replace(&name[ch0_len..]);
+                lastname.replace(&name[0..ch0_len]);
+            } else {
+                firstname.replace(name);
+                lastname.replace("");
+            }
+        }
+
         let report_result = verification::report_verification_status_to_cloud(
             args.cloud_open_api.as_deref(),
             str_phone_email,
             str_verification_code,
             lang_code,
-            body.name.as_ref().unwrap(),
+            firstname.unwrap(),
+            lastname.unwrap(),
         )
         .await;
 

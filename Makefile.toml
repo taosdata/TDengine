@@ -784,7 +784,7 @@ args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]
 [tasks.install-locally]
 dependencies = ["install-plugins", "install-agent"]
 script = """
-sudo cp target/taosx.service target/${BUILD_PROFILE}/taos-explorer.service /etc/systemd/system/
+sudo cp target/${BUILD_PROFILE}/taosx.service target/${BUILD_PROFILE}/taos-explorer.service /etc/systemd/system/
 sudo cp target/${BUILD_PROFILE}/taosx target/${BUILD_PROFILE}/taos-explorer /usr/bin/
 sudo systemctl daemon-reload
 """

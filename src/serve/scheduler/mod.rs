@@ -428,6 +428,14 @@ impl TaskScheduler {
         self.tasks.read().await.get_by_task_id(&id).is_some()
     }
 
+    pub async fn is_cancelled(&self, id: i64) -> bool {
+        if let Some(task) = self.tasks.read().await.get_by_task_id(&id) {
+            task.task.cancellation.is_cancelled()
+        } else {
+            true
+        }
+    }
+
     #[instrument(skip_all, fields(task.id = task.id))]
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
         tracing::info!("Push task to scheduler: {:?}", task);

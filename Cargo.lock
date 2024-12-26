@@ -7885,6 +7885,7 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tokio-cron-scheduler",
+ "tokio-retry2",
  "tokio-stream",
  "tokio-util",
  "toml 0.8.19",
@@ -8491,6 +8492,18 @@ dependencies = [
  "libc",
  "tokio",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "tokio-retry2"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "903934dba1c4c2f2e9cb460ef10b5695e0b0ecad3bf9ee7c8675e540c5e8b2d1"
+dependencies = [
+ "pin-project",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

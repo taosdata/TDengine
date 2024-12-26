@@ -663,7 +663,7 @@ pub struct TaskState {
     /// Stop condition of current job.
     stop_condition: StopCondition,
     /// Stop a running task by sending a cancellation signal.
-    cancellation: CancellationToken,
+    pub(crate) cancellation: CancellationToken,
 
     /// Agent state if task is running on agent.
     agent_waiter: Option<AgentWaiter>,
@@ -1131,7 +1131,7 @@ impl TaskJob {
                     ipc_in_progress: Arc<AtomicI32>,
                     agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<Activity>>>,
                 ) -> anyhow::Result<AgentTaskState> {
-                    let mut ipc_in_progress = ipc_in_progress.load(Ordering::Relaxed);
+                    let mut ipc_in_progress = ipc_in_progress.load(Ordering::SeqCst);
                     let mut signal: Option<&'static str> = None;
                     tracing::info!(
                         ipc_in_progress,
