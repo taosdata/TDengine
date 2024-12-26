@@ -990,6 +990,11 @@ impl TaskJob {
                                                 continue 'track;
                                             },
                                             Ok(Err(e)) => {
+                                                let err_str = format!("{e:#}");
+                                                if err_str.contains("edition: unknown") {
+                                                    tracing::info!("License validation in unknown state, continue tracking");
+                                                    continue 'track;
+                                                }
                                                 cross_validate_times += 1;
                                                 err = e;
                                                 if cross_validate_times >= 5 {
@@ -1001,11 +1006,11 @@ impl TaskJob {
                                                 continue;
                                             }
                                             Err(e) => {
-                                                tracing::warn!(error = format!("{err:#}"), "License validation tracking error");
+                                                tracing::warn!(error = format!("{e:#}"), "License validation tracking error");
                                             }
                                         }
                                     }
-                                    license_tracker_global.send_task_activity(Activity::suspending_with(task_id, format!("License error: {:#}", err)));
+                                    license_tracker_global.send_task_activity(Activity::suspending_with(task_id, format!("{err:#}")));
                                     license_tracker_state.operator.suspend();
                                     license_tracker_cancellation_token.cancel();
                                     break true;
