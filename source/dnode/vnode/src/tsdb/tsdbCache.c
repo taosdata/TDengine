@@ -1030,8 +1030,11 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
       uint8_t colType = tColDataGetBitValue(pColData, tRow.iRow);
       if (colType == 2) {
         SColVal colVal = COL_VAL_NONE(pColData->cid, pColData->type);
-        tColDataGetValue(pColData, tRow.iRow, &colVal);
-
+        code = tColDataGetValue(pColData, tRow.iRow, &colVal);
+        if (code != TSDB_CODE_SUCCESS) {
+          terrno = code;
+          goto _exit;
+        }
         SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST, .ts = ts, .colVal = colVal};
         taosArrayPush(ctxArray, &updateCtx);
         break;

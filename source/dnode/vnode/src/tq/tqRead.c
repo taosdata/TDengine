@@ -722,8 +722,11 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         sourceIdx++;
       } else if (pCol->cid == pColData->info.colId) {
         for (int32_t i = 0; i < pCol->nVal; i++) {
-          tColDataGetValue(pCol, i, &colVal);
-          int32_t code = doSetVal(pColData, i, &colVal);
+          int32_t code = tColDataGetValue(pCol, i, &colVal);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+          code = doSetVal(pColData, i, &colVal);
           if (code != TSDB_CODE_SUCCESS) {
             return code;
           }
@@ -826,8 +829,11 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
 
       for (int32_t j = 0; j < numOfCols; j++) {
         SColData* pCol = taosArrayGet(pCols, j);
-        SColVal   colVal;
-        tColDataGetValue(pCol, i, &colVal);
+        SColVal   colVal = {0};
+        if (tColDataGetValue(pCol, i, &colVal) != 0) {
+          tqError("tColDataGetValue error in tqRetrieveTaosxBlock");
+          goto FAIL;
+        }
         if (curRow == 0) {
           assigned[j] = !COL_VAL_IS_NONE(&colVal);
           buildNew = true;
@@ -890,7 +896,9 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
         if (pCol->cid < pColData->info.colId) {
           sourceIdx++;
         } else if (pCol->cid == pColData->info.colId) {
-          tColDataGetValue(pCol, i, &colVal);
+          if(tColDataGetValue(pCol, i, &colVal) != TDB_CODE_SUCCESS){
+            goto FAIL;
+          }
           if(doSetVal(pColData, curRow - lastRow, &colVal) != TDB_CODE_SUCCESS){
             goto FAIL;
           }

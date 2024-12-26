@@ -2342,9 +2342,13 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue6,  // HAS_VALUE | HAS_NULL
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
-void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-  ASSERT(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+  if (iVal < 0 || iVal >= pColData->nVal ||
+      (pColData->flag <= 0 || pColData->flag >= sizeof(tColDataGetValueImpl)/POINTER_BYTES)){
+    return TSDB_CODE_INVALID_PARA;
+  }
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
+  return 0;
 }
 
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
@@ -2710,7 +2714,10 @@ static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, S
 
   for (int32_t i = 0; i < nColData; i++) {
     SColVal cv = {0};
-    tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    code = tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     code = tColDataAppendValue(&aToColData[i], &cv);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -2839,7 +2846,10 @@ static int32_t tColDataMerge(SArray **colArr) {
         SColData *dstCol = taosArrayGet(dst, j);
 
         SColVal cv;
-        tColDataGetValue(srcCol, i, &cv);
+        code = tColDataGetValue(srcCol, i, &cv);
+        if (code != 0){
+          goto _exit;
+        }
         tColDataAppendValue(dstCol, &cv);
       }
       lastKey = key;
@@ -2848,7 +2858,10 @@ static int32_t tColDataMerge(SArray **colArr) {
         SColData *srcCol = taosArrayGet(src, j);
         SColData *dstCol = taosArrayGet(dst, j);
         SColVal   cv;
-        tColDataGetValue(srcCol, i, &cv);
+        code = tColDataGetValue(srcCol, i, &cv);
+        if (code != 0){
+          goto _exit;
+        }
         tColDataUpdateValue(dstCol, &cv, true);
       }
     }
