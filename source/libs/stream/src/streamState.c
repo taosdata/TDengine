@@ -668,7 +668,9 @@ int32_t streamStateGetAndSetTsData(STableTsDataState* pState, uint64_t tableUid,
 }
 
 int32_t streamStateTsDataCommit(STableTsDataState* pState) {
-  return doTsDataCommit(pState);
+  int32_t code = doTsDataCommit(pState);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  return  doRangeDataCommit(pState);
 }
 
 int32_t streamStateInitTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
@@ -698,3 +700,17 @@ int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** pVal){
 int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) {
   return reloadTsDataState(pTsDataState);
 }
+
+int32_t streamStateMergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
+                                         uint64_t uId) {
+  return mergeAndSaveScanRange(pTsDataState, pWin, gpId, uId);
+}
+
+int32_t streamStateMergeAllScanRange(STableTsDataState* pTsDataState) {
+  return mergeAllScanRange(pTsDataState);
+}
+
+int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
+  return popScanRange(pTsDataState, pRange);
+}
+

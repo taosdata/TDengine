@@ -61,9 +61,7 @@ typedef struct SPullWindowInfo {
 
 static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
-typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
-
-static int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn) {
+int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn) {
   int firstPos = 0, lastPos = num - 1, midPos = -1;
   int numOfRows = 0;
 

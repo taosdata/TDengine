@@ -1654,6 +1654,58 @@ _end:
   return code;
 }
 
+int32_t doRangeDataCommit(STableTsDataState* pTsDataState) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   batch = NULL;
+
+  batch = streamStateCreateBatch();
+  QUERY_CHECK_NULL(batch, code, lino, _end, terrno);
+  const int32_t BATCH_LIMIT = 256;
+  int           idx = streamStateGetCfIdx(pTsDataState->pState, "sess");
+  int32_t       len = (pTsDataState->pkValLen + sizeof(uint64_t) + sizeof(int32_t) + 64) * 2;
+
+  int32_t size = taosArrayGetSize(pTsDataState->pScanRanges);
+  for (int32_t i = 0; i < size; i++) {
+    SScanRange* pRange = taosArrayGet(pTsDataState->pScanRanges, i);
+    if (streamStateGetBatchSize(batch) >= BATCH_LIMIT) {
+      code = streamStatePutBatch_rocksdb(pTsDataState->pState, batch);
+      streamStateClearBatch(batch);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    SSessionKey key = {.win = pRange->win, .groupId = 0};
+    int32_t     uidSize = tSimpleHashGetSize(pRange->pUIds);
+    int32_t     gpIdSize = tSimpleHashGetSize(pRange->pGroupIds);
+    int32_t     size = uidSize + gpIdSize;
+    uint64_t*   pIdBuf = (uint64_t*)taosMemoryCalloc(1, size);
+    void*       pIte = NULL;
+    int32_t     iter = 0;
+    int32_t     i = 0;
+    while ((pIte = tSimpleHashIterate(pTsDataState->pTableTsDataMap, pIte, &iter)) != NULL) {
+      void* pTempKey = tSimpleHashGetKey(pIte, NULL);
+      pIdBuf[i] = *(uint64_t*)pTempKey;
+      i++;
+    }
+
+    code = streamStatePutBatchOptimize(pTsDataState->pState, idx, batch, &key, (void*)pIdBuf, size, 0,
+                                       NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  int32_t numOfElems = streamStateGetBatchSize(batch);
+  if (numOfElems > 0) {
+    code = streamStatePutBatch_rocksdb(pTsDataState->pState, batch);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  streamStateDestroyBatch(batch);
+  return code;
+}
+
 int32_t initTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
@@ -1666,6 +1718,8 @@ int32_t initTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t 
   } else {
     pTsDataState->comparePkColFn = NULL;
   }
+
+  pTsDataState->pScanRanges = taosArrayInit(64, sizeof(SScanRange));
   pTsDataState->pState = pState;
 
 _end:

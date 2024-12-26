@@ -3620,7 +3620,8 @@ SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptions
   switch (setflag) {
     case SOPT_TRIGGER_TYPE_SET:
       pStreamOptions->triggerType = getTriggerType(pToken->type);
-      if (STREAM_TRIGGER_MAX_DELAY == pStreamOptions->triggerType) {
+      if (STREAM_TRIGGER_MAX_DELAY == pStreamOptions->triggerType ||
+          (pNode != NULL && STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE == pStreamOptions->triggerType)) {
         pStreamOptions->pDelay = pNode;
       }
       break;

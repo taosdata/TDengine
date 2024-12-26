@@ -133,6 +133,10 @@ int32_t streamStateInitTsDataState(STableTsDataState* pTsDataState, int8_t pkTyp
 void    streamStateDestroyTsDataState(STableTsDataState* pTsDataState);
 int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState);
 int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState);
+int32_t streamStateMergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
+                                         uint64_t uId);
+int32_t streamStateMergeAllScanRange(STableTsDataState* pTsDataState);
+int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRange);
 
 // continuous
 SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState);

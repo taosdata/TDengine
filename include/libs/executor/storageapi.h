@@ -319,7 +319,7 @@ typedef struct SUpdateInfo {
   TSKEY        minTS;
   SScalableBf* pCloseWinSBF;
   SHashObj*    pMap;
-  uint64_t     maxDataVersion;
+  int64_t      maxDataVersion;
   int8_t       pkColType;
   int32_t      pkColLen;
   char*        pKeyBuff;
@@ -329,12 +329,18 @@ typedef struct SUpdateInfo {
   __compar_fn_t comparePkCol;
 } SUpdateInfo;
 
+typedef struct SScanRange {
+  STimeWindow win;
+  SSHashObj* pGroupIds;
+  SSHashObj* pUIds;
+} SScanRange;
 typedef struct STableTsDataState {
   SSHashObj*    pTableTsDataMap;
   __compar_fn_t comparePkColFn;
   void*         pPkValBuff;
   int32_t       pkValLen;
   void*         pState;
+  SArray*       pScanRanges;
 } STableTsDataState;
 
 typedef struct {
@@ -476,6 +482,10 @@ typedef struct SStateStore {
   void (*streamStateDestroyTsDataState)(STableTsDataState* pTsDataState);
   int32_t (*streamStateRecoverTsData)(STableTsDataState* pTsDataState);
   int32_t (*streamStateReloadTsDataState)(STableTsDataState* pTsDataState);
+  int32_t (*streamStateMergeAndSaveScanRange)(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
+                                              uint64_t uId);
+  int32_t (*streamStateMergeAllScanRange)(STableTsDataState* pTsDataState);
+  int32_t (*streamStatePopScanRange)(STableTsDataState* pTsDataState, SScanRange* pRange);
 
   SStreamStateCur* (*streamStateGetLastStateCur)(SStreamState* pState);
   void (*streamStateLastStateCurNext)(SStreamStateCur* pCur);

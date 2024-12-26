@@ -20,6 +20,8 @@
 #include "tcommon.h"
 #include "tsimplehash.h"
 
+#define MAX_SCAN_RANGE_SIZE 102400
+
 int sessionStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
   SRowBuffPos* pPos2 = taosArrayGetP(pDatas, pos);
   SSessionKey* pWin2 = (SSessionKey*)pPos2->pKey;
@@ -1111,6 +1113,245 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
   }
 
 _end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int compareRangeKey(const void* pKey, const void* data, int index) {
+  SScanRange* pRange1 = (SScanRange*) pKey;
+  SScanRange* pRange2 = taosArrayGet((SArray*)data, index);
+  if (pRange1->win.skey > pRange2->win.skey) {
+    return 1;
+  } else if (pRange1->win.skey < pRange2->win.skey) {
+    return -1;
+  }
+
+  if (pRange1->win.ekey > pRange2->win.ekey) {
+    return 1;
+  } else if (pRange1->win.ekey < pRange2->win.ekey) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t scanRangeKeyCmpr(const SScanRange* pRange1, const SScanRange* pRange2) {
+  if (pRange1->win.skey > pRange2->win.ekey) {
+    return 1;
+  } else if (pRange1->win.ekey < pRange2->win.skey) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t putRangeIdInfo(SScanRange* pRangeKey, uint64_t gpId, uint64_t uId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  code = tSimpleHashPut(pRangeKey->pUIds, &uId, sizeof(uint64_t), NULL, 0);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = tSimpleHashPut(pRangeKey->pGroupIds, &gpId, sizeof(uint64_t), NULL, 0);
+  QUERY_CHECK_CODE(code, lino, _end);
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId, uint64_t uId, int32_t* pIndex,bool* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t size = taosArrayGetSize(pRangeArray);
+  *pRes = true;
+  int32_t index = binarySearch(pRangeArray, size, pRangeKey, compareRangeKey);
+  if (index >= 0) {
+    SScanRange* pFindRangeKey = (SScanRange*) taosArrayGet(pRangeArray, index);
+    if (scanRangeKeyCmpr(pFindRangeKey, pRangeKey) == 0) {
+      code = putRangeIdInfo(pFindRangeKey, gpId, uId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      *pRes = true;
+      goto _end;
+    }
+  }
+  if (index + 1 < size) {
+    SScanRange* pFindRangeKey = (SScanRange*) taosArrayGet(pRangeArray, index + 1);
+    if (scanRangeKeyCmpr(pFindRangeKey, pRangeKey) == 0) {
+      code = putRangeIdInfo(pFindRangeKey, gpId, uId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      *pRes = true;
+      goto _end;
+    }
+  }
+  (*pIndex) = index;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId, uint64_t uId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  SArray* pRangeArray = pTsDataState->pScanRanges;
+
+  int32_t index = 0;
+  bool merge = false;
+  SScanRange rangeKey = {.win = *pWin, .pUIds = NULL, .pGroupIds = NULL};
+  code = mergeScanRange(pRangeArray, &rangeKey, gpId, uId, &index, &merge);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (merge == true) {
+    goto _end;
+  }
+
+  int32_t size = taosArrayGetSize(pRangeArray);
+  if (size > MAX_SCAN_RANGE_SIZE) {
+    SSessionKey sesKey = {.win = *pWin, .groupId = gpId};
+    void* pVal = NULL;
+    int32_t len = 0;
+    int32_t winCode = streamStateSessionGet_rocksdb(pTsDataState->pState, &sesKey, &pVal, &len);
+    if (winCode != TSDB_CODE_SUCCESS) {
+      code = streamStateSessionPut_rocksdb(pTsDataState->pState, &sesKey, &uId, sizeof(uint64_t));
+    } else {
+      char* pTempBuf = taosMemoryRealloc(pVal, len + sizeof(uint64_t));
+      QUERY_CHECK_NULL(pTempBuf, code, lino, _end, terrno);
+      memcpy(pTempBuf+len, &uId, sizeof(uint64_t));
+      code = streamStateSessionPut_rocksdb(pTsDataState->pState, &sesKey, pTempBuf, len + sizeof(uint64_t));
+      taosMemFreeClear(pTempBuf);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+    goto _end;
+  }
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  rangeKey.pGroupIds = tSimpleHashInit(8, hashFn);
+  rangeKey.pUIds = tSimpleHashInit(8, hashFn);
+  code = putRangeIdInfo(&rangeKey, gpId, uId);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (index < 0) {
+    index = 0;
+  }
+  taosArrayInsert(pRangeArray, index, &rangeKey);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t mergeSimpleHashMap(SSHashObj* pDest, SSHashObj* pSource) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(pSource, pIte, &iter)) != NULL) {
+    size_t keyLen = 0;
+    void* pKey = tSimpleHashGetKey(pIte, &keyLen);
+    code = tSimpleHashPut(pDest, pKey, keyLen, pIte, sizeof(uint64_t));
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  tSimpleHashCleanup(pSource);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t mergeAllScanRange(STableTsDataState* pTsDataState) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SStreamStateCur* pCur = NULL;
+  SArray* pRangeArray = pTsDataState->pScanRanges;
+  for (int32_t i = 0; i < taosArrayGetSize(pRangeArray) - 1;) {
+    SScanRange* pCurRange = taosArrayGet(pRangeArray, i);
+    SScanRange* pNextRange = taosArrayGet(pRangeArray, i + 1);
+    if (scanRangeKeyCmpr(pCurRange, pNextRange) == 0) {
+      pCurRange->win.skey = TMIN(pCurRange->win.skey, pNextRange->win.skey);
+      pCurRange->win.ekey = TMAX(pCurRange->win.ekey, pNextRange->win.ekey);
+      code = mergeSimpleHashMap(pCurRange->pGroupIds, pNextRange->pGroupIds);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = mergeSimpleHashMap(pCurRange->pUIds, pNextRange->pUIds);
+      QUERY_CHECK_CODE(code, lino, _end);
+      taosArrayRemove(pRangeArray, i+1);
+      continue;
+    }
+    i++;
+  }
+
+  int32_t winRes = TSDB_CODE_SUCCESS;
+  pCur = streamStateSessionSeekToLast_rocksdb(pTsDataState->pState, INT64_MAX);
+  while (winRes == TSDB_CODE_SUCCESS) {
+    void*       pVal = NULL;
+    int32_t     vlen = 0;
+    SSessionKey key = {0};
+    winRes = streamStateSessionGetKVByCur_rocksdb(pTsDataState->pState, pCur, &key, &pVal, &vlen);
+    if (winRes != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    int32_t index = 0;
+    bool merge = false;
+    SScanRange tmpRange = {.win = key.win, .pUIds = NULL, .pGroupIds = NULL};
+    code = mergeScanRange(pRangeArray, &tmpRange, key.groupId, *(uint64_t*)pVal, &index, &merge);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (merge == true) {
+      code = streamStateSessionDel_rocksdb(pTsDataState->pState, &key);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+_end:
+  streamStateFreeCur(pCur);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SStreamStateCur* pCur = NULL;
+  SArray* pRangeArray = pTsDataState->pScanRanges;
+  if (taosArrayGetSize(pRangeArray) > 0) {
+    (*pRange) = *(SScanRange*) taosArrayPop(pRangeArray);
+    goto _end;
+  }
+
+  int32_t winRes = TSDB_CODE_SUCCESS;
+  pCur = streamStateSessionSeekToLast_rocksdb(pTsDataState->pState, INT64_MAX);
+  while (winRes == TSDB_CODE_SUCCESS) {
+    void*       pVal = NULL;
+    int32_t     vlen = 0;
+    SSessionKey key = {0};
+    winRes = streamStateSessionGetKVByCur_rocksdb(pTsDataState->pState, pCur, &key, &pVal, &vlen);
+    if (winRes != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    pRange->win = key.win;
+    _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+    if (pRange->pGroupIds != NULL) {
+      pRange->pGroupIds = tSimpleHashInit(8, hashFn);
+    }
+    if (pRange->pUIds != NULL) {
+      pRange->pUIds = tSimpleHashInit(8, hashFn);
+    }
+    code = putRangeIdInfo(pRange, key.groupId, *(uint64_t*) pVal);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = streamStateSessionDel_rocksdb(pTsDataState->pState, &key);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  streamStateFreeCur(pCur);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

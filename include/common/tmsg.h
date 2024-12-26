@@ -2954,6 +2954,7 @@ typedef struct {
   // 3.3.0.0
   SArray* pCols;  // array of SField
   int64_t smaId;
+  int64_t recalculateInterval;
 } SCMCreateStreamReq;
 
 typedef struct {

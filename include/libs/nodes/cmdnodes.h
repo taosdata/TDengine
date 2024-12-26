@@ -555,6 +555,7 @@ typedef struct SStreamOptions {
   SNode*    pDelay;
   SNode*    pWatermark;
   SNode*    pDeleteMark;
+  SNode*    pRecInterval;
   int8_t    fillHistory;
   int8_t    ignoreExpired;
   int8_t    ignoreUpdate;

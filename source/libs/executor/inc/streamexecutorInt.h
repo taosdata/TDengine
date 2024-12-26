@@ -136,18 +136,27 @@ int32_t doStreamIntervalNonblockAggNext(struct SOperatorInfo* pOperator, SSDataB
 void streamIntervalNonblockReleaseState(struct SOperatorInfo* pOperator);
 void streamIntervalNonblockReloadState(struct SOperatorInfo* pOperator);
 
-int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo);
-int32_t setBlockGroupIdByUid(struct SStreamScanInfo* pInfo, SSDataBlock* pBlock);
+int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, STqReader* pReader, SStoreTqReader* pReaderFn);
 int32_t rebuildDeleteBlockData(struct SSDataBlock* pBlock, STimeWindow* pWindow, const char* id);
-int32_t deletePartName(struct SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t *deleteNum);
-int32_t setBlockIntoRes(struct SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow, bool filter);
+int32_t deletePartName(SStateStore* pStore, SStreamState* pState, SSDataBlock* pBlock, int32_t *deleteNum);
 int32_t doTableScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
-int32_t calBlockTbName(struct SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId);
 void streamScanOperatorSaveCheckpoint(struct SStreamScanInfo* pInfo);
 int32_t doStreamDataScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
-bool hasPrimaryKeyCol(SStreamScanInfo* pInfo);
 void streamDataScanReleaseState(struct SOperatorInfo* pOperator);
 void streamDataScanReloadState(struct SOperatorInfo* pOperator);
+int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray** ppArrayRes);
+int32_t colIdComparFn(const void* param1, const void* param2);
+int32_t doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeWindow* pWindow, const char* id);
+STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
+                             SDataBlockInfo* pDataBlockInfo, int32_t* pRowIndex, bool hasGroup);
+int32_t appendPkToSpecialBlock(SSDataBlock* pBlock, TSKEY* pTsArray, SColumnInfoData* pPkCol, int32_t rowId,
+                               uint64_t* pUid, uint64_t* pGp, void* pTbName);
+SSDataBlock* readPreVersionData(struct SOperatorInfo* pTableScanOp, uint64_t tbUid, TSKEY startTs, TSKEY endTs,
+                                int64_t maxVersion);
+bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal);
+typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
+int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn);
+void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, int64_t ver);
 
 #ifdef __cplusplus
 }
