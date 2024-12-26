@@ -73,6 +73,7 @@ For UI development, you need to install Node.js. We recommend you to install [NV
 ```bash
 # Install NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc  
 # Install Node.js
 nvm install 16
 nvm use 16
@@ -188,6 +189,7 @@ You can run taosx and taos-explorer without installation:
 ./target/release/taos-explorer --help
 ./target/release/taosx --help
 ```
+Before running taosx/taos-explorer, you should install TDengine v3.0+, see the link: [Install TDengine](https://github.com/taosdata/TDinternal?tab=readme-ov-file#6-installing)
 
 After installation, you can start taosx and taos-explorer service with systemd:
 
@@ -202,13 +204,11 @@ Open your web-browser to with url <http://localhost:6060> and find how to create
 You can also run the following script to start all services, and create a default agent locally:
 
 ```bash
-chmod +x start_services.sh && ./start_services.sh
+chmod +x start_services.sh && ./start_services.sh --agent_name=your_agent_name
 ```
 
 
 ## 7. Testing
-
-Before starting to run test cases, TDengine 3.0 version needs to be deployed locally in advance. For the method of installing TDengine, see the link: [Install TDengine](https://github.com/taosdata/TDinternal?tab=readme-ov-file#6-installing)
 
 At least 4 cores 16GB of hardware resources are required to run unit tests effectively.
 
@@ -235,24 +235,20 @@ To run the specific test case(s) from above list with `nextest`:
 cargo nextest run --workspace <case-name>
 ```
 
+
 Before executing the above command, please confirm that you have correctly remembered the username and password locally in the build step.
+
 To run the e2e test case(s), it can be completed by the following operation.
+Please note that before performing this operation, please confirm that the repository code is cloned through the HTTPS protocol. If cloned through the SSH protocol, it may cause an error in the command execution.
 
 ```bash
-cd tests/e2e
-cp setenv.sh.example setenv.sh
-source setenv.sh
-poetry install
-```
-Or run script to build test environment:
-
-```bash
-chmod +x setup_test.sh && ./setup_test.sh
+cd tests/e2e && poetry install
 ```
 
-run all test cases:
+run all test cases under the directory ```tests/e2e```:
+
 ```bash
-poetry run pytest 
+cd tests/e2e && cp setenv.sh.example setenv.sh && source setenv.sh && poetry run pytest 
 
 ```
 More ways to run cases:
