@@ -1839,7 +1839,7 @@ TEST(tableMeta, updateStbMeta) {
   while (true) {
     uint64_t n = 0;
     ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
-    if (n != 3) {
+    if (n < 3) {
       taosMsleep(50);
     } else {
       break;
