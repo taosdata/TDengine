@@ -1545,10 +1545,6 @@ asof_joined(A) ::=
 
 /************************************************ window join *********************************************************/
 win_joined(A) ::=
-  table_reference(B) WINDOW JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
-
-win_joined(A) ::=
   table_reference(B) LEFT WINDOW JOIN table_reference(E) join_on_clause_opt(F)
   window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
 
