@@ -3,7 +3,17 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print =============== create anode
+print =============== failed to create anode  on  '127.0.0.1:1101'
+sql_error create anode '127.0.0.1:1101'
+
+sql  show anodes
+if $rows != 0 then
+  return -1
+endi
+
+sql_error drop anode 1
+
+print ================ create anode
 sql create anode '192.168.1.116:6050'
 
 sql show anodes
@@ -58,6 +68,61 @@ if $data00 != 1 then
    return -1
 endi
 
+sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=0.5,wncheck=1,period=0') from ct1
+sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=119,wncheck=1,period=0') from ct1
+sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters1,conf=0.5,wncheck=1,period=0') from ct1
+sql_error select forecast(c1, 'conf=50 ,algo = arima, rows=0') from ct1
+sql_error select forecast(c1, 'conf=50 ,algo = arima, rows=-10') from ct1
+sql_error select forecast(c1, 'conf=50 ,algo = arima, every=0') from ct1
+
+sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters, conf=50 ') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, ' algo=holtwinters , conf=50 ') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, ' algo = holtwinters , conf = 50 ') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters, ') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters, ,') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters, ,  ,') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters, a    =') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters,     =   a ,') from ct1
+sql select forecast(c1, 'conf=50 ,algo = arima') from ct1
+sql select forecast(c1, 'conf=50 ,algo = arima, rows=1') from ct1
+
+sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=50,wncheck=1,period=0,start=1700000000000,every=2') from ct1
+if $rows != 10 then
+  return -1
+endi
+
+if $data03 != 28 then
+  return -1
+endi
+
+if $data00 != @23-11-15 06:13:20.000@ then
+  print expect 23-11-15 06:13:20.000 , actual $data00
+  return -1
+endi
+
+if $data10 != @23-11-15 06:13:20.002@ then
+  print expect 23-11-15 06:13:20.002 , actual $data10
+  return -1
+endi
+
+if $data20 != @23-11-15 06:13:20.004@ then
+  return -1
+endi
+
+print test the every option and rows option
+
+sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=50,wncheck=1,period=0,start=1700000000000,every=100,rows=5') from ct1
+if $rows != 5 then
+  return -1
+endi
+
+if $data00 != @23-11-15 06:13:20.000@ then
+  return -1
+endi
+
+if $data10 != @23-11-15 06:13:20.100@ then
+  return -1
+endi
 
 sql drop anode 1
 sql show anodes
