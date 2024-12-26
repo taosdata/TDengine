@@ -112,6 +112,6 @@ cors = true
 
 # The URL of the Grafana dashboard, which is used to display the monitoring data of the TDengine cluster.
 # You can configure multiple Grafana dashboards.
-[grafana.dashboard]
+[grafana.dashboards]
 #TDengine3 = "http://localhost:3000/d/000000001/tdengine3"
 #taosX = "http://localhost:3000/d/000000002/taosx"

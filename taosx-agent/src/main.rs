@@ -569,8 +569,10 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                         tracing::error!("Connection closed. Retry in 5 seconds");
                         if let Err(err) = error_gate.tick(err) {
                             tracing::info!("Connection failed: {err:#}");
-                            ret = Err(err);
-                            break;
+                            if tasks.is_empty() {
+                                ret = Err(err);
+                                break;
+                            }
                         }
                     }
                 }
@@ -578,7 +580,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
             }
             ret
          } => {
-            tracing::error!("Task listener failed");
+            tracing::error!("Task listener failed: {err:?}");
             err?;
         }
         _ = async {

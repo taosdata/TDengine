@@ -28,10 +28,7 @@ use taosx_core::{
     plugins,
     sink::ipc_metric::IpcMetrics,
     task_set::prelude::EventLevel,
-    utils::{
-        get_main_version_from_server_version, get_server_version,
-        sql::{get_maximum_timestamp, get_minimum_timestamp},
-    },
+    utils::{get_main_version_from_server_version, get_server_version, sql::get_timestamp_range},
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
@@ -125,8 +122,8 @@ async fn task_opts_init(
             pool_config.timeouts.wait = Some(Duration::from_secs(30));
             builder.with_pool_config(pool_config)?
         };
-        let maximum_timestamp = get_maximum_timestamp(&pool, &mut None, 3, &cancel).await?;
-        let minimum_timestamp = get_minimum_timestamp(&pool, &mut None, 3, &cancel).await?;
+        let (_, minimum_timestamp, maximum_timestamp) =
+            get_timestamp_range(&pool, &mut None, 3, &cancel).await?;
         let parser = match parser {
             plugins::Parser::Inner(parser) => {
                 let mut parser = parser;
@@ -151,10 +148,7 @@ async fn task_opts_init(
             transform: vec![],
             from: from.clone(),
             to: to_dsn.clone(),
-            parser: task
-                .parser
-                .as_ref()
-                .map(|v| serde_json::from_value(v.clone()).unwrap()),
+            parser,
             health: task.trigger.as_ref().map(|v| v.health),
             cancel,
             // port_pool: ONCE,

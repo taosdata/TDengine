@@ -1053,7 +1053,7 @@ impl FlatSink {
                                             "Contains invalid timestamp, filter out them"
                                         );
                                         // filter timestamp.
-                                        let min = get_minimum_timestamp(
+                                        let (_, min) = get_minimum_timestamp(
                                             &pool,
                                             &mut taos,
                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,

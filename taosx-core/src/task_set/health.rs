@@ -11,7 +11,7 @@ use bon::Builder;
 use chrono::{DateTime, Utc};
 use ringbuf::{ring_buffer::RbBase, HeapRb, Rb};
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString, VariantNames};
+use strum::{Display, EnumIs, EnumString, VariantNames};
 use tokio::{sync::broadcast, task::AbortHandle};
 use tracing::{instrument, Instrument};
 
@@ -24,6 +24,7 @@ use tracing::{instrument, Instrument};
     Display,
     Clone,
     Copy,
+    EnumIs,
     EnumString,
     VariantNames,
     PartialOrd,
@@ -39,11 +40,26 @@ pub enum State {
     Initial = 0, // 初始化
     Ready,       // 准备就绪
     Idle,        // 空闲
+    Active,      // 活跃
+    Pending,     // 源正常，写入端等待
     Busy,        // 繁忙
     Bounce,      // 偶发错误
     SourceError, // 数据源错误
     SinkError,   // 写入端错误
     Fatal,       // 致命错误
+}
+
+impl State {
+    /// Tick the state machine.
+    fn upgrade(self, state: State) -> State {
+        if self == state {
+            return self;
+        }
+        if self.is_initial() && matches!(state, State::Idle | State::Active | State::Pending) {
+            return Self::Ready;
+        }
+        self.max(state)
+    }
 }
 
 impl From<State> for u8 {
@@ -54,17 +70,7 @@ impl From<State> for u8 {
 
 impl From<u8> for State {
     fn from(value: u8) -> State {
-        match value {
-            0 => State::Initial,
-            1 => State::Ready,
-            2 => State::Idle,
-            3 => State::Busy,
-            4 => State::Bounce,
-            5 => State::SourceError,
-            6 => State::SinkError,
-            7 => State::Fatal,
-            _ => State::Initial,
-        }
+        unsafe { std::mem::transmute(value) }
     }
 }
 
@@ -179,8 +185,9 @@ pub struct MessageMetrics {
 }
 
 impl MessageMetrics {
+    #[inline]
     fn in_queue(&self) -> u32 {
-        self.source_messages - self.sink_messages
+        self.source_messages.saturating_sub(self.sink_messages)
     }
 }
 
@@ -314,9 +321,6 @@ impl HealthChecker {
     /// *Internal only* Update the health state.
     fn update_state(&mut self, state: State) {
         let last = self.state;
-        if state == State::Idle && last == State::Initial {
-            return;
-        }
 
         if state == last {
             if self.options.repeat_errors && state > State::Idle {
@@ -387,9 +391,6 @@ impl HealthChecker {
         self.window_start = window_start;
 
         let state = self.get_state();
-        if self.total_messages.source_messages > 0 {
-            self.update_state(state);
-        }
         self.update_state(state);
     }
 
@@ -420,46 +421,30 @@ impl HealthChecker {
     // }
 
     /// Check if the system is busy.
-    fn is_busy(&self) -> bool {
+    fn message_state(&self) -> State {
         if self.messages_in_window.is_empty() {
-            return false;
+            return State::Idle;
         }
         let messages: MessageMetrics = self.messages_in_window.iter().sum();
-        if messages.sink_messages == 0 {
-            return false;
+
+        if messages.source_messages == 0 {
+            return State::Idle;
         }
         let busy_ratio = messages.in_queue() as f64 / self.options.max_queue_length as f64;
-        messages.in_queue() > 0 && busy_ratio >= self.options.busy_threshold
+        let busy = messages.in_queue() > 0 && busy_ratio >= self.options.busy_threshold;
+        if busy {
+            return State::Busy;
+        }
+        if messages.sink_messages == 0 {
+            return State::Pending;
+        }
+        State::Active
     }
-    fn get_state(&self) -> State {
-        let last_state = self.state;
-        let is_busy = self.is_busy();
+    fn error_state(&self) -> State {
         if self.errors_in_window.is_empty() {
-            match last_state {
-                State::Initial => {
-                    return State::Initial;
-                }
-                State::Fatal => {
-                    return State::Fatal;
-                }
-                _ => {
-                    if is_busy {
-                        return State::Busy;
-                    } else if self.total_messages.sink_messages > 0 {
-                        return State::Idle;
-                    } else {
-                        return State::Ready;
-                    }
-                }
-            }
+            return State::Idle;
         }
         let errors: ErrorMetrics = self.errors_in_window.iter().sum();
-
-        if errors.source + errors.sink + errors.transform + errors.framework
-            > self.options.max_errors_in_window as u32
-        {
-            return State::Fatal;
-        }
         if errors.source > 0 {
             return State::SourceError;
         }
@@ -469,13 +454,12 @@ impl HealthChecker {
         if errors.transform > 0 || errors.framework > 0 {
             return State::Bounce;
         }
-        if is_busy {
-            return State::Busy;
-        }
-        if last_state == State::Initial && self.total_messages.sink_messages > 0 {
-            return State::Ready;
-        }
         State::Idle
+    }
+    fn get_state(&self) -> State {
+        let last_state = self.state;
+        let state = self.message_state();
+        last_state.upgrade(state.max(self.error_state()))
     }
 }
 
@@ -638,7 +622,7 @@ pub fn health_checker(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::Ordering;
+    use std::{str::FromStr, sync::atomic::Ordering};
 
     use crate::sink::ipc_metric::IpcMetrics;
 
@@ -652,6 +636,34 @@ mod tests {
             dbg!(state);
             let s = state.to_string();
             assert_eq!(s, s.to_lowercase());
+        }
+    }
+
+    #[test]
+    fn test_state_upgrade() {
+        let state = State::Initial;
+        assert_eq!(state.upgrade(State::Initial), State::Initial);
+        assert_eq!(state.upgrade(State::Ready), State::Ready);
+        assert_eq!(state.upgrade(State::Idle), State::Ready);
+        assert_eq!(state.upgrade(State::Active), State::Ready);
+        assert_eq!(state.upgrade(State::Pending), State::Ready);
+        assert_eq!(state.upgrade(State::Busy), State::Busy);
+        assert_eq!(state.upgrade(State::Bounce), State::Bounce);
+        assert_eq!(state.upgrade(State::SourceError), State::SourceError);
+        assert_eq!(state.upgrade(State::SinkError), State::SinkError);
+        assert_eq!(state.upgrade(State::Fatal), State::Fatal);
+
+        for state in State::VARIANTS.iter().skip(2) {
+            let last = State::from_str(state).unwrap();
+
+            for next in State::VARIANTS.iter() {
+                let next = State::from_str(next).unwrap();
+                if next > last {
+                    assert_eq!(last.upgrade(next), next);
+                } else {
+                    assert_eq!(last.upgrade(next), last);
+                }
+            }
         }
     }
     #[test]
@@ -681,7 +693,7 @@ mod tests {
             .with_max_level(tracing::Level::TRACE)
             .try_init();
         let opts = HealthOpts::builder()
-            .health_check_window_in_second(5)
+            .health_check_window_in_second(2)
             .health_check_interval_in_second(1)
             .max_queue_length(100)
             .max_errors_in_window(4)
@@ -693,6 +705,7 @@ mod tests {
         let (tx, rx) = flume::unbounded();
         let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::default()));
         let (abort_handle, subscriber) = health_checker(opts, rx, metrics.clone());
+        let mut rx = subscriber.resubscribe();
         tokio::spawn({
             let mut rx = subscriber.resubscribe();
             async move {
@@ -704,21 +717,105 @@ mod tests {
         });
 
         let mut interval = tokio::time::interval(Duration::from_secs(1));
-        for i in 0..10 {
+        for _ in 0..2 {
             metrics.received_messages.fetch_add(100, Ordering::SeqCst);
-            metrics.processed_messages.fetch_add(10, Ordering::SeqCst);
-            if i % 2 == 1 {
-                tx.send_async(TaskNotify {
-                    source: EventSource::Source,
-                    level: EventLevel::Error,
-                    message: "Fake error".to_string(),
-                })
-                .await
-                .expect("Failed to send notify");
-            }
+            metrics.processed_messages.fetch_add(100, Ordering::SeqCst);
             interval.tick().await;
         }
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        let first = rx.try_recv().expect("Subscriber should receive notify");
+        tokio::task::yield_now().await;
+        assert_eq!(first.state, State::Ready);
+        interval.tick().await;
+        interval.tick().await;
+        let second = rx.try_recv().expect("Subscriber should receive notify");
+        assert_eq!(second.state, State::Active);
+
+        for _ in 0..3 {
+            metrics.received_messages.fetch_add(1, Ordering::SeqCst);
+            interval.tick().await;
+        }
+        loop {
+            tokio::task::yield_now().await;
+            let notify = rx.try_recv();
+            if notify.is_err() {
+                tracing::error!("Subscriber should receive notify");
+                panic!("Subscriber should receive notify");
+            }
+            let notify = notify.unwrap();
+            if notify.state == State::Pending {
+                break;
+            }
+        }
+        for _ in 0..4 {
+            metrics.received_messages.fetch_add(100, Ordering::SeqCst);
+            metrics.processed_messages.fetch_add(10, Ordering::SeqCst);
+            interval.tick().await;
+        }
+        loop {
+            let notify = rx.try_recv();
+            if notify.is_err() {
+                tracing::error!("Subscriber should receive notify");
+                panic!("Subscriber should receive notify");
+            }
+            let notify = notify.unwrap();
+            if notify.state == State::Busy {
+                break;
+            }
+        }
+        {
+            tx.send_async(TaskNotify {
+                source: EventSource::Source,
+                level: EventLevel::Error,
+                message: "Fake error".to_string(),
+            })
+            .await
+            .expect("Failed to send notify");
+            interval.tick().await;
+        }
+        loop {
+            interval.tick().await;
+            let notify = rx.try_recv();
+            if notify.is_err() {
+                tracing::error!("Subscriber should receive notify");
+                panic!("Subscriber should receive notify");
+            }
+            let notify = notify.unwrap();
+            if notify.state == State::Busy {
+                break;
+            }
+        }
+
+        {
+            tx.send_async(TaskNotify {
+                source: EventSource::Sink,
+                level: EventLevel::Error,
+                message: "Fake error".to_string(),
+            })
+            .await
+            .expect("Failed to send notify");
+            interval.tick().await;
+        }
+        {
+            tx.send_async(TaskNotify {
+                source: EventSource::Framework,
+                level: EventLevel::Error,
+                message: "Fake error".to_string(),
+            })
+            .await
+            .expect("Failed to send notify");
+            interval.tick().await;
+        }
+        {
+            tx.send_async(TaskNotify {
+                source: EventSource::Sink,
+                level: EventLevel::Fatal,
+                message: "Fake error".to_string(),
+            })
+            .await
+            .expect("Failed to send notify");
+            interval.tick().await;
+        }
+        // tokio::time::sleep(Duration::from_secs(5)).await;
         drop(tx);
         tracing::info!("Waiting for health checker to finish");
         tokio::time::sleep(Duration::from_secs(2)).await;

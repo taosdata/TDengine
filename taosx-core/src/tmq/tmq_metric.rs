@@ -43,6 +43,10 @@ pub struct TmqMetrics {
     #[serde(default)]
     pub success_blocks: AtomicU64,
     #[serde(default)]
+    pub out_of_range_rows: AtomicU64,
+    #[serde(default)]
+    pub total_out_of_range_rows: AtomicU64,
+    #[serde(default)]
     pub total_consume_cost_ms: AtomicU64,
     #[serde(default)]
     pub total_write_raw_cost_ms: AtomicU64,
@@ -81,6 +85,8 @@ impl Default for TmqMetrics {
             success_messages: AtomicU64::new(0),
             write_raw_fails: AtomicU64::new(0),
             success_blocks: AtomicU64::new(0),
+            out_of_range_rows: AtomicU64::new(0),
+            total_out_of_range_rows: AtomicU64::new(0),
             total_consume_cost_ms: AtomicU64::new(0),
             total_write_raw_cost_ms: AtomicU64::new(0),
             total_write_cost_ms: AtomicU64::new(0),
@@ -132,6 +138,12 @@ impl TmqMetrics {
     pub fn add_suc_blocks(&self, n: u64) {
         self.total_success_blocks.fetch_add(n, SeqCst);
         self.success_blocks.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_out_of_range_rows(&self, n: u64) {
+        self.total_out_of_range_rows.fetch_add(n, SeqCst);
+        self.out_of_range_rows.fetch_add(n, SeqCst);
     }
 
     #[inline]
@@ -195,6 +207,7 @@ impl TaskMetrics for TmqMetrics {
         self.success_messages.store(0, SeqCst);
         self.write_raw_fails.store(0, SeqCst);
         self.success_blocks.store(0, SeqCst);
+        self.out_of_range_rows.store(0, SeqCst);
     }
 
     fn com(&self) -> &CommonMetrics {
@@ -256,6 +269,11 @@ impl Display for TmqMetrics {
                 self.total_write_cost_ms.load(SeqCst),
                 self.total_write_raw_cost_ms.load(SeqCst),
             )?;
+        }
+
+        let out_range_rows = self.out_of_range_rows.load(SeqCst);
+        if out_range_rows > 0 {
+            writeln!(f, "out of range rows: {out_range_rows}")?;
         }
 
         let blocks = self.success_blocks.load(SeqCst);
