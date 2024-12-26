@@ -130,6 +130,7 @@ pub struct Args {
     /// For in-memory cache queue capacity.
     in_memory_cache_capacity: Option<usize>,
 
+    // manually specified port range, eg. 9000-9099
     ports: Option<Range<u16>>,
 }
 

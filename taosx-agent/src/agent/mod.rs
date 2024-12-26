@@ -55,8 +55,6 @@ pub struct Agent {
     pub name: String,
     pub cluster_id: String,
     pub user_id: String,
-    // manually specified port range, eg. 9000-9099
-    pub ports: Range<u16>,
 }
 
 /// A streaming workflow task description.
