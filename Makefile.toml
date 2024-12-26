@@ -11,6 +11,56 @@ env_scripts = ['''
     echo "* last published version: ${ver}"
     set_env "VER_NUMBER" "${ver}"
   end
+
+  # 获取编译器版本信息
+  gcc_version = exec cc -dumpversion
+  version = trim ${gcc_version.stdout}
+  if is_empty ${version}
+    set_env "CFLAGS" "-fno-builtin"
+  else
+    echo "GCC version: ${version}"
+
+    if contains ${version} "."
+      version = semver_parse "${version}"
+    else
+      version = semver_parse "${version}.0.0"
+    end
+    echo "Major version: ${version.major}"
+
+    # 比较主版本号是否大于 9
+    if greater_than ${version.major} 9
+        echo "GCC version is 10+"
+    else
+        echo "GCC version is 9 or lower, use -fno-builtin"
+        set_env "CFLAGS" "-fno-builtin"
+    end
+  end
+
+  cus_name = get_env "CUS_NAME"
+  echo ${cus_name}
+  if is_empty "${cus_name}"
+    cus_name = set "TDengine"
+  end
+  echo "Product: ${cus_name}"
+
+  cus_prompt = get_env "CUS_PROMPT"
+  if is_empty "${cus_prompt}"
+    cus_prompt = set "taos"
+  end
+  echo "Prompt: ${cus_prompt}"
+
+  # 获取插件目录
+  plugins_home = get_env "PLUGINS_HOME"
+
+  # 获取当前系统平台
+  os = os_family
+  if is_empty "${plugins_home}"
+    if eq ${os} "windows"
+      set_env "PLUGINS_HOME" "C:\\${cus_name}\\plugins"
+    else
+      set_env "PLUGINS_HOME" "/usr/local/${cus_prompt}/plugins"
+    end
+  end
   ''']
 
 [config]
@@ -32,6 +82,8 @@ args = ["build", "--profile", "${BUILD_PROFILE}", "${@}"]
 script = """
 echo VER_NUMBER=$VER_NUMBER
 echo BUILD_PROFILE=$BUILD_PROFILE
+echo CFLAGS=$CFLAGS
+echo PLUGINS_HOME=$PLUGINS_HOME
 """
 
 [tasks.taosx]
@@ -53,7 +105,7 @@ args = [
 
 [tasks.taosx-agent]
 command = "cargo"
-args = ["build", "--release", "-p", "taosx-agent"]
+args = ["build", "--profile", "${BUILD_PROFILE}", "-p", "taosx-agent"]
 
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc"]
@@ -134,13 +186,45 @@ sudo systemctl start taosx
 """
 
 [tasks.dev-install-plugins]
+description = "Use install-plugins instead"
+deprecated = true
+
+[tasks.install-plugins]
+description = "Install all available plugins"
+run_task = { name = [
+  "install-plugin-opc",
+  "install-plugin-influxdb",
+  "install-plugin-opentsdb",
+] }
+
+
+[tasks.install-plugin-opc]
+condition = { files_exist = ["plugins/opc/taosx-opc"] }
 script = """
-plugins=/usr/local/taos/plugins
-sudo mkdir -p $plugins/opc $plugins/influxdb $plugins/opentsdb
-sudo cp plugins/influxdb/target/taosx-influxdb.jar /usr/local/taos/plugins/influxdb/
-sudo cp plugins/opentsdb/target/taosx-opentsdb.jar /usr/local/taos/plugins/opentsdb/
-sudo cp plugins/opc/taosx-opc /usr/local/taos/plugins/opc/
+sudo mkdir -p ${PLUGINS_HOME}/opc
+sudo cp plugins/opc/taosx-opc ${PLUGINS_HOME}/opc/
 """
+[tasks.install-plugin-influxdb]
+condition = { files_exist = ["plugins/influxdb/target/taosx-influxdb.jar"] }
+script = """
+sudo mkdir -p ${PLUGINS_HOME}/influxdb
+sudo cp plugins/influxdb/target/taosx-influxdb.jar  ${PLUGINS_HOME}/influxdb/
+"""
+[tasks.install-plugin-opentsdb]
+condition = { files_exist = ["plugins/opentsdb/target/taosx-opentsdb.jar"] }
+script = """
+sudo mkdir -p ${PLUGINS_HOME}/opentsdb
+sudo cp plugins/opentsdb/target/taosx-opentsdb.jar  ${PLUGINS_HOME}/opentsdb/
+"""
+
+[tasks.install-agent]
+condition = { files_exist = ["target/${BUILD_PROFILE}/taosx-agent"] }
+script = """
+sudo cp target/${BUILD_PROFILE}/taosx-agent /usr/bin/
+sudo cp target/taosx-agent.service /etc/systemd/system/
+sudo systemctl daemon-reload
+"""
+
 [tasks.install]
 cwd = "target/packaging"
 dependencies = ["package"]
@@ -509,7 +593,6 @@ else
       arch = set "arm64"
     else
       arch = set "amd64"
-      version = set "3.96"
     end
     url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-${arch}_linux.tar.xz"
     echo ${url}
@@ -699,6 +782,7 @@ command = "cargo"
 args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]
 
 [tasks.install-locally]
+dependencies = ["install-plugins", "install-agent"]
 script = """
 sudo cp target/${BUILD_PROFILE}/taosx.service target/${BUILD_PROFILE}/taos-explorer.service /etc/systemd/system/
 sudo cp target/${BUILD_PROFILE}/taosx target/${BUILD_PROFILE}/taos-explorer /usr/bin/

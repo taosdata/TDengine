@@ -1,5 +1,6 @@
 use std::cmp;
 use std::net::{Ipv4Addr, SocketAddrV4};
+use std::ops::Mul;
 use std::{
     any::Any,
     cell::Cell,
@@ -316,8 +317,10 @@ async fn ipc_tcp_forward(
                 }
             });
 
-        const MAX_RETRIES: usize = 5;
+        const MAX_RETRIES: usize = 500;
+        const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 5);
         let mut retries = 0;
+        let mut retry_interval = Duration::from_secs(3);
         let channel = loop {
             match try_establish_channel(remote.clone()).await {
                 Ok(channel) => break channel,
@@ -328,7 +331,8 @@ async fn ipc_tcp_forward(
                         tracing::error!("Max retries reached. Exiting...");
                         return Err(err);
                     }
-                    tokio::time::sleep(RETRY_DELAY).await;
+                    tokio::time::sleep(retry_interval).await;
+                    retry_interval = retry_interval.mul(2).min(MAX_RETRY_INTERVAL);
                 }
             }
         };
@@ -2879,7 +2883,7 @@ async fn consume_flat_record(
                             qid.add_sub_batch_id();
                             tracing::warn!("Contains invalid timestamp, filter out them");
                             // filter timestamp.
-                            let min = get_minimum_timestamp(
+                            let (_, min) = get_minimum_timestamp(
                                 pool,
                                 taos,
                                 DEFAULT_MAX_RETRIES_FOR_CONNECTION,

@@ -38,16 +38,9 @@
         :label="$INDUSTRY && item.key == 'version' ? $t('header.power') : $t(`topic.${item.key}`)"
         :labelStyle="style"
       >
-        <span style="color: #333" v-if="item.key !== 'version'">
-          {{
-            ["expire_time","service_time"].includes(item.key) && item.value !== "unlimited"
-              ? parsinginZone(item.value, "YYYY-MM-DD h:mm:ss")
-              : item.value
-          }}</span
-        >
+        <span style="color: #333" v-if="item.key !== 'version'">{{ item.value }}</span>
         <span style="color: #333" v-else>
           <span style="padding-left: 2px">{{ serverVersion }}</span>
-          <!-- {{ item.value }} -->
         </span>
       </el-descriptions-item>
     </el-descriptions>
@@ -71,7 +64,7 @@
           prop="expire"
         >
           <template slot-scope="scope">
-            <span>{{ scope.row.expire == 'unlimited' ? 'unlimited' : expireTime(scope.row.expire) }}</span>
+            <span>{{ scope.row.expire == 'unlimited' ? 'unlimited' : scope.row.expire_local_ }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -110,7 +103,7 @@
         v-if="!version_no_later_than_3230"
       >
         <template slot-scope="scope">
-          <span>{{ scope.row.expireTime == 'unlimited' ? 'unlimited' : expireTime(scope.row.expireTime) }}</span>
+          <span>{{ scope.row.expire == 'unlimited' ? 'unlimited' : scope.row.expire_local_ }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -177,7 +170,6 @@
   </div>
 </template>
 <script>
-import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
 import { activeLicence } from "@/api/explorer/licence";
 import { parsinginZone, getBrowserLang } from "@/utils";
@@ -283,77 +275,91 @@ export default {
       this.getData();
       this.getGrantsFull();
     },
-    addUdf() {},
+    maybe_a_json(str) {
+      return /^{.*}$/.test(str);
+    },
     async getData() {
       try {
-        // let cols = [];
-        // 不管是任何版本都show grants
-        await sendSQLReq(`show grants;`).then((res) => {
+        // 老版本没有 service_time
+        let res = await sendSQLReq(`select *, cast(expire_time as timestamp) as expire_time_local_${this.version_no_later_than_3230 ? "" : ", cast(service_time as timestamp) as service_time_local_"} from information_schema.ins_grants;`);
+        let array = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              // cols.push({ header: item[0], value: item[0] });
+              return [item[0], data[index]];
+            })
+          );
+        });
+        let allLicence = [];
+        if (array.length > 0) {
+          let keys = Object.keys(array[0]);
+          for (let i = 0; i < keys.length; i++) {
+            let key = keys[i];
+            let value = array[0][key]; 
+            if (key.endsWith("_local_")) {
+              continue;
+            } else if (array[0][key + "_local_"] && /^\d{4}/.test(value)) {
+              value = array[0][key + "_local_"]
+            } 
+            allLicence.push({ key, value });
+          }
+        }
+        
+        this.licenseList = allLicence.filter(
+          (item) => !this.maybe_a_json(item.value)
+        );
+
+        if (this.version_no_later_than_3230) {
+          // TODO 还要测试一个老版本
+          this.tableData = allLicence
+            .filter((item) => this.maybe_a_json(item.value))
+            .map((data) => {
+              return JSON.parse(data.value);
+            });
+        } else {
+          res = await sendSQLReq(`select *, cast(expire as timestamp) as expire_local_ from information_schema.ins_grants_full;`);
           let array = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
-                // cols.push({ header: item[0], value: item[0] });
                 return [item[0], data[index]];
               })
             );
           });
-          let allLicence =
-            array.length > 0
-              ? Object.keys(array[0]).map((key) => {
-                  return {
-                    key: key,
-                    value: array[0][key],
-                  };
-                })
-              : [];
-          this.licenseList = allLicence.filter(
-            (item) => item.value.indexOf("{") == -1
-          );
-          if (this.version_no_later_than_3230) {
-            this.tableData = allLicence
-              .filter((item) => item.value.indexOf("{") == 0)
-              .map((data) => {
-                return JSON.parse(data.value);
-              });
-          }
-        });
-        if (!this.version_no_later_than_3230) {
-          await sendSQLReq(`show grants full;`).then((res) => {
-            let array = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
- 
-            let allData = array
-              .filter((item) => item.limits.indexOf("{") == 0)
-              .map((data) => {
-                return {
-                  ...JSON.parse(data.limits),
-                  type: data.display_name || data.grant_name,
-                  grant: data.grant_name,
-                  expire_time: data.expireTime,
-                };
-              })
-            // 3.3.0.0 之前不显示 mysql、postgres、oracle
-            this.tableData = allData
-            .filter(v => !['mysql', 'postgres', 'oracle', '__future_datain__'].includes(v.grant));
 
-            // 3.3.0.0 之后增加 mysql、postgres
-            if (this.version_greater_than_3300) {
-              this.tableData = allData
-                .filter(v => !['oracle'].includes(v.grant));
-            } 
-            // 3.3.0.1 之后增加 oracle
-            if (this.version_greater_than_3301){
-              this.tableData = allData.filter(v => !['__future_datain__'].includes(v.grant));
-            } 
-            this.advancedTableData = array
-              .filter((item) => item.limits.indexOf("{") == -1)
-            console.log("this.tableData", this.tableData, this.advancedTableData);
-          });
+          let allData = [];
+          for (let i = 0; i < array.length; i++) {
+            let data = array[i];
+            if (this.maybe_a_json(data.limits)) {
+              let item = JSON.parse(data.limits);
+              item.type = data.display_name || data.grant_name
+              item.grant = data.grant_name;
+              item.expire_local_ = data.expire_local_;
+              item.expire = data.expire;
+              allData.push(item);
+            }
+          }
+
+          // 3.3.0.0 之前不显示 mysql、postgres、oracle
+          this.tableData = allData
+          .filter(v => !['mysql', 'postgres', 'oracle', '__future_datain__'].includes(v.grant));
+
+          // 3.3.0.0 之后增加 mysql、postgres
+          if (this.version_greater_than_3300) {
+            this.tableData = allData
+              .filter(v => !['oracle'].includes(v.grant));
+          } 
+          // 3.3.0.1 之后增加 oracle
+          if (this.version_greater_than_3301){
+            this.tableData = allData.filter(v => !['__future_datain__'].includes(v.grant));
+          } 
+
+          this.advancedTableData = [];
+          for (let i = 0; i < array.length; i++) {
+            let data = array[i];
+            if (!this.maybe_a_json(data.limits)) {
+              this.advancedTableData.push(data);
+            }
+          }
         }
         this.loading = false;
       } catch (error) {
@@ -387,12 +393,12 @@ export default {
       if (this.version_no_later_than_3230) {
         return parsinginZone(Number(data) * 24 * 60 * 60 * 1000, "YYYY-MM-DD");
       } else {
-        return parsinginZone(data, "YYYY-MM-DD hh:mm:ss");
+        return parsinginZone(data, "YYYY-MM-DD HH:mm:ss");
       }
     },
     formatLimits(data) {
       if (data) {
-        console.log('data',data);
+        // console.log('data',data);
         return data == 'unlimited' ? 'unlimited' : data.split('/')[1]
       } else {
         return 'n/a'

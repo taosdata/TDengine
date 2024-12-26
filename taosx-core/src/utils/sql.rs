@@ -5,6 +5,7 @@ use itertools::Itertools;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::{fmt::Write, io::Write as _, time::Duration};
+use taos::Precision;
 use taos::{
     taos_query::{common::Describe, Manager},
     AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Error as TaosError, RawBlock, Taos,
@@ -133,7 +134,7 @@ async fn test_precision_with_taos() {
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn get_maximum_timestamp(
+async fn get_maximum_timestamp(
     _pool: &TaosPool,
     _taos: &mut Option<TaosConnection>,
     _max_retries: u32,
@@ -161,12 +162,24 @@ pub async fn get_database(taos: &mut Option<TaosConnection>) -> Result<String, T
 }
 
 #[tracing::instrument(skip_all)]
+pub async fn get_timestamp_range(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    max_retries: u32,
+    cancel: &CancellationToken,
+) -> Result<(Precision, DateTime<Utc>, DateTime<Utc>), TaosError> {
+    let min = get_minimum_timestamp(pool, taos, max_retries, cancel).await?;
+    let max = chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600);
+    Ok((min.0, min.1, max))
+}
+
+#[tracing::instrument(skip_all)]
 pub async fn get_minimum_timestamp(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     max_retries: u32,
     cancel: &CancellationToken,
-) -> Result<DateTime<Utc>, TaosError> {
+) -> Result<(Precision, DateTime<Utc>), TaosError> {
     const SQL_KEEP: &str =
         "select `precision`, `keep` from information_schema.ins_databases where name = database()";
     if taos.is_none() {
@@ -182,36 +195,22 @@ pub async fn get_minimum_timestamp(
         match taos
             .as_ref()
             .unwrap()
-            .query_one::<_, (String, String)>(SQL_KEEP)
+            .query_one::<_, (Precision, String)>(SQL_KEEP)
             .in_current_span()
             .await
         {
             Ok(n) => {
-                let keep = n
-                    .as_ref()
+                return n
                     .map(|(precision, keep)| {
                         keep.split_once(',')
-                            .map(|(keep1, _)| (precision, keep1))
-                            .unwrap_or((precision, keep.as_str()))
+                            .map(|(keep1, _)| (precision, keep1.to_string()))
+                            .unwrap_or((precision, keep))
                     })
-                    .and_then(|(precision, keep1)| {
-                        utils::parse_duration(keep1).ok().map(|d| (precision, d))
+                    .and_then(|(precision, keep)| {
+                        utils::parse_duration(&keep).ok().map(|d| (precision, d))
                     })
-                    .map(|(_precision, d)| {
-                        chrono::Utc::now() - d
-                        // let t = chrono::Utc::now() - d;
-
-                        // match precision.as_str() {
-                        //     "ms" => t.timestamp_millis(),
-                        //     "us" => t.timestamp_micros(),
-                        //     "ns" => t
-                        //         .timestamp_nanos_opt()
-                        //         .expect("timestamp_nano should always success"),
-                        //     _ => t.timestamp_millis(),
-                        // }
-                    })
-                    .unwrap_or(DateTime::from_timestamp(0, 0).unwrap());
-                return Ok(keep);
+                    .map(|(_precision, d)| (_precision, chrono::Utc::now() - d))
+                    .ok_or_else(|| taos::Error::from_string("Empty precision/keep result"));
             }
             Err(err) => {
                 if max_retries == 0 {
@@ -257,9 +256,10 @@ async fn test_min_timestamp_with_taos() {
     let mut taos = Some(taos);
 
     let min = chrono::Utc::now();
-    let t = get_minimum_timestamp(&pool, &mut taos, 0, &CancellationToken::new())
+    let (precision, t) = get_minimum_timestamp(&pool, &mut taos, 0, &CancellationToken::new())
         .await
         .unwrap();
+    assert_eq!(precision, Precision::Millisecond);
     assert!(t <= min);
     taos.unwrap()
         .exec_many(["drop database if exists test_min_timestamp"])
@@ -639,7 +639,7 @@ pub fn sql_values_from_record_batch(
         .iter()
         .filter(|f| {
             let col_index = schema.index_of(f.name()).unwrap();
-            if batch.column(col_index).null_count() < batch.num_rows() {
+            if !with_field_names || batch.column(col_index).null_count() < batch.num_rows() {
                 column_has_value.push(col_index);
                 true
             } else {
@@ -1274,6 +1274,61 @@ pub async fn connect_taos_root(dsn: &Dsn) -> anyhow::Result<Taos> {
         })?;
 
     Ok(taos)
+}
+
+pub trait BlockPartitionBy: Sized {
+    fn partition_by(&self, slice: &[bool]) -> (Option<Self>, Option<Self>);
+}
+impl BlockPartitionBy for RawBlock {
+    fn partition_by(&self, slice: &[bool]) -> (Option<Self>, Option<Self>) {
+        let rle: Vec<(bool, usize, usize)> = Vec::new();
+        let (left, right): (Vec<_>, Vec<_>) = slice
+            .iter()
+            .enumerate()
+            .fold(rle, |mut acc, (idx, v)| {
+                if let Some((state, _start, _end)) = acc.last_mut() {
+                    if *state == *v {
+                        *_end = idx;
+                        return acc;
+                    }
+                }
+                acc.push((*v, idx, idx));
+                acc
+            })
+            .into_iter()
+            .partition_map(|(v, start, end)| {
+                if v {
+                    either::Either::Left(start..end + 1)
+                } else {
+                    either::Either::Right(start..end + 1)
+                }
+            });
+
+        let fn_take = |ranges: Vec<std::ops::Range<usize>>| -> Option<RawBlock> {
+            let views = self.column_views();
+            let precision = self.precision();
+            ranges
+                .into_iter()
+                .filter_map(|range| {
+                    let views = views
+                        .iter()
+                        .filter_map(|view| view.slice(range.clone()))
+                        .collect_vec();
+                    if views.is_empty() {
+                        None
+                    } else {
+                        Some(RawBlock::from_views(&views, precision))
+                    }
+                })
+                .reduce(|lhs, rhs| lhs.concat(&rhs))
+                .map(|mut block| {
+                    block.with_table_name(self.table_name().unwrap());
+                    block.with_field_names(self.field_names().to_vec());
+                    block
+                })
+        };
+        (fn_take(left), fn_take(right))
+    }
 }
 
 #[cfg(test)]
