@@ -1357,7 +1357,7 @@ impl CustomContext {
 impl ClientContext for CustomContext {}
 
 impl ConsumerContext for CustomContext {
-    fn pre_rebalance(&self, rebalance: &Rebalance) {
+    fn pre_rebalance(&self, _consumer: &BaseConsumer<Self>, rebalance: &Rebalance) {
         if is_rebalance_empty(rebalance) {
             return;
         }
@@ -1385,7 +1385,7 @@ impl ConsumerContext for CustomContext {
         }
     }
 
-    fn post_rebalance(&self, rebalance: &Rebalance) {
+    fn post_rebalance(&self, _consumer: &BaseConsumer<Self>, rebalance: &Rebalance) {
         if is_rebalance_empty(rebalance) {
             return;
         }
