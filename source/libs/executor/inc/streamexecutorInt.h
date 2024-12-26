@@ -57,7 +57,8 @@ typedef struct SSlicePoint {
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
-void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
+int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
+void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
 
 int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption);
 void    removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins);

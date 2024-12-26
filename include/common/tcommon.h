@@ -160,6 +160,7 @@ typedef enum EStreamType {
   STREAM_PARTITION_DELETE_DATA,
   STREAM_GET_RESULT,
   STREAM_DROP_CHILD_TABLE,
+  STREAM_EVENT_OPEN_WINDOW,
 } EStreamType;
 
 #pragma pack(push, 1)

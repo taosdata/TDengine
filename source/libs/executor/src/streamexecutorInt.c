@@ -14,6 +14,7 @@
  */
 
 #include "executorInt.h"
+#include "tdatablock.h"
 
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type) {
   if (type != STREAM_GET_ALL && type != STREAM_CHECKPOINT) {
@@ -29,7 +30,19 @@ void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo) {
   pBasicInfo->updateOperatorInfo = false;
 }
 
-void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
+int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
   pBasicInfo->primaryPkIndex = -1;
   pBasicInfo->updateOperatorInfo = false;
+  pBasicInfo->pEventInfo = taosArrayInit(4, sizeof(SSessionKey));
+  if (pBasicInfo->pEventInfo == NULL) {
+    return terrno;
+  }
+  return createSpecialDataBlock(STREAM_EVENT_OPEN_WINDOW, &pBasicInfo->pEventRes);
+}
+
+void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
+  blockDataDestroy(pBasicInfo->pEventRes);
+  pBasicInfo->pEventRes = NULL;
+  taosArrayDestroy(pBasicInfo->pEventInfo);
+  pBasicInfo->pEventInfo = NULL;
 }
