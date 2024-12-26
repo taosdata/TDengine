@@ -1987,11 +1987,13 @@ void catalogDestroy(void) {
 
   if (gCtgMgmt.cacheTimer) {
     if (!taosTmrStop(gCtgMgmt.cacheTimer)) {
+/*
       qDebug("catalog cacheTimer %" PRIuPTR " not stopped", (uintptr_t)gCtgMgmt.cacheTimer);
     
       while (!taosTmrIsStopped(&gCtgMgmt.cacheTimer)) {
         taosMsleep(1);
       }
+*/
     }
 
     qDebug("catalog cacheTimer %" PRIuPTR " is stopped", (uintptr_t)gCtgMgmt.cacheTimer);
