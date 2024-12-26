@@ -1841,6 +1841,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     }
 
     if (TK_NK_QUESTION == pToken->type) {
+      if (!pCxt->pComCxt->isStmtBind && i != 0) {
+        return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
+      }
       pCxt->isStmtBind = true;
       pStmt->usingTableProcessing = true;
       if (pCols->pColIndex[i] == tbnameIdx) {
@@ -1874,6 +1877,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfBound");
       }
     } else {
+      if (pCxt->pComCxt->isStmtBind) {
+        return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
+      }
       if (pCols->pColIndex[i] < numOfCols) {
         const SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
         SColVal*       pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);

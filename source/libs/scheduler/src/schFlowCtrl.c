@@ -50,11 +50,6 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   int32_t taskNum = taosArrayGetSize(pJob->dataSrcTasks);
   for (int32_t i = 0; i < taskNum; ++i) {
     SSchTask *pTask = *(SSchTask **)taosArrayGet(pJob->dataSrcTasks, i);
-    if (NULL == pTask) {
-      SCH_JOB_DLOG("fail to get the %dth task", i);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-    }
-
     sum += pTask->plan->execNodeStat.tableNum;
   }
 
