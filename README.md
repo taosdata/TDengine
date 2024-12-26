@@ -37,7 +37,18 @@ Features:
 
 ## 2. Prerequisites
 
-taosX uses Rust for its development. You need to install Rust and other required tools and libraries. Here is a script to install all dependencies with specified versions:
+taosX uses Rust for its development. You need to install Rust and other required tools and libraries. 
+
+You can complete the installation with one click by executing the following shell script:
+
+```bash
+chmod +x setup_dev.sh
+./setup_dev.sh deploy_dev
+source ~/.bashrc
+```
+
+Or you can step through the following steps to complete the environment installation.
+Here is a script to install all dependencies with specified versions:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash
@@ -102,12 +113,7 @@ go version
 go env
 ```
 
-You can also complete the installation with one click by executing the following shell script:
 
-```bash
-chmod +x setup_dev.sh
-./setup_dev.sh deploy_dev
-```
 
 ## 3. Build
 
