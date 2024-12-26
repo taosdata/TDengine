@@ -796,7 +796,8 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         sourceIdx++;
       } else if (pCol->cid == pColData->info.colId) {
         for (int32_t i = 0; i < pCol->nVal; i++) {
-          tColDataGetValue(pCol, i, &colVal);
+          code = tColDataGetValue(pCol, i, &colVal);
+          TSDB_CHECK_CODE(code, line, END);
           code = doSetVal(pColData, i, &colVal);
           TSDB_CHECK_CODE(code, line, END);
         }
@@ -937,7 +938,7 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
       pCol = taosArrayGet(pCols, j);
       TQ_NULL_GO_TO_END(pCol);
       SColVal colVal = {0};
-      tColDataGetValue(pCol, i, &colVal);
+      TQ_ERR_GO_TO_END(tColDataGetValue(pCol, i, &colVal));
       PROCESS_VAL
     }
 
@@ -961,7 +962,7 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, targetIdx);
       TQ_NULL_GO_TO_END(pColData);
       SColVal colVal = {0};
-      tColDataGetValue(pCol, i, &colVal);
+      TQ_ERR_GO_TO_END(tColDataGetValue(pCol, i, &colVal));
       SET_DATA
     }
 
