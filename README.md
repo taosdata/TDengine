@@ -104,8 +104,8 @@ go env
 You can also complete the installation with one click by executing the following shell script:
 
 ```bash
-chmod +x setup.sh
-./setup.sh deploy_dev
+chmod +x setup_dev.sh
+./setup_dev.sh deploy_dev
 ```
 
 ## 3. Build
