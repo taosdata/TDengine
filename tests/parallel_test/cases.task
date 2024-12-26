@@ -249,6 +249,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
+,,n,system-test,python3 ./test.py -f 2-query/large_data.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 2

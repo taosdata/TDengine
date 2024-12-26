@@ -6,7 +6,7 @@ description: 对表的各种管理操作
 
 ## 创建表
 
-`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表。
+`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表（也可以通过指定 TAGS 字段创建超级表）。
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
