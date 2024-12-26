@@ -5653,43 +5653,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
   },
-  {
-    .name = "cols",
-    .type = FUNCTION_TYPE_COLS,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_SELECT_COLS_FUNC,
-    .translateFunc = translateCols,
-    .dynDataRequiredFunc = NULL,
-    .getEnvFunc   = getColsFuncEnv,
-    .initFunc     = functionSetup,
-    .processFunc  = colsFunction,
-    .sprocessFunc = colsScalarFunction,
-    .pPartialFunc = "_cols_partial",
-    .pMergeFunc = "_cols_merge",
-    .finalizeFunc = NULL
-  },
-   {
-    .name = "_cols_partial",
-    .type = FUNCTION_TYPE_COLS_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_SELECT_COLS_FUNC,
-    .translateFunc = translateCols,
-    .dynDataRequiredFunc = NULL,
-    .getEnvFunc   = getColsFuncEnv,
-    .initFunc     = functionSetup,
-    .processFunc  = colsFunction,
-    .finalizeFunc = colsPartialFinalize,
-    .combineFunc  = colsCombine,
-  },
-  {
-    .name = "_cols_merge",
-    .type = FUNCTION_TYPE_COLS_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_SELECT_COLS_FUNC,
-    .translateFunc = translateOutFirstIn,
-    .getEnvFunc   = getFirstLastFuncEnv,
-    .initFunc     = functionSetup,
-    .processFunc  = lastFunctionMerge,
-    .finalizeFunc = colsPartialFinalize,
-    .combineFunc  = colsCombine,
-  },
 };
 // clang-format on
 

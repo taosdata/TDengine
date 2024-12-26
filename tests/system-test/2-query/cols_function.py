@@ -71,6 +71,25 @@ class TDTestCase:
         tdSql.query(f'select cols(last(c0), ts, c1), cols(first(c0), ts, c1), count(1) from {self.dbname}.meters')
         tdSql.query(f'select cols(last(c0), ts as t1, c1 as c11), cols(first(c0), ts as c2, c1 c21), count(1) from {self.dbname}.meters')
 
+    def funcSupperTableTest(self):
+        tdSql.execute('create database if not exists db;')
+        tdSql.execute('use db')
+        tdSql.execute(f'drop table if exists db.st')
+        
+        tdSql.execute('create table db.st (ts timestamp, c0 int, c1 float, c2 nchar(30), c3 bool) tags (t1 nchar(30))')
+        tdSql.execute('create table db.st_1 using db.st tags("st1")')
+        tdSql.execute('create table db.st_2 using db.st tags("st1")')
+        tdSql.execute('insert into db.st_1 values(1734574929000, 1, 1, "a1", true)')
+        tdSql.execute('insert into db.st_1 values(1734574929001, 2, 2, "bbbbbbbbb1", false)')
+        tdSql.execute('insert into db.st_1 values(1734574929002, 3, 3, "a2", true)')
+        tdSql.execute('insert into db.st_1 values(1734574929003, 4, 4, "bbbbbbbbb2", false)')
+        
+        tdSql.query(f'select cols(last(c0), ts, c1, c2, c3), cols(first(c0), ts, c1, c2, c3) from db.st')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 'bbbbbbbbb')
+        
+        #tdSql.execute(f'drop table if exists db.st')
+
     
     def funcNestTest(self):
         tdSql.execute('create database db;')
@@ -196,10 +215,12 @@ class TDTestCase:
         tdSql.error(f'select cols(last(ts)+10, c1+10) from {self.dbname}.meters group by tbname')
         
         tdSql.error(f'select cols(cols(last(ts), c0), c0) as cc from {self.dbname}.meters')
+        tdSql.error(f'select cols(last(ts), cols(last(ts), c0), c0) as cc from {self.dbname}.meters')
         
 
     def run(self):
         self.funcNestTest()
+        self.funcSupperTableTest()
         return
         self.create_test_data()
         self.parse_test()
