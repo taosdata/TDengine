@@ -1415,7 +1415,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   SVAlterTbReq  vAlterTbReq = {0};
   SVAlterTbRsp  vAlterTbRsp = {0};
   SDecoder      dc = {0};
-  int32_t       rcode = 0;
+  int32_t       code = 0;
+  int32_t       lino = 0;
   int32_t       ret;
   SEncoder      ec = {0};
   STableMetaRsp vMetaRsp = {0};
@@ -1431,7 +1432,6 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   if (tDecodeSVAlterTbReq(&dc, &vAlterTbReq) < 0) {
     vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&dc);
-    rcode = -1;
     goto _exit;
   }
 
@@ -1439,7 +1439,6 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   if (metaAlterTable(pVnode->pMeta, ver, &vAlterTbReq, &vMetaRsp) < 0) {
     vAlterTbRsp.code = terrno;
     tDecoderClear(&dc);
-    rcode = -1;
     goto _exit;
   }
   tDecoderClear(&dc);
@@ -1447,6 +1446,31 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   if (NULL != vMetaRsp.pSchemas) {
     vnodeUpdateMetaRsp(pVnode, &vMetaRsp);
     vAlterTbRsp.pMeta = &vMetaRsp;
+  }
+
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
+    if (uid == 0) {
+      vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
+             vAlterTbReq.tbName);
+      goto _exit;
+    }
+
+    SArray* tbUids = taosArrayInit(4, sizeof(int64_t));
+    void* p = taosArrayPush(tbUids, &uid);
+    TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
+
+    vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
+    if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, false)) < 0) {
+      vError("vgId:%d, failed to remove tbUid list since %s", TD_VID(pVnode), tstrerror(code));
+    }
+
+    vDebug("vgId:%d, try to add table:%s in query table list", TD_VID(pVnode), vAlterTbReq.tbName);
+    if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, true)) < 0) {
+      vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(code));
+    }
+
+    taosArrayDestroy(tbUids);
   }
 
 _exit:
@@ -1457,6 +1481,7 @@ _exit:
   if (tEncodeSVAlterTbRsp(&ec, &vAlterTbRsp) != 0) {
     vError("vgId:%d, failed to encode alter table response", TD_VID(pVnode));
   }
+
   tEncoderClear(&ec);
   if (vMetaRsp.pSchemas) {
     taosMemoryFree(vMetaRsp.pSchemas);
