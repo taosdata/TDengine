@@ -1129,6 +1129,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   SStreamState* pTempState = (SStreamState*)taosMemoryCalloc(1, sizeof(SStreamState));
   QUERY_CHECK_NULL(pTempState, code, lino, _error, terrno);
   (*pTempState) = *pTaskInfo->streamInfo.pState;
+  pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->stateStore.streamStateSetNumber(pTempState, -1, pInfo->primaryTsIndex);
   if (pInfo->pTableScanOp->pTaskInfo->streamInfo.pState) {
     pAPI->stateStore.streamStateSetNumber(pInfo->pTableScanOp->pTaskInfo->streamInfo.pState, -2, pInfo->primaryTsIndex);
@@ -1137,6 +1138,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   pAPI->stateStore.streamStateInitTsDataState(&pInfo->tsDataState, pkType.type, pkType.bytes,
                                               pTaskInfo->streamInfo.pState);
   pAPI->stateStore.streamStateRecoverTsData(&pInfo->tsDataState);
+  pInfo->pStreamScanOp = pOperator;
 
   // for stream
   if (pTaskInfo->streamInfo.pState) {
