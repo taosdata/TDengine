@@ -8,6 +8,7 @@ use flume::{Receiver, Sender};
 use metrics::gauge;
 use std::{
     collections::HashMap,
+    ops::Range,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -128,6 +129,8 @@ pub struct Args {
 
     /// For in-memory cache queue capacity.
     in_memory_cache_capacity: Option<usize>,
+
+    ports: Option<Range<u16>>,
 }
 
 #[config]
@@ -176,6 +179,12 @@ pub struct ConfigArgs {
 
     #[clap(long, env = "LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
+
+    #[clap(long)]
+    port_min: Option<u16>,
+
+    #[clap(long)]
+    port_max: Option<u16>,
 }
 
 #[derive(Parser, Debug)]
@@ -413,6 +422,8 @@ impl Args {
             instance_id,
             in_memory_cache_capacity,
             mut log,
+            port_min,
+            port_max,
             ..
         } = ConfigArgs::with_layers(&layers)?;
 
@@ -453,6 +464,19 @@ impl Args {
 
         AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
 
+        // set the range of client port
+        let ports = if port_min.is_some() || port_max.is_some() {
+            let port_min = port_min
+                .map(|port| port.clamp(49152, 65535))
+                .unwrap_or(49152);
+            let port_max = port_max
+                .map(|port| port.clamp(port_min, 65535))
+                .unwrap_or(65535);
+            Some(port_min..port_max)
+        } else {
+            None
+        };
+
         Ok(Args {
             plugins_home,
             data_dir,
@@ -462,6 +486,7 @@ impl Args {
             log_keep_days,
             log,
             in_memory_cache_capacity,
+            ports,
         })
     }
 }
@@ -471,9 +496,9 @@ mod runner;
 
 async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let ctrl_c = tokio::signal::ctrl_c();
-    let mut client = agent::Client::new(&args.endpoint, &args.token).await?;
-    let mut client2 = agent::Client::new(&args.endpoint, &args.token).await?;
-    let mut client3 = agent::Client::new(&args.endpoint, &args.token).await?;
+    let mut client = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
+    let mut client2 = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
+    let mut client3 = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
 
     let agent = client.agent();
     let agent_id = agent.id;

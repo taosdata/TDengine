@@ -59,6 +59,10 @@ tracing-subscriber = { version = "0.3", features = [
   "env-filter",
 ] }
 
+hyper = "1.5.2"
+hyper-util = "0.1.10"
+tower = "0.5.2"
+
 taoslog = { workspace = true }
 bytes = { workspace = true }
 sysinfo = { workspace = true }
