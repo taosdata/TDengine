@@ -208,28 +208,22 @@ static int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
   SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
   TAOS_UNUSED(taosThreadRwlockRdlock(&pWal->mutex));
-  SWalFileInfo *gloablPRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-  if (gloablPRet == NULL) {
+  SWalFileInfo *globalRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+  if (globalRet == NULL) {
     wError("failed to find WAL log file with ver:%" PRId64, ver);
     TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
     TAOS_RETURN(TSDB_CODE_WAL_INVALID_VER);
   }
-  SWalFileInfo *pRet = taosMemoryMalloc(sizeof(SWalFileInfo));
-  if (pRet == NULL) {
-    wError("failed to allocate memory for localRet");
-    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
-    TAOS_RETURN(terrno);
-  }
-  TAOS_MEMCPY(pRet, gloablPRet, sizeof(SWalFileInfo));
+  SWalFileInfo pRet;
+  TAOS_MEMCPY(&pRet, globalRet, sizeof(SWalFileInfo));
   TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
-  if (pReader->curFileFirstVer != pRet->firstVer) {
+  if (pReader->curFileFirstVer != pRet.firstVer) {
     // error code was set inner
-    TAOS_CHECK_RETURN_WITH_FREE(walReadChangeFile(pReader, pRet->firstVer), pRet);
+    TAOS_CHECK_RETURN(walReadChangeFile(pReader, pRet.firstVer));
   }
 
   // error code was set inner
-  TAOS_CHECK_RETURN_WITH_FREE(walReadSeekFilePos(pReader, pRet->firstVer, ver), pRet);
-  taosMemoryFree(pRet);
+  TAOS_CHECK_RETURN(walReadSeekFilePos(pReader, pRet.firstVer, ver));
   wDebug("vgId:%d, wal version reset from %" PRId64 " to %" PRId64, pReader->pWal->cfg.vgId, pReader->curVersion, ver);
 
   pReader->curVersion = ver;
@@ -484,7 +478,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
       code = TSDB_CODE_WAL_FILE_CORRUPTED;
     }
     wError("vgId:%d, failed to read WAL record body, index:%" PRId64 ", from log file since %s",
-           pReader->pWal->cfg.vgId, ver, strerror(code));
+           pReader->pWal->cfg.vgId, ver, tstrerror(code));
     TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
     TAOS_RETURN(code);
   }
