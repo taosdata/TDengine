@@ -390,9 +390,78 @@ TEST(sstreamTaskGetTriggerRecvStatusTest, streamTaskGetTriggerRecvStatusFnTest) 
     extern int8_t tsS3EpNum;
     tsS3EpNum = 1;
 
-    code = uploadCheckpointToS3("123", "/tmp/backend5/stream");
-    EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+    code = uploadCheckpointToS3("123", "/tmp/backend5/stream/stream");
+    EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
 
     code = downloadCheckpointByNameS3("123", "/root/download", "");
     EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
+
+    code = deleteCheckpointFile("aaa123", "bbb");
+    EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
+}
+
+TEST(doCheckBeforeHandleChkptTriggerTest, doCheckBeforeHandleChkptTriggerFnTest) {
+    SStreamTask* pTask = NULL;
+    int64_t uid = 2222222222222;
+    SArray* array = taosArrayInit(4, POINTER_BYTES);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
+                                       false, 1, &pTask);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    initTaskLock(pTask);
+
+    const char *path = "/tmp/doCheckBeforeHandleChkptTriggerTest/stream";
+    code = streamMetaOpen((path), NULL, NULL, NULL, 0, 0, NULL, &pTask->pMeta);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    SStreamState *pState = streamStateOpen((char *)path, pTask, 0, 0);
+    ASSERT(pState != NULL);
+
+    pTask->pBackend = pState->pTdbState->pOwner->pBackend;
+
+    code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    pTask->chkInfo.checkpointId = 123;
+    code = doCheckBeforeHandleChkptTrigger(pTask, 100, NULL, 0);
+    ASSERT_EQ(code, TSDB_CODE_STREAM_INVLD_CHKPT);
+
+    pTask->chkInfo.pActiveInfo->failedId = 223;
+    code = doCheckBeforeHandleChkptTrigger(pTask, 200, NULL, 0);
+    ASSERT_EQ(code, TSDB_CODE_STREAM_INVLD_CHKPT);
+
+    SStreamDataBlock block;
+    block.srcTaskId = 456;
+    SStreamTask upTask;
+    upTask = *pTask;
+    upTask.id.taskId = 456;
+    streamTaskSetUpstreamInfo(pTask, &upTask);
+    pTask->chkInfo.pActiveInfo->failedId = 23;
+    code = doCheckBeforeHandleChkptTrigger(pTask, 123, &block, 0);
+    ASSERT_EQ(code, TSDB_CODE_STREAM_INVLD_CHKPT);
+
+    streamTaskSetUpstreamInfo(pTask, &upTask);
+    streamTaskSetStatusReady(pTask);
+    code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    pTask->chkInfo.pActiveInfo->activeId = 223;
+
+    STaskCheckpointReadyInfo readyInfo;
+    readyInfo.upstreamTaskId = 4567;
+    block.srcTaskId = 4567;
+    void* pBuf = rpcMallocCont(sizeof(SMsgHead) + 1);
+
+    initRpcMsg(&readyInfo.msg, 0, pBuf, sizeof(SMsgHead) + 1);
+    taosArrayPush(pTask->chkInfo.pActiveInfo->pReadyMsgList, &readyInfo);
+    code = doCheckBeforeHandleChkptTrigger(pTask, 223, &block, 0);
+    ASSERT_NE(code, TSDB_CODE_SUCCESS);
+
+    pTask->chkInfo.pActiveInfo->allUpstreamTriggerRecv = 1;
+    code = doCheckBeforeHandleChkptTrigger(pTask, 223, &block, 0);
+    ASSERT_NE(code, TSDB_CODE_SUCCESS);
+
+    pTask->chkInfo.pActiveInfo->activeId = 1111;
+    code = doCheckBeforeHandleChkptTrigger(pTask, 223, &block, 0);
+    ASSERT_EQ(code, TSDB_CODE_STREAM_INVLD_CHKPT);
 }

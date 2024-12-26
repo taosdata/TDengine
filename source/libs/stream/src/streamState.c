@@ -546,10 +546,6 @@ void streamStateDestroy(SStreamState* pState, bool remove) {
   taosMemoryFreeClear(pState);
 }
 
-int32_t streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark) {
-  return deleteExpiredCheckPoint(pState->pFileState, mark);
-}
-
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts) { streamFileStateReloadInfo(pState->pFileState, ts); }
 
 void streamStateCopyBackend(SStreamState* src, SStreamState* dst) {
@@ -616,8 +612,6 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
 }
 
 void streamStateClearExpiredState(SStreamState* pState) { clearExpiredState(pState->pFileState); }
-
-void streamStateSetFillInfo(SStreamState* pState) { setFillInfo(pState->pFileState); }
 
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {
