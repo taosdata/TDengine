@@ -214,16 +214,16 @@ static int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
     TAOS_RETURN(TSDB_CODE_WAL_INVALID_VER);
   }
-  SWalFileInfo pRet;
-  TAOS_MEMCPY(&pRet, globalRet, sizeof(SWalFileInfo));
+  SWalFileInfo ret;
+  TAOS_MEMCPY(&ret, globalRet, sizeof(SWalFileInfo));
   TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
-  if (pReader->curFileFirstVer != pRet.firstVer) {
+  if (pReader->curFileFirstVer != ret.firstVer) {
     // error code was set inner
-    TAOS_CHECK_RETURN(walReadChangeFile(pReader, pRet.firstVer));
+    TAOS_CHECK_RETURN(walReadChangeFile(pReader, ret.firstVer));
   }
 
   // error code was set inner
-  TAOS_CHECK_RETURN(walReadSeekFilePos(pReader, pRet.firstVer, ver));
+  TAOS_CHECK_RETURN(walReadSeekFilePos(pReader, ret.firstVer, ver));
   wDebug("vgId:%d, wal version reset from %" PRId64 " to %" PRId64, pReader->pWal->cfg.vgId, pReader->curVersion, ver);
 
   pReader->curVersion = ver;
