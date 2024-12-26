@@ -117,6 +117,14 @@ go env
 
 ## 3. Build
 
+You can complete the build and install of taosx/agent/taos-explorer/plugins with one click by executing the following shell script:
+
+```bash
+chmod +x build_install.sh && ./build_install.sh
+```
+
+Or you can step through the following steps to complete build taosx and its plugins.
+
 Clone the code first:
 
 ```bash
@@ -181,11 +189,7 @@ taosX is delivered along with TDengine Enterprise Edition, so you do not need to
 cargo make install-locally
 ```
 
-You can also complete the build and install of taosx/agent/taos-explorer/plugins with one click by executing the following shell script:
 
-```bash
-chmod +x build_install.sh && ./build_install.sh
-```
 
 ## 6. Running
 
