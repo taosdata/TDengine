@@ -690,7 +690,7 @@ impl OpcModelConfig {
     pub async fn generate_transform_map(&self, column_name: &str) -> HashMap<String, ColumnConfig> {
         self.generate_transform_map_impl(column_name)
             .await
-            .unwrap_or_else(|_err| HashMap::new())
+            .unwrap_or_default()
     }
 
     async fn generate_transform_map_impl(
