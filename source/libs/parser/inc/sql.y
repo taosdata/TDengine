@@ -24,6 +24,14 @@
 #include "parAst.h"
 
 #define YYSTACKDEPTH 0
+
+#define JOINED_TABLE_MK(jt, st, A, B, E, F, G, H)                              \
+  {                                                                            \
+    A = createJoinTableNode(pCxt, jt, st, B, E, F);                            \
+    A = addWindowOffsetClause(pCxt, A, G);                                     \
+    A = addJLimitClause(pCxt, A, H);                                           \
+  }
+
 }
 
 %syntax_error {
@@ -45,6 +53,8 @@
 %left NK_PLUS NK_MINUS.
 %left NK_STAR NK_SLASH NK_REM.
 %left NK_CONCAT.
+
+%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW JOIN ON WINDOW_OFFSET JLIMIT.
 
 /************************************************ create/alter account *****************************************/
 cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
@@ -1445,35 +1455,123 @@ parenthesized_joined_table(A) ::= NK_LP joined_table(B) NK_RP.                  
 parenthesized_joined_table(A) ::= NK_LP parenthesized_joined_table(B) NK_RP.      { A = B; }
 
 /************************************************ joined_table ********************************************************/
-joined_table(A) ::=
-  table_reference(B) join_type(C) join_subtype(D) JOIN table_primary(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               {
-                                                                                    A = createJoinTableNode(pCxt, C, D, B, E, F);
-                                                                                    A = addWindowOffsetClause(pCxt, A, G);
-                                                                                    A = addJLimitClause(pCxt, A, H);
-                                                                                  }
+joined_table(A) ::= inner_joined(B).                                              { A = B; }
+joined_table(A) ::= outer_joined(B).                                              { A = B; }
+joined_table(A) ::= semi_joined(B).                                               { A = B; }
+joined_table(A) ::= anti_joined(B).                                               { A = B; }
+joined_table(A) ::= asof_joined(B).                                               { A = B; }
+joined_table(A) ::= win_joined(B).                                                { A = B; }
 
-%type join_type                                                                   { EJoinType }
-%destructor join_type                                                             { }
-join_type(A) ::= .                                                                { A = JOIN_TYPE_INNER; }
-join_type(A) ::= INNER.                                                           { A = JOIN_TYPE_INNER; }
-join_type(A) ::= LEFT.                                                            { A = JOIN_TYPE_LEFT; }
-join_type(A) ::= RIGHT.                                                           { A = JOIN_TYPE_RIGHT; }
-join_type(A) ::= FULL.                                                            { A = JOIN_TYPE_FULL; }
+/************************************************ inner join **********************************************************/
+inner_joined(A) ::=
+  table_reference(B) JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_NONE, A, B, E, F, G, H); }
 
-%type join_subtype                                                                { EJoinSubType }
-%destructor join_subtype                                                          { }
-join_subtype(A) ::= .                                                             { A = JOIN_STYPE_NONE; }
-join_subtype(A) ::= OUTER.                                                        { A = JOIN_STYPE_OUTER; }
-join_subtype(A) ::= SEMI.                                                         { A = JOIN_STYPE_SEMI; }
-join_subtype(A) ::= ANTI.                                                         { A = JOIN_STYPE_ANTI; }
-join_subtype(A) ::= ASOF.                                                         { A = JOIN_STYPE_ASOF; }
-join_subtype(A) ::= WINDOW.                                                       { A = JOIN_STYPE_WIN; }
+inner_joined(A) ::=
+  table_reference(B) INNER JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_NONE, A, B, E, F, G, H); }
 
-join_on_clause_opt(A) ::= .                                                       { A = NULL; }
+inner_joined(A) ::=
+  table_reference(B) LEFT JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_NONE, A, B, E, F, G, H); }
+
+inner_joined(A) ::=
+  table_reference(B) RIGHT JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_NONE, A, B, E, F, G, H); }
+
+inner_joined(A) ::=
+  table_reference(B) FULL JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_NONE, A, B, E, F, G, H); }
+
+/************************************************ outer join **********************************************************/
+outer_joined(A) ::=
+  table_reference(B) OUTER JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_OUTER, A, B, E, F, G, H); }
+
+outer_joined(A) ::=
+  table_reference(B) LEFT OUTER JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_OUTER, A, B, E, F, G, H); }
+
+outer_joined(A) ::=
+  table_reference(B) RIGHT OUTER JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_OUTER, A, B, E, F, G, H); }
+
+outer_joined(A) ::=
+  table_reference(B) FULL OUTER JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_OUTER, A, B, E, F, G, H); }
+
+/************************************************ semi join ***********************************************************/
+semi_joined(A) ::=
+  table_reference(B) SEMI JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_SEMI, A, B, E, F, G, H); }
+
+semi_joined(A) ::=
+  table_reference(B) LEFT SEMI JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_SEMI, A, B, E, F, G, H); }
+
+semi_joined(A) ::=
+  table_reference(B) RIGHT SEMI JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_SEMI, A, B, E, F, G, H); }
+
+semi_joined(A) ::=
+  table_reference(B) FULL SEMI JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_SEMI, A, B, E, F, G, H); }
+
+/************************************************ ansi join ***********************************************************/
+anti_joined(A) ::=
+  table_reference(B) ANTI JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_ANTI, A, B, E, F, G, H); }
+
+anti_joined(A) ::=
+  table_reference(B) LEFT ANTI JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_ANTI, A, B, E, F, G, H); }
+
+anti_joined(A) ::=
+  table_reference(B) RIGHT ANTI JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_ANTI, A, B, E, F, G, H); }
+
+anti_joined(A) ::=
+  table_reference(B) FULL ANTI JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_ANTI, A, B, E, F, G, H); }
+
+/************************************************ asof join ***********************************************************/
+asof_joined(A) ::=
+  table_reference(B) ASOF JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
+
+asof_joined(A) ::=
+  table_reference(B) LEFT ASOF JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
+
+asof_joined(A) ::=
+  table_reference(B) RIGHT ASOF JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
+
+asof_joined(A) ::=
+  table_reference(B) FULL ASOF JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
+
+/************************************************ window join *********************************************************/
+win_joined(A) ::=
+  table_reference(B) WINDOW JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
+
+win_joined(A) ::=
+  table_reference(B) LEFT WINDOW JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
+
+win_joined(A) ::=
+  table_reference(B) RIGHT WINDOW JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
+
+win_joined(A) ::=
+  table_reference(B) FULL WINDOW JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_WIN, A, B, E, F, G, H); }
+
+join_on_clause_opt(A) ::= . [ON]                                                  { A = NULL; }
 join_on_clause_opt(A) ::= ON search_condition(B).                                 { A = B; }
 
-window_offset_clause_opt(A) ::= .                                                 { A = NULL; }
+window_offset_clause_opt(A) ::= . [WINDOW_OFFSET]                                 { A = NULL; }
 window_offset_clause_opt(A) ::= WINDOW_OFFSET NK_LP window_offset_literal(B)
   NK_COMMA window_offset_literal(C) NK_RP.                                        { A = createWindowOffsetNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 
@@ -1484,7 +1582,7 @@ window_offset_literal(A) ::= NK_MINUS(B) NK_VARIABLE(C).                        
                                                                                     A = createRawExprNode(pCxt, &t, createTimeOffsetValueNode(pCxt, &t));
                                                                                   }
 
-jlimit_clause_opt(A) ::= .                                                        { A = NULL; }
+jlimit_clause_opt(A) ::= . [JLIMIT]                                               { A = NULL; }
 jlimit_clause_opt(A) ::= JLIMIT NK_INTEGER(B).                                    { A = createLimitNode(pCxt, &B, NULL); }
 
 /************************************************ query_specification *************************************************/
