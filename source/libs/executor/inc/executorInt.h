@@ -542,46 +542,14 @@ typedef struct SStreamScanInfo {
   bool              useGetResultRange;
   STimeWindow       lastScanRange;
   SSDataBlock*      pRangeScanRes;  // update SSDataBlock
-  STableTsDataState tsDataState;
-} SStreamScanInfo;
 
-typedef struct SRecalculateSupporter {
-  SInterval interval;
-} SRecalculateSupporter;
-
-typedef struct SStreamDataScanInfo {
-  SSteamOpBasicInfo      basic;
-  SStreamAggSupporter*   pStreamAggSup;
-  SExprInfo*             pPseudoExpr;
-  int32_t                numOfPseudoExpr;
-  SExprSupp              tbnameCalSup;
-  SExprSupp*             pPartTbnameSup;
-  SExprSupp              tagCalSup;
-  int32_t                primaryTsIndex;  // primary time stamp slot id
-  SColMatchInfo          matchInfo;
-  SArray*                pBlockLists;  // multiple SSDatablock.
-  SSDataBlock*           pRes;         // result SSDataBlock
-  SSDataBlock*           pDeleteDataRes;
-  SSDataBlock*           pDisorderDataRes;  // null
-  int32_t                blockType;         // current block type
-  int32_t                validBlockIndex;   // Is current data has returned?
-  STqReader*             tqReader;
-  SStoreTqReader         readerFn;
-  SReadHandle            readHandle;
-  EStreamScanMode        scanMode;
-  struct SOperatorInfo*  pTableScanOp;
-  STimeWindowAggSupp     twAggSup;
-  SSDataBlock*           pRecoverRes;
-  SSDataBlock*           pCreateTbRes;
-  SSDataBlock*           pCheckpointRes;
-  STableTsDataState      tsDataState;
+  //nonblock data scan
+  STableTsDataState     tsDataState;
+  TSKEY                  recalculateInterval;
   __compar_fn_t          comparePkColFn;
-  uint16_t               parentType;
-  SRecalculateSupporter* pRecSup;
-  SPartitionBySupporter  partitionSup;
-  SExprSupp*             pPartScalarSup;
   SScanRange             curRange;
-} SStreamDataScanInfo;
+  SSDataBlock*           pDisorderDataRes;
+} SStreamScanInfo;
 
 typedef struct {
   struct SVnode*       vnode;  // todo remove this

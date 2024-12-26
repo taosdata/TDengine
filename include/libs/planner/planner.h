@@ -47,6 +47,7 @@ typedef struct SPlanContext {
   bool        destHasPrimaryKey;
   bool        sourceHasPrimaryKey;
   void*       timezone;
+  int64_t     recalculateInterval;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

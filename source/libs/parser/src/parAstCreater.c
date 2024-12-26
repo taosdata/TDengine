@@ -3620,9 +3620,11 @@ SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptions
   switch (setflag) {
     case SOPT_TRIGGER_TYPE_SET:
       pStreamOptions->triggerType = getTriggerType(pToken->type);
-      if (STREAM_TRIGGER_MAX_DELAY == pStreamOptions->triggerType ||
-          (pNode != NULL && STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE == pStreamOptions->triggerType)) {
+      if (STREAM_TRIGGER_MAX_DELAY == pStreamOptions->triggerType) {
         pStreamOptions->pDelay = pNode;
+      }
+      if (STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE == pStreamOptions->triggerType) {
+        pStreamOptions->pRecInterval = pNode;
       }
       break;
     case SOPT_WATERMARK_SET:

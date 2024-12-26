@@ -466,6 +466,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .deleteMark = pObj->deleteMark,
       .igCheckUpdate = pObj->igCheckUpdate,
       .destHasPrimaryKey = hasDestPrimaryKey(&pObj->outputSchema),
+      .recalculateInterval = pCreate->recalculateInterval,
   };
 
   // using ast and param to build physical plan

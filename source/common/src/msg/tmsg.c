@@ -9959,6 +9959,8 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   }
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->smaId));
+
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->recalculateInterval));
   tEndEncode(&encoder);
 
 _exit:
@@ -10091,6 +10093,10 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->smaId));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->recalculateInterval));
   }
 
   tEndDecode(&decoder);

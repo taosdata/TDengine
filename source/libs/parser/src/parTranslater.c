@@ -12143,9 +12143,11 @@ static int32_t translateStreamOptions(STranslateContext* pCxt, SCreateStreamStmt
   SStreamOptions* pOptions = pStmt->pOptions;
   if ((NULL != pOptions->pWatermark && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pWatermark))) ||
       (NULL != pOptions->pDeleteMark && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pDeleteMark))) ||
-      (NULL != pOptions->pDelay && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pDelay)))) {
+      (NULL != pOptions->pDelay && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pDelay))) ||
+      (NULL != pOptions->pRecInterval && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pRecInterval))) ) {
     return pCxt->errCode;
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -12193,6 +12195,8 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     if (TSDB_CODE_SUCCESS == code) {
       code = columnDefNodeToField(pStmt->pCols, &pReq->pCols, false);
     }
+    pReq->recalculateInterval =
+        (NULL != pStmt->pOptions->pRecInterval ? ((SValueNode*)pStmt->pOptions->pRecInterval)->datum.i : 0);
   }
 
   return code;

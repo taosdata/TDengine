@@ -338,6 +338,7 @@ typedef struct SWindowLogicNode {
   SNodeList*       pTsmaSubplans;
   SNode*           pAnomalyExpr;
   char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  int64_t          recalculateInterval;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -674,6 +675,7 @@ typedef struct SWindowPhysiNode {
   int8_t     igExpired;
   int8_t     destHasPrimaryKey;
   bool       mergeDataBlock;
+  int64_t    recalculateInterval;
 } SWindowPhysiNode;
 
 typedef struct SIntervalPhysiNode {

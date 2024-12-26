@@ -157,6 +157,10 @@ bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal);
 typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
 int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn);
 void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, int64_t ver);
+int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId);
+int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
+                        bool filter);
+int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
 
 #ifdef __cplusplus
 }

@@ -633,6 +633,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(windowSliding);
   CLONE_NODE_FIELD(pAnomalyExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
+  COPY_SCALAR_FIELD(recalculateInterval);
   return TSDB_CODE_SUCCESS;
 }
 

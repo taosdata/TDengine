@@ -38,7 +38,8 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
     int64_t     waterMark = 0;
     SInterval   interval = {0};
     STimeWindow lastTimeWindow = {0};
-    code = qGetStreamIntervalExecInfo(pTask->exec.pExecutor, &waterMark, &interval, &lastTimeWindow);
+    TSKEY       recInterval = 0;
+    code = qGetStreamIntervalExecInfo(pTask->exec.pExecutor, &waterMark, &interval, &lastTimeWindow, &recInterval);
     if (code) {
       stError("s-task:%s failed to init scheduler info, code:%s", id, tstrerror(code));
       return;

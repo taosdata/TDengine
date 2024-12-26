@@ -2532,7 +2532,7 @@ _end:
   return code;
 }
 
-static int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
+int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   blockDataCleanup(pInfo->pCreateTbRes);
@@ -2978,7 +2978,7 @@ int32_t colIdComparFn(const void* param1, const void* param2) {
   }
 }
 
-static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
+int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
                         bool filter) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -3293,7 +3293,7 @@ _end:
 }
 
 // for partition by tag
-static int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
