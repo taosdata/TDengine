@@ -252,6 +252,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
     // Check if enterprise available
     match (from.driver.as_str(), to.driver.as_str()) {
         ("tmq", "taos") => {
+            const TMQ_LICENSE_ID: &str = "td3.0";
             let mut from = from.clone();
             from.subject.take();
             to.subject
@@ -298,7 +299,10 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     .await
                     .with_context(sink_dsn_context);
             } else {
-                // plain tmq to taos task.
+                // Skip license check for old version(< 3.1.3.0)
+                if sink_version < VERSION_3_1_3 {
+                    return Ok(LicenseKind::good());
+                }
 
                 // Check target enterprise license
                 let mut conn = sink_builder.build().await.with_context(sink_dsn_context)?;
@@ -324,7 +328,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
                 }
 
-                return check_connector_grant_of(&sink_builder, &sink_version, "td3.0")
+                return check_connector_grant_of(&sink_builder, &sink_version, TMQ_LICENSE_ID)
                     .in_current_span()
                     .await
                     .with_context(sink_dsn_context);
@@ -337,7 +341,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             let source_builder = TaosBuilder::from_dsn(&from)?;
             let sink_builder = TaosBuilder::from_dsn(to)?;
 
-            let (source_version, _sink_version) = get_valid_taos_version(
+            let (source_version, sink_version) = get_valid_taos_version(
                 &source_builder,
                 source_dsn_context,
                 &sink_builder,
@@ -367,6 +371,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 if let Err(err) = edition {
                     return Ok(LicenseKind::Edition(anyhow!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
                 }
+            }
+            if sink_version < VERSION_3_1_3 {
+                return Ok(LicenseKind::good());
             }
 
             // check source grant
