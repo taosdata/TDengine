@@ -201,7 +201,7 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     bool newIsSync = false;
 
     SArbGroup newGroup = {0};
-    bool      updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup);
+    bool updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup, 0);
 
     ASSERT_EQ(updateIsSync, false);
   }
@@ -214,7 +214,7 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     bool newIsSync = true;
 
     SArbGroup newGroup = {0};
-    bool      updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup);
+    bool updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup, 0);
 
     ASSERT_EQ(updateIsSync, true);
     ASSERT_EQ(newGroup.isSync, true);
