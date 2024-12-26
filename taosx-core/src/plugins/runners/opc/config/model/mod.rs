@@ -688,14 +688,9 @@ impl OpcModelConfig {
     }
 
     pub async fn generate_transform_map(&self, column_name: &str) -> HashMap<String, ColumnConfig> {
-        let result = self.generate_transform_map_impl(column_name).await;
-        match result {
-            Ok(map) => map,
-            Err(err) => {
-                tracing::warn!("failed to generate transform map, use an empty HashMap instead, column: {}, err: {}",column_name,err.to_string());
-                HashMap::new()
-            }
-        }
+        self.generate_transform_map_impl(column_name)
+            .await
+            .unwrap_or_else(|_err| HashMap::new())
     }
 
     async fn generate_transform_map_impl(
