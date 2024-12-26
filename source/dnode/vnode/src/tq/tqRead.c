@@ -718,6 +718,9 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         sourceIdx++;
       } else if (pCol->cid == pColData->info.colId) {
         for (int32_t i = 0; i < pCol->nVal; i++) {
+          if (pCol->flag <= 0 || pCol->flag >= 8){
+            return TSDB_CODE_INVALID_PARA;
+          }
           tColDataGetValue(pCol, i, &colVal);
           int32_t code = doSetVal(pColData, i, &colVal);
           if (code != TSDB_CODE_SUCCESS) {

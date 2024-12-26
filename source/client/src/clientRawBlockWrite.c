@@ -1638,6 +1638,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       code = TSDB_CODE_TMQ_INVALID_MSG;
       goto end;
     }
+    uDebug(LOG_ID_TAG" write raw data block tbname:%s", LOG_ID_VALUE, tbName);
 
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
     strcpy(pName.dbname, pRequest->pDb);

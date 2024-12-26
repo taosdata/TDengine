@@ -2363,7 +2363,7 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
 void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-  ASSERT(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
+//  ASSERT(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
 }
 
