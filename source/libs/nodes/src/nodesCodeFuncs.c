@@ -99,6 +99,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CountWindow";
     case QUERY_NODE_ANOMALY_WINDOW:
       return "AnomalyWindow";
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
+      return "StreamNotifyOptions";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -5808,6 +5810,45 @@ static int32_t jsonToStreamOptions(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkStreamNotifyOptionsAddrUrls = "AddrUrls";
+static const char* jkStreamNotifyOptionsEventType = "EventType";
+static const char* jkStreamNotifyOptionsErrorHandle = "ErrorHandle";
+static const char* jkStreamNotifyOptionsNotifyHistory = "NotifyHistory";
+
+static int32_t streamNotifyOptionsToJson(const void* pObj, SJson* pJson) {
+  const SStreamNotifyOptions* pNotifyOption = (const SStreamNotifyOptions*)pObj;
+  int32_t                     code = nodeListToJson(pJson, jkStreamNotifyOptionsAddrUrls, pNotifyOption->pAddrUrls);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tjsonAddIntegerToObject(pJson, jkStreamNotifyOptionsEventType, pNotifyOption->eventTypes);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tjsonAddIntegerToObject(pJson, jkStreamNotifyOptionsErrorHandle, pNotifyOption->errorHandle);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tjsonAddBoolToObject(pJson, jkStreamNotifyOptionsNotifyHistory, pNotifyOption->notifyHistory);
+  }
+
+  return code;
+}
+
+static int32_t jsonToStreamNotifyOptions(const SJson* pJson, void* pObj) {
+  SStreamNotifyOptions* pNotifyOption = (SStreamNotifyOptions*)pObj;
+  int32_t               code = jsonToNodeList(pJson, jkStreamNotifyOptionsAddrUrls, &pNotifyOption->pAddrUrls);
+  int32_t               val = 0;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tjsonGetIntValue(pJson, jkStreamNotifyOptionsEventType, &val);
+    pNotifyOption->eventTypes = val;
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tjsonGetIntValue(pJson, jkStreamNotifyOptionsErrorHandle, &val);
+    pNotifyOption->errorHandle = val;
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tjsonGetBoolValue(pJson, jkStreamNotifyOptionsNotifyHistory, &pNotifyOption->notifyHistory);
+  }
+  return code;
+}
+
 static const char* jkWhenThenWhen = "When";
 static const char* jkWhenThenThen = "Then";
 
@@ -7203,6 +7244,7 @@ static const char* jkCreateStreamStmtOptions = "Options";
 static const char* jkCreateStreamStmtQuery = "Query";
 static const char* jkCreateStreamStmtTags = "Tags";
 static const char* jkCreateStreamStmtSubtable = "Subtable";
+static const char* jkCreateStreamStmtNotifyOptions = "NotifyOptions";
 
 static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateStreamStmt* pNode = (const SCreateStreamStmt*)pObj;
@@ -7228,6 +7270,9 @@ static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkCreateStreamStmtSubtable, nodeToJson, pNode->pSubtable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkCreateStreamStmtNotifyOptions, nodeToJson, pNode->pNotifyOptions);
   }
 
   return code;
@@ -7257,6 +7302,9 @@ static int32_t jsonToCreateStreamStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkCreateStreamStmtSubtable, &pNode->pSubtable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkCreateStreamStmtNotifyOptions, (SNode**)&pNode->pNotifyOptions);
   }
 
   return code;
@@ -7999,6 +8047,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return countWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_ANOMALY_WINDOW:
       return anomalyWindowNodeToJson(pObj, pJson);
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
+      return streamNotifyOptionsToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
@@ -8372,6 +8422,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToCountWindowNode(pJson, pObj);
     case QUERY_NODE_ANOMALY_WINDOW:
       return jsonToAnomalyWindowNode(pJson, pObj);
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
+      return jsonToStreamNotifyOptions(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:

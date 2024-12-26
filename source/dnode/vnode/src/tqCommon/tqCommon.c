@@ -86,6 +86,8 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     if (code) {
       return code;
     }
+
+    qSetStreamEventTypes(&pTask->exec.pExecutor, pTask->notifyInfo.notifyEventTypes);
   }
 
   streamSetupScheduleTrigger(pTask);

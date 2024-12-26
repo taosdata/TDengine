@@ -71,6 +71,7 @@ typedef struct {
   SVersionRange        fillHistoryVer;
   STimeWindow          fillHistoryWindow;
   SStreamState*        pState;
+  int32_t              eventTypes;
 } SStreamTaskInfo;
 
 struct SExecTaskInfo {

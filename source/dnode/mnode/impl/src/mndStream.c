@@ -751,6 +751,55 @@ static int32_t doStreamCheck(SMnode *pMnode, SStreamObj *pStreamObj) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void *notifyAddrDup(void *p) { return taosStrdup((char *)p); }
+
+static int32_t addStreamNotifyInfo(SCMCreateStreamReq *createReq, SStreamObj *pStream) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          level = 0;
+  int32_t          nTasks = 0;
+  SArray          *pLevel = NULL;
+  SStreamTask     *pTask = NULL;
+
+  if (createReq == NULL || taosArrayGetSize(createReq->pNotifyAddrUrls) == 0) {
+    goto _end;
+  }
+
+  level = taosArrayGetSize(pStream->tasks);
+  for (int32_t i = 0; i < level; ++i) {
+    pLevel = taosArrayGetP(pStream->tasks, i);
+    nTasks = taosArrayGetSize(pLevel);
+    for (int32_t j = 0; j < nTasks; ++j) {
+      pTask = taosArrayGetP(pLevel, j);
+      pTask->notifyInfo.pNotifyAddrUrls = taosArrayDup(createReq->pNotifyAddrUrls, notifyAddrDup);
+      TSDB_CHECK_NULL(pTask->notifyInfo.pNotifyAddrUrls, code, lino, _end, terrno);
+      pTask->notifyInfo.notifyEventTypes = createReq->notifyEventTypes;
+      pTask->notifyInfo.notifyErrorHandle = createReq->notifyErrorHandle;
+    }
+  }
+
+  if (pStream->conf.fillHistory && createReq->notifyHistory) {
+    level = taosArrayGetSize(pStream->pHTasksList);
+    for (int32_t i = 0; i < level; ++i) {
+      pLevel = taosArrayGetP(pStream->pHTasksList, i);
+      nTasks = taosArrayGetSize(pLevel);
+      for (int32_t j = 0; j < nTasks; ++j) {
+        pTask = taosArrayGetP(pLevel, j);
+        pTask->notifyInfo.pNotifyAddrUrls = taosArrayDup(createReq->pNotifyAddrUrls, notifyAddrDup);
+        TSDB_CHECK_NULL(pTask->notifyInfo.pNotifyAddrUrls, code, lino, _end, terrno);
+        pTask->notifyInfo.notifyEventTypes = createReq->notifyEventTypes;
+        pTask->notifyInfo.notifyErrorHandle = createReq->notifyErrorHandle;
+      }
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("%s for stream %s failed at line %d since %s", __func__, pStream->name, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -844,6 +893,14 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   code = mndScheduleStream(pMnode, &streamObj, createReq.lastTs, createReq.pVgroupVerList);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to schedule since %s", createReq.name, tstrerror(code));
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
+
+  // add notify info into all stream tasks
+  code = addStreamNotifyInfo(&createReq, &streamObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("stream:%s failed to add stream notify info since %s", createReq.name, tstrerror(code));
     mndTransDrop(pTrans);
     goto _OVER;
   }
