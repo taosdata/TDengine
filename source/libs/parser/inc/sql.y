@@ -1536,20 +1536,12 @@ anti_joined(A) ::=
 
 /************************************************ asof join ***********************************************************/
 asof_joined(A) ::=
-  table_reference(B) ASOF JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
-
-asof_joined(A) ::=
   table_reference(B) LEFT ASOF JOIN table_reference(E) join_on_clause_opt(F)
   window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
 
 asof_joined(A) ::=
   table_reference(B) RIGHT ASOF JOIN table_reference(E) join_on_clause_opt(F)
   window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
-
-asof_joined(A) ::=
-  table_reference(B) FULL ASOF JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
 
 /************************************************ window join *********************************************************/
 win_joined(A) ::=
