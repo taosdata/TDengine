@@ -450,8 +450,10 @@ typedef struct STimeWindowAggSupp {
 } STimeWindowAggSupp;
 
 typedef struct SSteamOpBasicInfo {
-  int32_t primaryPkIndex;
-  bool    updateOperatorInfo;
+  int32_t      primaryPkIndex;
+  bool         updateOperatorInfo;
+  SSDataBlock* pEventRes;
+  SArray*      pEventInfo;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
