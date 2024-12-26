@@ -3847,235 +3847,235 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
     return 1;
   }
 
-static FORCE_INLINE bool filterToDebug(void* e, void* arg) {
-  SCliReq*  pReq = QUEUE_DATA(e, SCliReq, q);
-  STraceId* trace = &pReq->msg.info.traceId;
-  tGWarn("%s is sent to, and no resp from server", TMSG_INFO(pReq->msg.msgType));
-  return false;
-}
-static FORCE_INLINE void logConnMissHit(SCliConn* pConn) {
-  // queue set;
-  // QUEUE_INIT(&set);
-  SCliThrd* pThrd = pConn->hostThrd;
-  STrans*   pInst = pThrd->pInst;
-  pConn->heapMissHit++;
-  tDebug("conn %p has %d reqs, %d sentout and %d status in process, total limit:%d, switch to other conn", pConn,
-         transQueueSize(&pConn->reqsToSend), transQueueSize(&pConn->reqsSentOut), taosHashGetSize(pConn->pQTable),
-         pInst->shareConnLimit);
-  // if (transQueueSize(&pConn->reqsSentOut) >= pInst->shareConnLimit) {
-  //   transQueueRemoveByFilter(&pConn->reqsSentOut, filterToDebug, NULL, &set, 1);
-  // }
-}
-static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
-  int       code = 0;
-  SHeap*    pHeap = NULL;
-  SCliConn* pConn = NULL;
-  code = getOrCreateHeap(pConnHeapCache, key, &pHeap);
-  if (code != 0) {
-    tTrace("failed to get conn heap from cache for key:%s", key);
-    return NULL;
+  static FORCE_INLINE bool filterToDebug(void* e, void* arg) {
+    SCliReq*  pReq = QUEUE_DATA(e, SCliReq, q);
+    STraceId* trace = &pReq->msg.info.traceId;
+    tGWarn("%s is sent to, and no resp from server", TMSG_INFO(pReq->msg.msgType));
+    return false;
   }
-  code = transHeapGet(pHeap, &pConn);
-  if (code != 0) {
-    tTrace("failed to get conn from heap cache for key:%s", key);
-    return NULL;
-  } else {
-    tTrace("conn %p get conn from heap cache for key:%s", pConn, key);
-    if (shouldSWitchToOtherConn(pConn, key)) {
-      SCliConn* pNewConn = NULL;
-      code = balanceConnHeapCache(pConnHeapCache, pConn, &pNewConn);
-      if (code == 1) {
-        tTrace("conn %p start to handle reqs", pNewConn);
-        return pNewConn;
-      }
+  static FORCE_INLINE void logConnMissHit(SCliConn * pConn) {
+    // queue set;
+    // QUEUE_INIT(&set);
+    SCliThrd* pThrd = pConn->hostThrd;
+    STrans*   pInst = pThrd->pInst;
+    pConn->heapMissHit++;
+    tDebug("conn %p has %d reqs, %d sentout and %d status in process, total limit:%d, switch to other conn", pConn,
+           transQueueSize(&pConn->reqsToSend), transQueueSize(&pConn->reqsSentOut), taosHashGetSize(pConn->pQTable),
+           pInst->shareConnLimit);
+    // if (transQueueSize(&pConn->reqsSentOut) >= pInst->shareConnLimit) {
+    //   transQueueRemoveByFilter(&pConn->reqsSentOut, filterToDebug, NULL, &set, 1);
+    // }
+  }
+  static SCliConn* getConnFromHeapCache(SHashObj * pConnHeapCache, char* key) {
+    int       code = 0;
+    SHeap*    pHeap = NULL;
+    SCliConn* pConn = NULL;
+    code = getOrCreateHeap(pConnHeapCache, key, &pHeap);
+    if (code != 0) {
+      tTrace("failed to get conn heap from cache for key:%s", key);
       return NULL;
     }
-  }
-
-  return pConn;
-}
-static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
-  SHeap*  p = NULL;
-  int32_t code = 0;
-
-  if (pConn->heap != NULL) {
-    p = pConn->heap;
-    tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d, add direct", pConn, pConn->dstAddr,
-           pConn->inHeap, pConn->reqRefCnt);
-  } else {
-    code = getOrCreateHeap(pConnHeapCacahe, pConn->dstAddr, &p);
+    code = transHeapGet(pHeap, &pConn);
     if (code != 0) {
-      return code;
-    }
-    if (pConn->connnected == 0) {
-      int64_t now = taosGetTimestampMs();
-      if (now - p->lastConnFailTs < 3000) {
-        return TSDB_CODE_RPC_NETWORK_UNAVAIL;
+      tTrace("failed to get conn from heap cache for key:%s", key);
+      return NULL;
+    } else {
+      tTrace("conn %p get conn from heap cache for key:%s", pConn, key);
+      if (shouldSWitchToOtherConn(pConn, key)) {
+        SCliConn* pNewConn = NULL;
+        code = balanceConnHeapCache(pConnHeapCache, pConn, &pNewConn);
+        if (code == 1) {
+          tTrace("conn %p start to handle reqs", pNewConn);
+          return pNewConn;
+        }
+        return NULL;
       }
     }
-  }
 
-  code = transHeapInsert(p, pConn);
-  tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d", pConn, pConn->dstAddr, pConn->inHeap,
-         pConn->reqRefCnt);
-  return code;
-}
-
-static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
-  if (pConn->heap != NULL) {
-    tTrace("conn %p try to delete from heap cache direct", pConn);
-    return transHeapDelete(pConn->heap, pConn);
+    return pConn;
   }
+  static int32_t addConnToHeapCache(SHashObj * pConnHeapCacahe, SCliConn * pConn) {
+    SHeap*  p = NULL;
+    int32_t code = 0;
 
-  SHeap* p = taosHashGet(pConnHeapCache, pConn->dstAddr, strlen(pConn->dstAddr));
-  if (p == NULL) {
-    tTrace("failed to get heap cache for key:%s, no need to del", pConn->dstAddr);
-    return 0;
-  }
-  int32_t code = transHeapDelete(p, pConn);
-  if (code != 0) {
-    tTrace("conn %p failed delete from heap cache since %s", pConn, tstrerror(code));
-  }
-  return code;
-}
-
-static int8_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, SCliConn** pNewConn) {
-  SCliThrd* pThrd = pConn->hostThrd;
-  STrans*   pInst = pThrd->pInst;
-  SCliConn* pTopConn = NULL;
-  if (pConn->heap != NULL && pConn->inHeap != 0) {
-    TAOS_UNUSED(transHeapBalance(pConn->heap, pConn));
-    if (transHeapGet(pConn->heap, &pTopConn) == 0 && pConn != pTopConn) {
-      int32_t curReqs = REQS_ON_CONN(pConn);
-      int32_t topReqs = REQS_ON_CONN(pTopConn);
-      if (curReqs > topReqs && topReqs < pInst->shareConnLimit) {
-        *pNewConn = pTopConn;
-        return 1;
+    if (pConn->heap != NULL) {
+      p = pConn->heap;
+      tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d, add direct", pConn, pConn->dstAddr,
+             pConn->inHeap, pConn->reqRefCnt);
+    } else {
+      code = getOrCreateHeap(pConnHeapCacahe, pConn->dstAddr, &p);
+      if (code != 0) {
+        return code;
+      }
+      if (pConn->connnected == 0) {
+        int64_t now = taosGetTimestampMs();
+        if (now - p->lastConnFailTs < 3000) {
+          return TSDB_CODE_RPC_NETWORK_UNAVAIL;
+        }
       }
     }
-  }
-  return 0;
-}
-// conn heap
-int32_t compareHeapNode(const HeapNode* a, const HeapNode* b) {
-  SCliConn* args1 = container_of(a, SCliConn, node);
-  SCliConn* args2 = container_of(b, SCliConn, node);
 
-  int32_t totalReq1 = REQS_ON_CONN(args1);
-  int32_t totalReq2 = REQS_ON_CONN(args2);
-  if (totalReq1 > totalReq2) {
-    return 0;
-  }
-  return 1;
-}
-int32_t transHeapInit(SHeap* heap, int32_t (*cmpFunc)(const HeapNode* a, const HeapNode* b)) {
-  heap->heap = heapCreate(cmpFunc);
-  if (heap->heap == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  heap->cmpFunc = cmpFunc;
-  return 0;
-}
-void transHeapDestroy(SHeap* heap) {
-  if (heap != NULL) {
-    heapDestroy(heap->heap);
-  }
-}
-int32_t transHeapGet(SHeap* heap, SCliConn** p) {
-  if (heapSize(heap->heap) == 0) {
-    *p = NULL;
-    return -1;
-  }
-  HeapNode* minNode = heapMin(heap->heap);
-  if (minNode == NULL) {
-    *p = NULL;
-    return -1;
-  }
-  *p = container_of(minNode, SCliConn, node);
-  return 0;
-}
-int32_t transHeapInsert(SHeap* heap, SCliConn* p) {
-  // impl later
-  p->reqRefCnt++;
-  if (p->inHeap == 1) {
-    tTrace("failed to insert conn %p since already in heap", p);
-    return TSDB_CODE_DUP_KEY;
-  }
-
-  heapInsert(heap->heap, &p->node);
-  p->inHeap = 1;
-  p->lastAddHeapTime = taosGetTimestampMs();
-  p->heap = heap;
-  return 0;
-}
-int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
-  // impl later
-  if (p->connnected == 0) {
-    TAOS_UNUSED(transHeapUpdateFailTs(heap, p));
-  }
-
-  if (p->inHeap == 0) {
-    tTrace("failed to del conn %p since not in heap", p);
-    return 0;
-  } else {
-    int64_t now = taosGetTimestampMs();
-    if (p->forceDelFromHeap == 0 && now - p->lastAddHeapTime < 10000) {
-      tTrace("conn %p not added/delete to heap frequently", p);
-      return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
-    }
-  }
-
-  p->inHeap = 0;
-  p->reqRefCnt--;
-  if (p->reqRefCnt == 0) {
-    heapRemove(heap->heap, &p->node);
-    tTrace("conn %p delete from heap", p);
-  } else if (p->reqRefCnt < 0) {
-    tTrace("conn %p has %d reqs, not delete from heap,assert", p, p->reqRefCnt);
-  } else {
-    tTrace("conn %p has %d reqs, not delete from heap", p, p->reqRefCnt);
-  }
-  return 0;
-}
-
-int32_t transHeapUpdateFailTs(SHeap* heap, SCliConn* p) {
-  heap->lastConnFailTs = taosGetTimestampMs();
-  return 0;
-}
-int32_t transHeapMayBalance(SHeap* heap, SCliConn* p) {
-  if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
-    return 0;
-  }
-  SCliThrd* pThrd = p->hostThrd;
-  STrans*   pInst = pThrd->pInst;
-  int32_t   balanceLimit = pInst->shareConnLimit >= 4 ? pInst->shareConnLimit / 2 : 2;
-
-  SCliConn* topConn = NULL;
-  int32_t   code = transHeapGet(heap, &topConn);
-  if (code != 0) {
+    code = transHeapInsert(p, pConn);
+    tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d", pConn, pConn->dstAddr, pConn->inHeap,
+           pConn->reqRefCnt);
     return code;
   }
 
-  if (topConn == p) return code;
+  static int32_t delConnFromHeapCache(SHashObj * pConnHeapCache, SCliConn * pConn) {
+    if (pConn->heap != NULL) {
+      tTrace("conn %p try to delete from heap cache direct", pConn);
+      return transHeapDelete(pConn->heap, pConn);
+    }
 
-  int32_t reqsOnTop = REQS_ON_CONN(topConn);
-  int32_t reqsOnCur = REQS_ON_CONN(p);
-
-  if (reqsOnTop >= balanceLimit && reqsOnCur < balanceLimit) {
-    TAOS_UNUSED(transHeapBalance(heap, p));
+    SHeap* p = taosHashGet(pConnHeapCache, pConn->dstAddr, strlen(pConn->dstAddr));
+    if (p == NULL) {
+      tTrace("failed to get heap cache for key:%s, no need to del", pConn->dstAddr);
+      return 0;
+    }
+    int32_t code = transHeapDelete(p, pConn);
+    if (code != 0) {
+      tTrace("conn %p failed delete from heap cache since %s", pConn, tstrerror(code));
+    }
+    return code;
   }
-  return code;
-}
 
-int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
-  if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
+  static int8_t balanceConnHeapCache(SHashObj * pConnHeapCache, SCliConn * pConn, SCliConn * *pNewConn) {
+    SCliThrd* pThrd = pConn->hostThrd;
+    STrans*   pInst = pThrd->pInst;
+    SCliConn* pTopConn = NULL;
+    if (pConn->heap != NULL && pConn->inHeap != 0) {
+      TAOS_UNUSED(transHeapBalance(pConn->heap, pConn));
+      if (transHeapGet(pConn->heap, &pTopConn) == 0 && pConn != pTopConn) {
+        int32_t curReqs = REQS_ON_CONN(pConn);
+        int32_t topReqs = REQS_ON_CONN(pTopConn);
+        if (curReqs > topReqs && topReqs < pInst->shareConnLimit) {
+          *pNewConn = pTopConn;
+          return 1;
+        }
+      }
+    }
     return 0;
   }
-  heapRemove(heap->heap, &p->node);
-  heapInsert(heap->heap, &p->node);
-  return 0;
-}
+  // conn heap
+  int32_t compareHeapNode(const HeapNode* a, const HeapNode* b) {
+    SCliConn* args1 = container_of(a, SCliConn, node);
+    SCliConn* args2 = container_of(b, SCliConn, node);
+
+    int32_t totalReq1 = REQS_ON_CONN(args1);
+    int32_t totalReq2 = REQS_ON_CONN(args2);
+    if (totalReq1 > totalReq2) {
+      return 0;
+    }
+    return 1;
+  }
+  int32_t transHeapInit(SHeap * heap, int32_t(*cmpFunc)(const HeapNode* a, const HeapNode* b)) {
+    heap->heap = heapCreate(cmpFunc);
+    if (heap->heap == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    heap->cmpFunc = cmpFunc;
+    return 0;
+  }
+  void transHeapDestroy(SHeap * heap) {
+    if (heap != NULL) {
+      heapDestroy(heap->heap);
+    }
+  }
+  int32_t transHeapGet(SHeap * heap, SCliConn * *p) {
+    if (heapSize(heap->heap) == 0) {
+      *p = NULL;
+      return -1;
+    }
+    HeapNode* minNode = heapMin(heap->heap);
+    if (minNode == NULL) {
+      *p = NULL;
+      return -1;
+    }
+    *p = container_of(minNode, SCliConn, node);
+    return 0;
+  }
+  int32_t transHeapInsert(SHeap * heap, SCliConn * p) {
+    // impl later
+    p->reqRefCnt++;
+    if (p->inHeap == 1) {
+      tTrace("failed to insert conn %p since already in heap", p);
+      return TSDB_CODE_DUP_KEY;
+    }
+
+    heapInsert(heap->heap, &p->node);
+    p->inHeap = 1;
+    p->lastAddHeapTime = taosGetTimestampMs();
+    p->heap = heap;
+    return 0;
+  }
+  int32_t transHeapDelete(SHeap * heap, SCliConn * p) {
+    // impl later
+    if (p->connnected == 0) {
+      TAOS_UNUSED(transHeapUpdateFailTs(heap, p));
+    }
+
+    if (p->inHeap == 0) {
+      tTrace("failed to del conn %p since not in heap", p);
+      return 0;
+    } else {
+      int64_t now = taosGetTimestampMs();
+      if (p->forceDelFromHeap == 0 && now - p->lastAddHeapTime < 10000) {
+        tTrace("conn %p not added/delete to heap frequently", p);
+        return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+      }
+    }
+
+    p->inHeap = 0;
+    p->reqRefCnt--;
+    if (p->reqRefCnt == 0) {
+      heapRemove(heap->heap, &p->node);
+      tTrace("conn %p delete from heap", p);
+    } else if (p->reqRefCnt < 0) {
+      tTrace("conn %p has %d reqs, not delete from heap,assert", p, p->reqRefCnt);
+    } else {
+      tTrace("conn %p has %d reqs, not delete from heap", p, p->reqRefCnt);
+    }
+    return 0;
+  }
+
+  int32_t transHeapUpdateFailTs(SHeap * heap, SCliConn * p) {
+    heap->lastConnFailTs = taosGetTimestampMs();
+    return 0;
+  }
+  int32_t transHeapMayBalance(SHeap * heap, SCliConn * p) {
+    if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
+      return 0;
+    }
+    SCliThrd* pThrd = p->hostThrd;
+    STrans*   pInst = pThrd->pInst;
+    int32_t   balanceLimit = pInst->shareConnLimit >= 4 ? pInst->shareConnLimit / 2 : 2;
+
+    SCliConn* topConn = NULL;
+    int32_t   code = transHeapGet(heap, &topConn);
+    if (code != 0) {
+      return code;
+    }
+
+    if (topConn == p) return code;
+
+    int32_t reqsOnTop = REQS_ON_CONN(topConn);
+    int32_t reqsOnCur = REQS_ON_CONN(p);
+
+    if (reqsOnTop >= balanceLimit && reqsOnCur < balanceLimit) {
+      TAOS_UNUSED(transHeapBalance(heap, p));
+    }
+    return code;
+  }
+
+  int32_t transHeapBalance(SHeap * heap, SCliConn * p) {
+    if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
+      return 0;
+    }
+    heapRemove(heap->heap, &p->node);
+    heapInsert(heap->heap, &p->node);
+    return 0;
+  }
 #else
 
 void    transRefCliHandle(void* handle) { return; }
@@ -4138,9 +4138,6 @@ int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* p
   return 0;
 }
 
-int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
-  return transSendRecvWithTimeout(shandle, (SEpSet*)pEpSet, pReq, pRsp, NULL, 0);
-}
 int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) { return 0; }
 int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs) {
@@ -4171,6 +4168,9 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
 
   taosReleaseRef(transGetInstMgt(), (int64_t)shandle);
   return 0;
+}
+int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
+  return transSendRecvWithTimeout(shandle, (SEpSet*)pEpSet, pReq, pRsp, NULL, 0);
 }
 int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) { return 0; }
 int32_t transAllocHandle(int64_t* refId) { return 0; }

@@ -333,6 +333,42 @@ int32_t transInitBuffer(SConnBuffer* buf);
 int32_t transClearBuffer(SConnBuffer* buf);
 void    transDestroyBuffer(SConnBuffer* buf);
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+
+
+#ifdef TD_ACORE
+int32_t transSendRequest2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRecv2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout2(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                                 int32_t timeoutMs);
+int32_t transSendRequestWithId2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
+int32_t transFreeConnById2(void* pInit, int64_t transpointId);
+int32_t transSendResponse2(STransMsg* msg);
+int32_t transRegisterMsg2(const STransMsg* msg);
+int32_t transSetDefaultAddr2(void* pInit, const char* ip, const char* fqdn);
+int32_t transSetIpWhiteList2(void* pInit, void* arg, FilteFunc* func);
+void transRefSrvHandle2(void* handle);
+void transUnrefSrvHandle2(void* handle);
+
+void    transRefCliHandle2(void* handle);
+void    transUnrefCliHandle2(void* handle);
+int32_t transGetRefCount(void* handle);
+
+int32_t transReleaseCliHandle2(void* handle, int32_t status);
+int32_t transReleaseSrvHandle2(void* handle, int32_t status);
+
+#else
+int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                                 int32_t timeoutMs);
+
+int32_t transSendRequestWithId(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
+int32_t transFreeConnById(void* pInit, int64_t transpointId);
+
+int32_t transSendResponse(STransMsg* msg);
+int32_t transRegisterMsg(const STransMsg* msg);
+int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
+int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
 void transRefSrvHandle(void* handle);
 void transUnrefSrvHandle(void* handle);
 
@@ -343,20 +379,7 @@ int32_t transGetRefCount(void* handle);
 int32_t transReleaseCliHandle(void* handle);
 int32_t transReleaseSrvHandle(void* handle);
 
-int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
-int32_t transSendRequest2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
-int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
-int32_t transSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
-                                 int32_t timeoutMs);
-int32_t transSendRequestWithId(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
-int32_t transFreeConnById(void* pInit, int64_t transpointId);
-
-int32_t transSendResponse(STransMsg* msg);
-int32_t transSendResponse2(STransMsg* msg);
-int32_t transRegisterMsg(const STransMsg* msg);
-int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
-int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
-
+#endif
 void transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
 int32_t transAllocHandle(int64_t* refId);

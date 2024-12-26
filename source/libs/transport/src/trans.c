@@ -257,18 +257,16 @@ void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOf
     transInitServer2, transInitClient2};
 
 void (*taosCloseHandle[])(void* arg) = {transCloseServer2, transCloseClient2};
+int (*transReleaseHandle[])(void* handle, int32_t status) = {transReleaseSrvHandle2, transReleaseCliHandle2};
 #else
 
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* shandle) = {
     transInitServer, transInitClient};
 void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 
-#endif
-
-void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
-void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHandle};
-
 int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
+
+#endif
 
 static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) { return 0; }
 typedef struct {
@@ -436,55 +434,93 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
 }
 
 int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
-#ifndef TD_ACORE
-  return transSendRequest(shandle, pEpSet, pMsg, NULL);
-#else
+#ifdef TD_ACORE
   return transSendRequest2(shandle, pEpSet, pMsg, NULL);
+#else
+  return transSendRequest(shandle, pEpSet, pMsg, NULL);
 #endif
 }
 int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
+#ifdef TD_ACORE
+  if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0 || pRid == NULL) {
+    return transSendRequest2(shandle, pEpSet, pMsg, pCtx);
+  } else {
+    return transSendRequestWithId2(shandle, pEpSet, pMsg, pRid);
+  }
+#else
   if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0 || pRid == NULL) {
     return transSendRequest(shandle, pEpSet, pMsg, pCtx);
   } else {
     return transSendRequestWithId(shandle, pEpSet, pMsg, pRid);
   }
-}
-
-int32_t rpcSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
-  return transSendRequestWithId(shandle, pEpSet, pReq, transpointId);
-}
-
-int32_t rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
-  return transSendRecv(shandle, pEpSet, pMsg, pRsp);
-}
-int32_t rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
-                               int32_t timeoutMs) {
-  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
-}
-int32_t rpcFreeConnById(void* shandle, int64_t connId) { return transFreeConnById(shandle, connId); }
-
-int32_t rpcSendResponse(SRpcMsg* pMsg) {
-#ifndef TD_ACORE
-  return transSendResponse(pMsg);
-#else
-  return transSendResponse2(pMsg);
 #endif
 }
 
-void rpcRefHandle(void* handle, int8_t type) { (*taosRefHandle[type])(handle); }
+int32_t rpcSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
+#ifdef TD_ACORE
+  return transSendRequestWithId2(shandle, pEpSet, pReq, transpointId);
+#else
+  return transSendRequestWithId(shandle, pEpSet, pReq, transpointId);
+#endif
+}
 
-void rpcUnrefHandle(void* handle, int8_t type) { (*taosUnRefHandle[type])(handle); }
+int32_t rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
+#ifdef TD_ACORE
+  return transSendRecv2(shandle, pEpSet, pMsg, pRsp);
+#else
+  return transSendRecv(shandle, pEpSet, pMsg, pRsp);
+#endif
+}
+int32_t rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
+                               int32_t timeoutMs) {
+#ifdef TD_ACORE
+  return transSendRecvWithTimeout2(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
+#else
+  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
+#endif
+}
+int32_t rpcFreeConnById(void* shandle, int64_t connId) {
+#ifdef TD_ACORE
+  return transFreeConnById2(shandle, connId);
+#else
+  return transFreeConnById(shandle, connId);
+#endif
+}
 
-int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
-int32_t rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
+int32_t rpcSendResponse(SRpcMsg* pMsg) {
+#ifdef TD_ACORE
+  return transSendResponse2(pMsg);
+#else
+  return transSendResponse(pMsg);
+#endif
+}
+
+int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) {
+#ifdef TD_ACORE
+  return transRegisterMsg2(msg);
+#else
+  return transRegisterMsg(msg);
+#endif
+}
+int32_t rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle, 0); }
 
 // client only
 int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
+#ifdef TD_ACORE
+  return transSetDefaultAddr2(thandle, ip, fqdn);
+#else
   return transSetDefaultAddr(thandle, ip, fqdn);
+#endif
 }
 // server only
-int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
+int32_t rpcSetIpWhite(void* thandle, void* arg) {
+#ifdef TD_ACORE
+  return transSetIpWhiteList2(thandle, arg, NULL);
+#else
+  return transSetIpWhiteList(thandle, arg, NULL);
+#endif
+}
 
 int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 
