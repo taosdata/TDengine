@@ -56,7 +56,11 @@ fn labeling(mut file: &File) -> SdResult<()> {
     if !target_dir.exists() {
         std::fs::create_dir_all(&target_dir).unwrap();
     }
-    std::fs::write(target_dir.join(format!("{cus_prompt}x.service")), service).unwrap();
+    std::fs::write(target_dir.join(format!("{cus_prompt}x.service")), &service).unwrap();
+
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let out_dir = std::path::Path::new(out_dir.as_str());
+    std::fs::write(out_dir.join(format!("{cus_prompt}x.service")), &service).unwrap();
 
     writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
     writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;

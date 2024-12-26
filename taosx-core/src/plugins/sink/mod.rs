@@ -170,7 +170,6 @@ async fn ipc_tcp_forward(
 ) -> anyhow::Result<()> {
     use md5;
     tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
-    let _ = cancel;
     use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
     use futures::StreamExt;
     let reader_stream = stream
@@ -385,16 +384,13 @@ async fn ipc_tcp_forward(
         info!("Handshake done");
         // dbg!(res);
         info!("Do putting");
-        let mut stream = match client
-            .do_put(data)
-            .await
-            .map_err(move |err| match dbg!(err) {
-                FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
-                FlightError::Tonic(status) => {
-                    anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
-                }
-                err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
-            }) {
+        let mut stream = match client.do_put(data).await.map_err(move |err| match err {
+            FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
+            FlightError::Tonic(status) => {
+                anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
+            }
+            err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
+        }) {
             Ok(stream) => stream,
             Err(err) => {
                 tracing::warn!("Try putting stream error: {:#}", err);
@@ -3988,6 +3984,7 @@ pub async fn listen_tcp_socket_with_agent(
     let thread = tokio::spawn(
         async move {
             let mut handlers = vec![];
+            let cancel = cancel.child_token();
             let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
                 tracing::info!("new tcp client!: {:?}", addr);
                 let span = tracing::info_span!("agent_ipc_handler", client = %addr);
@@ -4004,6 +4001,9 @@ pub async fn listen_tcp_socket_with_agent(
                 let batch_counter = batch_counter.clone();
 
                 tokio::spawn(async move {
+
+                    info!("Spawned IPC reader in Agent");
+                        let cancel2 = cancel.clone();
                     let res =
                         ipc_tcp_forward(stream, cancel, remote, token, id, batch_counter, config).in_current_span().await;
                     if let Err(err) = res {
@@ -4012,7 +4012,10 @@ pub async fn listen_tcp_socket_with_agent(
                             tracing::warn!("IPC reader stopped with warn: {}", error_msg);
                         } else {
                             tracing::error!("{:?}", err);
-
+                            if cancel2.is_cancelled() {
+                                tracing::debug!("IPC handler completed");
+                                return;
+                            }
                             // notify the listener to stop
                             notify.notify_waiters();
                             tokio::spawn(async move {
@@ -4031,6 +4034,11 @@ pub async fn listen_tcp_socket_with_agent(
             loop {
                 tokio::select! {
                     _ = notified.notified() => {
+                        break;
+                    }
+                    _ = cancel.cancelled() => {
+                        tracing::debug!("Agent IPC listener received task cancel signal");
+                        notified.notify_waiters();
                         break;
                     }
                     accept = listener.accept() => {

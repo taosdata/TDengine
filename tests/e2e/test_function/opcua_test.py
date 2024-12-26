@@ -211,8 +211,8 @@ def test_sanity_4(input_data):
     rows_count = TaosAdapter.check_db_count(
         env_data["taosadapter_host"], case_data["to"]["target_dbname"]
     )
-    assert rows_count > 0
-    assert metrics["current"]["written_rows"] > 0
+    assert rows_count > 0, f"库{case_data['to']['target_dbname']}中的数据行数应大于 0"
+    assert metrics["current"]["written_rows"] > 0, "任务 metrics 中的 written_rows 应大于 0"
 
 
 @pytest.mark.sanity

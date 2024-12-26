@@ -43,11 +43,12 @@ pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Err
     Ok(files)
 }
 
-pub fn get_encode(file_path: &str) -> anyhow::Result<&'static Encoding> {
+pub fn get_encode<T: AsRef<Path>>(file_path: T) -> anyhow::Result<&'static Encoding> {
+    let file_path = file_path.as_ref();
     let mut file = File::open(file_path).map_err(|e| {
         anyhow::anyhow!(
             "failed to open file: {}, cause: {}",
-            file_path,
+            file_path.display(),
             e.to_string()
         )
     })?;
@@ -56,7 +57,7 @@ pub fn get_encode(file_path: &str) -> anyhow::Result<&'static Encoding> {
     file.read_to_end(&mut buffer).map_err(|e| {
         anyhow::anyhow!(
             "failed to read file: {}, cause: {}",
-            file_path,
+            file_path.display(),
             e.to_string()
         )
     })?;
