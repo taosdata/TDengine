@@ -374,110 +374,113 @@ pub(super) enum Schedule {
     Repeated(String),
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum PushTaskActivityError {
+    #[error("Push task activity error: {0:#}")]
+    DatabaseError(#[from] sqlx::Error),
+}
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
-    if activity.id == 0 || activity.id == -1 {
-        tracing::debug!("task id is 0 or -1, ignore activity");
-        return Ok(());
-    }
-    let exists = sqlx::query!("select id, status from tasks where id = ?", activity.id)
-        .fetch_optional(pool)
-        .in_current_span()
-        .await?;
-    if exists.is_none() {
-        tracing::warn!("task {id} not found", id = activity.id);
-        return Ok(());
-    }
-    let mut txn = pool
-        .begin()
-        .await
-        .context("Begin transaction on push task activity")?;
-    let record = exists.unwrap();
-    if activity.status == "completed" {
-        let _ = sqlx::query!(
-            "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
-            activity.at,
-            activity.status,
-            activity.id,
-            activity.status,
-        )
-        .execute(txn.as_mut())
-        .in_current_span()
-        .await?;
-    }
-    match activity.status.as_str() {
-        // with reason
-        "failed" | "stopped" => {
-            sqlx::query("UPDATE tasks SET status = ?, reason = ?, finished_at = ? WHERE id = ?")
+    #[async_backtrace::framed]
+    async fn push_task_activity_once(
+        pool: &SqlitePool,
+        activity: &Activity,
+    ) -> Result<(), PushTaskActivityError> {
+        if activity.id == 0 || activity.id == -1 {
+            tracing::debug!("task id is 0 or -1, ignore activity");
+            return Ok(());
+        }
+        let exists = sqlx::query!("select id, status from tasks where id = ?", activity.id)
+            .fetch_optional(pool)
+            .in_current_span()
+            .await?;
+        if exists.is_none() {
+            tracing::warn!("task {id} not found", id = activity.id);
+            return Ok(());
+        }
+        let mut txn = pool.begin().await?;
+        let record = exists.unwrap();
+        if activity.status == "completed" {
+            let _ = sqlx::query!(
+                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
+                activity.at,
+                activity.status,
+                activity.id,
+                activity.status,
+            )
+            .execute(txn.as_mut())
+            .in_current_span()
+            .await?;
+        }
+        match activity.status.as_str() {
+            // with reason
+            "failed" | "stopped" => {
+                sqlx::query(
+                    "UPDATE tasks SET status = ?, reason = ?, finished_at = ? WHERE id = ?",
+                )
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
                 .bind(activity.at)
                 .bind(activity.id)
                 .execute(txn.as_mut())
                 .in_current_span()
-                .await
-                .context("Update task properties error")?;
-        }
-        // with reason
-        "interrupted" | "suspending" | "waiting" | "waken" => {
-            sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
-                .bind(activity.status.as_str())
-                .bind(activity.activity.as_str())
-                .bind(activity.id)
-                .execute(txn.as_mut())
-                .in_current_span()
-                .await
-                .context("Update task properties error")?;
-        }
-        "running" => {
-            if matches!(record.status.as_str(), "stopped" | "stopping") {
-                tracing::warn!(
-                    "Task {} is already stopped or suspended, ignore {}",
-                    activity.id,
-                    activity.activity,
-                );
-                return Ok(());
+                .await?;
             }
-            sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
-                .bind(activity.status.as_str())
-                .bind(activity.activity.as_str())
-                .bind(activity.id)
-                .execute(txn.as_mut())
-                .in_current_span()
-                .await
-                .context("Update task properties error")?;
+            // with reason
+            "interrupted" | "suspending" | "waiting" | "waken" => {
+                sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
+                    .bind(activity.status.as_str())
+                    .bind(activity.activity.as_str())
+                    .bind(activity.id)
+                    .execute(txn.as_mut())
+                    .in_current_span()
+                    .await?;
+            }
+            "running" => {
+                if matches!(record.status.as_str(), "stopped" | "stopping") {
+                    tracing::warn!(
+                        "Task {} is already stopped or suspended, ignore {}",
+                        activity.id,
+                        activity.activity,
+                    );
+                    return Ok(());
+                }
+                sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
+                    .bind(activity.status.as_str())
+                    .bind(activity.activity.as_str())
+                    .bind(activity.id)
+                    .execute(txn.as_mut())
+                    .in_current_span()
+                    .await?;
+            }
+            "suspended" => {
+                sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
+                    .bind(activity.status.as_str())
+                    .bind(activity.id)
+                    .execute(txn.as_mut())
+                    .in_current_span()
+                    .await?;
+            }
+            "health" => {
+                sqlx::query("UPDATE tasks SET health = ? WHERE id = ?")
+                    .bind(activity.activity.as_str())
+                    .bind(activity.id)
+                    .execute(txn.as_mut())
+                    .in_current_span()
+                    .await?;
+            }
+            "logging" => {
+                // do nothing
+            }
+            _ => {
+                sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
+                    .bind(activity.status.as_str())
+                    .bind(activity.id)
+                    .execute(txn.as_mut())
+                    .in_current_span()
+                    .await?;
+            }
         }
-        "suspended" => {
-            sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
-                .bind(activity.status.as_str())
-                .bind(activity.id)
-                .execute(txn.as_mut())
-                .in_current_span()
-                .await
-                .context("Update task properties error")?;
-        }
-        "health" => {
-            sqlx::query("UPDATE tasks SET health = ? WHERE id = ?")
-                .bind(activity.activity.as_str())
-                .bind(activity.id)
-                .execute(txn.as_mut())
-                .in_current_span()
-                .await
-                .context("Update task properties error")?;
-        }
-        "logging" => {
-            // do nothing
-        }
-        _ => {
-            sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
-                .bind(activity.status.as_str())
-                .bind(activity.id)
-                .execute(txn.as_mut())
-                .in_current_span()
-                .await
-                .context("Update task properties error")?;
-        }
-    }
-    sqlx::query(
+        sqlx::query(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
             .bind(activity.id)
             .bind(activity.at)
@@ -487,12 +490,25 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
             .bind(&activity.context)
         .execute(txn.as_mut())
         .in_current_span()
-        .await
-        .context("Update task activities error")?;
-    txn.commit()
-        .await
-        .context("Commit transaction on push task activity")?;
-    Ok(())
+        .await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
+    let mut retry = 5;
+    loop {
+        match push_task_activity_once(pool, activity).await {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                tracing::warn!("push task activity error: {err:#}");
+                if retry == 0 {
+                    Err(err)?;
+                }
+                retry -= 1;
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        }
+    }
 }
 
 async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
@@ -658,8 +674,8 @@ impl TaskController {
         scheduler: TaskScheduler,
         max_activities_per_entity: usize,
     ) -> anyhow::Result<Self> {
-        if !sqlite.contains(":memory:") {
-            let file = sqlite.replacen("sqlite:", "", 1);
+        let sqlite = if !sqlite.contains(":memory:") {
+            let file = sqlite.trim_start_matches("sqlite:");
             tracing::debug!("check sqlite file: {}", file);
             let path = std::path::Path::new(&file);
             if let Some(dir) = path.parent() {
@@ -667,13 +683,21 @@ impl TaskController {
                     std::fs::create_dir_all(dir).context("Cannot create directory for database")?;
                 }
             }
-        }
-        let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
+            path.canonicalize()
+                .context("Cannot canonicalize sqlite file")?
+                .to_string_lossy()
+                .to_string()
+        } else {
+            sqlite.to_string()
+        };
+        let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(&sqlite)?
             .create_if_missing(true)
             .busy_timeout(Duration::from_secs(10))
             .auto_vacuum(sqlx::sqlite::SqliteAutoVacuum::Incremental)
             .optimize_on_close(true, None)
-            .log_slow_statements(log::LevelFilter::Warn, Duration::from_secs(2))
+            .log_slow_statements(log::LevelFilter::Warn, Duration::from_secs(4))
+            .statement_cache_capacity(300)
+            .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
             .journal_mode(SqliteJournalMode::Wal);
 
         // Defaults:
