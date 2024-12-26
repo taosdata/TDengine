@@ -17,7 +17,7 @@ TDengine is designed for various writing scenarios, and many of these scenarios 
 
 ```sql
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'];
-SHOW COMPACTS [compact_id];
+SHOW COMPACT [compact_id];
 KILL COMPACT compact_id;
 ```
 
