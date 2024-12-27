@@ -50,13 +50,18 @@ else
     rm -rf "$agent_toml_path"
     touch "$agent_toml_path"
 fi
-
+# 将token和endpoint写入agent.toml文件
 temp_file=$(mktemp)
-echo "token = \"$linux_agent_token\" 
-      endpoint = \"http://localhost:6055\"" > "$temp_file"
+echo "token=\"$linux_agent_token\"
+      endpoint=\"http://localhost:6055\"" > "$temp_file"
 cat "$agent_toml_path" >> "$temp_file"
 mv "$temp_file" "$agent_toml_path"
 
 echo "linux agent token: $linux_agent_token"
+
+# 将linux agent id写入setenv.sh.example文件
+setenv_path="tests/e2e/setenv.sh.example"
+sed -i '/export TAOSX_LINUX_AGENT_ID/c\export TAOSX_LINUX_AGENT_ID='$linux_agent_id'' $setenv_path
+
 
 systemctl start taosx-agent
