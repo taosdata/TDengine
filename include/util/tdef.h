@@ -709,7 +709,8 @@ typedef enum {
 #define TSDB_DECIMAL_MIN_SCALE 0
 #define TSDB_DECIMAL_MAX_SCALE TSDB_DECIMAL_MAX_PRECISION
 
-typedef int64_t DecimalWord;
+typedef uint64_t DecimalWord;
+#define WORD_NUM(TYPE) (sizeof(TYPE) / sizeof(DecimalWord))
 
 #ifdef __cplusplus
 }
