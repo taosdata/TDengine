@@ -167,13 +167,13 @@ void do_stmt(TAOS* taos, const char* sql, int CTB_NUMS, int ROW_NUMS, int CYC_NU
     for (int i = 0; i < CTB_NUMS; i++) {
       // create tags
       tags[i] = (TAOS_STMT2_BIND*)taosMemoryMalloc(2 * sizeof(TAOS_STMT2_BIND));
-      tags[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, &t1, &t1len, NULL, 0};
-      tags[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, (void*)"after", &t2len, NULL, 0};
+      tags[i][0] = {TSDB_DATA_TYPE_INT, &t1, &t1len, NULL, 0};
+      tags[i][1] = {TSDB_DATA_TYPE_BINARY, (void*)"after", &t2len, NULL, 0};
 
       // create col params
       paramv[i] = (TAOS_STMT2_BIND*)taosMemoryMalloc(2 * sizeof(TAOS_STMT2_BIND));
-      paramv[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, &ts[i][0], &ts_len[0], NULL, ROW_NUMS};
-      paramv[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, ROW_NUMS};
+      paramv[i][0] = {TSDB_DATA_TYPE_TIMESTAMP, &ts[i][0], &ts_len[0], NULL, ROW_NUMS};
+      paramv[i][1] = {TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, ROW_NUMS};
     }
     // bind
     TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, tags, paramv};
