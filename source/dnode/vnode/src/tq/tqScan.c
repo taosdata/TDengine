@@ -58,6 +58,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
   for (int32_t i = 0; i < n; i++) {
     char* tbName = taosStrdup(mr.me.name);
     taosArrayPush(pRsp->blockTbName, &tbName);
+    tqDebug("tq reader retrieve data block uid:%"PRId64" tbname:%s", uid, tbName);
   }
   metaReaderClear(&mr);
   return 0;
@@ -322,6 +323,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         tqAddBlockDataToRsp(pBlock, (SMqDataRsp*)pRsp, taosArrayGetSize(pBlock->pDataBlock),
                             pTq->pVnode->config.tsdbCfg.precision);
         *totalRows += pBlock->info.rows;
+
         blockDataFreeRes(pBlock);
         SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
         taosArrayPush(pRsp->blockSchema, &pSW);

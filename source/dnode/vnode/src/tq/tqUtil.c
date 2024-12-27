@@ -262,6 +262,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if (totalRows >= 4096 || (taosGetTimestampMs() - st > 1000)) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
+        tqDebug("tmq poll vgId:%d total rows:%d", vgId, totalRows);
         goto end;
       } else {
         fetchVer++;
