@@ -4672,10 +4672,10 @@ int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *outpu
 }
 
 // handle all types, including var data
-void valueSetDatum(SValue *pVal, int8_t type, const void *pDatum, uint32_t len) {
+void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len) {
   assert(type == pVal->type);
   if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) {
-    memcpy(pVal->pData, pDatum, len);
+    pVal->pData = pDatum;
     pVal->nData = len;
   } else {
     switch (len) {

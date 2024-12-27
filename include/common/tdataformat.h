@@ -264,7 +264,7 @@ struct SValue {
 #define VALUE_GET_TRIVIAL_DATUM(pVal) ((pVal)->val)
 #define VALUE_SET_TRIVIAL_DATUM(pVal, v) (pVal)->val = v
 
-void valueSetDatum(SValue *pVal, int8_t type, const void *pDatum, uint32_t len);
+void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len);
 void valueCloneDatum(SValue *pDst, const SValue *pSrc, int8_t type);
 void valueClearDatum(SValue *pVal, int8_t type);
 

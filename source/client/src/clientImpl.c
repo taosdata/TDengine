@@ -2155,7 +2155,8 @@ static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
     pResultInfo->convertBuf[i] = p;
 
     for (int32_t j = 0; j < pResultInfo->numOfRows; ++j) {
-      int32_t code = decimalToStr((DecimalWord*)(pResultInfo->pCol[i].pData + j * tDataTypes[type].bytes), pField->precision, pField->scale, p, bufLen);
+      int32_t code = decimalToStr((DecimalWord*)(pResultInfo->pCol[i].pData + j * tDataTypes[type].bytes), type,
+                                  pField->precision, pField->scale, p, bufLen);
       p += bufLen;
       if (TSDB_CODE_SUCCESS != code) {
         return code;
