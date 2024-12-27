@@ -1441,7 +1441,7 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
 
     SMetaReader mr1 = {0};
     pMetaReaderFn->initReader(&mr1, pVnode, META_READER_NOLOCK, pMetaFn);
-    
+
     int64_t suid = pMReader->me.ctbEntry.suid;
     code = pMetaReaderFn->getTableEntryByUid(&mr1, suid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1752,7 +1752,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       SMetaReader mr = {0};
       pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
-      
+
       uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
       code = pAPI->metaReaderFn.getTableEntryByUid(&mr, suid);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2284,7 +2284,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       // db_name
       pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, db, false);
+      code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // vgroup_id
@@ -2543,7 +2543,8 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     if (pInfo->showRewrite) {
       getDBNameFromCondition(pInfo->pCondition, dbName);
       if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, TSDB_TABLE_FNAME_LEN) != 0 &&
-          strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
+          strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0 &&
+          strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
         TAOS_UNUSED(tsnprintf(pInfo->req.db, sizeof(pInfo->req.db), "%d.%s", pInfo->accountId, dbName));
       }
     } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
