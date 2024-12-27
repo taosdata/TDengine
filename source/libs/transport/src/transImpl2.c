@@ -57,6 +57,26 @@ typedef struct {
   queue q;
 } SFdQueue;
 
+typedef struct STaskArg {
+  void *param1;
+  void *param2;
+} STaskArg;
+typedef struct SDelayTask {
+  void (*func)(void *arg);
+  void    *arg;
+  uint64_t execTime;
+  HeapNode node;
+} SDelayTask;
+
+typedef struct {
+  Heap *heap;
+  void *mgt;
+} SDelayQueue;
+
+int32_t     transDQCreate(void *loop, SDelayQueue **queue);
+void        transDQDestroy(SDelayQueue *queue, void (*freeFunc)(void *arg));
+SDelayTask *transDQSched(SDelayQueue *queue, void (*func)(void *arg), void *arg, uint64_t timeoutMs);
+void        transDQCancel(SDelayQueue *queue, SDelayTask *task);
 typedef struct {
   int       notifyCount;  //
   int       init;         // init or not
@@ -227,6 +247,9 @@ typedef struct {
   int32_t   fd[2048];
   int32_t   fdIdx;
 
+  void *arg;
+  int32_t (*timeoutFunc)(void *arg);
+  int32_t (*caclTimeout)(void *arg);
 } SEvtMgt;
 
 static int32_t evtMgtResize(SEvtMgt *pOpt, int32_t cap);
@@ -274,6 +297,15 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt) {
     *pOpt = pRes;
   }
 
+  return code;
+}
+static int32_t evtMgtAddTimoutFunc(SEvtMgt *pOpt, void *arg, int32_t (*timeoutFunc)(void *arg),
+                                   int32_t (*caclTimeout)(void *arg)) {
+  int32_t code = 0;
+
+  pOpt->arg = arg;
+  pOpt->timeoutFunc = timeoutFunc;
+  pOpt->caclTimeout = caclTimeout;
   return code;
 }
 
@@ -413,8 +445,32 @@ int32_t evtMgtHandle(SEvtMgt *pOpt, int32_t res, int32_t fd) {
   }
   return evtMgtHandleImpl(pOpt, pArg, res);
 }
+
+static int32_t evtCaclNextTimeout(SEvtMgt *pOpt, struct timeval *tv) {
+  int32_t code = 0;
+  int32_t timeout = 0;
+  if (pOpt->caclTimeout) {
+    timeout = pOpt->caclTimeout(pOpt->arg);
+    if (timeout <= 0) {
+      tv->tv_sec = 5;
+      tv->tv_usec = 0;
+    }
+  }
+  tv->tv_sec = timeout / 1000;
+  tv->tv_usec = (timeout % 1000) * 1000;
+  return code;
+}
 static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
   int32_t code = 0, res = 0, j, nfds = 0, active_Fds = 0;
+
+  if (pOpt->timeoutFunc != NULL) {
+    code = pOpt->timeoutFunc(pOpt->arg);
+    if (code != 0) {
+      tError("failed to handle timeout since %s", tstrerror(code));
+    } else {
+      tInfo("succ to handle timeout since %s", tstrerror(code));
+    }
+  }
 
   if (pOpt->resizeOutSets) {
     fd_set *readSetOut = NULL, *writeSetOut = NULL;
@@ -1262,6 +1318,13 @@ void *transWorkerThread(void *arg) {
 
   while (!pThrd->quit) {
     struct timeval tv = {30, 0};
+    code = evtCaclNextTimeout(pOpt, &tv);
+    if (code != 0) {
+      tError("%s failed to cacl next timeout since %s", pInst->label, tstrerror(code));
+    } else {
+      tDebug("%s succ to cacl next timeout", pInst->label);
+    }
+
     code = evtMgtDispath(pOpt, &tv);
     if (code != 0) {
       tError("%s failed to dispatch since %s", pInst->label, tstrerror(code));
@@ -3612,4 +3675,113 @@ static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p) {
     TAOS_UNUSED(transHeapBalance(heap, p));
   }
   return code;
+}
+static FORCE_INLINE int32_t timeCompare(const HeapNode *a, const HeapNode *b) {
+  SDelayTask *arg1 = container_of(a, SDelayTask, node);
+  SDelayTask *arg2 = container_of(b, SDelayTask, node);
+  if (arg1->execTime > arg2->execTime) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+int32_t transDQCreate(void *loop, SDelayQueue **queue) {
+  int32_t code = 0;
+  Heap   *heap = NULL;
+  // uv_timer_t*  timer = NULL;
+  SDelayQueue *q = NULL;
+
+  // timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+  // if (timer == NULL) {
+  //   return terrno;
+  // }
+
+  heap = heapCreate(timeCompare);
+  if (heap == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _return1);
+  }
+
+  q = taosMemoryCalloc(1, sizeof(SDelayQueue));
+  if (q == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _return1);
+  }
+  q->heap = heap;
+  q->mgt = loop;
+
+  *queue = q;
+  return 0;
+
+_return1:
+  heapDestroy(heap);
+  taosMemoryFree(q);
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+void transDQDestroy(SDelayQueue *queue, void (*freeFunc)(void *arg)) {
+  int32_t code = 0;
+  while (heapSize(queue->heap) > 0) {
+    HeapNode *minNode = heapMin(queue->heap);
+    if (minNode == NULL) {
+      return;
+    }
+    heapRemove(queue->heap, minNode);
+
+    SDelayTask *task = container_of(minNode, SDelayTask, node);
+
+    STaskArg *arg = task->arg;
+    if (freeFunc) freeFunc(arg);
+    taosMemoryFree(arg);
+
+    taosMemoryFree(task);
+  }
+  heapDestroy(queue->heap);
+  taosMemoryFree(queue);
+  return;
+}
+SDelayTask *transDQSched(SDelayQueue *queue, void (*func)(void *arg), void *arg, uint64_t timeoutMs) {
+  uint64_t    now = taosGetTimestampMs();
+  SDelayTask *task = taosMemoryCalloc(1, sizeof(SDelayTask));
+  if (task == NULL) {
+    return NULL;
+  }
+
+  task->func = func;
+  task->arg = arg;
+  task->execTime = now + timeoutMs;
+
+  HeapNode *minNode = heapMin(queue->heap);
+  if (minNode) {
+    SDelayTask *minTask = container_of(minNode, SDelayTask, node);
+    if (minTask->execTime < task->execTime) {
+      timeoutMs = minTask->execTime <= now ? 0 : minTask->execTime - now;
+    }
+  }
+
+  tTrace("timer %p put task into delay queue, timeoutMs:%" PRIu64, queue->mgt, timeoutMs);
+  heapInsert(queue->heap, &task->node);
+  // TAOS_UNUSED(uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0));
+  return NULL;
+}
+void transDQCancel(SDelayQueue *queue, SDelayTask *task) {
+  // TAOS_UNUSED(uv_timer_stop(queue->timer));
+
+  if (heapSize(queue->heap) <= 0) {
+    taosMemoryFree(task->arg);
+    taosMemoryFree(task);
+    return;
+  }
+  heapRemove(queue->heap, &task->node);
+
+  taosMemoryFree(task->arg);
+  taosMemoryFree(task);
+
+  if (heapSize(queue->heap) != 0) {
+    HeapNode *minNode = heapMin(queue->heap);
+    if (minNode == NULL) return;
+
+    uint64_t    now = taosGetTimestampMs();
+    SDelayTask *task = container_of(minNode, SDelayTask, node);
+    uint64_t    timeout = now > task->execTime ? now - task->execTime : 0;
+
+    // TAOS_UNUSED(uv_timer_start(queue->timer, transDQTimeout, timeout, 0));
+  }
 }
