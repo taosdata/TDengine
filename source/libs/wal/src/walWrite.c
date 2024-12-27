@@ -274,7 +274,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t walRollImpl(SWal *pWal) {
+int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0, lino = 0;
 
   if (pWal->cfg.level == TAOS_WAL_SKIP && pWal->pIdxFile != NULL && pWal->pLogFile != NULL) {
