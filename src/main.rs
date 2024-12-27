@@ -741,7 +741,7 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\data\\taosx", build::CUS_NAME)
+        format!("C:\\{}\\data\\{}x", build::CUS_NAME, build::CUS_PROMPT)
     } else {
         format!("/var/lib/{0}/{0}x", build::CUS_PROMPT)
     }

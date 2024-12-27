@@ -148,7 +148,7 @@ remove_taos_agent() {
 }
 
 remove_target() {
-    if [ "$target" = "taosx" ]; then
+    if [ "$target" = ${xName} ]; then
       remove_taosx
     else
       remove_taos_agent
@@ -156,23 +156,23 @@ remove_target() {
 }
 
 print_tips(){
-    if [ "$target" = "taosx" ]; then
-      echo -e "\033[32mTo configure taosx         \033[0m: edit /etc/taos/taosx.toml"
-      # echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
-      echo -e "\033[32mTo configure taos-explorer \033[0m: edit /etc/taos/explorer.toml"
-      echo -e "\033[32mTo start taosx             \033[0m: sudo systemctl start taosx"
-      # echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
-      echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
+    if [ "$target" = ${xName} ]; then
+      echo -e "\033[32mTo configure ${xName}         \033[0m: edit /etc/${PREFIX}/${xName}.toml"
+      # echo -e "\033[32mTo configure taosx-agent    \033[0m: edit /etc/taos/agent.toml"
+      echo -e "\033[32mTo configure ${explorerName}  \033[0m: edit /etc/${PREFIX}/explorer.toml"
+      echo -e "\033[32mTo start ${xName}             \033[0m: sudo systemctl start ${xName}"
+      # echo -e "\033[32mTo start taosx-agent        \033[0m: sudo systemctl start taosx-agent"
+      echo -e "\033[32mTo start ${explorerName}      \033[0m: sudo systemctl start ${explorerName}"
 
       echo -e "\n\033[32mtaosX and taosExplorer are installed successfully!\033[0m"
       echo -e "\033[32mTo access the TDengine management system: http://`hostname`:6060\033[0m"
       echo -e "\033[32mTo read the TDengine user manual: http://`hostname`:6060/docs-en\033[0m"
     else
       # echo -e "\033[32mTo configure taosx         \033[0m: edit /etc/taos/taosx.toml"
-      echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
-      echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
+      echo -e "\033[32mTo configure ${agentname}   \033[0m: edit /etc/${PREFIX}/agent.toml"
+      echo -e "\033[32mTo start ${agentname}       \033[0m: sudo systemctl start ${agentname}"
 
-      echo -e "\n\033[32mtaosx-agent is installed successfully!\033[0m"
+      echo -e "\n\033[32m${agentname} is installed successfully!\033[0m"
     fi
 }
 
@@ -205,7 +205,7 @@ function replaceExplorerEndpoint() {
 
 # install new taosx and taosx-agent
 install_taosx() {
-  if [ "$target" = "taosx" ]; then
+  if [ "$target" = ${xName} ]; then
     install_taosx_only
   else
     install_agent_only
@@ -240,10 +240,10 @@ install_taosx_only() {
     check_and_create_directory "${CONFIG_DIR}"
     getUserInputEndpoint
     # copy config to /etc/taos
-    if [ -f ${CONFIG_DIR}/taosx.toml ]; then
-        ${csudo}cp -f ./etc/taos/taosx.toml ${CONFIG_DIR}/taosx.toml.new
+    if [ -f ${CONFIG_DIR}/${xName}.toml ]; then
+        ${csudo}cp -f ./etc/taos/taosx.toml ${CONFIG_DIR}/${xName}.toml.new
     else
-        ${csudo}cp -f ./etc/taos/taosx.toml ${CONFIG_DIR}/
+        ${csudo}cp -f ./etc/taos/taosx.toml ${CONFIG_DIR}/${xName}.toml
     fi
     echo "install toml file to ${CONFIG_DIR}..."
     if [ -f ./etc/taos/explorer.toml ]; then
