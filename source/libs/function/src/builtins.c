@@ -5642,6 +5642,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
   },
+  {
+    .name = "cols",
+  },
 };
 // clang-format on
 

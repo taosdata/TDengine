@@ -3471,6 +3471,10 @@ static bool eliminateProjOptCanChildConditionUseChildTargets(SLogicNode* pChild,
     nodesWalkExpr(pJoinLogicNode->pFullOnCond, eliminateProjOptCanUseNewChildTargetsImpl, &cxt);
     if (!cxt.canUse) return false;
   }
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pChild) &&
+      ((SAggLogicNode*)pChild)->node.pTargets->length != pNewChildTargets->length) {
+    return false;
+  }
   return true;
 }
 
@@ -3599,7 +3603,8 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     } else {
       FOREACH(pProjection, pProjectNode->pProjections) {
         FOREACH(pChildTarget, pChild->pTargets) {
-          if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+          if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)
+          && ((SColumnNode*)pProjection)->node.bindTupleFuncIdx == 0) {
             SNode* pNew = NULL;
             code = nodesCloneNode(pChildTarget, &pNew);
             if (TSDB_CODE_SUCCESS == code) {

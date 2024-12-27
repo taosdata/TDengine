@@ -86,7 +86,14 @@ class TDTestCase:
         
         tdSql.query(f'select cols(last(c0), ts, c1, c2, c3), cols(first(c0), ts, c1, c2, c3) from db.st')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 'bbbbbbbbb')
+        tdSql.checkData(0, 0, 1734574929003)
+        tdSql.checkData(0, 1, '4.0')
+        tdSql.checkData(0, 2, 'bbbbbbbbb2')
+        tdSql.checkData(0, 3, False)
+        tdSql.checkData(0, 4, 1734574929000)
+        tdSql.checkData(0, 5, '1.0')
+        tdSql.checkData(0, 6, 'a1')
+        tdSql.checkData(0, 7, True)
         
         #tdSql.execute(f'drop table if exists db.st')
 

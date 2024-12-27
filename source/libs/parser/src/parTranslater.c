@@ -13726,6 +13726,10 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
   int32_t index = 0;
   FOREACH(pNode, pProjections) {
     SExprNode* pExpr = (SExprNode*)pNode;
+    if(pExpr->tupleFuncIdx != 0) {
+      *numOfCols -= 1;
+      continue;
+    }
     if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
       (*pSchema)[index].type = TSDB_DATA_TYPE_VARCHAR;
       (*pSchema)[index].bytes = VARSTR_HEADER_SIZE;

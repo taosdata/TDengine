@@ -1600,6 +1600,9 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
   int32_t projIdx = 1;
   FOREACH(pNode, pExprs) {
     SColumnNode* pCol = createColumnByExpr(pStmtName, (SExprNode*)pNode);
+    if (pCol->node.tupleFuncIdx != 0) {
+      continue;
+    }
     if (TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pList, (SNode*)pCol))) {
       nodesDestroyList(pList);
       return code;
