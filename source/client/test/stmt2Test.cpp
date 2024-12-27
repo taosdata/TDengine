@@ -33,6 +33,19 @@
 #include "taos.h"
 
 namespace {
+
+void checkRows(TAOS* pConn, const char* sql, int32_t expectedRows) {
+  TAOS_RES* pRes = taos_query(pConn, sql);
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  TAOS_ROW pRow = NULL;
+  int      rows = 0;
+  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    rows++;
+  }
+  ASSERT_EQ(rows, expectedRows);
+  taos_free_result(pRes);
+}
+
 void stmtAsyncQueryCb(void* param, TAOS_RES* pRes, int code) {
   int affected_rows = taos_affected_rows(pRes);
   return;
@@ -186,6 +199,8 @@ void do_stmt(TAOS* taos, const char* sql, int CTB_NUMS, int ROW_NUMS, int CYC_NU
     taosMemoryFree(paramv);
     taosMemoryFree(tags);
   }
+
+  checkRows(taos, "select * from db.stb", CYC_NUMS * ROW_NUMS * CTB_NUMS);
   for (int i = 0; i < CTB_NUMS; i++) {
     taosMemoryFree(tbs[i]);
   }
@@ -352,11 +367,11 @@ TEST(stmt2Case, insert_stb_get_fields_Test) {
   printf("not support case \n");
 
   // case 5 : add in main TD-33353
-  //   {
-  //   const char*    sql = "insert into db.stb(t1,t2,ts,b,tbname) values(1,?,?,'abc',?)";
-  //   printf("case 2 : %s\n", sql);
-  //   getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION);
-  // }
+  {
+    const char* sql = "insert into db.stb(t1,t2,ts,b,tbname) values(1,?,?,'abc',?)";
+    printf("case 2 : %s\n", sql);
+    getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION);
+  }
 
   // case 2 : no pk
   {
@@ -411,11 +426,10 @@ TEST(stmt2Case, insert_stb_get_fields_Test) {
   {
     const char* sql = "insert into db.stb(t1,t2,ts,b,tbname) values(*,*,*,*,*)";
     printf("case 9 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_SQL_SYNTAX_ERROR);
+    getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION);
   }
 
   taos_close(taos);
-  taos_cleanup();
 }
 
 TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
@@ -616,6 +630,7 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
     printf("case 5 : %s\n", sql);
     getFieldsError(taos, sql, TSDB_CODE_TSC_SQL_SYNTAX_ERROR);
   }
+  taos_close(taos);
 }
 
 TEST(stmt2Case, insert_ntb_get_fields_Test) {
@@ -737,6 +752,7 @@ TEST(stmt2Case, select_get_fields_Test) {
     printf("case 3 : %s\n", sql);
     getFieldsError(taos, sql, TSDB_CODE_PAR_SYNTAX_ERROR);
   }
+  taos_close(taos);
 }
 
 TEST(stmt2Case, get_fields_error_Test) {
@@ -776,7 +792,7 @@ TEST(stmt2Case, stmt2_init_prepare_Test) {
     code = taos_stmt2_prepare(stmt, "insert into 'db'.stb(t1,t2,ts,b,tbname) values(?,?,?,?,?)", 0);
     ASSERT_EQ(terrno, 0);
     ASSERT_NE(stmt, nullptr);
-    // ASSERT_STREQ(((STscStmt2*)stmt)->db, "db");    //add in main TD-33332
+    ASSERT_STREQ(((STscStmt2*)stmt)->db, "db");  // add in main TD-33332
     taos_stmt2_close(stmt);
   }
 
@@ -795,6 +811,7 @@ TEST(stmt2Case, stmt2_init_prepare_Test) {
     ASSERT_NE(stmt, nullptr);
     taos_stmt2_close(stmt);
   }
+  taos_close(taos);
 }
 
 TEST(stmt2Case, stmt2_all) {
@@ -803,7 +820,6 @@ TEST(stmt2Case, stmt2_all) {
 
   { do_stmt(taos, "insert into db.stb (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true); }
   taos_close(taos);
-  taos_cleanup();
 }
 
 TEST(stmt2Case, stmt2_status_Test) {}
