@@ -77,6 +77,8 @@ int32_t     transDQCreate(void *loop, SDelayQueue **queue);
 void        transDQDestroy(SDelayQueue *queue, void (*freeFunc)(void *arg));
 SDelayTask *transDQSched(SDelayQueue *queue, void (*func)(void *arg), void *arg, uint64_t timeoutMs);
 void        transDQCancel(SDelayQueue *queue, SDelayTask *task);
+int32_t     transDQHandleTimeout(SDelayQueue *queue);
+int32_t     transDQGetNextTimeout(SDelayQueue *queue);
 typedef struct {
   int       notifyCount;  //
   int       init;         // init or not
@@ -247,13 +249,14 @@ typedef struct {
   int32_t   fd[2048];
   int32_t   fdIdx;
 
+  char  label[128];
   void *arg;
   int32_t (*timeoutFunc)(void *arg);
-  int32_t (*caclTimeout)(void *arg);
+  int32_t (*caclTimeout)(void *arg, int64_t *timeout);
 } SEvtMgt;
 
 static int32_t evtMgtResize(SEvtMgt *pOpt, int32_t cap);
-static int32_t evtMgtCreate(SEvtMgt **pOpt);
+static int32_t evtMgtCreate(SEvtMgt **pOpt, char *label);
 static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv);
 static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *arg);
 static int32_t evtMgtRemove(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *arg);
@@ -273,7 +276,7 @@ static int32_t evtInitPipe(int32_t dst[2]) {
   dst[1] = fd[1];
   return code;
 }
-static int32_t evtMgtCreate(SEvtMgt **pOpt) {
+static int32_t evtMgtCreate(SEvtMgt **pOpt, char *label) {
   int32_t  code = 0;
   SEvtMgt *pRes = taosMemoryCalloc(1, sizeof(SEvtMgt));
   if (pRes == NULL) {
@@ -289,6 +292,7 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt) {
   pRes->evtWriteSetOut = NULL;
   pRes->pFdTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   pRes->fdIdx = 0;
+  memcpy(pRes->label, label, strlen(label));
 
   code = evtMgtResize(pRes, (32 + 1));
   if (code != 0) {
@@ -300,10 +304,10 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt) {
   return code;
 }
 static int32_t evtMgtAddTimoutFunc(SEvtMgt *pOpt, void *arg, int32_t (*timeoutFunc)(void *arg),
-                                   int32_t (*caclTimeout)(void *arg)) {
+                                   int32_t (*caclTimeout)(void *arg, int64_t *timeout)) {
   int32_t code = 0;
 
-  pOpt->arg = arg;
+  // pOpt->arg = arg;
   pOpt->timeoutFunc = timeoutFunc;
   pOpt->caclTimeout = caclTimeout;
   return code;
@@ -383,7 +387,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       SEvtBuf *pBuf = &pArg->buf;
       code = evtBufInit(pBuf);
       if (code != 0) {
-        tError("failed to init buf since %s", tstrerror(code));
+        tError("%s failed to init buf since %s", pOpt->label, tstrerror(code));
         return code;
       }
 
@@ -400,13 +404,13 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       SEvtBuf *pBuf = &pArg->sendBuf;
       code = evtBufInit(pBuf);
       if (code != 0) {
-        tError("failed to init wbuf since %s", tstrerror(code));
+        tError("%s failed to init wbuf since %s", pOpt->label, tstrerror(code));
         return code;
       }
 
       code = pArg->sendCb(pArg, pBuf, 0);
       if (code != 0) {
-        tError("failed to build send buf since %s", tstrerror(code));
+        tError("%s failed to build send buf since %s", pOpt->label, tstrerror(code));
       }
       int32_t total = pBuf->offset;
       int32_t offset = 0;
@@ -427,9 +431,9 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       evtBufClear(&pArg->sendBuf);
       pArg->sendFinishCb(pArg, code);
       if (code != 0) {
-        tError("failed to send buf since %s", tstrerror(code));
+        tError("%s failed to send buf since %s", pOpt->label, tstrerror(code));
       } else {
-        tDebug("succ to send buf");
+        tDebug("%s succ to send buf", pOpt->label);
       }
       return code;
     }
@@ -448,16 +452,23 @@ int32_t evtMgtHandle(SEvtMgt *pOpt, int32_t res, int32_t fd) {
 
 static int32_t evtCaclNextTimeout(SEvtMgt *pOpt, struct timeval *tv) {
   int32_t code = 0;
-  int32_t timeout = 0;
+  int64_t timeout = 0;
   if (pOpt->caclTimeout) {
-    timeout = pOpt->caclTimeout(pOpt->arg);
-    if (timeout <= 0) {
-      tv->tv_sec = 5;
+    code = pOpt->caclTimeout(pOpt->arg, &timeout);
+    if (timeout == 0) {
+      tv->tv_sec = 0;
+      tv->tv_usec = 100 * 1000;
+    } else if (timeout < 0) {
+      tv->tv_sec = 30;
       tv->tv_usec = 0;
+    } else {
+      tv->tv_sec = timeout / 1000;
+      tv->tv_usec = (timeout % 1000) * 1000;
     }
+  } else {
+    tv->tv_sec = 30;
+    tv->tv_usec = 0;
   }
-  tv->tv_sec = timeout / 1000;
-  tv->tv_usec = (timeout % 1000) * 1000;
   return code;
 }
 static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
@@ -466,9 +477,9 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
   if (pOpt->timeoutFunc != NULL) {
     code = pOpt->timeoutFunc(pOpt->arg);
     if (code != 0) {
-      tError("failed to handle timeout since %s", tstrerror(code));
+      tError("%s failed to handle timeout since %s", pOpt->label, tstrerror(code));
     } else {
-      tInfo("succ to handle timeout since %s", tstrerror(code));
+      tInfo("%s succ to handle timeout since %s", pOpt->label, tstrerror(code));
     }
   }
 
@@ -500,7 +511,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
   if (active_Fds < 0) {
     return TAOS_SYSTEM_ERROR(errno);
   } else if (active_Fds == 0) {
-    tDebug("select timeout occurred");
+    tDebug("%s select timeout occurred", pOpt->label);
     return code;
   }
 
@@ -520,9 +531,9 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
       active_Fds--;
       code = evtMgtHandle(pOpt, res, fd);
       if (code != 0) {
-        tError("failed to handle fd %d since %s", fd, tstrerror(code));
+        tError("%s failed to handle fd %d since %s", pOpt->label, fd, tstrerror(code));
       } else {
-        tDebug("success to handle fd %d", fd);
+        tDebug("%s success to handle fd %d", pOpt->label, fd);
       }
     }
   }
@@ -634,7 +645,7 @@ static int32_t evtMgtRemove(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg 
   }
   SFdCbArg *pArg = taosHashGet(pOpt->pFdTable, &fd, sizeof(fd));
   if (pArg == NULL) {
-    tError("%s failed to get fd %d since %s", __func__, fd, tstrerror(TAOS_SYSTEM_ERROR(EBADF)));
+    tError("%s %s failed to get fd %d since %s", pOpt->label, __func__, fd, tstrerror(TAOS_SYSTEM_ERROR(EBADF)));
     return 0;
   }
   pArg->rwRef -= rwRef;
@@ -666,7 +677,7 @@ static void evtMgtDestroy(SEvtMgt *pOpt) {
   if (pOpt->evtWriteSetOut) {
     taosMemoryFree(pOpt->evtWriteSetOut);
   }
-
+  tDebug("%s succ to destroy evt mgt", pOpt->label);
   taosHashCleanup(pOpt->pFdTable);
   taosMemoryFree(pOpt);
 }
@@ -1294,7 +1305,7 @@ void *transWorkerThread(void *arg) {
 
   SEvtMgt *pOpt = NULL;
 
-  code = evtMgtCreate(&pOpt);
+  code = evtMgtCreate(&pOpt, pInst->label);
   if (code != 0) {
     tError("%s failed to create select op since %s", pInst->label, tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
@@ -1720,7 +1731,47 @@ typedef struct SCliThrd2 {
   int32_t       pipe_queue_fd[2];
   SEvtMgt      *pEvtMgt;
   SAsyncHandle *asyncHandle;
+  int32_t       connLimit;
 } SCliThrd2;
+
+typedef struct {
+  SDelayQueue *queue;
+  void        *pEvtMgt;
+} STimeoutArg;
+
+int32_t createTimeoutArg(void *pEvtMgt, STimeoutArg **pArg) {
+  int32_t code = 0;
+  int32_t line = 0;
+
+  STimeoutArg *arg = taosMemoryCalloc(1, sizeof(STimeoutArg));
+  if (arg == NULL) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &line, _end);
+  }
+  SDelayQueue *queue = NULL;
+  transDQCreate(arg, &queue);
+
+  arg->queue = queue;
+  arg->pEvtMgt = pEvtMgt;
+  *pArg = arg;
+  return code;
+_end:
+  if (code != 0) {
+    tError("%s failed to create timeout arg at line %d since %s", __func__, line, tstrerror(code));
+  }
+  return code;
+}
+
+void destroyTimeoutArg(STimeoutArg *arg) {
+  if (arg == NULL) {
+    return;
+  }
+
+  SDelayQueue *queue = arg->queue;
+  transDQDestroy(queue, NULL);
+  taosMemoryFree(arg);
+  return;
+}
 
 typedef struct SCliObj2 {
   char        label[TSDB_LABEL_LEN];
@@ -1889,7 +1940,7 @@ static int32_t getConnFromPool(SCliThrd2 *pThrd, const char *key, SCliConn **ppC
   }
 
   if (QUEUE_IS_EMPTY(&plist->conns)) {
-    if (plist->totalSize >= pInst->connLimitNum) {
+    if (plist->totalSize >= pThrd->connLimit) {
       return TSDB_CODE_RPC_MAX_SESSIONS;
     }
     return TSDB_CODE_RPC_NETWORK_BUSY;
@@ -1927,6 +1978,9 @@ static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliCon
   if (pConn != NULL) {
     *ppConn = pConn;
     return 0;
+  }
+  if (code == TSDB_CODE_RPC_MAX_SESSIONS) {
+    return code;
   }
 
   pConn = taosMemoryCalloc(1, sizeof(SCliConn));
@@ -3239,6 +3293,16 @@ _end:
   return code;
 }
 
+static FORCE_INLINE void evtLogConnMissHit(SCliConn *pConn) {
+  // queue set;
+  // QUEUE_INIT(&set);
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+  pConn->heapMissHit++;
+  tDebug("conn %p has %d reqs, %d sentout and %d status in process, total limit:%d, switch to other conn", pConn,
+         transQueueSize(&pConn->reqsToSend), transQueueSize(&pConn->reqsSentOut), taosHashGetSize(pConn->pQTable),
+         pThrd->connLimit);
+}
 static int32_t getOrCreateHeapCache(SHashObj *pConnHeapCache, char *key, SHeap **pHeap) {
   int32_t code = 0;
   size_t  klen = strlen(key);
@@ -3270,14 +3334,16 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn *pConn, char *key) {
   SCliThrd2 *pThrd = pConn->hostThrd;
   STrans    *pInst = pThrd->pInst;
 
-  tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
   int32_t reqsNum = transQueueSize(&pConn->reqsToSend);
   int32_t reqsSentOut = transQueueSize(&pConn->reqsSentOut);
   int32_t stateNum = taosHashGetSize(pConn->pQTable);
   int32_t totalReqs = reqsNum + reqsSentOut;
 
-  if (totalReqs >= pInst->shareConnLimit) {
-    // logConnMissHit(pConn);
+  tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d, totalReqs:%d", pConn, key, pConn->inHeap,
+         pConn->reqRefCnt, totalReqs);
+
+  if (totalReqs >= pThrd->connLimit) {
+    evtLogConnMissHit(pConn);
 
     if (pConn->list == NULL && pConn->dstAddr != NULL) {
       pConn->list = taosHashGet((SHashObj *)pThrd->pool, pConn->dstAddr, strlen(pConn->dstAddr));
@@ -3285,9 +3351,9 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn *pConn, char *key) {
         tTrace("conn %p get list %p from pool for key:%s", pConn, pConn->list, key);
       }
     }
-    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 4) {
+    if (pConn->list && pConn->list->totalSize >= pThrd->connLimit / 4) {
       tWarn("%s conn %p try to remove timeout msg since too many conn created", transLabel(pInst), pConn);
-
+      pThrd->connLimit = pThrd->connLimit * 4;
       // TODO
       //  if (cliConnRemoveTimeoutMsg(pConn)) {
       //    tWarn("%s conn %p succ to remove timeout msg", transLabel(pInst), pConn);
@@ -3384,7 +3450,7 @@ static int8_t balanceConnHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn, SC
     if (transHeapGet(pConn->heap, &pTopConn) == 0 && pConn != pTopConn) {
       int32_t curReqs = REQS_ON_CONN(pConn);
       int32_t topReqs = REQS_ON_CONN(pTopConn);
-      if (curReqs > topReqs && topReqs < pInst->shareConnLimit) {
+      if (curReqs > topReqs && topReqs < pThrd->connLimit) {
         *pNewConn = pTopConn;
         return 1;
       }
@@ -3392,19 +3458,56 @@ static int8_t balanceConnHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn, SC
   }
   return 0;
 }
-static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
-  int32_t code = 0;
+FORCE_INLINE int32_t evtCliBuildExceptResp(SCliThrd2 *pThrd, SCliReq *pReq, STransMsg *pResp) {
+  if (pReq == NULL) return -1;
+
   STrans *pInst = pThrd->pInst;
-  char   *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
-  int32_t port = EPSET_GET_INUSE_PORT(req->ctx->epSet);
-  char    addr[TSDB_FQDN_LEN + 64] = {0};
+
+  SReqCtx *pCtx = pReq ? pReq->ctx : NULL;
+  pResp->msgType = pReq ? pReq->msg.msgType + 1 : 0;
+  pResp->info.cliVer = pInst->compatibilityVer;
+  pResp->info.ahandle = pCtx ? pCtx->ahandle : 0;
+  if (pReq) {
+    pResp->info.traceId = pReq->msg.info.traceId;
+  }
+
+  // handle noresp and inter manage msg
+  if (pCtx == NULL || pReq->msg.info.noResp == 1) {
+    return TSDB_CODE_RPC_NO_STATE;
+  }
+  if (pResp->code == 0) {
+    pResp->code = TSDB_CODE_RPC_BROKEN_LINK;
+  }
+
+  return 0;
+}
+static int32_t evtCliHandleExcept(void *thrd, SCliReq *pReq, STransMsg *pResp) {
+  SCliThrd2 *pThrd = thrd;
+  STrans    *pInst = pThrd->pInst;
+  int32_t    code = evtCliBuildExceptResp(pThrd, pReq, pResp);
+  if (code != 0) {
+    destroyReq(pReq);
+    return code;
+  }
+  pInst->cfp(pInst->parent, pResp, NULL);
+  destroyReq(pReq);
+  return code;
+}
+static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
+  int32_t   lino = 0;
+  int32_t   code = 0;
+  STransMsg resp = {0};
+  STrans   *pInst = pThrd->pInst;
+  char     *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
+  int32_t   port = EPSET_GET_INUSE_PORT(req->ctx->epSet);
+  char      addr[TSDB_FQDN_LEN + 64] = {0};
   snprintf(addr, sizeof(addr), "%s:%d", fqdn, port);
 
   SCliConn *pConn = NULL;
   code = getOrCreateConn(pThrd, fqdn, port, &pConn);
   if (code != 0) {
     tError("%s failed to create conn since %s", pInst->label, tstrerror(code));
-    return code;
+    TAOS_CHECK_GOTO(code, &lino, _end);
   } else {
     transQueuePush(&pConn->reqsToSend, &req->q);
     STraceId *trace = &req->msg.info.traceId;
@@ -3420,6 +3523,14 @@ static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
 
     code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_READ | EVT_WRITE, &arg);
   }
+  return code;
+_end:
+  resp.code = code;
+  STraceId *trace = &req->msg.info.traceId;
+  if (code != 0) {
+    tGError("%s failed to handle req since %s", pInst->label, tstrerror(code));
+  }
+  evtCliHandleExcept(pThrd, req, &resp);
   return code;
 }
 static void evtCliHandleAsyncCb(void *arg, int32_t status) {
@@ -3456,6 +3567,22 @@ static void evtCliHandleAsyncCb(void *arg, int32_t status) {
   }
 }
 
+static int32_t evtCliTimeoutFunc(void *arg) {
+  if (arg == 0) return 0;
+
+  int32_t      code = 0;
+  STimeoutArg *pArg = arg;
+  transDQHandleTimeout(pArg->queue);
+  return code;
+}
+static int32_t evtCliCalcTimeout(void *arg, int64_t *timeout) {
+  if (arg == 0) return 0;
+  STimeoutArg *pArg = arg;
+  int32_t      code = 0;
+
+  *timeout = transDQGetNextTimeout(pArg->queue);
+  return code;
+}
 static void *cliWorkThread2(void *arg) {
   int32_t    line = 0;
   int32_t    code = 0;
@@ -3469,10 +3596,8 @@ static void *cliWorkThread2(void *arg) {
   TAOS_UNUSED(strtolower(threadName, pThrd->pInst->label));
   setThreadName(threadName);
 
-  code = evtMgtCreate(&pThrd->pEvtMgt);
-  if (code != 0) {
-    TAOS_CHECK_GOTO(code, &line, _end);
-  }
+  code = evtMgtCreate(&pThrd->pEvtMgt, pInst->label);
+  TAOS_CHECK_GOTO(code, &line, _end);
 
   pThrd->pEvtMgt->hostThrd = pThrd;
 
@@ -3480,8 +3605,18 @@ static void *cliWorkThread2(void *arg) {
                       (void *)pThrd);
   TAOS_CHECK_GOTO(code, &line, _end);
 
+  createTimeoutArg(pThrd->pEvtMgt, (STimeoutArg **)&pThrd->pEvtMgt->arg);
+  TAOS_CHECK_GOTO(code, &line, _end);
+
+  code = evtMgtAddTimoutFunc(pThrd->pEvtMgt, NULL, evtCliTimeoutFunc, evtCliCalcTimeout);
+
   while (!pThrd->quit) {
     struct timeval tv = {30, 0};
+    code = evtCaclNextTimeout(pThrd->pEvtMgt, &tv);
+    if (code != 0) {
+    } else {
+      tDebug("%s success to calc next timeout", pInst->label);
+    }
     code = evtMgtDispath(pThrd->pEvtMgt, &tv);
     if (code != 0) {
       tError("%s failed to dispatch since %s", pInst->label, tstrerror(code));
@@ -3527,7 +3662,7 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
     code = createThrdObj(arg, &pThrd);
     TAOS_CHECK_EXIT(code);
     pThrd->pInst = pInst;
-
+    pThrd->connLimit = pInst->connLimitNum;
     code = evtInitPipe(pThrd->pipe_queue_fd);
     TAOS_CHECK_EXIT(code);
 
@@ -3658,7 +3793,7 @@ static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p) {
   }
   SCliThrd2 *pThrd = p->hostThrd;
   STrans    *pInst = pThrd->pInst;
-  int32_t    balanceLimit = pInst->shareConnLimit >= 4 ? pInst->shareConnLimit / 2 : 2;
+  int32_t    balanceLimit = pThrd->connLimit >= 4 ? pThrd->connLimit / 2 : 2;
 
   SCliConn *topConn = NULL;
   int32_t   code = transHeapGet(heap, &topConn);
@@ -3747,19 +3882,18 @@ SDelayTask *transDQSched(SDelayQueue *queue, void (*func)(void *arg), void *arg,
   task->func = func;
   task->arg = arg;
   task->execTime = now + timeoutMs;
+  // HeapNode *minNode = heapMin(queue->heap);
+  // if (minNode) {
+  //   SDelayTask *minTask = container_of(minNode, SDelayTask, node);
+  //   if (minTask->execTime < task->execTime) {
+  //     timeoutMs = minTask->execTime <= now ? 0 : minTask->execTime - now;
+  //   }
+  // }
 
-  HeapNode *minNode = heapMin(queue->heap);
-  if (minNode) {
-    SDelayTask *minTask = container_of(minNode, SDelayTask, node);
-    if (minTask->execTime < task->execTime) {
-      timeoutMs = minTask->execTime <= now ? 0 : minTask->execTime - now;
-    }
-  }
-
-  tTrace("timer %p put task into delay queue, timeoutMs:%" PRIu64, queue->mgt, timeoutMs);
+  // tTrace("timer %p put task into delay queue, timeoutMs:%" PRIu64, queue->mgt, timeoutMs);
   heapInsert(queue->heap, &task->node);
   // TAOS_UNUSED(uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0));
-  return NULL;
+  return task;
 }
 void transDQCancel(SDelayQueue *queue, SDelayTask *task) {
   // TAOS_UNUSED(uv_timer_stop(queue->timer));
@@ -3774,14 +3908,44 @@ void transDQCancel(SDelayQueue *queue, SDelayTask *task) {
   taosMemoryFree(task->arg);
   taosMemoryFree(task);
 
-  if (heapSize(queue->heap) != 0) {
+  // if (heapSize(queue->heap) != 0) {
+  //   HeapNode *minNode = heapMin(queue->heap);
+  //   if (minNode == NULL) return;
+
+  //   uint64_t    now = taosGetTimestampMs();
+  //   SDelayTask *task = container_of(minNode, SDelayTask, node);
+  //   uint64_t    timeout = now > task->execTime ? now - task->execTime : 0;
+
+  // }
+}
+
+int32_t transDQHandleTimeout(SDelayQueue *queue) {
+  int32_t  code = 0;
+  uint64_t now = taosGetTimestampMs();
+  while (heapSize(queue->heap) > 0) {
     HeapNode *minNode = heapMin(queue->heap);
-    if (minNode == NULL) return;
-
-    uint64_t    now = taosGetTimestampMs();
+    if (minNode == NULL) {
+      return 0;
+    }
     SDelayTask *task = container_of(minNode, SDelayTask, node);
-    uint64_t    timeout = now > task->execTime ? now - task->execTime : 0;
-
-    // TAOS_UNUSED(uv_timer_start(queue->timer, transDQTimeout, timeout, 0));
+    if (task->execTime > now) {
+      break;
+    }
+    heapRemove(queue->heap, minNode);
+    task->func(task->arg);
+    taosMemoryFree(task);
   }
+  return code;
+}
+int32_t transDQGetNextTimeout(SDelayQueue *queue) {
+  if (heapSize(queue->heap) <= 0) {
+    return -1;
+  }
+  HeapNode *minNode = heapMin(queue->heap);
+  if (minNode == NULL) {
+    return -1;
+  }
+  SDelayTask *task = container_of(minNode, SDelayTask, node);
+  uint64_t    now = taosGetTimestampMs();
+  return task->execTime > now ? task->execTime - now : 0;
 }
