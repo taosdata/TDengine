@@ -140,7 +140,7 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_NODE_LIST_FIELD(pParameterList);
   if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
     if ((a->node.bindTupleFuncIdx != b->node.bindTupleFuncIdx) &&
-        (a->node.bindTupleFuncIdx != 0 != b->node.bindTupleFuncIdx != 0))
+        (a->node.bindTupleFuncIdx != 0 || b->node.bindTupleFuncIdx != 0))
       return false;
   }
   return true;
