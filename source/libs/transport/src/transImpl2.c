@@ -479,7 +479,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
     if (code != 0) {
       tError("%s failed to handle timeout since %s", pOpt->label, tstrerror(code));
     } else {
-      tInfo("%s succ to handle timeout since %s", pOpt->label, tstrerror(code));
+      // tInfo("%s succ to handle timeout", pOpt->label);
     }
   }
 
@@ -607,6 +607,10 @@ static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *ar
     if (arg == NULL) {
       return TSDB_CODE_INVALID_MSG;
     }
+    if (pOpt->fdIdx >= 1024) {
+      return TSDB_CODE_INVALID_MSG;
+      // taosClose(fd);
+    }
     if (fd != 0) {
       if (events & EVT_READ) {
         FD_SET(fd, pOpt->evtReadSetIn);
@@ -621,7 +625,6 @@ static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *ar
       code = taosHashPut(pOpt->pFdTable, &fd, sizeof(fd), arg, sizeof(*arg));
     }
   }
-
   return 0;
 }
 
@@ -1731,7 +1734,7 @@ typedef struct SCliThrd2 {
   int32_t       pipe_queue_fd[2];
   SEvtMgt      *pEvtMgt;
   SAsyncHandle *asyncHandle;
-  int32_t       connLimit;
+  int32_t       shareConnLimit;
 } SCliThrd2;
 
 typedef struct {
@@ -1810,7 +1813,7 @@ static int32_t delConnFromHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn);
 static SCliConn *getConnFromHeapCache(SHashObj *pConnHeap, char *key);
 static int32_t   addConnToHeapCache(SHashObj *pConnHeap, SCliConn *pConn);
 
-static int32_t createSocket(char *ip, int32_t port, int32_t *fd) {
+static int32_t createSocket(uint32_t ip, int32_t port, int32_t *fd) {
   int32_t code = 0;
   int32_t line = 0;
   int32_t sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -1821,9 +1824,11 @@ static int32_t createSocket(char *ip, int32_t port, int32_t *fd) {
   memset(&server_addr, 0, sizeof(server_addr));
   server_addr.sin_family = AF_INET;
   server_addr.sin_port = htons(port);
-  if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
-  }
+  server_addr.sin_addr.s_addr = ip;
+
+  // if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
+  //   TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
+  // }
 
   if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
@@ -1940,7 +1945,7 @@ static int32_t getConnFromPool(SCliThrd2 *pThrd, const char *key, SCliConn **ppC
   }
 
   if (QUEUE_IS_EMPTY(&plist->conns)) {
-    if (plist->totalSize >= pThrd->connLimit) {
+    if (plist->totalSize >= pInst->connLimitNum) {
       return TSDB_CODE_RPC_MAX_SESSIONS;
     }
     return TSDB_CODE_RPC_NETWORK_BUSY;
@@ -1960,11 +1965,34 @@ static int32_t getConnFromPool(SCliThrd2 *pThrd, const char *key, SCliConn **ppC
   *ppConn = conn;
   return 0;
 }
+static int32_t evtCliGetIpFromFqdn(SHashObj *pTable, char *fqdn, uint32_t *ip) {
+  int32_t   code = 0;
+  uint32_t  addr = 0;
+  size_t    len = strlen(fqdn);
+  uint32_t *v = taosHashGet(pTable, fqdn, len);
+  if (v == NULL) {
+    code = taosGetIpv4FromFqdn(fqdn, &addr);
+    if (code != 0) {
+      code = TSDB_CODE_RPC_FQDN_ERROR;
+      tError("failed to get ip from fqdn:%s since %s", fqdn, tstrerror(code));
+      return code;
+    }
+
+    if ((code = taosHashPut(pTable, fqdn, len, &addr, sizeof(addr)) != 0)) {
+      return code;
+    }
+    *ip = addr;
+  } else {
+    *ip = *v;
+  }
+  return 0;
+}
 static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliConn **ppConn) {
   int32_t   code = 0;
   int32_t   line = 0;
   STrans   *pInst = pThrd->pInst;
   SCliConn *pConn = NULL;
+  uint32_t  ipAddr;
 
   char addr[TSDB_FQDN_LEN + 64] = {0};
   snprintf(addr, sizeof(addr), "%s:%d", ip, port);
@@ -2010,7 +2038,10 @@ static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliCon
 
   transQueueInit(&pConn->reqsToSend, NULL);
   transQueueInit(&pConn->reqsSentOut, NULL);
-  TAOS_CHECK_GOTO(createSocket(ip, port, &pConn->fd), &line, _end);
+
+  TAOS_CHECK_GOTO(evtCliGetIpFromFqdn(pThrd->fqdn2ipCache, ip, &ipAddr), &line, _end);
+
+  TAOS_CHECK_GOTO(createSocket(ipAddr, port, &pConn->fd), &line, _end);
   TAOS_CHECK_GOTO(cliConnGetSockInfo(pConn), &line, _end);
 
   pConn->connnected = 1;
@@ -2018,6 +2049,8 @@ static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliCon
 
   pConn->list = taosHashGet(pThrd->pool, addr, strlen(addr));
   pConn->list->totalSize += 1;
+
+  tDebug("%s succ to create conn %p src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
 
   *ppConn = pConn;
   return code;
@@ -3301,7 +3334,7 @@ static FORCE_INLINE void evtLogConnMissHit(SCliConn *pConn) {
   pConn->heapMissHit++;
   tDebug("conn %p has %d reqs, %d sentout and %d status in process, total limit:%d, switch to other conn", pConn,
          transQueueSize(&pConn->reqsToSend), transQueueSize(&pConn->reqsSentOut), taosHashGetSize(pConn->pQTable),
-         pThrd->connLimit);
+         pThrd->shareConnLimit);
 }
 static int32_t getOrCreateHeapCache(SHashObj *pConnHeapCache, char *key, SHeap **pHeap) {
   int32_t code = 0;
@@ -3339,10 +3372,10 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn *pConn, char *key) {
   int32_t stateNum = taosHashGetSize(pConn->pQTable);
   int32_t totalReqs = reqsNum + reqsSentOut;
 
-  tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d, totalReqs:%d", pConn, key, pConn->inHeap,
-         pConn->reqRefCnt, totalReqs);
+  tDebug("%s conn %p get from heap cache for key:%s, status:%d, refCnt:%d, totalReqs:%d", pInst->label, pConn, key,
+         pConn->inHeap, pConn->reqRefCnt, totalReqs);
 
-  if (totalReqs >= pThrd->connLimit) {
+  if (totalReqs >= pThrd->shareConnLimit) {
     evtLogConnMissHit(pConn);
 
     if (pConn->list == NULL && pConn->dstAddr != NULL) {
@@ -3351,9 +3384,9 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn *pConn, char *key) {
         tTrace("conn %p get list %p from pool for key:%s", pConn, pConn->list, key);
       }
     }
-    if (pConn->list && pConn->list->totalSize >= pThrd->connLimit / 4) {
+    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 4) {
       tWarn("%s conn %p try to remove timeout msg since too many conn created", transLabel(pInst), pConn);
-      pThrd->connLimit = pThrd->connLimit * 4;
+      pThrd->shareConnLimit = pThrd->shareConnLimit * 2;
       // TODO
       //  if (cliConnRemoveTimeoutMsg(pConn)) {
       //    tWarn("%s conn %p succ to remove timeout msg", transLabel(pInst), pConn);
@@ -3450,7 +3483,7 @@ static int8_t balanceConnHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn, SC
     if (transHeapGet(pConn->heap, &pTopConn) == 0 && pConn != pTopConn) {
       int32_t curReqs = REQS_ON_CONN(pConn);
       int32_t topReqs = REQS_ON_CONN(pTopConn);
-      if (curReqs > topReqs && topReqs < pThrd->connLimit) {
+      if (curReqs > topReqs && topReqs < pThrd->shareConnLimit) {
         *pNewConn = pTopConn;
         return 1;
       }
@@ -3511,7 +3544,7 @@ static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
   } else {
     transQueuePush(&pConn->reqsToSend, &req->q);
     STraceId *trace = &req->msg.info.traceId;
-    tGDebug("%s success to create conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
+    tGDebug("%s success to get conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
 
     SFdCbArg arg = {.evtType = EVT_CONN_T,
                     .arg = pConn,
@@ -3647,7 +3680,7 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
     pInst->connLimitNum = 512;
   }
   if (pInst->shareConnLimit <= 0) {
-    pInst->shareConnLimit = 32;
+    pInst->shareConnLimit = 64;
   }
 
   memcpy(cli->label, label, TSDB_LABEL_LEN);
@@ -3662,7 +3695,7 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
     code = createThrdObj(arg, &pThrd);
     TAOS_CHECK_EXIT(code);
     pThrd->pInst = pInst;
-    pThrd->connLimit = pInst->connLimitNum;
+    pThrd->shareConnLimit = pInst->shareConnLimit;
     code = evtInitPipe(pThrd->pipe_queue_fd);
     TAOS_CHECK_EXIT(code);
 
@@ -3793,7 +3826,7 @@ static int32_t transHeapMayBalance(SHeap *heap, SCliConn *p) {
   }
   SCliThrd2 *pThrd = p->hostThrd;
   STrans    *pInst = pThrd->pInst;
-  int32_t    balanceLimit = pThrd->connLimit >= 4 ? pThrd->connLimit / 2 : 2;
+  int32_t    balanceLimit = pThrd->shareConnLimit >= 4 ? pThrd->shareConnLimit / 2 : 2;
 
   SCliConn *topConn = NULL;
   int32_t   code = transHeapGet(heap, &topConn);
