@@ -1229,8 +1229,8 @@ async fn update_progress(
     };
     if let Ok(mut res) = taos
         .query(format!(
-            "select * from information_schema.ins_subscriptions\
-            where topic_name = {topic} and consumer_group = {group_id}\
+            "select * from information_schema.ins_subscriptions \
+            where topic_name = '{topic}' and consumer_group = '{group_id}' \
             and consumer_id is not NULL"
         ))
         .await
@@ -1307,6 +1307,8 @@ pub async fn tmq_to_td(
     task_id: Option<String>,
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
+    let cancel = cancel.child_token();
+    let _drop_guard = cancel.clone().drop_guard();
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
 
     let jobs = from
@@ -1609,28 +1611,7 @@ pub async fn tmq_to_td(
 
         let tmq = Arc::new(tmq);
         let topic = Arc::new(topic);
-        join_set.spawn({
-            let group_id = group_id.clone();
-            let topic = topic.clone();
-            let metrics = metrics_arc.clone();
-            let source_pool = source_pool.clone();
-            let cancel = cancel.clone();
-            async move {
-                let mut interval = tokio::time::interval(Duration::from_secs(4));
-                let metrics = metrics.tmq();
-                loop {
-                    interval.tick().await;
-                    if cancel.is_cancelled() {
-                        break Ok(());
-                    }
-                    update_progress(&source_pool, metrics, &topic.name, &group_id)
-                        .await
-                        .inspect_err(|err| {
-                            tracing::error!("TMQ process error: {err:#}");
-                        })?;
-                }
-            }
-        });
+        let mut wg = awaitgroup::WaitGroup::new();
         for mut consumer in consumers {
             let tmq = tmq.clone();
             let topic = topic.clone();
@@ -1651,6 +1632,7 @@ pub async fn tmq_to_td(
             let target = target.clone();
             let options = options.clone();
             let group_id = group_id.clone();
+            let worker = wg.worker();
             join_set.spawn(
                 async move {
                     let mut retries = 0;
@@ -1738,6 +1720,8 @@ pub async fn tmq_to_td(
                             }
                         }
                     }
+                    tracing::info!("Consumer task {consumer_task_id} done",);
+                    worker.done();
                     anyhow::Ok(())
                 }
                 .in_current_span(),
@@ -1745,6 +1729,36 @@ pub async fn tmq_to_td(
             tracing::info!("Spawn consuming task with id {consumer_task_id}",);
             consumer_task_id += 1;
         }
+
+        join_set.spawn({
+            let group_id = group_id.clone();
+            let topic = topic.clone();
+            let metrics = metrics_arc.clone();
+            let source_pool = source_pool.clone();
+            let cancel = cancel.clone();
+            async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(4));
+                let metrics = metrics.tmq();
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            update_progress(&source_pool, metrics, &topic.name, &group_id)
+                                .await
+                                .inspect_err(|err| {
+                                    tracing::error!("TMQ process error: {err:#}");
+                                })?;
+                        }
+                        _ = cancel.cancelled() => {
+                            break Ok(());
+                        }
+                        _ = wg.wait() => {
+                            tracing::info!("All consumers done");
+                            break Ok(());
+                        }
+                    }
+                }
+            }
+        });
     }
 
     tracing::info!("Spawn consuming tasks {}", join_set.len());
