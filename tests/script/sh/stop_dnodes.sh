@@ -13,7 +13,7 @@ if [ -n "$PID" ]; then
   systemctl stop taosd
 fi
 
-PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+PID=`ps -C taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 taosd
@@ -27,7 +27,7 @@ while [ -n "$PID" ]; do
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
 done
 
-PID=`ps -ef|grep -w taos | grep -v grep | grep -v taosanode|awk '{print $2}'`
+PID=`ps -C taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 taos
@@ -39,9 +39,10 @@ while [ -n "$PID" ]; do
     lsof -nti:6030 | xargs kill -9
   fi
   PID=`ps -ef|grep -w taos | grep -v grep | awk '{print $2}'`
+  PID=`ps -C taos | grep -w "[t]aos" | awk '{print $1}'`
 done
 
-PID=`ps -ef|grep -w tmq_sim | grep -v grep | awk '{print $2}'`
+PID=`ps -C tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 tmq_sim
