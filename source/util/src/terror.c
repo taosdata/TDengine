@@ -326,6 +326,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_SYNC_TIMEOUT,       "Sync timeout While ex
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CTX_SWITCH,         "Wrong transaction execution context")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT_COMPACT,   "Transaction not completed due to conflict with compact")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_ABLE_TO_kILLED, "The transaction is not able to be killed")
 
 // mnode-mq
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_ALREADY_EXIST,      "Topic already exists")
@@ -908,12 +909,6 @@ const char* tstrerror(int32_t err) {
   (void)taosThreadOnce(&tsErrorInit, tsSortError);
 
   // this is a system errno
-  if ((err & 0x00ff0000) == 0x00ff0000) {
-    int32_t code = err & 0x0000ffff;
-    // strerror can handle any invalid code
-    // invalid code return Unknown error
-    return strerror(code);
-  }
   #ifdef WINDOWS
   if ((err & 0x01ff0000) == 0x01ff0000) {
     snprintf(WinAPIErrDesc, 256, "windows api error, code: 0x%08x", err & 0x0000ffff);
@@ -923,6 +918,13 @@ const char* tstrerror(int32_t err) {
     return WinAPIErrDesc;
   }
   #endif
+  if ((err & 0x00ff0000) == 0x00ff0000) {
+    int32_t code = err & 0x0000ffff;
+    // strerror can handle any invalid code
+    // invalid code return Unknown error
+    return strerror(code);
+  }
+
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
 

@@ -100,7 +100,7 @@ class TDSql:
         if drop:
             s = f'drop database if exists {dbname}'
             self.cursor.execute(s)
-        s = f'create database {dbname}'
+        s = f'create database {dbname} stt_trigger 1'
         for k, v in kwargs.items():
             s += f" {k} {v}"
         if "duration" not in kwargs:

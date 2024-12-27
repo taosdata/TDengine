@@ -39,6 +39,27 @@ class TDTestCase:
         self.create_tables();
         self.ts = 1500000000000
 
+    def test_TD_33336(self):
+        sql = "flush database db"
+        tdSql.execute(sql)
+        time.sleep(5)
+        sql = f'select last(ts) + 1d, last(ts) - 1d from db.t1'
+        tdSql.query(sql, queryTimes=1)
+        lastTs_add1d = tdSql.queryResult[0][0]
+        lastTs_sub1d = tdSql.queryResult[0][1]
+
+        sql = f'select count(*) from db.t1 where ts < "{lastTs_add1d}" and vc1 = 1'
+        tdSql.query(sql, queryTimes=1)
+        all_row_count = tdSql.queryResult[0][0]
+        tdLog.debug(f"all rows: {all_row_count}")
+
+        sql = f'select count(*) from db.t1 where ts < "{lastTs_sub1d}" and vc1 = 1'
+        tdSql.query(sql, queryTimes=1)
+        row_count_sub1d = tdSql.queryResult[0][0]
+        tdLog.debug(f"row_count_sub1d: {row_count_sub1d}")
+
+        if row_count_sub1d > all_row_count:
+            tdLog.exit(f' err rows returned for sql: {sql} row_count_sub1d: {row_count_sub1d} > all_row_count: {all_row_count}')
 
     # run case
     def run(self):
@@ -53,6 +74,8 @@ class TDTestCase:
         # self.test_case2()
         tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
+        self.test_TD_33336()
+
     # stop
     def stop(self):
         tdSql.close()
@@ -65,11 +88,11 @@ class TDTestCase:
     # create table
     def create_tables(self, dbname="db"):
         # super table
-        tdSql.execute(f"create table {dbname}.st(ts timestamp, i1 int,i2 int) tags(area int)")
+        tdSql.execute(f"create table {dbname}.st(ts timestamp, i1 int,i2 int, vc1 varchar(255)) tags(area int)")
         # child table
         tdSql.execute(f"create table {dbname}.t1 using {dbname}.st tags(1)")
 
-        tdSql.execute(f"create table {dbname}.st1(ts timestamp, i1 int ,i2 int) tags(area int) sma(i2) ")
+        tdSql.execute(f"create table {dbname}.st1(ts timestamp, i1 int ,i2 int, vc1 varchar(255)) tags(area int) sma(i2) ")
         tdSql.execute(f"create table {dbname}.t4 using {dbname}.st1 tags(1)")
 
         return
@@ -98,7 +121,11 @@ class TDTestCase:
         sql = pre_insert
         tdLog.debug("insert table %s rows=%d ..." % (tbname, count))
         for i in range(count):
-            sql += " (%d,%d,%d)" % (ts_start + i*1000, i, i+1)
+            if random.randint(0, 4) > 2:
+                tail = ''
+            else:
+                tail = 'asd'
+            sql += " (%d,%d,%d,%s)" % (ts_start + i*1000, i, i+1, '"' + str(random.randint(0,5)) + f'{tail}"')
             if i > 0 and i % 20000 == 0:
                 tdLog.info("%d rows inserted" % i)
                 tdSql.execute(sql)
