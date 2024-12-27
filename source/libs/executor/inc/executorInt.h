@@ -548,7 +548,6 @@ typedef struct SStreamScanInfo {
   TSKEY                  recalculateInterval;
   __compar_fn_t          comparePkColFn;
   SScanRange             curRange;
-  SSDataBlock*           pDisorderDataRes;
 } SStreamScanInfo;
 
 typedef struct {

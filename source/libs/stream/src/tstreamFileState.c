@@ -1715,9 +1715,26 @@ _end:
   return code;
 }
 
+static void destroyScanRange(SScanRange* pRange) {
+  pRange->win.skey = INT64_MIN;
+  pRange->win.ekey = INT64_MIN;
+  tSimpleHashCleanup(pRange->pUIds);
+  pRange->pUIds = NULL;
+  tSimpleHashCleanup(pRange->pGroupIds);
+  pRange->pGroupIds = NULL;
+}
+
 void destroyTsDataState(STableTsDataState* pTsDataState) {
+  SArray* pScanRanges = pTsDataState->pScanRanges;
+  int32_t size = taosArrayGetSize(pScanRanges);
+  for (int32_t i = 0; i < size; i++) {
+    SScanRange* pRange = taosArrayGet(pScanRanges, i);
+    destroyScanRange(pRange);
+  }
+  taosArrayDestroy(pTsDataState->pScanRanges);
   tSimpleHashCleanup(pTsDataState->pTableTsDataMap);
   taosMemoryFreeClear(pTsDataState->pPkValBuff);
+  taosMemoryFreeClear(pTsDataState->pState);
 }
 
 int32_t recoverTsData(STableTsDataState* pTsDataState) {

@@ -1166,7 +1166,6 @@ int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t size = taosArrayGetSize(pRangeArray);
-  *pRes = true;
   int32_t index = binarySearch(pRangeArray, size, pRangeKey, compareRangeKey);
   if (index >= 0) {
     SScanRange* pFindRangeKey = (SScanRange*) taosArrayGet(pRangeArray, index);
@@ -1187,6 +1186,7 @@ int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId
     }
   }
   (*pIndex) = index;
+  *pRes = false;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1270,6 +1270,10 @@ int32_t mergeAllScanRange(STableTsDataState* pTsDataState) {
   int32_t lino = 0;
   SStreamStateCur* pCur = NULL;
   SArray* pRangeArray = pTsDataState->pScanRanges;
+  if (taosArrayGetSize(pRangeArray) < 2) {
+    return code;
+  }
+
   for (int32_t i = 0; i < taosArrayGetSize(pRangeArray) - 1;) {
     SScanRange* pCurRange = taosArrayGet(pRangeArray, i);
     SScanRange* pNextRange = taosArrayGet(pRangeArray, i + 1);

@@ -518,7 +518,7 @@ int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupport
   pScanInfo->igCheckUpdate = true;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
   pScanInfo->pState = pAggSup->pState;
-  if (!pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->pUpdateInfo && pTwSup->calTrigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
     code = pAggSup->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark,
                                               pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen,
                                               &pScanInfo->pUpdateInfo);
