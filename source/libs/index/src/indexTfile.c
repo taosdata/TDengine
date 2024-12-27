@@ -44,10 +44,10 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval);
 static int tfileWriteFooter(TFileWriter* write);
 
 // handle file corrupt later
-static int tfileReaderLoadHeader(TFileReader* reader);
+static int     tfileReaderLoadHeader(TFileReader* reader);
 static int32_t tfileReaderLoadFst(TFileReader* reader);
-static int tfileReaderVerify(TFileReader* reader);
-static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
+static int     tfileReaderVerify(TFileReader* reader);
+static int     tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
 
 static int32_t tfileGetFileList(const char* path, SArray** pResult);
 static int     tfileRmExpireFile(SArray* result);
@@ -316,35 +316,8 @@ _exception:
   indexError("failed to searchPrefix since %s, lino:%d", tstrerror(code), lino);
   return code;
 }
-static int32_t tfSearchSuffix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
-  int      ret = 0;
-  char*    p = tem->colVal;
-  uint64_t sz = tem->nColVal;
-  int64_t  st = taosGetTimestampUs();
-  FstSlice key = fstSliceCreate(p, sz);
-  fstSliceDestroy(&key);
-  return 0;
-}
-static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
-  bool hasJson = IDX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
-
-  int      ret = 0;
-  char*    p = tem->colVal;
-  uint64_t sz = tem->nColVal;
-  if (hasJson) {
-    p = idxPackJsonData(tem);
-    sz = strlen(p);
-  }
-  int64_t  st = taosGetTimestampUs();
-  FstSlice key = fstSliceCreate(p, sz);
-  /*impl later*/
-
-  if (hasJson) {
-    taosMemoryFree(p);
-  }
-  fstSliceDestroy(&key);
-  return 0;
-}
+static int32_t tfSearchSuffix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) { return 0; }
+static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTRslt* tr) { return 0; }
 
 static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr, RangeType type) {
   int32_t              code = TSDB_CODE_SUCCESS;
@@ -400,15 +373,7 @@ static int32_t tfSearchGreaterThan(void* reader, SIndexTerm* tem, SIdxTRslt* tr)
 static int32_t tfSearchGreaterEqual(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   return tfSearchCompareFunc(reader, tem, tr, GE);
 }
-static int32_t tfSearchRange(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
-  int      ret = 0;
-  char*    p = tem->colVal;
-  uint64_t sz = tem->nColVal;
-  int64_t  st = taosGetTimestampUs();
-  FstSlice key = fstSliceCreate(p, sz);
-  fstSliceDestroy(&key);
-  return 0;
-}
+static int32_t tfSearchRange(void* reader, SIndexTerm* tem, SIdxTRslt* tr) { return 0; }
 static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   int   ret = 0;
   char* p = idxPackJsonData(tem);
