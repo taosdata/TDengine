@@ -26,6 +26,9 @@ def input_data():
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(
+    reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == 1000"
+)
 def test_case_base(input_data):
     """
     用例概述: postgresql 用例, 基本用例，只提供必填字段
@@ -66,6 +69,9 @@ def test_case_base(input_data):
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(
+    reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == 13"
+)
 def test_case_base_2_sharding(input_data):
     """
     用例概述: postgresql 用例, 分库分表
@@ -111,6 +117,9 @@ def test_case_base_2_sharding(input_data):
 
 @pytest.mark.sanity
 @pytest.mark.parametrize("with_agent", [True, False])
+@pytest.mark.xfail(
+    reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == 1000"
+)
 def test_case_base_subtable(with_agent, input_data):
     """
     用例概述: postgresql 用例, 测试子表字段
