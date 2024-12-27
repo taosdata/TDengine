@@ -11,11 +11,13 @@
 #
 ,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
 ,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_paramnum.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_percentile.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
@@ -247,6 +249,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
+,,n,system-test,python3 ./test.py -f 2-query/large_data.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 2
@@ -338,6 +341,7 @@
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-ntb-select.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-false.py -N 3 -n 3
@@ -363,6 +367,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdNewMonitor.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
@@ -380,6 +385,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel_createdb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
@@ -402,9 +408,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_vgroups.py
+,,n,system-test,python3 ./test.py -f 0-others/dumpsdb.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
 
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
@@ -780,6 +791,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/compactDBConflict.py -N 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/mnodeEncrypt.py 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 2

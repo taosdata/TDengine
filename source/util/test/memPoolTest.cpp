@@ -2048,7 +2048,252 @@ TEST(DisablePoolFuncTest, MultiThreadTest) {
 }
 #endif
 
+#if 1
+TEST(functionsTest, internalFunc) {
+  char* caseName = "functionsTest:internalFunc";
+  int32_t code = 0;
 
+  int64_t msize = 10;
+  void* pSession = NULL;
+  void* pJob = NULL;
+  
+  mptInitPool();
+
+  memset(mptCtx.jobCtxs, 0, sizeof(*mptCtx.jobCtxs));
+
+  assert(0 == taosMemPoolCallocJob(0, 0, (void**)&pJob));
+  assert(0 == taosMemPoolInitSession(gMemPoolHandle, &pSession, pJob, "id"));
+
+  int32_t loopTimes = 1;
+  int64_t st = 0;
+  void **addrList = (void**)taosMemCalloc(loopTimes, POINTER_BYTES);
+  
+
+  // MALLOC 
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  // CALLOC 
+
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryCalloc(1, msize);
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryCalloc(1, msize);
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryCalloc(1, msize);
+  }
+  //mptFreeAddrList(addrList, loopTimes);  NO FREE FOR REALLOC
+
+  // REALLOC 
+
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryRealloc(addrList[i], msize);
+  }
+  mptDisableMemoryPoolUsage();
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryRealloc(addrList[i], msize);
+  }
+  mptDisableMemoryPoolUsage();
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryRealloc(addrList[i], msize);
+  }
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  // STRDUP 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrdup("abc");
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrdup("abc");
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrdup("abc");
+  }
+  mptFreeAddrList(addrList, loopTimes);
+
+  // STRNDUP 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrndup("abc", 3);
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrndup("abc", 3);
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptStrndup("abc", 3);
+  }
+  mptFreeAddrList(addrList, loopTimes);
+
+  // ALIGNALLOC 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMallocAlign(8, msize);
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMallocAlign(8, msize);
+  }
+  mptDisableMemoryPoolUsage();
+  mptFreeAddrList(addrList, loopTimes);
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMallocAlign(8, msize);
+  }
+  //mptFreeAddrList(addrList, loopTimes);  NO FREE FOR GETSIZE
+
+
+  // GETSIZE 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemorySize(addrList[i]);
+  }
+  mptDisableMemoryPoolUsage();
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemorySize(addrList[i]);
+  }
+  mptDisableMemoryPoolUsage();
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemorySize(addrList[i]);
+  }
+
+  // FREE 
+  
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemoryFree(addrList[i]);
+  }
+  mptDisableMemoryPoolUsage();
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemoryFree(addrList[i]);
+  }
+  mptDisableMemoryPoolUsage();
+
+
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    addrList[i] = (char*)mptMemoryMalloc(msize);
+  }
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemoryFree(addrList[i]);
+  }
+
+  // TRIM
+
+  bool trimed = false;
+  tsMemPoolFullFunc = 0;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemoryTrim(0, NULL);
+    mptMemoryTrim(0, &trimed);
+  }
+  mptDisableMemoryPoolUsage();
+
+
+  tsMemPoolFullFunc = 1;
+  mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    mptMemoryTrim(0, NULL);
+    mptMemoryTrim(0, &trimed);
+  }
+  mptDisableMemoryPoolUsage();
+
+  
+}
+#endif
 
 
 #endif

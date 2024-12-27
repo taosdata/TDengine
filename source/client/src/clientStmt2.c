@@ -848,6 +848,7 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
   STMT_DLOG("start to set dbName: %s", dbName);
 
   pStmt->db = taosStrdup(dbName);
+  (void)strdequote(pStmt->db);
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   // The SQL statement specifies a database name, overriding the previously specified database
