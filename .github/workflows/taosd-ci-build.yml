@@ -36,7 +36,7 @@ jobs:
         run: |
           mkdir debug
           cd debug
-          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
+          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=true -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
           which taosd
@@ -52,8 +52,7 @@ jobs:
       - name: Start taosadapter
         run: nohup sudo taosadapter &
 
-      - name: Run tests with coverage
-        working-directory: tools/keeper
+      - name: Run tests with taosBenchmark
         run: |
           taosBenchmark -t 10 -n 10 -y 
           taos -s "select count(*) from test.meters"
