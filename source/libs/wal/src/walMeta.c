@@ -192,6 +192,10 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
     if (forwardStage && (terrno != TSDB_CODE_SUCCESS || end == fileSize)) break;
   }
 
+  if (retVer < 0) {
+    code = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  }
+
   // truncate file
   if (lastEntryEndOffset != fileSize) {
     wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
@@ -211,8 +215,8 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
   pFileInfo->fileSize = lastEntryEndOffset;
 
 _err:
-  if (retVer < 0) {
-    code = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  if (code != 0) {
+    wError("vgId:%d, failed to scan log file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
   }
   taosCloseFile(&pFile);
   taosMemoryFree(buf);
