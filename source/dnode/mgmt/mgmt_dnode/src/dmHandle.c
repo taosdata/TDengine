@@ -475,27 +475,6 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
-extern void    tsdbAlterNumCompactThreads();
-static int32_t dmAlterMaxCompactTask(const char *value) {
-  int32_t max_compact_tasks;
-  char   *endptr = NULL;
-
-  max_compact_tasks = taosStr2Int32(value, &endptr, 10);
-  if (endptr == value || endptr[0] != '\0') {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  if (max_compact_tasks != tsNumOfCompactThreads) {
-    dInfo("alter max compact tasks from %d to %d", tsNumOfCompactThreads, max_compact_tasks);
-    tsNumOfCompactThreads = max_compact_tasks;
-#ifdef TD_ENTERPRISE
-    (void)tsdbAlterNumCompactThreads();
-#endif
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SDCfgDnodeReq cfgReq = {0};
@@ -507,10 +486,6 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   if (strcasecmp(cfgReq.config, "dataDir") == 0) {
     return taosUpdateTfsItemDisable(pCfg, cfgReq.value, pMgmt->pTfs);
-  }
-
-  if (strncmp(cfgReq.config, tsAlterCompactTaskKeywords, strlen(tsAlterCompactTaskKeywords) + 1) == 0) {
-    return dmAlterMaxCompactTask(cfgReq.value);
   }
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);

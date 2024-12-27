@@ -10114,7 +10114,6 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
 
   const char* validConfigs[] = {
       "encrypt_key",
-      tsAlterCompactTaskKeywords,
   };
   if (0 == strncasecmp(cfgReq.config, validConfigs[0], strlen(validConfigs[0]) + 1)) {
     int32_t klen = strlen(cfgReq.value);
@@ -10125,28 +10124,6 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
                                      ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
     }
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_KEY, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
-  } else if (0 == strncasecmp(cfgReq.config, validConfigs[1], strlen(validConfigs[1]) + 1)) {
-    char*   endptr = NULL;
-    int32_t maxCompactTasks = taosStr2Int32(cfgReq.value, &endptr, 10);
-    int32_t minMaxCompactTasks = MIN_MAX_COMPACT_TASKS;
-    int32_t maxMaxCompactTasks = MAX_MAX_COMPACT_TASKS;
-
-    // check format
-    if (endptr == cfgReq.value || endptr[0] != '\0') {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,
-                                     "Invalid max compact tasks: %s", cfgReq.value);
-    }
-
-    // check range
-    if (maxCompactTasks < minMaxCompactTasks || maxCompactTasks > maxMaxCompactTasks) {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,
-                                     "Invalid max compact tasks: %d, valid range [%d,%d]", maxCompactTasks,
-                                     minMaxCompactTasks, maxMaxCompactTasks);
-    }
-
-    code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
   } else {
     code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
   }
