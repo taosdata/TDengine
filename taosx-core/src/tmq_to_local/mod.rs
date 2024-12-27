@@ -971,6 +971,12 @@ mod tests {
         .unwrap();
 
         let writer = tokio::spawn(async move {
+            let taos = TaosBuilder::from_dsn(addr.to_string())
+                .unwrap()
+                .build()
+                .await
+                .unwrap();
+
             for table_idx in 0..10 {
                 for idx in 0..10 {
                     let sql = format!(
@@ -996,5 +1002,7 @@ mod tests {
             format!("DROP TOPIC IF EXISTS `{topic}`"),
             format!("DROP DATABASE IF EXISTS `{database}`"),
         ])
+        .await
+        .expect("clean up for unit test failed");
     }
 }
