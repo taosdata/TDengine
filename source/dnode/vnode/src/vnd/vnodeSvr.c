@@ -1993,36 +1993,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
         terrno = 0;
         pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;  // update uid if table exist for using below
       }
-
-      // [BLOB] [TODO] if condition ?
-      // create blob auxiliary table
-      // if (metaCreateTable(pVnode->pMeta, ver, pSubmitTbData->pCreateTbReq, &pCreateTbRsp->pMeta) == 0) {
-      //   // create table success
-
-      //   if (newTbUids == NULL &&
-      //       (newTbUids = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(int64_t))) == NULL) {
-      //     code = terrno;
-      //     goto _exit;
-      //   }
-
-      //   if (taosArrayPush(newTbUids, &pSubmitTbData->uid) == NULL) {
-      //     code = terrno;
-      //     goto _exit;
-      //   }
-
-      //   if (pCreateTbRsp->pMeta) {
-      //     vnodeUpdateMetaRsp(pVnode, pCreateTbRsp->pMeta);
-      //   }
-      // } else {  // create table failed
-      //   if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
-      //     code = terrno;
-      //     vError("vgId:%d failed to create table:%s, code:%s", TD_VID(pVnode), pSubmitTbData->pCreateTbReq->name,
-      //            tstrerror(terrno));
-      //     goto _exit;
-      //   }
-      //   terrno = 0;
-      //   pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;  // update uid if table exist for using below
-      // }
     }
 
     // insert data
