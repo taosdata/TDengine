@@ -30,7 +30,8 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y build-essential cmake libgeos-dev
+          sudo apt install -y build-essential cmake libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config libssl-dev gawk
+
 
       - name: Install TDengine
         run: |
