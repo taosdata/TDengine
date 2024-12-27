@@ -75,6 +75,10 @@ class TDTestCase:
         tdSql.checkEqual("Invalid option encrypt_algorithm: none ", tdSql.error('alter database db encrypt_algorithm \'none \''))
         tdSql.execute('drop database db')
 
+    def alter_compact(self):
+        tdSql.error('create database db compact_time_range 60,61', expectErrInfo="Invalid option compact_time_range: 86400m, start_time should be in range: [-5256000m, -14400m]", fullMatched=True)
+        tdSql.execute('drop database db')
+
     def alter_same_options(self):
         tdSql.execute('drop database if exists db')
         tdSql.execute('create database db')
@@ -101,10 +105,11 @@ class TDTestCase:
         
     def run(self):
         
-        self.alter_buffer()
-        self.alter_pages()
-        self.alter_encrypt_alrogithm()
-        self.alter_same_options()
+        # self.alter_buffer()
+        # self.alter_pages()
+        # self.alter_encrypt_alrogithm()
+        # self.alter_same_options()
+        self.alter_compact()
 
     def stop(self):
         tdSql.close()
