@@ -673,11 +673,11 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   }
 
 _exit:
-  taosUnLockLogFile(tsLogObj.logHandle->pFile);
   if (code != 0) {
+    taosUnLockLogFile(tsLogObj.logHandle->pFile);
     TAOS_UNUSED(printf("failed to init normal log file:%s at line %d, reason:%s\n", name, lino, tstrerror(code)));
   }
-  return 0;
+  return code;
 }
 
 static void taosUpdateLogNums(ELogLevel level) {
