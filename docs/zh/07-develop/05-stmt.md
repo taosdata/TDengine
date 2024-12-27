@@ -46,11 +46,11 @@ import TabItem from "@theme/TabItem";
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
+以下示例适用于 v0.12.4 及以上版本。
 
 ```rust
 {{#include docs/examples/rust/restexample/examples/stmt2.rs}}
 ```
-
 </TabItem>
 <TabItem label="Node.js" value="node">
 
@@ -71,6 +71,17 @@ import TabItem from "@theme/TabItem";
 <TabItem label="REST API" value="rest">
 不支持
 </TabItem>   
+</Tabs>
+
+<Tabs defaultValue="rust" groupId="lang">
+<TabItem label="Rust" value="rust">
+<details>
+<summary>以下示例适用于 v0.12.3 及以下版本</summary> 
+```rust
+{{#include docs/examples/rust/restexample/examples/stmt.rs}}
+```
+</details>
+</TabItem>
 </Tabs>
 
 ## 原生连接
