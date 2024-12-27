@@ -741,10 +741,6 @@ static SSvrConn *createConn(void *tThrd, int32_t fd) {
     TAOS_CHECK_GOTO(code, &lino, _end);
   }
 
-  // if ((code = transQueueInit(&pConn->resps, uvDestroyResp)) != 0) {
-  //   TAOS_CHECK_GOTO(code, &lino, _end);
-  //}
-
   pConn->broken = false;
   pConn->status = ConnNormal;
 
@@ -777,9 +773,7 @@ static SSvrConn *createConn(void *tThrd, int32_t fd) {
   }
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
   transQueueInit(&pConn->resps, NULL);
-  //  code = initWQ(&pConn->wq);
-  // TAOS_CHECK_GOTO(code, &lino, _end);
-  // wqInited = 1;
+
   pConn->hostThrd = pThrd;
   return pConn;
 _end:
@@ -829,11 +823,6 @@ bool connMayGetUserInfo(SSvrConn *pConn, STransMsgHead **ppHead, int32_t *msgLen
     return true;
   }
   return false;
-}
-
-static int32_t evtConnHandleReleaseReq(SSvrConn *pConn, STransMsgHead *phead) {
-  int32_t code = 0;
-  return code;
 }
 
 static int32_t evtSvrHandleReleaseReq(SSvrConn *pConn, STransMsgHead *pHead) {
@@ -3484,6 +3473,7 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
     pThrd->thrdInited = 1;
     cli->pThreadObj[i] = pThrd;
   }
+
   return cli;
 
 _exit:
