@@ -24,6 +24,8 @@
 #include "tglobal.h"
 #include "ttime.h"
 
+#define FQDNRETRYTIMES 100
+
 static void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
   int32_t len = tsnprintf(buf, bufLen, "{num:%d, as:%d, [", pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
@@ -46,9 +48,14 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
   uint32_t ipv4 = 0xFFFFFFFF;
   sDebug("vgId:%d, resolve sync addr from fqdn, ep:%s:%u", vgId, pInfo->nodeFqdn, pInfo->nodePort);
 
-  int32_t code = taosGetIpv4FromFqdn(pInfo->nodeFqdn, &ipv4);
-  if (code) {
-    sError("vgId:%d, failed to resolve sync addr, dnode:%d fqdn:%s, retry", vgId, pInfo->nodeId, pInfo->nodeFqdn);
+  for (int32_t i = 0; i < FQDNRETRYTIMES; i++) {
+    int32_t code = taosGetIpv4FromFqdn(pInfo->nodeFqdn, &ipv4);
+    if (code) {
+      sError("vgId:%d, failed to resolve sync addr, dnode:%d fqdn:%s, retry", vgId, pInfo->nodeId, pInfo->nodeFqdn);
+      taosSsleep(1);
+    } else {
+      break;
+    }
   }
 
   if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
