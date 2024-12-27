@@ -357,7 +357,7 @@ int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStreamScanInfo* pInfo = pOperator->info;
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
 
-  qDebug("stream scan started, %s", id);
+  qDebug("stream data scan started, %s", id);
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
       pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
