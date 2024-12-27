@@ -465,6 +465,7 @@ impl TaskScheduler {
                 let global = self.global_state.clone();
                 tracing::debug!("add cron job in scheduler, cron: {}", schedule);
                 Job::new_cron_job_async(schedule.as_str(), move |jid, _| {
+                    tracing::debug!(job.id = %jid, task.id = task.task.id, schedule = ?task.schedule(), "Cron job is scheduled");
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?
             }
@@ -473,6 +474,7 @@ impl TaskScheduler {
                 let global = self.global_state.clone();
                 tracing::debug!("add oneshot job in scheduler");
                 Job::new_one_shot_async(Duration::from_secs(0), move |jid, _| {
+                    tracing::info!(job.id = %jid, task.id = task.task.id, schedule = ?task.schedule(), "Oneshot job is scheduled");
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?
             }
@@ -481,6 +483,7 @@ impl TaskScheduler {
                 let global = self.global_state.clone();
                 tracing::debug!("add repeated job in scheduler, interval: {:?}", interval);
                 Job::new_repeated_async(*interval, move |jid, _| {
+                    tracing::info!(job.id = %jid, task.id = task.task.id, schedule = ?task.schedule(), "Repeated job is scheduled");
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?
             }

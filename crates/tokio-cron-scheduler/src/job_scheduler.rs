@@ -319,7 +319,7 @@ impl JobsSchedulerLocked {
                 }
                 Ok(false)
             }
-            _ => Ok(true),
+            _ => Ok(false),
         }
     }
 

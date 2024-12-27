@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::RwLock;
-use tracing::error;
+use tracing::{error, info, Instrument};
 use uuid::Uuid;
 
 #[derive(Default)]
@@ -47,12 +47,12 @@ impl JobRunner {
             match job_scheduler.is_running(uuid).await {
                 Ok(is_running) => {
                     if is_running {
+                        info!(job.id = %uuid, "Job is already running");
                         continue;
                     }
                 }
                 Err(err) => {
                     error!("Error checking if job is running {:?}", err);
-                    continue;
                 }
             }
 
@@ -64,18 +64,23 @@ impl JobRunner {
                     let v = (job)(uuid, job_scheduler.clone());
                     let tx = tx_notify.clone();
                     let job_cloned = job_scheduler.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = job_cloned.set_ran(uuid, true).await {
-                            error!("Error setting job ran {:?}", e);
+                    tokio::spawn(
+                        async move {
+                            if let Err(e) = job_cloned.set_ran(uuid, true).await {
+                                error!("Error setting job ran {:?}", e);
+                            }
+                            info!("Job start");
+                            v.await;
+                            info!("Job finished");
+                            if let Err(e) = job_cloned.set_ran(uuid, false).await {
+                                error!("Error setting job not ran {:?}", e);
+                            }
+                            if let Err(e) = tx.send((uuid, JobState::Done)) {
+                                error!("Error sending spawned task {:?}", e);
+                            }
                         }
-                        v.await;
-                        if let Err(e) = job_cloned.set_ran(uuid, false).await {
-                            error!("Error setting job not ran {:?}", e);
-                        }
-                        if let Err(e) = tx.send((uuid, JobState::Done)) {
-                            error!("Error sending spawned task {:?}", e);
-                        }
-                    });
+                        .instrument(tracing::info_span!("job_runner", job.id = %uuid)),
+                    );
                 }
                 _ => {
                     error!("Error getting {:?} from job code", uuid);

@@ -488,7 +488,7 @@ async fn execute(
                     if !ack.success() {
                         tracing::error!(ack.code = %ack.code(), ack.message = ack.message(), ack.context = ack.context(), "Kafka ack found error");
                         if let Some(message) = ack.message() {
-                            anyhow::bail!("Kafka IPC writer error: {message}");
+                            anyhow::bail!("Kafka IPC writer error: {message:#}");
                         } else {
                             anyhow::bail!("Kafka IPC writer error with code: {}", ack.code());
                         }
@@ -1013,7 +1013,7 @@ impl<'a> MessagesSender<'a> {
         if !ack.success() {
             tracing::error!(ack.code = %ack.code(), ack.message = ack.message(), ack.context = ack.context(), "Kafka ack found error");
             if let Some(message) = ack.message() {
-                anyhow::bail!("Kafka IPC writer error: {message}");
+                anyhow::bail!("Kafka IPC writer error: {message:#}");
             } else {
                 anyhow::bail!("Kafka IPC writer error with code: {}", ack.code());
             }
