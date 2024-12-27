@@ -52,6 +52,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 static void    mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter);
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq);
+static int32_t mndProcessResetStreamReq(SRpcMsg *pReq);
 static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId,
                                                  int64_t streamId, int32_t taskId, int32_t transId, int8_t mndTrigger);
 static int32_t mndProcessNodeCheck(SRpcMsg *pReq);
@@ -130,6 +131,7 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_PAUSE_STREAM, mndProcessPauseStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESUME_STREAM, mndProcessResumeStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RESET_STREAM, mndProcessResetStreamReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
@@ -1895,6 +1897,35 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
 
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SStreamObj *pStream = NULL;
+  int32_t     code = 0;
+
+  if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
+    return code;
+  }
+
+  SMResetStreamReq resetReq = {0};
+  if (tDeserializeSMResetStreamReq(pReq->pCont, pReq->contLen, &resetReq) < 0) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  code = mndAcquireStream(pMnode, resetReq.name, &pStream);
+  if (pStream == NULL || code != 0) {
+    if (resetReq.igNotExists) {
+      mInfo("stream:%s, not exist, not pause stream", resetReq.name);
+      return 0;
+    } else {
+      mError("stream:%s not exist, failed to pause stream", resetReq.name);
+      TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
+    }
+  }
+
+  //todo(liao hao jun)
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
