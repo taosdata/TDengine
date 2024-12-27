@@ -126,6 +126,10 @@ void fetchCallback(void* param, void* res, int32_t numOfRow) {
 void queryCallback(void* param, void* res, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     (void)printf("failed to execute, reason:%s\n", taos_errstr(res));
+    taos_free_result(res);
+    tsem_t *sem = (tsem_t *)param;
+    tsem_post(sem);
+    return;
   }
   (void)printf("start to fetch data\n");
   taos_fetch_raw_block_a(res, fetchCallback, param);
