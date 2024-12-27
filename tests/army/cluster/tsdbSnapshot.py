@@ -66,7 +66,7 @@ class TDTestCase(TBase):
             "dbinfo": {{
                 "name": "{self.dbName}",
                 "drop": "yes",
-                "vgroups": 1,
+                "vgroups": 5,
                 "duration": "10d",
                 "wal_retention_period": 0,
                 "replica": 3,
@@ -86,7 +86,7 @@ class TDTestCase(TBase):
                     "non_stop_mode": "no",
                     "line_protocol": "line",
                     "insert_rows": 10000,
-                    "interlace_rows": 1,
+                    "interlace_rows": 0,
                     "insert_interval": 0,
                     "partial_col_num": 0,
                     "disorder_ratio": 0,
@@ -155,7 +155,7 @@ class TDTestCase(TBase):
             "dbinfo": {{
                 "name": "{self.dbName}",
                 "drop": "no",
-                "vgroups": 1,
+                "vgroups": 5,
                 "duration": "10d",
                 "wal_retention_period": 0,
                 "replica": 3,
@@ -175,7 +175,7 @@ class TDTestCase(TBase):
                     "non_stop_mode": "no",
                     "line_protocol": "line",
                     "insert_rows": 10000,
-                    "interlace_rows": 1,
+                    "interlace_rows": 0,
                     "insert_interval": 0,
                     "partial_col_num": 0,
                     "disorder_ratio": 0,
@@ -257,7 +257,7 @@ class TDTestCase(TBase):
 
     def stop(self):
         tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success(f"{__file__} successfully executed")
 
 
 tdCases.addLinux(__file__, TDTestCase())
