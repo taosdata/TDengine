@@ -32,7 +32,7 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                               | TDengine Version   |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| 3.5.0                   | 1. Optimized the performance of WebSocket connection parameter binding, supporting parameter binding queries using binary data. <br/> 2. Optimized the performance of small queries in WebSocket connection. <br/> 3. Added support for setting time zone on WebSocket connection.                                                                                                                          | 3.3.5.0 and higher |
+| 3.5.0                   | 1. Optimized the performance of WebSocket connection parameter binding, supporting parameter binding queries using binary data. <br/> 2. Optimized the performance of small queries in WebSocket connection. <br/> 3. Added support for setting time zone and app info on WebSocket connection.                                                                                                             | 3.3.5.0 and higher |
 | 3.4.0                   | 1. Replaced fastjson library with jackson. <br/> 2. WebSocket uses a separate protocol identifier. <br/> 3. Optimized background thread usage to avoid user misuse leading to timeouts.                                                                                                                                                                                                                     | -                  |
 | 3.3.4                   | Fixed getInt error when data type is float.                                                                                                                                                                                                                                                                                                                                                                 | -                  |
 | 3.3.3                   | Fixed memory leak caused by closing WebSocket statement.                                                                                                                                                                                                                                                                                                                                                    | -                  |
@@ -245,13 +245,13 @@ For WebSocket connections, the configuration parameters in the URL are as follow
 
 - user: Login username for TDengine, default value 'root'.
 - password: User login password, default value 'taosdata'.
-- charset: Specifies the character set for parsing string data when batch fetching is enabled.
 - batchErrorIgnore: true: Continues executing the following SQL if one SQL fails during the execution of Statement's executeBatch. false: Does not execute any statements after a failed SQL. Default value: false.
 - httpConnectTimeout: Connection timeout in ms, default value 60000.
 - messageWaitTimeout: Message timeout in ms, default value 60000.
 - useSSL: Whether SSL is used in the connection.
+- timezone: Client timezone, default is the system current timezone. Recommended not to set, using the system time zone provides better performance.
 
-**Note**: Some configuration items (such as: locale, timezone) do not take effect in WebSocket connections.
+**Note**: Some configuration items (such as: locale, charset) do not take effect in WebSocket connections.
 
 **REST Connection**
 Using JDBC REST connection does not depend on the client driver. Compared to native JDBC connections, you only need to:
@@ -264,14 +264,13 @@ For REST connections, the configuration parameters in the URL are as follows:
 
 - user: Login username for TDengine, default value 'root'.
 - password: User login password, default value 'taosdata'.
-- charset: Specifies the character set for parsing string data when batch fetching is enabled.
 - batchErrorIgnore: true: Continues executing the following SQL if one SQL fails during the execution of Statement's executeBatch. false: Does not execute any statements after a failed SQL. Default value: false.
 - httpConnectTimeout: Connection timeout in ms, default value 60000.
 - httpSocketTimeout: Socket timeout in ms, default value 60000.
 - useSSL: Whether SSL is used in the connection.
 - httpPoolSize: REST concurrent request size, default 20.
 
-**Note**: Some configuration items (such as: locale, timezone) do not take effect in REST connections.
+**Note**: Some configuration items (such as: locale, charset and timezone) do not take effect in REST connections.
 
 :::note
 
@@ -295,7 +294,9 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR: Effective only when using native JDBC connections. Client configuration file directory path, default value on Linux OS is `/etc/taos`, on Windows OS is `C:/TDengine/cfg`.
 - TSDBDriver.PROPERTY_KEY_CHARSET: Character set used by the client, default value is the system character set.
 - TSDBDriver.PROPERTY_KEY_LOCALE: Effective only when using native JDBC connections. Client locale, default value is the current system locale.
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE: Effective only when using native JDBC connections. Client time zone, default value is the current system time zone. Due to historical reasons, we only support part of the POSIX standard, such as UTC-8 (representing Shanghai, China), GMT-8, Asia/Shanghai.
+- TSDBDriver.PROPERTY_KEY_TIME_ZONE: 
+  - Native connections: Client time zone, default value is the current system time zone. Effective globally. Due to historical reasons, we only support part of the POSIX standard, such as UTC-8 (representing Shanghai, China), GMT-8, Asia/Shanghai.
+  - WebSocket connections. Client time zone, default value is the current system time zone. Effective on the connection. Only IANA time zones are supported, such as Asia/Shanghai. It is recommended not to set this parameter, as using the system time zone provides better performance.
 - TSDBDriver.HTTP_CONNECT_TIMEOUT: Connection timeout, in ms, default value is 60000. Effective only in REST connections.
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: Socket timeout, in ms, default value is 60000. Effective only in REST connections and when batchfetch is set to false.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: Message timeout, in ms, default value is 60000. Effective only under WebSocket connections.
@@ -304,12 +305,14 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: Whether to enable compression during transmission. Effective only when using REST/WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable auto-reconnect. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 
-> **Note**: Enabling auto-reconnect is only effective for simple SQL execution, schema-less writing, and data subscription. It is ineffective for parameter binding. Auto-reconnect is only effective for connections established through parameters specifying the database, and ineffective for later `use db` statements to switch databases.
+  > **Note**: Enabling auto-reconnect is only effective for simple SQL execution, schema-less writing, and data subscription. It is ineffective for parameter binding. Auto-reconnect is only effective for connections established through parameters specifying the database, and ineffective for later `use db` statements to switch databases.
 
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Auto-reconnect retry interval, in milliseconds, default value 2000. Effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: Auto-reconnect retry count, default value 3, effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
-
+- TSDBDriver.PROPERTY_KEY_APP_NAME: App name, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is java.  
+- TSDBDriver.PROPERTY_KEY_APP_IP: App IP, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is empty.  
+  
 Additionally, for native JDBC connections, other parameters such as log level and SQL length can be specified by specifying the URL and Properties.
 
 **Priority of Configuration Parameters**
