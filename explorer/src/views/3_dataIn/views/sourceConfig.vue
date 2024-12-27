@@ -665,7 +665,6 @@ export default {
     },
 
     createAgent() {
-      this.$store.commit("app/SET_AGENT_DIALOG", true);
       this.$store.commit("SET_DIALOG", {
         component: () => import("../components/addAgent.vue"),
         config: {
