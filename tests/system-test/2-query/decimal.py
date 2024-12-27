@@ -44,6 +44,8 @@ class DecimalType:
             digits += '.'
         for _ in range(dscale):
             digits += str(secrets.randbelow(10))
+        if digits == '':
+            digits = '0'
         return digits
 
 
@@ -409,9 +411,9 @@ class TDTestCase:
         tdLog.printNoPrefix("-------- test create decimal column")
         self.columns = [
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(10, 2))),
-            #DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 2))),
-            #DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 2))),
-            #DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 2))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 2))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 2))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 2))),
             DataType(TypeEnum.TINYINT),
             DataType(TypeEnum.INT),
             DataType(TypeEnum.BIGINT),

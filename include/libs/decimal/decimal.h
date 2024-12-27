@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-#include "ttypes.h"
 #include "tdef.h"
+#include "ttypes.h"
 typedef struct SDataType SDataType;
-typedef struct SValue SValue;
+typedef struct SValue    SValue;
 
 typedef struct Decimal64 {
   DecimalWord words[1];
@@ -32,6 +32,9 @@ typedef struct Decimal64 {
 typedef struct Decimal128 {
   DecimalWord words[2];
 } Decimal128;
+
+void makeDecimal64(Decimal64* pDec64, DecimalWord w);
+void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low);
 
 #define DECIMAL_WORD_NUM(TYPE) sizeof(TYPE) / sizeof(DecimalWord)
 
@@ -42,37 +45,25 @@ int32_t decimal64FromStr(const char* str, int32_t len, uint8_t* precision, uint8
 int32_t decimal128FromStr(const char* str, int32_t len, uint8_t* precision, uint8_t* scale, Decimal128* result);
 
 int32_t decimal64ToDataVal(const Decimal64* dec, SValue* pVal);
-int32_t decimal128ToDataVal(const Decimal128* dec, SValue* pVal);
+int32_t decimal128ToDataVal(Decimal128* dec, SValue* pVal);
 
-int32_t decimalToStr(DecimalWord* pDec, int8_t precision, int8_t scale, char* pBuf, int32_t bufLen);
+int32_t decimalToStr(DecimalWord* pDec, int8_t type, int8_t precision, int8_t scale, char* pBuf, int32_t bufLen);
 
-typedef struct DecimalVar DecimalVar;
+typedef struct SDecimalOps {
+  void (*negate)(DecimalWord* pWord);
+  void (*abs)(DecimalWord* pWord);
+  void (*add)(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
+  void (*subtract)(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
+  void (*multiply)(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
+  void (*divide)(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
+  void (*mod)(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
+  bool (*lt)(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
+  bool (*gt)(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
+  bool (*eq)(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
+  int32_t (*toStr)(const DecimalWord* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
+} SDecimalOps;
 
-typedef struct SDecimalVarOps {
-    uint8_t wordNum;
-    int32_t (*add)(DecimalVar* pLeft, const DecimalVar* pRight);
-    int32_t (*multiply)(DecimalVar* pLeft, const DecimalVar* pRight);
-} SDecimalVarOps;
-
-typedef struct SWideInteger {
-  int32_t wordNum;
-  DecimalWord *words;
-} SWideInteger;
-
-// TODO wjm rename it
-typedef struct SWideIntegerOps {
-  uint8_t wordNum;
-  int32_t (*abs)(DecimalWord* pInt);
-  int32_t (*add)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
-  int32_t (*subtract)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
-  int32_t (*multiply)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
-  int32_t (*divide)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
-  int32_t (*mod)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
-  bool (*lt)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
-  bool (*gt)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
-  bool (*eq)(DecimalWord* pLeft, DecimalWord* pRight, uint8_t rightWordNum);
-  int32_t (*toStr)(DecimalWord* pInt, char* pBuf, int32_t bufLen);
-} SWideIntegerOps;
+SDecimalOps* getDecimalOps(int8_t dataType);
 
 #ifdef __cplusplus
 }

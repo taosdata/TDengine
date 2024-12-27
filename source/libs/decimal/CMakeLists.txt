@@ -5,6 +5,7 @@ add_library(decimal STATIC ${DECIMAL_SRC})
 target_include_directories(
     decimal
     PUBLIC "${TD_SOURCE_DIR}/include/libs/decimal"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
     decimal

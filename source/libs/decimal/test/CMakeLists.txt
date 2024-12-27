@@ -9,9 +9,10 @@ ADD_EXECUTABLE(decimalTest ${SOURCE_LIST})
 TARGET_INCLUDE_DIRECTORIES(
         decimalTest
         PUBLIC "${TD_SOURCE_DIR}/include/libs/decimal/"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
 TARGET_LINK_LIBRARIES(
         decimalTest
-        PUBLIC os util common gtest qcom
+        PUBLIC os util common gtest qcom decimal
 )
