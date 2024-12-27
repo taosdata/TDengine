@@ -45,14 +45,10 @@ void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = 0xFFFFFFFF;
   sDebug("vgId:%d, resolve sync addr from fqdn, ep:%s:%u", vgId, pInfo->nodeFqdn, pInfo->nodePort);
-  for (int32_t i = 0; i < tsResolveFQDNRetryTime; i++) {
-    int32_t code = taosGetIpv4FromFqdn(pInfo->nodeFqdn, &ipv4);
-    if (code) {
-      sError("vgId:%d, failed to resolve sync addr, dnode:%d fqdn:%s, retry", vgId, pInfo->nodeId, pInfo->nodeFqdn);
-      taosSsleep(1);
-    } else {
-      break;
-    }
+
+  int32_t code = taosGetIpv4FromFqdn(pInfo->nodeFqdn, &ipv4);
+  if (code) {
+    sError("vgId:%d, failed to resolve sync addr, dnode:%d fqdn:%s, retry", vgId, pInfo->nodeId, pInfo->nodeFqdn);
   }
 
   if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {

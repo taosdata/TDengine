@@ -291,7 +291,6 @@ extern int     tsStreamAggCnt;
 extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
-extern int32_t tsResolveFQDNRetryTime;
 extern bool    tsStreamCoverage;
 extern int8_t  tsS3EpNum;
 
