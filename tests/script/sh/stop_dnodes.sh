@@ -13,7 +13,11 @@ if [ -n "$PID" ]; then
   systemctl stop taosd
 fi
 
-PID=`ps -C taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
+if [ "$OS_TYPE" != "Darwin" ]; then
+  PID=`ps -C taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
+else
+  PID=`ps a -c | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
+fi
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 taosd
@@ -24,10 +28,18 @@ while [ -n "$PID" ]; do
   else
     lsof -nti:6030 | xargs kill -9
   fi
-  PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+  if [ "$OS_TYPE" != "Darwin" ]; then
+    PID=`ps -C taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
+  else
+    PID=`ps a -c | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
+  fi
 done
 
-PID=`ps -C taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
+if [ "$OS_TYPE" != "Darwin" ]; then
+  PID=`ps -C taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
+else
+  PID=`ps a -c | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
+fi
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 taos
@@ -38,11 +50,18 @@ while [ -n "$PID" ]; do
   else
     lsof -nti:6030 | xargs kill -9
   fi
-  PID=`ps -ef|grep -w taos | grep -v grep | awk '{print $2}'`
-  PID=`ps -C taos | grep -w "[t]aos" | awk '{print $1}'`
+  if [ "$OS_TYPE" != "Darwin" ]; then
+    PID=`ps -C taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
+  else
+    PID=`ps a -c | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
+  fi
 done
 
-PID=`ps -C tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
+if [ "$OS_TYPE" != "Darwin" ]; then
+  PID=`ps -C tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
+else
+  PID=`ps a -c | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
+fi
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 tmq_sim
@@ -53,5 +72,9 @@ while [ -n "$PID" ]; do
   else
     lsof -nti:6030 | xargs kill -9
   fi
-  PID=`ps -ef|grep -w tmq_sim | grep -v grep | awk '{print $2}'`
+  if [ "$OS_TYPE" != "Darwin" ]; then
+    PID=`ps -C tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
+  else
+    PID=`ps a -c | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
+  fi
 done
