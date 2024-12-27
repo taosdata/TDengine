@@ -615,6 +615,21 @@ TEST_F(TransEnv, http) {
 #endif
 
   }
+#if 1
+    STelemAddrMgmt mgt;
+    taosTelemetryMgtInit(&mgt, "telemetry.taosdata.com");
+    int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+    printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+
+    taosMsleep(2000);
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT);
+    for (int32_t i = 0; i < 1; i++) {
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT);
+    printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+    taosMsleep(2000);
+  }
+  taosTelemetryDestroy(&mgt); 
+#endif
   {
     STelemAddrMgmt mgt;
     taosTelemetryMgtInit(&mgt, "error");
