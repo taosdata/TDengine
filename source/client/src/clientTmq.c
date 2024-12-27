@@ -1773,8 +1773,8 @@ static void tmqBuildRspFromWrapperInner(SMqPollRspWrapper* pWrapper, SMqClientVg
     (*numOfRows) += rows;
     changeByteEndian(rawData);
 
-    if (pRspObj->rsp.withTbName && pRspObj->rsp.blockTbName == NULL) {
-      const char* tbname = (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
+    if (pRspObj->rsp.withTbName && pRspObj->rsp.blockTbName != NULL) {
+      const char* tbname = (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, i);
       tscDebug("consumer:vgId:%d, res, tbname:%s, rows:%"PRId64, pVg->vgId, tbname, rows);
     }
 
