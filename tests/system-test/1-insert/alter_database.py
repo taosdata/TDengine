@@ -76,8 +76,18 @@ class TDTestCase:
         tdSql.execute('drop database db')
 
     def alter_compact(self):
-        tdSql.error('create database db compact_time_range 60,61', expectErrInfo="Invalid option compact_time_range: 86400m, start_time should be in range: [-5256000m, -14400m]", fullMatched=True)
-        tdSql.execute('drop database db')
+        tdSql.execute('create database db')
+        tdSql.execute('alter database db compact_time_offset 2')
+        tdSql.execute('alter database db compact_time_offset 3h')
+        tdSql.error('create database db1 compact_time_range 60,61', expectErrInfo="Invalid option compact_time_range: 86400m, start_time should be in range: [-5256000m, -14400m]", fullMatched=False)
+        tdSql.error('create database db1 compact_time_offset -1', expectErrInfo="syntax error near", fullMatched=False)
+        tdSql.error('create database d3 compact_interval 1m; ', expectErrInfo="Invalid option compact_interval: 1m, valid range: [10m, 5256000m]", fullMatched=False)
+        tdSql.error('alter database db compact_time_offset -1', expectErrInfo="syntax error near", fullMatched=False)
+        tdSql.error('alter database db compact_time_offset 24', expectErrInfo="Invalid option compact_time_offset: 24h, valid range: [0h, 23h]", fullMatched=False)
+        tdSql.error('alter database db compact_time_offset 24h', expectErrInfo="Invalid option compact_time_offset: 24h, valid range: [0h, 23h]", fullMatched=False)
+        tdSql.error('alter database db compact_time_offset 1d', expectErrInfo="Invalid option compact_time_offset unit: d, only h allowed", fullMatched=False)
+
+
 
     def alter_same_options(self):
         tdSql.execute('drop database if exists db')
