@@ -683,10 +683,15 @@ impl TaskController {
                     std::fs::create_dir_all(dir).context("Cannot create directory for database")?;
                 }
             }
-            path.canonicalize()
-                .context("Cannot canonicalize sqlite file")?
-                .to_string_lossy()
-                .to_string()
+            if path.is_absolute() {
+                path.to_string_lossy().to_string()
+            } else {
+                std::env::current_dir()
+                    .context("Cannot get current directory")?
+                    .join(file)
+                    .to_string_lossy()
+                    .to_string()
+            }
         } else {
             sqlite.to_string()
         };
