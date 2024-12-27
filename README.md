@@ -329,14 +329,14 @@ cd /root/TDinternal/community/packaging/smokeTest
 cd /root/ && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp && ./testTsbs.sh  
 ```
 2. if you want to test on client and server in diffrent machine. you need to setup env follow step:
-2.1 Modify IP and host of client and server in `test.ini`
+2.1. Modify IP and host of client and server in `test.ini`
 ```ini
 clientIP="192.168.0.203"   # client ip
 clientHost="trd03"         # client hostname
 serverIP="192.168.0.204"   # server ip
 serverHost="trd04"         # server hostname
 ```
-2.2 Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+2.2. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
 ```ini
 serverPass="taosdata123"   # server root password
 ```
