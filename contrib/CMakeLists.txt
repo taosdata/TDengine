@@ -1,6 +1,7 @@
 # ================================================================================================
 # Download
 # ================================================================================================
+include(ExternalProject)
 function(cat IN_FILE OUT_FILE)
     file(READ ${IN_FILE} CONTENTS)
     file(APPEND ${OUT_FILE} "${CONTENTS}")
@@ -107,7 +108,7 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 if(NOT ${TD_WINDOWS})
-    cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    include("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in")
 endif(NOT ${TD_WINDOWS})
 
 # xz
@@ -663,19 +664,19 @@ ENDIF()
 
 
 if(NOT ${TD_WINDOWS})
-    MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
+    # MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
 
-    execute_process(
-            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
-            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
-    )
+    # execute_process(
+    #         COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
+    #         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+    # )
 
-    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
-    file(REMOVE_RECURSE ${TZ_SRC_DIR})
-    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
-    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
-            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
-            DESTINATION ${TZ_SRC_DIR})
+    # set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+    # file(REMOVE_RECURSE ${TZ_SRC_DIR})
+    # file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+    # file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+    #         ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+    #         DESTINATION ${TZ_SRC_DIR})
 endif(NOT ${TD_WINDOWS})
 
 #if(NOT ${TD_WINDOWS})

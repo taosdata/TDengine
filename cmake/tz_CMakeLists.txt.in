@@ -1,15 +1,16 @@
 # timezone
-ExternalProject_Add(tz
+
+ExternalProject_Add(ext_tz
         GIT_REPOSITORY https://github.com/eggert/tz.git
         GIT_TAG main
-        SOURCE_DIR "${TD_CONTRIB_DIR}/tz"
-        BINARY_DIR ""
+        PREFIX "${TD_CONTRIB_DIR}/tz"
+        BUILD_IN_SOURCE true
         CONFIGURE_COMMAND ""
-        #BUILD_COMMAND ""
-        INSTALL_COMMAND ""
+        BUILD_COMMAND make CFLAGS+=-fPIC CFLAGS+=-DTHREAD_SAFE=1
+        INSTALL_COMMAND make DESTDIR=${TD_CONTRIB_DIR}/tz/install install
         TEST_COMMAND ""
         GIT_SHALLOW true
-        GIT_PROGRESS true
-        BUILD_COMMAND ""
 )
+
+set(TD_CONTRIB_TZ_LIB_DIR "${TD_CONTRIB_DIR}/tz/install/usr/lib" PARENT_SCOPE)
 
