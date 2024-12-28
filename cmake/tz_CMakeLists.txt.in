@@ -12,5 +12,6 @@ ExternalProject_Add(ext_tz
         GIT_SHALLOW true
 )
 
-set(TD_CONTRIB_TZ_LIB_DIR "${TD_CONTRIB_DIR}/tz/install/usr/lib" PARENT_SCOPE)
+# set(TD_CONTRIB_EXT_TZ_INC_DIR "${TD_CONTRIB_DIR}/tz/install/usr/include" PARENT_SCOPE)
+set(TD_CONTRIB_EXT_TZ_LIB_DIR "${TD_CONTRIB_DIR}/tz/install/usr/lib" PARENT_SCOPE)
 

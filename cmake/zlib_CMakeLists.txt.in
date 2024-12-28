@@ -1,16 +1,18 @@
 
 # zlib
 
+set(_base         "${TD_CONTRIB_DIR}/zlib")
+set(_ins          "${TD_CONTRIB_DIR}/zlib/install")
 
-ExternalProject_Add(zlib
+ExternalProject_Add(ext_zlib
         GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
         GIT_TAG v1.2.11
-        SOURCE_DIR "${TD_CONTRIB_DIR}/zlib"
-        BINARY_DIR ""
-        #BUILD_IN_SOURCE TRUE
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        TEST_COMMAND ""
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         GIT_SHALLOW true
-)
+        )
+
+set(TD_CONTRIB_EXT_ZLIB_INC_DIR "${_ins}/include" PARENT_SCOPE)
+set(TD_CONTRIB_EXT_ZLIB_LIB_DIR "${_ins}/lib" PARENT_SCOPE)
+

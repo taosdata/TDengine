@@ -102,7 +102,7 @@ endif(${BUILD_TEST})
 include("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in")
 
 # zlib
-cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+include("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in")
 
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -260,35 +260,6 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 # if(${BUILD_WITH_S3})
 # add_subdirectory(xml2 EXCLUDE_FROM_ALL)
 # endif()
-
-# zlib
-set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
-
-if(${TD_DARWIN})
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=deprecated-non-prototype")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-non-prototype")
-endif(${TD_DARWIN})
-
-add_subdirectory(zlib EXCLUDE_FROM_ALL)
-
-if(${TD_DARWIN})
-    target_compile_options(zlibstatic PRIVATE -Wno-error=deprecated-non-prototype)
-endif()
-target_include_directories(
-    zlibstatic
-    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
-)
-
-if(${TD_DARWIN})
-    target_compile_options(zlib PRIVATE -Wno-error=deprecated-non-prototype)
-endif()
-target_include_directories(
-    zlib
-    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
-)
-unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
 # add_subdirectory(xz EXCLUDE_FROM_ALL)
 # target_include_directories(

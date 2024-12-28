@@ -1,11 +1,14 @@
 aux_source_directory(src OS_SRC)
 if(NOT ${TD_WINDOWS})
-    # add_definitions(-DTHREAD_SAFE=1)
-    # aux_source_directory(src/timezone OS_TZ)
     add_library(os STATIC ${OS_SRC} ${OS_TZ})
-		add_dependencies(os ext_tz)
-		target_link_libraries(os PUBLIC tz)
-		target_link_directories(os PUBLIC ${TD_CONTRIB_TZ_LIB_DIR})
+    add_dependencies(os ext_tz)
+    target_link_directories(os PUBLIC ${TD_CONTRIB_EXT_TZ_LIB_DIR})
+    target_link_libraries(os PUBLIC tz)
+
+    add_dependencies(os ext_zlib)
+    target_include_directories(os PUBLIC ${TD_CONTRIB_EXT_ZLIB_INC_DIR})
+    target_link_directories(os PUBLIC ${TD_CONTRIB_EXT_ZLIB_LIB_DIR})
+    target_link_libraries(os PUBLIC z)
 else()
     add_library(os STATIC ${OS_SRC})
 endif(NOT ${TD_WINDOWS})
@@ -41,7 +44,7 @@ if(BUILD_ADDR2LINE)
             PUBLIC "${TD_SOURCE_DIR}/contrib/libdwarf/src/lib/libdwarf"
         )
         target_link_libraries(
-            os PUBLIC addr2line dl z
+            os PUBLIC addr2line dl
         )
     endif()
     add_definitions(-DUSE_ADDR2LINE)
@@ -52,7 +55,6 @@ endif()
 target_link_libraries(
     os
     PUBLIC pthread
-    PUBLIC zlibstatic
 )
 if(TD_WINDOWS)
     target_link_libraries(
