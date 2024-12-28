@@ -76,10 +76,13 @@ class TDTestCase:
                             ["compact_time_range -60,-1440h", "Invalid option compact_time_range: -86400m,-86400m, start time should be less than end time"],
                             ["compact_time_range -60d,-61d", "Invalid option compact_time_range: -86400m,-87840m, start time should be less than end time"],
                             ["compact_time_range -5256001m,-1", "Invalid option compact_time_range: -5256001m, start time should be in range: [-5256000m, -14400m]"],
+                            ["compact_time_range -199999999999m,-199999999998m", "start time should be in range: [-5256000m, -14400m]"],
+                            ["compact_time_range -99999999999999999999m,-99999999999999999998m", "Invalid value type: -99999999999999999999"],
                             ["compact_time_range -60d,-1", "Invalid option compact_time_range: -1440m, end time should be in range: [-5256000m, -14400m]"],
                             ["compact_interval 24h compact_time_range -60,61", "Invalid option compact_time_range: 87840m, end time should be in range: [-5256000m, -14400m]"],
                             ["compact_interval 100 compact_time_range -60d,61d", "Invalid option compact_time_range: 87840m, end time should be in range: [-5256000m, -14400m]"],
                             ["compact_time_range -60d,87840m", "Invalid option compact_time_range: 87840m, end time should be in range: [-5256000m, -14400m]"],
+                            ["compact_time_range -100,-90s", "Invalid option compact_time_range end unit: s, only m, h, d allowed"],
                             ["compact_interval 10m compact_time_range -120d,-14400m compact_time_offset -1", "syntax error near"],
                             ["compact_time_range -100,-99d compact_interval -1", "syntax error near"],
                             ["compact_time_range 0", "Invalid option compact_time_range, should have 2 value"],
@@ -89,13 +92,19 @@ class TDTestCase:
                             ["compact_time_range -100:-90", "syntax error near"],
                             ["compact_time_range -100 -90", "syntax error near"],
                             ["compact_interval 1m", "Invalid option compact_interval: 1m, valid range: [10m, 5256000m]"],
+                            ["compact_interval 199999999999m", "valid range: [10m, 5256000m]"],
+                            ["compact_interval 9999999999999m", "Invalid option compact_interval: 9999999999999m, valid range: [10m, 5256000m]"],
                             ["compact_interval 5256001m", "Invalid option compact_interval: 5256001m, valid range: [10m, 5256000m]"],
                             ["compact_interval 3651", "Invalid option compact_interval: 5257440m, valid range: [10m, 5256000m]"],
+                            ["compact_interval 86400s", "Invalid option compact_interval unit: s, only m, h, d allowed"],
                             ["compact_interval -1", "syntax error near"],
                             ["compact_time_offset -1", "syntax error near"],
+                            ["compact_time_offset 3600s", "Invalid option compact_time_offset unit: s, only h allowed"],
                             ["compact_time_offset 1d", "Invalid option compact_time_offset unit: d, only h allowed"],
                             ["compact_time_offset 24", "Invalid option compact_time_offset: 24h, valid range: [0h, 23h]"],
                             ["compact_time_offset 24h", "Invalid option compact_time_offset: 24h, valid range: [0h, 23h]"],
+                            ["compact_time_offset 9999999999999", "valid range: [0h, 23h]"],
+                            ["compact_time_offset 199999999999", "valid range: [0h, 23h]"],
                             ["compact_time_offset 1d", "Invalid option compact_time_offset unit: d, only h allowed"],
                             ["compact_interval 10m compact_time_range -120d,-60 compact_time_offset 1d", "Invalid option compact_time_offset unit: d, only h allowed"],
                             ]
@@ -103,6 +112,7 @@ class TDTestCase:
         for item in compact_err_list:
             tdSql.error(f"create database db {item[0]}", expectErrInfo=item[1], fullMatched=False)
             tdSql.error(f"alter database db {item[0]}", expectErrInfo=item[1], fullMatched=False)
+        tdSql.execute('drop database db')
         
     def run(self):
         self.create_db_compact()
