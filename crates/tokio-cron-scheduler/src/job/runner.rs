@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::RwLock;
-use tracing::{error, info, Instrument};
+use tracing::{debug, error, info, Instrument};
 use uuid::Uuid;
 
 #[derive(Default)]
@@ -47,7 +47,7 @@ impl JobRunner {
             match job_scheduler.is_running(uuid).await {
                 Ok(is_running) => {
                     if is_running {
-                        info!(job.id = %uuid, "Job is already running");
+                        debug!(job.id = %uuid, "Job is already running");
                         continue;
                     }
                 }

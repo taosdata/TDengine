@@ -1,6 +1,7 @@
 [default.extend-words]
 avaliable = "avaliable"
 optin = "optin"
+ba = "ba"
 
 [type.csv]
 extend-glob = ["*.csv"]
