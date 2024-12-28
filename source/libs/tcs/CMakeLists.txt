@@ -12,7 +12,6 @@ target_link_libraries(
     PUBLIC az
     PUBLIC common
 
-    # PUBLIC cjson
     # PUBLIC os
     # PUBLIC util
     # PUBLIC crypt

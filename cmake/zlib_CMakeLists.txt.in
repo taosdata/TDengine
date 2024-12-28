@@ -9,7 +9,6 @@ ExternalProject_Add(ext_zlib
         GIT_TAG v1.2.11
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         GIT_SHALLOW true
         )
 
