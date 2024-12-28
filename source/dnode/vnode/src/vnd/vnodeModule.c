@@ -24,7 +24,7 @@ int vnodeInit(int nthreads, StopDnodeFp stopDnodeFp) {
     return 0;
   }
 
-  TAOS_CHECK_RETURN(vnodeAsyncOpen(nthreads));
+  TAOS_CHECK_RETURN(vnodeAsyncOpen());
   TAOS_CHECK_RETURN(walInit(stopDnodeFp));
 
   monInitVnode();

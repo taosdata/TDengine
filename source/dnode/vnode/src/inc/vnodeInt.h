@@ -477,8 +477,7 @@ struct SVnode {
   SVBufPool*    onRecycle;
 
   // commit variables
-  SVAChannelID commitChannel;
-  SVATaskID    commitTask;
+  SVATaskID commitTask;
 
   SMeta*        pMeta;
   SSma*         pSma;
