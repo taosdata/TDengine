@@ -2568,7 +2568,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
 
     len = formatDurationOrKeep(durationStr, sizeof(durationStr), pDb->cfg.compactStartTime);
-    formatDurationOrKeep(durationVstr, sizeof(durationVstr), pDb->cfg.compactEndTime);
+    TAOS_UNUSED(formatDurationOrKeep(durationVstr, sizeof(durationVstr), pDb->cfg.compactEndTime));
     TAOS_UNUSED(snprintf(durationStr + len, sizeof(durationStr) - len, ",%s", durationVstr));
     STR_WITH_MAXSIZE_TO_VARSTR(durationVstr, durationStr, sizeof(durationVstr));
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {

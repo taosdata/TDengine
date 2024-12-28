@@ -2033,7 +2033,7 @@ static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal
     pVal->datum.i = AUTO_DURATION_VALUE;
     pVal->unit = getPrecisionUnit(pVal->node.resType.precision);
   } else if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                                 pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
+                                 pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -8268,7 +8268,7 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
   }
   if (pOptions->compactStartTime < -keep2 || pOptions->compactStartTime > -days) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%dm, %dm]",
+                                   "Invalid option compact_time_range: %dm, start time should be in range: [%dm, %dm]",
                                    pOptions->compactStartTime, -keep2, -days);
   }
   if (pOptions->compactEndTime < -keep2 || pOptions->compactEndTime > -days) {
