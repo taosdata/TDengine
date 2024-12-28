@@ -8252,6 +8252,10 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
   pOptions->compactStartTime = getBigintFromValueNode(pStart);
   pOptions->compactEndTime = getBigintFromValueNode(pEnd);
 
+  if (pOptions->compactStartTime == 0 && pOptions->compactEndTime == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pOptions->compactStartTime >= pOptions->compactEndTime) {
     return generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,

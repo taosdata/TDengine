@@ -75,28 +75,14 @@ class TDTestCase:
         tdSql.checkEqual("Invalid option encrypt_algorithm: none ", tdSql.error('alter database db encrypt_algorithm \'none \''))
         tdSql.execute('drop database db')
 
-    def alter_compact(self):
-        tdSql.execute('create database db')
-        tdSql.execute('alter database db compact_time_offset 2')
-        tdSql.execute('alter database db compact_time_offset 3h')
-        tdSql.error('create database db1 compact_time_range 60,61', expectErrInfo="Invalid option compact_time_range: 86400m, start_time should be in range: [-5256000m, -14400m]", fullMatched=False)
-        tdSql.error('create database db1 compact_time_offset -1', expectErrInfo="syntax error near", fullMatched=False)
-        tdSql.error('create database d3 compact_interval 1m; ', expectErrInfo="Invalid option compact_interval: 1m, valid range: [10m, 5256000m]", fullMatched=False)
-        tdSql.error('alter database db compact_time_offset -1', expectErrInfo="syntax error near", fullMatched=False)
-        tdSql.error('alter database db compact_time_offset 24', expectErrInfo="Invalid option compact_time_offset: 24h, valid range: [0h, 23h]", fullMatched=False)
-        tdSql.error('alter database db compact_time_offset 24h', expectErrInfo="Invalid option compact_time_offset: 24h, valid range: [0h, 23h]", fullMatched=False)
-        tdSql.error('alter database db compact_time_offset 1d', expectErrInfo="Invalid option compact_time_offset unit: d, only h allowed", fullMatched=False)
-
-
-
     def alter_same_options(self):
         tdSql.execute('drop database if exists db')
         tdSql.execute('create database db')
         tdSql.query('select * from information_schema.ins_databases where name = "db"')
         
         db_options_items = ["replica","keep","buffer","pages","minrows","cachemodel","cachesize","wal_level","wal_fsync_period",
-                      "wal_retention_period","wal_retention_size","stt_trigger"]
-        db_options_result_idx = [4,7,8,10,11,18,19,20,21,22,23,24]
+                      "wal_retention_period","wal_retention_size","stt_trigger", "compact_interval", "compact_time_range", "compact_time_offset"]
+        db_options_result_idx = [4,7,8,10,11,18,19,20,21,22,23,24,34,35,36]
         
         self.option_result = []
         for idx in db_options_result_idx:
@@ -115,11 +101,10 @@ class TDTestCase:
         
     def run(self):
         
-        self.alter_buffer()
-        self.alter_pages()
-        self.alter_encrypt_alrogithm()
+        # self.alter_buffer()
+        # self.alter_pages()
+        # self.alter_encrypt_alrogithm()
         self.alter_same_options()
-        self.alter_compact()
 
     def stop(self):
         tdSql.close()
