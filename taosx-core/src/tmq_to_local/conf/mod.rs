@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use futures_util::TryStreamExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use taos::taos_query::tmq::VGroupId;
 use taos::*;
 use tracing::Instrument;
 
@@ -121,10 +122,6 @@ impl BackupConfig {
         }
     }
 
-    pub fn set_backup_point_gen_mode(&mut self, mode: BackupPointGenMode) {
-        self.backup_point_gen_mode = mode;
-    }
-
     pub fn to_tmq_dsn(&self) -> Dsn {
         let mut dsn = Dsn {
             subject: Some(self.topic.clone()),
@@ -133,7 +130,6 @@ impl BackupConfig {
         // 设置 group.id 为 topic
         dsn.params
             .insert("group.id".to_string(), self.topic.clone());
-        // ru guo
         if self.raw_from.get("auto.offset.reset").is_none() {
             dsn.set("auto.offset.reset", "earliest");
         }
@@ -217,6 +213,40 @@ impl BackupConfig {
         }
 
         Ok(dir)
+    }
+
+    pub async fn position(
+        &self,
+        topic: &str,
+        vg_id: VGroupId,
+    ) -> anyhow::Result<Option<(i64, i64)>> {
+        let taos = connect_taos_root(&self.raw_from).await?;
+
+        let sql = format!(
+            "SELECT `offset` FROM information_schema.ins_subscriptions WHERE topic_name = '{}' AND consumer_group = '{}' AND vgroup_id = {}",
+            topic, topic,vg_id
+        );
+        tracing::trace!("query with sql: {}", sql);
+
+        let sub: Option<String> = taos.query_one(sql).await?;
+        if sub.is_none() {
+            return Ok(None);
+        }
+        let offset = sub.unwrap();
+        if !offset.starts_with("wal") {
+            return Ok(None);
+        }
+        let loc = offset.split_once(':').unwrap().1;
+        let (current, latest) = loc
+            .split_once("/")
+            .map(|(a, b)| {
+                (
+                    a.parse::<i64>().expect("invalid wal offset"),
+                    b.parse::<i64>().expect("invalid wal offset"),
+                )
+            })
+            .ok_or_else(|| anyhow!("invalid offset {}", offset))?;
+        Ok(Some((current, latest)))
     }
 }
 

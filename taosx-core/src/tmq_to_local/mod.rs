@@ -296,7 +296,7 @@ pub async fn tmq_to_local(
     tracing::info!("tmq_to_local start");
 
     // 解析备份需要的参数
-    let mut config = BackupConfigBuilder::new(task_id.clone(), &from, &to)
+    let config = BackupConfigBuilder::new(task_id.clone(), &from, &to)
         .build()
         .await
         .context(format!(
@@ -311,7 +311,7 @@ pub async fn tmq_to_local(
         // 在本地创建备份目录
         config.create_backup_dir().await?;
         // 初始备份，不能通过 position 获取 current_offset
-        config.set_backup_point_gen_mode(BackupPointGenMode::ByTimeout);
+        // config.set_backup_point_gen_mode(BackupPointGenMode::ByTimeout);
     }
 
     // load metrics
@@ -400,6 +400,7 @@ impl BackupWorker {
         Ok(())
     }
 
+    #[allow(unused)]
     async fn assign(&self) -> Result<()> {
         let assignments = self.consumer.assignments().await;
         if let Some(assigns) = assignments {
@@ -423,9 +424,9 @@ impl BackupWorker {
 
     async fn run(&self) -> Result<()> {
         Self::wait_for_upcoming_impl(self.config.upcoming).await?;
-
         tracing::info!("tmq_to_local worker: {:?} start", self.id);
-        self.assign().await?;
+
+        // self.assign().await?;
 
         let run_impl = self.run_impl().in_current_span();
 
@@ -451,31 +452,39 @@ impl BackupWorker {
 
     async fn run_impl(&self) -> Result<()> {
         tracing::debug!("tmq_to_local worker run with config: {:?}", self.config);
-
         let metrics = self.metrics.tmq();
 
         let mut stream = self.consumer.stream();
+
         while let Some((offset, message)) = stream.try_next().await? {
             // 通过 topic, vg_id 可以获取到当前的 offset
             let vg_id = offset.vgroup_id();
-
             if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
                 let topic = offset.topic();
-                let cur_offset = self.consumer.position(topic, vg_id).await?;
-                // 获取 topic, vgroup 对应的 end_offset
-                let end_offset =
-                    self.get_end_offset(topic.to_string(), vg_id)
-                        .await
-                        .ok_or(anyhow::anyhow!(
-                            "failed to get end offset of topic: {topic}, vg_id: {vg_id}"
-                        ))?;
-                // 如果 cur_offset == end_offset，表示当前 vgroup 已经备份完成
-                if cur_offset == end_offset {
-                    self.set_complete(topic.to_string(), vg_id).await;
-                }
-                // 如果所有 vgroup 都备份完成，退出
-                if self.is_all_complete().await {
-                    break;
+                // let cur_offset = self.consumer.position(topic, vg_id).await?;
+                let position = self.config.position(topic, vg_id).await?;
+
+                if let Some((current, latest)) = position {
+                    // 获取 topic, vgroup 对应的 end_offset
+                    let end_offset = self.get_end_offset(topic.to_string(), vg_id).await;
+
+                    let end_offset = match end_offset {
+                        Some(offset) => offset,
+                        None => {
+                            // 如果 end_offset 不存在，设置为当前的 latest offset
+                            self.set_end_offset(topic.to_string(), vg_id, latest).await;
+                            latest
+                        }
+                    };
+
+                    // 如果 cur_offset == end_offset，表示当前 vgroup 已经备份完成
+                    if current == end_offset {
+                        self.set_complete(topic.to_string(), vg_id).await;
+                    }
+                    // 如果所有 vgroup 都备份完成，退出
+                    if self.is_all_complete().await {
+                        break;
+                    }
                 }
             }
 
