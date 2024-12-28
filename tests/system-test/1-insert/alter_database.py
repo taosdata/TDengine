@@ -101,9 +101,9 @@ class TDTestCase:
         
     def run(self):
         
-        # self.alter_buffer()
-        # self.alter_pages()
-        # self.alter_encrypt_alrogithm()
+        self.alter_buffer()
+        self.alter_pages()
+        self.alter_encrypt_alrogithm()
         self.alter_same_options()
 
     def stop(self):
