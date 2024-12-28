@@ -1,13 +1,20 @@
 
 # lz4
-ExternalProject_Add(lz4
+
+set(_base         "${TD_CONTRIB_DIR}/lz4")
+set(_ins          "${TD_CONTRIB_DIR}/lz4/install")
+
+ExternalProject_Add(ext_lz4
         GIT_REPOSITORY https://github.com/taosdata-contrib/lz4.git
         GIT_TAG v1.9.3
-        SOURCE_DIR "${TD_CONTRIB_DIR}/lz4"
-        BINARY_DIR ""
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        TEST_COMMAND ""
+        PREFIX "${_base}"
+        SOURCE_SUBDIR "build/cmake"
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+        CMAKE_ARGS -DBUILD_STATIC_LIBS:BOOL=ON
         GIT_SHALLOW true
         )
+
+set(TD_CONTRIB_EXT_LZ4_INC_DIR "${_ins}/include" PARENT_SCOPE)
+set(TD_CONTRIB_EXT_LZ4_LIB_DIR "${_ins}/lib" PARENT_SCOPE)
+

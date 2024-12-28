@@ -8,7 +8,6 @@ target_include_directories(
 
 target_link_libraries(
   transport
-  PUBLIC lz4_static
   PUBLIC os
   PUBLIC util
   PUBLIC common

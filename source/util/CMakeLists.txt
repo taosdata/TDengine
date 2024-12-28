@@ -5,6 +5,16 @@ IF(COMPILER_SUPPORT_AVX2)
     set_source_files_properties(src/tdecompressavx.c PROPERTIES COMPILE_FLAGS -mavx2)
 ENDIF()
 add_library(util STATIC ${UTIL_SRC})
+add_dependencies(util ext_lz4)
+target_include_directories(util
+  PUBLIC "${TD_CONTRIB_EXT_LZ4_INC_DIR}"
+)
+target_link_directories(util
+  PUBLIC "${TD_CONTRIB_EXT_LZ4_LIB_DIR}"
+)
+target_link_libraries(util
+  PUBLIC lz4
+)
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
     add_definitions(-DGRANTS_CFG)
@@ -43,14 +53,14 @@ if(TD_LINUX)
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC lz4_static fast-lzma2 pcre2-8
+        PUBLIC fast-lzma2 pcre2-8
         PUBLIC api cjson geos_c TSZ
     )
 else()
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC lz4_static pcre2-8
+        PUBLIC pcre2-8
         PUBLIC api cjson geos_c TSZ
     )
 endif()
