@@ -509,22 +509,30 @@ _exit:
 
 static int32_t tsdbMergeGetFSet(SMerger *merger) {
   STFileSet *fset;
+  int32_t    code;
+  STsdb     *tsdb = merger->tsdb;
 
-  taosThreadMutexLock(&merger->tsdb->mutex);
-  tsdbFSGetFSet(merger->tsdb->pFS, merger->fid, &fset);
-  if (fset == NULL) {
-    taosThreadMutexUnlock(&merger->tsdb->mutex);
+  (void)taosThreadMutexLock(&merger->tsdb->mutex);
+
+  if (tsdb->bgTaskDisabled) {
+    (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
     return 0;
   }
 
-  fset->mergeScheduled = false;
+  tsdbBeginTaskOnFileSet(tsdb, merger->fid, EVA_TASK_MERGE, &fset);
+  if (NULL == fset) {
+    (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
+    return 0;
+  }
 
-  int32_t code = tsdbTFileSetInitCopy(merger->tsdb, fset, &merger->fset);
+  code = tsdbTFileSetInitCopy(merger->tsdb, fset, &merger->fset);
   if (code) {
-    taosThreadMutexUnlock(&merger->tsdb->mutex);
+    (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
     return code;
   }
-  taosThreadMutexUnlock(&merger->tsdb->mutex);
+
+  fset->mergeScheduled = false;
+  (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
   return 0;
 }
 
@@ -589,6 +597,12 @@ int32_t tsdbMerge(void *arg) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
+  if (merger->fset) {
+    (void)taosThreadMutexLock(&tsdb->mutex);
+    tsdbFinishTaskOnFileSet(tsdb, mergeArg->fid, EVA_TASK_MERGE);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+  }
+
   if (code) {
     TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
     tsdbFatal("vgId:%d, failed to merge stt files since %s. code:%d", TD_VID(tsdb->pVnode), terrstr(), code);

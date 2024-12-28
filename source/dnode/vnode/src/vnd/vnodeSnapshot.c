@@ -622,13 +622,11 @@ extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
   tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
   vnodeSyncCommit(pVnode);
-  vnodeAChannelDestroy(&pVnode->commitChannel, true);
   return 0;
 }
 
 static int32_t vnodeEnableBgTask(SVnode *pVnode) {
   tsdbEnableBgTask(pVnode->pTsdb);
-  vnodeAChannelInit(1, &pVnode->commitChannel);
   return 0;
 }
 

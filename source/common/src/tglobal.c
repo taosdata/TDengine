@@ -60,6 +60,8 @@ int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
 int32_t tsNumOfCommitThreads = 2;
+int32_t tsNumOfCompactThreads = 2;
+int32_t tsNumOfRetentionThreads = 1;
 int32_t tsNumOfTaskQueueThreads = 16;
 int32_t tsNumOfMnodeQueryThreads = 16;
 int32_t tsNumOfMnodeFetchThreads = 1;

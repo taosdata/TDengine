@@ -18,7 +18,7 @@
 
 static volatile int32_t VINIT = 0;
 
-int vnodeInit(int nthreads) {
+int vnodeInit() {
   int32_t init;
 
   init = atomic_val_compare_exchange_32(&VINIT, 0, 1);
@@ -26,7 +26,7 @@ int vnodeInit(int nthreads) {
     return 0;
   }
 
-  if (vnodeAsyncOpen(nthreads) != 0) {
+  if (vnodeAsyncOpen() != 0) {
     return -1;
   }
 

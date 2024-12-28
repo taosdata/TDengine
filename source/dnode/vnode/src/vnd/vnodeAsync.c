@@ -118,9 +118,19 @@ struct SVAsync {
   SVHashTable *taskTable;
 };
 
-SVAsync *vnodeAsyncs[3];
+struct {
+  const char *label;
+  SVAsync    *async;
+} GVnodeAsyncs[] = {
+    [0] = {NULL, NULL},
+    [1] = {"vnode-commit", NULL},
+    [2] = {"vnode-merge", NULL},
+    [3] = {"vnode-compact", NULL},
+    [4] = {"vnode-retention", NULL},
+};
+
 #define MIN_ASYNC_ID 1
-#define MAX_ASYNC_ID (sizeof(vnodeAsyncs) / sizeof(vnodeAsyncs[0]) - 1)
+#define MAX_ASYNC_ID (sizeof(GVnodeAsyncs) / sizeof(GVnodeAsyncs[0]) - 1)
 
 static int32_t vnodeAsyncTaskDone(SVAsync *async, SVATask *task) {
   int32_t ret;
@@ -451,39 +461,55 @@ static int32_t vnodeAsyncLaunchWorker(SVAsync *async) {
   return 0;
 }
 
-int32_t vnodeAsyncOpen(int32_t numOfThreads) {
+int32_t vnodeAsyncOpen() {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // vnode-commit
-  code = vnodeAsyncInit(&vnodeAsyncs[1], "vnode-commit");
-  TSDB_CHECK_CODE(code, lino, _exit);
-  vnodeAsyncSetWorkers(1, numOfThreads);
+  int32_t numOfThreads[] = {
+      0,                        //
+      tsNumOfCommitThreads,     // vnode-commit
+      tsNumOfCommitThreads,     // vnode-merge
+      tsNumOfCompactThreads,    // vnode-compact
+      tsNumOfRetentionThreads,  // vnode-retention
+  };
 
-  // vnode-merge
-  code = vnodeAsyncInit(&vnodeAsyncs[2], "vnode-merge");
-  TSDB_CHECK_CODE(code, lino, _exit);
-  vnodeAsyncSetWorkers(2, numOfThreads);
+  for (int32_t i = 1; i < sizeof(GVnodeAsyncs) / sizeof(GVnodeAsyncs[0]); i++) {
+    code = vnodeAsyncInit(&GVnodeAsyncs[i].async, GVnodeAsyncs[i].label);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = vnodeAsyncSetWorkers(i, numOfThreads[i]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 _exit:
-  return 0;
+  return code;
 }
 
 int32_t vnodeAsyncClose() {
-  vnodeAsyncDestroy(&vnodeAsyncs[1]);
-  vnodeAsyncDestroy(&vnodeAsyncs[2]);
+  for (int32_t i = 1; i < sizeof(GVnodeAsyncs) / sizeof(GVnodeAsyncs[0]); i++) {
+    vnodeAsyncDestroy(&GVnodeAsyncs[i].async);
+  }
   return 0;
 }
 
-int32_t vnodeAsync(SVAChannelID *channelID, EVAPriority priority, int32_t (*execute)(void *), void (*cancel)(void *),
-                   void *arg, SVATaskID *taskID) {
+int32_t vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void *), void (*complete)(void *), void *arg,
+                   SVATaskID *taskID) {
+  SVAChannelID channelID = {
+      .async = async,
+      .id = 0,
+  };
+  return vnodeAsyncC(&channelID, priority, execute, complete, arg, taskID);
+}
+
+int32_t vnodeAsyncC(SVAChannelID *channelID, EVAPriority priority, int32_t (*execute)(void *), void (*cancel)(void *),
+                    void *arg, SVATaskID *taskID) {
   if (channelID == NULL || channelID->async < MIN_ASYNC_ID || channelID->async > MAX_ASYNC_ID || execute == NULL ||
       channelID->id < 0) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   int64_t  id;
-  SVAsync *async = vnodeAsyncs[channelID->async];
+  SVAsync *async = GVnodeAsyncs[channelID->async].async;
 
   // create task object
   SVATask *task = (SVATask *)taosMemoryCalloc(1, sizeof(SVATask));
@@ -592,7 +618,7 @@ int32_t vnodeAWait(SVATaskID *taskID) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  SVAsync *async = vnodeAsyncs[taskID->async];
+  SVAsync *async = GVnodeAsyncs[taskID->async].async;
   SVATask *task = NULL;
   SVATask  task2 = {
        .taskId = taskID->id,
@@ -623,7 +649,7 @@ int32_t vnodeACancel(SVATaskID *taskID) {
   }
 
   int32_t  ret = 0;
-  SVAsync *async = vnodeAsyncs[taskID->async];
+  SVAsync *async = GVnodeAsyncs[taskID->async].async;
   SVATask *task = NULL;
   SVATask  task2 = {
        .taskId = taskID->id,
@@ -659,7 +685,7 @@ int32_t vnodeAsyncSetWorkers(int64_t asyncID, int32_t numWorkers) {
   if (asyncID < MIN_ASYNC_ID || asyncID > MAX_ASYNC_ID || numWorkers <= 0 || numWorkers > VNODE_ASYNC_MAX_WORKERS) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SVAsync *async = vnodeAsyncs[asyncID];
+  SVAsync *async = GVnodeAsyncs[asyncID].async;
   taosThreadMutexLock(&async->mutex);
   async->numWorkers = numWorkers;
   if (async->numIdleWorkers > 0) {
@@ -675,7 +701,7 @@ int32_t vnodeAChannelInit(int64_t asyncID, SVAChannelID *channelID) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  SVAsync *async = vnodeAsyncs[asyncID];
+  SVAsync *async = GVnodeAsyncs[asyncID].async;
 
   // create channel object
   SVAChannel *channel = (SVAChannel *)taosMemoryMalloc(sizeof(SVAChannel));
@@ -721,7 +747,7 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  SVAsync    *async = vnodeAsyncs[channelID->async];
+  SVAsync    *async = GVnodeAsyncs[channelID->async].async;
   SVAChannel *channel = NULL;
   SVAChannel  channel2 = {
        .channelId = channelID->id,
@@ -800,4 +826,19 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
   channelID->async = 0;
   channelID->id = 0;
   return 0;
+}
+
+const char *vnodeGetATaskName(EVATaskT taskType) {
+  switch (taskType) {
+    case EVA_TASK_COMMIT:
+      return "vnode-commit";
+    case EVA_TASK_MERGE:
+      return "vnode-merge";
+    case EVA_TASK_COMPACT:
+      return "vnode-compact";
+    case EVA_TASK_RETENTION:
+      return "vnode-retention";
+    default:
+      return "unknown";
+  }
 }

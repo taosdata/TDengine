@@ -408,11 +408,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
-  if (vnodeAChannelInit(1, &pVnode->commitChannel) != 0) {
-    vError("vgId:%d, failed to init commit channel", TD_VID(pVnode));
-    goto _err;
-  }
-
   int8_t rollback = vnodeShouldRollback(pVnode);
 
   // open buffer pool
@@ -536,7 +531,6 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vnodeAWait(&pVnode->commitTask);
-    vnodeAChannelDestroy(&pVnode->commitChannel, true);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);

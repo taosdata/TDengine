@@ -49,7 +49,7 @@ typedef struct SVSnapWriter SVSnapWriter;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
-int32_t vnodeInit(int32_t nthreads);
+int32_t vnodeInit();
 void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs);
 bool    vnodeShouldRemoveWal(SVnode *pVnode);

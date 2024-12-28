@@ -604,7 +604,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("vnode-sync", "initialized");
 
-  if (vnodeInit(tsNumOfCommitThreads) != 0) {
+  if (vnodeInit() != 0) {
     dError("failed to init vnode since %s", terrstr());
     goto _OVER;
   }
