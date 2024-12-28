@@ -7,8 +7,13 @@ target_link_libraries(
   PUBLIC tfs
   PUBLIC gtest_main
 )
+target_include_directories(
+  tfs_test
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/tfs"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
-# add_test(
-#     NAME tfs_test
-#     COMMAND tfs_test
-# )
+add_test(
+    NAME tfs_test
+    COMMAND tfs_test
+)

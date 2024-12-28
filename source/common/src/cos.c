@@ -66,9 +66,9 @@ int32_t s3Begin() {
 void s3End() { S3_deinitialize(); }
 
 int32_t s3Init() { TAOS_RETURN(TSDB_CODE_SUCCESS); /*s3Begin();*/ }
-
+#if 0
 static int32_t s3ListBucket(char const *bucketname);
-
+#endif
 static void s3DumpCfgByEp(int8_t epIndex) {
   // clang-format off
   (void)fprintf(stdout,
@@ -291,7 +291,7 @@ static int32_t s3ListBucketByEp(char const *bucketname, int8_t epIndex) {
 
   TAOS_RETURN(code);
 }
-
+#if 0
 static int32_t s3ListBucket(char const *bucketname) {
   int32_t code = 0;
 
@@ -312,7 +312,7 @@ static int32_t s3ListBucket(char const *bucketname) {
 
   TAOS_RETURN(code);
 }
-
+#endif
 typedef struct growbuffer {
   // The total number of bytes, and the start byte
   int size;

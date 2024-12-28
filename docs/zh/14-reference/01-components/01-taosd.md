@@ -185,7 +185,8 @@ charset 的有效值是 UTF-8。
 |参数名称|支持版本|动态修改|参数含义|
 |--------------------------|----------|-------------------------|-|
 |supportVnodes             |          |支持动态修改 立即生效       |dnode 支持的最大 vnode 数目，取值范围 0-4096，默认值 CPU 核数的 2 倍 + 5|
-|numOfCommitThreads        |          |支持动态修改 重启生效       |落盘线程的最大数量，取值范围 0-1024，默认值为 4|
+|numOfCommitThreads        |          |支持动态修改 重启生效       |落盘线程的最大数量，取值范围 1-1024，默认值为 4|
+|numOfCompactThreads        |         |支持动态修改 重启生效       |落盘线程的最大数量，取值范围 1-16，默认值为 2|
 |numOfMnodeReadThreads     |          |支持动态修改 重启生效       |mnode 的 Read 线程数目，取值范围 0-1024，默认值为 CPU 核数的四分之一（不超过 4）|
 |numOfVnodeQueryThreads    |          |支持动态修改 重启生效       |vnode 的 Query 线程数目，取值范围 0-1024，默认值为 CPU 核数的两倍（不超过 16）|
 |numOfVnodeFetchThreads    |          |支持动态修改 重启生效       |vnode 的 Fetch 线程数目，取值范围 0-1024，默认值为 CPU 核数的四分之一（不超过 4）|
