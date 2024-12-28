@@ -680,7 +680,7 @@ static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSe
   return 0;
 }
 
-static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
+static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -690,6 +690,8 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
   TFileSetArray  *fsetArray = fs->fSetArrTmp;
   STFileSet      *fset = NULL;
   const STFileOp *op;
+  int32_t         fid = INT32_MIN;
+  TSKEY           now = taosGetTimestampMs();
   TARRAY2_FOREACH_PTR(opArray, op) {
     if (!fset || fset->fid != op->fid) {
       STFileSet tfset = {.fid = op->fid};
@@ -708,6 +710,15 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
 
     code = tsdbTFileSetEdit(fs->tsdb, fset, op);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (fid != op->fid) {
+      fid = op->fid;
+      if (etype == TSDB_FEDIT_COMMIT) {
+        fset->lastCommit = now;
+      } else if (etype == TSDB_FEDIT_COMPACT) {
+        fset->lastCompact = now;
+      }
+    }
   }
 
   // remove empty empty stt level and empty file set
@@ -864,7 +875,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
   fs->etype = etype;
 
   // edit
-  code = edit_fs(fs, opArray);
+  code = edit_fs(fs, opArray, etype);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save fs
@@ -1288,6 +1299,12 @@ int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader) {
   return TSDB_CODE_SUCCESS;
 }
 
+extern bool tsdbShouldCompact(const STFileSet *pFileSet);
+
+#ifndef TD_ENTERPRISE
+bool tsdbShouldCompact(const STFileSet *pFileSet) { return false; }
+#endif
+
 static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
   STsdb  *pTsdb = pReader->pTsdb;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1311,7 +1328,7 @@ static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
   // get file set details
   pReader->fid = pReader->pFileSet->fid;
   tsdbFidKeyRange(pReader->fid, pTsdb->keepCfg.days, pTsdb->keepCfg.precision, &pReader->startTime, &pReader->endTime);
-  pReader->lastCompactTime = 0;  // TODO
+  pReader->lastCompactTime = pReader->pFileSet->lastCompact;
   pReader->totalSize = 0;
   for (int32_t i = 0; i < TSDB_FTYPE_MAX; i++) {
     STFileObj *fobj = pReader->pFileSet->farr[i];
@@ -1375,7 +1392,7 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
 
   fieldName = "should_compact";
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
-    *(char *)value = 0;  // TODO
+    *(char *)value = tsdbShouldCompact(pReader->pFileSet);
     return TSDB_CODE_SUCCESS;
   }
 
