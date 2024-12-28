@@ -6429,7 +6429,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return code;
   }
 
-  len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Inmem_Rows=[%d] Stt_Rows=[%d] ",
+  len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Inmem_Rows=[%u] Stt_Rows=[%u] ",
                   pData->numOfInmemRows, pData->numOfSttRows);
   varDataSetLen(st, len);
   code = colDataSetVal(pColInfo, row++, st, false);
