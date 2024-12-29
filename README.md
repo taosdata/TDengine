@@ -359,12 +359,12 @@ cd /root && git clone -b master https://github.com/taosdata/taos-test-framework 
 ```
 2. Build taostest:
 ```bash
-apt install -y python3-pip && pip3 install poetry && cd /root/taos-test-framework && yes | bash reinstall.sh
+apt install -y python3-pip && pip3 install poetry && cd /root/taos-test-framework && yes | bash reinstall.sh && pip3 install --upgrade numpy pandas
 ```
 3. Configure passwdless login:
 ```bash
-yes | ssh-keygen -t rsa -b 2048 -N "" -f "$HOME/.ssh/testng"
-cat $HOME/.ssh/testng.pub >> $HOME/.ssh/authorized_keys
+yes | ssh-keygen -t rsa -b 2048 -N "" -f $HOME/.ssh/id_rsa
+[ -f "$HOME/.ssh/id_rsa.pub" ] && ! grep -q -F "$(cat $HOME/.ssh/id_rsa.pub)" "$HOME/.ssh/authorized_keys" && cat "$HOME/.ssh/id_rsa.pub" >> "$HOME/.ssh/authorized_keys"
 ```
 4. Run test script:
 ```bash
