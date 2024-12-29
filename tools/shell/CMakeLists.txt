@@ -69,12 +69,11 @@ IF(TD_LINUX)
     # util depends
     target_link_directories(
         shell_ut
-        PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
         PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
     )
 
     # unit test
     IF(${BUILD_TEST})
         ADD_SUBDIRECTORY(test)
-    ENDIF(${BUILD_TEST})    
+    ENDIF(${BUILD_TEST})
 ENDIF()

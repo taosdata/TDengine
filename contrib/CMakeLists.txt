@@ -115,7 +115,7 @@ endif(NOT ${TD_WINDOWS})
 # cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # lzma2
-cat("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+include("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in")
 
 if(${BUILD_CONTRIB})
     if(${BUILD_WITH_ROCKSDB})
