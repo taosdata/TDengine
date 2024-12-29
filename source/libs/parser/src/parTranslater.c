@@ -8236,6 +8236,7 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
         "Invalid option compact_time_range: %dm,%dm, start time should be less than end time",
         pOptions->compactStartTime, pOptions->compactEndTime);
   }
+
   int32_t keep2 = pOptions->keep[2];
   int32_t days = pOptions->daysPerFile;
   if (keep2 == -1 || days == -1) {  // alter db
@@ -8253,6 +8254,7 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
                                    "Invalid option compact_time_range: %dm, end time should be in range: [%dm, %dm]",
                                    pOptions->compactEndTime, -keep2, -days);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
