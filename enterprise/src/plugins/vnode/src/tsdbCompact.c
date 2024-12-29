@@ -467,8 +467,11 @@ _exit:
   return code;
 }
 
-static bool tsdbShouldCompact(SCompactor2 *compactor) {
-  // TODO
+bool tsdbShouldCompact(const STFileSet *fset) {
+  if (fset->lastCompact > fset->lastCommit) {
+    return false;
+  }
+
   return true;
 }
 
@@ -557,7 +560,7 @@ static int32_t tsdbCompact(void *arg) {
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   // do compact
-  if (compactor.fset && tsdbShouldCompact(&compactor)) {
+  if (compactor.fset && tsdbShouldCompact(compactor.fset)) {
     code = tsdbDoCompact(&compactor);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
