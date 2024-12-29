@@ -19,7 +19,7 @@ TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存�
 ```SQL
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']； 
 COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY']；
-SHOW COMPACTS [compact_id]；
+SHOW COMPACT [compact_id]；
 KILL COMPACT compact_id；
 ```
 
