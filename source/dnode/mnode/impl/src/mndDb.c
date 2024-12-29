@@ -499,6 +499,19 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return code;
   if (pCfg->s3Compact < TSDB_MIN_S3_COMPACT || pCfg->s3Compact > TSDB_MAX_S3_COMPACT) return code;
 
+  if (pCfg->compactInterval != 0 &&
+      (pCfg->compactInterval < TSDB_MIN_COMPACT_INTERVAL || pCfg->compactInterval > pCfg->daysToKeep2))
+    return code;
+  if (pCfg->compactStartTime != 0 &&
+      (pCfg->compactStartTime < -pCfg->daysToKeep2 || pCfg->compactStartTime > -pCfg->daysPerFile))
+    return code;
+  if (pCfg->compactEndTime != 0 &&
+      (pCfg->compactEndTime < -pCfg->daysToKeep2 || pCfg->compactEndTime > -pCfg->daysPerFile))
+    if (pCfg->compactStartTime != 0 && pCfg->compactEndTime != 0 && pCfg->compactStartTime > pCfg->compactEndTime)
+      return code;
+  if (pCfg->compactTimeOffset < TSDB_MIN_COMPACT_TIME_OFFSET || pCfg->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET)
+    return code;
+
   code = 0;
   TAOS_RETURN(code);
 }
@@ -563,6 +576,21 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   if (pNewCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pNewCfg->s3ChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return code;
   if (pNewCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pNewCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return code;
   if (pNewCfg->s3Compact < TSDB_MIN_S3_COMPACT || pNewCfg->s3Compact > TSDB_MAX_S3_COMPACT) return code;
+
+  if (pNewCfg->compactInterval != 0 &&
+      (pNewCfg->compactInterval < TSDB_MIN_COMPACT_INTERVAL || pNewCfg->compactInterval > pNewCfg->daysToKeep2))
+    return code;
+  if (pNewCfg->compactStartTime != 0 &&
+      (pNewCfg->compactStartTime < -pNewCfg->daysToKeep2 || pNewCfg->compactStartTime > -pNewCfg->daysPerFile))
+    return code;
+  if (pNewCfg->compactEndTime != 0 &&
+      (pNewCfg->compactEndTime < -pNewCfg->daysToKeep2 || pNewCfg->compactEndTime > -pNewCfg->daysPerFile))
+    if (pNewCfg->compactStartTime != 0 && pNewCfg->compactEndTime != 0 &&
+        pNewCfg->compactStartTime > pNewCfg->compactEndTime)
+      return code;
+  if (pNewCfg->compactTimeOffset < TSDB_MIN_COMPACT_TIME_OFFSET ||
+      pNewCfg->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET)
+    return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -1150,19 +1178,23 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
+  bool compactTimeRangeChanged = false;
   if (pAlter->compactStartTime != pDb->cfg.compactStartTime &&
       (pAlter->compactStartTime == TSDB_DEFAULT_COMPACT_START_TIME ||
        pAlter->compactStartTime <= -pDb->cfg.daysPerFile)) {
     pDb->cfg.compactStartTime = pAlter->compactStartTime;
-    pDb->vgVersion++;
+    compactTimeRangeChanged = true;
     code = 0;
   }
 
   if (pAlter->compactEndTime != pDb->cfg.compactEndTime &&
       (pAlter->compactEndTime == TSDB_DEFAULT_COMPACT_END_TIME || pAlter->compactEndTime <= -pDb->cfg.daysPerFile)) {
     pDb->cfg.compactEndTime = pAlter->compactEndTime;
-    pDb->vgVersion++;
+    compactTimeRangeChanged = true;
     code = 0;
+  }
+  if(compactTimeRangeChanged) {
+    pDb->vgVersion++;
   }
 
   if (pAlter->compactTimeOffset >= TSDB_MIN_COMPACT_TIME_OFFSET &&

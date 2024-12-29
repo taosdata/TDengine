@@ -19,15 +19,17 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
         self.default_compact_options = [ "0d", "0d,0d", "0h"]
         self.compact_options = [["db00", "0m", "-0d,0", "0", "0d", "0d,0d", "0h"],
-                                ["db01", "2880m", "-61d,-60", "0", "2d", "-61d,-60d", "0h"],
-                                ["db02", "48h", "-87840m,-60", "1h", "2d", "-61d,-60d", "1h"],
-                                ["db03", "2d", "-87840m,-1440h", "12", "2d", "-61d,-60d", "12h"],
-                                ["db04", "2", "-61,-1440h", "23h", "2d", "-61d,-60d", "23h"],
+                                ["db01", "0m", "-2d,-1", "0", "0d", "-2d,-1d", "0h"],
+                                ["db02", "2880m", "-61d,-1", "0", "2d", "-61d,-1d", "0h"],
+                                ["db03", "48h", "-87840m,-60", "1h", "2d", "-61d,-60d", "1h"],
+                                ["db04", "2d", "-87840m,-1440h", "12", "2d", "-61d,-60d", "12h"],
+                                ["db05", "2", "-61,-1440h", "23h", "2d", "-61d,-60d", "23h"],
                                 ]
 
     def create_db_compact(self):
+        tdLog.info("create db compact options")
         for item in self.compact_options:
-            tdSql.execute(f'create database {item[0]} compact_interval {item[1]} compact_time_range {item[2]} compact_time_offset {item[3]}')
+            tdSql.execute(f'create database {item[0]} compact_interval {item[1]} compact_time_range {item[2]} compact_time_offset {item[3]} duration 1d')
             tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
             tdSql.checkEqual(tdSql.queryResult[0][34], item[4])
             tdSql.checkEqual(tdSql.queryResult[0][35], item[5])
@@ -47,11 +49,12 @@ class TDTestCase:
                 break
             time.sleep(1)
         if result == False:
-            raise Exception(f"Unexpected result of 'show create database `{db}`':{tdSql.queryResult[0][1]}")
+            raise Exception(f"Unexpected result of 'show create database `{db}`':{tdSql.queryResult[0][1]}, expect:{expectResult}")
 
     def alter_db_compact(self):
+        tdLog.info("alter db compact options together")
         for item in self.compact_options:
-            tdSql.execute(f'create database {item[0]}')
+            tdSql.execute(f'create database {item[0]} duration 1d')
             tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
             tdSql.checkEqual(tdSql.queryResult[0][34], self.default_compact_options[0])
             tdSql.checkEqual(tdSql.queryResult[0][35], self.default_compact_options[1])
@@ -67,6 +70,51 @@ class TDTestCase:
         for item in self.compact_options:
             self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE {item[5]} COMPACT_TIME_OFFSET {item[6]}')
             tdSql.execute(f'drop database {item[0]}')
+        
+        tdLog.info("alter db compact options separately")
+        compact_separate_options = [["db100", "0m", "-0d,0", "0", "0d", "0d,0d", "0h"],
+                                    ["db101", "10m", "-2d,-1", "1", "10m", "-2d,-1d", "1h"]]
+        index = 0
+        for item in compact_separate_options:
+            tdSql.execute(f'create database {item[0]} duration 1d')
+            tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
+            tdSql.checkEqual(tdSql.queryResult[0][34], self.default_compact_options[0])
+            tdSql.checkEqual(tdSql.queryResult[0][35], self.default_compact_options[1])
+            tdSql.checkEqual(tdSql.queryResult[0][36], self.default_compact_options[2])
+            tdSql.query(f'show create database {item[0]}')
+            tdSql.checkEqual(tdSql.queryResult[0][0], item[0])
+            tdSql.checkEqual(True, f'COMPACT_INTERVAL {self.default_compact_options[0]} COMPACT_TIME_RANGE {self.default_compact_options[1]} COMPACT_TIME_OFFSET {self.default_compact_options[2]}' in tdSql.queryResult[0][1])
+            tdSql.execute(f'alter database {item[0]} compact_time_offset {item[3]}', queryTimes=10)
+            tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
+            tdSql.checkEqual(tdSql.queryResult[0][34], self.default_compact_options[0])
+            tdSql.checkEqual(tdSql.queryResult[0][35], self.default_compact_options[1])
+            tdSql.checkEqual(tdSql.queryResult[0][36], item[6])
+            self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {self.default_compact_options[0]} COMPACT_TIME_RANGE {self.default_compact_options[1]} COMPACT_TIME_OFFSET {item[6]}')
+            tdSql.execute(f'alter database {item[0]} compact_interval {item[1]}', queryTimes=10)
+            tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
+            tdSql.checkEqual(tdSql.queryResult[0][34], item[4])
+            tdSql.checkEqual(tdSql.queryResult[0][35], self.default_compact_options[1])
+            tdSql.checkEqual(tdSql.queryResult[0][36], item[6])
+            if index == 0:
+                self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE {self.default_compact_options[1]} COMPACT_TIME_OFFSET {item[6]}')
+            else:
+                self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE -3650d,-1d COMPACT_TIME_OFFSET {item[6]}')
+            tdSql.execute(f'alter database {item[0]} compact_time_range {item[2]}', queryTimes=10)
+            tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
+            tdSql.checkEqual(tdSql.queryResult[0][34], item[4])
+            tdSql.checkEqual(tdSql.queryResult[0][35], item[5])
+            tdSql.checkEqual(tdSql.queryResult[0][36], item[6])
+            self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE {item[5]} COMPACT_TIME_OFFSET {item[6]}')
+
+            tdSql.execute(f'alter database {item[0]} compact_time_offset {item[3]}', queryTimes=10)
+            tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
+            tdSql.checkEqual(tdSql.queryResult[0][34], item[4])
+            tdSql.checkEqual(tdSql.queryResult[0][35], item[5])
+            tdSql.checkEqual(tdSql.queryResult[0][36], item[6])
+            self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE {item[5]} COMPACT_TIME_OFFSET {item[6]}')
+            index += 1
+        for item in compact_separate_options:
+            tdSql.execute(f'drop database {item[0]}', queryTimes=10)
 
     def compact_error(self):
         compact_err_list = [["compact_time_range 86400m,61d", "Invalid option compact_time_range: 86400m, start time should be in range: [-5256000m, -14400m]"],

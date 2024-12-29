@@ -8178,7 +8178,6 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
 
 static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t code = 0;
-  int64_t interval = 0;
   int32_t keep2 = pOptions->keep[2];
 
   if (NULL != pOptions->pCompactIntervalNode) {
@@ -8193,23 +8192,26 @@ static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char*
                                      pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR,
                                      TIME_UNIT_DAY);
     }
-    interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
+    int64_t interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
     if (interval != 0) {
       if (keep2 == -1) {  // alter db
         TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
         keep2 = pOptions->pDbCfg->daysToKeep2;
       }
       code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2, TIME_UNIT_MINUTE);
+      TAOS_CHECK_RETURN(code);
     }
+    pOptions->compactInterval = (int32_t)interval;
   } else if (pOptions->compactInterval > 0) {
-    interval = pOptions->compactInterval * 1440;  // convert to minutes
-    if (keep2 == -1) {                            // alter db
+    int64_t interval = (int64_t)pOptions->compactInterval * 1440;  // convert to minutes
+    if (keep2 == -1) {                                             // alter db
       TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
       keep2 = pOptions->pDbCfg->daysToKeep2;
     }
     code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2, TIME_UNIT_MINUTE);
+    TAOS_CHECK_RETURN(code);
+    pOptions->compactInterval = (int32_t)interval;
   }
-  if (code == 0) pOptions->compactInterval = interval;
   return code;
 }
 
