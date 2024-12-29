@@ -7812,8 +7812,8 @@ static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const cha
                                 int64_t maxVal, bool skipUndef) {
   if (skipUndef ? ((val >= 0 || val < -2) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
-                                   "Invalid option %s: %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]",
-                                   pName, val, minVal, maxVal);
+                                   "Invalid option %s: %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]", pName,
+                                   val, minVal, maxVal);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -7841,8 +7841,7 @@ static int32_t checkDbS3KeepLocalOption(STranslateContext* pCxt, SDatabaseOption
     }
     pOptions->s3KeepLocal = getBigintFromValueNode(pOptions->s3KeepLocalStr);
   }
-  return checkDbRangeOption(pCxt, "s3KeepLocal", pOptions->s3KeepLocal, TSDB_MIN_S3_KEEP_LOCAL,
-                            TSDB_MAX_S3_KEEP_LOCAL);
+  return checkDbRangeOption(pCxt, "s3KeepLocal", pOptions->s3KeepLocal, TSDB_MIN_S3_KEEP_LOCAL, TSDB_MAX_S3_KEEP_LOCAL);
 }
 
 static int32_t checkDbDaysOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
