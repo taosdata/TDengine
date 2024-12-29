@@ -8386,10 +8386,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "s3_chunkpages", pOptions->s3ChunkSize, TSDB_MIN_S3_CHUNK_SIZE,
-                              TSDB_MAX_S3_CHUNK_SIZE);
+                              TSDB_MAX_S3_CHUNK_SIZE, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "s3_compact", pOptions->s3Compact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT);
+    code = checkDbRangeOption(pCxt, "s3_compact", pOptions->s3Compact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbCompactIntervalOption(pCxt, pDbName, pOptions);
