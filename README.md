@@ -368,7 +368,7 @@ cat $HOME/.ssh/testng.pub >> $HOME/.ssh/authorized_keys
 ```
 4. Run test script:
 ```bash
-/root/TestNG/scripts/run.sh -m /root/TestNG/scripts/testng.json -t /root/TestNG/scripts/testng_cases.txt -l /root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S") -d debug -o 12000 -f False
+/root/TestNG/scripts/run.sh -m /root/TestNG/scripts/testng.json -t /root/TestNG/scripts/testng_cases.txt -l /root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S") -d debug -o 12000 -f False -a True
 ```
 5. When the test is done, the result can be found in `/root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S")` directory.
 
