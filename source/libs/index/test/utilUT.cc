@@ -17,6 +17,7 @@
 #include "tglobal.h"
 #include "tskiplist.h"
 #include "tutil.h"
+#include "indexFstDfa.h"  
 
 class UtilEnv : public ::testing::Test {
  protected:
@@ -39,6 +40,29 @@ class UtilEnv : public ::testing::Test {
 
   SArray *src;
   SArray *rslt;
+};
+
+class UtilComm : public ::testing::Test {
+  protected:
+    virtual void SetUp() {
+    // src = (SArray *)taosArrayInit(2, sizeof(void *));
+    // for (int i = 0; i < 3; i++) {
+    //   SArray *m = taosArrayInit(10, sizeof(uint64_t));
+    //   taosArrayPush(src, &m);
+    // }
+
+    // rslt = (SArray *)taosArrayInit(10, sizeof(uint64_t));
+  }
+  virtual void TearDown() {
+    // for (int i = 0; i < taosArrayGetSize(src); i++) {
+    //   SArray *m = (SArray *)taosArrayGetP(src, i);
+    //   taosArrayDestroy(m);
+    // }
+    // taosArrayDestroy(src);
+  }
+  // SArray *src;
+  // SArray *rslt;
+  
 };
 
 static void clearSourceArray(SArray *p) {
@@ -369,3 +393,35 @@ TEST_F(UtilEnv, testDictComm) {
     EXPECT_EQ(COMMON_INPUTS[v], i);
   }
 }
+
+TEST_F(UtilComm, testCompress) {
+  for (int32_t i = 0; i < 6; i++) {
+    _cache_range_compare cmpFunc = idxGetCompare((RangeType)(i)); 
+    //char[32]a = 0, b = 1;
+    char a[32] = {0};
+    char b[32] = {1}; 
+    for (int32_t j = 0; j < TSDB_DATA_TYPE_MAX; j++) {
+      cmpFunc(a, b, j);
+    } 
+  }
+}
+TEST_F(UtilComm, testfstDfa) {
+  {
+    FstDfaBuilder *builder = dfaBuilderCreate(NULL);
+    ASSERT_TRUE(builder != NULL);
+    dfaBuilderDestroy(builder);
+ }
+  {
+    SArray *pInst = taosArrayInit(32, sizeof(uint8_t));
+    for (int32_t i = 0; i < 26; i++) {
+      uint8_t v = 'a' + i;
+      taosArrayPush(pInst, &v); 
+    }
+    FstDfaBuilder *builder = dfaBuilderCreate(pInst);
+    FstDfa *dfa = dfaBuilderBuild(builder); 
+    dfaBuilderDestroy(builder);
+ }
+}
+
+
+

@@ -1715,7 +1715,7 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
       uint8_t colType = tColDataGetBitValue(pColData, tRow.iRow);
       if (colType == 2) {
         SColVal colVal = COL_VAL_NONE(pColData->cid, pColData->type);
-        tColDataGetValue(pColData, tRow.iRow, &colVal);
+        TAOS_CHECK_GOTO(tColDataGetValue(pColData, tRow.iRow, &colVal), &lino, _exit);
 
         SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST, .tsdbRowKey = tsdbRowKey, .colVal = colVal};
         if (!taosArrayPush(ctxArray, &updateCtx)) {

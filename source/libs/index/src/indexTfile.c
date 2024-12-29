@@ -44,10 +44,10 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval);
 static int tfileWriteFooter(TFileWriter* write);
 
 // handle file corrupt later
-static int tfileReaderLoadHeader(TFileReader* reader);
+static int     tfileReaderLoadHeader(TFileReader* reader);
 static int32_t tfileReaderLoadFst(TFileReader* reader);
-static int tfileReaderVerify(TFileReader* reader);
-static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
+static int     tfileReaderVerify(TFileReader* reader);
+static int     tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
 
 static int32_t tfileGetFileList(const char* path, SArray** pResult);
 static int     tfileRmExpireFile(SArray* result);
@@ -106,6 +106,11 @@ TFileCache* tfileCacheCreate(SIndex* idx, const char* path) {
 
   SArray* files = NULL;
   int32_t code = tfileGetFileList(path, &files);
+  if (code != 0) {
+    indexError("failed to get file list since %s", tstrerror(code));
+    goto End;
+  }
+
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char* file = taosArrayGetP(files, i);
 
@@ -1182,7 +1187,6 @@ _exception:
   TAOS_UNUSED(taosCloseDir(&pDir));
   if (files != NULL) {
     taosArrayDestroyEx(files, tfileDestroyFileName);
-    taosArrayDestroy(files);
   }
   return code;
 }

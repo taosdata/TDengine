@@ -243,7 +243,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
     goto _exit;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_LOCK);
+    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
@@ -279,7 +279,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     }
   } else {
     vError("vnodeGetTableCfg get invalid table type:%d", mer1.me.type);
-    return TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_APP_ERROR;
+    goto _exit;
   }
 
   cfgRsp.numOfTags = schemaTag.nCols;

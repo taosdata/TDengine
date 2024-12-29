@@ -72,7 +72,7 @@ loop8:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -102,7 +102,7 @@ loop9:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -142,7 +142,7 @@ loop10:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -177,7 +177,7 @@ loop11:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -209,7 +209,7 @@ loop11:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -254,7 +254,7 @@ loop12:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -330,7 +330,7 @@ loop13:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -410,7 +410,7 @@ loop14:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -476,4 +476,7 @@ sql connect
 
 sleep 30000
 
-sql select start_ver, checkpoint_ver from information_schema.ins_stream_tasks;
+sql select start_ver, checkpoint_ver from information_schema.ins_stream_tasks where level='source';
+sleep 500
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
