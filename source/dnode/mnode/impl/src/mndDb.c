@@ -507,8 +507,9 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
     return code;
   if (pCfg->compactEndTime != 0 &&
       (pCfg->compactEndTime < -pCfg->daysToKeep2 || pCfg->compactEndTime > -pCfg->daysPerFile))
-    if (pCfg->compactStartTime != 0 && pCfg->compactEndTime != 0 && pCfg->compactStartTime > pCfg->compactEndTime)
-      return code;
+    return code;
+  if (pCfg->compactStartTime != 0 && pCfg->compactEndTime != 0 && pCfg->compactStartTime >= pCfg->compactEndTime)
+    return code;
   if (pCfg->compactTimeOffset < TSDB_MIN_COMPACT_TIME_OFFSET || pCfg->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET)
     return code;
 
@@ -585,9 +586,10 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
     return code;
   if (pNewCfg->compactEndTime != 0 &&
       (pNewCfg->compactEndTime < -pNewCfg->daysToKeep2 || pNewCfg->compactEndTime > -pNewCfg->daysPerFile))
-    if (pNewCfg->compactStartTime != 0 && pNewCfg->compactEndTime != 0 &&
-        pNewCfg->compactStartTime > pNewCfg->compactEndTime)
-      return code;
+    return code;
+  if (pNewCfg->compactStartTime != 0 && pNewCfg->compactEndTime != 0 &&
+      pNewCfg->compactStartTime >= pNewCfg->compactEndTime)
+    return code;
   if (pNewCfg->compactTimeOffset < TSDB_MIN_COMPACT_TIME_OFFSET ||
       pNewCfg->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET)
     return code;
