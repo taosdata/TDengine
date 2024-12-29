@@ -2005,7 +2005,7 @@ static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal
     pVal->datum.i = AUTO_DURATION_VALUE;
     pVal->unit = getPrecisionUnit(pVal->node.resType.precision);
   } else if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                                 pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
+                                 pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -7781,23 +7781,23 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
 }
 
 static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const char* pName, int64_t val, int64_t minVal,
-                                int64_t maxVal, bool skipUndef) {
-  if (skipUndef ? ((val >= 0) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
+                                int64_t maxVal, int8_t unit, bool skipUndef) {
+  if (skipUndef ? ((val >= 0 | val < -2) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
-                                   "Invalid option %s: %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]", pName,
-                                   val, minVal, maxVal);
+                                   "Invalid option %s: %" PRId64 "%c, valid range: [%" PRId64 "%c, %" PRId64 "%c]",
+                                   pName, val, unit, minVal, unit, maxVal, unit);
   }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, int64_t val, int64_t minVal,
-                                  int64_t maxVal) {
-  return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_DB_OPTION, pName, val, minVal, maxVal, true);
+                                  int64_t maxVal, int8_t unit) {
+  return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_DB_OPTION, pName, val, minVal, maxVal, unit, true);
 }
 
 static int32_t checkTableRangeOption(STranslateContext* pCxt, const char* pName, int64_t val, int64_t minVal,
                                      int64_t maxVal) {
-  return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_TABLE_OPTION, pName, val, minVal, maxVal, true);
+  return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_TABLE_OPTION, pName, val, minVal, maxVal, 0, true);
 }
 
 static int32_t checkDbS3KeepLocalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
@@ -7813,7 +7813,8 @@ static int32_t checkDbS3KeepLocalOption(STranslateContext* pCxt, SDatabaseOption
     }
     pOptions->s3KeepLocal = getBigintFromValueNode(pOptions->s3KeepLocalStr);
   }
-  return checkDbRangeOption(pCxt, "s3KeepLocal", pOptions->s3KeepLocal, TSDB_MIN_S3_KEEP_LOCAL, TSDB_MAX_S3_KEEP_LOCAL);
+  return checkDbRangeOption(pCxt, "s3KeepLocal", pOptions->s3KeepLocal, TSDB_MIN_S3_KEEP_LOCAL, TSDB_MAX_S3_KEEP_LOCAL,
+                            0);
 }
 
 static int32_t checkDbDaysOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
@@ -7829,7 +7830,8 @@ static int32_t checkDbDaysOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
     }
     pOptions->daysPerFile = getBigintFromValueNode(pOptions->pDaysPerFile);
   }
-  return checkDbRangeOption(pCxt, "daysPerFile", pOptions->daysPerFile, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
+  return checkDbRangeOption(pCxt, "daysPerFile", pOptions->daysPerFile, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE,
+                            0);
 }
 
 static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
@@ -8148,7 +8150,6 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
 
 static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t code = 0;
-  int64_t interval = 0;
   int32_t keep2 = pOptions->keep[2];
 
   if (NULL != pOptions->pCompactIntervalNode) {
@@ -8163,23 +8164,26 @@ static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char*
                                      pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR,
                                      TIME_UNIT_DAY);
     }
-    interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
+    int64_t interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
     if (interval != 0) {
       if (keep2 == -1) {  // alter db
         TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
         keep2 = pOptions->pDbCfg->daysToKeep2;
       }
-      code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+      code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2, TIME_UNIT_MINUTE);
+      TAOS_CHECK_RETURN(code);
     }
+    pOptions->compactInterval = (int32_t)interval;
   } else if (pOptions->compactInterval > 0) {
-    interval = pOptions->compactInterval * 1440;  // convert to minutes
-    if (keep2 == -1) {                            // alter db
+    int64_t interval = (int64_t)pOptions->compactInterval * 1440;  // convert to minutes
+    if (keep2 == -1) {                                             // alter db
       TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
       keep2 = pOptions->pDbCfg->daysToKeep2;
     }
-    code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+    code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2, TIME_UNIT_MINUTE);
+    TAOS_CHECK_RETURN(code);
+    pOptions->compactInterval = (int32_t)interval;
   }
-  if (code == 0) pOptions->compactInterval = interval;
   return code;
 }
 
@@ -8222,13 +8226,16 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
   pOptions->compactStartTime = getBigintFromValueNode(pStart);
   pOptions->compactEndTime = getBigintFromValueNode(pEnd);
 
+  if (pOptions->compactStartTime == 0 && pOptions->compactEndTime == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pOptions->compactStartTime >= pOptions->compactEndTime) {
     return generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
         "Invalid option compact_time_range: %dm,%dm, start time should be less than end time",
         pOptions->compactStartTime, pOptions->compactEndTime);
   }
-
   int32_t keep2 = pOptions->keep[2];
   int32_t days = pOptions->daysPerFile;
   if (keep2 == -1 || days == -1) {  // alter db
@@ -8238,7 +8245,7 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
   }
   if (pOptions->compactStartTime < -keep2 || pOptions->compactStartTime > -days) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%dm, %dm]",
+                                   "Invalid option compact_time_range: %dm, start time should be in range: [%dm, %dm]",
                                    pOptions->compactStartTime, -keep2, -days);
   }
   if (pOptions->compactEndTime < -keep2 || pOptions->compactEndTime > -days) {
@@ -8246,7 +8253,6 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
                                    "Invalid option compact_time_range: %dm, end time should be in range: [%dm, %dm]",
                                    pOptions->compactEndTime, -keep2, -days);
   }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8263,12 +8269,12 @@ static int32_t checkDbCompactTimeOffsetOption(STranslateContext* pCxt, SDatabase
     pOptions->compactTimeOffset = getBigintFromValueNode(pOptions->pCompactTimeOffsetNode) / 60;
   }
   return checkDbRangeOption(pCxt, "compact_time_offset", pOptions->compactTimeOffset, TSDB_MIN_COMPACT_TIME_OFFSET,
-                            TSDB_MAX_COMPACT_TIME_OFFSET);
+                            TSDB_MAX_COMPACT_TIME_OFFSET, TIME_UNIT_HOUR);
 }
 
 static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t code =
-      checkDbRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
+      checkDbRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbCacheModelOption(pCxt, pOptions);
   }
@@ -8276,26 +8282,27 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbEncryptAlgorithmOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code =
-        checkDbRangeOption(pCxt, "cacheSize", pOptions->cacheLastSize, TSDB_MIN_DB_CACHE_SIZE, TSDB_MAX_DB_CACHE_SIZE);
+    code = checkDbRangeOption(pCxt, "cacheSize", pOptions->cacheLastSize, TSDB_MIN_DB_CACHE_SIZE,
+                              TSDB_MAX_DB_CACHE_SIZE, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code =
-        checkDbRangeOption(pCxt, "compression", pOptions->compressionLevel, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
+    code = checkDbRangeOption(pCxt, "compression", pOptions->compressionLevel, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL,
+                              0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbDaysOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "fsyncPeriod", pOptions->fsyncPeriod, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
+    code =
+        checkDbRangeOption(pCxt, "fsyncPeriod", pOptions->fsyncPeriod, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "maxRowsPerBlock", pOptions->maxRowsPerBlock, TSDB_MIN_MAXROWS_FBLOCK,
-                              TSDB_MAX_MAXROWS_FBLOCK);
+                              TSDB_MAX_MAXROWS_FBLOCK, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "minRowsPerBlock", pOptions->minRowsPerBlock, TSDB_MIN_MINROWS_FBLOCK,
-                              TSDB_MAX_MINROWS_FBLOCK);
+                              TSDB_MAX_MINROWS_FBLOCK, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbPrecisionOption(pCxt, pOptions);
@@ -8307,18 +8314,18 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbKeepTimeOffsetOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, TSDB_MAX_PAGES_PER_VNODE);
+    code = checkDbRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, TSDB_MAX_PAGES_PER_VNODE, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "pagesize", pOptions->pagesize, TSDB_MIN_PAGESIZE_PER_VNODE,
-                              TSDB_MAX_PAGESIZE_PER_VNODE);
+                              TSDB_MAX_PAGESIZE_PER_VNODE, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "tsdbPagesize", pOptions->tsdbPageSize, TSDB_MIN_TSDB_PAGESIZE,
-                              TSDB_MAX_TSDB_PAGESIZE);
+                              TSDB_MAX_TSDB_PAGESIZE, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "replications", pOptions->replica, TSDB_MIN_DB_REPLICA, TSDB_MAX_DB_REPLICA);
+    code = checkDbRangeOption(pCxt, "replications", pOptions->replica, TSDB_MIN_DB_REPLICA, TSDB_MAX_DB_REPLICA, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbStrictOption(pCxt, pOptions);
@@ -8328,7 +8335,8 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
                               TSDB_MAX_WAL_LEVEL);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "vgroups", pOptions->numOfVgroups, TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
+    code =
+        checkDbRangeOption(pCxt, "vgroups", pOptions->numOfVgroups, TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "singleStable", pOptions->singleStable, TSDB_DB_SINGLE_STABLE_ON,
@@ -8342,21 +8350,22 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "walRetentionPeriod", pOptions->walRetentionPeriod,
-                              TSDB_DB_MIN_WAL_RETENTION_PERIOD, INT32_MAX);
+                              TSDB_DB_MIN_WAL_RETENTION_PERIOD, INT32_MAX, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "walRetentionSize", pOptions->walRetentionSize, TSDB_DB_MIN_WAL_RETENTION_SIZE,
-                              INT32_MAX);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "walRollPeriod", pOptions->walRollPeriod, TSDB_DB_MIN_WAL_ROLL_PERIOD, INT32_MAX);
+                              INT32_MAX, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code =
-        checkDbRangeOption(pCxt, "walSegmentSize", pOptions->walSegmentSize, TSDB_DB_MIN_WAL_SEGMENT_SIZE, INT32_MAX);
+        checkDbRangeOption(pCxt, "walRollPeriod", pOptions->walRollPeriod, TSDB_DB_MIN_WAL_ROLL_PERIOD, INT32_MAX, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_STT_TRIGGER, TSDB_MAX_STT_TRIGGER);
+    code = checkDbRangeOption(pCxt, "walSegmentSize", pOptions->walSegmentSize, TSDB_DB_MIN_WAL_SEGMENT_SIZE, INT32_MAX,
+                              0);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_STT_TRIGGER, TSDB_MAX_STT_TRIGGER, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "withArbitrator", pOptions->withArbitrator, TSDB_MIN_DB_WITH_ARBITRATOR,
@@ -9933,7 +9942,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
   SCreateUserReq createReq = {0};
-  if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
+  if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, 0, false))) {
     return code;
   }
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
@@ -9962,13 +9971,13 @@ static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   int32_t code = 0;
   switch (pStmt->alterType) {
     case TSDB_ALTER_USER_ENABLE:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1, false);
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1, 0, false);
       break;
     case TSDB_ALTER_USER_SYSINFO:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false);
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, 0, false);
       break;
     case TSDB_ALTER_USER_CREATEDB:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1, false);
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1, 0, false);
       break;
   }
   return code;
