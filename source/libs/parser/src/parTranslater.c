@@ -8413,6 +8413,7 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
   pCmdReq->sql = cmdSql;
 
 static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) {
+  int32_t     code = 0;
   const char* sql = pCxt->pParseCxt->pSql;
   size_t      sqlLen = pCxt->pParseCxt->sqlLen;
 
@@ -8544,7 +8545,7 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 typedef int32_t (*FSerializeFunc)(void* pBuf, int32_t bufLen, void* pReq);
