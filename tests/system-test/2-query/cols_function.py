@@ -15,12 +15,24 @@ class TDTestCase:
 
         self.dbname = 'test'
 
-    def create_test_data(self):
-        tdLog.info("create test data")
-        tdLog.info("taosBenchmark -y -t 10 -n 100  -b INT,FLOAT,NCHAR,BOOL")
-        os.system("taosBenchmark -y -t 10 -n 100  -b INT,FLOAT,NCHAR,BOOL")
+    def create_test_data(self):       
+        tdSql.execute(f'create database if not exists {self.dbname};')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'drop table if exists {self.dbname}.meters')
         
-        tdSql.execute('use test')        
+        # tdLog.info("create test data")
+        # tdLog.info("taosBenchmark -y -t 10 -n 100  -b INT,FLOAT,NCHAR,BOOL")
+        # os.system("taosBenchmark -y -t 10 -n 100  -b INT,FLOAT,NCHAR,BOOL")
+        
+        tdSql.execute(f'create table {self.dbname}.meters (ts timestamp, c0 int, c1 float, c2 nchar(30), c3 bool) tags (t1 nchar(30))')
+        tdSql.execute(f'create table {self.dbname}.d0 using {self.dbname}.meters tags("st1")')
+        tdSql.execute(f'create table {self.dbname}.d1 using {self.dbname}.meters tags("st1")')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929000, 1, 1, "a1", true)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929001, 2, 2, "bbbbbbbbb1", false)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929002, 3, 3, "a2", true)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929003, 4, 4, "bbbbbbbbb2", false)')
+        
+        tdSql.execute(f'use {self.dbname}')        
         tdSql.execute(f'Create table  {self.dbname}.normal_table (ts timestamp, c0 int, c1 float, c2 nchar(30), c3 bool)')
         tdSql.execute(f'insert into {self.dbname}.normal_table (select * from {self.dbname}.d0)')
         
@@ -109,14 +121,14 @@ class TDTestCase:
         
         tdSql.query(f'select cols(last(c0), ts, c2), cols(first(c0), ts, c2) from db.d1')
         tdSql.checkRows(1)
-        #tdSql.checkCols(4)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574930000)
         tdSql.checkData(0, 1, 'bbbbbbbbb')
         tdSql.checkData(0, 2, 1734574929000)
         tdSql.checkData(0, 3, 'a')
         tdSql.query(f'select cols(last(c0), ts, c1, c2, c3), cols(first(c0), ts, c1, c2, c3) from db.d1')
         tdSql.checkRows(1)
-        #tdSql.checkCols(6)
+        tdSql.checkCols(8)
         tdSql.checkData(0, 0, 1734574930000)
         tdSql.checkData(0, 1, 2.2)
         tdSql.checkData(0, 2, 'bbbbbbbbb')
@@ -128,13 +140,13 @@ class TDTestCase:
         
         tdSql.query(f'select cols(last(ts), c1), cols(first(ts), c1) from db.d1')
         tdSql.checkRows(1)
-        #tdSql.checkCols(6)
+        tdSql.checkCols(2)
         tdSql.checkData(0, 0, 2.2)
         tdSql.checkData(0, 1, 1.1)
         
         tdSql.query(f'select cols(first(ts), c0, c1), cols(first(ts), c0, c1) from db.d1')
         tdSql.checkRows(1)
-        #tdSql.checkCols(6)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(0, 1, 1.1)
         tdSql.checkData(0, 2, 1)
@@ -142,7 +154,7 @@ class TDTestCase:
         
         tdSql.query(f'select cols(first(ts), c0, c1), cols(first(ts+1), c0, c1) from db.d1')
         tdSql.checkRows(1)
-        #tdSql.checkCols(6)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(0, 1, 1.1)
         tdSql.checkData(0, 2, 1)
@@ -150,7 +162,7 @@ class TDTestCase:
         
         tdSql.query(f'select cols(first(ts), c0, c1), cols(first(ts), c0+1, c1+2) from db.d1')
         tdSql.checkRows(1)
-        #tdSql.checkCols(6)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(0, 1, 1.1)
         tdSql.checkData(0, 2, 2)
@@ -158,13 +170,14 @@ class TDTestCase:
         
         tdSql.query(f'select cols(first(c0), ts, length(c2)), cols(last(c0), ts, length(c2)) from db.d1')
         tdSql.checkRows(1)
-        #tdSql.checkCols(6)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
         tdSql.checkData(0, 1, 4)
         tdSql.checkData(0, 2, 1734574930000)
         tdSql.checkData(0, 3, 36)
         tdSql.query(f'select cols(first(c0), ts, length(c2)), cols(last(c0), ts, length(c2) + 2) from db.d1')
         tdSql.checkRows(1)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
         tdSql.checkData(0, 1, 4)
         tdSql.checkData(0, 2, 1734574930000)
@@ -172,6 +185,7 @@ class TDTestCase:
         
         tdSql.query(f'select cols(first(c0), ts, c2), cols(last(c0), ts, length(c2) + 2) from db.d1')
         tdSql.checkRows(1)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
         tdSql.checkData(0, 1, 'a')
         tdSql.checkData(0, 2, 1734574930000)
@@ -179,6 +193,7 @@ class TDTestCase:
         
         tdSql.query(f'select cols(min(c0), ts, c2), cols(last(c0), ts, length(c2) + 2) from db.d1')
         tdSql.checkRows(1)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
         tdSql.checkData(0, 1, 'a')
         tdSql.checkData(0, 2, 1734574930000)
@@ -186,6 +201,7 @@ class TDTestCase:
 
         tdSql.query(f'select cols(min(c0), ts, c2), cols(first(c0), ts, length(c2) + 2) from db.d1')
         tdSql.checkRows(1)
+        tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
         tdSql.checkData(0, 1, 'a')
         tdSql.checkData(0, 2, 1734574929000)
@@ -201,7 +217,7 @@ class TDTestCase:
         tdSql.error(f'select last(cols(ts)) from {self.dbname}.meters')
         tdSql.error(f'select last(cols(ts, ts)) from {self.dbname}.meters')
         tdSql.error(f'select last(cols(ts, ts), ts) from {self.dbname}.meters')
-        tdSql.error(f'select last(cols(last(ts), ts), ts) from {self.dbname}.meters')
+        tdSql.error(f'd{self.dbname}.meters')
         tdSql.error(f'select cols(last(ts), ts as t1) as t1 from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts), ts, c0) t1 from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts), ts t1) tt from {self.dbname}.meters')
@@ -228,7 +244,6 @@ class TDTestCase:
     def run(self):
         self.funcNestTest()
         self.funcSupperTableTest()
-        return
         self.create_test_data()
         self.parse_test()
         self.one_cols_1output_test()
