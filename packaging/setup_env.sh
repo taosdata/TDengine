@@ -1761,8 +1761,7 @@ new_funcs() {
 TDasset() {
     install_java 21
     install_maven 3.9.9
-    # not supported in centos7 because of the old version of glibc
-    # install_node 22.0.0
+    # not supported in centos7/ubuntu18 because of the old version of glibc
     install_node_via_nvm 22.0.0
     install_pnpm
 }
