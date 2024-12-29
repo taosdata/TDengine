@@ -322,6 +322,35 @@ cd /root/TDinternal/community/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
+## 8.5 TSBS Test
+
+1. Clone the code
+```bash
+cd /root && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp
+```
+2. Modify IP and host of client and server in `test.ini`
+```ini
+clientIP="192.168.0.203"   # client ip
+clientHost="trd03"         # client hostname
+serverIP="192.168.0.204"   # server ip
+serverHost="trd04"         # server hostname
+```
+3. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+```ini
+serverPass="taosdata123"   # server root password
+```
+4. Run the following command to start the test:
+ ```bash
+nohup bash tsdbComparison.sh > test.log &
+```
+5. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+
+### 8.6 Crash_gen Test
+
+```bash
+cd TDinternal/community/tests/pytest/ && ./crash_gen.sh
+```
+
 # 9 Releasing
 
 TDengine Enterprise installers can be found on the corporate NAS server:
