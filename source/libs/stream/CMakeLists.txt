@@ -9,39 +9,33 @@ target_include_directories(
 
 if(${BUILD_WITH_ROCKSDB})
   if(${BUILD_CONTRIB})
+    add_dependencies(stream ext_rocksdb)
+    target_include_directories(stream PUBLIC "${TD_CONTRIB_EXT_ROCKSDB_INC_DIR}")
+    target_link_directories(stream PUBLIC "${TD_CONTRIB_EXT_ROCKSDB_LIB_DIR}")
+    target_link_libraries(stream PUBLIC rocksdb)
     target_link_libraries(
       stream
-      PUBLIC rocksdb tdb tcs
+      PUBLIC tdb tcs
       PRIVATE os util transport qcom executor wal index
-    )
-    target_include_directories(
-      stream
-      PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     )
   else()
     if(TD_LINUX)
-      target_include_directories(
-        stream
-        PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
-      )
-      target_link_directories(
-        stream
-        PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
-      )
+      target_include_directories(stream PUBLIC "${TD_CONTRIB_EXT_ROCKSDB_INC_DIR}")
+      target_link_directories(stream PUBLIC "${TD_CONTRIB_EXT_ROCKSDB_LIB_DIR}")
+      target_link_libraries(stream PUBLIC rocksdb)
       target_link_libraries(
         stream
-        PUBLIC rocksdb tdb tcs
+        PUBLIC tdb tcs
         PRIVATE os util transport qcom executor wal index
       )
     else()
+      target_include_directories(stream PUBLIC "${TD_CONTRIB_EXT_ROCKSDB_INC_DIR}")
+      target_link_directories(stream PUBLIC "${TD_CONTRIB_EXT_ROCKSDB_LIB_DIR}")
+      target_link_libraries(stream PUBLIC rocksdb)
       target_link_libraries(
         stream
-        PUBLIC rocksdb tdb tcs
+        PUBLIC tdb tcs
         PRIVATE os util transport qcom executor wal index
-      )
-      target_include_directories(
-        stream
-        PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
       )
     endif()
   endif()
