@@ -2005,7 +2005,7 @@ static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal
     pVal->datum.i = AUTO_DURATION_VALUE;
     pVal->unit = getPrecisionUnit(pVal->node.resType.precision);
   } else if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                                 pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
+                                 pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -7782,7 +7782,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
 
 static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const char* pName, int64_t val, int64_t minVal,
                                 int64_t maxVal, bool skipUndef) {
-  if (skipUndef ? ((val >= 0) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
+  if (skipUndef ? ((val >= 0 | val < -2) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
                                    "Invalid option %s: %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]", pName,
                                    val, minVal, maxVal);
@@ -8148,7 +8148,6 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
 
 static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t code = 0;
-  int64_t interval = 0;
   int32_t keep2 = pOptions->keep[2];
 
   if (NULL != pOptions->pCompactIntervalNode) {
@@ -8163,23 +8162,26 @@ static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char*
                                      pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR,
                                      TIME_UNIT_DAY);
     }
-    interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
+    int64_t interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
     if (interval != 0) {
       if (keep2 == -1) {  // alter db
         TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
         keep2 = pOptions->pDbCfg->daysToKeep2;
       }
       code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+      TAOS_CHECK_RETURN(code);
     }
+    pOptions->compactInterval = (int32_t)interval;
   } else if (pOptions->compactInterval > 0) {
-    interval = pOptions->compactInterval * 1440;  // convert to minutes
-    if (keep2 == -1) {                            // alter db
+    int64_t interval = (int64_t)pOptions->compactInterval * 1440;  // convert to minutes
+    if (keep2 == -1) {                                             // alter db
       TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
       keep2 = pOptions->pDbCfg->daysToKeep2;
     }
     code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+    TAOS_CHECK_RETURN(code);
+    pOptions->compactInterval = (int32_t)interval;
   }
-  if (code == 0) pOptions->compactInterval = interval;
   return code;
 }
 
@@ -8222,6 +8224,10 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
   pOptions->compactStartTime = getBigintFromValueNode(pStart);
   pOptions->compactEndTime = getBigintFromValueNode(pEnd);
 
+  if (pOptions->compactStartTime == 0 && pOptions->compactEndTime == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pOptions->compactStartTime >= pOptions->compactEndTime) {
     return generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
@@ -8238,7 +8244,7 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
   }
   if (pOptions->compactStartTime < -keep2 || pOptions->compactStartTime > -days) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%dm, %dm]",
+                                   "Invalid option compact_time_range: %dm, start time should be in range: [%dm, %dm]",
                                    pOptions->compactStartTime, -keep2, -days);
   }
   if (pOptions->compactEndTime < -keep2 || pOptions->compactEndTime > -days) {
