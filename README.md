@@ -10,6 +10,7 @@
 </p>
 <p>
 
+[![Build Status](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml/badge.svg)]
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 <br />
