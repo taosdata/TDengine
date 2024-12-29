@@ -136,8 +136,20 @@ function IsVC2015x64Installed(): Boolean;
 var
   InstallKey: String;
 begin
-  InstallKey := 'SOFTWARE\Classes\Installer\Dependencies\VC,redist.x64,amd64,14.40,bundle';
-  Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey)
+  // Check for any VC++ 2015-2022 Redistributable (14.x versions)
+  InstallKey := 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+  Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey);
+  
+  if not Result then
+  begin
+    InstallKey := 'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+    Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey);
+  end;
+  
+  if Result then
+    Log('find VC++ Redistributable x64,version 14.0+')
+  else
+    Log('find VC++ Redistributable x64，need to install version 14.0');
 end;
 
 function InitializeSetup(): Boolean;
@@ -145,7 +157,7 @@ begin
   Result :=True
   if not IsVC2015x64Installed() then  
   begin
-    MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) before install TDengine', mbInformation, MB_OK);
+    MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) version 14.x before install TDengine', mbInformation, MB_OK);
     Result :=False
   end;
 end;
