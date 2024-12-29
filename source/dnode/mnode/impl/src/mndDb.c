@@ -1445,14 +1445,6 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->compactInterval = pDb->cfg.compactInterval;
   cfgRsp->compactStartTime = pDb->cfg.compactStartTime;
   cfgRsp->compactEndTime = pDb->cfg.compactEndTime;
-  if (cfgRsp->compactInterval > 0) {
-    if (cfgRsp->compactStartTime == 0) {
-      cfgRsp->compactStartTime = -cfgRsp->daysToKeep2;
-    }
-    if (cfgRsp->compactEndTime == 0) {
-      cfgRsp->compactEndTime = -cfgRsp->daysPerFile;
-    }
-  }
   cfgRsp->compactTimeOffset = pDb->cfg.compactTimeOffset;
 }
 
@@ -2601,16 +2593,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
     }
 
-    int32_t compactStartTime = pDb->cfg.compactStartTime;
-    int32_t compactEndTime = pDb->cfg.compactEndTime;
-    if(compactStartTime == 0 && pDb->cfg.compactInterval > 0) {
-      compactStartTime = -pDb->cfg.daysToKeep2;
-    }
-    if(compactEndTime == 0 && pDb->cfg.compactInterval > 0) {
-      compactEndTime = -pDb->cfg.daysPerFile;
-    }
-    len = formatDurationOrKeep(durationStr, sizeof(durationStr), compactStartTime);
-    TAOS_UNUSED(formatDurationOrKeep(durationVstr, sizeof(durationVstr), compactEndTime));
+    len = formatDurationOrKeep(durationStr, sizeof(durationStr), pDb->cfg.compactStartTime);
+    TAOS_UNUSED(formatDurationOrKeep(durationVstr, sizeof(durationVstr), pDb->cfg.compactEndTime));
     TAOS_UNUSED(snprintf(durationStr + len, sizeof(durationStr) - len, ",%s", durationVstr));
     STR_WITH_MAXSIZE_TO_VARSTR(durationVstr, durationStr, sizeof(durationVstr));
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {

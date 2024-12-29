@@ -74,7 +74,6 @@ class TDTestCase:
         tdLog.info("alter db compact options separately")
         compact_separate_options = [["db100", "0m", "-0d,0", "0", "0d", "0d,0d", "0h"],
                                     ["db101", "10m", "-2d,-1", "1", "10m", "-2d,-1d", "1h"]]
-        index = 0
         for item in compact_separate_options:
             tdSql.execute(f'create database {item[0]} duration 1d')
             tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
@@ -93,13 +92,9 @@ class TDTestCase:
             tdSql.execute(f'alter database {item[0]} compact_interval {item[1]}', queryTimes=10)
             tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
             tdSql.checkEqual(tdSql.queryResult[0][34], item[4])
+            tdSql.checkEqual(tdSql.queryResult[0][35], self.default_compact_options[1])
             tdSql.checkEqual(tdSql.queryResult[0][36], item[6])
-            if index == 0:
-                tdSql.checkEqual(tdSql.queryResult[0][35], item[5])
-                self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE {self.default_compact_options[1]} COMPACT_TIME_OFFSET {item[6]}')
-            else:
-                tdSql.checkEqual(tdSql.queryResult[0][35], "-3650d,-1d")
-                self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE -3650d,-1d COMPACT_TIME_OFFSET {item[6]}')
+            self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE {self.default_compact_options[1]} COMPACT_TIME_OFFSET {item[6]}')
             tdSql.execute(f'alter database {item[0]} compact_time_range {item[2]}', queryTimes=10)
             tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
             tdSql.checkEqual(tdSql.queryResult[0][34], item[4])
@@ -112,7 +107,6 @@ class TDTestCase:
             tdSql.checkEqual(tdSql.queryResult[0][35], item[5])
             tdSql.checkEqual(tdSql.queryResult[0][36], item[6])
             self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE {item[5]} COMPACT_TIME_OFFSET {item[6]}')
-            index += 1
         for item in compact_separate_options:
             tdSql.execute(f'drop database {item[0]}', queryTimes=10)
 
