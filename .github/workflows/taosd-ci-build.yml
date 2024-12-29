@@ -1,4 +1,4 @@
-name: TDengine CI
+name: TDengine Build
 
 on:
   pull_request:
@@ -29,14 +29,17 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y build-essential cmake libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config libssl-dev gawk
+          sudo apt install -y build-essential cmake \
+            libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev \
+            zlib1g pkg-config libssl-dev gawk
 
 
-      - name: Install TDengine
+      - name: Build and install TDengine
         run: |
-          mkdir debug
-          cd debug
-          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=true -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
+          mkdir debug && cd debug
+          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false \
+            -DBUILD_TOOLS=true -DBUILD_TEST=off \
+            -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
           which taosd
