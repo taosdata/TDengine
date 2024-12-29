@@ -134,12 +134,6 @@ typedef enum {
 } ETrnExec;
 
 typedef enum {
-  TRN_KILL_MODE_SKIP = 0,
-  TRN_KILL_MODE_INTERUPT = 1,
-  //TRN_KILL_MODE_ROLLBACK = 2,
-} ETrnKillMode;
-
-typedef enum {
   DND_REASON_ONLINE = 0,
   DND_REASON_STATUS_MSG_TIMEOUT,
   DND_REASON_STATUS_NOT_RECEIVED,
@@ -207,8 +201,6 @@ typedef struct {
   SRWLatch      lockRpcArray;
   int64_t       mTraceId;
   TdThreadMutex mutex;
-  bool          ableToBeKilled;
-  ETrnKillMode  killMode;
 } STrans;
 
 typedef struct {
