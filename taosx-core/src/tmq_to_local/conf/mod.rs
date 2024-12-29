@@ -412,7 +412,7 @@ impl BackupConfigBuilder {
                 match level.as_str() {
                     "fastest" => Ok(async_compression::Level::Fastest),
                     "best" => Ok(async_compression::Level::Best),
-                    "default" => Ok(async_compression::Level::Default),
+                    "default" | "balanced" => Ok(async_compression::Level::Default),
                     _ => level
                         .parse::<i32>()
                         .map_err(|err| {
