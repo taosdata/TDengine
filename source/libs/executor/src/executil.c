@@ -2162,6 +2162,8 @@ _end:
     taosArrayDestroyP(pValCtxArray, deleteSubsidiareCtx);
     taosMemoryFreeClear(pValCtx);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  } else {
+    taosArrayDestroy(pValCtxArray);
   }
   return code;
 }
