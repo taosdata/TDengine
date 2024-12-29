@@ -7784,8 +7784,8 @@ static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const cha
                                 int64_t maxVal, bool skipUndef) {
   if (skipUndef ? ((val >= 0 | val < -2) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
-                                   "Invalid option %s: %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]",
-                                   pName, val, minVal, maxVal);
+                                   "Invalid option %s: %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]", pName,
+                                   val, minVal, maxVal);
   }
   return TSDB_CODE_SUCCESS;
 }
