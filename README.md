@@ -363,7 +363,7 @@ apt install -y python3-pip && pip3 install poetry && cd /root/taos-test-framewor
 ```
 3. Configure passwdless login:
 ```bash
-yes | ssh-keygen -t rsa -b 2048 -N "" -f $HOME/.ssh/id_rsa
+[ ! -f "$HOME/.ssh/id_rsa" ] && yes | ssh-keygen -t rsa -b 2048 -N "" -f $HOME/.ssh/id_rsa
 [ -f "$HOME/.ssh/id_rsa.pub" ] && ! grep -q -F "$(cat $HOME/.ssh/id_rsa.pub)" "$HOME/.ssh/authorized_keys" && cat "$HOME/.ssh/id_rsa.pub" >> "$HOME/.ssh/authorized_keys"
 ```
 4. Run test script:
