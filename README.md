@@ -39,6 +39,8 @@ Features:
 
 taosX uses Rust for its development. You need to install Rust and other required tools and libraries. 
 
+The software installation and script execution mentioned in this and subsequent chapters only support linux system, and will gradually support windows and mac in the future.
+
 You can complete the installation with one click by executing the following shell script:
 
 ```bash
