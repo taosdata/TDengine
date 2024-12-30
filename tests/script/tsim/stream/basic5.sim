@@ -476,4 +476,22 @@ sql connect
 
 sleep 30000
 
+sql select start_ver, checkpoint_ver from information_schema.ins_stream_tasks where level='source';
+sleep 500
+
+print sleep for 1min for checkpoint generate
+sleep 60000
+
+print ================== restart to load checkpoint from snode
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+
+system sh/exec.sh -n dnode1 -s start
+
+sleep 500
+sql connect
+
+sleep 30000
+
 sql select start_ver, checkpoint_ver from information_schema.ins_stream_tasks;
