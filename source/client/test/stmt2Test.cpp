@@ -880,75 +880,44 @@ TEST(stmt2Case, stmt2_query) {
   taos_close(taos);
 }
 
-TEST(stmt2Case, stmt2_interlace) {
+TEST(stmt2Case, stmt2_ntb_insert) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
-  do_query(taos, "drop database if exists db1");
-  do_query(taos, "create database db1");
-  do_query(taos, "create table db1.ntb(ts timestamp, b binary(10))");
-  do_query(taos, "use db1");
+  do_query(taos, "drop database if exists db");
+  do_query(taos, "create database db");
+  do_query(taos, "create table db.ntb(ts timestamp, b binary(10))");
+  do_query(taos, "use db");
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
 
-  const char* sql = "insert into db1.ntb values(?,?)";
+  const char* sql = "insert into db.ntb values(?,?)";
   int         code = taos_stmt2_prepare(stmt, sql, 0);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(terrno, 0);
+  for (int i = 0; i < 3; i++) {
+    int64_t ts[3] = {1591060628000 + i * 3, 1591060628001 + i * 3, 1591060628002 + i * 3};
+    int     t64_len[3] = {sizeof(int64_t), sizeof(int64_t), sizeof(int64_t)};
+    int     b_len[3] = {5,5,5};
 
+    TAOS_STMT2_BIND  params1 = {TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 3};
+    TAOS_STMT2_BIND  params2 = {TSDB_DATA_TYPE_BINARY, (void*)"abcdefghijklmnopqrstuvwxyz", &b_len[0], NULL, 3};
+    TAOS_STMT2_BIND* paramv1 = &params1;
+    TAOS_STMT2_BIND* paramv2 = &params2;
 
-  for (int r = 0; r < 3; r++) {
-    // col params
-    int64_t** ts = (int64_t**)taosMemoryMalloc(3 * sizeof(int64_t*));
-    char**    b = (char**)taosMemoryMalloc(3 * sizeof(char*));
-    int*      ts_len = (int*)taosMemoryMalloc(3 * sizeof(int));
-    int*      b_len = (int*)taosMemoryMalloc(3 * sizeof(int));
-    for (int i = 0; i < 3; i++) {
-      ts_len[i] = sizeof(int64_t);
-      b_len[i] = 1;
-    }
-    for (int i = 0; i < 3; i++) {
-      ts[i] = (int64_t*)taosMemoryMalloc(3 * sizeof(int64_t));
-      b[i] = (char*)taosMemoryMalloc(3 * sizeof(char));
-      for (int j = 0; j < 3; j++) {
-        ts[i][j] = 1591060628000 + r * 100000 + j;
-        b[i][j] = 'a' + j;
-      }
-    }
+    TAOS_STMT2_BINDV bindv1 = {1, NULL, NULL, &paramv1};
+    TAOS_STMT2_BINDV bindv2 = {1, NULL, NULL, &paramv2};
 
-    // bind params
-    TAOS_STMT2_BIND** paramv = (TAOS_STMT2_BIND**)taosMemoryMalloc(3 * sizeof(TAOS_STMT2_BIND*));
-
-    for (int i = 0; i < 3; i++) {
-      // create col params
-      paramv[i] = (TAOS_STMT2_BIND*)taosMemoryMalloc(2 * sizeof(TAOS_STMT2_BIND));
-      paramv[i][0] = {TSDB_DATA_TYPE_TIMESTAMP, &ts[i][0], &ts_len[0], NULL, 3};
-      paramv[i][1] = {TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, 3};
-    }
-    // bind
-    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, paramv};
-    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    taos_stmt2_bind_param(stmt, &bindv1, 0);
+    taos_stmt2_bind_param(stmt, &bindv2, 1);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(errno, 0);
 
-    // exec
     code = taos_stmt2_exec(stmt, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(errno, 0);
-
-    for (int i = 0; i < 3; i++) {
-      taosMemoryFree(paramv[i]);
-      taosMemoryFree(ts[i]);
-      taosMemoryFree(b[i]);
-    }
-    taosMemoryFree(ts);
-    taosMemoryFree(b);
-    taosMemoryFree(ts_len);
-    taosMemoryFree(b_len);
-    taosMemoryFree(paramv);
   }
-
-  checkRows(taos, "select * from db1.ntb", 9);
+  checkRows(taos, "select * from db.ntb", 9);
 
   taos_stmt2_close(stmt);
   taos_close(taos);
