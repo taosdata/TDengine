@@ -548,6 +548,7 @@ typedef struct SStreamScanInfo {
   TSKEY                  recalculateInterval;
   __compar_fn_t          comparePkColFn;
   SScanRange             curRange;
+  struct SOperatorInfo*  pRecTableScanOp;
 } SStreamScanInfo;
 
 typedef struct {
