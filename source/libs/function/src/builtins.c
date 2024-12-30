@@ -1696,6 +1696,10 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateColsFunction(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+}
+
 static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
@@ -5644,6 +5648,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "cols",
+    .translateFunc = translateColsFunction,
   },
 };
 // clang-format on

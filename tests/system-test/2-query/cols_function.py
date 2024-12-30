@@ -233,6 +233,7 @@ class TDTestCase:
         tdSql.error(f'select cols(last(ts), ts t1) tt from {self.dbname}.meters')
         tdSql.error(f'select cols(first(ts+1), c0+2 cc0, c1 cc1) cc from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+1, c0+2 as cc0) as cc from {self.dbname}.meters')
+        tdSql.error(f'select cols(ABS(c0), c1) from {self.dbname}.meters group by tbname')
         
         tdSql.error(f'select cols(last(ts)+1, ts) from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+10, c1+10) from {self.dbname}.meters group by tbname')

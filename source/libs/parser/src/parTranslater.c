@@ -1076,6 +1076,14 @@ static bool isForecastPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsForecastPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isColsFunctionResult(const SNode* pNode) {
+  return ((nodesIsExprNode(pNode)) && ((SExprNode*)pNode)->bindTupleFuncIdx > 0);
+}
+
+static bool isInvalidColsBindFunction(const SFunctionNode* pFunc) {
+  return (!fmIsSelectFunc(pFunc->funcId) && pFunc->node.tupleFuncIdx != 0);
+}
+
 #ifdef BUILD_NO_CALL
 static bool isTimelineFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsTimelineFunc(((SFunctionNode*)pNode)->funcId));
@@ -2311,7 +2319,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
 
 static EDealRes haveVectorFunction(SNode* pNode, void* pContext) {
   if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode) ||
-      isInterpPseudoColumnFunc(pNode) || isForecastPseudoColumnFunc(pNode)) {
+      isInterpPseudoColumnFunc(pNode) || isForecastPseudoColumnFunc(pNode) || isColsFunctionResult(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -3298,6 +3306,10 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
       pCxt->errCode = TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION;
     }
   }
+  if (isInvalidColsBindFunction(*pFunc)) {
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC;
+    return DEAL_RES_ERROR;
+  }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = translateFunctionImpl(pCxt, pFunc);
   }
@@ -3813,7 +3825,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   if (isVectorFunc(*pNode) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (isColsFunc(*pNode)) {
+  if (isColsFunctionResult(*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pGroupNode = NULL;
@@ -3918,10 +3930,10 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   if (isVectorFunc(*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
   }
-  if(isColsFunc(*pNode)) {
+  if(isColsFunctionResult(*pNode)) {
     pCxt->hasColFunc = true;
-    return DEAL_RES_IGNORE_CHILD;
   }
+
   SNode* pPartKey = NULL;
   bool   partionByTbname = false;
   if (fromSingleTable(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pFromTable) ||
@@ -7299,8 +7311,9 @@ static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* 
   return translateExprList(pCxt, pSelect->pProjectionList);
 }
 typedef struct SCheckColsFuncCxt {
-  bool                   hasColsFunc;
-  bool                   hasMultiColsFunc;
+  bool        hasColsFunc;
+  SNodeList** selectFuncList;
+  int32_t     status;
 } SCheckColsFuncCxt;
 
 static bool isColsFuncByName(SFunctionNode* pFunc) {
@@ -7310,26 +7323,16 @@ static bool isColsFuncByName(SFunctionNode* pFunc) {
   return true;
 }
 
-static bool isMultiColsFunc(SFunctionNode* pFunc) {
-  if (strcasecmp(pFunc->functionName, "cols") != 0) {
-    return false;
-  }
-  return pFunc->pParameterList->length > 2;
-}
-
-static EDealRes isMultiColsFuncNode(SNode** pNode, void* pContext) {
-  SCheckColsFuncCxt* pCxt = pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
-    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+static bool isMultiColsFuncNode(SNode* pNode) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (isColsFuncByName(pFunc)) {
-      pCxt->hasColsFunc = true;
       if (pFunc->pParameterList->length > 2) {
-        pCxt->hasMultiColsFunc = true;
-        return DEAL_RES_END;
+        return true;
       }
     }
   }
-  return DEAL_RES_CONTINUE;
+  return false;
 }
 
 typedef struct SBindTupleFuncCxt {
@@ -7345,16 +7348,6 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
     SFunctionNode* pFunc = (SFunctionNode*)*pNode;
   }
   return DEAL_RES_CONTINUE;
-}
-
-static void checkColsFuncInList(SNodeList* nodeList, SCheckColsFuncCxt* pCheckouColsFuncCxt) {
-  nodesRewriteExprs(nodeList, isMultiColsFuncNode, pCheckouColsFuncCxt);
-  return;
-}
-
-static void checkColsFunc(SNode** pNode, SCheckColsFuncCxt* pCheckouColsFuncCxt) {
-  nodesRewriteExpr(pNode, isMultiColsFuncNode, pCheckouColsFuncCxt);
-  return;
 }
 
 static bool invalidColsAlias(SFunctionNode* pFunc) {
@@ -7374,37 +7367,6 @@ static bool invalidColsAlias(SFunctionNode* pFunc) {
   return false;
 }
 
-static int32_t hasInvalidColsFunction(STranslateContext* pCxt, SNodeList* nodeList,
-                                      SCheckColsFuncCxt* pCheckouColsFuncCxt) {
-  SNode* pTmpNode = NULL;
-  FOREACH(pTmpNode, nodeList) {
-    if (QUERY_NODE_FUNCTION == nodeType(pTmpNode)) {
-      SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
-      if (isColsFuncByName(pFunc)) {
-        pCheckouColsFuncCxt->hasColsFunc = true;
-        if (invalidColsAlias(pFunc)) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLS_FUNCTION,
-                                         "Invalid using alias for cols function");
-        }
-      }
-      checkColsFuncInList(pFunc->pParameterList, pCheckouColsFuncCxt);
-      if (pCheckouColsFuncCxt->hasMultiColsFunc) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLS_FUNCTION,
-                                       "Invalid cols function in function %s", pFunc->functionName);
-      }
-    } else {
-      checkColsFunc(&pTmpNode, pCheckouColsFuncCxt);
-      if (pCheckouColsFuncCxt->hasMultiColsFunc) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLS_FUNCTION,
-                                       "Invalid cols function, can't be used at here");
-      }
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-
-
 static int32_t getSelectFuncIndex(SNodeList* FuncNodeList, SNode* pSelectFunc) {
   SNode* pNode = NULL;
   int32_t selectFuncIndex = 0;
@@ -7417,109 +7379,235 @@ static int32_t getSelectFuncIndex(SNodeList* FuncNodeList, SNode* pSelectFunc) {
   return 0;
 }
 
-static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList) {
-  SCheckColsFuncCxt pCheckouColsFuncCxt = {false, false};
-  int32_t           code = hasInvalidColsFunction(pCxt, *nodeList, &pCheckouColsFuncCxt);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+static EDealRes checkHasColsFunc(SNode** pNode, void* pContext){
+  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    if (isColsFuncByName(pFunc)) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
   }
-  bool needRewrite = false;
-  if (pCheckouColsFuncCxt.hasColsFunc) {
-    needRewrite = true;
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkMultColsFuncParam(SNodeList* pParameterList) {
+  if (!pParameterList || pParameterList->length < 2) {
+    return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+  }
+  int32_t index = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pParameterList) {
+    if (index == 0) {  // the first parameter is select function
+      if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+        return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+      }
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      // pFunc->funcId is zero at here, so need to check at * step 
+      // if(!fmIsSelectFunc(pFunc->funcId)) {
+      //   return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+      // }
+      SNode*         pTmpNode = NULL;
+      FOREACH(pTmpNode, pFunc->pParameterList) {
+        bool hasColsFunc = false;
+        nodesRewriteExpr(&pTmpNode, checkHasColsFunc, (void*)&hasColsFunc);
+        if (hasColsFunc) {
+          return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+        }
+      }
+    } else {
+      bool hasColsFunc = false;
+      nodesRewriteExpr(&pNode, checkHasColsFunc, &hasColsFunc);
+      if (hasColsFunc) {
+        return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+      }
+    }
+    ++index;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_FUNCTION != nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SCheckColsFuncCxt* pCxt = pContext;
+  SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+  if (isColsFuncByName(pFunc)) {
+    if(pFunc->pParameterList->length > 2) {
+      pCxt->status = TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC;
+      return DEAL_RES_ERROR;
+    }
+    SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
+    SNode*  pExpr = nodesListGetNode(pFunc->pParameterList, 1);
+    if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
+      pCxt->status = TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC;
+      parserError("Invalid cols function, the first parameter must be a select function");
+      return DEAL_RES_ERROR;
+    }
+    if (pFunc->node.asAlias) {
+      if (((SExprNode*)pExpr)->asAlias) {
+        pCxt->status = TSDB_CODE_INVALID_COLS_ALIAS;
+        parserError("Invalid using alias for cols function");
+        return DEAL_RES_ERROR;
+      } else {
+        ((SExprNode*)pExpr)->asAlias = true;
+        tstrncpy(((SExprNode*)pExpr)->userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN + TSDB_COL_NAME_EXLEN);
+      }
+    }
+    if(*pCxt->selectFuncList == NULL) {
+       nodesMakeList(pCxt->selectFuncList);
+       if (NULL == *pCxt->selectFuncList) {
+         pCxt->status = terrno;
+         return DEAL_RES_ERROR;
+       }
+    }
+    int32_t selectFuncCount = (*pCxt->selectFuncList)->length;
+    int32_t selectFuncIndex = getSelectFuncIndex(*pCxt->selectFuncList, pSelectFunc);
+    if (selectFuncIndex == 0) {
+      ++selectFuncCount;
+      selectFuncIndex = selectFuncCount;
+      SNode*  pNewNode = NULL;
+      code = nodesCloneNode(pSelectFunc, &pNewNode);
+      ((SExprNode*)pNewNode)->tupleFuncIdx = selectFuncIndex;
+      nodesListMakeStrictAppend(pCxt->selectFuncList, pNewNode);
+    }
+
+    SNode*  pNewNode = NULL;
+    code = nodesCloneNode(pExpr, &pNewNode);
+    if (nodesIsExprNode(pNewNode)) {
+      SBindTupleFuncCxt pCxt = {selectFuncIndex};
+      nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
+    } else {
+      pCxt->status = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+      parserError("Invalid cols function, the first parameter must be a select function");
+      return DEAL_RES_ERROR;
+    }
+    nodesDestroyNode(*pNode);
+    *pNode = pNewNode;
+  }
+  return DEAL_RES_CONTINUE;
+_end:
+  return code;
+}
+
+static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList, SNodeList** selectFuncList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    needRewrite = false;
+  SNode**  pNode = NULL;
+  FOREACH_FOR_REWRITE(pNode, *nodeList) {
+    if (isMultiColsFuncNode(*pNode)) {
+      code = checkMultColsFuncParam(((SFunctionNode*)*pNode)->pParameterList);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      needRewrite = true;
+    } else {
+      SCheckColsFuncCxt pSelectFuncCxt = {false, selectFuncList, TSDB_CODE_SUCCESS};
+      nodesRewriteExpr(pNode, rewriteSingleColsFunc, &pSelectFuncCxt);
+      if (pSelectFuncCxt.status != TSDB_CODE_SUCCESS) {
+        return pSelectFuncCxt.status; 
+      }
+    }
   }
 
   SNodeList* pNewNodeList = NULL;
-  SNodeList* tmpFuncNodeList = NULL;
   if (needRewrite) {
     code = nodesMakeList(&pNewNodeList);
     if (NULL == pNewNodeList) {
       return code;
     }
-    code = nodesMakeList(&tmpFuncNodeList);
-    if (NULL == tmpFuncNodeList) {
-      return code;
+    if (*selectFuncList == NULL) {
+      code = nodesMakeList(selectFuncList);
+      if (NULL == *selectFuncList) {
+        nodesDestroyList(pNewNodeList);
+        return code;
+      }
     }
-    SNode* pNewNode = NULL;
+
+    SNode*  pNewNode = NULL;
     int32_t nums = 0;
-    int32_t selectFuncCount = 0;
+    int32_t selectFuncCount = (*selectFuncList)->length;
     SNode*  pTmpNode = NULL;
     FOREACH(pTmpNode, *nodeList) {
-      if (QUERY_NODE_FUNCTION == nodeType(pTmpNode)) {
+      if (isMultiColsFuncNode(pTmpNode)) {
         SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
-        if (strcasecmp(pFunc->functionName, "cols") == 0) {
-          SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
-          if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
+        if(pFunc->node.asAlias) {
+          code = TSDB_CODE_INVALID_COLS_ALIAS;
+          parserError("Invalid using alias for cols function");
+          goto _end;
+        }
+
+        SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
+        if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
+          code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+          parserError("Invalid cols function, the first parameter must be a select function");
+          goto _end;
+        }
+        int32_t selectFuncIndex = getSelectFuncIndex(*selectFuncList, pSelectFunc);
+        if (selectFuncIndex == 0) {
+          ++selectFuncCount;
+          selectFuncIndex = selectFuncCount;
+          code = nodesCloneNode(pSelectFunc, &pNewNode);
+          ((SExprNode*)pNewNode)->tupleFuncIdx = selectFuncIndex;
+          nodesListMakeStrictAppend(selectFuncList, pNewNode);
+        }
+        // start from index 1, because the first parameter is select function which needn't to output.
+        for (int i = 1; i < pFunc->pParameterList->length; ++i) {
+          SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
+
+          code = nodesCloneNode(pExpr, &pNewNode);
+          if (nodesIsExprNode(pNewNode)) {
+            SBindTupleFuncCxt pCxt = {selectFuncIndex};
+            nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
+          } else {
             code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
             parserError("Invalid cols function, the first parameter must be a select function");
             goto _end;
           }
-          int32_t selectFuncIndex = getSelectFuncIndex(tmpFuncNodeList, pSelectFunc);
-          if (selectFuncIndex == 0) {
-            ++selectFuncCount;
-            selectFuncIndex = selectFuncCount;
-            nodesListMakeStrictAppend(&tmpFuncNodeList, pSelectFunc);
-          }
-          // start from index 1, because the first parameter is select function which needn't to output.
-          for (int i = 1; i < pFunc->pParameterList->length; ++i) {
-            SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
-
-            code = nodesCloneNode(pExpr, &pNewNode);
-            if (nodesIsExprNode(pNewNode)) {
-              SBindTupleFuncCxt pCxt = {selectFuncIndex};
-              nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
-            } else {
-              code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
-              parserError("Invalid cols function, the first parameter must be a select function");
-              goto _end;
-            }
-            if (TSDB_CODE_SUCCESS != code) goto _end;
-            code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
-            if (TSDB_CODE_SUCCESS != code) goto _end;
-          }
-          continue;
+          if (TSDB_CODE_SUCCESS != code) goto _end;
+          code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
+          if (TSDB_CODE_SUCCESS != code) goto _end;
         }
+        continue;
       }
+
       code = nodesCloneNode(pTmpNode, &pNewNode);
       if (TSDB_CODE_SUCCESS != code) goto _end;
       code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
       if (TSDB_CODE_SUCCESS != code) goto _end;
     }
-    SNode* pNode = NULL;
-    int32_t pNewSelectFuncIds = 0;
-    FOREACH(pNode, tmpFuncNodeList) {
-      ++pNewSelectFuncIds;
-      code = nodesCloneNode(pNode, &pNewNode);
-      if (TSDB_CODE_SUCCESS != code) goto _end;
-      if (nodesIsExprNode(pNewNode)) {
-        SExprNode* pExprNode = (SExprNode*)pNewNode;
-        pExprNode->tupleFuncIdx = pNewSelectFuncIds;
-      } else {
-        code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
-        parserError("Invalid cols function, the first parameter must be a select function");
-        goto _end;
-      }
-      code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
-      if (TSDB_CODE_SUCCESS != code) goto _end;
-    }
     nodesDestroyList(*nodeList);
-    nodesDestroyList(tmpFuncNodeList);
     *nodeList = pNewNodeList;
+    return TSDB_CODE_SUCCESS;
   }
-  return TSDB_CODE_SUCCESS;
-
-_end:
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyList(pNewNodeList);
-    nodesDestroyList(tmpFuncNodeList);
-  }
-  return code;
+    _end:
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pNewNodeList);
+    }
+    return code;
 }
 
 static int32_t translateColsFunction(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  int32_t code = rewriteColsFunction(pCxt, &pSelect->pProjectionList);
+  SNodeList* selectFuncList = NULL;
+  int32_t    code = rewriteColsFunction(pCxt, &pSelect->pProjectionList, &selectFuncList);
   if (code == TSDB_CODE_SUCCESS) {
-    code = rewriteColsFunction(pCxt, &pSelect->pOrderByList);
+    code = rewriteColsFunction(pCxt, &pSelect->pOrderByList, &selectFuncList);
   }
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _end;
+  }
+
+  if (selectFuncList != NULL) {
+    nodesListAppendList(pSelect->pProjectionList, selectFuncList);
+    selectFuncList = NULL;
+  }
+
+_end:
+  if (selectFuncList) {
+    nodesDestroyList(selectFuncList);
+  }
+
   return code;
 }
 
