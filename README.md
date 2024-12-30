@@ -39,11 +39,14 @@ Features:
 
 taosX uses Rust for its development. You need to install Rust and other required tools and libraries. 
 
+The software installation and script execution mentioned in this and subsequent chapters only support linux system, and will gradually support windows and mac in the future.
+
 You can complete the installation with one click by executing the following shell script:
 
 ```bash
-chmod +x setup_dev.sh
-./setup_dev.sh deploy_dev
+wget https://raw.githubusercontent.com/taosdata/TDengine/main/packaging/setup_env.sh
+chmod +x setup_env.sh
+./setup_dev.sh TDinternal # For taosX and TDinternal, the setup process is the same.
 source ~/.bashrc
 ```
 
@@ -177,7 +180,7 @@ To package taosX-agent and plugins, you can type this:
 
 ```bash
 cd packaging
-python3 release.py -ba agent
+python3 release.py -ba 1
 ```
 Check out more packaging options by `python3 release.py --help`.
 
