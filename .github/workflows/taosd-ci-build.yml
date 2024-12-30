@@ -39,9 +39,11 @@ jobs:
       - name: Build and install TDengine
         run: |
           mkdir debug && cd debug
-          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false \
-            -DBUILD_TOOLS=true -DBUILD_TEST=false \
-            -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
+          cmake .. -DBUILD_TOOLS=true \
+            -DBUILD_KEEPER=true \
+            -DBUILD_HTTP=false \
+            -DBUILD_TEST=false \
+            -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
           which taosd
