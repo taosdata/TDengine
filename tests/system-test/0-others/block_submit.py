@@ -23,6 +23,8 @@ import os
 import threading
 
 class TDTestCase:
+    updatecfgDict = {'rpcQueueMemoryAllowed':100000}
+    
     def init(self, conn, logSql, replicaVar=1):
 
         self.replicaVar = int(replicaVar)
