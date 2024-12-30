@@ -41,6 +41,12 @@ TARGET_LINK_LIBRARIES(
         PUBLIC ${TAOS_LIB}
 )
 
+ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
+TARGET_LINK_LIBRARIES(
+        stmt2Test
+        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+)
+
 TARGET_INCLUDE_DIRECTORIES(
         clientTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
@@ -62,6 +68,10 @@ IF(${TD_LINUX})
                 NAME connectOptionsTest
                 COMMAND connectOptionsTest
         )
+        add_test(
+                NAME stmt2Test
+                COMMAND stmt2Test
+        )
 ENDIF ()
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -82,6 +92,12 @@ TARGET_INCLUDE_DIRECTORIES(
 #        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 #)
 
+TARGET_INCLUDE_DIRECTORIES(
+        stmt2Test
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
 add_test(
         NAME smlTest
         COMMAND smlTest
@@ -96,4 +112,3 @@ add_test(
         NAME userOperTest
         COMMAND userOperTest
 )
-
