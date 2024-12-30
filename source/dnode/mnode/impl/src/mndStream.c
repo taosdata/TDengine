@@ -1914,6 +1914,8 @@ static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
+  mDebug("recv reset stream req, stream:%s", resetReq.name);
+
   code = mndAcquireStream(pMnode, resetReq.name, &pStream);
   if (pStream == NULL || code != 0) {
     if (resetReq.igNotExists) {
