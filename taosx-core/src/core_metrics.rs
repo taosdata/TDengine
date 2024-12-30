@@ -496,8 +496,9 @@ pub async fn init_task_metrics(
             | runners::postgres::POSTGRES_ID
             | runners::oracle::ORACLE_ID
             | runners::mssql::MSSQL_ID
-            | runners::mongodb::MONGODB_ID,
-            "taos",
+            | runners::mongodb::MONGODB_ID
+            | "local",
+            "taos" | "tmq",
         ) => {
             let metrics = try_get_metrics::<IpcMetrics>(task_id, from).await;
             if let Some(metrics) = metrics {

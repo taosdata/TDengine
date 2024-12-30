@@ -31,7 +31,7 @@ use chrono::{DateTime, Utc};
 use either::Either;
 use handling_strategy::{HandlingResult, ProcessOnAbnormal};
 use itertools::Itertools;
-use scc::HashSet;
+use scc::HashMap;
 use serde::{Deserialize, Serialize};
 use taos::{
     taos_query::{
@@ -1134,9 +1134,9 @@ impl Parser {
         let mut data = vec![];
 
         'table: for table in &self.model {
-            let archive_indices = HashSet::new();
-            let skip_indices = HashSet::new();
-            let use_current_time_indices = HashSet::new();
+            let archive_indices = HashMap::new();
+            let skip_indices = HashMap::new();
+            let use_current_time_indices = HashMap::new();
 
             // get the columns and tags
             let mut columns_indices = Vec::from_iter(0..batch.num_columns());
@@ -1205,21 +1205,29 @@ impl Parser {
                             64,
                             format!("the length of field name '{field_name}' should not exceed 64"),
                         ) {
-                        Ok(HandlingResult::Skip) => {
-                            tracing::warn!("skip the batch due to the length of field name '{field_name}' overflow");
+                        Ok((HandlingResult::Skip, err)) => {
+                            tracing::warn!("skip the batch due to {err}");
                             break 'table;
                         }
-                        Ok(HandlingResult::Archive) => {
-                            tracing::warn!("archive and skip the batch due to the length of field name '{field_name}' overflow");
+                        Ok((HandlingResult::Archive, err)) => {
+                            tracing::warn!("archive and skip the batch due to {err}");
+                            let mut err_vec = Vec::new();
+                            let mut err_timestamp_vec = Vec::new();
+                            for _ in 0..batch.num_rows() {
+                                err_vec.push(err.clone());
+                                err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
+                            }
                             archive_records(
                                 task_id,
                                 &self.global.process_on_abnormal.archive.location,
                                 batch,
-                            );
+                                err_vec,
+                                err_timestamp_vec,
+                            )?;
                             break 'table;
                         }
-                        Ok(HandlingResult::Modify(_)) => todo!(),
-                        Ok(HandlingResult::ModifyAndArchive(_)) => todo!(),
+                        Ok((HandlingResult::Modify(_), _)) => todo!(),
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => todo!(),
                         Err(e) => {
                             Err(Error::FieldNameLengthOverflowError(
                                 field_name.to_string(),
@@ -1300,19 +1308,19 @@ impl Parser {
                             .primary_timestamp_null
                             .handle("the primary timestamp should not be null".to_string())
                         {
-                            Ok(HandlingResult::Skip) => {
-                                let _ = skip_indices.insert(row);
+                            Ok((HandlingResult::Skip, err)) => {
+                                let _ = skip_indices.upsert(row, err);
                             }
-                            Ok(HandlingResult::Archive) => {
-                                let _ = skip_indices.insert(row);
-                                let _ = archive_indices.insert(row);
+                            Ok((HandlingResult::Archive, err)) => {
+                                let _ = skip_indices.upsert(row, err.clone());
+                                let _ = archive_indices.upsert(row, err);
                             }
-                            Ok(HandlingResult::Modify(_)) => {
-                                let _ = use_current_time_indices.insert(row);
+                            Ok((HandlingResult::Modify(_), err)) => {
+                                let _ = use_current_time_indices.upsert(row, err);
                             }
-                            Ok(HandlingResult::ModifyAndArchive(_)) => {
-                                let _ = use_current_time_indices.insert(row);
-                                let _ = archive_indices.insert(row);
+                            Ok((HandlingResult::ModifyAndArchive(_), err)) => {
+                                let _ = use_current_time_indices.upsert(row, err.clone());
+                                let _ = archive_indices.upsert(row, err);
                             }
                             Err(_) => {
                                 Err(Error::NullPrimaryKey(all_fields[0].name().clone()))?;
@@ -1340,15 +1348,15 @@ impl Parser {
                             .primary_timestamp_overflow
                             .handle(format!("the primary timestamp {ts} overflow"))
                         {
-                            Ok(HandlingResult::Skip) => {
-                                let _ = skip_indices.insert(row);
+                            Ok((HandlingResult::Skip, err)) => {
+                                let _ = skip_indices.upsert(row, err);
                             }
-                            Ok(HandlingResult::Archive) => {
-                                let _ = skip_indices.insert(row);
-                                let _ = archive_indices.insert(row);
+                            Ok((HandlingResult::Archive, err)) => {
+                                let _ = skip_indices.upsert(row, err.clone());
+                                let _ = archive_indices.upsert(row, err);
                             }
-                            Ok(HandlingResult::Modify(_)) => unreachable!(),
-                            Ok(HandlingResult::ModifyAndArchive(_)) => unreachable!(),
+                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                             Err(e) => {
                                 Err(Error::PrimaryTimestampOverflow(format!("{e:#}")))?;
                             }
@@ -1372,18 +1380,18 @@ impl Parser {
                         &table.name,
                         &json[row],
                     ) {
-                        Ok(HandlingResult::Skip) => {
-                            let _ = skip_indices.insert(row);
+                        Ok((HandlingResult::Skip, err)) => {
+                            let _ = skip_indices.upsert(row, err);
                             Ok((String::default(), row))
                         }
-                        Ok(HandlingResult::Archive) => {
-                            let _ = skip_indices.insert(row);
-                            let _ = archive_indices.insert(row);
+                        Ok((HandlingResult::Archive, err)) => {
+                            let _ = skip_indices.upsert(row, err.clone());
+                            let _ = archive_indices.upsert(row, err);
                             Ok((String::default(), row))
                         }
-                        Ok(HandlingResult::Modify(name)) => Ok((name, row)),
-                        Ok(HandlingResult::ModifyAndArchive(name)) => {
-                            let _ = archive_indices.insert(row);
+                        Ok((HandlingResult::Modify(name), _)) => Ok((name, row)),
+                        Ok((HandlingResult::ModifyAndArchive(name), err)) => {
+                            let _ = archive_indices.upsert(row, err);
                             Ok((name, row))
                         }
                         Err(e) => {
@@ -1398,8 +1406,12 @@ impl Parser {
             // 1. archive records
             if !archive_indices.is_empty() {
                 let mut archive_indices_vec = Vec::new();
-                archive_indices.scan(|row: &usize| {
+                let mut err_vec = Vec::new();
+                let mut err_timestamp_vec = Vec::new();
+                archive_indices.scan(|row, err| {
                     archive_indices_vec.push(*row);
+                    err_vec.push(err.clone());
+                    err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
                 });
                 let archive_batches = archive_indices_vec
                     .iter()
@@ -1410,7 +1422,9 @@ impl Parser {
                     task_id,
                     &self.global.process_on_abnormal.archive.location,
                     &archive_batch,
-                );
+                    err_vec,
+                    err_timestamp_vec,
+                )?;
             }
 
             for (name, indices) in tables {
@@ -1557,7 +1571,7 @@ fn generate_table_name(
     process_on_abnormal: ProcessOnAbnormal,
     table_name_org: &str,
     data: &serde_json::Map<String, serde_json::Value>,
-) -> anyhow::Result<HandlingResult> {
+) -> anyhow::Result<(HandlingResult, String)> {
     // generate template
     let table_name_org = table_name_org.replace("${", "{");
     let mut template = TinyTemplate::new();
@@ -1580,7 +1594,7 @@ fn generate_table_name(
                     format!("the table name '{name}' should not contain illegal characters"),
                 );
             }
-            Ok(HandlingResult::Modify(name))
+            Ok((HandlingResult::Modify(name), String::new()))
         }
         Err(e) => {
             // render table name failed
@@ -1600,9 +1614,38 @@ fn generate_table_name(
 /// - task_id: the id of task
 /// - location: the location of parquet file
 /// - batch: the record batch
-fn archive_records(task_id: i64, location: &String, batch: &RecordBatch) {
+fn archive_records(
+    task_id: i64,
+    location: &String,
+    batch: &RecordBatch,
+    err_vec: Vec<String>,
+    err_timestamp_vec: Vec<i64>,
+) -> anyhow::Result<()> {
     if batch.num_rows() > 0 {
-        match write_to_parquet_file(task_id, location, batch) {
+        // get fields and columns
+        let mut fields_vec = batch.schema().fields().to_vec();
+        let mut columns_vec = batch.columns().to_vec();
+
+        // add new fields and columns to record
+        let new_field_1 = Field::new("_taosx_error_", DataType::Utf8, false);
+        let new_field_2 = Field::new(
+            "_taosx_error_timestamp_",
+            DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+            false,
+        );
+        let new_column_1 = Arc::new(StringArray::from(err_vec));
+        let new_column_2 = Arc::new(TimestampNanosecondArray::from(err_timestamp_vec));
+
+        fields_vec.push(Arc::new(new_field_1));
+        fields_vec.push(Arc::new(new_field_2));
+        columns_vec.push(new_column_1);
+        columns_vec.push(new_column_2);
+
+        // create a new RecordBatch with the additional column
+        let new_schema = Arc::new(Schema::new(fields_vec));
+        let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
+
+        match write_to_parquet_file(task_id, location, &new_batch) {
             Ok(_) => {
                 tracing::debug!("archive records success: {} rows", batch.num_rows());
             }
@@ -1614,6 +1657,7 @@ fn archive_records(task_id: i64, location: &String, batch: &RecordBatch) {
             }
         }
     }
+    Ok(())
 }
 
 // impl TransformExt for Parser {

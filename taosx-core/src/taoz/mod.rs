@@ -1,5 +1,5 @@
 use anyhow::bail;
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local, Timelike, Utc};
 use std::io::Result as IoResult;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -91,8 +91,18 @@ impl ZFile {
 
     fn file_name(name: (&str, Option<DateTime<Utc>>, i32, u64)) -> String {
         let ts = match name.1 {
-            None => Utc::now().timestamp(),
-            Some(t) => t.timestamp(),
+            None => Utc::now()
+                .with_second(0)
+                .unwrap()
+                .with_nanosecond(0)
+                .unwrap()
+                .timestamp(),
+            Some(t) => t
+                .with_second(0)
+                .unwrap()
+                .with_nanosecond(0)
+                .unwrap()
+                .timestamp(),
         };
         format!("{}-{}-{}-{}.z", name.0, ts, name.2, name.3)
     }
@@ -427,10 +437,9 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::str::FromStr;
     use std::sync::Arc;
-
-    use super::*;
 
     #[ignore]
     #[tokio::test]

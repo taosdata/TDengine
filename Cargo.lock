@@ -918,6 +918,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
+name = "awaitgroup"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a872ceb3db05a391fbe7cf8eba07a1239b2d946eee66f9e942be9bff06206302"
+
+[[package]]
 name = "aws-lc-rs"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4323,7 +4329,7 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=7fed0be#7fed0be3a22e5cba29f0071cb4b7240d360d5e64"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -5930,6 +5936,24 @@ name = "rdkafka"
 version = "0.36.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1beea247b9a7600a81d4cc33f659ce1a77e1988323d7d2809c7ed1c21f4c316d"
+dependencies = [
+ "futures-channel",
+ "futures-util",
+ "libc",
+ "log",
+ "rdkafka-sys",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "slab",
+ "tokio",
+]
+
+[[package]]
+name = "rdkafka"
+version = "0.37.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14b52c81ac3cac39c9639b95c20452076e74b8d9a71bc6fc4d83407af2ea6fff"
 dependencies = [
  "futures-channel",
  "futures-util",
@@ -7609,7 +7633,7 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=7fed0be#7fed0be3a22e5cba29f0071cb4b7240d360d5e64"
 dependencies = [
  "async-trait",
  "bytes",
@@ -7624,7 +7648,7 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=7fed0be#7fed0be3a22e5cba29f0071cb4b7240d360d5e64"
 dependencies = [
  "anyhow",
  "derive_more 1.0.0",
@@ -7688,7 +7712,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=7fed0be#7fed0be3a22e5cba29f0071cb4b7240d360d5e64"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7698,7 +7722,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=7fed0be#7fed0be3a22e5cba29f0071cb4b7240d360d5e64"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7721,7 +7745,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=7fed0be#7fed0be3a22e5cba29f0071cb4b7240d360d5e64"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7761,7 +7785,7 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=afdfa8d#afdfa8dcb3cc0af328ba501de650dd7008afc0c0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=7fed0be#7fed0be3a22e5cba29f0071cb4b7240d360d5e64"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7952,6 +7976,7 @@ dependencies = [
  "async-backtrace",
  "async-compression",
  "async-trait",
+ "awaitgroup",
  "base64 0.21.7",
  "bigdecimal 0.4.6",
  "bit-vec",
@@ -8008,7 +8033,7 @@ dependencies = [
  "pretty_env_logger",
  "rand 0.8.5",
  "rayon",
- "rdkafka",
+ "rdkafka 0.37.0",
  "regex",
  "reqwest 0.11.27",
  "rhai",
@@ -8110,7 +8135,7 @@ dependencies = [
  "lz4",
  "rand 0.8.5",
  "rayon",
- "rdkafka",
+ "rdkafka 0.36.2",
  "rumqttc",
  "serde",
  "serde_json",

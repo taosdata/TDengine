@@ -17,15 +17,15 @@ pub enum HandlingStrategy {
 }
 
 impl HandlingStrategy {
-    pub fn handle(&self, err: String) -> anyhow::Result<HandlingResult> {
+    pub fn handle(&self, err: String) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingStrategy::Archive => {
                 tracing::info!("{err}: archive record");
-                Ok(HandlingResult::Archive)
+                Ok((HandlingResult::Archive, err))
             }
             HandlingStrategy::Skip => {
                 tracing::warn!("{err}: skip record");
-                Ok(HandlingResult::Skip)
+                Ok((HandlingResult::Skip, err))
             }
             HandlingStrategy::Break => {
                 tracing::error!("{err}: break task");
@@ -46,15 +46,15 @@ pub enum HandlingPrimaryTimestampNull {
 }
 
 impl HandlingPrimaryTimestampNull {
-    pub fn handle(&self, err: String) -> anyhow::Result<HandlingResult> {
+    pub fn handle(&self, err: String) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingPrimaryTimestampNull::Archive => {
                 tracing::info!("{err}: archive record");
-                Ok(HandlingResult::Archive)
+                Ok((HandlingResult::Archive, err))
             }
             HandlingPrimaryTimestampNull::Skip => {
                 tracing::warn!("{err}: skip record");
-                Ok(HandlingResult::Skip)
+                Ok((HandlingResult::Skip, err))
             }
             HandlingPrimaryTimestampNull::Break => {
                 tracing::error!("{err}: break task");
@@ -62,7 +62,7 @@ impl HandlingPrimaryTimestampNull {
             }
             HandlingPrimaryTimestampNull::UseCurrentTime => {
                 tracing::info!("{err}: use current time");
-                Ok(HandlingResult::Modify(String::default()))
+                Ok((HandlingResult::Modify(String::default()), err))
             }
         }
     }
@@ -85,15 +85,15 @@ impl HandlingDataOverflow {
         data: &String,
         length: usize,
         err: String,
-    ) -> anyhow::Result<HandlingResult> {
+    ) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingDataOverflow::Archive => {
                 tracing::info!("{err}: archive record");
-                Ok(HandlingResult::Archive)
+                Ok((HandlingResult::Archive, err))
             }
             HandlingDataOverflow::Skip => {
                 tracing::warn!("{err}: skip record");
-                Ok(HandlingResult::Skip)
+                Ok((HandlingResult::Skip, err))
             }
             HandlingDataOverflow::Break => {
                 tracing::error!("{err}: break task");
@@ -102,12 +102,12 @@ impl HandlingDataOverflow {
             HandlingDataOverflow::Truncate => {
                 let data_truncated = data.chars().take(length).collect();
                 tracing::warn!("{err}, truncate '{data}' to '{data_truncated}'");
-                Ok(HandlingResult::Modify(data_truncated))
+                Ok((HandlingResult::Modify(data_truncated), err))
             }
             HandlingDataOverflow::TruncateAndArchive => {
                 let data_truncated = data.chars().take(length).collect();
                 tracing::warn!("{err}, truncate '{data}' to '{data_truncated}' and archive record");
-                Ok(HandlingResult::ModifyAndArchive(data_truncated))
+                Ok((HandlingResult::ModifyAndArchive(data_truncated), err))
             }
         }
     }
@@ -124,15 +124,19 @@ pub enum HandlingTableNameContainsIllegalChar {
 }
 
 impl HandlingTableNameContainsIllegalChar {
-    pub fn handle(&self, table_name: &String, err: String) -> anyhow::Result<HandlingResult> {
+    pub fn handle(
+        &self,
+        table_name: &String,
+        err: String,
+    ) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingTableNameContainsIllegalChar::Archive => {
                 tracing::info!("{err}: archive record");
-                Ok(HandlingResult::Archive)
+                Ok((HandlingResult::Archive, err))
             }
             HandlingTableNameContainsIllegalChar::Skip => {
                 tracing::warn!("{err}: skip record");
-                Ok(HandlingResult::Skip)
+                Ok((HandlingResult::Skip, err))
             }
             HandlingTableNameContainsIllegalChar::Break => {
                 tracing::error!("{err}: break task");
@@ -146,7 +150,7 @@ impl HandlingTableNameContainsIllegalChar {
                 tracing::warn!(
                     "{err}, convert table name '{table_name}' to '{table_name_replaced}'"
                 );
-                Ok(HandlingResult::Modify(table_name_replaced))
+                Ok((HandlingResult::Modify(table_name_replaced), err))
             }
         }
     }
@@ -167,7 +171,7 @@ impl HandlingTableNameVariableMistake {
         table_name_org: &str,
         data: &serde_json::Map<String, serde_json::Value>,
         err: String,
-    ) -> anyhow::Result<HandlingResult> {
+    ) -> anyhow::Result<(HandlingResult, String)> {
         // get all variables in table name
         let re = Regex::new(r"\{(\w+)\}").unwrap();
         let variables = re
@@ -179,7 +183,7 @@ impl HandlingTableNameVariableMistake {
         match self {
             HandlingTableNameVariableMistake::Skip => {
                 tracing::warn!("{err}: skip record");
-                Ok(HandlingResult::Skip)
+                Ok((HandlingResult::Skip, err))
             }
             HandlingTableNameVariableMistake::LeaveBlank => {
                 // fill map with empty string
@@ -194,12 +198,12 @@ impl HandlingTableNameVariableMistake {
                 let mut template = TinyTemplate::new();
                 template.add_template("name", table_name_org)?;
                 match template.render("name", &data) {
-                    Ok(name) => Ok(HandlingResult::Modify(name)),
+                    Ok(name) => Ok((HandlingResult::Modify(name), err)),
                     Err(e) => {
                         tracing::error!(
                             "{err}, set to left blank, but rendering table name failed: {e:#}"
                         );
-                        Ok(HandlingResult::Modify(String::default()))
+                        Ok((HandlingResult::Modify(String::default()), err))
                     }
                 }
             }
@@ -213,12 +217,12 @@ impl HandlingTableNameVariableMistake {
                 let mut template = TinyTemplate::new();
                 template.add_template("name", table_name_org)?;
                 match template.render("name", &data) {
-                    Ok(name) => Ok(HandlingResult::Modify(name)),
+                    Ok(name) => Ok((HandlingResult::Modify(name), err)),
                     Err(e) => {
                         tracing::error!(
                             "{err}, set to replace to specified string, but rendering table name failed: {e:#}"
                         );
-                        Ok(HandlingResult::Modify(String::default()))
+                        Ok((HandlingResult::Modify(String::default()), err))
                     }
                 }
             }
@@ -237,15 +241,15 @@ pub enum HandlingFieldNameNotFound {
 }
 
 impl HandlingFieldNameNotFound {
-    pub fn handle(&self, err: String) -> anyhow::Result<HandlingResult> {
+    pub fn handle(&self, err: String) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingFieldNameNotFound::Archive => {
                 tracing::info!("{err}: archive record");
-                Ok(HandlingResult::Archive)
+                Ok((HandlingResult::Archive, err))
             }
             HandlingFieldNameNotFound::Skip => {
                 tracing::warn!("{err}: skip record");
-                Ok(HandlingResult::Skip)
+                Ok((HandlingResult::Skip, err))
             }
             HandlingFieldNameNotFound::Break => {
                 tracing::error!("{err}: break task");
@@ -253,7 +257,7 @@ impl HandlingFieldNameNotFound {
             }
             HandlingFieldNameNotFound::AddField => {
                 tracing::warn!("{err}: add field");
-                Ok(HandlingResult::Modify(String::default()))
+                Ok((HandlingResult::Modify(String::default()), err))
             }
         }
     }

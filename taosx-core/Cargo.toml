@@ -161,7 +161,7 @@ mongodb = { version = "3.0.0", features = [
   "openssl-tls",
 ] }
 
-rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "tracing"] }
+rdkafka = { version = "0.37.0", features = ["cmake-build", "ssl", "tracing"] }
 
 taoslog.workspace = true
 bitfield = { version = "0.16.1" }
@@ -173,13 +173,14 @@ parking_lot = "0.12.3"
 lz4 = "1.28.0"
 snap = "1.1.1"
 zstd = "0.13.2"
+awaitgroup = "0.7.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"
 
 [target.'cfg(not(windows))'.dependencies]
-rdkafka = { version = "0.36.2", features = [
+rdkafka = { version = "0.37.0", features = [
   "cmake-build",
   "ssl",
   "gssapi-vendored",

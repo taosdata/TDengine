@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use futures_util::TryStreamExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use taos::taos_query::tmq::VGroupId;
 use taos::*;
 use tracing::Instrument;
 
@@ -26,6 +27,8 @@ pub struct BackupConfig {
     pub stable: Option<String>,
     /// 下次执行时间
     pub upcoming: Option<DateTime<Utc>>,
+    /// 备份周期
+    pub interval: Option<Duration>,
     /// 备份点的生成方式
     pub backup_point_gen_mode: BackupPointGenMode,
     #[allow(dead_code)]
@@ -119,10 +122,6 @@ impl BackupConfig {
         }
     }
 
-    pub fn set_backup_point_gen_mode(&mut self, mode: BackupPointGenMode) {
-        self.backup_point_gen_mode = mode;
-    }
-
     pub fn to_tmq_dsn(&self) -> Dsn {
         let mut dsn = Dsn {
             subject: Some(self.topic.clone()),
@@ -131,7 +130,6 @@ impl BackupConfig {
         // 设置 group.id 为 topic
         dsn.params
             .insert("group.id".to_string(), self.topic.clone());
-        // ru guo
         if self.raw_from.get("auto.offset.reset").is_none() {
             dsn.set("auto.offset.reset", "earliest");
         }
@@ -216,6 +214,40 @@ impl BackupConfig {
 
         Ok(dir)
     }
+
+    pub async fn position(
+        &self,
+        topic: &str,
+        vg_id: VGroupId,
+    ) -> anyhow::Result<Option<(i64, i64)>> {
+        let taos = connect_taos_root(&self.raw_from).await?;
+
+        let sql = format!(
+            "SELECT `offset` FROM information_schema.ins_subscriptions WHERE topic_name = '{}' AND consumer_group = '{}' AND vgroup_id = {}",
+            topic, topic,vg_id
+        );
+        tracing::trace!("query with sql: {}", sql);
+
+        let sub: Option<String> = taos.query_one(sql).await?;
+        if sub.is_none() {
+            return Ok(None);
+        }
+        let offset = sub.unwrap();
+        if !offset.starts_with("wal") {
+            return Ok(None);
+        }
+        let loc = offset.split_once(':').unwrap().1;
+        let (current, latest) = loc
+            .split_once("/")
+            .map(|(a, b)| {
+                (
+                    a.parse::<i64>().expect("invalid wal offset"),
+                    b.parse::<i64>().expect("invalid wal offset"),
+                )
+            })
+            .ok_or_else(|| anyhow!("invalid offset {}", offset))?;
+        Ok(Some((current, latest)))
+    }
 }
 
 /// 备份点生成的方式
@@ -276,6 +308,7 @@ impl BackupConfigBuilder {
                 "select stable_name from information_schema.ins_stables where db_name = '{}'",
                 database.as_str()
             );
+            tracing::debug!("query with sql: {}", sql);
             let stables: Vec<String> = taos.query(sql).await?.deserialize().try_collect().await?;
             if !stables.contains(stable) {
                 bail!("stable `{}` not exists", stable);
@@ -284,6 +317,20 @@ impl BackupConfigBuilder {
 
         // upcoming
         let upcoming = utils::parse_datetime_in_dsn(&self.from, "upcoming")?;
+
+        // interval
+        let interval = utils::parse_duration_in_dsn(&self.from, "interval")?;
+        if let Some(interval) = interval {
+            let sql = format!("SELECT `wal_retention_period` FROM information_schema.ins_databases WHERE name = '{}'", &database);
+            tracing::debug!("query with sql: {}", sql);
+            let wal_retention_period: u64 = taos.query_one(sql).await?.unwrap();
+            if interval.as_secs() >= wal_retention_period {
+                bail!(
+                    "interval must be less than wal_retention_period: {}",
+                    wal_retention_period
+                );
+            }
+        }
 
         // backup_point_gen_mode
         let backup_point_gen_mode = BackupPointGenMode::try_from_dsn(&self.from)
@@ -325,6 +372,7 @@ impl BackupConfigBuilder {
             database,
             stable,
             upcoming,
+            interval,
             backup_point_gen_mode,
             error_retry_max,
             error_retry_interval,
@@ -364,7 +412,7 @@ impl BackupConfigBuilder {
                 match level.as_str() {
                     "fastest" => Ok(async_compression::Level::Fastest),
                     "best" => Ok(async_compression::Level::Best),
-                    "default" => Ok(async_compression::Level::Default),
+                    "default" | "balanced" => Ok(async_compression::Level::Default),
                     _ => level
                         .parse::<i32>()
                         .map_err(|err| {

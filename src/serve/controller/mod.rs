@@ -48,6 +48,7 @@ use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::runners::opc::config::csv::CsvParser;
 use taosx_core::runners::opc::config::OPCConfig;
+use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::utils::get_string_content_from_param_value;
 use taosx_core::QueryDataSourceReq;
@@ -683,10 +684,15 @@ impl TaskController {
                     std::fs::create_dir_all(dir).context("Cannot create directory for database")?;
                 }
             }
-            path.canonicalize()
-                .context("Cannot canonicalize sqlite file")?
-                .to_string_lossy()
-                .to_string()
+            if path.is_absolute() {
+                path.to_string_lossy().to_string()
+            } else {
+                std::env::current_dir()
+                    .context("Cannot get current directory")?
+                    .join(file)
+                    .to_string_lossy()
+                    .to_string()
+            }
         } else {
             sqlite.to_string()
         };
@@ -920,11 +926,13 @@ impl TaskController {
             tracing::info!("Set oneshot topic name: {}", topic);
         };
         if let Some(trigger) = task.trigger.as_ref() {
-            // 备份计划：将 upcoming 添加到 dsn 中
-            if let Some(upcoming) = trigger.upcoming {
+            // 备份计划：将 upcoming 和 interval 添加到 dsn 中
+            if let Some(upcoming) = &trigger.upcoming {
                 from.set("upcoming", upcoming.to_rfc3339().to_string());
             }
-            // TODO: 备份计划：校验 interval 要小于 WAL_RETENTION_PERIOD
+            if let Some((interval, _)) = &trigger.interval {
+                from.set("interval", interval.to_string());
+            }
         }
         let agent = if let Some(id) = task.via {
             let agent = self
@@ -945,6 +953,9 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         license::validate_task(&from, &to, Some(&self.pool)).await?;
+        if let ("tmq", "local") = (from.driver.as_str(), to.driver.as_str()) {
+            BackupConfigBuilder::new(None, &from, &to).build().await?;
+        }
 
         if task.via.is_none() {
             validate_dsn(&from).await.ok()?;

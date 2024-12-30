@@ -37,11 +37,46 @@ Features:
 
 ## 2. Prerequisites
 
-taosX uses Rust for its development. You need to install Rust and other required tools and libraries. Here is a script to install all dependencies with specified versions:
+taosX uses Rust for its development. You need to install Rust and other required tools and libraries. 
+
+You can complete the installation with one click by executing the following shell script:
+
+```bash
+chmod +x setup_dev.sh
+./setup_dev.sh deploy_dev
+source ~/.bashrc
+```
+
+Or you can step through the following steps to complete the environment installation.
+Here is a script to install all dependencies with specified versions:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash
 cargo install cargo-make toml-cli
+```
+
+If you cannot download for a long time when pulling and installing Rust, you can refer to https://rsproxy.cn/ for mirroring source configuration.
+
+```bash
+# edit ~/.zshrc or ~/.bashrc
+export RUSTUP_DIST_SERVER="https://rsproxy.cn"
+export RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
+
+# install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://rsproxy.cn/rustup-init.sh | sh
+
+# Set crates.io mirroring,export content to the file ~/.cargo/config
+[source.crates-io]
+replace-with = 'rsproxy-sparse'
+[source.rsproxy]
+registry = "https://rsproxy.cn/crates.io-index"
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+[registries.rsproxy]
+index = "https://rsproxy.cn/crates.io-index"
+[net]
+git-fetch-with-cli = true
+
 ```
 
 For UI development, you need to install Node.js. We recommend you to install [NVM](https://github.com/nvm-sh/nvm) for Node.js version manager:
@@ -49,6 +84,7 @@ For UI development, you need to install Node.js. We recommend you to install [NV
 ```bash
 # Install NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc  
 # Install Node.js
 nvm install 16
 nvm use 16
@@ -62,7 +98,7 @@ For external database sources InfluxDB and OpenTSDB, you need Java SDK and [Mave
 
 ```bash
 # In Ubuntu 22.04+
-sudo apt install openjdk-18-jdk maven
+sudo apt install openjdk-11-jdk maven
 ```
 
 For OPC-UA/OPC-DA data sources, you need [Go 1.20+](https://go.dev/doc/install):
@@ -77,11 +113,24 @@ go version
 go env
 ```
 
+
+
 ## 3. Build
+
+You can complete the build and install of taosx/agent/taos-explorer/plugins with one click by executing the following shell script:
+
+```bash
+chmod +x build_install.sh && ./build_install.sh
+```
+
+Or you can step through the following steps to complete build taosx and its plugins.
 
 Clone the code first:
 
 ```bash
+# Remember username and password of github locally
+git config --global credential.helper store
+# Clone taosx repository
 git clone --depth 1 https://github.com/taosdata/taosx.git
 ```
 
@@ -115,21 +164,22 @@ cargo make build-all-with-agent
 You need python3 environment and some packages from PyPI for packaging.
 
 ```bash
-sudo apt install python3
 pip3 install toml
 ```
 
-taosx, taos-explorer and external connectors (e.g. taosx-pi, taosx-opc) are components of TDengine Enterprise, and will be included in the TDengine Enterprise installer. taosx-agent and external connectors are included in a separate agent installer for the ease of use on the edge side.
-
-When creating the TDengine Enterprise installer, taosx, taos-explorer and external connectors are built with following command:
+To package taosX ,taos-explorer and plugins, you can type this:
 
 ```bash
-# build with enterprise docs, doc build server access is required
-python3 release.py --only_build --ver_number <version>
-
-# build without enterprise docs
-python3 release.py --only_build --ver_number <version> --build_without_docs
+cd packaging
+python3 release.py -o taosx
 ```
+To package taosX-agent and plugins, you can type this:
+
+```bash
+cd packaging
+python3 release.py -ba agent
+```
+Check out more packaging options by `python3 release.py --help`.
 
 ## 5. Installation
 
@@ -139,6 +189,8 @@ taosX is delivered along with TDengine Enterprise Edition, so you do not need to
 cargo make install-locally
 ```
 
+
+
 ## 6. Running
 
 You can run taosx and taos-explorer without installation:
@@ -147,6 +199,7 @@ You can run taosx and taos-explorer without installation:
 ./target/release/taos-explorer --help
 ./target/release/taosx --help
 ```
+Before running taosx/taos-explorer, you should install TDengine v3.0+, see the link: [Install TDengine](https://github.com/taosdata/TDinternal?tab=readme-ov-file#6-installing)
 
 After installation, you can start taosx and taos-explorer service with systemd:
 
@@ -155,11 +208,21 @@ sudo systemctl start taosx
 sudo systemctl start taos-explorer
 ```
 
-Open your web-browser to with url <http://localhost:6060> and enjoy!
+Open your web-browser to with url <http://localhost:6060> and find how to create a new agent.
+
+
+You can also run the following script to start all services, and create a default agent locally:
+
+```bash
+chmod +x start_services.sh && ./start_services.sh --agent_name=your_agent_name
+```
+
 
 ## 7. Testing
 
-Rust all the test cases is simple:
+At least 4 cores 16GB of hardware resources are required to run unit tests effectively.
+
+To run Rust all the unitest cases is simple:
 
 ```bash
 make test
@@ -181,6 +244,42 @@ To run the specific test case(s) from above list with `nextest`:
 ```bash
 cargo nextest run --workspace <case-name>
 ```
+
+
+Before executing the above command, please confirm that you have correctly remembered the username and password locally in the build step.
+
+To run the e2e test case(s), it can be completed by the following operation.
+Please note that before performing this operation, please confirm that the repository code is cloned through the HTTPS protocol. If cloned through the SSH protocol, it may cause an error in the command execution.
+
+```bash
+cd tests/e2e && poetry install
+```
+
+run all test cases under the directory ```tests/e2e```:
+
+```bash
+cd tests/e2e && cp setenv.sh.example setenv.sh && source setenv.sh && poetry run pytest -m sanity
+
+```
+More ways to run cases:
+```bash
+# activate venv, then pytest can be run directly
+poetry shell
+
+# run a single case
+pytest -sv opcua_test.py::test_sanity
+
+# run all opcua cases
+pytest -sv opcua_test.py
+
+# run cases by marker
+pytest -sv -m sanity
+
+# run case by keyword
+pytest -sv opcua_test.py -k observe
+```
+To run e2e tests, you need to deploy third-party data sources in advance and modify the tests/e2e/config/env.yaml file to configure the data source environment.
+At present, because some test cases rely on external third-party data sources, the test cases depend on the specified testing environment. We are still trying to add third-party data sources to one-click deployment.
 
 ## 8. Releasing
 
@@ -204,6 +303,8 @@ scp <agent_installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
 
 We use GitHub Actions for CI/CD workflow configuration. See [.github/workflows/pr-ci.yaml](https://github.com/taosdata/taosx/blob/main/.github/workflows/pr-ci.yaml).
 
+Due to the complexity of the data source environment, we have not yet provided a way to run CI tests locally.
+
 ## 10. Coverage
 
 We collect code coverage with `cargo-llvm-cov`:
@@ -211,9 +312,11 @@ We collect code coverage with `cargo-llvm-cov`:
 ```bash
 # Install llvm-cov
 cargo install cargo-llvm-cov
-# Collect code coverage
+# Collect code coverage for taosx unitest
 cargo llvm-cov --html --open nextest run --workspace
 ```
+
+We use GitHub Actions for testing coverage workflow configuration.See [.github/workflows/3.0-qa-ci.yaml](https://github.com/taosdata/taosx/actions/workflows/3.0-qa-ci.yaml)
 
 ## 11. Contributing
 

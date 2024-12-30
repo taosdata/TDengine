@@ -101,7 +101,7 @@ pub const METRIC_POINT_FAILS: &str = "ipc.stream.point_fails";
 pub const METRIC_WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
 pub const METRIC_WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
 
-#[instrument(skip_all, fields(ipc.target = % mask_dsn(to)))]
+#[instrument(skip_all)]
 pub async fn build_ipc(
     socket: Option<&str>,
     parser: Option<Parser>,
@@ -115,6 +115,7 @@ pub async fn build_ipc(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<(IpcHandler, std::net::SocketAddr)> {
+    tracing::info!(ipc.target = % mask_dsn(to), "build ipc listener");
     if with_agent.is_none() {
         let pool = {
             let builder = taos::TaosBuilder::from_dsn(to)?;

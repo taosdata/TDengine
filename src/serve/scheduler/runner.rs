@@ -865,6 +865,7 @@ impl TaskJob {
         };
 
         // Remove job from scheduler.
+        tracing::info!(task.id = self.task_id, job.id = %self.job_id, cause = "stopped");
         if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
             error!("remove job error: {:#}", err);
         }
@@ -910,6 +911,7 @@ impl TaskJob {
         };
 
         // Remove job from scheduler.
+        tracing::info!(task.id = self.task_id, job.id = %self.job_id, cause = "suspended");
         if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
             error!("remove job error: {:#}", err);
         }
@@ -990,6 +992,11 @@ impl TaskJob {
                                                 continue 'track;
                                             },
                                             Ok(Err(e)) => {
+                                                let err_str = format!("{e:#}");
+                                                if err_str.contains("edition: unknown") {
+                                                    tracing::info!("License validation in unknown state, continue tracking");
+                                                    continue 'track;
+                                                }
                                                 cross_validate_times += 1;
                                                 err = e;
                                                 if cross_validate_times >= 5 {
@@ -1001,11 +1008,11 @@ impl TaskJob {
                                                 continue;
                                             }
                                             Err(e) => {
-                                                tracing::warn!(error = format!("{err:#}"), "License validation tracking error");
+                                                tracing::warn!(error = format!("{e:#}"), "License validation tracking error");
                                             }
                                         }
                                     }
-                                    license_tracker_global.send_task_activity(Activity::suspending_with(task_id, format!("License error: {:#}", err)));
+                                    license_tracker_global.send_task_activity(Activity::suspending_with(task_id, format!("{err:#}")));
                                     license_tracker_state.operator.suspend();
                                     license_tracker_cancellation_token.cancel();
                                     break true;
@@ -1024,7 +1031,7 @@ impl TaskJob {
 
         if let Some(agent_id) = opts.task.via {
             // let task_name = self.task.task.name.clone();
-            tokio::spawn(async move {
+            let future = async move {
                 #[derive(Debug)]
                 enum AgentTaskState {
                     Stopped,
@@ -1471,7 +1478,8 @@ impl TaskJob {
                         tracing::warn!("agent activities listener error: {:#}", err);
                     }
                 }
-            }.in_current_span());
+            };
+            tokio::spawn(future.in_current_span());
         } else {
             tokio::spawn(
                 async move {
@@ -1525,6 +1533,9 @@ impl TaskJob {
                                 last_state.write().await.replace(LastState::Error(err));
                             }
                         }
+                        if should_stop {
+                            tracing::info!(should_stop, ?stop_condition, ?opts, "stop condition reached");
+                        }
                         should_stop
                     };
 
@@ -1545,6 +1556,7 @@ impl TaskJob {
 
                     let _ = span.enter();
                     let mut should_stop = tokio::select! {
+                        biased;
                         result = &mut future => {
                             if opts.cancellation.is_cancelled() {
                                 tracing::info!("task cancelled");
@@ -1561,21 +1573,6 @@ impl TaskJob {
                             (&mut future).await;
                             true
                         }
-                        // track = license_tracker_task => {
-                        //     if let Ok(license_suspend) = track {
-                        //         if license_suspend {
-                        //             opts.last_state.write().await.replace(LastState::Stopped);
-                        //             global.send_task_activity(TaskActivity::stop(opts.task.id));
-                        //             (&mut future).await;
-                        //         } else {
-                        //             opts.last_state.write().await.replace(LastState::Stopped);
-                        //         }
-                        //         true
-                        //     } else {
-                        //         opts.last_state.write().await.replace(LastState::Stopped);
-                        //         false
-                        //     }
-                        // }
                     };
 
                     if !should_stop {
@@ -1622,6 +1619,7 @@ impl TaskJob {
                                 ));
                                 opts.state.write().await.fail(err);
                             } else {
+                                tracing::info!(?opts.schedule, ?opts.stop_condition, "task interrupted: {:#}", err);
                                 global.send_task_activity(Activity::interrupted(
                                     opts.task.id,
                                     format!("{err:#}"),
@@ -1649,6 +1647,7 @@ impl TaskJob {
             Ok(should_stop) => {
                 tracing::info!(should_stop, elapsed = ?instant.elapsed(), "Spawned task is finished");
                 if should_stop {
+                    tracing::info!(should_stop, task.id = self.task.task.id, job.id = %self.job_id, cause = "strategy stop");
                     if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
                         error!("remove job error: {:#}", err);
                     }
@@ -1672,7 +1671,7 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
         return;
     }
     if task.stop_condition.should_stop() {
-        tracing::error!("stop condition reached");
+        tracing::error!(job.id = %jid, "stop condition reached");
         if let Err(err) = global_state.scheduler.remove(&jid).await {
             error!("remove job error: {:#}", err);
         }
