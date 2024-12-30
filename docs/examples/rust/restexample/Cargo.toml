@@ -9,5 +9,5 @@ chrono = "0.4"
 log = "0.4"
 pretty_env_logger = "0.5.0"
 serde = { version = "1", features = ["derive"] }
-taos = "*"
+taos = { git = "https://github.com/taosdata/taos-connector-rust.git", tag = "ver-3.3.5.0" }
 tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
