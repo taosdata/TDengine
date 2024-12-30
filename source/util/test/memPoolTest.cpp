@@ -24,31 +24,30 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
-
 #ifdef WINDOWS
 #define TD_USE_WINSOCK
 #endif
 
 #include "os.h"
 
-#include "thash.h"
-#include "theap.h"
+#include "../inc/tmempoolInt.h"
+#include "stub.h"
 #include "taos.h"
 #include "tdef.h"
-#include "tvariant.h"
-#include "stub.h"
-#include "../inc/tmempoolInt.h"
 #include "tglobal.h"
+#include "thash.h"
+#include "theap.h"
+#include "tvariant.h"
 
 namespace {
 
-#define MPT_PRINTF(param, ...) (void)printf("[%" PRId64 ",%" PRId64 "] " param, mptCaseLoop, mptExecLoop, __VA_ARGS__)
+#define MPT_PRINTF(param, ...)  (void)printf("[%" PRId64 ",%" PRId64 "] " param, mptCaseLoop, mptExecLoop, __VA_ARGS__)
 #define MPT_EPRINTF(param, ...) (void)printf(param, __VA_ARGS__)
 
-#define MPT_MAX_MEM_ACT_TIMES 300
-#define MPT_MAX_SESSION_NUM 100
-#define MPT_MAX_JOB_NUM     100
-#define MPT_MAX_THREAD_NUM  100
+#define MPT_MAX_MEM_ACT_TIMES  300
+#define MPT_MAX_SESSION_NUM    100
+#define MPT_MAX_JOB_NUM        100
+#define MPT_MAX_THREAD_NUM     100
 #define MPT_MAX_JOB_LOOP_TIMES 100
 
 #define MPT_DEFAULT_RESERVE_MEM_PERCENT 20
@@ -67,46 +66,74 @@ enum {
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
-
-
-threadlocal void* mptThreadPoolHandle = NULL;
-threadlocal void* mptThreadPoolSession = NULL;
+threadlocal void*   mptThreadPoolHandle = NULL;
+threadlocal void*   mptThreadPoolSession = NULL;
 threadlocal int32_t mptJobNum = 0;
 threadlocal int32_t mptExecNum = 0;
 threadlocal int32_t mptExecLoop = 0;
 threadlocal int64_t mptCaseLoop = 0;
 
+#define MPT_SET_TEID(id, tId, eId)                   \
+  do {                                               \
+    *(uint64_t*)(id) = (tId);                        \
+    *(uint32_t*)((char*)(id) + sizeof(tId)) = (eId); \
+  } while (0)
 
+#define MPT_SET_QCID(id, qId, cId)                   \
+  do {                                               \
+    *(uint64_t*)(id) = (qId);                        \
+    *(uint64_t*)((char*)(id) + sizeof(qId)) = (cId); \
+  } while (0)
 
-
-
-#define MPT_SET_TEID(id, tId, eId)                              \
-    do {                                                              \
-      *(uint64_t *)(id) = (tId);                                      \
-      *(uint32_t *)((char *)(id) + sizeof(tId)) = (eId);              \
-    } while (0)
-
-#define MPT_SET_QCID(id, qId, cId)                                                 \
-      do {                                                                            \
-        *(uint64_t *)(id) = (qId);                                                    \
-        *(uint64_t *)((char *)(id) + sizeof(qId)) = (cId);                            \
-      } while (0)
-
-
-#define mptEnableMemoryPoolUsage(_pool, _session) do { mptThreadPoolHandle = _pool; mptThreadPoolSession = _session; } while (0) 
-#define mptDisableMemoryPoolUsage() (mptThreadPoolHandle = NULL, mptThreadPoolSession = NULL) 
-#define mptSaveDisableMemoryPoolUsage(_handle) do { (_handle) = mptThreadPoolHandle; mptThreadPoolHandle = NULL; } while (0)
+#define mptEnableMemoryPoolUsage(_pool, _session) \
+  do {                                            \
+    mptThreadPoolHandle = _pool;                  \
+    mptThreadPoolSession = _session;              \
+  } while (0)
+#define mptDisableMemoryPoolUsage() (mptThreadPoolHandle = NULL, mptThreadPoolSession = NULL)
+#define mptSaveDisableMemoryPoolUsage(_handle) \
+  do {                                         \
+    (_handle) = mptThreadPoolHandle;           \
+    mptThreadPoolHandle = NULL;                \
+  } while (0)
 #define mptRestoreEnableMemoryPoolUsage(_handle) (mptThreadPoolHandle = (_handle))
 
-#define mptMemoryMalloc(_size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolMalloc(mptThreadPoolHandle, mptThreadPoolSession, _size, __FILE__, __LINE__)) : (taosMemMalloc(_size)))
-#define mptMemoryCalloc(_num, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolCalloc(mptThreadPoolHandle, mptThreadPoolSession, _num, _size, __FILE__, __LINE__)) : (taosMemCalloc(_num, _size)))
-#define mptMemoryRealloc(_ptr, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolRealloc(mptThreadPoolHandle, mptThreadPoolSession, _ptr, _size, __FILE__, __LINE__)) : (taosMemRealloc(_ptr, _size)))
-#define mptStrdup(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolStrdup(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosStrdupi(_ptr)))
-#define mptStrndup(_ptr, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolStrndup(mptThreadPoolHandle, mptThreadPoolSession, _ptr, _size, (char*)__FILE__, __LINE__)) : (taosStrndupi(_ptr, _size)))
-#define mptMemoryFree(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolFree(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosMemFree(_ptr)))
-#define mptMemorySize(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolGetMemorySize(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosMemSize(_ptr)))
-#define mptMemoryTrim(_size, _trimed) ((NULL != mptThreadPoolHandle) ? (taosMemPoolTrim(mptThreadPoolHandle, mptThreadPoolSession, _size, __FILE__, __LINE__, _trimed)) : (taosMemTrim(_size, _trimed)))
-#define mptMemoryMallocAlign(_alignment, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolMallocAlign(mptThreadPoolHandle, mptThreadPoolSession, _alignment, _size, __FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
+#define mptMemoryMalloc(_size)                                                                     \
+  ((NULL != mptThreadPoolHandle)                                                                   \
+       ? (taosMemPoolMalloc(mptThreadPoolHandle, mptThreadPoolSession, _size, __FILE__, __LINE__)) \
+       : (taosMemMalloc(_size)))
+#define mptMemoryCalloc(_num, _size)                                                                     \
+  ((NULL != mptThreadPoolHandle)                                                                         \
+       ? (taosMemPoolCalloc(mptThreadPoolHandle, mptThreadPoolSession, _num, _size, __FILE__, __LINE__)) \
+       : (taosMemCalloc(_num, _size)))
+#define mptMemoryRealloc(_ptr, _size)                                                                     \
+  ((NULL != mptThreadPoolHandle)                                                                          \
+       ? (taosMemPoolRealloc(mptThreadPoolHandle, mptThreadPoolSession, _ptr, _size, __FILE__, __LINE__)) \
+       : (taosMemRealloc(_ptr, _size)))
+#define mptStrdup(_ptr)                                                                           \
+  ((NULL != mptThreadPoolHandle)                                                                  \
+       ? (taosMemPoolStrdup(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) \
+       : (taosStrdupi(_ptr)))
+#define mptStrndup(_ptr, _size)                                                                                  \
+  ((NULL != mptThreadPoolHandle)                                                                                 \
+       ? (taosMemPoolStrndup(mptThreadPoolHandle, mptThreadPoolSession, _ptr, _size, (char*)__FILE__, __LINE__)) \
+       : (taosStrndupi(_ptr, _size)))
+#define mptMemoryFree(_ptr)                                                                     \
+  ((NULL != mptThreadPoolHandle)                                                                \
+       ? (taosMemPoolFree(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) \
+       : (taosMemFree(_ptr)))
+#define mptMemorySize(_ptr)                                                                              \
+  ((NULL != mptThreadPoolHandle)                                                                         \
+       ? (taosMemPoolGetMemorySize(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) \
+       : (taosMemSize(_ptr)))
+#define mptMemoryTrim(_size, _trimed)                                                                     \
+  ((NULL != mptThreadPoolHandle)                                                                          \
+       ? (taosMemPoolTrim(mptThreadPoolHandle, mptThreadPoolSession, _size, __FILE__, __LINE__, _trimed)) \
+       : (taosMemTrim(_size, _trimed)))
+#define mptMemoryMallocAlign(_alignment, _size)                                                                     \
+  ((NULL != mptThreadPoolHandle)                                                                                    \
+       ? (taosMemPoolMallocAlign(mptThreadPoolHandle, mptThreadPoolSession, _alignment, _size, __FILE__, __LINE__)) \
+       : (taosMemMallocAlign(_alignment, _size)))
 
 enum {
   MPT_SMALL_MSIZE = 0,
@@ -122,17 +149,16 @@ typedef struct {
 } SMPTCaseParam;
 
 typedef struct SMPTJobInfo {
-  int8_t              retired;
-  int32_t             errCode;
-  SMemPoolJob*        memInfo;
-  void*               pCtx;
+  int8_t       retired;
+  int32_t      errCode;
+  SMemPoolJob* memInfo;
+  void*        pCtx;
 
-  SRWLatch            lock;
-  int8_t              destroyed;
-  SHashObj*           pSessions;
-  int8_t              initDone;
+  SRWLatch  lock;
+  int8_t    destroyed;
+  SHashObj* pSessions;
+  int8_t    initDone;
 } SMPTJobInfo;
-
 
 typedef struct {
   int32_t taskActTimes;
@@ -144,7 +170,7 @@ typedef struct {
   bool    printExecDetail;
   bool    printInputRow;
 
-  bool    lockDbg;
+  bool lockDbg;
 } SMPTestCtrl;
 
 typedef struct {
@@ -153,15 +179,15 @@ typedef struct {
 } SMPTestMemInfo;
 
 typedef struct {
-  uint64_t  taskId;
-  SRWLatch  taskExecLock;
-  bool      destoryed;
-  
+  uint64_t taskId;
+  SRWLatch taskExecLock;
+  bool     destoryed;
+
   int64_t poolMaxUsedSize;
   int64_t poolTotalUsedSize;
 
-  SMPStatDetail   stat;
-  
+  SMPStatDetail stat;
+
   int32_t         memIdx;
   SMPTestMemInfo* pMemList;
 
@@ -170,7 +196,7 @@ typedef struct {
 } SMPTestTaskCtx;
 
 typedef struct {
-  SRWLatch       jobExecLock;
+  SRWLatch jobExecLock;
 
   int32_t        jobIdx;
   int64_t        jobId;
@@ -179,25 +205,25 @@ typedef struct {
   int32_t        taskNum;
   SMPTestTaskCtx taskCtxs[MPT_MAX_SESSION_NUM];
 
-  int32_t        taskRunningNum;
-  SMPTJobInfo*   pJob;
-  int32_t        jobStatus;
+  int32_t      taskRunningNum;
+  SMPTJobInfo* pJob;
+  int32_t      jobStatus;
 } SMPTestJobCtx;
 
 typedef struct {
-  int32_t        jobQuota;
-  bool           enableMemPool;
-  bool           reserveMode;
-  int64_t        upperLimitSize;
-  int32_t        reserveSize;          //MB
-  int32_t        threadNum;
-  int32_t        randTask;
+  int32_t jobQuota;
+  bool    enableMemPool;
+  bool    reserveMode;
+  int64_t upperLimitSize;
+  int32_t reserveSize;  // MB
+  int32_t threadNum;
+  int32_t randTask;
 } SMPTestParam;
 
 typedef struct {
-  int64_t        initNum;
-  int64_t        retireNum;
-  int64_t        destoryNum;
+  int64_t initNum;
+  int64_t retireNum;
+  int64_t destoryNum;
 } SMPTestJobStat;
 
 typedef struct {
@@ -221,136 +247,133 @@ typedef struct SMPTestCtx {
   SMPTestParam   param;
   SMPTestJobStat runStat;
 
-  SRWLatch       stringLock;
-  char*          pSrcString;
+  SRWLatch stringLock;
+  char*    pSrcString;
 
-  bool           initDone;
-  int8_t         testDone;
-  int64_t        jobLoop;
+  bool    initDone;
+  int8_t  testDone;
+  int64_t jobLoop;
 
   int32_t         npIdx;
   SMPTestMemInfo* npMemList;
 } SMPTestCtx;
 
-SMPTestCtx mptCtx = {0};
+SMPTestCtx  mptCtx = {0};
 SMPTestCtrl mptCtrl = {0};
 
-static int32_t MPT_TRY_LOCK(int32_t type, SRWLatch *_lock) {
+static int32_t MPT_TRY_LOCK(int32_t type, SRWLatch* _lock) {
   int32_t code = -1;
-  
-  if (MPT_READ == (type)) {     
+
+  if (MPT_READ == (type)) {
     if (mptCtrl.lockDbg) {
-      if (atomic_load_32((_lock)) < 0) {                  
-        uError("invalid lock value before try read lock");                          
-        return -1;                                                               
-      }                                                                      
-      uDebug("MPT TRY RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
+      if (atomic_load_32((_lock)) < 0) {
+        uError("invalid lock value before try read lock");
+        return -1;
+      }
+      uDebug("MPT TRY RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);
     }
-    code = taosRTryLockLatch(_lock);                                                               
+    code = taosRTryLockLatch(_lock);
     if (mptCtrl.lockDbg) {
       uDebug("MPT TRY RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);
-      if (atomic_load_32((_lock)) <= 0) {                                               
-        uError("invalid lock value after try read lock");                           
-        return -1;                                                                               
-      }                                                                                        
+      if (atomic_load_32((_lock)) <= 0) {
+        uError("invalid lock value after try read lock");
+        return -1;
+      }
     }
-  } else {                                                                                   
+  } else {
     if (mptCtrl.lockDbg) {
-      if (atomic_load_32((_lock)) < 0) {                                                      
-        uError("invalid lock value before try write lock");                                 
-        return -1;                                                               
-      }                                                                                           
-      uDebug("MPT TRY WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
+      if (atomic_load_32((_lock)) < 0) {
+        uError("invalid lock value before try write lock");
+        return -1;
+      }
+      uDebug("MPT TRY WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);
     }
-    code = taosWTryLockLatch(_lock);                                                                   
+    code = taosWTryLockLatch(_lock);
     if (mptCtrl.lockDbg) {
-      uDebug("MPT TRY WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
-      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                        
-        uError("invalid lock value after try write lock");                          
-        return -1;                                                               
-      }    
+      uDebug("MPT TRY WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {
+        uError("invalid lock value after try write lock");
+        return -1;
+      }
     }
-  }                                                                          
+  }
 
   return code;
 }
 
-#define MPT_LOCK(type, _lock)                                                                       \
-  do {                                                                                             \
-    if (MPT_READ == (type)) {                                                                       \
-      if (mptCtrl.lockDbg) {                                                                        \
-        if (atomic_load_32((_lock)) < 0) {                                                           \
-          uError("invalid lock value before read lock");                                             \
-          break;                                                                                     \
-        }                                                                                            \
+#define MPT_LOCK(type, _lock)                                                                  \
+  do {                                                                                         \
+    if (MPT_READ == (type)) {                                                                  \
+      if (mptCtrl.lockDbg) {                                                                   \
+        if (atomic_load_32((_lock)) < 0) {                                                     \
+          uError("invalid lock value before read lock");                                       \
+          break;                                                                               \
+        }                                                                                      \
         uDebug("MPT RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      }                                                                                           \
-      taosRLockLatch(_lock);                                                                       \
-      if (mptCtrl.lockDbg) {                                                                        \
+      }                                                                                        \
+      taosRLockLatch(_lock);                                                                   \
+      if (mptCtrl.lockDbg) {                                                                   \
         uDebug("MPT RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-        if (atomic_load_32((_lock)) <= 0) {                                                          \
-          uError("invalid lock value after read lock");                                              \
-          break;                                                                                     \
-        }                                                                                            \
-      }                                                                                           \
-    } else {                                                                                       \
-      if (mptCtrl.lockDbg) {                                                                        \
-        if (atomic_load_32((_lock)) < 0) {                                                           \
-          uError("invalid lock value before write lock");                                            \
-          break;                                                                                     \
-        }                                                                                            \
+        if (atomic_load_32((_lock)) <= 0) {                                                    \
+          uError("invalid lock value after read lock");                                        \
+          break;                                                                               \
+        }                                                                                      \
+      }                                                                                        \
+    } else {                                                                                   \
+      if (mptCtrl.lockDbg) {                                                                   \
+        if (atomic_load_32((_lock)) < 0) {                                                     \
+          uError("invalid lock value before write lock");                                      \
+          break;                                                                               \
+        }                                                                                      \
         uDebug("MPT WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      }                                                                                           \
-      taosWLockLatch(_lock);                                                                       \
-      if (mptCtrl.lockDbg) {                                                                        \
+      }                                                                                        \
+      taosWLockLatch(_lock);                                                                   \
+      if (mptCtrl.lockDbg) {                                                                   \
         uDebug("MPT WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-        if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                 \
-          uError("invalid lock value after write lock");                                             \
-          break;                                                                                     \
-        }                                                                                            \
-      }                                                                                           \
-    }                                                                                              \
+        if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                           \
+          uError("invalid lock value after write lock");                                       \
+          break;                                                                               \
+        }                                                                                      \
+      }                                                                                        \
+    }                                                                                          \
   } while (0)
 
-#define MPT_UNLOCK(type, _lock)                                                                      \
-  do {                                                                                              \
-    if (MPT_READ == (type)) {                                                                        \
-      if (mptCtrl.lockDbg) {                                                                        \
-        if (atomic_load_32((_lock)) <= 0) {                                                           \
-          uError("invalid lock value before read unlock");                                            \
-          break;                                                                                      \
-        }                                                                                             \
+#define MPT_UNLOCK(type, _lock)                                                                 \
+  do {                                                                                          \
+    if (MPT_READ == (type)) {                                                                   \
+      if (mptCtrl.lockDbg) {                                                                    \
+        if (atomic_load_32((_lock)) <= 0) {                                                     \
+          uError("invalid lock value before read unlock");                                      \
+          break;                                                                                \
+        }                                                                                       \
         uDebug("MPT RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      }                                                                                           \
-      taosRUnLockLatch(_lock);                                                                      \
-      if (mptCtrl.lockDbg) {                                                                        \
+      }                                                                                         \
+      taosRUnLockLatch(_lock);                                                                  \
+      if (mptCtrl.lockDbg) {                                                                    \
         uDebug("MPT RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-        if (atomic_load_32((_lock)) < 0) {                                                            \
-          uError("invalid lock value after read unlock");                                             \
-          break;                                                                                      \
-        }                                                                                             \
-      }                                                                                           \
-    } else {                                                                                        \
-      if (mptCtrl.lockDbg) {                                                                        \
-        if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                  \
-          uError("invalid lock value before write unlock");                                           \
-          break;                                                                                      \
-        }                                                                                             \
+        if (atomic_load_32((_lock)) < 0) {                                                      \
+          uError("invalid lock value after read unlock");                                       \
+          break;                                                                                \
+        }                                                                                       \
+      }                                                                                         \
+    } else {                                                                                    \
+      if (mptCtrl.lockDbg) {                                                                    \
+        if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                            \
+          uError("invalid lock value before write unlock");                                     \
+          break;                                                                                \
+        }                                                                                       \
         uDebug("MPT WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      }                                                                                           \
-      taosWUnLockLatch(_lock);                                                                      \
-      if (mptCtrl.lockDbg) {                                                                        \
+      }                                                                                         \
+      taosWUnLockLatch(_lock);                                                                  \
+      if (mptCtrl.lockDbg) {                                                                    \
         uDebug("MPT WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-        if (atomic_load_32((_lock)) < 0) {                                                            \
-          uError("invalid lock value after write unlock");                                            \
-          break;                                                                                      \
-        }                                                                                             \
-      }                                                                                           \
-    }                                                                                               \
+        if (atomic_load_32((_lock)) < 0) {                                                      \
+          uError("invalid lock value after write unlock");                                      \
+          break;                                                                                \
+        }                                                                                       \
+      }                                                                                         \
+    }                                                                                           \
   } while (0)
-
-
-
 
 #if 0
 void joinTestReplaceRetrieveFp() {
@@ -378,7 +401,7 @@ void joinTestReplaceRetrieveFp() {
 #endif
 
 void mptInitLogFile() {
-  const char   *defaultLogFileNamePrefix = "mplog";
+  const char*   defaultLogFileNamePrefix = "mplog";
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
@@ -400,7 +423,7 @@ static bool mptJobMemSizeCompFn(void* l, void* r, void* param) {
   if (atomic_load_8(&right->retired)) {
     return true;
   }
-  
+
   return atomic_load_64(&right->memInfo->allocMemSize) < atomic_load_64(&left->memInfo->allocMemSize);
 }
 
@@ -409,14 +432,12 @@ void mptDeleteJobQueueData(void* pData) {
   taosHashRelease(mptCtx.pJobs, pJob);
 }
 
-
 void mptDestroyJobInfo(void* job) {
   SMPTJobInfo* pJob = (SMPTJobInfo*)job;
 
   taosMemFree(pJob->memInfo);
   taosHashCleanup(pJob->pSessions);
 }
-
 
 void mptWriteMem(void* pStart, int64_t size) {
   char* pEnd = (char*)pStart + size - 1;
@@ -427,11 +448,10 @@ void mptWriteMem(void* pStart, int64_t size) {
   }
 }
 
-
 void mptInit() {
   osDefaultInit();
   mptInitLogFile();
-  
+
   mptCtrl.caseLoopTimes = 100000;
   mptCtrl.taskActTimes = 0;
   mptCtrl.maxSingleAllocSize = 104857600 * 5;
@@ -448,17 +468,16 @@ void mptInit() {
   ASSERT_TRUE(NULL != mptCtx.pJobQueue);
   mptCtx.jobCtxs = (SMPTestJobCtx*)taosMemoryCalloc(MPT_MAX_JOB_NUM, sizeof(*mptCtx.jobCtxs));
   ASSERT_TRUE(NULL != mptCtx.jobCtxs);
-  
+
   mptCtx.pSrcString = (char*)taosMemoryMalloc(mptCtrl.maxSingleAllocSize);
   ASSERT_TRUE(NULL != mptCtx.pSrcString);
   memset(mptCtx.pSrcString, 'P', mptCtrl.maxSingleAllocSize - 1);
   mptCtx.pSrcString[mptCtrl.maxSingleAllocSize - 1] = 0;
-
 }
 
 void mptDestroySession(uint64_t qId, int64_t tId, int32_t eId, int32_t taskIdx, SMPTestJobCtx* pJobCtx, void* session) {
-  SMPTJobInfo *pJobInfo = pJobCtx->pJob;
-  char id[sizeof(tId) + sizeof(eId) + 1] = {0};
+  SMPTJobInfo* pJobInfo = pJobCtx->pJob;
+  char         id[sizeof(tId) + sizeof(eId) + 1] = {0};
   MPT_SET_TEID(id, tId, eId);
   int32_t remainSessions = atomic_sub_fetch_32(&pJobInfo->memInfo->remainSession, 1);
 
@@ -473,7 +492,7 @@ void mptDestroySession(uint64_t qId, int64_t tId, int32_t eId, int32_t taskIdx, 
       uDebug("JOB:0x%x idx:%d destroyed, code:0x%x", pJobCtx->jobId, pJobCtx->jobIdx, pJobInfo->errCode);
 
       atomic_add_fetch_64(&mptCtx.runStat.destoryNum, 1);
-      
+
       (void)taosHashRemove(mptCtx.pJobs, &qId, sizeof(qId));
 
       pJobCtx->pJob = NULL;
@@ -482,39 +501,38 @@ void mptDestroySession(uint64_t qId, int64_t tId, int32_t eId, int32_t taskIdx, 
   }
 }
 
-
 void mptDestroyTaskCtx(SMPTestJobCtx* pJobCtx, int32_t taskIdx) {
   assert(gMemPoolHandle);
 
   SMPTestTaskCtx* pTask = &pJobCtx->taskCtxs[taskIdx];
 
   if (mptCtx.param.enableMemPool) {
-    mptEnableMemoryPoolUsage(gMemPoolHandle, pJobCtx->pSessions[taskIdx]);  
+    mptEnableMemoryPoolUsage(gMemPoolHandle, pJobCtx->pSessions[taskIdx]);
   }
-  
+
   for (int32_t i = 0; i < pTask->memIdx; ++i) {
     pTask->stat.times.memFree.exec++;
-    pTask->stat.bytes.memFree.exec+=mptMemorySize(pTask->pMemList[i].p);        
-    pTask->stat.bytes.memFree.succ+=mptMemorySize(pTask->pMemList[i].p);        
+    pTask->stat.bytes.memFree.exec += mptMemorySize(pTask->pMemList[i].p);
+    pTask->stat.bytes.memFree.succ += mptMemorySize(pTask->pMemList[i].p);
     mptMemoryFree(pTask->pMemList[i].p);
     pTask->pMemList[i].p = NULL;
   }
-  
+
   if (mptCtx.param.enableMemPool) {
     mptDisableMemoryPoolUsage();
   }
-  
-  mptDestroySession(pJobCtx->jobId, pJobCtx->taskCtxs[taskIdx].taskId, 0, taskIdx, pJobCtx, pJobCtx->pSessions[taskIdx]);
+
+  mptDestroySession(pJobCtx->jobId, pJobCtx->taskCtxs[taskIdx].taskId, 0, taskIdx, pJobCtx,
+                    pJobCtx->pSessions[taskIdx]);
   pJobCtx->pSessions[taskIdx] = NULL;
-  
+
   taosMemFreeClear(pTask->pMemList);
 
   pTask->destoryed = true;
 }
 
-
 int32_t mptInitJobInfo(uint64_t qId, SMPTJobInfo* pJob) {
-  pJob->pSessions= taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  pJob->pSessions = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == pJob->pSessions) {
     uError("fail to init session hash, code: 0x%x", terrno);
     return terrno;
@@ -530,11 +548,10 @@ int32_t mptInitJobInfo(uint64_t qId, SMPTJobInfo* pJob) {
   return code;
 }
 
-
 int32_t mptInitSession(uint64_t qId, uint64_t tId, int32_t eId, SMPTestJobCtx* pJobCtx, void** ppSession) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SMPTJobInfo* pJob = NULL;
-  
+
   while (true) {
     pJob = (SMPTJobInfo*)taosHashAcquire(mptCtx.pJobs, &qId, sizeof(qId));
     if (NULL == pJob) {
@@ -543,7 +560,7 @@ int32_t mptInitSession(uint64_t qId, uint64_t tId, int32_t eId, SMPTestJobCtx* p
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
-      
+
       code = taosHashPut(mptCtx.pJobs, &qId, sizeof(qId), &jobInfo, sizeof(jobInfo));
       if (TSDB_CODE_SUCCESS != code) {
         mptDestroyJobInfo(&jobInfo);
@@ -551,7 +568,7 @@ int32_t mptInitSession(uint64_t qId, uint64_t tId, int32_t eId, SMPTestJobCtx* p
           code = TSDB_CODE_SUCCESS;
           continue;
         }
-        
+
         return code;
       }
 
@@ -588,18 +605,17 @@ _return:
   return code;
 }
 
-
-
 void mptInitTask(int32_t idx, int32_t eId, SMPTestJobCtx* pJob) {
   pJob->taskCtxs[idx].taskId = atomic_add_fetch_64(&mptCtx.tId, 1);
 
   ASSERT_TRUE(0 == mptInitSession(pJob->jobId, pJob->taskCtxs[idx].taskId, eId, pJob, &pJob->pSessions[idx]));
 
-  pJob->taskCtxs[idx].pMemList = (SMPTestMemInfo*)taosMemoryCalloc(MPT_MAX_MEM_ACT_TIMES, sizeof(*pJob->taskCtxs[idx].pMemList));
+  pJob->taskCtxs[idx].pMemList =
+      (SMPTestMemInfo*)taosMemoryCalloc(MPT_MAX_MEM_ACT_TIMES, sizeof(*pJob->taskCtxs[idx].pMemList));
   ASSERT_TRUE(NULL != pJob->taskCtxs[idx].pMemList);
 
   pJob->taskCtxs[idx].destoryed = false;
-  
+
   uDebug("JOB:0x%x TASK:0x%x idx:%d initialized", pJob->jobId, pJob->taskCtxs[idx].taskId, idx);
 }
 
@@ -608,13 +624,16 @@ void mptInitJob(int32_t idx) {
 
   pJobCtx->jobIdx = idx;
   pJobCtx->jobId = atomic_add_fetch_64(&mptCtx.qId, 1);
-  pJobCtx->taskNum = (mptCtrl.jobTaskNum) ? mptCtrl.jobTaskNum : ((taosRand() % 10) ? (taosRand() % (MPT_MAX_SESSION_NUM/10)) : (taosRand() % MPT_MAX_SESSION_NUM)) + 1;
+  pJobCtx->taskNum =
+      (mptCtrl.jobTaskNum)
+          ? mptCtrl.jobTaskNum
+          : ((taosRand() % 10) ? (taosRand() % (MPT_MAX_SESSION_NUM / 10)) : (taosRand() % MPT_MAX_SESSION_NUM)) + 1;
   pJobCtx->initTimes++;
 
   if (!mptCtx.initDone) {
     atomic_add_fetch_64(&mptCtx.totalTaskNum, pJobCtx->taskNum);
   }
-  
+
   for (int32_t i = 0; i < pJobCtx->taskNum; ++i) {
     mptInitTask(i, 0, pJobCtx);
     assert(pJobCtx->pJob);
@@ -622,21 +641,21 @@ void mptInitJob(int32_t idx) {
 
   atomic_add_fetch_64(&mptCtx.runStat.initNum, 1);
 
-  uDebug("JOB:0x%x idx:%d initialized, total times:%d, taskNum:%d", pJobCtx->jobId, idx, pJobCtx->initTimes, pJobCtx->taskNum);
+  uDebug("JOB:0x%x idx:%d initialized, total times:%d, taskNum:%d", pJobCtx->jobId, idx, pJobCtx->initTimes,
+         pJobCtx->taskNum);
 }
-
 
 void mptDestroyTask(SMPTestJobCtx* pJobCtx, int32_t taskIdx) {
   if (mptCtx.param.enableMemPool && tsMemPoolFullFunc) {
     SMPStatDetail* pStat = NULL;
-    int64_t allocSize = 0;
+    int64_t        allocSize = 0;
     taosMemPoolGetSessionStat(pJobCtx->pSessions[taskIdx], &pStat, &allocSize, NULL);
     int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
-    
+
     assert(allocSize == usedSize);
     assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[taskIdx].stat, sizeof(*pStat)));
   }
-  
+
   mptDestroyTaskCtx(pJobCtx, taskIdx);
 }
 
@@ -647,8 +666,8 @@ int32_t mptDestroyJob(SMPTestJobCtx* pJobCtx, bool reset) {
       mptDestroyTask(pJobCtx, i);
     }
   }
-  
-  //mptDestroyJobInfo(pJobCtx->pJob);
+
+  // mptDestroyJobInfo(pJobCtx->pJob);
   //(void)taosHashRemove(mptCtx.pJobs, &pJobCtx->jobId, sizeof(pJobCtx->jobId));
 
   if (reset) {
@@ -656,15 +675,13 @@ int32_t mptDestroyJob(SMPTestJobCtx* pJobCtx, bool reset) {
     memset((char*)pJobCtx + sizeof(pJobCtx->jobExecLock), 0, sizeof(SMPTestJobCtx) - sizeof(pJobCtx->jobExecLock));
     mptInitJob(jobIdx);
   }
-  
+
   MPT_PRINTF("    JOB:0x%x retired\n", jobId);
 
   return 0;
 }
 
-void mptCheckCompareJobInfo(SMPTestJobCtx* pJobCtx) {
-
-}
+void mptCheckCompareJobInfo(SMPTestJobCtx* pJobCtx) {}
 
 int32_t mptResetJob(SMPTestJobCtx* pJobCtx) {
   if (MPT_TRY_LOCK(MPT_WRITE, &pJobCtx->jobExecLock)) {
@@ -703,7 +720,7 @@ bool mptRetireJob(SMPTJobInfo* pJob) {
     return false;
   }
 
-  bool retired = false;
+  bool    retired = false;
   int32_t taskRunning = atomic_load_32(&pCtx->taskRunningNum);
   if (0 == taskRunning) {
     mptDestroyJob(pCtx, false);
@@ -720,25 +737,27 @@ bool mptRetireJob(SMPTJobInfo* pJob) {
 int32_t mptGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
   int64_t freeSize = 0;
   int64_t usedSize = 0;
-  bool needEnd = false;
+  bool    needEnd = false;
 
   taosMemPoolGetUsedSizeBegin(pHandle, &usedSize, &needEnd);
   int32_t code = taosGetSysAvailMemory(&freeSize);
   if (needEnd) {
     taosMemPoolGetUsedSizeEnd(pHandle);
   }
-  
+
   if (TSDB_CODE_SUCCESS != code) {
     uError("get system avaiable memory size failed, error: 0x%x", code);
     return code;
   }
 
   int64_t totalSize = freeSize + usedSize;
-  int64_t reserveSize = TMAX(totalSize * MPT_DEFAULT_RESERVE_MEM_PERCENT / 100 / 1048576UL * 1048576UL, MPT_MIN_RESERVE_MEM_SIZE);
+  int64_t reserveSize =
+      TMAX(totalSize * MPT_DEFAULT_RESERVE_MEM_PERCENT / 100 / 1048576UL * 1048576UL, MPT_MIN_RESERVE_MEM_SIZE);
   int64_t availSize = (totalSize - reserveSize) / 1048576UL * 1048576UL;
   if (availSize < MPT_MIN_MEM_POOL_SIZE) {
-    uError("too little available query memory, totalAvailable: %" PRId64 ", reserveSize: %" PRId64, totalSize, reserveSize);
-    //return TSDB_CODE_QRY_TOO_FEW_AVAILBLE_MEM;
+    uError("too little available query memory, totalAvailable: %" PRId64 ", reserveSize: %" PRId64, totalSize,
+           reserveSize);
+    // return TSDB_CODE_QRY_TOO_FEW_AVAILBLE_MEM;
   }
 
   uDebug("new pool maxSize:%" PRId64 ", usedSize:%" PRId64 ", freeSize:%" PRId64, availSize, usedSize, freeSize);
@@ -750,16 +769,17 @@ int32_t mptGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
 
 void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
   SMPTJobInfo* pJob = (SMPTJobInfo*)taosHashIterate(mptCtx.pJobs, NULL);
-  int32_t jobNum = 0;
-  uint64_t jobId = 0;
-  int64_t retiredSize = 0;
+  int32_t      jobNum = 0;
+  uint64_t     jobId = 0;
+  int64_t      retiredSize = 0;
   while (retiredSize < retireSize && NULL != pJob) {
     if (atomic_load_8(&pJob->retired) || 0 == atomic_load_8(&pJob->initDone)) {
       pJob = (SMPTJobInfo*)taosHashIterate(mptCtx.pJobs, pJob);
       continue;
     }
 
-    if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
+    if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) &&
+        0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
       int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
       jobId = pJob->memInfo->jobId;
 
@@ -767,13 +787,14 @@ void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
 
       bool retired = mptRetireJob(pJob);
       if (retired) {
-        retiredSize += aSize;    
+        retiredSize += aSize;
       }
-      
+
       jobNum++;
 
-      uDebug("QID:0x%" PRIx64 " job mark retired cause of limit reached, retired:%d, usedSize:%" PRId64 ", retireSize:%" PRId64 ", retiredSize:%" PRId64, 
-          jobId, retired, aSize, retireSize, retiredSize);
+      uDebug("QID:0x%" PRIx64 " job mark retired cause of limit reached, retired:%d, usedSize:%" PRId64
+             ", retireSize:%" PRId64 ", retiredSize:%" PRId64,
+             jobId, retired, aSize, retireSize, retiredSize);
     }
 
     pJob = (SMPTJobInfo*)taosHashIterate(mptCtx.pJobs, pJob);
@@ -781,9 +802,9 @@ void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
 
   taosHashCancelIterate(mptCtx.pJobs, pJob);
 
-  uDebug("total %d jobs mark retired, retiredSize:%" PRId64 " targetRetireSize:%" PRId64, jobNum, retiredSize, retireSize);
+  uDebug("total %d jobs mark retired, retiredSize:%" PRId64 " targetRetireSize:%" PRId64, jobNum, retiredSize,
+         retireSize);
 }
-
 
 void mptRetireJobCb(uint64_t jobId, uint64_t clientId, int32_t errCode) {
   SMPTJobInfo* pJob = (SMPTJobInfo*)taosHashGet(mptCtx.pJobs, &jobId, sizeof(jobId));
@@ -792,118 +813,122 @@ void mptRetireJobCb(uint64_t jobId, uint64_t clientId, int32_t errCode) {
     return;
   }
 
-  if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
-    uInfo("QID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
+  if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) &&
+      0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
+    uInfo("QID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, errCode,
+          atomic_load_64(&pJob->memInfo->allocMemSize));
     atomic_add_fetch_64(&mptCtx.runStat.retireNum, 1);
   } else {
-    uDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
+    uDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId,
+           atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
   }
 }
 
-void mptInitPool(void) {
-  assert(0 == taosMemoryPoolInit(mptRetireJobsCb, mptRetireJobCb));
-}
-
+void mptInitPool(void) { assert(0 == taosMemoryPoolInit(mptRetireJobsCb, mptRetireJobCb)); }
 
 void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
   int32_t actId = 0;
-  bool actDone = false;
+  bool    actDone = false;
   int32_t size = 0;
   int32_t osize = 0, nsize = 0;
-  
+
   while (!actDone) {
     actId = taosRand() % 10;
-    size = (taosRand() % 8) ? (taosRand() % (mptCtrl.maxSingleAllocSize / 100)) : (taosRand() % mptCtrl.maxSingleAllocSize);
-    
+    size = (taosRand() % 8) ? (taosRand() % (mptCtrl.maxSingleAllocSize / 100))
+                            : (taosRand() % mptCtrl.maxSingleAllocSize);
+
     switch (actId) {
-      case 0: { // malloc
+      case 0: {  // malloc
         if (pTask->memIdx >= MPT_MAX_MEM_ACT_TIMES) {
           break;
         }
-        
+
         pTask->pMemList[pTask->memIdx].p = mptMemoryMalloc(size);
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
           pTask->stat.times.memMalloc.exec++;
-          pTask->stat.bytes.memMalloc.exec+=size;        
+          pTask->stat.bytes.memMalloc.exec += size;
           pTask->stat.times.memMalloc.fail++;
-          pTask->stat.bytes.memMalloc.fail+=size;        
-          uError("JOB:0x%x TASK:0x%x mpMalloc %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size, tstrerror(terrno));
+          pTask->stat.bytes.memMalloc.fail += size;
+          uError("JOB:0x%x TASK:0x%x mpMalloc %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size,
+                 tstrerror(terrno));
           return;
         }
 
         nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
         pTask->stat.times.memMalloc.exec++;
-        pTask->stat.bytes.memMalloc.exec+=nsize;        
-        pTask->stat.bytes.memMalloc.succ+=nsize;                
+        pTask->stat.bytes.memMalloc.exec += nsize;
+        pTask->stat.bytes.memMalloc.succ += nsize;
         pTask->stat.times.memMalloc.succ++;
 
         mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
-        
+
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
-      case 1: { // calloc
+      case 1: {  // calloc
         if (pTask->memIdx >= MPT_MAX_MEM_ACT_TIMES) {
           break;
         }
-        
+
         pTask->pMemList[pTask->memIdx].p = mptMemoryCalloc(1, size);
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
           pTask->stat.times.memCalloc.exec++;
-          pTask->stat.bytes.memCalloc.exec+=size;        
+          pTask->stat.bytes.memCalloc.exec += size;
           pTask->stat.times.memCalloc.fail++;
-          pTask->stat.bytes.memCalloc.fail+=size;        
-          uError("JOB:0x%x TASK:0x%x mpCalloc %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size, tstrerror(terrno));
+          pTask->stat.bytes.memCalloc.fail += size;
+          uError("JOB:0x%x TASK:0x%x mpCalloc %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size,
+                 tstrerror(terrno));
           return;
         }
 
         nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
 
         pTask->stat.times.memCalloc.exec++;
-        pTask->stat.bytes.memCalloc.exec+=nsize;        
+        pTask->stat.bytes.memCalloc.exec += nsize;
         pTask->stat.times.memCalloc.succ++;
-        pTask->stat.bytes.memCalloc.succ+=nsize;      
+        pTask->stat.bytes.memCalloc.succ += nsize;
 
         mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
-        
+
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
-      case 2:{ // new realloc
+      case 2: {  // new realloc
         break;
         if (pTask->memIdx >= MPT_MAX_MEM_ACT_TIMES) {
           break;
         }
-        
+
         pTask->pMemList[pTask->memIdx].p = mptMemoryRealloc(NULL, size);
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
           pTask->stat.times.memRealloc.exec++;
-          pTask->stat.bytes.memRealloc.exec+=size;        
+          pTask->stat.bytes.memRealloc.exec += size;
           pTask->stat.times.memRealloc.fail++;
-          pTask->stat.bytes.memRealloc.fail+=size;        
-          uError("JOB:0x%x TASK:0x%x new mpRealloc %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size, tstrerror(terrno));
+          pTask->stat.bytes.memRealloc.fail += size;
+          uError("JOB:0x%x TASK:0x%x new mpRealloc %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size,
+                 tstrerror(terrno));
           return;
         }
 
         nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
-        
+
         pTask->stat.times.memRealloc.exec++;
-        pTask->stat.bytes.memRealloc.exec+=nsize;        
-        pTask->stat.bytes.memRealloc.succ+=nsize;        
+        pTask->stat.bytes.memRealloc.exec += nsize;
+        pTask->stat.bytes.memRealloc.succ += nsize;
         pTask->stat.times.memRealloc.succ++;
 
         mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
-        
+
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
-      case 3:{ // real realloc
+      case 3: {  // real realloc
         break;
         if (pTask->memIdx <= 0) {
           break;
@@ -915,35 +940,36 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         pTask->pMemList[pTask->memIdx - 1].p = mptMemoryRealloc(pTask->pMemList[pTask->memIdx - 1].p, size);
         if (NULL == pTask->pMemList[pTask->memIdx - 1].p) {
           pTask->stat.times.memRealloc.exec++;
-          pTask->stat.bytes.memRealloc.exec+=size;        
-          pTask->stat.bytes.memRealloc.origExec+=osize;  
+          pTask->stat.bytes.memRealloc.exec += size;
+          pTask->stat.bytes.memRealloc.origExec += osize;
           pTask->stat.times.memRealloc.fail++;
-          pTask->stat.bytes.memRealloc.fail+=size;  
+          pTask->stat.bytes.memRealloc.fail += size;
 
           pTask->stat.times.memFree.exec++;
-          pTask->stat.bytes.memFree.exec+=osize;  
+          pTask->stat.bytes.memFree.exec += osize;
           pTask->stat.times.memFree.succ++;
-          pTask->stat.bytes.memFree.succ+=osize;  
-          uError("JOB:0x%x TASK:0x%x real mpRealloc %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size, tstrerror(terrno));
+          pTask->stat.bytes.memFree.succ += osize;
+          uError("JOB:0x%x TASK:0x%x real mpRealloc %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size,
+                 tstrerror(terrno));
           pTask->memIdx--;
           return;
         }
 
         nsize = mptMemorySize(pTask->pMemList[pTask->memIdx - 1].p);
         pTask->stat.times.memRealloc.exec++;
-        pTask->stat.bytes.memRealloc.exec+=nsize;        
-        pTask->stat.bytes.memRealloc.origExec+=osize;  
-        pTask->stat.bytes.memRealloc.origSucc+=osize;
+        pTask->stat.bytes.memRealloc.exec += nsize;
+        pTask->stat.bytes.memRealloc.origExec += osize;
+        pTask->stat.bytes.memRealloc.origSucc += osize;
         pTask->stat.times.memRealloc.succ++;
-        pTask->stat.bytes.memRealloc.succ+=nsize;  
+        pTask->stat.bytes.memRealloc.succ += nsize;
 
         mptWriteMem(pTask->pMemList[pTask->memIdx - 1].p, size);
-        
+
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
-      case 4:{ // realloc free
+      case 4: {  // realloc free
         if (pTask->memIdx <= 0) {
           break;
         }
@@ -953,18 +979,18 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
 
         pTask->pMemList[pTask->memIdx - 1].p = mptMemoryRealloc(pTask->pMemList[pTask->memIdx - 1].p, 0);
         pTask->stat.times.memFree.exec++;
-        pTask->stat.bytes.memFree.exec+=osize;  
+        pTask->stat.bytes.memFree.exec += osize;
         assert(NULL == pTask->pMemList[pTask->memIdx - 1].p);
 
         pTask->stat.times.memFree.succ++;
-        pTask->stat.bytes.memFree.succ+=osize;  
+        pTask->stat.bytes.memFree.succ += osize;
 
         pTask->memIdx--;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
-      case 5:{ // strdup
+      case 5: {  // strdup
         if (pTask->memIdx >= MPT_MAX_MEM_ACT_TIMES) {
           break;
         }
@@ -978,28 +1004,29 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
 
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
           pTask->stat.times.memStrdup.exec++;
-          pTask->stat.bytes.memStrdup.exec+=size + 1;        
+          pTask->stat.bytes.memStrdup.exec += size + 1;
           pTask->stat.times.memStrdup.fail++;
-          pTask->stat.bytes.memStrdup.fail+=size + 1;        
-          uError("JOB:0x%x TASK:0x%x mpStrdup %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size, tstrerror(terrno));
+          pTask->stat.bytes.memStrdup.fail += size + 1;
+          uError("JOB:0x%x TASK:0x%x mpStrdup %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size,
+                 tstrerror(terrno));
           return;
         }
 
-        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);  
+        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
         pTask->stat.times.memStrdup.exec++;
-        pTask->stat.bytes.memStrdup.exec+= nsize;    
+        pTask->stat.bytes.memStrdup.exec += nsize;
 
         pTask->stat.times.memStrdup.succ++;
-        pTask->stat.bytes.memStrdup.succ+=nsize;        
+        pTask->stat.bytes.memStrdup.succ += nsize;
 
         mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
-        
+
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
-      case 6:{ // strndup
+      case 6: {  // strndup
         if (pTask->memIdx >= MPT_MAX_MEM_ACT_TIMES) {
           break;
         }
@@ -1013,10 +1040,11 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
 
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
           pTask->stat.times.memStrndup.exec++;
-          pTask->stat.bytes.memStrndup.exec+=size + 1;        
+          pTask->stat.bytes.memStrndup.exec += size + 1;
           pTask->stat.times.memStrndup.fail++;
-          pTask->stat.bytes.memStrndup.fail+=size + 1;        
-          uError("JOB:0x%x TASK:0x%x mpStrndup %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size, tstrerror(terrno));
+          pTask->stat.bytes.memStrndup.fail += size + 1;
+          uError("JOB:0x%x TASK:0x%x mpStrndup %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size,
+                 tstrerror(terrno));
           return;
         }
 
@@ -1024,18 +1052,18 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
 
         pTask->stat.times.memStrndup.exec++;
-        pTask->stat.bytes.memStrndup.exec+=nsize;        
+        pTask->stat.bytes.memStrndup.exec += nsize;
         pTask->stat.times.memStrndup.succ++;
-        pTask->stat.bytes.memStrndup.succ+=nsize;        
+        pTask->stat.bytes.memStrndup.succ += nsize;
 
         mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
-        
+
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
-      case 7:{ // free
+      case 7: {  // free
         if (pTask->memIdx <= 0) {
           break;
         }
@@ -1045,17 +1073,17 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         mptMemoryFree(pTask->pMemList[pTask->memIdx - 1].p);
         pTask->stat.times.memFree.exec++;
         pTask->stat.times.memFree.succ++;
-        pTask->stat.bytes.memFree.exec+=osize;        
-        pTask->stat.bytes.memFree.succ+=osize;        
+        pTask->stat.bytes.memFree.exec += osize;
+        pTask->stat.bytes.memFree.succ += osize;
         pTask->pMemList[pTask->memIdx - 1].p = NULL;
-        
+
         pTask->memIdx--;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
-      case 8:{ // trim
-        bool trimed = false;
+      case 8: {  // trim
+        bool    trimed = false;
         int32_t code = mptMemoryTrim(0, &trimed);
         pTask->stat.times.memTrim.exec++;
         if (code) {
@@ -1070,30 +1098,31 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         actDone = true;
         break;
       }
-      case 9: { // malloc_align
+      case 9: {  // malloc_align
         if (pTask->memIdx >= MPT_MAX_MEM_ACT_TIMES) {
           break;
         }
-        
+
         pTask->pMemList[pTask->memIdx].p = mptMemoryMallocAlign(8, size);
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
           pTask->stat.times.memMalloc.exec++;
-          pTask->stat.bytes.memMalloc.exec+=size;        
+          pTask->stat.bytes.memMalloc.exec += size;
           pTask->stat.times.memMalloc.fail++;
-          pTask->stat.bytes.memMalloc.fail+=size;        
-          uError("JOB:0x%x TASK:0x%x mpMallocAlign %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size, tstrerror(terrno));
+          pTask->stat.bytes.memMalloc.fail += size;
+          uError("JOB:0x%x TASK:0x%x mpMallocAlign %d failed, error:%s", pJobCtx->jobId, pTask->taskId, size,
+                 tstrerror(terrno));
           return;
         }
 
         nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
-        
+
         mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
 
         pTask->stat.times.memMalloc.exec++;
-        pTask->stat.bytes.memMalloc.exec+=nsize;        
-        
+        pTask->stat.bytes.memMalloc.exec += nsize;
+
         pTask->stat.times.memMalloc.succ++;
-        pTask->stat.bytes.memMalloc.succ+=nsize;        
+        pTask->stat.bytes.memMalloc.succ += nsize;
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
@@ -1108,15 +1137,15 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
 
 void mptSimulateTask(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask, int32_t actTimes) {
   uDebug("JOB:0x%x TASK:0x%x will start total %d actions", pJobCtx->jobId, pTask->taskId, actTimes);
-  
+
   for (int32_t i = 0; i < actTimes; ++i) {
     if (atomic_load_8(&pJobCtx->pJob->retired)) {
       uDebug("JOB:0x%x TASK:0x%x stop running cause of job already retired", pJobCtx->jobId, pTask->taskId);
       return;
     }
 
-    //MPT_PRINTF("\tTASK:0x%x will start %d:%d actions\n", pTask->taskId, i, actTimes);
-    
+    // MPT_PRINTF("\tTASK:0x%x will start %d:%d actions\n", pTask->taskId, i, actTimes);
+
     mptSimulateAction(pJobCtx, pTask);
   }
 }
@@ -1136,7 +1165,6 @@ void mptSimulateOutTask(int64_t targetSize) {
   mptCtx.npIdx++;
 }
 
-
 void mptTaskRun(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pCtx, int32_t idx, int32_t actTimes) {
   uDebug("JOB:0x%x TASK:0x%x start running", pJobCtx->jobId, pCtx->taskId);
 
@@ -1144,7 +1172,7 @@ void mptTaskRun(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pCtx, int32_t idx, int32
     uDebug("JOB:0x%x TASK:0x%x stop running cause of job already retired", pJobCtx->jobId, pCtx->taskId);
     return;
   }
-  
+
   if (taosWTryLockLatch(&pCtx->taskExecLock)) {
     uDebug("JOB:0x%x TASK:0x%x stop running cause of task already running", pJobCtx->jobId, pCtx->taskId);
     return;
@@ -1155,15 +1183,15 @@ void mptTaskRun(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pCtx, int32_t idx, int32
   if (mptCtx.param.enableMemPool) {
     mptEnableMemoryPoolUsage(gMemPoolHandle, pJobCtx->pSessions[idx]);
   }
-  
+
   mptSimulateTask(pJobCtx, pCtx, actTimes);
-  
-  if (mptCtx.param.enableMemPool) {  
+
+  if (mptCtx.param.enableMemPool) {
     mptDisableMemoryPoolUsage();
   }
 
-  //mptSimulateOutTask(pJobCtx, pCtx);
-  
+  // mptSimulateOutTask(pJobCtx, pCtx);
+
   taosWUnLockLatch(&pCtx->taskExecLock);
 
   atomic_sub_fetch_32(&pJobCtx->taskRunningNum, 1);
@@ -1171,13 +1199,12 @@ void mptTaskRun(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pCtx, int32_t idx, int32
   uDebug("JOB:0x%x TASK:0x%x end running", pJobCtx->jobId, pCtx->taskId);
 }
 
-
 void mptInitJobs() {
   int32_t jobNum = mptCtrl.jobNum ? mptCtrl.jobNum : MPT_MAX_JOB_NUM;
 
   memset(mptCtx.jobCtxs, 0, sizeof(*mptCtx.jobCtxs) * jobNum);
   mptCtx.totalTaskNum = 0;
-  
+
   for (int32_t i = 0; i < jobNum; ++i) {
     mptInitJob(i);
   }
@@ -1185,7 +1212,7 @@ void mptInitJobs() {
 
 void mptCheckPoolUsedSize(int32_t jobNum) {
   int64_t usedSize = 0;
-  bool needEnd = false;
+  bool    needEnd = false;
   int64_t poolUsedSize = 0;
   int32_t sleepTimes = 0;
 
@@ -1194,11 +1221,11 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
       taosUsleep(1);
       continue;
     }
-    
+
     taosMemPoolGetUsedSizeBegin(gMemPoolHandle, &usedSize, &needEnd);
 
     poolUsedSize = 0;
-    
+
     for (int32_t i = 0; i < jobNum; ++i) {
       SMPTestJobCtx* pJobCtx = &mptCtx.jobCtxs[i];
 
@@ -1224,17 +1251,17 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
       for (int32_t m = 0; m < pJobCtx->taskNum; ++m) {
         if (!pJobCtx->taskCtxs[m].destoryed) {
           SMPStatDetail* pStat = NULL;
-          int64_t allocSize = 0;
+          int64_t        allocSize = 0;
           taosMemPoolGetSessionStat(pJobCtx->pSessions[m], &pStat, &allocSize, NULL);
           int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
-          
+
           assert(allocSize == usedSize);
           assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[m].stat, sizeof(*pStat)));
 
           jobUsedSize += allocSize;
         }
       }
-      
+
       assert(pJobCtx->pJob->memInfo->allocMemSize == jobUsedSize);
 
       MPT_UNLOCK(MPT_READ, &pJobCtx->jobExecLock);
@@ -1250,30 +1277,32 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
 
     assert(poolUsedSize <= usedSize);
     break;
-  }  
+  }
 }
 
 void mptLaunchSingleTask(SMPTestThread* pThread, SMPTestJobCtx* pJobCtx, int32_t taskIdx, int32_t actTimes) {
   if (atomic_load_8(&pJobCtx->pJob->retired) || pJobCtx->taskCtxs[taskIdx].destoryed) {
     return;
   }
-  
+
   MPT_PRINTF("Thread %d start to run %d:%d task\n", pThread->idx, taskIdx, pJobCtx->taskNum);
   mptTaskRun(pJobCtx, &pJobCtx->taskCtxs[taskIdx], taskIdx, actTimes);
   MPT_PRINTF("Thread %d end %d:%d task\n", pThread->idx, taskIdx, pJobCtx->taskNum);
-    
 }
 
 void mptRunRandTasks(SMPTestThread* pThread) {
-  int64_t runTaskTimes = mptCtx.totalTaskNum * MPT_DEFAULT_TASK_RUN_TIMES, taskExecIdx = 0;
-  int32_t jobNum = mptCtrl.jobNum ? mptCtrl.jobNum : MPT_MAX_JOB_NUM;
-  int32_t jobIdx = 0, taskIdx = 0, code = 0;
+  int64_t        runTaskTimes = mptCtx.totalTaskNum * MPT_DEFAULT_TASK_RUN_TIMES, taskExecIdx = 0;
+  int32_t        jobNum = mptCtrl.jobNum ? mptCtrl.jobNum : MPT_MAX_JOB_NUM;
+  int32_t        jobIdx = 0, taskIdx = 0, code = 0;
   SMPTestJobCtx* pJobCtx = NULL;
 
-  MPT_PRINTF("Thread %d start the %d:%d exection - runTaskTimes:%" PRId64 "\n", pThread->idx, mptExecLoop, mptExecNum, runTaskTimes);
+  MPT_PRINTF("Thread %d start the %d:%d exection - runTaskTimes:%" PRId64 "\n", pThread->idx, mptExecLoop, mptExecNum,
+             runTaskTimes);
 
   while (runTaskTimes > 0) {
-    int32_t actTimes = mptCtrl.taskActTimes ? mptCtrl.taskActTimes : ((taosRand() % 10) ? (taosRand() % (MPT_MAX_MEM_ACT_TIMES/10)) : (taosRand() % MPT_MAX_MEM_ACT_TIMES));
+    int32_t actTimes = mptCtrl.taskActTimes ? mptCtrl.taskActTimes
+                                            : ((taosRand() % 10) ? (taosRand() % (MPT_MAX_MEM_ACT_TIMES / 10))
+                                                                 : (taosRand() % MPT_MAX_MEM_ACT_TIMES));
     jobIdx = taosRand() % jobNum;
 
     pJobCtx = &mptCtx.jobCtxs[jobIdx];
@@ -1285,28 +1314,27 @@ void mptRunRandTasks(SMPTestThread* pThread) {
     if (MPT_TRY_LOCK(MPT_READ, &pJobCtx->jobExecLock)) {
       continue;
     }
-    
+
     taskIdx = taosRand() % pJobCtx->taskNum;
-    
+
     if (atomic_load_8(&pJobCtx->pJob->retired) || pJobCtx->taskCtxs[taskIdx].destoryed) {
       MPT_UNLOCK(MPT_READ, &pJobCtx->jobExecLock);
       continue;
     }
-    
+
     MPT_PRINTF("Thread %d start to run %d:%d task\n", pThread->idx, taskExecIdx, runTaskTimes);
     mptTaskRun(pJobCtx, &pJobCtx->taskCtxs[taskIdx], taskIdx, actTimes);
     MPT_PRINTF("Thread %d end %d:%d task\n", pThread->idx, taskExecIdx, runTaskTimes);
-    
+
     MPT_UNLOCK(MPT_READ, &pJobCtx->jobExecLock);
 
     runTaskTimes--;
     taskExecIdx++;
   }
-  
 }
 
 void mptRunLoopJobs(SMPTestThread* pThread) {
-  mptJobNum = (mptCtrl.jobNum) ? mptCtrl.jobNum : (taosRand() % MPT_MAX_JOB_NUM + 1);  
+  mptJobNum = (mptCtrl.jobNum) ? mptCtrl.jobNum : (taosRand() % MPT_MAX_JOB_NUM + 1);
 
   MPT_PRINTF("Thread %d start the %d:%d exection - jobNum:%d\n", pThread->idx, mptExecLoop, mptExecNum, mptJobNum);
 
@@ -1320,21 +1348,25 @@ void mptRunLoopJobs(SMPTestThread* pThread) {
     if (MPT_TRY_LOCK(MPT_READ, &pJobCtx->jobExecLock)) {
       continue;
     }
-    
-    MPT_PRINTF("  Thread %d start to run %d:%d job[%d:0x%" PRIx64 "]\n", pThread->idx, i, mptJobNum, pJobCtx->jobIdx, pJobCtx->jobId);
-  
+
+    MPT_PRINTF("  Thread %d start to run %d:%d job[%d:0x%" PRIx64 "]\n", pThread->idx, i, mptJobNum, pJobCtx->jobIdx,
+               pJobCtx->jobId);
+
     for (int32_t m = 0; m < pJobCtx->taskNum; ++m) {
       if (atomic_load_8(&pJobCtx->pJob->retired)) {
         break;
       }
-  
-      int32_t actTimes = mptCtrl.taskActTimes ? mptCtrl.taskActTimes : ((taosRand() % 10) ? (taosRand() % (MPT_MAX_MEM_ACT_TIMES/10)) : (taosRand() % MPT_MAX_MEM_ACT_TIMES));
+
+      int32_t actTimes = mptCtrl.taskActTimes ? mptCtrl.taskActTimes
+                                              : ((taosRand() % 10) ? (taosRand() % (MPT_MAX_MEM_ACT_TIMES / 10))
+                                                                   : (taosRand() % MPT_MAX_MEM_ACT_TIMES));
       mptLaunchSingleTask(pThread, pJobCtx, m, actTimes);
     }
-  
+
     MPT_UNLOCK(MPT_READ, &pJobCtx->jobExecLock);
-  
-    MPT_PRINTF("  Thread %d end %dth JOB 0x%x exec, retired:%d\n", pThread->idx, pJobCtx->jobIdx, pJobCtx->jobId, pJobCtx->pJob->retired);
+
+    MPT_PRINTF("  Thread %d end %dth JOB 0x%x exec, retired:%d\n", pThread->idx, pJobCtx->jobIdx, pJobCtx->jobId,
+               pJobCtx->pJob->retired);
   }
 }
 
@@ -1364,14 +1396,15 @@ void* mptRunThreadFunc(void* param) {
 void* mptNonPoolThreadFunc(void* param) {
   int64_t targetSize = MPT_NON_POOL_ALLOC_UNIT;
   int64_t allocSize = 0;
-  
+
   while (!atomic_load_8(&mptCtx.testDone)) {
     mptSimulateOutTask(targetSize);
     allocSize += targetSize;
 
-    MPT_EPRINTF("%d:Non-pool malloc and write %" PRId64 " bytes, keep size:%" PRId64 "\n", mptCtx.npIdx - 1, targetSize, allocSize);
+    MPT_EPRINTF("%d:Non-pool malloc and write %" PRId64 " bytes, keep size:%" PRId64 "\n", mptCtx.npIdx - 1, targetSize,
+                allocSize);
     taosUsleep(1);
-    
+
     if ((mptCtx.npIdx * targetSize) >= (tsMinReservedMemorySize * 1048576UL * 10)) {
       for (int32_t i = 0; i < mptCtx.npIdx; ++i) {
         taosMemFreeClear(mptCtx.npMemList[i].p);
@@ -1387,17 +1420,18 @@ void* mptNonPoolThreadFunc(void* param) {
   return NULL;
 }
 
-
 void* mptDropThreadFunc(void* param) {
-  int32_t jobIdx = 0, taskIdx = 0, code = 0;
+  int32_t  jobIdx = 0, taskIdx = 0, code = 0;
   uint64_t taskId = 0;
-  int32_t jobNum = mptCtrl.jobNum ? mptCtrl.jobNum : MPT_MAX_JOB_NUM;
-  
+  int32_t  jobNum = mptCtrl.jobNum ? mptCtrl.jobNum : MPT_MAX_JOB_NUM;
+
   while (!atomic_load_8(&mptCtx.testDone)) {
     taosMsleep(400);
 
-    MPT_EPRINTF("%" PRId64 " - initJobs:%" PRId64 " retireJobs:%" PRId64 " destoryJobs:%" PRId64 " remainJobs:%" PRId64 "\n", taosGetTimestampMs(),
-        mptCtx.runStat.initNum, mptCtx.runStat.retireNum, mptCtx.runStat.destoryNum, mptCtx.runStat.initNum - mptCtx.runStat.destoryNum);
+    MPT_EPRINTF("%" PRId64 " - initJobs:%" PRId64 " retireJobs:%" PRId64 " destoryJobs:%" PRId64 " remainJobs:%" PRId64
+                "\n",
+                taosGetTimestampMs(), mptCtx.runStat.initNum, mptCtx.runStat.retireNum, mptCtx.runStat.destoryNum,
+                mptCtx.runStat.initNum - mptCtx.runStat.destoryNum);
 
     if (taosMemPoolTryLockPool(gMemPoolHandle, true)) {
       continue;
@@ -1422,8 +1456,9 @@ void* mptDropThreadFunc(void* param) {
 
       taskId = pJobCtx->taskCtxs[taskIdx].taskId;
       mptDestroyTask(pJobCtx, taskIdx);
-      MPT_EPRINTF("Drop Thread destroy task %d:0x%" PRIx64 " in job %d:%" PRIx64 "\n", taskIdx, taskId, jobIdx, pJobCtx->jobId);
-      
+      MPT_EPRINTF("Drop Thread destroy task %d:0x%" PRIx64 " in job %d:%" PRIx64 "\n", taskIdx, taskId, jobIdx,
+                  pJobCtx->jobId);
+
       MPT_UNLOCK(MPT_WRITE, &pJobCtx->jobExecLock);
     } else {
       code = mptDestroyJob(pJobCtx, false);
@@ -1439,13 +1474,13 @@ void* mptDropThreadFunc(void* param) {
   return NULL;
 }
 
-
 void mptStartRunThread(int32_t threadIdx) {
   TdThreadAttr thattr;
   ASSERT_EQ(0, taosThreadAttrInit(&thattr));
   ASSERT_EQ(0, taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE));
   mptCtx.threadCtxs[threadIdx].idx = threadIdx;
-  ASSERT_EQ(0, taosThreadCreate(&mptCtx.threadCtxs[threadIdx].threadFp, &thattr, mptRunThreadFunc, &mptCtx.threadCtxs[threadIdx]));
+  ASSERT_EQ(0, taosThreadCreate(&mptCtx.threadCtxs[threadIdx].threadFp, &thattr, mptRunThreadFunc,
+                                &mptCtx.threadCtxs[threadIdx]));
   ASSERT_EQ(0, taosThreadAttrDestroy(&thattr));
 }
 
@@ -1465,19 +1500,12 @@ void mptStartNonPoolThread() {
   ASSERT_EQ(0, taosThreadAttrDestroy(&thattr));
 }
 
-
-
-
-
-
 void mptDestroyJobs() {
   int32_t jobNum = mptCtrl.jobNum ? mptCtrl.jobNum : MPT_MAX_JOB_NUM;
-  
+
   for (int32_t i = 0; i < jobNum; ++i) {
     mptDestroyJob(&mptCtx.jobCtxs[i], false);
   }
-
-  
 }
 
 void mptDestroyNonPoolCtx() {
@@ -1498,7 +1526,7 @@ void mptRunCase(SMPTestParam* param, int32_t times) {
   mptCaseLoop = times;
   memcpy(&mptCtx.param, param, sizeof(SMPTestParam));
   tsSingleQueryMaxMemorySize = param->jobQuota;
-  
+
   atomic_store_8(&mptCtx.testDone, 0);
   mptCtx.initDone = false;
 
@@ -1519,7 +1547,7 @@ void mptRunCase(SMPTestParam* param, int32_t times) {
 
   for (int32_t i = 0; i < mptCtx.param.threadNum; ++i) {
     (void)taosThreadJoin(mptCtx.threadCtxs[i].threadFp, NULL);
-  }  
+  }
 
   atomic_store_8(&mptCtx.testDone, 1);
 
@@ -1614,7 +1642,6 @@ TEST(MiscTest, monSysAvailSize) {
 }
 #endif
 
-
 #if 0
 TEST(MiscTest, simNonPoolAct) {
   char* caseName = "MiscTest:simNonPoolAct";
@@ -1633,7 +1660,6 @@ TEST(MiscTest, simNonPoolAct) {
   }  
 }
 #endif
-
 
 #if 0
 TEST(PerfTest, allocLatency) {
@@ -1947,7 +1973,6 @@ TEST(PerfTest, allocLatency) {
 }
 #endif
 
-
 #if 0
 TEST(poolFuncTest, SingleThreadTest) {
   char* caseName = "poolFuncTest:SingleThreadTest";
@@ -2028,7 +2053,6 @@ TEST(poolFullFuncTest, MultiThreadTest) {
 }
 #endif
 
-
 #if 0
 TEST(DisablePoolFuncTest, MultiThreadTest) {
   char* caseName = "FuncTest:MultiThreadTest";
@@ -2050,13 +2074,13 @@ TEST(DisablePoolFuncTest, MultiThreadTest) {
 
 #if 1
 TEST(functionsTest, internalFunc) {
-  char* caseName = "functionsTest:internalFunc";
+  char*   caseName = "functionsTest:internalFunc";
   int32_t code = 0;
 
   int64_t msize = 10;
-  void* pSession = NULL;
-  void* pJob = NULL;
-  
+  void*   pSession = NULL;
+  void*   pJob = NULL;
+
   mptInitPool();
 
   memset(mptCtx.jobCtxs, 0, sizeof(*mptCtx.jobCtxs));
@@ -2066,18 +2090,15 @@ TEST(functionsTest, internalFunc) {
 
   int32_t loopTimes = 1;
   int64_t st = 0;
-  void **addrList = (void**)taosMemCalloc(loopTimes, POINTER_BYTES);
-  
+  void**  addrList = (void**)taosMemCalloc(loopTimes, POINTER_BYTES);
 
-  // MALLOC 
+  // MALLOC
 
   for (int32_t i = 0; i < loopTimes; ++i) {
     addrList[i] = (char*)mptMemoryMalloc(msize);
   }
   mptFreeAddrList(addrList, loopTimes);
 
-
-  
   tsMemPoolFullFunc = 0;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
@@ -2085,7 +2106,6 @@ TEST(functionsTest, internalFunc) {
   }
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
-
 
   tsMemPoolFullFunc = 1;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
@@ -2095,8 +2115,7 @@ TEST(functionsTest, internalFunc) {
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
 
-
-  // CALLOC 
+  // CALLOC
 
   tsMemPoolFullFunc = 0;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
@@ -2106,7 +2125,6 @@ TEST(functionsTest, internalFunc) {
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
 
-
   tsMemPoolFullFunc = 1;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
@@ -2115,13 +2133,12 @@ TEST(functionsTest, internalFunc) {
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
 
-
   for (int32_t i = 0; i < loopTimes; ++i) {
     addrList[i] = (char*)mptMemoryCalloc(1, msize);
   }
-  //mptFreeAddrList(addrList, loopTimes);  NO FREE FOR REALLOC
+  // mptFreeAddrList(addrList, loopTimes);  NO FREE FOR REALLOC
 
-  // REALLOC 
+  // REALLOC
 
   tsMemPoolFullFunc = 0;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
@@ -2129,7 +2146,6 @@ TEST(functionsTest, internalFunc) {
     addrList[i] = (char*)mptMemoryRealloc(addrList[i], msize);
   }
   mptDisableMemoryPoolUsage();
-
 
   tsMemPoolFullFunc = 1;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
@@ -2138,15 +2154,13 @@ TEST(functionsTest, internalFunc) {
   }
   mptDisableMemoryPoolUsage();
 
-
   for (int32_t i = 0; i < loopTimes; ++i) {
     addrList[i] = (char*)mptMemoryRealloc(addrList[i], msize);
   }
   mptFreeAddrList(addrList, loopTimes);
 
+  // STRDUP
 
-  // STRDUP 
-  
   tsMemPoolFullFunc = 0;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
@@ -2154,7 +2168,6 @@ TEST(functionsTest, internalFunc) {
   }
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
-
 
   tsMemPoolFullFunc = 1;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
@@ -2164,14 +2177,13 @@ TEST(functionsTest, internalFunc) {
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
 
-
   for (int32_t i = 0; i < loopTimes; ++i) {
     addrList[i] = (char*)mptStrdup("abc");
   }
   mptFreeAddrList(addrList, loopTimes);
 
-  // STRNDUP 
-  
+  // STRNDUP
+
   tsMemPoolFullFunc = 0;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
@@ -2179,7 +2191,6 @@ TEST(functionsTest, internalFunc) {
   }
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
-
 
   tsMemPoolFullFunc = 1;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
@@ -2189,14 +2200,13 @@ TEST(functionsTest, internalFunc) {
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
 
-
   for (int32_t i = 0; i < loopTimes; ++i) {
     addrList[i] = (char*)mptStrndup("abc", 3);
   }
   mptFreeAddrList(addrList, loopTimes);
 
-  // ALIGNALLOC 
-  
+  // ALIGNALLOC
+
   tsMemPoolFullFunc = 0;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
@@ -2204,7 +2214,6 @@ TEST(functionsTest, internalFunc) {
   }
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
-
 
   tsMemPoolFullFunc = 1;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
@@ -2214,22 +2223,19 @@ TEST(functionsTest, internalFunc) {
   mptDisableMemoryPoolUsage();
   mptFreeAddrList(addrList, loopTimes);
 
-
   for (int32_t i = 0; i < loopTimes; ++i) {
     addrList[i] = (char*)mptMemoryMallocAlign(8, msize);
   }
-  //mptFreeAddrList(addrList, loopTimes);  NO FREE FOR GETSIZE
+  // mptFreeAddrList(addrList, loopTimes);  NO FREE FOR GETSIZE
 
+  // GETSIZE
 
-  // GETSIZE 
-  
   tsMemPoolFullFunc = 0;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
     mptMemorySize(addrList[i]);
   }
   mptDisableMemoryPoolUsage();
-
 
   tsMemPoolFullFunc = 1;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
@@ -2238,20 +2244,18 @@ TEST(functionsTest, internalFunc) {
   }
   mptDisableMemoryPoolUsage();
 
-
   for (int32_t i = 0; i < loopTimes; ++i) {
     mptMemorySize(addrList[i]);
   }
 
-  // FREE 
-  
+  // FREE
+
   tsMemPoolFullFunc = 0;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
     mptMemoryFree(addrList[i]);
   }
   mptDisableMemoryPoolUsage();
-
 
   for (int32_t i = 0; i < loopTimes; ++i) {
     addrList[i] = (char*)mptMemoryMalloc(msize);
@@ -2262,7 +2266,6 @@ TEST(functionsTest, internalFunc) {
     mptMemoryFree(addrList[i]);
   }
   mptDisableMemoryPoolUsage();
-
 
   for (int32_t i = 0; i < loopTimes; ++i) {
     addrList[i] = (char*)mptMemoryMalloc(msize);
@@ -2282,7 +2285,6 @@ TEST(functionsTest, internalFunc) {
   }
   mptDisableMemoryPoolUsage();
 
-
   tsMemPoolFullFunc = 1;
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
@@ -2290,12 +2292,16 @@ TEST(functionsTest, internalFunc) {
     mptMemoryTrim(0, &trimed);
   }
   mptDisableMemoryPoolUsage();
-
-  
 }
 #endif
 
-
 #endif
+
+int main(int argc, char** argv) {
+  taosSeedRand(taosGetTimestampSec());
+  mptInit();
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
 
 #pragma GCC diagnosti
