@@ -258,7 +258,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **接口说明**：绑定预编译 sql 语句
     - **参数说明**：
         - `sql`: 绑定的 SQL 语句
-    - **异常**：操作失败抛出 `ProgrammingError` 异常。
+    - **异常**：操作失败抛出 `StatementError` 异常。
 - `def bind_param(self, tbnames, tags, datas)`
     - **接口说明**：以独立数组方式绑定数据
     - **参数说明**：
@@ -281,7 +281,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def close(self)`
     - **接口说明**： 关闭 stmt2 对象
 
-[示例](http://example.code.stmt2)
+[使用示例](http://https://github.com/taosdata/TDengine/tree/main/docs/examples/python/insert_with_stmt2.py)
 
 
 #### 数据订阅
@@ -435,7 +435,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **接口说明**：绑定预编译 sql 语句
     - **参数说明**：
         - `sql`: 绑定的 SQL 语句
-    - **异常**：操作失败抛出 `ProgrammingError` 异常。
+    - **异常**：操作失败抛出 `StatementError` 异常。
 - `def bind_param(self, tbnames, tags, datas)`
     - **接口说明**：以独立数组方式绑定数据
     - **参数说明**：
@@ -457,6 +457,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **返回值**：返回 TaosResult 对象
 - `def close(self)`
     - **接口说明**： 关闭 stmt2 对象
+
+[使用示例](http://https://github.com/taosdata/TDengine/tree/main/docs/examples/python/insert_with_stmt2.py)
 
 #### 数据订阅
 - **创建消费者支持属性列表**：
