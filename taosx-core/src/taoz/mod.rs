@@ -57,7 +57,7 @@ impl ZFile {
         compression_level: async_compression::Level,
         max_file_size: u64,
         move_to: Option<PathBuf>,
-    ) -> IoResult<Self> {
+    ) -> anyhow::Result<Self> {
         let writer = ZFile::new_writer(
             api_version,
             server_version,
@@ -143,11 +143,34 @@ impl ZFile {
         dir: impl AsRef<Path>,
         name: (&str, Option<DateTime<Utc>>, i32, u64),
         compression_level: async_compression::Level,
-    ) -> IoResult<ZFileInner> {
+    ) -> anyhow::Result<ZFileInner> {
         let file_name = Self::file_name(name);
         let path = dir.as_ref().to_path_buf().join(&file_name);
 
-        let file = File::create(&path).await?;
+        if let Some(parent) = path.parent() {
+            let exists = parent.exists();
+            if !exists {
+                tokio::fs::create_dir_all(parent).await.map_err(|err| {
+                    std::io::Error::new(
+                        err.kind(),
+                        format!("Can't create dir {}: {err:#}", parent.display()),
+                    )
+                })?;
+            } else if !parent.is_dir() {
+                tracing::error!("parent path is not a directory: {}", parent.display());
+                std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    parent.display().to_string(),
+                );
+            }
+        }
+        let file = File::create(&path).await.map_err(|err| {
+            tracing::error!("Can't create file {}: {err:#}", path.display());
+            std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("Can't create file {}: {err:#}", path.display()),
+            )
+        })?;
         let wtr = BufReader::new(file);
         let wtr = ZstdEncoder::with_quality(wtr, compression_level);
         let mut file = ZCodec::new(wtr);
@@ -201,7 +224,7 @@ impl ZFile {
         Ok((path, file))
     }
 
-    pub async fn check_or_next(&mut self) -> IoResult<()> {
+    pub async fn check_or_next(&mut self) -> anyhow::Result<()> {
         if self.current_size as u64 >= self.max_file_size {
             self.file.flush().await?;
             self.file.shutdown().await?;
@@ -241,19 +264,19 @@ impl ZFile {
         Ok(())
     }
 
-    pub async fn write_meta(&mut self, meta: &RawMeta) -> IoResult<()> {
+    pub async fn write_meta(&mut self, meta: &RawMeta) -> anyhow::Result<()> {
         self.current_size += self.file.write_meta_async(meta).await?;
         self.check_or_next().await?;
         Ok(())
     }
 
-    pub async fn write_raw(&mut self, raw: &RawData, raw_type: RawType) -> IoResult<()> {
+    pub async fn write_raw(&mut self, raw: &RawData, raw_type: RawType) -> anyhow::Result<()> {
         self.current_size += self.file.write_raw_async(raw, raw_type).await?;
         self.check_or_next().await?;
         Ok(())
     }
 
-    pub async fn start_raw_block(&mut self) -> IoResult<()> {
+    pub async fn start_raw_block(&mut self) -> anyhow::Result<()> {
         self.current_size += self.file.start_data_async().await?;
         Ok(())
     }
@@ -263,7 +286,7 @@ impl ZFile {
         Ok(())
     }
 
-    pub async fn finish_raw_block(&mut self) -> IoResult<()> {
+    pub async fn finish_raw_block(&mut self) -> anyhow::Result<()> {
         self.current_size += self.file.finish_data_async().await?;
         self.check_or_next().await?;
         Ok(())
