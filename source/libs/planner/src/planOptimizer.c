@@ -6578,8 +6578,10 @@ static int32_t partColOptCreateSort(SPartitionLogicNode* pPartition, SSortLogicN
         break;
       }
       if (QUERY_NODE_COLUMN == nodeType(node) && ((SColumnNode*)node)->colId == pPartition->pkTsColId &&
-          ((SColumnNode*)node)->tableId == pPartition->pkTsColTbId)
+          ((SColumnNode*)node)->tableId == pPartition->pkTsColTbId) {
         alreadyPartByPKTs = true;
+      }
+      
       code = nodesListMakeStrictAppend(&pSort->pSortKeys, (SNode*)pOrder);
       if (TSDB_CODE_SUCCESS == code) {
         pOrder->order = ORDER_ASC;
@@ -7577,7 +7579,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
   {.pName = "GroupJoin",                  .optimizeFunc = groupJoinOptimize},
-  {.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
+//{.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
   {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
   {.pName = "SortForjoin",                .optimizeFunc = sortForJoinOptimize},
   {.pName = "SmaIndex",                   .optimizeFunc = smaIndexOptimize},

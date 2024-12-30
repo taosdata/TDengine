@@ -6562,6 +6562,9 @@ static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelec
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExpr(pCxt, &pSelect->pSubtable);
   }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pPartitionOrderList) {
+
+  }
   return code;
 }
 
