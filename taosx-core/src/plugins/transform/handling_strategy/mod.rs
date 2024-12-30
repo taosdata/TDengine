@@ -20,7 +20,7 @@ impl HandlingStrategy {
     pub fn handle(&self, err: String) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingStrategy::Archive => {
-                tracing::info!("{err}: archive record");
+                tracing::trace!("{err}: archive record");
                 Ok((HandlingResult::Archive, err))
             }
             HandlingStrategy::Skip => {
@@ -49,7 +49,7 @@ impl HandlingPrimaryTimestampNull {
     pub fn handle(&self, err: String) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingPrimaryTimestampNull::Archive => {
-                tracing::info!("{err}: archive record");
+                tracing::trace!("{err}: archive record");
                 Ok((HandlingResult::Archive, err))
             }
             HandlingPrimaryTimestampNull::Skip => {
@@ -61,7 +61,7 @@ impl HandlingPrimaryTimestampNull {
                 anyhow::bail!(err)
             }
             HandlingPrimaryTimestampNull::UseCurrentTime => {
-                tracing::info!("{err}: use current time");
+                tracing::debug!("{err}: use current time");
                 Ok((HandlingResult::Modify(String::default()), err))
             }
         }
@@ -88,7 +88,7 @@ impl HandlingDataOverflow {
     ) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingDataOverflow::Archive => {
-                tracing::info!("{err}: archive record");
+                tracing::trace!("{err}: archive record");
                 Ok((HandlingResult::Archive, err))
             }
             HandlingDataOverflow::Skip => {
@@ -131,7 +131,7 @@ impl HandlingTableNameContainsIllegalChar {
     ) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingTableNameContainsIllegalChar::Archive => {
-                tracing::info!("{err}: archive record");
+                tracing::trace!("{err}: archive record");
                 Ok((HandlingResult::Archive, err))
             }
             HandlingTableNameContainsIllegalChar::Skip => {
@@ -244,7 +244,7 @@ impl HandlingFieldNameNotFound {
     pub fn handle(&self, err: String) -> anyhow::Result<(HandlingResult, String)> {
         match self {
             HandlingFieldNameNotFound::Archive => {
-                tracing::info!("{err}: archive record");
+                tracing::trace!("{err}: archive record");
                 Ok((HandlingResult::Archive, err))
             }
             HandlingFieldNameNotFound::Skip => {
