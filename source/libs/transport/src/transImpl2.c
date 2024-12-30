@@ -294,7 +294,7 @@ static int32_t evtMgtCreate(SEvtMgt **pOpt, char *label) {
   pRes->fdIdx = 0;
   memcpy(pRes->label, label, strlen(label));
 
-  code = evtMgtResize(pRes, (32 + 1));
+  code = evtMgtResize(pRes, 32);
   if (code != 0) {
     evtMgtDestroy(pRes);
   } else {
@@ -368,18 +368,21 @@ static int32_t evtBufDestroy(SEvtBuf *evtBuf) {
 }
 int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
   int32_t nBytes = 0;
-  char    buf[2] = {0};
+  char    buf[512] = {0};
   int32_t code = 0;
   if (pArg->evtType == EVT_NEW_CONN_T || pArg->evtType == EVT_ASYNC_T) {
     // handle new coming conn;
     if (res & EVT_READ) {
       SAsyncHandle *handle = pArg->arg;
-      nBytes = read(pArg->fd, buf, 2);
-      if (nBytes >= 1) {
+
+      nBytes = read(pArg->fd, buf, sizeof(buf));
+      if (nBytes == 1 && buf[0] == '1') {
         handle->cb(handle, 0);
       }
+      tDebug("%s handle async read on fd:%d", pOpt->label, pArg->fd);
     }
     if (res & EVT_WRITE) {
+      tDebug("%s handle async write on fd:%d", pOpt->label, pArg->fd);
       // handle err
     }
   } else if (pArg->evtType == EVT_CONN_T) {
@@ -514,12 +517,15 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
 
   nfds = pOpt->evtFds + 1;
   // TODO lock or not
+  tDebug("%s start to select, timeout:%d s: %d ms", pOpt->label, (int32_t)tv->tv_sec, (int32_t)tv->tv_usec / 1000);
   active_Fds = select(nfds, pOpt->evtReadSetOut, pOpt->evtWriteSetOut, NULL, tv);
   if (active_Fds < 0) {
     return TAOS_SYSTEM_ERROR(errno);
   } else if (active_Fds == 0) {
     tDebug("%s select timeout occurred", pOpt->label);
     return code;
+  } else {
+    tDebug("%s select count %d", pOpt->label, active_Fds);
   }
 
   for (j = 0; j < nfds && active_Fds > 0; j++) {
@@ -531,6 +537,9 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
     if ((fd > 0) && FD_ISSET(fd, pOpt->evtWriteSetOut)) {
       res |= EVT_WRITE;
     }
+    if (fd > 0) {
+      tDebug("%s start to handle fd %d", pOpt->label, fd);
+    }
 
     if (res == 0) {
       continue;
@@ -540,7 +549,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
       if (code != 0) {
         tError("%s failed to handle fd %d since %s", pOpt->label, fd, tstrerror(code));
       } else {
-        tDebug("%s success to handle fd %d", pOpt->label, fd);
+        tDebug("%s succ to handle fd %d", pOpt->label, fd);
       }
     }
   }
@@ -628,6 +637,10 @@ static int32_t evtMgtAdd(SEvtMgt *pOpt, int32_t fd, int32_t events, SFdCbArg *ar
         FD_SET(fd, pOpt->evtWriteSetIn);
         rwRef++;
       }
+      arg->rwRef = rwRef;
+      if (arg->rwRef >= 2) {
+        arg->rwRef = 2;
+      }
       pOpt->fd[pOpt->fdIdx++] = fd;
       code = taosHashPut(pOpt->pFdTable, &fd, sizeof(fd), arg, sizeof(*arg));
     }
@@ -708,12 +721,12 @@ static int32_t evtAsyncInit(SEvtMgt *pOpt, int32_t fd[2], SAsyncHandle **async, 
 
   SFdCbArg arg = {.evtType = evtType, .arg = pAsync, .fd = fd[0]};
   arg.arg = pAsync;
-
   code = evtMgtAdd(pOpt, fd[0], EVT_READ, &arg);
   if (code != 0) {
     taosMemoryFree(pAsync);
     return code;
   }
+  tDebug("%s succ to init async on fd:%d", pOpt->label, fd[0]);
   QUEUE_INIT(&pAsync->q);
   *async = pAsync;
   return code;
@@ -1171,6 +1184,7 @@ static int32_t evtSvrSendFinishCb(void *arg, int32_t status) {
 
   if (transQueueEmpty(&pConn->resps)) {
     // stop write evt
+    tDebug("%s conn %p stop write evt on fd:%d", transLabel(pThrd->pInst), pConn, pConn->fd);
     code = evtMgtRemove(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
   }
   return code;
@@ -1379,9 +1393,10 @@ void *transWorkerThread(void *arg) {
     tError("%s failed to create select op since %s", pInst->label, tstrerror(code));
     TAOS_CHECK_GOTO(code, &line, _end);
   }
-
+  int32_t count = 0;
   while (!pThrd->quit) {
     struct timeval tv = {30, 0};
+    tDebug("%s-------------------- dispatch count:%d -----------------------------", pInst->label, count++);
     code = evtMgtDispath(pOpt, &tv);
     if (code != 0) {
       tError("%s failed to dispatch since %s", pInst->label, tstrerror(code));
@@ -1884,7 +1899,7 @@ static int32_t createSocket(uint32_t ip, int32_t port, int32_t *fd) {
   return code;
 _end:
   if (code != 0) {
-    tError("%s failed to connect to %s:%d at line %d since %s", __func__, ip, port, line, tstrerror(code));
+    tError("%s failed to connect to %d:%d at line %d since %s", __func__, ip, port, line, tstrerror(code));
   }
   return code;
 }
@@ -3314,6 +3329,7 @@ static int32_t evtCliSendCb(void *arg, int32_t status) {
     tDebug("%s success to send out request", pInst->label);
   }
   if (transQueueEmpty(&pConn->reqsToSend)) {
+    tDebug("%s conn %p stop write evt on fd:%d", transLabel(pThrd->pInst), pConn, pConn->fd);
     code = evtMgtRemove(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
   }
 
