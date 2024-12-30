@@ -6,6 +6,10 @@ on:
       - 'main'
       - '3.0'
       - '3.1'
+    paths-ignore:
+      - 'docs/**'
+      - 'packaging/**'
+      - 'tests/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Run unit tests
+    name: Build and test
 
     steps:
       - name: Checkout the repository
@@ -32,12 +36,11 @@ jobs:
             libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev \
             zlib1g pkg-config libssl-dev gawk
 
-
       - name: Build and install TDengine
         run: |
           mkdir debug && cd debug
           cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false \
-            -DBUILD_TOOLS=true -DBUILD_TEST=off \
+            -DBUILD_TOOLS=true -DBUILD_TEST=false \
             -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
