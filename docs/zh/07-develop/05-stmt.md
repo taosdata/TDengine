@@ -93,7 +93,7 @@ import TabItem from "@theme/TabItem";
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/stmt_native.py}}
+{{#include docs/examples/python/stmt2_native.py}}
 ```
 </TabItem>
 <TabItem label="Go" value="go">

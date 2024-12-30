@@ -98,7 +98,7 @@ This is a [more detailed parameter binding example](https://github.com/taosdata/
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/stmt_native.py}}
+{{#include docs/examples/python/stmt2_native.py}}
 ```
 
 </TabItem>
