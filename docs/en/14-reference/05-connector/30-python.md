@@ -56,7 +56,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-|2.7.20 | Native supports STMT2 writing                                                                              | - |
+|2.7.21 | Native supports STMT2 writing                                                                              | - |
 |2.7.19 | Support Apache Superset connection to TDengine Cloud data source                                           | - |
 |2.7.18 | Support Apache SuperSet BI Tools.                                                                          | - |
 |2.7.16 | Add subscription configuration (session. timeout. ms, Max. roll. interval. ms).                            | - |
