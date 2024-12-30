@@ -1482,7 +1482,7 @@ inner_joined(A) ::=
 /************************************************ outer join **********************************************************/
 outer_joined(A) ::=
   table_reference(B) OUTER JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_NONE, JOIN_STYPE_OUTER, A, B, E, F, G, H); }
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_OUTER, A, B, E, F, G, H); }
 
 outer_joined(A) ::=
   table_reference(B) LEFT OUTER JOIN table_reference(E) join_on_clause_opt(F)
@@ -1499,7 +1499,7 @@ outer_joined(A) ::=
 /************************************************ semi join ***********************************************************/
 semi_joined(A) ::=
   table_reference(B) SEMI JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_NONE, JOIN_STYPE_SEMI, A, B, E, F, G, H); }
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_SEMI, A, B, E, F, G, H); }
 
 semi_joined(A) ::=
   table_reference(B) LEFT SEMI JOIN table_reference(E) join_on_clause_opt(F)
@@ -1512,7 +1512,7 @@ semi_joined(A) ::=
 /************************************************ ansi join ***********************************************************/
 anti_joined(A) ::=
   table_reference(B) ANTI JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_NONE, JOIN_STYPE_ANTI, A, B, E, F, G, H); }
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_ANTI, A, B, E, F, G, H); }
 
 anti_joined(A) ::=
   table_reference(B) LEFT ANTI JOIN table_reference(E) join_on_clause_opt(F)
@@ -1525,7 +1525,7 @@ anti_joined(A) ::=
 /************************************************ asof join ***********************************************************/
 asof_joined(A) ::=
   table_reference(B) ASOF JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_NONE, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_ASOF, A, B, E, F, G, H); }
 
 asof_joined(A) ::=
   table_reference(B) LEFT ASOF JOIN table_reference(E) join_on_clause_opt(F)
@@ -1538,7 +1538,7 @@ asof_joined(A) ::=
 /************************************************ window join *********************************************************/
 win_joined(A) ::=
   table_reference(B) WINDOW JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_NONE, JOIN_STYPE_WIN, A, B, E, F, G, H); }
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_WIN, A, B, E, F, G, H); }
 
 win_joined(A) ::=
   table_reference(B) LEFT WINDOW JOIN table_reference(E) join_on_clause_opt(F)
