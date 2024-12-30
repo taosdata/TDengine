@@ -52,7 +52,8 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 | Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-|        2.7.18         | 支持 Apache Superset BI 产品                                                                                                                                      | - |
+|        2.7.19         | 支持 Apache Superset 连接 TDengine Cloud 数据源                                                                                                                    | - |
+|        2.7.18         | 支持 Apache Superset 产品连接本地 TDengine 数据源                                                                                                                   | - |
 |        2.7.16         | 新增订阅配置 (session.timeout.ms, max.poll.interval.ms)                                                                                                            | - |
 |        2.7.15         | 新增 VARBINARY 和 GEOMETRY 类型支持                                                                                                                                | - |
 |        2.7.14         | 修复已知问题                                                                                                                                                       | -  |
@@ -131,7 +132,8 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 | [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)                           | 使用 JSON 类型的标签     |
 | [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)                   | tmq 订阅                 |
 | [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | 支持全部类型示例         |
-| [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py)   | 参数绑定支持全部类型示例 |
+| [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py)   | 参数绑定 stmt 全部类型示例 |
+| [insert_with_stmt2.py](https://github.com/taosdata/taos-connector-python/blob/main/tests/test_stmt2.py)                   | 参数绑定 stmt2 写入示例 |
 
 示例程序源码请参考：
 
@@ -281,7 +283,6 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def close(self)`
     - **接口说明**： 关闭 stmt2 对象
 
-[使用示例](http://https://github.com/taosdata/TDengine/tree/main/docs/examples/python/insert_with_stmt2.py)
 
 
 #### 数据订阅
@@ -458,7 +459,6 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def close(self)`
     - **接口说明**： 关闭 stmt2 对象
 
-[使用示例](http://https://github.com/taosdata/TDengine/tree/main/docs/examples/python/insert_with_stmt2.py)
 
 #### 数据订阅
 - **创建消费者支持属性列表**：
