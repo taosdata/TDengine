@@ -80,7 +80,6 @@ impl Scheduler {
                     break 'next_tick;
                 }
                 tokio::time::sleep(Duration::from_millis(500)).await;
-                let now = Utc::now();
                 let next_ticks = {
                     let mut w = metadata_storage.write().await;
                     w.list_next_ticks().await
@@ -110,6 +109,7 @@ impl Scheduler {
 
                 next_ticks.retain(|n| n.next_tick != 0);
 
+                let now = Utc::now();
                 let must_runs = next_ticks.iter().filter_map(|n| {
                     let next_tick = n.next_tick_utc();
                     let last_tick = n.last_tick_utc();
@@ -117,23 +117,19 @@ impl Scheduler {
 
                     let must_run = match (last_tick.as_ref(), next_tick.as_ref(), job_type) {
                         (None, Some(next_tick), JobType::OneShot) => {
-                            let now_to_next = now.cmp(next_tick);
-                            matches!(now_to_next, std::cmp::Ordering::Greater)
-                                || matches!(now_to_next, std::cmp::Ordering::Equal)
+                            now >= *next_tick
                         }
                         (None, Some(next_tick), JobType::Repeated) => {
-                            let now_to_next = now.cmp(next_tick);
-                            matches!(now_to_next, std::cmp::Ordering::Greater)
-                                || matches!(now_to_next, std::cmp::Ordering::Equal)
+                            now >= *next_tick
                         }
                         (None, Some(next_tick), JobType::Cron) => {
-                            let now_to_next = now.cmp(next_tick);
-                            matches!(now_to_next, std::cmp::Ordering::Greater)
-                                || matches!(now_to_next, std::cmp::Ordering::Equal)
+                            now >= *next_tick
                         }
                         (Some(last_tick), Some(next_tick), _) => {
                             let now_to_next = now.cmp(next_tick);
                             let last_to_next = last_tick.cmp(next_tick);
+                            let job_id = n.id.as_ref().map(Uuid::from).map(|u| u.to_string());
+                            tracing::trace!(job.id = job_id, now = ?now, ?last_tick, ?next_tick, ?now_to_next, ?last_to_next, "Comparing times");
 
                             (matches!(now_to_next, std::cmp::Ordering::Greater)
                                 || matches!(now_to_next, std::cmp::Ordering::Equal))
@@ -154,7 +150,7 @@ impl Scheduler {
                     {
                         let job = { metadata_storage.write().await.get(uuid).await };
                         if let Ok(Some(data)) = job {
-                            tracing::debug!(job.id = %uuid,
+                            tracing::trace!(job.id = %uuid,
                                 job.ran = data.ran,
                                 job.last.update = data.last_updated.map(|s|format!("{:?}", DateTime::from_timestamp(s as _, 0))),
                                 job.last_tick = data.last_tick.map(|s|format!("{:?}", DateTime::from_timestamp(s as _, 0))),
@@ -162,67 +158,9 @@ impl Scheduler {
                                 "Job sending");
                             let job_type = JobType::from_i32(data.job_type).unwrap();
                             if matches!(job_type, JobType::Repeated) && data.ran {
-                                let repeated_every = data.repeated_every();
-                                let last_tick = data.last_tick_utc();
-                                let next_tick = data.next_tick_utc();
-                                if let (Some(repeated_every), Some(last_tick), Some(next_tick)) =
-                                    (repeated_every, last_tick, next_tick)
-                                {
-                                    if next_tick - last_tick
-                                        > chrono::Duration::seconds(repeated_every as i64) * 10
-                                    {
-                                        tracing::debug!(job.id = %uuid, "Job is too late to run, sending a tick for fake running");
-                                        {
-                                            let tx = notify_tx.clone();
-                                            tokio::spawn(async move {
-                                                if let Err(e) = tx.send((uuid, JobState::Scheduled))
-                                                {
-                                                    error!(
-                                                    "Error sending notification activation {:?}",
-                                                    e
-                                                );
-                                                }
-                                            });
-                                        }
-                                        {
-                                            let tx = job_activation_tx.clone();
-                                            tokio::spawn(async move {
-                                                if let Err(e) = tx.send(uuid) {
-                                                    error!(
-                                                        "Error sending job activation tx {:?}",
-                                                        e
-                                                    );
-                                                }
-                                            });
-                                        }
-                                    } else {
-                                        tracing::debug!(job.id = %uuid, "Skip concurrent job");
-                                    }
-                                } else {
-                                    tracing::error!(job.id = %uuid, "Repeated job should never reach this");
-                                    // If the job is a repeated job and it has already ran, we don't want to run it again
-                                    {
-                                        let tx = notify_tx.clone();
-                                        tokio::spawn(async move {
-                                            if let Err(e) = tx.send((uuid, JobState::Scheduled)) {
-                                                error!(
-                                                    "Error sending notification activation {:?}",
-                                                    e
-                                                );
-                                            }
-                                        });
-                                    }
-                                    {
-                                        let tx = job_activation_tx.clone();
-                                        tokio::spawn(async move {
-                                            if let Err(e) = tx.send(uuid) {
-                                                error!("Error sending job activation tx {:?}", e);
-                                            }
-                                        });
-                                    }
-                                }
+                                tracing::trace!(job.id = %uuid, "Skip concurrent job");
                             } else {
-                                // If the job is a repeated job and it has already ran, we don't want to run it again
+                                // otherwise, send the job
                                 tracing::debug!(job.id = %uuid, "Activate job");
                                 {
                                     let tx = notify_tx.clone();
