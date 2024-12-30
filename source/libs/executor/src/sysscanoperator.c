@@ -2269,6 +2269,8 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
     if (ret) {
       if (ret == TSDB_CODE_NOT_FOUND) {
         // no more scan entry
+        setOperatorCompleted(pOperator);
+        pAPI->tsdReader.fileSetReaderClose(&pInfo->pFileSetReader);
         break;
       } else {
         code = ret;

@@ -4466,6 +4466,19 @@ _end:
   return code;
 }
 
+static bool isWinResult(SSessionKey* pKey, SSHashObj* pSeUpdate, SSHashObj* pResults) {
+  SSessionKey checkKey = {0};
+  getSessionHashKey(pKey, &checkKey);
+  if (tSimpleHashGet(pSeUpdate, &checkKey, sizeof(SSessionKey)) != NULL) {
+    return true;
+  }
+  
+  if (tSimpleHashGet(pResults, &checkKey, sizeof(SSessionKey)) != NULL) {
+    return true;
+  }
+  return false;
+}
+
 static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, SSHashObj* pSeUpdated,
                                  SSHashObj* pStDeleted) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -4518,7 +4531,9 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     code = setStateOutputBuf(pAggSup, tsCols[i], groupId, pKeyData, &curWin, &nextWin);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    releaseOutputBuf(pAggSup->pState, nextWin.winInfo.pStatePos, &pAPI->stateStore);
+    if (isWinResult(&nextWin.winInfo.sessionWin, pSeUpdated, pAggSup->pResultRows) == false) {
+      releaseOutputBuf(pAggSup->pState, nextWin.winInfo.pStatePos, &pAPI->stateStore);
+    }
 
     setSessionWinOutputInfo(pSeUpdated, &curWin.winInfo);
     code = updateStateWindowInfo(pAggSup, &curWin, &nextWin, tsCols, groupId, pKeyColInfo, rows, i, &allEqual,

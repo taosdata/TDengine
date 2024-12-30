@@ -81,8 +81,8 @@ class TDTestCase:
         tdSql.query('select * from information_schema.ins_databases where name = "db"')
         
         db_options_items = ["replica","keep","buffer","pages","minrows","cachemodel","cachesize","wal_level","wal_fsync_period",
-                      "wal_retention_period","wal_retention_size","stt_trigger"]
-        db_options_result_idx = [4,7,8,10,11,18,19,20,21,22,23,24]
+                      "wal_retention_period","wal_retention_size","stt_trigger", "compact_interval", "compact_time_range", "compact_time_offset"]
+        db_options_result_idx = [4,7,8,10,11,18,19,20,21,22,23,24,34,35,36]
         
         self.option_result = []
         for idx in db_options_result_idx:
