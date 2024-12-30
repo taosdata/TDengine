@@ -477,5 +477,6 @@ sql connect
 sleep 30000
 
 sql select start_ver, checkpoint_ver from information_schema.ins_stream_tasks where level='source';
+sleep 500
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
