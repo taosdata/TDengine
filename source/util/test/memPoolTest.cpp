@@ -2298,23 +2298,4 @@ TEST(functionsTest, internalFunc) {
 
 #endif
 
-
-
-
-
-
-
-
-
-
-
-int main(int argc, char** argv) {
-  taosSeedRand(taosGetTimestampSec());
-  mptInit();
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
-
-
-
 #pragma GCC diagnosti
