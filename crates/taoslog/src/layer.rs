@@ -1,4 +1,4 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::{collections::BTreeMap, marker::PhantomData};
 
 use chrono::{DateTime, Local};
 use tracing::{
@@ -14,7 +14,7 @@ use tracing_subscriber::{
 use crate::{writer::RollingFileAppender, QidManager};
 
 #[derive(Clone)]
-struct RecordFields(HashMap<String, String>, Option<String>);
+struct RecordFields(BTreeMap<String, String>, Option<String>);
 
 pub struct TaosLayer<Q, S = Registry, M = RollingFileAppender> {
     make_writer: M,
@@ -106,7 +106,7 @@ impl<Q, S, M> TaosLayer<Q, S, M> {
         S: for<'s> LookupSpan<'s>,
         Q: QidManager,
     {
-        let mut kvs = HashMap::new();
+        let mut kvs = BTreeMap::new();
 
         let is_from_log = event.metadata().target() == "log";
 
@@ -229,7 +229,7 @@ where
         extensions.replace(qid);
 
         if extensions.get_mut::<RecordFields>().is_none() {
-            let mut fields = HashMap::new();
+            let mut fields = BTreeMap::new();
             let mut message = None;
             attrs.values().record(&mut RecordVisit {
                 kvs: &mut fields,
@@ -259,7 +259,7 @@ where
                 });
             }
             None => {
-                let mut fields = HashMap::new();
+                let mut fields = BTreeMap::new();
                 let mut message = None;
                 values.record(&mut RecordVisit {
                     kvs: &mut fields,
@@ -314,7 +314,7 @@ where
 }
 
 pub struct RecordVisit<'a> {
-    kvs: &'a mut HashMap<String, String>,
+    kvs: &'a mut BTreeMap<String, String>,
     message: &'a mut Option<String>,
     is_from_log: bool,
 }
@@ -403,19 +403,17 @@ mod tests {
             .set_default();
 
         tracing::info_span!("outer", "k" = "kkk").in_scope(|| {
-            tracing::info!("this is a test info log");
+            tracing::info!(port = 1111, "this is a test info log");
             let s = rx.recv().unwrap();
-            assert!(s.contains("k:kkk"));
-            assert!(s.contains("this is a test info log"));
+            assert_eq!(&s[38..], "INFO  QID:0x7fffffffffffffff mod:taoslog::layer::tests, k:kkk, port:1111, this is a test info log\n");
             // test qid init
             let qid: Qid = Span.get_qid().unwrap();
             assert_eq!(qid.get(), 9223372036854775807);
             Span.set_qid(&Qid::from(999));
-            tracing::info_span!("inner").in_scope(|| {
-                tracing::info!("this is a test inner info log");
+            tracing::info_span!("inner", "a" = "aaa").in_scope(|| {
+                tracing::info!(ip = "127.0.0.1","this is a test inner info log");
                 let s = rx.recv().unwrap();
-                assert!(s.contains("k:kkk"));
-                assert!(s.contains("this is a test inner info log"));
+                assert_eq!(&s[38..], "INFO  QID:0x3e7 mod:taoslog::layer::tests, a:aaa, ip:127.0.0.1, k:kkk, this is a test inner info log\n");
                 // test qid inherit
                 let qid: Qid = Span.get_qid().unwrap();
                 assert_eq!(qid.get(), 999);
