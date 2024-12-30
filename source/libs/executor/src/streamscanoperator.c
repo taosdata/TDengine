@@ -693,20 +693,27 @@ static int32_t doOneRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange, SSData
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
+  SOperatorInfo* pScanOp = NULL;
+  if (pInfo->scanAllTables) {
+    pScanOp = pInfo->pTableScanOp;
+  } else {
+    pScanOp = pInfo->pRecTableScanOp;
+  }
+
   while (1) {
     SSDataBlock* pResult = NULL;
-    code = doTableScanNext(pInfo->pRecTableScanOp, &pResult);
+    code = doTableScanNext(pScanOp, &pResult);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pResult == NULL) {
-      STableScanInfo* pTableScanInfo = pInfo->pRecTableScanOp->info;
+      STableScanInfo* pTableScanInfo = pScanOp->info;
       pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
       pTableScanInfo->base.dataReader = NULL;
       (*ppRes) = NULL;
       goto _end;
     }
 
-    code = doFilter(pResult, pInfo->pRecTableScanOp->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pResult, pScanOp->exprSupp.pFilterInfo, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pResult->info.rows == 0) {
       continue;
@@ -721,7 +728,7 @@ static int32_t doOneRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange, SSData
       for (int32_t i = 0; i < tmpBlock->info.rows; i++) {
         uint64_t dataGroupId = calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, tmpBlock, i);
         if (tSimpleHashGet(pRange->pGroupIds, &dataGroupId, sizeof(uint64_t)) != NULL) {
-          for (int32_t j = 0; j < pInfo->pRecTableScanOp->exprSupp.numOfExprs; j++) {
+          for (int32_t j = 0; j < pScanOp->exprSupp.numOfExprs; j++) {
             SColumnInfoData* pSrcCol = taosArrayGet(tmpBlock->pDataBlock, j);
             SColumnInfoData* pDestCol = taosArrayGet(pResult->pDataBlock, j);
             bool             isNull = colDataIsNull(pSrcCol, tmpBlock->info.rows, i, NULL);
@@ -770,8 +777,20 @@ static int32_t prepareDataRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange) 
   SOperatorParam*          pOpParam = NULL;
   STableScanOperatorParam* pTableScanParam = NULL;
 
-  resetTableScanInfo(pInfo->pRecTableScanOp->info, &pRange->win, -1);
-  pInfo->pRecTableScanOp->status = OP_OPENED;
+  SOperatorInfo* pScanOp = NULL;
+  if (pInfo->scanAllTables) {
+    pScanOp = pInfo->pTableScanOp;
+  } else {
+    pScanOp = pInfo->pRecTableScanOp;
+  }
+
+  resetTableScanInfo(pScanOp->info, &pRange->win, -1);
+  pScanOp->status = OP_OPENED;
+
+  if (pInfo->scanAllTables == true) {
+    goto _end;
+  }
+
   pOpParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pOpParam, code, lino, _end, terrno);
   pOpParam->downstreamIdx = 0;
@@ -794,7 +813,7 @@ static int32_t prepareDataRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange) 
     void* pTemRes = taosArrayPush(pTableScanParam->pUidList, pTempUid);
     QUERY_CHECK_NULL(pTemRes, code, lino, _end, terrno);
   }
-  pInfo->pRecTableScanOp->pOperatorGetParam = pOpParam;
+  pScanOp->pOperatorGetParam = pOpParam;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1206,6 +1225,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   pInfo->readHandle = *pHandle;
   pInfo->comparePkColFn = getKeyComparFunc(pkType.type, TSDB_ORDER_ASC);
   pInfo->curRange = (SScanRange){0};
+  pInfo->scanAllTables = false; //todo(liuyao) semi interval.
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);

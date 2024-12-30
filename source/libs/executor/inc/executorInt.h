@@ -549,6 +549,7 @@ typedef struct SStreamScanInfo {
   __compar_fn_t          comparePkColFn;
   SScanRange             curRange;
   struct SOperatorInfo*  pRecTableScanOp;
+  bool                   scanAllTables;
 } SStreamScanInfo;
 
 typedef struct {
