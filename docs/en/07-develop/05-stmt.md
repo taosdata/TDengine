@@ -96,9 +96,19 @@ This is a [more detailed parameter binding example](https://github.com/taosdata/
 
 </TabItem>
 <TabItem label="Go" value="go">
+
+The example code for binding parameters with stmt2 (Go connector v3.6.0 and above, TDengine v3.3.5.0 and above) is as follows:
+
+```go
+{{#include docs/examples/go/stmt2/native/main.go}}
+```
+
+The example code for binding parameters with stmt is as follows:
+
 ```go
 {{#include docs/examples/go/stmt/native/main.go}}
 ```
+
 </TabItem>
 <TabItem label="Rust" value="rust">
 
