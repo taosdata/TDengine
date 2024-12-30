@@ -5128,8 +5128,8 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
 
   SOperatorNode *pOper = (SOperatorNode *)pNode;
 
-  SValueNode *valNode = (SValueNode *)pOper->pRight;
-  if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+  SExprNode* pLeft = (SExprNode*)pOper->pLeft;
+  if (IS_NUMERIC_TYPE(pLeft->resType.type) || pLeft->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
     SNode* pLeft = NULL, *pRight = NULL;
     int32_t code = nodesCloneNode(pOper->pLeft, &pLeft);
     if (TSDB_CODE_SUCCESS != code) {

@@ -19,7 +19,6 @@
 #include "tcs.h"
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
-static int32_t deleteCheckpointFile(const char* id, const char* name);
 static int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t checkpointId);
 #ifdef BUILD_NO_CALL
 static int32_t deleteCheckpoint(const char* id);
@@ -230,8 +229,8 @@ int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStream
   return code;
 }
 
-static int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
-                                               int32_t transId) {
+int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
+                                        int32_t transId) {
   int32_t     code = 0;
   int32_t     vgId = pTask->pMeta->vgId;
   int32_t     taskLevel = pTask->info.taskLevel;
