@@ -179,7 +179,7 @@ To package taosX-agent and plugins, you can type this:
 
 ```bash
 cd packaging
-python3 release.py -ba agent
+python3 release.py -ba 1
 ```
 Check out more packaging options by `python3 release.py --help`.
 
