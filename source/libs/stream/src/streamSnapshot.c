@@ -214,7 +214,6 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
 
     if ((strlen(buf)) < cap) {
       buf[wlen++] = ']';
-      buf[wlen - 1] = '\0';
     }
 
     stInfo("%s %" PRId64 "-%" PRId64 " get file list: %s", STREAM_STATE_TRANSFER, pSnapFile->snapInfo.streamId,
