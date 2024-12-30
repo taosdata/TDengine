@@ -97,9 +97,20 @@ import TabItem from "@theme/TabItem";
 ```
 </TabItem>
 <TabItem label="Go" value="go">
+
+stmt2 绑定参数的示例代码如下（go 连接器 v3.6.0 及以上，TDengine v3.3.5.0 及以上）：
+
+```go
+{{#include docs/examples/go/stmt2/native/main.go}}
+```
+
+stmt 绑定参数的示例代码如下：
+
 ```go
 {{#include docs/examples/go/stmt/native/main.go}}
 ```
+
+
 </TabItem>
 <TabItem label="Rust" value="rust">
 
