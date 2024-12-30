@@ -76,7 +76,10 @@ class TDTestCase:
         tdDnodes.deploy(1,cfg)
         tdDnodes.start(1)
 
-        tdSql.execute('create database dbtest vgroups 10 replica 3 duration 60m keep 1d,365d,3650d;')
+        # create dnode 'mys03d01:6030';
+        # create dnode 'mys04d01:6030';
+
+        tdSql.execute('create database dbtest vgroups 12 replica 3 duration 60m keep 1d,365d,3650d;')
         tdSql.execute('use dbtest')
         tdSql.execute('create table stb (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute('create table tb1 using stb tags(1)')
