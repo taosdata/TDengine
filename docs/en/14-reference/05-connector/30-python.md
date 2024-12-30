@@ -436,8 +436,8 @@ TaosResult object can be iterated over to retrieve queried data.
     - **Interface Description**：Creating an STMT2 object using a connection object
     - **Parameter Description**
         - `sql`: The bound SQL statement will call the `prepare` function if it is not empty
-        - `option` Pass in TaoStmt2Option class instance options
-    - **Return Value**：stmt2 object
+        - `option` Pass in `TaoStmt2Option` class instance
+    - **Return Value**：STMT2 object
     - **Exception**：Throws `ConnectionError` on failure
 - `def prepare(self, sql)`
     - **Interface Description**：Bind a precompiled SQL statement
@@ -449,12 +449,12 @@ TaosResult object can be iterated over to retrieve queried data.
     - **Parameter Description**：
         - `tbnames`:Bind table name array, data type is list 
         - `tags`: Bind tag column value array, data type is list
-        - `tags`: Bind a regular column value array with a data type of list
+        - `datas`: Bind data column value array, data type of list
     - **Exception**：Throws `StatementError` on failure
 - `def bind_param_with_tables(self, tables)`
-    - **Interface Description**：Bind data in an independent table format. Independent tables are organized by table units, with table names, TAG values, and regular column numerical attributes in each table
+    - **Interface Description**：Bind data in an independent table format. Independent tables are organized by table units, with table name, TAG value, and data column attributes in table object
     - **Parameter Description**：
-        - `tables`: `BindTable` Independent Table Object Array
+        - `tables`: `BindTable` Independent table object array
     - **Exception**：Throws `StatementError` on failure
 - `def execute(self) -> int:`
     - **Interface Description**：Execute to write all bound data
