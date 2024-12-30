@@ -90,6 +90,8 @@ def build_package(internal_root, new_version) {
         time ./container_build_newmachine.sh -w ${WORK_DIR} -e
 		cd ${INTERNAL_ROOT}/community/tests/parallel_test
         time ./container_build.sh -w ${WORK_DIR} -e
+		rm ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
+		rm ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
     '''
 }
 def check_cases_to_run() {
