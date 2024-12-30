@@ -26,10 +26,16 @@ import TabItem from "@theme/TabItem";
 ## WebSocket 连接
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
+
+参数绑定有两种接口使用方式，一种是 JDBC 标准接口，一种是扩展接口，扩展接口性能更好一些。
+
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingBasicDemo.java:para_bind}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingStdInterfaceDemo.java:para_bind}}
 ```
 
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingExtendInterfaceDemo.java:para_bind}}
+```
 
 这是一个[更详细的参数绑定示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
 
