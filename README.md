@@ -46,7 +46,7 @@ You can complete the installation with one click by executing the following shel
 ```bash
 wget https://raw.githubusercontent.com/taosdata/TDengine/main/packaging/setup_env.sh
 chmod +x setup_env.sh
-./setup_dev.sh TDinternal
+./setup_dev.sh TDinternal # For taosX and TDinternal, the setup process is the same.
 source ~/.bashrc
 ```
 
