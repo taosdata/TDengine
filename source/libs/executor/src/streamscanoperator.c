@@ -194,15 +194,17 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   switch (pInfo->scanMode) {
     case STREAM_SCAN_FROM_RES: {
-      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      if (pInfo->pUpdateRes->info.rows > 0) {
+        pInfo->scanMode = STREAM_SCAN_FROM_RES;
+      } else {
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      }
       (*ppRes) = pInfo->pRes;
       goto _end;
     } break;
     case STREAM_SCAN_FROM_UPDATERES: {
-      if (pInfo->pRes->info.rows > 0) {
-        pInfo->scanMode = STREAM_SCAN_FROM_RES;
-      }
       (*ppRes) = pInfo->pUpdateRes;
+      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       goto _end;
     } break;
     default:
@@ -308,10 +310,10 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
 
       if (pInfo->pCreateTbRes->info.rows > 0) {
-        if (pInfo->pUpdateRes->info.rows > 0) {
-          pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
-        } else if (pInfo->pRes->info.rows > 0) {
+        if (pInfo->pRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
+        } else if (pInfo->pUpdateRes->info.rows > 0) {
+          pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
         }
         qDebug("create table res exists, rows:%" PRId64 " return from stream scan, %s", pInfo->pCreateTbRes->info.rows,
                GET_TASKID(pTaskInfo));

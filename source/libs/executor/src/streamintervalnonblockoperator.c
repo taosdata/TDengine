@@ -335,9 +335,9 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
         (*ppRes) = pBlock;
         return code;
       } break;
-      case STREAM_DELETE_DATA:
-      case STREAM_DELETE_RESULT:
-      case STREAM_CLEAR: {
+      case STREAM_RECALCULATE_DATA:// todo(liuyao) for debug
+      case STREAM_RECALCULATE_DELETE: // todo(liuyao) for debug
+      case STREAM_DELETE_DATA: {
         continue;
       } break;
       default:
