@@ -273,6 +273,15 @@ int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json) {
     if (code) return code;
   }
 
+  // about compact and commit
+  if (cJSON_AddNumberToObject(json, "last compact", fset->lastCompact) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (cJSON_AddNumberToObject(json, "last commit", fset->lastCommit) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   return 0;
 }
 
@@ -323,6 +332,20 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
     TARRAY2_SORT((*fset)->lvlArr, tsdbSttLvlCmprFn);
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
+  }
+  // about compact and commit
+  item1 = cJSON_GetObjectItem(json, "last compact");
+  if (cJSON_IsNumber(item1)) {
+    (*fset)->lastCompact = item1->valuedouble;
+  } else {
+    (*fset)->lastCompact = 0;
+  }
+
+  item1 = cJSON_GetObjectItem(json, "last commit");
+  if (cJSON_IsNumber(item1)) {
+    (*fset)->lastCommit = item1->valuedouble;
+  } else {
+    (*fset)->lastCommit = 0;
   }
 
   return 0;
@@ -467,6 +490,9 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
     }
   }
 
+  fset2->lastCompact = fset1->lastCompact;
+  fset2->lastCommit = fset1->lastCommit;
+
   return 0;
 }
 
@@ -521,6 +547,9 @@ int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **f
     code = TARRAY2_APPEND(fset[0]->lvlArr, lvl);
     if (code) return code;
   }
+
+  (*fset)->lastCompact = fset1->lastCompact;
+  (*fset)->lastCommit = fset1->lastCommit;
 
   return 0;
 }
@@ -616,6 +645,9 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
       return code;
     }
   }
+
+  (*fset)->lastCompact = fset1->lastCompact;
+  (*fset)->lastCommit = fset1->lastCommit;
 
   return 0;
 }

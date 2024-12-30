@@ -182,7 +182,7 @@ void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 void    tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key);

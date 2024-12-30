@@ -137,6 +137,8 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
 }
 
 int32_t initTaskQueue() {
+  memset(&taskQueue, 0, sizeof(taskQueue));
+  
   taskQueue.wrokrerPool.name = "taskWorkPool";
   taskQueue.wrokrerPool.min = tsNumOfTaskQueueThreads;
   taskQueue.wrokrerPool.max = tsNumOfTaskQueueThreads;

@@ -519,7 +519,7 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pItem == NULL) {
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+    TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL: {
@@ -603,11 +603,11 @@ int32_t checkItemDyn(SConfigItem *pItem, bool isServer) {
     return TSDB_CODE_SUCCESS;
   }
   if (isServer) {
-    if (pItem->dynScope == CFG_DYN_ENT_CLIENT || pItem->dynScope == CFG_DYN_ENT_CLIENT_LAZY) {
+    if (pItem->dynScope == CFG_DYN_CLIENT || pItem->dynScope == CFG_DYN_CLIENT_LAZY) {
       return TSDB_CODE_INVALID_CFG;
     }
   } else {
-    if (pItem->dynScope == CFG_DYN_ENT_SERVER || pItem->dynScope == CFG_DYN_ENT_SERVER_LAZY) {
+    if (pItem->dynScope == CFG_DYN_SERVER || pItem->dynScope == CFG_DYN_SERVER_LAZY) {
       return TSDB_CODE_INVALID_CFG;
     }
   }
@@ -629,6 +629,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     cfgUnLock(pCfg);
     TAOS_RETURN(code);
   }
+
   if ((pItem->category == CFG_CATEGORY_GLOBAL) && alterType == CFG_ALTER_DNODE) {
     uError("failed to config:%s, not support update global config on only one dnode", name);
     cfgUnLock(pCfg);

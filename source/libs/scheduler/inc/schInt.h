@@ -149,11 +149,11 @@ typedef struct SSchedulerMgmt {
   bool          exit;
   int32_t       jobRef;
   int32_t       jobNum;
-  SSchStat      stat;
   void         *timer;
   SRWLatch      hbLock;
   SHashObj     *hbConnections;
   void         *queryMgmt;
+  SSchStat      stat;
 } SSchedulerMgmt;
 
 typedef struct SSchCallbackParamHeader {

@@ -47,3 +47,13 @@ select round(abs(voltage), 2) from ts_4893.meters limit 1
 select round(pi() * phase, 3) from ts_4893.meters limit 1
 select round(sqrt(voltage), 2) from ts_4893.meters limit 1
 select round(log(current), 2) from ts_4893.meters limit 1
+select round(cast(1.0e+400 as float), 0);
+select round(cast(1.0e+400 as double), 0);
+select round(cast(5 as tinyint), 1);
+select round(cast(50 as smallint), 1);
+select round(cast(500 as int), 1);
+select round(cast(50000 as bigint), 1);
+select round(cast(5 as TINYINT UNSIGNED), 1);
+select round(cast(50 as smallint unsigned), 1);
+select round(cast(500 as int unsigned), 1);
+select round(cast(50000 as bigint unsigned), 1);
