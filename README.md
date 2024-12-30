@@ -44,8 +44,9 @@ The software installation and script execution mentioned in this and subsequent 
 You can complete the installation with one click by executing the following shell script:
 
 ```bash
-chmod +x setup_dev.sh
-./setup_dev.sh deploy_dev
+wget https://raw.githubusercontent.com/taosdata/TDengine/main/packaging/setup_env.sh
+chmod +x setup_env.sh
+./setup_dev.sh TDinternal
 source ~/.bashrc
 ```
 
