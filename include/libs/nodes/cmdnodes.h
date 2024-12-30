@@ -112,7 +112,7 @@ typedef struct SDatabaseOptions {
   int8_t      s3Compact;
   int8_t      withArbitrator;
   // for auto-compact
-  int8_t      compactTimeOffset;  // hours
+  int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
   int32_t     compactStartTime;   // minutes
   int32_t     compactEndTime;     // minutes
@@ -438,6 +438,11 @@ typedef struct SShowCompactDetailsStmt {
   ENodeType type;
   SNode*    pCompactId;
 } SShowCompactDetailsStmt;
+
+typedef struct SShowTransactionDetailsStmt {
+  ENodeType type;
+  SNode*    pTransactionId;
+} SShowTransactionDetailsStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 

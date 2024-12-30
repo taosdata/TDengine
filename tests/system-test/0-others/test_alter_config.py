@@ -208,11 +208,6 @@ class TDTestCase:
                     "category": "global"
                 },
                 {
-                    "name": "resolveFQDNRetryTime",
-                    "value": 500,
-                    "category": "global"
-                },
-                {
                     "name": "syncElectInterval",
                     "value": 50000,
                     "category": "global"

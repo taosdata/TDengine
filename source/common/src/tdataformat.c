@@ -449,9 +449,11 @@ static int32_t tBindInfoCompare(const void *p1, const void *p2, const void *para
  * `infoSorted` is whether the bind information is sorted by column id
  * `pTSchema` is the schema of the table
  * `rowArray` is the array to store the rows
+ * `pOrdered` is the pointer to store ordered
+ * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                          SArray *rowArray) {
+                          SArray *rowArray, bool *pOrdered, bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -469,6 +471,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     return terrno;
   }
 
+  SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
 
@@ -506,6 +509,22 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    if (pOrdered && pDupTs) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        *pOrdered = true;
+        *pDupTs = false;
+      } else {
+        // no more compare if we already get disordered or duplicate rows
+        if (*pOrdered && !*pDupTs) {
+          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (code >= 0);
+          *pDupTs = (code == 0);
+        }
+      }
+      lastRowKey = rowKey;
     }
   }
 
@@ -2652,8 +2671,13 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue6,  // HAS_VALUE | HAS_NULL
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
-void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+  if (iVal < 0 || iVal >= pColData->nVal ||
+      (pColData->flag <= 0 || pColData->flag >= sizeof(tColDataGetValueImpl)/POINTER_BYTES)){
+    return TSDB_CODE_INVALID_PARA;
+  }
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
+  return TSDB_CODE_SUCCESS;
 }
 
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
@@ -3235,9 +3259,11 @@ _exit:
  * `infoSorted` is whether the bind information is sorted by column id
  * `pTSchema` is the schema of the table
  * `rowArray` is the array to store the rows
+ * `pOrdered` is the pointer to store ordered
+ * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray) {
+                           SArray *rowArray, bool *pOrdered, bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -3266,6 +3292,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     }
   }
 
+  SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
 
@@ -3316,6 +3343,22 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    if (pOrdered && pDupTs) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        *pOrdered = true;
+        *pDupTs = false;
+      } else {
+        // no more compare if we already get disordered or duplicate rows
+        if (*pOrdered && !*pDupTs) {
+          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (code >= 0);
+          *pDupTs = (code == 0);
+        }
+      }
+      lastRowKey = rowKey;
     }
   }
 
@@ -3398,7 +3441,10 @@ static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, S
 
   for (int32_t i = 0; i < nColData; i++) {
     SColVal cv = {0};
-    tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    code = tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     code = tColDataAppendValue(&aToColData[i], &cv);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -3537,7 +3583,10 @@ static int32_t tColDataMerge(SArray **colArr) {
         SColData *dstCol = taosArrayGet(dst, j);
 
         SColVal cv;
-        tColDataGetValue(srcCol, i, &cv);
+        code = tColDataGetValue(srcCol, i, &cv);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
         code = tColDataAppendValue(dstCol, &cv);
         if (code) {
           goto _exit;
@@ -3550,7 +3599,10 @@ static int32_t tColDataMerge(SArray **colArr) {
         SColData *dstCol = taosArrayGet(dst, j);
 
         SColVal cv;
-        tColDataGetValue(srcCol, i, &cv);
+        code = tColDataGetValue(srcCol, i, &cv);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
         code = tColDataUpdateValue(dstCol, &cv, true);
         if (code) {
           goto _exit;

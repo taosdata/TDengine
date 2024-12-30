@@ -10,15 +10,11 @@ import TabItem from "@theme/TabItem";
 ## 概述
 本文档介绍如何将 TDengine 数据源与开源数据可视化系统 [Grafana](https://www.grafana.com/) 集成，以实现数据的可视化和监测报警系统的搭建。通过 TDengine 插件，您可以轻松地将 TDengine 数据表的数据展示在 Grafana 仪表盘上，且无需进行复杂的开发工作。
 
-## Grafana 版本要求
-当前 TDengine 支持 Grafana 7.5 及以上版本，建议使用最新版本。请根据您的系统环境下载并安装对应版本的 Grafana。
-
-
 ## 前置条件
 
 要让 Grafana 能正常添加 TDengine 数据源，需要以下几方面的准备工作。
 
-- Grafana 服务已经部署并正常运行。  
+- Grafana 服务已经部署并正常运行。当前 TDengine 支持 Grafana 7.5 及以上版本，建议使用最新版本。  
     **注意**：要确保启动 Grafana 的账号有其安装目录的写权限，否则可能后面无法安装插件。
 - TDengine 集群已经部署并正常运行。
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)

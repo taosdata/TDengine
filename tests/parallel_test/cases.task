@@ -11,11 +11,13 @@
 #
 ,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
 ,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_paramnum.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_percentile.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
@@ -218,6 +220,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
+,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5761.py
+,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5761-scalemode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5712.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 2
@@ -245,6 +249,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
+,,n,system-test,python3 ./test.py -f 2-query/large_data.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 2
@@ -315,6 +320,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5466.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts-5473.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-33225.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32526.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_replay.py
@@ -335,6 +341,7 @@
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-ntb-select.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-false.py -N 3 -n 3
@@ -360,6 +367,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdNewMonitor.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
 ,,n,system-test,python3 ./test.py -f 0-others/udfTest.py
@@ -376,6 +385,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel_createdb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
@@ -398,9 +408,15 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_vgroups.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_auto.py
+,,n,system-test,python3 ./test.py -f 0-others/dumpsdb.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
 
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
@@ -469,6 +485,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ins_filesets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
@@ -776,6 +793,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/compactDBConflict.py -N 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/mnodeEncrypt.py 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 2
@@ -1369,6 +1387,8 @@
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,y,script,./test.sh -f tsim/stream/basic3.sim
 ,,y,script,./test.sh -f tsim/stream/basic4.sim
+,,y,script,./test.sh -f tsim/stream/basic5.sim
+,,y,script,./test.sh -f tsim/stream/tag.sim
 ,,y,script,./test.sh -f tsim/stream/snodeCheck.sim
 ,,y,script,./test.sh -f tsim/stream/concurrentcheckpt.sim
 ,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
@@ -1419,34 +1439,36 @@
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
 ,,y,script,./test.sh -f tsim/stream/state0.sim
 ,,y,script,./test.sh -f tsim/stream/state1.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpDelete0.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpDelete1.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpDelete2.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpDelete0.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpDelete1.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpDelete2.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose1.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpFwcError.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpHistory1.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpLarge.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpLinear0.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpNext0.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpOther.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpLarge.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpLinear0.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpNext0.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpOther.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpOther1.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpPartitionBy0.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpPartitionBy0.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpPartitionBy1.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpPrev0.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpPrev1.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey0.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey1.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey2.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey3.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpUpdate.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpUpdate1.sim
-#,,y,script,./test.sh -f tsim/stream/streamInterpValue0.sim
-#,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
-#,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
-#,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
-#,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey0.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey1.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey2.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey3.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpUpdate.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpUpdate1.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpUpdate2.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpValue0.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
 ,,y,script,./test.sh -f tsim/stream/streamTwaError.sim
 ,,y,script,./test.sh -f tsim/stream/streamTwaFwcFill.sim
 ,,y,script,./test.sh -f tsim/stream/streamTwaFwcFillPrimaryKey.sim

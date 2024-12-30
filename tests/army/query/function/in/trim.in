@@ -34,6 +34,9 @@ select trim('空格blank' from '空格blank空格中Tes空格blank空')
 select trim(both '空格blank' from '空格blank空格中Tes空格blank空')
 select trim(leading '空格blank' from '空格blank空格中Tes空格blank空')
 select trim(trailing '空格blank' from '空格blank空格中Tes空格blank空')
+select trim(both from nch1) from ts_4893.meters order by ts limit 5
+select trim(leading from nch1) from ts_4893.meters order by ts limit 5
+select trim(trailing from nch1) from ts_4893.meters order by ts limit 5
 select trim(nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
 select trim(both nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
 select trim(leading nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
