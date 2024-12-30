@@ -311,8 +311,8 @@ python3 ./test.py -f 2-query/floor.py
 ## 8.3 Run unittest
 
 ```bash
-cd /root/TDinternal/debug
-ctest
+cd /root/TDinternal/community/tests/unit-test/
+bash test.sh
 ```
 
 ## 8.4 Smoke Testing
@@ -348,7 +348,7 @@ nohup bash tsdbComparison.sh > test.log &
 ### 8.6 Crash_gen Test
 
 ```bash
-cd TDinternal/community/tests/pytest/ && ./crash_gen.sh
+cd /root/TDinternal/community/tests/pytest/ && ./crash_gen.sh
 ```
 
 # 9 Releasing
