@@ -390,7 +390,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
         tError("%s failed to init buf since %s", pOpt->label, tstrerror(code));
         return code;
       }
-
+      tDebug("%s handle read on fd:%d", pOpt->label, pArg->fd);
       nBytes = recv(pArg->fd, pBuf->buf, pBuf->len, 0);
       if (nBytes > 0) {
         code = pArg->readCb(pArg, pBuf, nBytes);
@@ -407,6 +407,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
         tError("%s failed to init wbuf since %s", pOpt->label, tstrerror(code));
         return code;
       }
+      tDebug("%s handle write on fd:%d", pOpt->label, pArg->fd);
 
       code = pArg->sendCb(pArg, pBuf, 0);
       if (code != 0) {
@@ -429,6 +430,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       } while (total > 0);
 
       evtBufClear(&pArg->sendBuf);
+      tDebug("%s handle write finish on fd:%d", pOpt->label, pArg->fd);
       pArg->sendFinishCb(pArg, code);
       if (code != 0) {
         tError("%s failed to send buf since %s", pOpt->label, tstrerror(code));
@@ -469,6 +471,11 @@ static int32_t evtCaclNextTimeout(SEvtMgt *pOpt, struct timeval *tv) {
     tv->tv_sec = 30;
     tv->tv_usec = 0;
   }
+
+  if (tv->tv_sec <= 0) {
+    if (tv->tv_usec <= 50 * 1000) tv->tv_usec = 50 * 1000;
+  }
+  tDebug("%s next timeout %ld, sec:%d, usec:%d", pOpt->label, timeout, (int32_t)tv->tv_sec, (int32_t)tv->tv_usec);
   return code;
 }
 static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
@@ -944,6 +951,47 @@ static int32_t evtSvrHandleReleaseReq(SSvrConn *pConn, STransMsgHead *pHead) {
 
   return 0;
 }
+
+static void evtSvrPerfLog_receive(SSvrConn *pConn, STransMsgHead *pHead, STransMsg *pTransMsg) {
+  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+
+  STrans   *pInst = pConn->pInst;
+  STraceId *trace = &pHead->traceId;
+
+  int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
+  static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
+
+  if (pConn->status == ConnNormal && pHead->noResp == 0) {
+    if (cost >= EXCEPTION_LIMIT_US) {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
+              ", sid:%" PRId64 "",
+              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+              (int)cost, pTransMsg->info.seq, pTransMsg->info.qId);
+    } else {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", sid:%" PRId64 "",
+              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+              (int)cost, pTransMsg->info.seq, pTransMsg->info.qId);
+    }
+  } else {
+    if (cost >= EXCEPTION_LIMIT_US) {
+      tGDebug(
+          "%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception, "
+          "seqNum:%" PRId64 ", sid:%" PRId64 "",
+          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+          pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seq, pTransMsg->info.qId);
+    } else {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, seqNum:%" PRId64
+              ", "
+              "sid:%" PRId64 "",
+              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+              pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seq, pTransMsg->info.qId);
+    }
+  }
+  tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pInst), pTransMsg->info.handle, pConn,
+          pConn->refId);
+}
 static int32_t evtSvrHandleReq(SSvrConn *pConn, char *req, int32_t len) {
   SWorkThrd2 *pThrd = pConn->hostThrd;
   STrans     *pInst = pThrd->pInst;
@@ -991,6 +1039,8 @@ static int32_t evtSvrHandleReq(SSvrConn *pConn, char *req, int32_t len) {
   transMsg.info.seq = taosHton64(pHead->seqNum);
   transMsg.info.qId = taosHton64(pHead->qid);
   transMsg.info.msgType = pHead->msgType;
+
+  evtSvrPerfLog_receive(pConn, pHead, &transMsg);
 
   SRpcConnInfo *pConnInfo = &(transMsg.info.conn);
   pConnInfo->clientIp = pConn->clientIp;
@@ -1155,7 +1205,7 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
       taosMemoryFree(pArg);
       continue;
     } else {
-      tDebug("%s success to create conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
+      tDebug("%s succ to create conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
     }
 
     SFdCbArg arg = {.evtType = EVT_CONN_T,
@@ -1332,13 +1382,6 @@ void *transWorkerThread(void *arg) {
 
   while (!pThrd->quit) {
     struct timeval tv = {30, 0};
-    code = evtCaclNextTimeout(pOpt, &tv);
-    if (code != 0) {
-      tError("%s failed to cacl next timeout since %s", pInst->label, tstrerror(code));
-    } else {
-      tDebug("%s succ to cacl next timeout", pInst->label);
-    }
-
     code = evtMgtDispath(pOpt, &tv);
     if (code != 0) {
       tError("%s failed to dispatch since %s", pInst->label, tstrerror(code));
@@ -1535,6 +1578,10 @@ int32_t transSendResponse2(STransMsg *msg) {
     tTrace("no need send resp");
     return 0;
   }
+
+  STraceId *trace = &msg->info.traceId;
+  tGDebug("start to send resp %p", msg);
+
   SExHandle *exh = msg->info.handle;
 
   if (exh == NULL) {
@@ -1562,7 +1609,7 @@ int32_t transSendResponse2(STransMsg *msg) {
 
   m->type = Normal;
 
-  STraceId *trace = (STraceId *)&msg->info.traceId;
+  // STraceId *trace = (STraceId *)&msg->info.traceId;
   tGDebug("conn %p start to send resp (1/2)", exh->handle);
   if ((code = evtAsyncSend(pThrd->asyncHandle, &m->q)) != 0) {
     destroySmsg(m);
@@ -1574,12 +1621,12 @@ int32_t transSendResponse2(STransMsg *msg) {
   return 0;
 
 _return1:
-  tDebug("handle %p failed to send resp", exh);
+  tGDebug("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(msg->info.refIdMgt, refId);
   return code;
 _return2:
-  tDebug("handle %p failed to send resp", exh);
+  tGDebug("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   return code;
 }
@@ -2005,6 +2052,7 @@ static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliCon
   code = getConnFromPool(pThrd, addr, &pConn);
   if (pConn != NULL) {
     *ppConn = pConn;
+    addConnToHeapCache(pThrd->connHeapCache, pConn);
     return 0;
   }
   if (code == TSDB_CODE_RPC_MAX_SESSIONS) {
