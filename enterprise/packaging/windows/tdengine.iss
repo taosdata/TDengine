@@ -287,6 +287,7 @@ var
   FileContent: TArrayOfString;
   StartIndex: Integer;
   EndIndex:   Integer;
+  i: Integer;
 begin
   Log('InitializeSetup called');
   OutputFile := ExpandConstant('{tmp}\java_version.txt');
@@ -297,16 +298,28 @@ begin
   else
   begin
     LoadStringsFromFile(OutputFile, FileContent);
-    OutputText := FileContent[0];
+    JavaReady := False;
+    for i := 0 to High(FileContent) do
+    begin
+      OutputText := FileContent[i];
 
-    StartIndex := Pos('"', OutputText);
-    EndIndex := Pos('"', Copy(OutputText, StartIndex+1, Length(OutputText)-StartIndex));
-    JavaVersion := Copy(OutputText, StartIndex+1, EndIndex-1);
-    JavaReady := CheckJavaVersion(JavaVersion)
-    if JavaReady = True then begin
-      JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
-    end else
-      JavaVersionString := 'JAVA 1.8+ required' + #13#10 + 'No suitable version found.' + #13#10 + 'Please check it.';
+      StartIndex := Pos('"', OutputText);
+      EndIndex := Pos('"', Copy(OutputText, StartIndex+1, Length(OutputText)-StartIndex));
+      JavaVersion := Copy(OutputText, StartIndex+1, EndIndex-1);
+      if CheckJavaVersion(JavaVersion) then
+      begin
+        JavaReady := True; 
+        Break;
+      end;
+    end;
+    if JavaReady = True then
+    begin
+        JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
+    end
+    else
+    begin
+        JavaVersionString := 'JAVA 1.8+ required' + #13#10 + 'No suitable version found.' + #13#10 + 'Please check it.';
+    end;
   end;
   Result := JavaVersionString;
 end;
