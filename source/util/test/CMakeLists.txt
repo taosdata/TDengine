@@ -137,13 +137,31 @@ add_test(
     NAME logTest
     COMMAND logTest
 )
+target_include_directories(
+  logTest
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
+IF(COMPILER_SUPPORT_AVX2)
+    MESSAGE(STATUS "AVX2 instructions is ACTIVATED")
+    set_source_files_properties(decompressTest.cpp PROPERTIES COMPILE_FLAGS -mavx2)
+ENDIF()
 add_executable(decompressTest "decompressTest.cpp")
 target_link_libraries(decompressTest os util common gtest_main)
 add_test(
     NAME decompressTest
     COMMAND decompressTest
 )
+
+
+IF($TD_LINUX)
+    add_executable(utilTests "utilTests.cpp")
+    target_link_libraries(utilTests os util common gtest_main)
+    add_test(
+        NAME utilTests
+        COMMAND utilTests
+    )
+ENDIF()
 
 if(${TD_LINUX})
     # terrorTest

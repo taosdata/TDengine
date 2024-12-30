@@ -5,8 +5,8 @@
 #include <unistd.h>
 #include "taos.h"
 
-int CTB_NUMS = 2;
-int ROW_NUMS = 2;
+int CTB_NUMS = 1;
+int ROW_NUMS = 1;
 int CYC_NUMS = 2;
 
 void do_query(TAOS* taos, const char* sql) {
@@ -217,7 +217,7 @@ int main() {
     exit(1);
   }
 
-  do_stmt(taos, "insert into db.stb(tbname,ts,b,t1,t2) values(?,?,?,?,?)");
+  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)");
   // do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)");
   // do_taosc(taos);
   taos_close(taos);

@@ -483,7 +483,7 @@ static int32_t taosOpenNewLogFile() {
   return 0;
 }
 
-static void taosOpenNewSlowLogFile() {
+void taosOpenNewSlowLogFile() {
   (void)taosThreadMutexLock(&tsLogObj.logMutex);
   int64_t delta = taosGetTimestampSec() - tsLogObj.timestampToday;
   if (delta >= 0 && delta < 86400) {
@@ -538,6 +538,8 @@ void taosResetLog() {
     uInfo("   reset log file ");
   }
 }
+
+void taosLogObjSetToday(int64_t ts) { tsLogObj.timestampToday = ts; }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
   TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE);
@@ -619,6 +621,7 @@ static void processLogFileName(const char *logName, int32_t maxFileNum) {
 }
 
 static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
+  int32_t code = 0, lino = 0;
 #ifdef WINDOWS_STASH
   /*
    * always set maxFileNum to 1
@@ -653,39 +656,28 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
 
   // only an estimate for number of lines
   int64_t filesize = 0;
-  if (taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL) != 0) {
-    (void)printf("\nfailed to fstat log file:%s, reason:%s\n", name, strerror(errno));
-    taosUnLockLogFile(tsLogObj.logHandle->pFile);
-    return terrno;
-  }
+  TAOS_CHECK_EXIT(taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL));
+
   tsLogObj.lines = (int32_t)(filesize / 60);
 
   if (taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END) < 0) {
-    TAOS_UNUSED(printf("failed to seek to the end of log file:%s, reason:%s\n", name, tstrerror(terrno)));
-    taosUnLockLogFile(tsLogObj.logHandle->pFile);
-    return terrno;
+    TAOS_CHECK_EXIT(terrno);
   }
 
-  (void)snprintf(name, sizeof(name), "==================================================\n");
+  (void)snprintf(name, sizeof(name),
+                 "==================================================\n"
+                 "                new log file\n"
+                 "==================================================\n");
   if (taosWriteFile(tsLogObj.logHandle->pFile, name, (uint32_t)strlen(name)) <= 0) {
-    TAOS_UNUSED(printf("failed to write to log file:%s, reason:%s\n", name, tstrerror(terrno)));
-    taosUnLockLogFile(tsLogObj.logHandle->pFile);
-    return terrno;
-  }
-  (void)snprintf(name, sizeof(name), "                new log file                      \n");
-  if (taosWriteFile(tsLogObj.logHandle->pFile, name, (uint32_t)strlen(name)) <= 0) {
-    TAOS_UNUSED(printf("failed to write to log file:%s, reason:%s\n", name, tstrerror(terrno)));
-    taosUnLockLogFile(tsLogObj.logHandle->pFile);
-    return terrno;
-  }
-  (void)snprintf(name, sizeof(name), "==================================================\n");
-  if (taosWriteFile(tsLogObj.logHandle->pFile, name, (uint32_t)strlen(name)) <= 0) {
-    TAOS_UNUSED(printf("failed to write to log file:%s, reason:%s\n", name, tstrerror(terrno)));
-    taosUnLockLogFile(tsLogObj.logHandle->pFile);
-    return terrno;
+    TAOS_CHECK_EXIT(terrno);
   }
 
-  return 0;
+_exit:
+  if (code != 0) {
+    taosUnLockLogFile(tsLogObj.logHandle->pFile);
+    TAOS_UNUSED(printf("failed to init normal log file:%s at line %d, reason:%s\n", name, lino, tstrerror(code)));
+  }
+  return code;
 }
 
 static void taosUpdateLogNums(ELogLevel level) {
