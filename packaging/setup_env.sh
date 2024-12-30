@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Run cleanup function on exit
+trap cleanup EXIT
+
 # define default timezone
 DEFAULT_TIMEZONE="Asia/Shanghai"
 
@@ -63,6 +67,9 @@ PROCESS_EXPORTER_BINARY="/usr/local/bin/process-exporter"
 
 # Define fstab input
 FSTAB_LINE="share-server.platform.tdengine.dev:/mnt/share_server /mnt/share_server nfs rw,sync,_netdev 0 0"
+
+# Results need to be stored when source
+SOURCE_RESULTS=""
 
 # ANSI color codes
 GREEN='\033[0;32m'  # Green color
@@ -917,6 +924,7 @@ install_java() {
     INSTALLED_VERSION=$("$JAVA_HOME"/bin/java --version 2>&1)
     if echo "$INSTALLED_VERSION" | grep -q "openjdk $DEFAULT_JDK_VERSION"; then
         echo -e "${GREEN}Java installed successfully.${NO_COLOR}"
+        SOURCE_RESULTS+="Java: source /root/.bashrc\n"
     else
         echo -e "${YELLOW}Java version not match.${NO_COLOR}"
         exit 1
@@ -952,6 +960,7 @@ install_maven() {
     fi
     mvn -version
     check_status "Failed to install maven" "Maven installed successfully." $?
+    SOURCE_RESULTS+="Sdkman: source $HOME/.sdkman/bin/sdkman-init.sh\n"
 }
 
 # Install Go
@@ -987,6 +996,7 @@ deploy_go() {
     # Apply the environment variables
     $GO_INSTALL_DIR/bin/go version
     check_status "Failed to install GO" "Install GO successfully" $?
+    SOURCE_RESULTS+="Golang: source $BASH_RC\n"
 }
 
 # Function to install Rust and Cargo
@@ -1037,6 +1047,7 @@ deploy_rust() {
         # Install cargo-make
         cargo install cargo-make
         check_status "Failed to install Rust" "Install Rust successfully" $?
+        SOURCE_RESULTS+="Rust: source $BASH_RC && source $HOME/.cargo/env\n"
     else
         echo "Rust is already installed."
     fi
@@ -1121,6 +1132,7 @@ install_node_via_nvm () {
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
         echo -e "${GREEN}NVM installed successfully.${NO_COLOR}"
+        SOURCE_RESULTS+="NVM: source $NVM_DIR/nvm.sh && source $NVM_DIR/bash_completion\n"
     else
         echo -e "${GREEN}NVM is already installed.${NO_COLOR}"
     fi
@@ -1655,6 +1667,15 @@ config_cloud_init() {
     # cloud-init clean --logs
 }
 
+cleanup() {
+    echo -e "${GREEN}===========================================\n${NO_COLOR}"
+    echo -e "${GREEN}Installation complete! \n${NO_COLOR}"
+    echo -e "${GREEN}Some tools require you to manually source${NO_COLOR}"
+    echo -e "${GREEN}or restart your terminal to take effect.\n${NO_COLOR}"
+    echo -e "${GREEN}===========================================\n${NO_COLOR}"
+    echo -e "${GREEN}$SOURCE_RESULTS${NO_COLOR}"
+}
+
 # Clone a repository with a specified target directory
 clone_repo_with_rename() {
   local repo_url="$1"
@@ -1752,9 +1773,10 @@ clone_repos() {
 new_funcs() {
     echo "Adding test..."
     install_python 3.10.12
-    # install_java 21
-    # install_node 16.20.2
-    # install_maven 3.2.5
+    install_java 21
+    install_node 16.20.2
+    install_maven 3.2.5
+    deploy_rust
 }
 
 # deploy TDasset
@@ -1907,6 +1929,9 @@ main() {
                 ;;
             replace_sources)
                 replace_sources
+                ;;
+            update)
+                update
                 ;;
             upgrade)
                 upgrade
