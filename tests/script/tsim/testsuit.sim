@@ -114,6 +114,7 @@ run tsim/stream/basic2.sim
 run tsim/stream/basic3.sim
 run tsim/stream/basic4.sim
 run tsim/stream/basic5.sim
+run tsim/stream/tag.sim
 run tsim/stream/concurrentcheckpt.sim
 run tsim/insert/basic1.sim
 run tsim/insert/commit-merge0.sim
