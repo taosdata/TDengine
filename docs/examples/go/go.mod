@@ -2,7 +2,7 @@ module goexample
 
 go 1.17
 
-require github.com/taosdata/driver-go/v3 v3.5.6
+require github.com/taosdata/driver-go/v3 v3.6.0
 
 require (
 	github.com/google/uuid v1.3.0 // indirect
