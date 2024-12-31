@@ -224,7 +224,7 @@ impl BackupConfig {
 
         let sql = format!(
             "SELECT `offset` FROM information_schema.ins_subscriptions WHERE topic_name = '{}' AND consumer_group = '{}' AND vgroup_id = {}",
-            topic, topic,vg_id
+            topic, topic, vg_id
         );
         tracing::trace!("query with sql: {}", sql);
 
@@ -355,9 +355,13 @@ impl BackupConfigBuilder {
         let move_to = utils::parse_dir_in_dsn(&self.to, Some("move.to"))?;
 
         // backup_max_size
-        let backup_max_size =
-            utils::parse_keys_in_dsn(&self.to, &["backup_max_size", "max.file.size"])?
-                .unwrap_or(1024 * 1024 * 1024);
+        let backup_max_size = utils::parse_keys_in_dsn::<String>(
+            &self.to,
+            &["max_size", "backup_max_size", "max.file.size"],
+        )?
+        .map(|s| utils::parse_bytes(&s))
+        .transpose()?
+        .unwrap_or(1024 * 1024 * 1024);
 
         // backup_comp_level
         let backup_comp_level =

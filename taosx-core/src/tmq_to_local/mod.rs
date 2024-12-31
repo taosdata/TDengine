@@ -196,6 +196,7 @@ impl ZFileMan {
         let entry = self.writers.get(&vgroup).expect("should always exist");
         let mut writer = entry.value().lock().await;
         writer.write_raw(raw, raw_type).await?;
+
         Ok(())
     }
 
@@ -442,7 +443,10 @@ impl BackupWorker {
         Self::wait_for_upcoming_impl(self.config.upcoming).await?;
         tracing::info!("tmq_to_local worker: {:?} start", self.id);
 
-        // self.assign().await?;
+        if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
+            // TODO: 如果是使用 offset 作为备份点生成方式，设置备份点为当前时间
+            // self.man.ts = Some(Utc::now());
+        }
 
         let run_impl = self.run_impl().in_current_span();
 
