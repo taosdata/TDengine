@@ -1,4 +1,5 @@
 ---
+toc_max_heading_level: 4
 sidebar_label: C#
 title: C# Client Library
 slug: /tdengine-reference/client-libraries/csharp

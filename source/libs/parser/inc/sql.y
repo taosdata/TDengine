@@ -290,8 +290,7 @@ db_options(A) ::= db_options(B) ENCRYPT_ALGORITHM NK_STRING(C).                 
 db_options(A) ::= db_options(B) DNODES NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_DNODES, &C); }
 db_options(A) ::= db_options(B) COMPACT_INTERVAL NK_INTEGER (C).                  { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_INTERVAL, &C); }
 db_options(A) ::= db_options(B) COMPACT_INTERVAL NK_VARIABLE(C).                  { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_INTERVAL, &C); }
-db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_integer_list(C).        { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, C); }
-db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_variable_list(C).       { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, C); }
+db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_duration_list(C).       { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 
@@ -331,8 +330,7 @@ alter_db_option(A) ::= KEEP_TIME_OFFSET NK_INTEGER(B).                          
 alter_db_option(A) ::= ENCRYPT_ALGORITHM NK_STRING(B).                            { A.type = DB_OPTION_ENCRYPT_ALGORITHM; A.val = B; }
 alter_db_option(A) ::= COMPACT_INTERVAL NK_INTEGER(B).                            { A.type = DB_OPTION_COMPACT_INTERVAL; A.val = B; }
 alter_db_option(A) ::= COMPACT_INTERVAL NK_VARIABLE(B).                           { A.type = DB_OPTION_COMPACT_INTERVAL; A.val = B; }
-alter_db_option(A) ::= COMPACT_TIME_RANGE signed_integer_list(B).                 { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
-alter_db_option(A) ::= COMPACT_TIME_RANGE signed_variable_list(B).                { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
+alter_db_option(A) ::= COMPACT_TIME_RANGE signed_duration_list(B).                { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                         { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_VARIABLE(B).                        { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 
@@ -341,20 +339,17 @@ alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_VARIABLE(B).                      
 integer_list(A) ::= NK_INTEGER(B).                                                { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B)); }
 integer_list(A) ::= integer_list(B) NK_COMMA NK_INTEGER(C).                       { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C)); }
 
-%type signed_integer_list                                                         { SNodeList* }
-%destructor signed_integer_list                                                   { nodesDestroyList($$); }
-signed_integer_list(A) ::= signed_integer(B).                                     { A = createNodeList(pCxt, B); }
-signed_integer_list(A) ::= signed_integer_list(B) NK_COMMA signed_integer(C).     { A = addNodeToList(pCxt, B, C); }
-
 %type variable_list                                                               { SNodeList* }
 %destructor variable_list                                                         { nodesDestroyList($$); }
 variable_list(A) ::= NK_VARIABLE(B).                                              { A = createNodeList(pCxt, createDurationValueNode(pCxt, &B)); }
 variable_list(A) ::= variable_list(B) NK_COMMA NK_VARIABLE(C).                    { A = addNodeToList(pCxt, B, createDurationValueNode(pCxt, &C)); }
 
-%type signed_variable_list                                                        { SNodeList* }
-%destructor signed_variable_list                                                  { nodesDestroyList($$); }
-signed_variable_list(A) ::= signed_variable(B).                                   { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
-signed_variable_list(A) ::= signed_variable_list(B) NK_COMMA signed_variable(C).  { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
+%type signed_duration_list                                                        { SNodeList* }
+%destructor signed_duration_list                                                  { nodesDestroyList($$); }
+signed_duration_list(A) ::= signed_variable(B).                                   { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
+signed_duration_list(A) ::= signed_integer(B).                                    { A = createNodeList(pCxt, B); }
+signed_duration_list(A) ::= signed_duration_list(B) NK_COMMA signed_integer(C).   { A = addNodeToList(pCxt, B, C); }
+signed_duration_list(A) ::= signed_duration_list(B) NK_COMMA signed_variable(C).  { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 
 %type retention_list                                                              { SNodeList* }
 %destructor retention_list                                                        { nodesDestroyList($$); }
@@ -594,6 +589,7 @@ cmd ::= SHOW BNODES.                                                            
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT); }
 cmd ::= SHOW CLUSTER.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_STMT); }
 cmd ::= SHOW TRANSACTIONS.                                                        { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTIONS_STMT); }
+cmd ::= SHOW TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createShowTransactionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                                { pCxt->pRootNode = createShowTableDistributedStmt(pCxt, A); }
 cmd ::= SHOW CONSUMERS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONSUMERS_STMT); }
 cmd ::= SHOW SUBSCRIPTIONS.                                                       { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT); }

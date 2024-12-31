@@ -112,9 +112,8 @@ extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
 
-extern const char *tsAlterCompactTaskKeywords;
-extern int32_t     tsNumOfCompactThreads;
-extern int32_t     tsNumOfRetentionThreads;
+extern int32_t tsNumOfCompactThreads;
+extern int32_t tsNumOfRetentionThreads;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -295,7 +294,6 @@ extern int     tsStreamAggCnt;
 extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
-extern int32_t tsResolveFQDNRetryTime;
 extern bool    tsStreamCoverage;
 extern int8_t  tsS3EpNum;
 

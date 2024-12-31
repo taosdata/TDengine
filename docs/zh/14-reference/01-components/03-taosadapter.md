@@ -14,7 +14,7 @@ taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程
 
 taosAdapter 提供以下功能：
 
-- RESTful 接口
+- Websocket/RESTful 接口
 - 兼容 InfluxDB v1 写接口
 - 兼容 OpenTSDB JSON 和 telnet 格式写入
 - 无缝连接到 Telegraf

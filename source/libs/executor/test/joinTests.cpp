@@ -41,6 +41,7 @@
 #include "tvariant.h"
 #include "stub.h"
 #include "querytask.h"
+#include "hashjoin.h"
 
 
 namespace {
@@ -3766,6 +3767,21 @@ TEST(leftWinJoin, noCondProjectionTest) {
 
 #endif
 
+#if 1
+TEST(functionsTest, branch) {
+  struct SOperatorInfo op = {0};
+  SHJoinOperatorInfo join;
+  SBufRowInfo bufrow = {0};
+  SSDataBlock blk = {0};
+
+  op.info = &join;
+  memset(&join, 0, sizeof(join));
+  join.ctx.pBuildRow = &bufrow;
+  blk.info.rows = 1;
+  join.finBlk = &blk;
+  hInnerJoinDo(&op);
+}
+#endif
 
 
 int main(int argc, char** argv) {
