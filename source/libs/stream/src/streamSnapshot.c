@@ -130,7 +130,7 @@ int32_t streamGetFileSize(char* path, char* name, int64_t* sz) {
   }
 
   ret = snprintf(fullname, len, "%s%s%s", path, TD_DIRSEP, name);
-  if (ret < 0) {
+  if (ret < 0 || ret >= len) {
     stError("%s failed to set the file path for get the file size, code: out of buffer", name);
     return TSDB_CODE_OUT_OF_BUFFER;
   }
@@ -819,7 +819,7 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
 
     int32_t ret = snprintf(path, bufLen, "%s%s%s%s%s%s%s%" PRId64 "", pHandle->metaPath, TD_DIRSEP, idstr, TD_DIRSEP,
                    "checkpoints", TD_DIRSEP, "checkpoint", snapInfo.chkpId);
-    if (ret < 0) {
+    if (ret < 0 || ret >= bufLen) {
       stError("s-task:0x%x failed to set the path for take snapshot, code: out of buffer, %s", (int32_t)snapInfo.taskId,
               pHandle->metaPath);
       return TSDB_CODE_OUT_OF_BUFFER;

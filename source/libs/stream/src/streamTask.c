@@ -134,7 +134,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
 
   char    buf[128] = {0};
   int32_t ret = snprintf(buf, tListLen(buf), "0x%" PRIx64 "-0x%x", pTask->id.streamId, pTask->id.taskId);
-  if (ret < 0) {
+  if (ret < 0 || ret >= tListLen(buf)) {
     stError("s-task:0x%x failed to set the taskIdstr, code: out of buffer", pTask->id.taskId);
     return TSDB_CODE_OUT_OF_BUFFER;
   }
@@ -418,7 +418,7 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
   }
 
   int32_t code = snprintf(pTask->backendPath, len + nBytes + 2, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, id);
-  if (code < 0) {
+  if (code < 0 || code >= len + nBytes + 2) {
     stError("s-task:%s failed to set backend path:%s, code: out of buffer", pTask->id.idStr, pTask->backendPath);
     return TSDB_CODE_OUT_OF_BUFFER;
   } else {
@@ -1138,7 +1138,7 @@ SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
 int32_t createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId) {
   char buf[128] = {0};
   int32_t code = snprintf(buf, tListLen(buf),"0x%" PRIx64 "-0x%x", streamId, taskId);
-  if (code < 0) {
+  if (code < 0 || code >= tListLen(buf)) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
 
