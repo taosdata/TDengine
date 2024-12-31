@@ -253,7 +253,7 @@ class TDTestCase(TBase):
         cluster.dnodes[1].starttaosd()
         cluster.dnodes[2].starttaosd()
 
-        tdLog.sleep(10)
+        tdLog.sleep(60)
 
     def stop(self):
         tdSql.close()
