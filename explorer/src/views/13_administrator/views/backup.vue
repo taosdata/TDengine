@@ -636,7 +636,7 @@ export default {
       this.ruleForm.max_retry = data.max_retry;
       this.ruleForm.retry_interval = data.retry_interval;
       
-      const interval_parts = data.interval.match(/^(\d+)([sdh])$/);
+      const interval_parts = data.interval.match(/^(\d+)([smhd])$/);
       if (interval_parts && interval_parts.length === 3) {
         this.ruleForm.interval_value = interval_parts[1];
         this.ruleForm.interval_unit = interval_parts[2];
