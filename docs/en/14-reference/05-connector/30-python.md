@@ -1,4 +1,5 @@
 ---
+toc_max_heading_level: 4
 sidebar_label: Python
 title: Python Client Library
 slug: /tdengine-reference/client-libraries/python
@@ -55,6 +56,8 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|2.7.21 | Native supports STMT2 writing                                                                              | - |
+|2.7.19 | Support Apache Superset connection to TDengine Cloud data source                                           | - |
 |2.7.18 | Support Apache SuperSet BI Tools.                                                                          | - |
 |2.7.16 | Add subscription configuration (session. timeout. ms, Max. roll. interval. ms).                            | - |
 |2.7.15 | Added support for VARBINRY and GEOMETRY types.                                                             | - |
@@ -136,7 +139,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)       | tmq subscription              |
 | [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | Example supporting all types |
 | [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py) | Parameter binding example supporting all types |
-
+| [test_stmt2.py](https://github.com/taosdata/taos-connector-python/blob/main/tests/test_stmt2.py)   | Example of STMT2 writing |
 Example program source code can be found at:
 
 1. [More native example programs](https://github.com/taosdata/taos-connector-python/tree/main/examples)
@@ -429,51 +432,40 @@ TaosResult object can be iterated over to retrieve queried data.
   - **Exceptions**: Throws `SchemalessError` if operation fails.
 
 #### Parameter Binding
-
-- `def statement(self, sql=None)`
-  - **Interface Description**: Creates a stmt object using the connection object, if sql is not empty it will call prepare.
-  - `sql`: Precompiled SQL statement.
-  - **Return Value**: stmt object.
-  - **Exception**: Throws `StatementError` exception on failure.
+- `def statement2(self, sql=None, option=None)`
+    - **Interface Description**：Creating an STMT2 object using a connection object
+    - **Parameter Description**
+        - `sql`: The bound SQL statement will call the `prepare` function if it is not empty
+        - `option` Pass in `TaoStmt2Option` class instance
+    - **Return Value**：STMT2 object
+    - **Exception**：Throws `ConnectionError` on failure
 - `def prepare(self, sql)`
-  - **Interface Description**: Binds a precompiled sql statement.
-  - **Parameter Description**:
-    - `sql`: Precompiled SQL statement.
-  - **Exception**: Throws `StatementError` exception on failure.
-- `def set_tbname(self, name)`
-  - **Interface Description**: Sets the table name for data to be written to.
-  - **Parameter Description**:
-    - `name`: Table name, if you need to specify a database, for example: `db_name.table_name`.
-  - **Exception**: Throws `StatementError` exception on failure.
-- `def set_tbname_tags(self, name, tags):`
-  - **Interface Description**: Sets the table and Tags data, used for automatic table creation.
-  - **Parameter Description**:
-    - `name`: Table name, if you need to specify a database, for example: `db_name.table_name`.
-    - `tags`: Tags data.
-  - **Exception**: Throws `StatementError` exception on failure.
-- `def bind_param(self, params, add_batch=True)`
-  - **Interface Description**: Binds a set of data and submits.
-  - **Parameter Description**:
-    - `params`: Data to bind.
-    - `add_batch`: Whether to submit the bound data.
-  - **Exception**: Throws `StatementError` exception on failure.
-- `def bind_param_batch(self, binds, add_batch=True)`
-  - **Interface Description**: Binds multiple sets of data and submits.
-  - **Parameter Description**:
-    - `binds`: Data to bind.
-    - `add_batch`: Whether to submit the bound data.
-  - **Exception**: Throws `StatementError` exception on failure.
-- `def add_batch(self)`
-  - **Interface Description**: Submits the bound data.
-  - **Exception**: Throws `StatementError` exception on failure.
-- `def execute(self)`
-  - **Interface Description**: Executes and writes all the bound data.
-  - **Exception**: Throws `StatementError` exception on failure.
-- `def affected_rows(self)`
-  - **Interface Description**: Gets the number of rows written.
-  - **Return Value**: Number of rows written.
-- `def close(&self)`
-  - **Interface Description**: Closes the stmt object.
+    - **Interface Description**：Bind a precompiled SQL statement
+    - **Parameter Description**：
+        - `sql`: Precompiled SQL statement
+    - **Exception**：Throws `StatementError` on failure
+- `def bind_param(self, tbnames, tags, datas)`
+    - **Interface Description**：Binding Data as an Independent Array
+    - **Parameter Description**：
+        - `tbnames`:Bind table name array, data type is list 
+        - `tags`: Bind tag column value array, data type is list
+        - `datas`: Bind data column value array, data type of list
+    - **Exception**：Throws `StatementError` on failure
+- `def bind_param_with_tables(self, tables)`
+    - **Interface Description**：Bind data in an independent table format. Independent tables are organized by table units, with table name, TAG value, and data column attributes in table object
+    - **Parameter Description**：
+        - `tables`: `BindTable` Independent table object array
+    - **Exception**：Throws `StatementError` on failure
+- `def execute(self) -> int:`
+    - **Interface Description**：Execute to write all bound data
+    - **Return Value**：Affects the number of rows
+    - **Exception**：Throws `QueryError` on failure
+- `def result(self)`
+    - **Interface Description**：Get parameter binding query result set
+    - **Return Value**：Returns the TaosResult object
+- `def close(self)`
+    - **Interface Description**： close the STMT2 object
+
 
 #### Data Subscription
 
