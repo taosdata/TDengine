@@ -17,10 +17,6 @@ Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批�
 - taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
 - Apache Flink v1.19.0 或以上版本已安装。安装 Apache Flink 请参考 [官方文档](https://flink.apache.org/)
 
-## JRE 版本兼容性
-
-- JRE: 支持 JRE 8 及以上版本。
-
 # 支持的平台
 
 Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
@@ -29,6 +25,7 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 | Flink Connector 版本 |                   主要变化         |   TDengine 版本   |
 | ------------------| ------------------------------------ | ---------------- |
 |        2.0.0      | 1. 支持 SQL 查询 TDengine 数据库中的数据<br/> 2. 支持 CDC 订阅 TDengine 数据库中的数据<br/> 3. 支持 Table SQL 方式读取和写入 TDengine 数据库| 3.3.5.0 及以上版本 |
+|        1.0.0      | 支持 Sink 功能，将来着其他数据源的数据写入到 TDengine| 3.3.2.0 及以上版本|
 
 ## 异常和错误码
 
@@ -53,8 +50,8 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 | 0x2305     |resultSet is closed                                             |resultSet 结果集已经释放，请检查 resultSet 是否释放后再次使用。|
 | 0x230d     |parameter index out of range                                    |参数越界，请检查参数的合理范围。|
 | 0x230e     |connection already closed                                       |连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。|
-| 0x230f     |unknown sql type in tdengine                                    |请检查 TDengine 支持的 Data Type 类型。|
-| 0x2315     |unknown taos type in tdengine                                   |在 TDengine 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine 数据类型。|
+| 0x230f     |unknown sql type in TDengine                                    |请检查 TDengine 支持的 Data Type 类型。|
+| 0x2315     |unknown taos type in TDengine                                   |在 TDengine 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine 数据类型。|
 | 0x2319     |user is required                                                |创建连接时缺少用户名信息。|
 | 0x231a     |password is required                                            |创建连接时缺少密码信息。|
 | 0x231d     |can't create connection with server within                      |通过增加参数 httpConnectTimeout 增加连接耗时，或是请检查与 taosAdapter 之间的连接情况。|
@@ -99,11 +96,14 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Flink RowD
   - TDengine 目前不支持事务，不能进行频繁的检查点操作和复杂的事务协调。
   - 由于 TDengine 采用时间戳作为主键，重复数据下游算子可以进行过滤操作，避免重复计算。
   - 采用 At-Least-Once（至少一次）确保达到较高的数据处理的性能和较低的数据延时，设置方式如下：
-  ```java
-  StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-  env.enableCheckpointing(5000);
-  env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
-  ```
+
+使用方式:
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+env.enableCheckpointing(5000);
+env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
+```
 
 如果使用 Maven 管理项目，只需在 pom.xml 中加入以下依赖。
 
@@ -124,7 +124,8 @@ URL 规范格式为：
 参数说明：
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
-- batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
+- database_name: 数据库名称。
+- timezone: 时区设置。
 - httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 60000。
 - messageWaitTimeout: 消息超时时间，单位 ms， 默认值为 60000。 
 - useSSL: 连接中是否使用 SSL。
@@ -240,7 +241,7 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 ```
 </details> 
 
-批量查询结果示例：
+将订阅结果批量下发到算子的示例：
 
 <details>
 <summary>CDC Batch Source</summary>
@@ -249,7 +250,7 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 ```
 </details> 
 
-查询结果为自定义数据类型示例：
+订阅结果为自定义数据类型示例：
 
 <details>
 <summary>CDC Custom Type</summary>
@@ -283,9 +284,9 @@ Sink 的核心功能在于高效且精准地将经过 Flink 处理的、源自�
 | TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT| integer| 自动重连重试次数，默认值 3。 | 仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。|
 | TDengineConfigParams.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION| boolean| 关闭 SSL 证书验证 。true: 关闭，false: 不关闭。默认为 false。||
 
-#### 使用 Sink 连接器
+使用示例：
 
-将接收的 RowData 类型数据写入 TDengine 示例：
+将 power 库的 meters 表的子表数据，写入 power_sink 库的 sink_meters 超级表对应的子表中。
 
 <details>
 <summary>Sink RowData</summary>
@@ -294,38 +295,41 @@ Sink 的核心功能在于高效且精准地将经过 Flink 处理的、源自�
 ```
 </details> 
 
+使用示例：
 
-将批量接收的 RowData 类型数据写入 TDengine 示例：
+订阅 power 库的 meters 超级表的子表数据，写入 power_sink 库的 sink_meters 超级表对应的子表中。
 
 <details>
-<summary>Sink RowData</summary>
+<summary>Cdc Sink</summary>
 ```java
-{{#include docs/examples/flink/Main.java:BatchRowDataToSink}}
+{{#include docs/examples/flink/Main.java:CdcRowDataToSink}}
 ```
 </details>
 
 ### Table SQL
 
-数据处理 ETL（Extract，Transform，Load）：可以使用 Flink SQL With JDBC 从多个不同的数据源数据库（如 TDengine、MySQL、Oracle 等）中提取数据，在 Flink 中进行转换操作（如数据清洗、格式转换、关联不同表的数据等），然后将处理后的结果加载到目标数据源（如 TDengine、Mysql 等）中。
+使用 Table SQL 的方式从多个不同的数据源数据库（如 TDengine、MySQL、Oracle 等）中提取数据后， 再进行自定义的算子操作（如数据清洗、格式转换、关联不同表的数据等），然后将处理后的结果加载到目标数据源（如 TDengine、Mysql 等）中。
 
-
-#### Source 连接器 
+#### Table Source 连接器
 
 参数配置说明：
 
 |         参数名称          |  类型   | 参数说明      | 备注   |
 | ----------------------- | :-----: | ------------ | ------ |
-| connector  | string | 连接器标识，设置 `tdengine-connector` 。||
-| td.jdbc.url| string | 连接的 url 。| |
-| td.jdbc.mode | strng | 连接器类型, 设置 `source`, `cdc`, `sink`。| |
-| table.name| string| 原表或目标表名称。| |
-| scan.query| string| 获取数据的 SQL 语句。||
-| sink.db.name|string| 目标数据库名称。||
-| sink.supertable.name|string |写入的超级表名称。||
-| sink.batch.size | integer | 写入的批大小。||
-| sink.table.name|string|写入的普通表或子表名称。||
+| connector  | string | 连接器标识，设置 `tdengine-connector` 。|
+| td.jdbc.url| string | 连接的 url 。| 
+| td.jdbc.mode | strng | 连接器类型, 设置 `source`, `sink`。|
+| table.name| string| 原表或目标表名称。|
+| scan.query| string| 获取数据的 SQL 语句。|
+| sink.db.name|string| 目标数据库名称。|
+| sink.supertable.name|string |写入的超级表名称。|
+| sink.batch.size | integer | 写入的批大小。|
+| sink.table.name|string|写入的普通表或子表名称。|
 
-#### Source 连接器使用示例
+
+使用示例：
+
+将 power 库的 meters 表的子表数据，写入 power_sink 库的 sink_meters 超级表对应的子表中。
 
 <details>
 <summary>Table Source</summary>
@@ -334,29 +338,29 @@ Sink 的核心功能在于高效且精准地将经过 Flink 处理的、源自�
 ```
 </details>
 
-#### CDC 连接器 
+#### Table CDC 连接器 
 
 参数配置说明：
 
-|         参数名称          |  类型   | 参数说明      | 备注   |
-| ----------------------- | :-----: | ------------ |-------|
-| connector  | string | 连接器标识，设置 `tdengine-connector`。||
-| user| string | 用户名， 默认 root。| |
-| password | string | 密码， 默认taosdata。| |
-| bootstrap.servers| string | 服务器地址。| |
+|         参数名称          |  类型   | 参数说明      |
+| ----------------------- | :-----: | ------------ |
+| connector  | string | 连接器标识，设置 `tdengine-connector`。|
+| user| string | 用户名， 默认 root。|
+| password | string | 密码， 默认taosdata。| 
+| bootstrap.servers| string | 服务器地址。| 
 | topic | string | 订阅主题。||
-| td.jdbc.mode | strng | 连接器类型, cdc, sink。| |
-| group.id| string| 消费组 ID，同一消费组共享消费进度。 | |
-| auto.offset.reset| string| 消费组订阅的初始位置。 | earliest: 从头开始订阅<br/> latest: default; 仅从最新数据开始订阅。|
-| poll.interval_ms| integer| 拉取数据间隔, 默认 500ms。| |
-| sink.db.name|string| 目标数据库名称。||
-| sink.supertable.name|string |写入的超级表名称。||
-| sink.batch.size | integer | 写入的批大小。||
-| sink.table.name|string|写入的普通表或子表名称。||
+| td.jdbc.mode | strng | 连接器类型, cdc, sink。| 
+| group.id| string| 消费组 ID，同一消费组共享消费进度。 | 
+| auto.offset.reset| string| 消费组订阅的初始位置。<br/>earliest: 从头开始订阅 <br/> latest: default; 仅从最新数据开始订阅。|
+| poll.interval_ms| integer| 拉取数据间隔, 默认 500ms。|
+| sink.db.name|string| 目标数据库名称。|
+| sink.supertable.name|string |写入的超级表名称。|
+| sink.batch.size | integer | 写入的批大小。|
+| sink.table.name|string|写入的普通表或子表名称。|
 
+使用示例：
 
-
-#### CDC 连接器使用示例
+订阅 power 库的 meters 超级表的子表数据，写入 power_sink 库的 sink_meters 超级表对应的子表中。
 
 <details>
 <summary>Table CDC</summary>

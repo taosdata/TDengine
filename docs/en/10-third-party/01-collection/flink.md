@@ -6,7 +6,11 @@ title: TDengine Flink Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-## Preconditions
+Apache Flink is an open-source distributed stream batch integrated processing framework supported by the Apache Software Foundation, which can be used for many big data processing scenarios such as stream processing, batch processing, complex event processing, real-time data warehouse construction, and providing real-time data support for machine learning. At the same time, Flink has a wealth of connectors and various tools that can interface with numerous different types of data sources to achieve data reading and writing. In the process of data processing, Flink also provides a series of reliable fault-tolerant mechanisms, effectively ensuring that tasks can run stably and continuously even in the event of unexpected situations.
+
+With the help of TDengine's Flink connector, Apache Flink can seamlessly integrate with the TDengine database. On the one hand, it can accurately store the results obtained after complex calculations and deep analysis into the TDengine database, achieving efficient storage and management of data; On the other hand, it is also possible to quickly and stably read massive amounts of data from the TDengine database, and conduct comprehensive and in-depth analysis and processing on this basis, fully tapping into the potential value of the data, providing strong data support and scientific basis for enterprise decision-making, greatly improving the efficiency and quality of data processing, and enhancing the competitiveness and innovation ability of enterprises in the digital age.
+
+## Prerequisites
 
 Prepare the following environment:
 
@@ -14,20 +18,16 @@ Prepare the following environment:
 - TaosAdapter can run normally. 
 - Apache Flink v1.19.0 or above is installed. Please refer to the installation of Apache Flink [Official documents](https://flink.apache.org/)
 
-## JRE version compatibility
-
-JRE: Supports JRE 8 and above versions.
-
 ## Supported platforms
 
 Flink Connector supports all platforms that can run Flink 1.19 and above versions.
 
 ## Version History
 
-
 | Flink Connector Version | Major Changes | TDengine Version|
 |-------------------------| ------------------------------------ | ---------------- |
 | 2.0.0                   | 1.  Support SQL queries on data in TDengine database<br/>2 Support CDC subscription to data in TDengine database<br/>3 Supports reading and writing to TDengine database using Table SQL | 3.3.5.0 and above versions|
+| 1.0.0                   | Support Sink function to write data from other sources to TDengine in the future| 3.3.2.0 and above versions|
 
 ## Exception and error codes
 
@@ -91,12 +91,16 @@ TDengine currently supports timestamp, number, character, and boolean types, and
 | GEOMETRY          | byte[]        |
 
 ## Instructions for use
+
 ### Flink Semantic Selection Instructions
 
 The semantic reason for using At Least One (at least once) is:
+
 -TDengine currently does not support transactions and cannot perform frequent checkpoint operations and complex transaction coordination.
 -Due to TDengine's use of timestamps as primary keys, downstream operators of duplicate data can perform filtering operations to avoid duplicate calculations.
 -Using At Least One (at least once) to ensure high data processing performance and low data latency, the setting method is as follows:
+
+Instructions:
 
 ```text
 StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -123,7 +127,8 @@ Parameter description:
 
 - User: Login TDengine username, default value is' root '.
 - Password: User login password, default value 'taosdata'.
-- batchErrorIgnore： true： If there is an SQL execution failure in the middle of the ExecutBatch of Statement, continue to execute the following SQL. false： Do not execute any statements after failed SQL. The default value is: false。
+- database_name: database name。
+- timezone: time zone。
 - HttpConnectTimeout: The connection timeout time, measured in milliseconds, with a default value of 60000.
 - MessageWaitTimeout: The timeout period for a message, measured in milliseconds, with a default value of 60000.
 - UseSSL: Whether SSL is used in the connection.
@@ -281,8 +286,9 @@ The core function of Sink is to efficiently and accurately write Flink processed
 | TDengineConfigParams.PROPERTYKEY_RECONNECT_RETR_COUNT   |                                               integer                                                | number of automatic reconnection retries, default value 3                                                                                                                           | only takes effect when PROPERTYKEY-INABLE AUTO-RECONNECT is true|
 | TDengineConfigParams.PROPERTYKEYDISABLE_SSL_CERTVNet    |                                               boolean                                                | Disable SSL certificate verification. true:  close, false:  Not closed. The default is false                                                                                        ||
 
-#### Use Sink connector
-Write the received RowData type data into TDengine example:
+Usage example:
+
+Write the sub table data of the meters table in the power database into the corresponding sub table of the sink_meters super table in the power_stink database.
 
 <details>
 <summary>Sink RowData</summary>
@@ -291,18 +297,21 @@ Write the received RowData type data into TDengine example:
 ```
 </details> 
 
-Write batch received RowData data into TDengine example:
+Usage example:
+
+Subscribe to the sub table data of the meters super table in the power database and write it to the corresponding sub table of the sink_meters super table in the power_stink database.
 
 <details>
-<summary>Sink RowData</summary>
+<summary>Cdc Sink</summary>
 ```java
-{{#include docs/examples/flink/Main.java:BatchRowDataToSink}}
+{{#include docs/examples/flink/Main.java:CdcRowDataToSink}}
 ```
 </details>
 
 ### Table SQL
 
-ETL (Extract, Transform, Load) data processing: Flink SQL with JDBC can be used to extract data from multiple different data source databases (such as TDengine, MySQL, Oracle, etc.), perform transformation operations (such as data cleaning, format conversion, associating data from different tables, etc.) in Flink, and then load the processed results into the target data source (such as TDengine, MySQL, etc.).
+Extract data from multiple different data source databases (such as TDengine, MySQL, Oracle, etc.) using Table SQL, perform custom operator operations (such as data cleaning, format conversion, associating data from different tables, etc.), and then load the processed results into the target data source (such as TDengine, MySQL, etc.).
+
 #### Source connector
 
 Parameter configuration instructions:
@@ -311,7 +320,7 @@ Parameter configuration instructions:
 |-----------------------| :-----: | ------------ | ------ |
 | connector             | string | connector identifier, set `tdengine-connector`||
 | td.jdbc.url           | string | url of the connection ||
-| td.jdbc.mode          | strng  | connector type: `source`, `cdc`, `sink`| |
+| td.jdbc.mode          | strng  | connector type: `source`, `sink`| |
 | table.name            | string | original or target table name ||
 | scan.query            | string | SQL statement to retrieve data||
 | sink.db.name          | string | target database name||
@@ -319,7 +328,9 @@ Parameter configuration instructions:
 | sink.batch.size       | integer| batch size written||
 | sink.table.name       | string | name of the regular table or sub table written||
 
-#### Example of using Source connector
+Usage example:
+
+Write the sub table data of the meters table in the power database into the corresponding sub table of the sink_meters super table in the power_stink database.
 
 <details>
 <summary>Table Source</summary>
@@ -328,26 +339,29 @@ Parameter configuration instructions:
 ```
 </details>
 
-#### CDC connector
+#### Table CDC connector
+
 Parameter configuration instructions:
 
-| Parameter Name    | Type | Parameter Description                                                                | Remarks|
-|-------------------| :-----: |--------------------------------------------------------------------------------------|-------|
-| connector         | string | connector identifier, set `tdengine-connector`                                       ||
-| user              | string | username, default root                                                               ||
-| password          | string | password, default taosdata                                                           ||
-| bootstrap. servers| string | server address                                                                       ||
-| topic             | string | subscribe to topic                                                                   ||
-| td.jdbc.mode      | strng  | connector type: `cdc`, `sink`                                                            | |
-| group.id          | string | Consumption group ID, sharing consumption progress within the same consumption group ||
-| auto.offset.reset | string | initial position for consumer group subscription                                     | earliest: subscribe from scratch<br/>latest: default;  Subscribe only from the latest data|
-| poll.interval_mas | integer | Pull data interval, default 500ms                                                    ||
-| sink.db.name      | string | Target database name                                                                 ||
-| sink.superstable.name | string | Write the name of the superstable                                                    ||
-| sink.batch.size   | integer | batch size written                                                                   ||
-| sink.table.name   | string | Name of the regular table or sub table written                                       ||
+| Parameter Name    | Type | Parameter Description                                                                |
+|-------------------| :-----: |--------------------------------------------------------------------------------------|
+| connector         | string | connector identifier, set `tdengine-connector`                                       |
+| user              | string | username, default root                                                               |
+| password          | string | password, default taosdata                                                           |
+| bootstrap. servers| string | server address                                                                       |
+| topic             | string | subscribe to topic                                                                   |
+| td.jdbc.mode      | strng  | connector type: `cdc`, `sink`                                                        |
+| group.id          | string | Consumption group ID, sharing consumption progress within the same consumption group |
+| auto.offset.reset | string | initial position for consumer group subscription. <br/> earliest: subscribe from scratch <br/> latest: default; Subscribe only from the latest data|
+| poll.interval_mas | integer | Pull data interval, default 500ms                                                   | 
+| sink.db.name      | string | Target database name                                                                 |
+| sink.superstable.name | string | Write the name of the superstable                                                |
+| sink.batch.size   | integer | batch size written                                                                  |
+| sink.table.name   | string | Name of the regular table or sub table written                                       |
 
-#### Example of using CDC connector
+Usage example:
+
+Subscribe to the sub table data of the meters super table in the power database and write it to the corresponding sub table of the sink_meters super table in the power_stink database.
 
 <details>
 <summary>Table CDC</summary>

@@ -414,7 +414,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
         Properties connProps = new Properties();
         connProps.setProperty(TDengineConfigParams.VALUE_DESERIALIZER, "RowData");
         connProps.setProperty(TDengineConfigParams.TD_JDBC_URL, "jdbc:TAOS-WS://localhost:6041/power?user=root&password=taosdata");
-        SourceSplitSql splitSql = getTimeSplit();
+        SourceSplitSql sql = new SourceSplitSql("select ts, `current`, voltage, phase, tbname from meters");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
         env.enableCheckpointing(1000, CheckpointingMode.AT_LEAST_ONCE);
@@ -437,8 +437,8 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
     }
     //ANCHOR_END: RowDataToSink
 
-    //ANCHOR: BatchRowDataToSink
-    static void testBatchToTdSink() throws Exception {
+    //ANCHOR: CdcRowDataToSink
+    static void testCdcToSink() throws Exception {
         System.out.println("testTDengineCdcToTdSink start！");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(3);
@@ -449,39 +449,32 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
         config.setProperty(TDengineCdcParams.CONNECT_TYPE, "ws");
         config.setProperty(TDengineCdcParams.BOOTSTRAP_SERVERS, "localhost:6041");
         config.setProperty(TDengineCdcParams.AUTO_OFFSET_RESET, "earliest");
-        config.setProperty(TDengineCdcParams.MSG_WITH_TABLE_NAME, "true");
-        config.setProperty(TDengineCdcParams.AUTO_COMMIT_INTERVAL, "1000");
         config.setProperty(TDengineCdcParams.GROUP_ID, "group_1");
         config.setProperty(TDengineCdcParams.CONNECT_USER, "root");
         config.setProperty(TDengineCdcParams.CONNECT_PASS, "taosdata");
         config.setProperty(TDengineCdcParams.VALUE_DESERIALIZER, "RowData");
         config.setProperty(TDengineCdcParams.VALUE_DESERIALIZER_ENCODING, "UTF-8");
-        config.setProperty(TDengineCdcParams.TMQ_BATCH_MODE, "true");
 
-        Class<ConsumerRecords<RowData>> typeClass = (Class<ConsumerRecords<RowData>>) (Class<?>) ConsumerRecords.class;
-        TDengineCdcSource<ConsumerRecords<RowData>> tdengineSource = new TDengineCdcSource<>("topic_meters", config, typeClass);
-        DataStreamSource<ConsumerRecords<RowData>> input = env.fromSource(tdengineSource, WatermarkStrategy.noWatermarks(), "tdengine-source");
+        TDengineCdcSource<RowData> tdengineSource = new TDengineCdcSource<>("topic_meters", config, RowData.class);
+        DataStreamSource<RowData> input = env.fromSource(tdengineSource, WatermarkStrategy.noWatermarks(), "tdengine-source");
 
         Properties sinkProps = new Properties();
         sinkProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
-        sinkProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         sinkProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         sinkProps.setProperty(TDengineConfigParams.VALUE_DESERIALIZER, "RowData");
-        sinkProps.setProperty(TDengineConfigParams.TD_BATCH_MODE, "true");
-        sinkProps.setProperty(TDengineConfigParams.TD_SOURCE_TYPE, "tdengine_cdc");
         sinkProps.setProperty(TDengineConfigParams.TD_DATABASE_NAME, "power_sink");
         sinkProps.setProperty(TDengineConfigParams.TD_SUPERTABLE_NAME, "sink_meters");
         sinkProps.setProperty(TDengineConfigParams.TD_JDBC_URL, "jdbc:TAOS-WS://localhost:6041/power?user=root&password=taosdata");
         sinkProps.setProperty(TDengineConfigParams.TD_BATCH_SIZE, "2000");
 
-        TDengineSink<ConsumerRecords<RowData>> sink = new TDengineSink<>(sinkProps, Arrays.asList("ts", "current", "voltage", "phase", "location", "groupid", "tbname"));
+        TDengineSink<RowData> sink = new TDengineSink<>(sinkProps, Arrays.asList("ts", "current", "voltage", "phase", "location", "groupid", "tbname"));
         input.sinkTo(sink);
         JobClient jobClient = env.executeAsync("Flink test cdc Example");
         Thread.sleep(6000L);
         jobClient.cancel().get();
         System.out.println("testTDengineCdcToTdSink finish！");
     }
-    //ANCHOR_END: BatchRowDataToSink
+    //ANCHOR_END: CdcRowDataToSink
 
     //ANCHOR: source_table
     static void testTableToSink() throws Exception {
