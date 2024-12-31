@@ -227,10 +227,10 @@ class TDTestCase:
         
         tdSql.taosdStatus(0)
 
-    def disable_create_new_file_0_not_exist(self):
+    def disable_create_new_file(self):
         tdLog.info("============== disable_create_new_file_0_not_exist test ===============")
         cfg={
-            '/mnt/data1 0 0 1' : 'dataDir',
+            '/mnt/data1 0 1 1' : 'dataDir',
             '/mnt/data2 0 0 1' : 'dataDir'
         }
         tdSql.createDir('/mnt/data1')
@@ -296,7 +296,7 @@ class TDTestCase:
         self.more_than_128_disks()
         self.trim_database()
         self.missing_middle_level()
-        self.disable_create_new_file_0_not_exist()
+        self.disable_create_new_file()
         
 
 
