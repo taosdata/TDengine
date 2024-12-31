@@ -1951,7 +1951,7 @@ static int32_t cliConnGetSockInfo(SCliConn *pConn) {
   char      ip_str[INET_ADDRSTRLEN];
   int       port;
 
-  // 获取对端地址
+  // get peer address
   if (getpeername(pConn->fd, (struct sockaddr *)&addr, &addr_len) < 0) {
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
   }
@@ -1959,7 +1959,7 @@ static int32_t cliConnGetSockInfo(SCliConn *pConn) {
   port = ntohs(addr.sin_port);
   snprintf(pConn->dst, sizeof(pConn->dst), "%s:%d", ip_str, port);
 
-  // 获取本地地址
+  // get local address
   if (getsockname(pConn->fd, (struct sockaddr *)&addr, &addr_len) < 0) {
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
   }
