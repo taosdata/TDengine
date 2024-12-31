@@ -930,7 +930,7 @@ install_java() {
     INSTALLED_VERSION=$("$JAVA_HOME"/bin/java --version 2>&1)
     if echo "$INSTALLED_VERSION" | grep -q "openjdk $DEFAULT_JDK_VERSION"; then
         echo -e "${GREEN}Java installed successfully.${NO_COLOR}"
-        SOURCE_RESULTS+="source /root/.bashrc  # For OpenJDK\n"
+        SOURCE_RESULTS+="source /root/.bashrc  # For openjdk\n"
     else
         echo -e "${YELLOW}Java version not match.${NO_COLOR}"
         exit 1
@@ -964,27 +964,32 @@ install_gvm() {
         add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" "$BASH_RC"
         add_config_if_not_exist "export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/" "$BASH_RC"
         add_config_if_not_exist "export GOROOT_BOOTSTRAP=$GOROOT" "$BASH_RC"
-        SOURCE_RESULTS+="source $HOME/.gvm/scripts/gvm  # For GVM\n"
     fi
+    SOURCE_RESULTS+="source $HOME/.gvm/scripts/gvm  # For gvm\n"
 }
 
-# Install pyvenv
+# enable pyenv
+enable_pyenv() {
+    export PATH="$HOME/.pyenv/bin:$PATH"
+    eval "$(pyenv init --path)"
+    eval "$(pyenv init -)"
+}
+
+# Install pyenv
 install_pyenv() {
     echo -e "${YELLOW}Installing Pyenv...${NO_COLOR}"
     if [ -d "$HOME/.pyenv" ]; then
         echo -e "${GREEN}Pyenv is already installed.${NO_COLOR}"
     else
         curl -L https://gitee.com/xinghuipeng/pyenv-installer/raw/master/bin/pyenv-installer | bash
-        export PATH="$HOME/.pyenv/bin:$PATH"
-        eval "$(pyenv init --path)"
-        eval "$(pyenv init -)"
+        enable_pyenv
         add_config_if_not_exist "export PATH=\"\$HOME/.pyenv/bin:\$PATH\"" "$BASH_RC"
         add_config_if_not_exist "eval \"\$(pyenv init --path)\"" "$BASH_RC"
         add_config_if_not_exist "eval \"\$(pyenv init -)\"" "$BASH_RC"
         pyenv --version
         check_status "Failed to install Pyenv" "Pyenv installed successfully." $?
-        SOURCE_RESULTS+="source $BASH_RC  For: Pyenv/python\n"
     fi
+    SOURCE_RESULTS+="source $BASH_RC  For: pyenv/python\n"
 }
 
 # Install python via pyenv
@@ -1005,7 +1010,7 @@ install_python_via_pyenv() {
         DEFAULT_PYTHON_VERSION="3.10.12"
     fi
     install_pyenv
-
+    enable_pyenv
     pyenv install "$DEFAULT_PYTHON_VERSION"
     pyenv global "$DEFAULT_PYTHON_VERSION"
     python --version
@@ -1043,7 +1048,7 @@ install_java_via_sdkman() {
     [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
     java -version
     check_status "Failed to install java" "Java installed successfully." $?
-    SOURCE_RESULTS+="source $HOME/.sdkman/bin/sdkman-init.sh  # For Sdkman/java/maven\n"
+    SOURCE_RESULTS+="source $HOME/.sdkman/bin/sdkman-init.sh  # For sdkman/java/maven\n"
 }
 
 # Install Go
@@ -1079,7 +1084,7 @@ deploy_go() {
     # Apply the environment variables
     $GO_INSTALL_DIR/bin/go version
     check_status "Failed to install GO" "Install GO successfully" $?
-    SOURCE_RESULTS+="source $BASH_RC  # For Golang\n"
+    SOURCE_RESULTS+="source $BASH_RC  # For golang\n"
 }
 
 # Install Go via gvm
@@ -1091,6 +1096,7 @@ install_go_via_gvm() {
         DEFAULT_GO_VERSION="1.23.0"
     fi
     install_gvm
+    source $HOME/.gvm/scripts/gvm
     export GO111MODULE=on
     export GOPROXY=https://goproxy.cn,direct
     export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/
@@ -1102,7 +1108,7 @@ install_go_via_gvm() {
 
     go version
     check_status "Failed to install Go" "Go installed successfully." $?
-    SOURCE_RESULTS+="source $BASH_RC  # For Golang\n"
+    SOURCE_RESULTS+="source $BASH_RC  # For golang\n"
 }
 
 # Function to install Rust and Cargo
@@ -1153,7 +1159,7 @@ deploy_rust() {
         # Install cargo-make
         cargo install cargo-make
         check_status "Failed to install Rust" "Install Rust successfully" $?
-        SOURCE_RESULTS+="source $BASH_RC && source $HOME/.cargo/env  # For Rust\n"
+        SOURCE_RESULTS+="source $BASH_RC && source $HOME/.cargo/env  # For cargo/rust\n"
     else
         echo "Rust is already installed."
     fi
@@ -1238,7 +1244,7 @@ install_node_via_nvm () {
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
         echo -e "${GREEN}NVM installed successfully.${NO_COLOR}"
-        SOURCE_RESULTS+="source $NVM_DIR/nvm.sh && source $NVM_DIR/bash_completion  # For NVM/node/npm/yarn/pnpm\n"
+        SOURCE_RESULTS+="source $NVM_DIR/nvm.sh && source $NVM_DIR/bash_completion  # For nvm/node/npm/yarn/pnpm\n"
     else
         echo -e "${GREEN}NVM is already installed.${NO_COLOR}"
     fi
