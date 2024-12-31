@@ -261,7 +261,7 @@ class TDTestCase:
         self.columns = []
         self.tags = []
         self.stable_name = "meters"
-        self.norm_table_name = "norm_table"
+        self.norm_table_name = "nt"
         self.c_table_prefix = "t"
         self.db_name = "test"
         self.c_table_num = 10
@@ -430,8 +430,8 @@ class TDTestCase:
         self.check_show_create_table("meters", self.columns, self.tags)
 
         DecimalColumnTableCreater(tdSql, self.db_name, self.norm_table_name, self.columns).create()
-        self.check_desc("norm_table", self.columns)
-        self.check_show_create_table("norm_table", self.columns)
+        self.check_desc(self.norm_table_name, self.columns)
+        self.check_show_create_table(self.norm_table_name, self.columns)
 
         ## TODO add more values for all rows
         tag_values = [

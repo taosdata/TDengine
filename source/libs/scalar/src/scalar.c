@@ -1721,6 +1721,8 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
 
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
+  bool hasFloatType = IS_FLOAT_TYPE(ldt.type) || IS_FLOAT_TYPE(rdt.type);
+  bool hasDecimalType = IS_DECIMAL_TYPE(ldt.type) || IS_DECIMAL_TYPE(rdt.type);
 
   if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
       TSDB_DATA_TYPE_VARBINARY == ldt.type || TSDB_DATA_TYPE_VARBINARY == rdt.type ||
@@ -1733,8 +1735,13 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
     pOp->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
   } else {
-    pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
-    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    if (hasDecimalType && !hasFloatType) {
+      pOp->node.resType.type = TSDB_DATA_TYPE_DECIMAL;
+      pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes;
+    } else {
+      pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+      pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
