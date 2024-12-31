@@ -58,7 +58,7 @@ DROP USER user_name;
 修改用户信息的命令如下
 
 ```sql
-ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \| ENABLE value  \| SYSINFO value } 
+ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \| ENABLE value  \| SYSINFO value \| CREATEDB value }
 ```
 
 说明：
@@ -66,11 +66,19 @@ ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \
 -   PASS：修改用户密码。
 -   ENABLE：修改用户是否启用。1 表示启用此用户，0 表示禁用此用户。
 -   SYSINFO：修改用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息。
+-   CREATEDB: 修改用户是否可以创建数据库。1 表示可以创建数据库，0 表示不可以创建数据库。
 
 示例：禁用 test 用户
 
 ```sql
 alter user test enable 0; Query OK, 0 of 0 rows affected (0.001160s) 
+```
+
+允许 test 用户创建数据库
+
+```sql
+alter user test createdb 1;
+Query OK, 0 row(s) affected (0.004010s)
 ```
 
 ## 数据库访问授权
@@ -96,7 +104,7 @@ GRANT privileges ON priv_level TO user_name   privileges : {  ALL  \| priv_type 
 | 用户     | 描述                               | 权限说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |----------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 超级用户 | 只有 root 是超级用户               |  DB 外部 所有操作权限，例如user、dnode、udf、qnode等的CRUD DB 权限，包括 创建 删除 更新，例如修改 Option，移动 Vgruop等 读 写 Enable/Disable 用户                                                                                                                                                                                                                                                                                                                                     |
-| 普通用户 | 除 root 以外的其它用户均为普通用户 | 在可读的 DB 中，普通用户可以进行读操作 select describe show subscribe 在可写 DB 的内部，用户可以进行写操作： 创建、删除、修改 超级表 创建、删除、修改 子表 创建、删除、修改 topic 写入数据 被限制系统信息时，不可进行如下操作 show dnode、mnode、vgroups、qnode、snode 修改用户包括自身密码 show db时只能看到自己的db，并且不能看到vgroups、副本、cache等信息 无论是否被限制系统信息，都可以 管理 udf 可以创建 DB 自己创建的 DB 具备所有权限 非自己创建的 DB ，参照读、写列表中的权限 |
+| 普通用户 | 除 root 以外的其它用户均为普通用户 | 在可读的 DB 中，普通用户可以进行读操作 select describe show subscribe 在可写 DB 的内部，用户可以进行写操作： 创建、删除、修改 超级表 创建、删除、修改 子表 创建、删除、修改 topic 写入数据 被限制系统信息时，不可进行如下操作 show dnode、mnode、vgroups、qnode、snode 修改用户包括自身密码 show db时只能看到自己的db，并且不能看到vgroups、副本、cache等信息 无论是否被限制系统信息，都可以 管理 udf 拥有建库权限后可以创建 DB 自己创建的 DB 具备所有权限 非自己创建的 DB ，参照读、写列表中的权限 |
 
 ### 消息订阅授权
 

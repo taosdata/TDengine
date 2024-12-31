@@ -59,7 +59,7 @@ DROP USER user_name;
 You can modify user information by running the following SQL statement:
 
 ```sql
-ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \| ENABLE value  \| SYSINFO value } 
+ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \| ENABLE value  \| SYSINFO value \| CREATEDB value }
 ```
 
 Notes:
@@ -67,12 +67,20 @@ Notes:
 - PASS: Modify the user's password.
 - ENABLE: Specify whether the user is enabled or disabled. Enter 1 to enable the user or 0 to disable the user.
 - SYSINFO: Specify whether the user can view system information. Enter 1 to allow the user to view system information or 0 to prevent the user from viewing system information.
+- CREATEDB: Specify whether the user can create databases. Enter 1 allow the user to create databases or 0 to prevent the user from creating databases.
 
 Example; The following SQL statement disables the `test` user:
 
 ```sql
 alter user test enable 0;
 Query OK, 0 row(s) affected (0.001160s) 
+```
+
+The following SQL statement allow the `test` user to create databases:
+
+```sql
+alter user test createdb 1;
+Query OK, 0 row(s) affected (0.004010s)
 ```
 
 ## Database Permissions
@@ -98,7 +106,7 @@ Database permissions for root and normal users are described in the following ta
 | User     | Description                               | Permissions                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |----------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Superuser | root               |  All operations                                                                                                                                                                                                                                                                                                                                     |
-| Normal user | All users except root | On databases with read permissions, SELECT, DESCRIBE, SHOW, and SUBSCRIBE operations. On databases with write permissions, creating, modifying, and deleting supertables, subtables, and topics. Without sysinfo permissions, normal users cannot perform SHOW operations on dnodes, mnodes, vgroups, qnodes, or snodes. Users can change their own passwords. Users can show databases that they own, but system information such as vgroups, replicas, and cache is not displayed. Users can manage UDFs and create databases.
+| Normal user | All users except root | On databases with read permissions, SELECT, DESCRIBE, SHOW, and SUBSCRIBE operations. On databases with write permissions, creating, modifying, and deleting supertables, subtables, and topics. Without sysinfo permissions, normal users cannot perform SHOW operations on dnodes, mnodes, vgroups, qnodes, or snodes. Users can change their own passwords. Users can show databases that they own, but system information such as vgroups, replicas, and cache is not displayed. Users can manage UDFs. Users can create databases only if they have the permission to create databases.
 
 ### Data Subscription Permissions
 
