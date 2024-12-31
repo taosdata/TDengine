@@ -2265,22 +2265,22 @@ export default {
       try {
         this.currentPage = 1;
         let res = {}
-        let precision = {}
         if (isTemplateCreate) {
           res.data = convert(this.$store.state.app.s_model);
         } else {
           res = await sendSQLReq(
             `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
           );
-          precision = await sendSQLReq(`
-          select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
-          `);
           if (res.desc) {
             this.$error(res.desc);
             return;
           }
         }
-  
+        
+        const precision = await sendSQLReq(`
+        select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
+        `);
+
         if (this.$store.state.app.transformerMapCloumns) {
           this.$set(
             this,
@@ -2340,7 +2340,7 @@ export default {
           );
 
           tableRow.Type =
-              (val[1] == "TIMESTAMP" && !isTemplateCreate)
+              (val[1] == "TIMESTAMP")
                 ? val[1] + "(" + precision.data[0][0] + ")"
                 : val[1];
           tableRow.maptype =

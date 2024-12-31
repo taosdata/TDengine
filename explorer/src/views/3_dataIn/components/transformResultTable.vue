@@ -128,7 +128,7 @@ export default {
     this.$nextTick(()=>{
       let height=mainDom.offsetHeight
       this.defaultHeight=height-100
-      this.resultTableMaxHeight = parserDom.offsetHeight-200
+      this.resultTableMaxHeight = parserDom?.offsetHeight-200
     })
     mainDom.addEventListener("scroll", this.handleScroll);
     this.$once("hook:beforeDestroy", () => {
