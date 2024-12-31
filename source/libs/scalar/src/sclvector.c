@@ -1220,11 +1220,9 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
 
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          leftConvert = 0, rightConvert = 0;
-  SColumnInfoData *pLeftCol = NULL;
-  SColumnInfoData *pRightCol = NULL;
-  SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
-  SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
-  if(checkOperatorRestypeIsTimestamp(OP_TYPE_ADD, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight))) {  // timestamp plus duration
+  SColumnInfoData *pLeftCol = pLeft->columnData;
+  SColumnInfoData *pRightCol = pRight->columnData;
+  if(pOutputCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {  // timestamp plus duration
     int64_t             *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft;
     _getBigintValue_fn_t getVectorBigintValueFnRight;
@@ -1254,7 +1252,9 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         *output = leftRes + rightRes;
       }
     }
-  } else {
+  } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DOUBLE){
+    SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
+    SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
     double              *output = (double *)pOutputCol->pData;
     _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
     _getDoubleValue_fn_t getVectorDoubleValueFnRight;
@@ -1277,6 +1277,8 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     } else if (pRight->numOfRows == 1) {
       SCL_ERR_JRET(vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
     }
+  } else if (IS_DECIMAL_TYPE(pOutputCol->info.type)) {
+
   }
 
 _return:
