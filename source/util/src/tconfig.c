@@ -1573,12 +1573,14 @@ _exit:
   taosMemoryFree(cfgLineBuf);
   taosMemoryFree(buf);
   (void)taosCloseFile(&pFile);
-
   tjsonDelete(pJson);
-  if (code != 0) {
-    (void)printf("failed to load from apollo url:%s at line %d since %s\n", url, lino, tstrerror(code));
+  if (code == TSDB_CODE_CFG_NOT_FOUND) {
+    uTrace("load from apoll url success");
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  } else {
+    (void)printf("failed to load from apoll url:%s at line %d since %s\n", url, lino, tstrerror(code));
+    TAOS_RETURN(code);
   }
-  TAOS_RETURN(code);
 }
 
 int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl) {
