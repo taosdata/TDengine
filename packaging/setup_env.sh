@@ -153,6 +153,8 @@ help() {
     echo "  config_coredump             - Configure core dump settings"
     echo "  disable_service             - Disable specified services"
     echo "  install_python              - Install Python and pip"
+    echo "  install_pyenv               - Install Pyenv"
+    echo "  install_python_via_pyenv    - Install Python via pyenv"
     echo "  install_java                - Install Java"
     echo "  install_java_via_sdkman     - Install Java via sdkman"
     echo "  install_maven_via_sdkman    - Install Maven via sdkman"
@@ -2068,6 +2070,12 @@ main() {
                 ;;
             install_python)
                 install_python
+                ;;
+            install_pyenv)
+                install_pyenv
+                ;;
+            install_python_via_pyenv)
+                install_python_via_pyenv
                 ;;
             install_pip_pkg)
                 install_pip_pkg
