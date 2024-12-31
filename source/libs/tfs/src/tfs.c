@@ -607,6 +607,15 @@ static int32_t tfsCheck(STfs *pTfs) {
       terrno = TSDB_CODE_FS_NO_MOUNT_AT_TIER;
       return -1;
     }
+
+    if (level == 0) {
+      tfsUpdateTierSize(TFS_TIER_AT(pTfs, level));
+      if (TFS_TIER_AT(pTfs, level)->nAvailDisks == 0) {
+        fError("no disk to create new file at level %d", level);
+        terrno = TSDB_CODE_FS_NO_VALID_DISK;
+        return -1;
+      }
+    }
   }
 
   return 0;
