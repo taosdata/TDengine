@@ -39,7 +39,7 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockDataLen, &actualLen), code, lino, END, terrno);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockData, &buf), code, lino, END, terrno);
 
-  tqDebug("add block data to response success:%p, blockDataLen:%d, blockData:%p", pRsp->blockDataLen, actualLen, pRsp->blockData);
+  tqDebug("add block data to block array, blockDataLen:%d, blockData:%p", actualLen, buf);
 END:
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(buf);
@@ -332,7 +332,7 @@ END:
   return code;
 }
 
-static int32_t tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded){
+static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded){
   int32_t code = 0;
   int32_t lino = 0;
   SArray* pBlocks = NULL;
@@ -383,7 +383,7 @@ static int32_t tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, 
     }
     pRsp->blockNum++;
   }
-  tqDebug("vgId:%d, process sub data success", pTq->pVnode->config.vgId);
+  tqDebug("vgId:%d, process sub data success, response blocknum:%d, rows:%d", pTq->pVnode->config.vgId, pRsp->blockNum, *totalRows);
 END:
   if (code != 0){
     tqError("%s failed at %d, failed to process sub data:%s", __FUNCTION__, lino, tstrerror(code));
@@ -393,7 +393,6 @@ END:
     taosArrayDestroy(pBlocks);
     taosArrayDestroy(pSchemas);
   }
-  return code;
 }
 
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded) {
@@ -410,13 +409,11 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
 
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     while (tqNextBlockImpl(pReader, NULL)) {
-      code = tqProcessSubData(pTq, pHandle, pRsp, totalRows, sourceExcluded);
-      TSDB_CHECK_CODE(code, lino, END);
+      tqProcessSubData(pTq, pHandle, pRsp, totalRows, sourceExcluded);
     }
   } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
     while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
-      code = tqProcessSubData(pTq, pHandle, pRsp, totalRows, sourceExcluded);
-      TSDB_CHECK_CODE(code, lino, END);
+      tqProcessSubData(pTq, pHandle, pRsp, totalRows, sourceExcluded);
     }
   }
 

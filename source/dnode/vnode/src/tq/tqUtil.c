@@ -279,8 +279,8 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       }
 
       SWalCont* pHead = &pHandle->pWalReader->pHead->head;
-      tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, vgId:%d offset %" PRId64 " msgType %d",
-              pRequest->consumerId, pRequest->epoch, vgId, fetchVer, pHead->msgType);
+      tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, vgId:%d offset %" PRId64 " msgType %s",
+              pRequest->consumerId, pRequest->epoch, vgId, fetchVer, TMSG_INFO(pHead->msgType));
 
       // process meta
       if (pHead->msgType != TDMT_VND_SUBMIT) {
@@ -385,7 +385,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
 END:
   if (code != 0){
-    tqError("tmq poll: tqTaosxScanLog error %" PRId64 ", in vgId:%d, subkey %s", pRequest->consumerId, vgId,
+    tqError("tmq poll: tqTaosxScanLog error. consumerId:0x%" PRIx64 ", in vgId:%d, subkey %s", pRequest->consumerId, vgId,
            pRequest->subKey);
   }
   tDeleteMqBatchMetaRsp(&btMetaRsp);
@@ -427,7 +427,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
 
 END:
   if (code != 0){
-    uError("failed to extract data for mq, code:%d", code);
+    uError("failed to extract data for mq, msg:%s", tstrerror(code));
   }
   tOffsetDestroy(&reqOffset);
   return code;
