@@ -38,14 +38,14 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 
 | Error Code       | Description                                              | Suggested Actions    |
 | ---------------- |-------------------------------------------------------   | -------------------- |
-| 0xa000     |connection param error                                          |连接器参数错误                                                                   
+| 0xa000     |connection param error                                          |连接器参数错误。                                                                   
 | 0xa001     |the groupid parameter of CDC is incorrect                       |CDC 的 groupid 参数错误。|
 | 0xa002     |wrong topic parameter for CDC                                   |CDC 的 topic 参数错误。|
-| 0xa010     |database name configuration error                               |数据库名配置错误|
-| 0xa011     |table name configuration error                                  |表名配置错误|
-| 0xa012     |no data was obtained from the data source                       |从数据源中获取数据失败|
-| 0xa013     |value.deserializer parameter not set                            |未设置序列化方式|
-| 0xa014     |list of column names for target table not set                   |未设置目标表的列名列表|
+| 0xa010     |database name configuration error                               |数据库名配置错误。|
+| 0xa011     |table name configuration error                                  |表名配置错误。|
+| 0xa012     |no data was obtained from the data source                       |从数据源中获取数据失败。|
+| 0xa013     |value.deserializer parameter not set                            |未设置序列化方式。|
+| 0xa014     |list of column names for target table not set                   |未设置目标表的列名列表。|
 | 0x2301     |connection already closed                                       |连接已经关闭，检查连接情况，或重新创建连接去执行相关指令。|
 | 0x2302     |this operation is NOT supported currently!                      |当前使用接口不支持，可以更换其他连接方式。|
 | 0x2303     |invalid variables                                               |参数不合法，请检查相应接口规范，调整参数类型及大小。|
@@ -140,15 +140,15 @@ Properties 中配置参数如下：
 
 |         参数名称          |  类型   | 参数说明                                                                                                                                          | 备注                                                                                                                                                                |
 | ----------------------- | :-----: | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TDengineConfigParams.PROPERTY_KEY_USER | string | 登录 TDengine 用户名，默认值 'root'| |
-| TDengineConfigParams.PROPERTY_KEY_PASSWORD| string | 用户登录密码，默认值 'taosdata'| |
-| TDengineConfigParams.VALUE_DESERIALIZER| string | 游算子接收数据的类型 | 如果下游算子接收数据的类型是 RowData 仅需要设置为 RowData, 如果用户需要自定义类型这里需要设置完整的类路径|
-| TDengineConfigParams.TD_BATCH_MODE | boolean | 此参数用于批量将数据推送给下游算子，如果设置为 True，创建 TDengineSource 对象时需要指定数据类型为 SourceRecords\<类型\>  | 此处的类型为用下游算子接收数据的类型| 
+| TDengineConfigParams.PROPERTY_KEY_USER | string | 登录 TDengine 用户名，默认值 'root'。| |
+| TDengineConfigParams.PROPERTY_KEY_PASSWORD| string | 用户登录密码，默认值 'taosdata'。| |
+| TDengineConfigParams.VALUE_DESERIALIZER| string | 游算子接收数据的类型 | 如果下游算子接收数据的类型是 RowData 仅需要设置为 RowData, 如果用户需要自定义类型这里需要设置完整的类路径。|
+| TDengineConfigParams.TD_BATCH_MODE | boolean | 此参数用于批量将数据推送给下游算子，如果设置为 True，创建 TDengineSource 对象时需要指定数据类型为 SourceRecords\<类型\> 。 | 此处的类型为用下游算子接收数据的类型。| 
 | TDengineConfigParams.PROPERTY_KEY_CHARSET | string | 客户端使用的字符集，默认值为系统字符集。| |
-| TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT | integer | 消息超时时间，单位 ms， 默认值为 60000| |
-| TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION | boolean | 传输过程是否启用压缩。true: 启用，false: 不启用。默认为 false| |
-| TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT| boolean| 是否启用自动重连。true: 启用，false: 不启用。默认为 false||
-| TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT| integer| 自动重连重试次数，默认值 3 | 仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效|
+| TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT | integer | 消息超时时间，单位 ms， 默认值为 60000。| |
+| TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION | boolean | 传输过程是否启用压缩。true: 启用，false: 不启用。默认为 false。| |
+| TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT| boolean| 是否启用自动重连。true: 启用，false: 不启用。默认为 false。||
+| TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT| integer| 自动重连重试次数，默认值 3 | 仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。|
 | TDengineConfigParams.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION| boolean| 关闭 SSL 证书验证 。true: 关闭，false: 不关闭。默认为 false。||
 
 #### 按时间分片
@@ -214,18 +214,18 @@ Flink CDC 主要用于提供数据订阅功能，能实时监控 TDengine 数据
 #### 参数说明
 |         参数名称          |  类型   | 参数说明 | 备注 |
 | ----------------------- | :-----: | ------------------------- | -------------------------- |
-| TDengineCdcParams.BOOTSTRAP_SERVERS| string | 服务端的 IP 地址   | |
-| TDengineCdcParams.CONNECT_USER| string | 用户名 | |
-| TDengineCdcParams.CONNECT_PASS| string | 密码 | |
-| TDengineCdcParams.POLL_INTERVAL_MS|int| 拉取数据间隔, 默认 500ms| |
-| TDengineConfigParams.VALUE_DESERIALIZER| string | 游算子接收数据的类型 | 如果下游算子接收数据的类型是 RowData 仅需要设置为 RowData, 如果用户需要自定义类型这里需要设置完整的类路径|
-| TDengineCdcParams.TMQ_BATCH_MODE| boolean | 此参数用于批量将数据推送给下游算子，如果设置为 True，创建 TDengineCdcSource 对象时需要指定数据类型为 ConsumerRecords\<类型\>  | 此处的类型为用下游算子接收数据的类型| 
-| TDengineCdcParams.GROUP_ID| string | 消费组 ID，同一消费组共享消费进度 | <br />**必填项**。最大长度：192。<br />每个 topic 最多可建立 100 个 consumer 
-| TDengineCdcParams.AUTO_OFFSET_RESET| string | 消费组订阅的初始位置 | earliest: 从头开始订阅<br/> latest: default; 仅从最新数据开始订阅|
-| TDengineCdcParams.ENABLE_AUTO_COMMIT| boolean | 是否自动提交，true: 启用（用于下游均为无状态算子） ；false：由 checkpoint 触发 commit | 默认 false|
-| TDengineCdcParams.AUTO_COMMIT_INTERVAL_MS| integer|消费记录自动提交消费位点时间间隔，单位为毫秒| 默认值为 5000, 此参数在 AUTO_OFFSET_RESET 为 true 生效|
-| TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS| integer | consumer 心跳丢失后超时时间，超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除（从 TDengine 3.3.3.0 版本开始支持）| 默认值为 12000，取值范围 [6000， 1800000]                                                                                                                           |
-| TDengineCdcParams.TMQ_MAX_POLL_INTERVAL_MS| integer | consumer poll 拉取数据间隔的最长时间，超过该时间，会认为该 consumer 离线，触发 rebalance 逻辑，成功后该 consumer 会被删除（从 3.3.3.0 版本开始支持） | 默认值为 300000，[1000，INT32_MAX] 
+| TDengineCdcParams.BOOTSTRAP_SERVERS| string | 服务端的 IP 地址。   | |
+| TDengineCdcParams.CONNECT_USER| string | 用户名。 | |
+| TDengineCdcParams.CONNECT_PASS| string | 密码。 | |
+| TDengineCdcParams.POLL_INTERVAL_MS|int| 拉取数据间隔, 默认 500ms。| |
+| TDengineConfigParams.VALUE_DESERIALIZER| string | 游算子接收数据的类型。 | 如果下游算子接收数据的类型是 RowData 仅需要设置为 RowData, 如果用户需要自定义类型这里需要设置完整的类路径。|
+| TDengineCdcParams.TMQ_BATCH_MODE| boolean | 此参数用于批量将数据推送给下游算子，如果设置为 True，创建 TDengineCdcSource 对象时需要指定数据类型为 ConsumerRecords\<类型\>。| 此处的类型为用下游算子接收数据的类型。| 
+| TDengineCdcParams.GROUP_ID| string | 消费组 ID，同一消费组共享消费进度。 | <br />**必填项**。最大长度：192。<br />每个 topic 最多可建立 100 个 consumer 。|
+| TDengineCdcParams.AUTO_OFFSET_RESET| string | 消费组订阅的初始位置。 | earliest: 从头开始订阅<br/> latest: default; 仅从最新数据开始订阅。|
+| TDengineCdcParams.ENABLE_AUTO_COMMIT| boolean | 是否自动提交，true: 启用（用于下游均为无状态算子） ；false：由 checkpoint 触发 commit 。| 默认 false。|
+| TDengineCdcParams.AUTO_COMMIT_INTERVAL_MS| integer|消费记录自动提交消费位点时间间隔，单位为毫秒。| 默认值为 5000, 此参数在 AUTO_OFFSET_RESET 为 true 生效。|
+| TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS| integer | consumer 心跳丢失后超时时间，超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除（从 TDengine 3.3.3.0 版本开始支持）。| 默认值为 12000，取值范围 [6000， 1800000]。 |
+| TDengineCdcParams.TMQ_MAX_POLL_INTERVAL_MS| integer | consumer poll 拉取数据间隔的最长时间，超过该时间，会认为该 consumer 离线，触发 rebalance 逻辑，成功后该 consumer 会被删除（从 3.3.3.0 版本开始支持）。 | 默认值为 300000，[1000，INT32_MAX]。|
 
 #### 使用 CDC 连接器
 
@@ -268,19 +268,19 @@ Sink 的核心功能在于高效且精准地将经过 Flink 处理的、源自�
 
 |         参数名称          |  类型   | 参数说明                                                                                                                                          | 备注                                                                                                                                                                |
 | ----------------------- | :-----: | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TDengineConfigParams.PROPERTY_KEY_USER | string | 登录 TDengine 用户名，默认值 'root'| |
-| TDengineConfigParams.PROPERTY_KEY_PASSWORD| string | 用户登录密码，默认值 'taosdata'| |
-| TDengineConfigParams.PROPERTY_KEY_DBNAME| string | 写入的数据库名称||
-| TDengineConfigParams.TD_SUPERTABLE_NAME| string | 写入的超级表名称| 如果是超级表接收的数据必须有 tbname 字段，确定写入那张子表|
-| TDengineConfigParams.TD_TABLE_NAME| string | 写入的表名，此参数和TD_SUPERTABLE_NAME 仅需要设置一个即可| 用于确定写入那张子表或普通表|
-| TDengineConfigParams.TD_BATCH_SIZE| integer | 设置批大小 | 当到达批的数量后进行写入，或是一个checkpoint的时间也会触发写入数据库| 
-| TDengineConfigParams.VALUE_DESERIALIZER| string | 游算子接收数据的类型 | 如果下游算子接收数据的类型是 RowData 仅需要设置为 RowData, 如果用户需要自定义类型这里需要设置完整的类路径|
-| TDengineConfigParams.TD_BATCH_MODE | boolean | 此参数用于设置接收批量数据 | 如果设置为 True:<br/> 来源是 TDengine Source， 使用SourceRecords\<类型\>  创建 TDengineSink 对象<br/> 来源是 TDengine CDC 使用 ConsumerRecords\<类型\>  创建 TDengineSink 对象 | 此处的类型为接收数据的类型| 
-| TDengineConfigParams.TD_SOURCE_TYPE | string | 如果数据是表示数据来源是，source 或者 cdc 等 | TDengine source 设置为 "tdengine_source", TDengine cdc 设置为 "tdengine_cdc"|
-| TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT | integer | 消息超时时间，单位 ms， 默认值为 60000| |
-| TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION | boolean | 传输过程是否启用压缩。true: 启用，false: 不启用。默认为 false| |
-| TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT| boolean| 是否启用自动重连。true: 启用，false: 不启用。默认为 false||
-| TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT| integer| 自动重连重试次数，默认值 3 | 仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效|
+| TDengineConfigParams.PROPERTY_KEY_USER | string | 登录 TDengine 用户名，默认值 'root'。| |
+| TDengineConfigParams.PROPERTY_KEY_PASSWORD| string | 用户登录密码，默认值 'taosdata'。| |
+| TDengineConfigParams.PROPERTY_KEY_DBNAME| string | 写入的数据库名称。||
+| TDengineConfigParams.TD_SUPERTABLE_NAME| string | 写入的超级表名称。| 如果是超级表接收的数据必须有 tbname 字段，确定写入那张子表。|
+| TDengineConfigParams.TD_TABLE_NAME| string | 写入的表名，此参数和TD_SUPERTABLE_NAME 仅需要设置一个即可。| 用于确定写入那张子表或普通表。|
+| TDengineConfigParams.TD_BATCH_SIZE| integer | 设置批大小 | 当到达批的数量后进行写入，或是一个checkpoint的时间也会触发写入数据库。| 
+| TDengineConfigParams.VALUE_DESERIALIZER| string | 游算子接收数据的类型。 | 如果下游算子接收数据的类型是 RowData 仅需要设置为 RowData, 如果用户需要自定义类型这里需要设置完整的类路径。|
+| TDengineConfigParams.TD_BATCH_MODE | boolean | 此参数用于设置接收批量数据。 | 如果设置为 True:<br/> 来源是 TDengine Source， 使用SourceRecords\<类型\>  创建 TDengineSink 对象<br/> 来源是 TDengine CDC 使用 ConsumerRecords\<类型\>  创建 TDengineSink 对象。| 此处的类型为接收数据的类型。| 
+| TDengineConfigParams.TD_SOURCE_TYPE | string | 如果数据是表示数据来源是，source 或者 cdc 等。 | TDengine source 设置为 "tdengine_source", TDengine cdc 设置为 "tdengine_cdc"。|
+| TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT | integer | 消息超时时间，单位 ms， 默认值为 60000。| |
+| TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION | boolean | 传输过程是否启用压缩。true: 启用，false: 不启用。默认为 false。| |
+| TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT| boolean| 是否启用自动重连。true: 启用，false: 不启用。默认为 false。||
+| TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT| integer| 自动重连重试次数，默认值 3。 | 仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。|
 | TDengineConfigParams.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION| boolean| 关闭 SSL 证书验证 。true: 关闭，false: 不关闭。默认为 false。||
 
 #### 使用 Sink 连接器
@@ -315,15 +315,15 @@ Sink 的核心功能在于高效且精准地将经过 Flink 处理的、源自�
 
 |         参数名称          |  类型   | 参数说明      | 备注   |
 | ----------------------- | :-----: | ------------ | ------ |
-| connector  | string | 连接器标识，设置 tdengine-connector ||
-| td.jdbc.url| string | 连接的 url | |
-| td.jdbc.mode | strng | 连接器类型, 设置 source, cdc, sink| |
-| table.name| string| 原表或目标表名称| |
-| scan.query| string| 获取数据的 SQL 语句||
-| sink.db.name|string| 目标数据库名称||
-| sink.supertable.name|string |写入的超级表名称||
-| sink.batch.size | integer | 写入的批大小||
-| sink.table.name|string|写入的普通表或子表名称||
+| connector  | string | 连接器标识，设置 `tdengine-connector` 。||
+| td.jdbc.url| string | 连接的 url 。| |
+| td.jdbc.mode | strng | 连接器类型, 设置 `source`, `cdc`, `sink`。| |
+| table.name| string| 原表或目标表名称。| |
+| scan.query| string| 获取数据的 SQL 语句。||
+| sink.db.name|string| 目标数据库名称。||
+| sink.supertable.name|string |写入的超级表名称。||
+| sink.batch.size | integer | 写入的批大小。||
+| sink.table.name|string|写入的普通表或子表名称。||
 
 #### Source 连接器使用示例
 
@@ -340,19 +340,19 @@ Sink 的核心功能在于高效且精准地将经过 Flink 处理的、源自�
 
 |         参数名称          |  类型   | 参数说明      | 备注   |
 | ----------------------- | :-----: | ------------ |-------|
-| connector  | string | 连接器标识，设置 tdengine-connector ||
-| user| string | 用户名， 默认 root| |
-| password | string | 密码， 默认taosdata| |
-| bootstrap.servers| string | 服务器地址 | |
-| topic | string | 订阅主题 ||
-| td.jdbc.mode | strng | 连接器类型, cdc, sink| |
-| group.id| string| 消费组 ID，同一消费组共享消费进度 | |
-| auto.offset.reset| string| 消费组订阅的初始位置 | earliest: 从头开始订阅<br/> latest: default; 仅从最新数据开始订阅|
-| poll.interval_ms| integer| 拉取数据间隔, 默认 500ms| |
-| sink.db.name|string| 目标数据库名称||
-| sink.supertable.name|string |写入的超级表名称||
-| sink.batch.size | integer | 写入的批大小||
-| sink.table.name|string|写入的普通表或子表名称||
+| connector  | string | 连接器标识，设置 `tdengine-connector`。||
+| user| string | 用户名， 默认 root。| |
+| password | string | 密码， 默认taosdata。| |
+| bootstrap.servers| string | 服务器地址。| |
+| topic | string | 订阅主题。||
+| td.jdbc.mode | strng | 连接器类型, cdc, sink。| |
+| group.id| string| 消费组 ID，同一消费组共享消费进度。 | |
+| auto.offset.reset| string| 消费组订阅的初始位置。 | earliest: 从头开始订阅<br/> latest: default; 仅从最新数据开始订阅。|
+| poll.interval_ms| integer| 拉取数据间隔, 默认 500ms。| |
+| sink.db.name|string| 目标数据库名称。||
+| sink.supertable.name|string |写入的超级表名称。||
+| sink.batch.size | integer | 写入的批大小。||
+| sink.table.name|string|写入的普通表或子表名称。||
 
 
 
