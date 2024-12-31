@@ -726,7 +726,7 @@ static int32_t evtAsyncInit(SEvtMgt *pOpt, int32_t fd[2], SAsyncHandle **async, 
     taosMemoryFree(pAsync);
     return code;
   }
-  tDebug("%s succ to init async on fd:%d", pOpt->label, fd[0]);
+  tTrace("%s succ to init async on fd:%d", pOpt->label, fd[0]);
   QUEUE_INIT(&pAsync->q);
   *async = pAsync;
   return code;
@@ -1185,7 +1185,7 @@ static int32_t evtSvrSendFinishCb(void *arg, int32_t status) {
 
   if (transQueueEmpty(&pConn->resps)) {
     // stop write evt
-    tDebug("%s conn %p stop write evt on fd:%d", transLabel(pThrd->pInst), pConn, pConn->fd);
+    tTrace("%s conn %p stop write evt on fd:%d", transLabel(pThrd->pInst), pConn, pConn->fd);
     code = evtMgtRemove(pThrd->pEvtMgt, pConn->fd, EVT_WRITE, NULL);
   }
   return code;
@@ -1220,7 +1220,7 @@ void evtNewConnNotifyCb(void *async, int32_t status) {
       taosMemoryFree(pArg);
       continue;
     } else {
-      tDebug("%s succ to create conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
+      tDebug("%s succ to create svr conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->dst, pConn->src);
     }
 
     SFdCbArg arg = {.evtType = EVT_CONN_T,
@@ -1299,7 +1299,7 @@ static void evtSvrHandleRegiter(SSvrRespMsg *pResp, SWorkThrd2 *pThrd) {
     tError("failed to put qid to hash since %s", tstrerror(code));
     return;
   }
-  tDebug("conn %p success to register sid:%" PRId64 "", pConn, arg.msg.info.qId);
+  tDebug("conn %p succ to register sid:%" PRId64 "", pConn, arg.msg.info.qId);
   taosMemoryFree(pResp);
 }
 static void evtSvrHandleQuit(SSvrRespMsg *pResp, SWorkThrd2 *pThrd) {
@@ -1397,7 +1397,7 @@ void *transWorkerThread(void *arg) {
   int32_t count = 0;
   while (!pThrd->quit) {
     struct timeval tv = {30, 0};
-    tDebug("%s-------------------- dispatch count:%d -----------------------------", pInst->label, count++);
+    tTrace("%s-------------------- dispatch count:%d -----------------------------", pInst->label, count++);
     code = evtMgtDispath(pOpt, &tv);
     if (code != 0) {
       tError("%s failed to dispatch since %s", pInst->label, tstrerror(code));
@@ -2114,7 +2114,7 @@ static int32_t getOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, SCliCon
   pConn->list = taosHashGet(pThrd->pool, addr, strlen(addr));
   pConn->list->totalSize += 1;
 
-  tDebug("%s succ to create conn %p src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
+  tDebug("%s succ to create cli conn %p src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
 
   *ppConn = pConn;
   return code;
@@ -3348,7 +3348,7 @@ static int32_t evtCliSendCb(void *arg, int32_t status) {
     tError("failed to send request since %s", tstrerror(code));
     return code;
   } else {
-    tDebug("%s success to send out request", pInst->label);
+    tDebug("%s succ to send out request", pInst->label);
   }
   if (transQueueEmpty(&pConn->reqsToSend)) {
     tDebug("%s conn %p stop write evt on fd:%d", transLabel(pThrd->pInst), pConn, pConn->fd);
@@ -3402,7 +3402,7 @@ static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
       break;
     }
   }
-  tDebug("%s conn %p success to read resp", pInst->label, pConn);
+  tDebug("%s conn %p succ to read resp", pInst->label, pConn);
   return code;
 _end:
   if (code != 0) {
@@ -3672,7 +3672,7 @@ static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
   }
 
   transQueuePush(&pConn->reqsToSend, &req->q);
-  tGDebug("%s success to get conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
+  tGDebug("%s succ to get conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
 
   SFdCbArg arg = {.evtType = EVT_CONN_T,
                   .arg = pConn,
@@ -3770,15 +3770,16 @@ static void *cliWorkThread2(void *arg) {
     struct timeval tv = {30, 0};
     code = evtCaclNextTimeout(pThrd->pEvtMgt, &tv);
     if (code != 0) {
+      tTrace("%s failed to calc next timeout", pInst->label);
     } else {
-      tDebug("%s success to calc next timeout", pInst->label);
+      tTrace("%s succ to calc next timeout", pInst->label);
     }
     code = evtMgtDispath(pThrd->pEvtMgt, &tv);
     if (code != 0) {
       tError("%s failed to dispatch since %s", pInst->label, tstrerror(code));
       continue;
     } else {
-      tDebug("%s success to dispatch", pInst->label);
+      tTrace("%s succe to dispatch", pInst->label);
     }
   }
 
