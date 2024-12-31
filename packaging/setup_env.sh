@@ -1771,8 +1771,10 @@ TDinternal() {
     deploy_go
     deploy_rust
     install_java 17
+    install_maven 3.9.0
     install_node_via_nvm 16.20.2
     install_python 3.10.12
+    install_via_pip pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml taospy taos-ws-py
 }
 
 # deploy TDgpt
