@@ -928,7 +928,7 @@ install_java() {
     INSTALLED_VERSION=$("$JAVA_HOME"/bin/java --version 2>&1)
     if echo "$INSTALLED_VERSION" | grep -q "openjdk $DEFAULT_JDK_VERSION"; then
         echo -e "${GREEN}Java installed successfully.${NO_COLOR}"
-        SOURCE_RESULTS+="Java: source /root/.bashrc\n"
+        SOURCE_RESULTS+="source /root/.bashrc  # For OpenJDK\n"
     else
         echo -e "${YELLOW}Java version not match.${NO_COLOR}"
         exit 1
@@ -938,11 +938,11 @@ install_java() {
 # Install sdkman
 install_sdkman() {
     echo -e "${YELLOW}Installing SDKMAN...${NO_COLOR}"
-    install_package zip unzip
     if [ -d "$HOME/.sdkman" ]; then
         echo -e "${GREEN}SDKMAN is already installed.${NO_COLOR}"
     else
         echo -e "${YELLOW}Installing SDKMAN...${NO_COLOR}"
+        install_package zip unzip
         curl --retry 10 --retry-delay 5 --retry-max-time 120 -s "https://get.sdkman.io" | bash
     fi
 }
@@ -950,16 +950,64 @@ install_sdkman() {
 # Install gvm
 install_gvm() {
     echo -e "${YELLOW}Installing GVM...${NO_COLOR}"
-    install_package bison gcc make
-    bash < <(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
-    source $HOME/.gvm/scripts/gvm
-    gvm version
-    check_status "Failed to install GVM" "GVM installed successfully." $?
-    add_config_if_not_exist "export GO111MODULE=on" "$BASH_RC"
-    add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" "$BASH_RC"
-    add_config_if_not_exist "export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/" "$BASH_RC"
-    add_config_if_not_exist "export GOROOT_BOOTSTRAP=$GOROOT" "$BASH_RC"
-    SOURCE_RESULTS+="GVM: source $HOME/.gvm/scripts/gvm\n"
+    if [ -d "$HOME/.gvm" ]; then
+        echo -e "${GREEN}GVM is already installed.${NO_COLOR}"
+    else
+        install_package bison gcc make
+        bash < <(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+        source $HOME/.gvm/scripts/gvm
+        gvm version
+        check_status "Failed to install GVM" "GVM installed successfully." $?
+        add_config_if_not_exist "export GO111MODULE=on" "$BASH_RC"
+        add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" "$BASH_RC"
+        add_config_if_not_exist "export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/" "$BASH_RC"
+        add_config_if_not_exist "export GOROOT_BOOTSTRAP=$GOROOT" "$BASH_RC"
+        SOURCE_RESULTS+="source $HOME/.gvm/scripts/gvm  # For GVM\n"
+    fi
+}
+
+# Install pyvenv
+install_pyenv() {
+    echo -e "${YELLOW}Installing Pyenv...${NO_COLOR}"
+    if [ -d "$HOME/.pyenv" ]; then
+        echo -e "${GREEN}Pyenv is already installed.${NO_COLOR}"
+    else
+        curl -L https://gitee.com/xinghuipeng/pyenv-installer/raw/master/bin/pyenv-installer | bash
+        export PATH="$HOME/.pyenv/bin:$PATH"
+        eval "$(pyenv init --path)"
+        eval "$(pyenv init -)"
+        add_config_if_not_exist "export PATH=\"\$HOME/.pyenv/bin:\$PATH\"" "$BASH_RC"
+        add_config_if_not_exist "eval \"\$(pyenv init --path)\"" "$BASH_RC"
+        add_config_if_not_exist "eval \"\$(pyenv init -)\"" "$BASH_RC"
+        pyenv --version
+        check_status "Failed to install Pyenv" "Pyenv installed successfully." $?
+        SOURCE_RESULTS+="source $BASH_RC  For: Pyenv/python\n"
+    fi
+}
+
+# Install python via pyenv
+install_python_via_pyenv() {
+    echo -e "${YELLOW}Installing Python via Pyenv...${NO_COLOR}"
+    if [ -f /etc/debian_version ]; then
+        install_package gcc make build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev
+    elif [ -f /etc/redhat-release ]; then
+        install_package gcc zlib zlib-devel libffi libffi-devel readline-devel openssl-devel openssl11 openssl11-devel
+    else
+        echo "Unsupported Linux distribution."
+        exit 1
+    fi
+
+    if [ -n "$1" ]; then
+        DEFAULT_PYTHON_VERSION="$1"
+    else
+        DEFAULT_PYTHON_VERSION="3.10.12"
+    fi
+    install_pyenv
+
+    pyenv install "$DEFAULT_PYTHON_VERSION"
+    pyenv global "$DEFAULT_PYTHON_VERSION"
+    python --version
+    check_status "Failed to install Python" "Python installed successfully." $?
 }
 
 # Install Maven
@@ -993,7 +1041,7 @@ install_java_via_sdkman() {
     [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
     java -version
     check_status "Failed to install java" "Java installed successfully." $?
-    SOURCE_RESULTS+="Sdkman: source $HOME/.sdkman/bin/sdkman-init.sh\n"
+    SOURCE_RESULTS+="source $HOME/.sdkman/bin/sdkman-init.sh  # For Sdkman/java/maven\n"
 }
 
 # Install Go
@@ -1029,7 +1077,7 @@ deploy_go() {
     # Apply the environment variables
     $GO_INSTALL_DIR/bin/go version
     check_status "Failed to install GO" "Install GO successfully" $?
-    SOURCE_RESULTS+="Golang: source $BASH_RC\n"
+    SOURCE_RESULTS+="source $BASH_RC  # For Golang\n"
 }
 
 # Install Go via gvm
@@ -1052,7 +1100,7 @@ install_go_via_gvm() {
 
     go version
     check_status "Failed to install Go" "Go installed successfully." $?
-    SOURCE_RESULTS+="Golang: source $BASH_RC\n"
+    SOURCE_RESULTS+="source $BASH_RC  # For Golang\n"
 }
 
 # Function to install Rust and Cargo
@@ -1103,7 +1151,7 @@ deploy_rust() {
         # Install cargo-make
         cargo install cargo-make
         check_status "Failed to install Rust" "Install Rust successfully" $?
-        SOURCE_RESULTS+="Rust: source $BASH_RC && source $HOME/.cargo/env\n"
+        SOURCE_RESULTS+="source $BASH_RC && source $HOME/.cargo/env  # For Rust\n"
     else
         echo "Rust is already installed."
     fi
@@ -1188,7 +1236,7 @@ install_node_via_nvm () {
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
         echo -e "${GREEN}NVM installed successfully.${NO_COLOR}"
-        SOURCE_RESULTS+="NVM: source $NVM_DIR/nvm.sh && source $NVM_DIR/bash_completion\n"
+        SOURCE_RESULTS+="source $NVM_DIR/nvm.sh && source $NVM_DIR/bash_completion  # For NVM/node/npm/yarn/pnpm\n"
     else
         echo -e "${GREEN}NVM is already installed.${NO_COLOR}"
     fi
@@ -1832,7 +1880,7 @@ clone_repos() {
 
 new_funcs() {
     echo "Adding test..."
-    install_python 3.10.12
+    install_python_via_pyenv 3.10.12
     install_java_via_sdkman 21.0.2
     install_node 16.20.2
     install_maven_via_sdkman 3.2.5
@@ -1855,12 +1903,12 @@ TDinternal() {
     install_java_via_sdkman 17
     install_maven_via_sdkman 3.9.9
     install_node_via_nvm 16.20.2
-    install_python 3.10.12
+    install_python_via_pyenv 3.10.12
 }
 
 # deploy TDgpt
 TDgpt() {
-    install_python 3.10.12
+    install_python_via_pyenv 3.10.12
 }
 
 # deploy taos-test-framework
