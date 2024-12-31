@@ -380,16 +380,17 @@ int32_t transReleaseCliHandle(void* handle);
 int32_t transReleaseSrvHandle(void* handle);
 
 #endif
-void transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
-int32_t transAllocHandle(int64_t* refId);
 
 #ifndef TD_ACORE
+void transSockInfo2Str(struct sockaddr* sockname, char* dst);
+int32_t transAllocHandle(int64_t* refId);
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 void transCloseClient(void* arg);
 void transCloseServer(void* arg);
 #else
+int32_t transAllocHandle2(int64_t* refId);
 void* transInitClient2(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 void* transInitServer2(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 void transCloseClient2(void* arg);

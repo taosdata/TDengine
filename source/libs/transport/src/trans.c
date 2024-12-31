@@ -522,7 +522,7 @@ int32_t rpcSetIpWhite(void* thandle, void* arg) {
 #endif
 }
 
-int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
+int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle2(refId); }
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
 int32_t rpcUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf) {

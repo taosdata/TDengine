@@ -1163,6 +1163,7 @@ static int32_t evtSvrPreSendImpl(SSvrConn *pConn, SEvtBuf *pBuf) {
     if (j++ > batchLimit) {
       break;
     }
+    destroySmsg(pResp);
   }
   return code;
 }
@@ -2411,7 +2412,7 @@ int32_t transSendRequestWithId2(void *pInstRef, const SEpSet *pEpSet, STransMsg 
     TAOS_CHECK_GOTO(TSDB_CODE_RPC_MODULE_QUIT, NULL, _exception);
   }
 
-  TAOS_CHECK_GOTO(transAllocHandle(transpointId), NULL, _exception);
+  TAOS_CHECK_GOTO(transAllocHandle2(transpointId), NULL, _exception);
 
   SCliThrd2 *pThrd = transGetWorkThrd(pInst, *transpointId);
   if (pThrd == NULL) {
@@ -3134,6 +3135,26 @@ int32_t cliHandleStateMayUpdateStateCtx(SCliConn *pConn, SCliReq *pReq) {
   }
   return 0;
 }
+int32_t cliHandleStateMayUpdateState(SCliConn *pConn, SCliReq *pReq) {
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  int32_t    code = 0;
+  int64_t    qid = pReq->msg.info.qId;
+  if (qid == 0) {
+    return TSDB_CODE_RPC_NO_STATE;
+  }
+
+  SReqState state = {.conn = pConn, .arg = NULL};
+  code = taosHashPut(pThrd->pIdConnTable, &qid, sizeof(qid), &state, sizeof(state));
+  if (code != 0) {
+    tDebug("%s conn %p failed to statue, sid:%" PRId64 " since %s", transLabel(pThrd->pInst), pConn, qid,
+           tstrerror(code));
+  } else {
+    tDebug("%s conn %p succ to add statue, sid:%" PRId64 " (1)", transLabel(pThrd->pInst), pConn, qid);
+  }
+
+  TAOS_UNUSED(cliHandleStateMayUpdateStateCtx(pConn, pReq));
+  return code;
+}
 
 static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
   int32_t code = 0;
@@ -3157,6 +3178,7 @@ static int32_t evtCliHandleResp(SCliConn *pConn, char *msg, int32_t msgLen) {
     if (evtCliRecycleConn(pConn)) {
       return code;
     }
+    return 0;
   }
 
   code = cliGetReqBySeq(pConn, seq, pHead->msgType, &pReq);
@@ -3375,7 +3397,7 @@ static int32_t evtCliReadResp(void *arg, SEvtBuf *buf, int32_t bytes) {
       p->len -= msgLen;
 
       code = evtCliHandleResp(pConn, pMsg, msgLen);
-      TAOS_CHECK_GOTO(terrno, &line, _end);
+      TAOS_CHECK_GOTO(code, &line, _end);
     } else {
       break;
     }
@@ -3590,40 +3612,81 @@ static int32_t evtCliHandleExcept(void *thrd, SCliReq *pReq, STransMsg *pResp) {
   destroyReq(pReq);
   return code;
 }
+
+static int32_t evtCliMayGetStateByQid(SCliThrd2 *pThrd, SCliReq *pReq, SCliConn **pConn) {
+  int32_t code = 0;
+  int64_t qid = pReq->msg.info.qId;
+  if (qid == 0) {
+    return TSDB_CODE_RPC_NO_STATE;
+  } else {
+    SExHandle *exh = transAcquireExHandle(transGetRefMgt(), qid);
+    if (exh == NULL) {
+      return TSDB_CODE_RPC_STATE_DROPED;
+    }
+
+    SReqState *pState = taosHashGet(pThrd->pIdConnTable, &qid, sizeof(qid));
+
+    if (pState == NULL) {
+      if (pReq->ctx == NULL) {
+        transReleaseExHandle(transGetRefMgt(), qid);
+        return TSDB_CODE_RPC_STATE_DROPED;
+      }
+      tDebug("%s conn %p failed to get statue, sid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
+      transReleaseExHandle(transGetRefMgt(), qid);
+      return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+    } else {
+      *pConn = pState->conn;
+      tDebug("%s conn %p succ to get conn of statue, sid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
+    }
+    transReleaseExHandle(transGetRefMgt(), qid);
+    return 0;
+  }
+}
 static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
   int32_t   lino = 0;
   int32_t   code = 0;
   STransMsg resp = {0};
   STrans   *pInst = pThrd->pInst;
-  char     *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
-  int32_t   port = EPSET_GET_INUSE_PORT(req->ctx->epSet);
-  char      addr[TSDB_FQDN_LEN + 64] = {0};
-  snprintf(addr, sizeof(addr), "%s:%d", fqdn, port);
 
+  STraceId *trace = &req->msg.info.traceId;
   SCliConn *pConn = NULL;
-  code = getOrCreateConn(pThrd, fqdn, port, &pConn);
-  if (code != 0) {
-    tError("%s failed to create conn since %s", pInst->label, tstrerror(code));
+
+  code = evtCliMayGetStateByQid(pThrd, req, &pConn);
+  if (code == 0) {
+    cliHandleStateMayUpdateStateCtx(pConn, req);
+  } else if (code == TSDB_CODE_RPC_STATE_DROPED) {
     TAOS_CHECK_GOTO(code, &lino, _end);
-  } else {
-    transQueuePush(&pConn->reqsToSend, &req->q);
-    STraceId *trace = &req->msg.info.traceId;
-    tGDebug("%s success to get conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
+  } else if (code == TSDB_CODE_RPC_NO_STATE || code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
+    char   *fqdn = EPSET_GET_INUSE_IP(req->ctx->epSet);
+    int32_t port = EPSET_GET_INUSE_PORT(req->ctx->epSet);
+    char    addr[TSDB_FQDN_LEN + 64] = {0};
+    snprintf(addr, sizeof(addr), "%s:%d", fqdn, port);
 
-    SFdCbArg arg = {.evtType = EVT_CONN_T,
-                    .arg = pConn,
-                    .fd = pConn->fd,
-                    .readCb = evtCliReadResp,
-                    .sendCb = evtCliPreSendReq,
-                    .sendFinishCb = evtCliSendCb,
-                    .data = pConn};
-
-    code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_READ | EVT_WRITE, &arg);
+    code = getOrCreateConn(pThrd, fqdn, port, &pConn);
+    if (code != 0) {
+      tError("%s failed to create conn since %s", pInst->label, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _end);
+    } else {
+    }
+    cliHandleStateMayUpdateState(pConn, req);
   }
+
+  transQueuePush(&pConn->reqsToSend, &req->q);
+  tGDebug("%s success to get conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
+
+  SFdCbArg arg = {.evtType = EVT_CONN_T,
+                  .arg = pConn,
+                  .fd = pConn->fd,
+                  .readCb = evtCliReadResp,
+                  .sendCb = evtCliPreSendReq,
+                  .sendFinishCb = evtCliSendCb,
+                  .data = pConn};
+
+  code = evtMgtAdd(pThrd->pEvtMgt, pConn->fd, EVT_READ | EVT_WRITE, &arg);
+
   return code;
 _end:
   resp.code = code;
-  STraceId *trace = &req->msg.info.traceId;
   if (code != 0) {
     tGError("%s failed to handle req since %s", pInst->label, tstrerror(code));
   }
@@ -3656,10 +3719,6 @@ static void evtCliHandleAsyncCb(void *arg, int32_t status) {
     if (pReq == NULL) {
       continue;
     }
-    STraceId *trace = &pReq->msg.info.traceId;
-    tGDebug("%s handle request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pInst->label, pThrd->pid,
-            pReq->ctx->epSet->eps[0].fqdn, pReq->ctx->epSet->eps[0].port, pReq->msg.info.ahandle);
-
     code = evtHandleCliReq(pThrd, pReq);
   }
 }

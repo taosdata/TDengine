@@ -1197,7 +1197,7 @@ void transCtxInit(STransCtx* ctx) {
   ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, HASH_NO_LOCK);
 }
 void transCtxCleanup(STransCtx* ctx) {
-  if (ctx->args == NULL) {
+  if (ctx == NULL || ctx->args == NULL) {
     return;
   }
 
