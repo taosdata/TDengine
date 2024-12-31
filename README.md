@@ -345,11 +345,44 @@ nohup bash tsdbComparison.sh > test.log &
 ```
 5. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
 
-### 8.6 Crash_gen Test
+## 8.6 Crash_gen Test
 
 ```bash
 cd /root/TDinternal/community/tests/pytest/ && ./crash_gen.sh
 ```
+
+## 8.7 TestNG Test
+
+1. Clone the code:
+```bash
+cd /root && \
+  git clone -b master https://github.com/taosdata/taos-test-framework && \
+  git clone -b master https://github.com/taosdata/TestNG
+```
+2. Build taostest:
+```bash
+apt install -y python3-pip && \
+  pip3 install poetry && \
+  cd /root/taos-test-framework && \
+  yes | bash reinstall.sh && \
+  pip3 install --upgrade numpy pandas
+```
+3. Configure passwdless login:
+```bash
+[ ! -f "$HOME/.ssh/id_rsa" ] && yes | ssh-keygen -t rsa -b 2048 -N "" -f $HOME/.ssh/id_rsa
+[ -f "$HOME/.ssh/id_rsa.pub" ] && \
+  ! grep -q -F "$(cat $HOME/.ssh/id_rsa.pub)" "$HOME/.ssh/authorized_keys" && \
+  cat "$HOME/.ssh/id_rsa.pub" >> "$HOME/.ssh/authorized_keys"
+```
+4. Run test script:
+```bash
+/root/TestNG/scripts/run.sh \
+  -m /root/TestNG/scripts/testng.json \
+  -t /root/TestNG/scripts/testng_cases.txt \
+  -l /root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S") \
+  -d debug -o 12000 -f False -a True
+```
+5. When the test is done, the result can be found in `/root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S")` directory.
 
 # 9 Releasing
 
