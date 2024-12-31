@@ -36,7 +36,6 @@
 #define EVT_SIGNAL  0x08
 #define EVT_ASYNC   0x10
 
-/* How many bytes to allocate for N fds? */
 #define SELECT_ALLOC_SIZE(n) (DIV_ROUNDUP(n, NFDBITS) * sizeof(fd_mask))
 
 typedef void (*AsyncCb)(void *async, int32_t status);
