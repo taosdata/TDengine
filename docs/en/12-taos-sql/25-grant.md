@@ -39,10 +39,10 @@ This is an example:
 
 ```sql
 taos> show users;
-           name           | super | enable | sysinfo |       create_time       |
-================================================================================
- test                     |     0 |      1 |       1 | 2022-08-29 15:10:27.315 |
- root                     |     1 |      1 |       1 | 2022-08-29 15:03:34.710 |
+           name           | super | enable | sysinfo | createdb |       create_time      | allowed_host |
+=========================================================================================================
+ test                     |     0 |      1 |       1 |        0 |2022-08-29 15:10:27.315 | 127.0.0.1    |
+ root                     |     1 |      1 |       1 |        1 |2022-08-29 15:03:34.710 | 127.0.0.1    |
 Query OK, 2 rows in database (0.001657s)
 ```
 
@@ -50,10 +50,10 @@ Alternatively, you can get the user information by querying a built-in table, IN
 
 ```sql
 taos> select * from information_schema.ins_users;
-           name           | super | enable | sysinfo |       create_time       |
-================================================================================
- test                     |     0 |      1 |       1 | 2022-08-29 15:10:27.315 |
- root                     |     1 |      1 |       1 | 2022-08-29 15:03:34.710 |
+           name           | super | enable | sysinfo | createdb |       create_time      | allowed_host |
+=========================================================================================================
+ test                     |     0 |      1 |       1 |        0 |2022-08-29 15:10:27.315 | 127.0.0.1    |
+ root                     |     1 |      1 |       1 |        1 |2022-08-29 15:03:34.710 | 127.0.0.1    |
 Query OK, 2 rows in database (0.001953s)
 ```
 
@@ -72,12 +72,14 @@ alter_user_clause: {
     PASS 'literal'
   | ENABLE value
   | SYSINFO value
+  | CREATEDB value
 }
 ```
 
 - PASS: Modify the user password.
 - ENABLE: Specify whether the user is enabled or disabled. 1 indicates enabled and 0 indicates disabled.
 - SYSINFO: Specify whether the user can query system information. 1 indicates that the user can query system information and 0 indicates that the user cannot query system information.
+- CREATEDB: Specify whether the user can create databases. 1 indicates that the user can create databases and 0 indicates that the user cannot create databases.
 
 For example, you can use below command to disable user `test`:
 
