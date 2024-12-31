@@ -379,10 +379,10 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       if (nBytes == 1 && buf[0] == '1') {
         handle->cb(handle, 0);
       }
-      tDebug("%s handle async read on fd:%d", pOpt->label, pArg->fd);
+      tTrace("%s handle async read on fd:%d", pOpt->label, pArg->fd);
     }
     if (res & EVT_WRITE) {
-      tDebug("%s handle async write on fd:%d", pOpt->label, pArg->fd);
+      tTrace("%s handle async write on fd:%d", pOpt->label, pArg->fd);
       // handle err
     }
   } else if (pArg->evtType == EVT_CONN_T) {
@@ -393,7 +393,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
         tError("%s failed to init buf since %s", pOpt->label, tstrerror(code));
         return code;
       }
-      tDebug("%s handle read on fd:%d", pOpt->label, pArg->fd);
+      tTrace("%s handle read on fd:%d", pOpt->label, pArg->fd);
       nBytes = recv(pArg->fd, pBuf->buf, pBuf->len, 0);
       if (nBytes > 0) {
         code = pArg->readCb(pArg, pBuf, nBytes);
@@ -410,7 +410,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
         tError("%s failed to init wbuf since %s", pOpt->label, tstrerror(code));
         return code;
       }
-      tDebug("%s handle write on fd:%d", pOpt->label, pArg->fd);
+      tTrace("%s handle write on fd:%d", pOpt->label, pArg->fd);
 
       code = pArg->sendCb(pArg, pBuf, 0);
       if (code != 0) {
@@ -433,12 +433,12 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       } while (total > 0);
 
       evtBufClear(&pArg->sendBuf);
-      tDebug("%s handle write finish on fd:%d", pOpt->label, pArg->fd);
+      tTrace("%s handle write finish on fd:%d", pOpt->label, pArg->fd);
       pArg->sendFinishCb(pArg, code);
       if (code != 0) {
         tError("%s failed to send buf since %s", pOpt->label, tstrerror(code));
       } else {
-        tDebug("%s succ to send buf", pOpt->label);
+        tTrace("%s succ to send buf", pOpt->label);
       }
       return code;
     }
@@ -478,7 +478,7 @@ static int32_t evtCaclNextTimeout(SEvtMgt *pOpt, struct timeval *tv) {
   if (tv->tv_sec <= 0) {
     if (tv->tv_usec <= 50 * 1000) tv->tv_usec = 50 * 1000;
   }
-  tDebug("%s next timeout %ld, sec:%d, usec:%d", pOpt->label, timeout, (int32_t)tv->tv_sec, (int32_t)tv->tv_usec);
+  tTrace("%s next timeout %ld, sec:%d, usec:%d", pOpt->label, timeout, (int32_t)tv->tv_sec, (int32_t)tv->tv_usec);
   return code;
 }
 static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
@@ -489,7 +489,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
     if (code != 0) {
       tError("%s failed to handle timeout since %s", pOpt->label, tstrerror(code));
     } else {
-      // tInfo("%s succ to handle timeout", pOpt->label);
+      tTrace("%s succ to handle timeout", pOpt->label);
     }
   }
 
@@ -517,15 +517,15 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
 
   nfds = pOpt->evtFds + 1;
   // TODO lock or not
-  tDebug("%s start to select, timeout:%d s: %d ms", pOpt->label, (int32_t)tv->tv_sec, (int32_t)tv->tv_usec / 1000);
+  tTrace("%s start to select, timeout:%d s: %d ms", pOpt->label, (int32_t)tv->tv_sec, (int32_t)tv->tv_usec / 1000);
   active_Fds = select(nfds, pOpt->evtReadSetOut, pOpt->evtWriteSetOut, NULL, tv);
   if (active_Fds < 0) {
     return TAOS_SYSTEM_ERROR(errno);
   } else if (active_Fds == 0) {
-    tDebug("%s select timeout occurred", pOpt->label);
+    tTrace("%s select timeout occurred", pOpt->label);
     return code;
   } else {
-    tDebug("%s select count %d", pOpt->label, active_Fds);
+    tTrace("%s select count %d", pOpt->label, active_Fds);
   }
 
   for (j = 0; j < nfds && active_Fds > 0; j++) {
@@ -538,7 +538,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
       res |= EVT_WRITE;
     }
     if (fd > 0) {
-      tDebug("%s start to handle fd %d", pOpt->label, fd);
+      tTrace("%s start to handle fd %d", pOpt->label, fd);
     }
 
     if (res == 0) {
@@ -549,7 +549,7 @@ static int32_t evtMgtDispath(SEvtMgt *pOpt, struct timeval *tv) {
       if (code != 0) {
         tError("%s failed to handle fd %d since %s", pOpt->label, fd, tstrerror(code));
       } else {
-        tDebug("%s succ to handle fd %d", pOpt->label, fd);
+        tTrace("%s succ to handle fd %d", pOpt->label, fd);
       }
     }
   }
