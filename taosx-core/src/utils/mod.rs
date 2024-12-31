@@ -389,10 +389,44 @@ pub fn parse_dir_in_dsn(dsn: &Dsn, key: Option<&str>) -> anyhow::Result<Option<P
     .transpose()
 }
 
+pub fn parse_bytes(size_str: &str) -> anyhow::Result<u64> {
+    let size_str = size_str.trim();
+    let (number, unit) = size_str.split_at(
+        size_str
+            .find(|c: char| !c.is_numeric() && c != '.')
+            .unwrap_or(size_str.len()),
+    );
+    let number: f64 = number.trim().parse()?;
+    let bytes = match unit.trim().to_uppercase().as_str() {
+        "B" => number,
+        "KB" => number * 1024.0,
+        "MB" => number * 1024.0 * 1024.0,
+        "GB" => number * 1024.0 * 1024.0 * 1024.0,
+        _ => bail!("invalid unit: {}", size_str),
+    };
+    Ok(bytes as u64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::Local;
+
+    #[test]
+    fn test_parse_bytes() {
+        assert_eq!(1024, parse_bytes("1KB").unwrap());
+        assert_eq!(1024, parse_bytes("1kb").unwrap());
+        assert_eq!(1024, parse_bytes("1 KB").unwrap());
+        assert_eq!(1024, parse_bytes("1 KB").unwrap());
+
+        assert_eq!(123, parse_bytes("123B").unwrap());
+        assert_eq!(456 * 1024, parse_bytes("456KB").unwrap());
+        assert_eq!(789 * 1024 * 1024, parse_bytes("789MB").unwrap());
+        assert_eq!(
+            (1.23 * 1024.0 * 1024.0 * 1024.0) as u64,
+            parse_bytes("1.23GB").unwrap()
+        );
+    }
 
     #[test]
     fn test_parse_dir_in_dsn() {

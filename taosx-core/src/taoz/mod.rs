@@ -42,8 +42,10 @@ pub struct ZFile {
     /// 文件写完后，移动到的目录
     move_to: Option<PathBuf>,
 
+    /// 当前文件路径
+    current_file: PathBuf,
     /// writer
-    file: ZFileInner,
+    writer: ZFileInner,
     /// 当前文件大小
     current_size: usize,
 }
@@ -58,7 +60,7 @@ impl ZFile {
         max_file_size: u64,
         move_to: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
-        let writer = ZFile::new_writer(
+        let (current_file, writer) = ZFile::new_writer(
             api_version,
             server_version,
             &file_dir,
@@ -80,7 +82,8 @@ impl ZFile {
             compression_level,
             max_file_size,
             move_to,
-            file: writer,
+            current_file,
+            writer,
             current_size: 0,
         })
     }
@@ -143,7 +146,7 @@ impl ZFile {
         dir: impl AsRef<Path>,
         name: (&str, Option<DateTime<Utc>>, i32, u64),
         compression_level: async_compression::Level,
-    ) -> anyhow::Result<ZFileInner> {
+    ) -> anyhow::Result<(PathBuf, ZFileInner)> {
         let file_name = Self::file_name(name);
         let path = dir.as_ref().to_path_buf().join(&file_name);
 
@@ -164,6 +167,7 @@ impl ZFile {
                 );
             }
         }
+
         let file = File::create(&path).await.map_err(|err| {
             tracing::error!("Can't create file {}: {err:#}", path.display());
             std::io::Error::new(
@@ -176,7 +180,8 @@ impl ZFile {
         let mut file = ZCodec::new(wtr);
         file.write_head_async(&Header::new(api_version, server_version, None))
             .await?;
-        Ok(file)
+
+        Ok((path, file))
     }
 
     // pub async fn new(
@@ -226,19 +231,34 @@ impl ZFile {
 
     pub async fn check_or_next(&mut self) -> anyhow::Result<()> {
         if self.current_size as u64 >= self.max_file_size {
-            self.file.flush().await?;
-            self.file.shutdown().await?;
+            self.writer.flush().await.map_err(|err| {
+                tracing::error!("failed to flush file: {:#?}", err);
+                err
+            })?;
+            self.writer.shutdown().await.map_err(|err| {
+                tracing::error!("failed to shutdown file: {:#?}", err);
+                err
+            })?;
 
             // 如果 name.1 为空，即：没有指定备份点的时间戳，则使用当前时间作为备份点的时间戳，并更新文件名
             if self.name.1.is_none() {
                 let now = Utc::now();
                 let new_name =
                     Self::file_name((self.name.0.as_str(), Some(now), self.name.2, self.name.3));
-                tokio::fs::rename(
-                    self.dir.clone().join(self.get_file_name()),
-                    self.dir.clone().join(&new_name),
-                )
-                .await?;
+
+                let old_file = self.current_file.clone();
+                let new_file = self.dir.clone().join(&new_name);
+                tokio::fs::rename(old_file.as_path(), new_file.as_path())
+                    .await
+                    .map_err(|err| {
+                        tracing::error!(
+                            "failed to rename file, old: {:?}, new: {:?}, cause: {:#?}",
+                            old_file,
+                            new_file,
+                            err
+                        );
+                        err
+                    })?;
                 self.name.1 = Some(now);
             }
 
@@ -246,54 +266,73 @@ impl ZFile {
             if let Some(new_dir) = &self.move_to {
                 let path = self.dir.clone().join(self.get_file_name());
                 let new_path = new_dir.clone().join(self.get_file_name());
-                tokio::fs::rename(path, new_path).await?;
+                tokio::fs::rename(path, new_path).await.map_err(|error| {
+                    tracing::error!("failed to move file: {:#?}", error);
+                    error
+                })?;
             }
 
             // create a new ZFile
             self.name.3 += 1;
-            self.file = ZFile::new_writer(
+            let (current_file, writer) = ZFile::new_writer(
                 &self.api_version,
                 &self.server_version,
                 &self.dir.as_path(),
                 (self.name.0.as_str(), self.name.1, self.name.2, self.name.3),
                 self.compression_level,
             )
-            .await?;
+            .await
+            .map_err(|err| {
+                tracing::error!("failed to create new file: {:#?}", err);
+                err
+            })?;
+            self.current_file = current_file;
+            self.writer = writer;
             self.current_size = 0;
         }
         Ok(())
     }
 
     pub async fn write_meta(&mut self, meta: &RawMeta) -> anyhow::Result<()> {
-        self.current_size += self.file.write_meta_async(meta).await?;
+        self.current_size += self.writer.write_meta_async(meta).await?;
         self.check_or_next().await?;
         Ok(())
     }
 
     pub async fn write_raw(&mut self, raw: &RawData, raw_type: RawType) -> anyhow::Result<()> {
-        self.current_size += self.file.write_raw_async(raw, raw_type).await?;
-        self.check_or_next().await?;
+        self.current_size += self
+            .writer
+            .write_raw_async(raw, raw_type)
+            .await
+            .map_err(|err| {
+                tracing::error!("failed to write raw data: {:#?}", err);
+                err
+            })?;
+        self.check_or_next().await.map_err(|err| {
+            tracing::error!("failed to check or next: {:#?}", err);
+            err
+        })?;
         Ok(())
     }
 
     pub async fn start_raw_block(&mut self) -> anyhow::Result<()> {
-        self.current_size += self.file.start_data_async().await?;
+        self.current_size += self.writer.start_data_async().await?;
         Ok(())
     }
 
     pub async fn write_raw_block(&mut self, block: &RawBlock) -> IoResult<()> {
-        self.current_size += self.file.write_data_async(block).await?;
+        self.current_size += self.writer.write_data_async(block).await?;
         Ok(())
     }
 
     pub async fn finish_raw_block(&mut self) -> anyhow::Result<()> {
-        self.current_size += self.file.finish_data_async().await?;
+        self.current_size += self.writer.finish_data_async().await?;
         self.check_or_next().await?;
         Ok(())
     }
 
     pub async fn flush(&mut self) -> IoResult<()> {
-        self.file.flush().await?;
+        self.writer.flush().await?;
         Ok(())
     }
 
@@ -302,7 +341,7 @@ impl ZFile {
             "shutdown file {}",
             self.dir.clone().join(self.get_file_name()).display()
         );
-        self.file.shutdown().await?;
+        self.writer.shutdown().await?;
         Ok(())
     }
 }
