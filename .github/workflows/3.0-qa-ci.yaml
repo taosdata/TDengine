@@ -13,6 +13,7 @@ env:
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8788
   COVERAGE_REPORT_BASE_DIR: /data/code_coverage_taosx
+  COVERAGE_DATABASE_URL: 192.168.1.42
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -326,6 +327,33 @@ jobs:
           echo "INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$INFLUXDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$OPENTSDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "OPC_CONNECTOR_COVERAGE_PERCENT=$OPC_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
+      - name: get last coverage data from TDengine
+        run: |
+          response=curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          -d "select last(*) from coverage.report" \
+          http://$COVERAGE_DATABASE_URL:6041/rest/sql
+          echo "taosx_coverage_last=$(echo $response | jq '.data[0][1]')" >> $GITHUB_ENV
+          echo "influxdb_connector_coverage_last=$(echo $response | jq '.data[0][2]')" >> $GITHUB_ENV
+          echo "opentsdb_connector_coverage_last=$(echo $response | jq '.data[0][3]')" >> $GITHUB_ENV
+          echo "opc_connector_coverage_last=$(echo $response | jq '.data[0][4]')" >> $GITHUB_ENV
+
+      - name: insert coverage percent into TDengine
+        run: |
+          curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          -d "insert into coverage.report values(now,$TAOSX_COVERAGE_PERCENT,$INFLUXDB_CONNECTOR_COVERAGE_PERCENT,$OPENTSDB_CONNECTOR_COVERAGE_PERCENT,$OPC_CONNECTOR_COVERAGE_PERCENT)"\
+          http://$COVERAGE_DATABASE_URL:6041/rest/sql
+      
+      - name: Calculate the difference between the results of two adjacent executions
+        run: |
+          taosx_coverage_diff=$(echo "$TAOSX_COVERAGE_PERCENT - $taosx_coverage_last" | bc)
+          influxdb_connector_coverage_diff=$(echo "$INFLUXDB_CONNECTOR_COVERAGE_PERCENT - $influxdb_connector_coverage_last" | bc)
+          opentsdb_connector_coverage_diff=$(echo "$OPENTSDB_CONNECTOR_COVERAGE_PERCENT - $opentsdb_connector_coverage_last" | bc)
+          opc_connector_coverage_diff=$(echo "$OPC_CONNECTOR_COVERAGE_PERCENT - $opc_connector_coverage_last" | bc)
+          echo "taosx_coverage_diff=$taosx_coverage_diff" >> $GITHUB_ENV
+          echo "influxdb_connector_coverage_diff=$influxdb_connector_coverage_diff" >> $GITHUB_ENV
+          echo "opentsdb_connector_coverage_diff=$opentsdb_connector_coverage_diff" >> $GITHUB_ENV
+          echo "opc_connector_coverage_diff=$opc_connector_coverage_diff" >> $GITHUB_ENV
+      
       - name: Send Feishu Message to taosX CI Group
         env:
           COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
@@ -345,35 +373,35 @@ jobs:
           PR_INFO="Testing coverage report for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
-          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
-          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
-          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
+          TaosX Coverage: $TAOSX_COVERAGE_PERCENT%,difference to the last result is $TAOSX_COVERAGE_DIFF%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $INFLUXDB_CONNECTOR_COVERAGE_DIFF%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $OPENTSDB_CONNECTOR_COVERAGE_DIFF%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $OPC_CONNECTOR_COVERAGE_DIFF%\n
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
       
-      - name: Send Feishu Message to Platform Notifications Group
-        env:
-          COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
-        run: |
-          function post_to_feishu() {
-            local text="$1"
-            curl -X POST -H "Content-Type: application/json" \
-            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9 <<EOF
-            {
-                "msg_type": "text",
-                "content": {
-                "text": "$text"
-                }
-            }
-          EOF
-          }
-          PR_INFO="Testing coverage report for taosX and its plugins\n
-          PR Owner: @${{ github.actor }}\n
-          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
-          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
-          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
-          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
-          Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
-          post_to_feishu "$PR_INFO"
+      # - name: Send Feishu Message to Platform Notifications Group
+      #   env:
+      #     COVERAGE_REPORT_DIR: ${{ env.coverage_report_dir }}
+      #   run: |
+      #     function post_to_feishu() {
+      #       local text="$1"
+      #       curl -X POST -H "Content-Type: application/json" \
+      #       -d @- https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9 <<EOF
+      #       {
+      #           "msg_type": "text",
+      #           "content": {
+      #           "text": "$text"
+      #           }
+      #       }
+      #     EOF
+      #     }
+      #     PR_INFO="Testing coverage report for taosX and its plugins\n
+      #     PR Owner: @${{ github.actor }}\n
+      #     Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+      #     TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
+      #     InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
+      #     OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
+      #     OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
+      #     Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+      #     post_to_feishu "$PR_INFO"
