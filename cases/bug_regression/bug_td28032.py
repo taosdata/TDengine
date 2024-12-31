@@ -21,7 +21,7 @@ class TestTs2899(TDCase):
 
     def run(self):
         self.tdSql.execute('drop database if exists ctg_tsdb;')
-        self.tdSql.execute('create database ctg_tsdb replica 1 keep 365 minRows 100 maxRows 4096 duration 1 comp 2 vgroups 1 precision "ms";')
+        self.tdSql.execute('create database ctg_tsdb replica 1 keep 3650 minRows 100 maxRows 4096 duration 1 comp 2 vgroups 1 precision "ms";')
         self.tdSql.execute('use ctg_tsdb;')
         self.tdSql.execute('create table if not exists stb_sxny_cn (dt timestamp, val int) tags(point varchar(10), point_name int, point_path int, index_tag int);')
         self.tdSql.execute('create table ctb1 using stb_sxny_cn tags("1",2,3,4);')
