@@ -409,7 +409,7 @@ function build_taosx() {
             exit 1
         fi
 
-        verify_commit_id $taosxDir/target/release taos-explorer $taosxDir
+        verify_commit_id ${taosxDir}/target/release taos-explorer $taosxDir
     fi
 }
 
@@ -575,9 +575,9 @@ function preparepkg() {
         sed -i "s/uninstall.sh/uninstall_taosx.sh/g" ${install_dir}/taosx/uninstall_taosx.sh
     else
         # copy explorer
-        cp ${taosx}/target/release/${prefix}-explorer ${install_dir}/bin || :
-        cp ${taosx}/target/${prefix}-explorer.service ${install_dir}/cfg || :
-        cp ${taosx}/server/examples/explorer.toml ${install_dir}/cfg || :
+        cp ${taosxDir}/target/release/${prefix}-explorer ${install_dir}/bin || :
+        cp ${explorerDir}/server/examples/${prefix}-explorer.service ${install_dir}/cfg || :
+        cp ${explorerDir}/server/examples/explorer.toml ${install_dir}/cfg || :
     fi
     
     # copy others    
@@ -820,9 +820,9 @@ function make_mac_pkg() {
         # sudo cp -f ${keeperDir}/taoskeeper.service /opt/tdengine/cfg/
         # sudo cp -f ${keeperDir}/config/taoskeeper.toml /opt/tdengine/cfg/
         
-        sudo cp -f ${taosx}/target/release/taos-explorer /opt/tdengine/bin/
-        sudo cp -f ${taosx}/target/taos-explorer.service /opt/tdengine/cfg/
-        sudo cp -f ${taosx}/server/examples/explorer.toml /opt/tdengine/cfg/
+        sudo cp -f ${taosxDir}/target/release/taos-explorer /opt/tdengine/bin/
+        sudo cp -f ${explorerDir}/server/examples/taos-explorer.service /opt/tdengine/cfg/
+        sudo cp -f ${explorerDir}/server/examples/explorer.toml /opt/tdengine/cfg/
 
         sudo cp -f ${internalDir}/enterprise/packaging/start-all.sh /opt/tdengine/bin
         sudo cp -f ${internalDir}/enterprise/packaging/stop-all.sh /opt/tdengine/bin
