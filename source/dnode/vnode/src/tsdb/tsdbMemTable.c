@@ -514,6 +514,9 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
   int64_t           nSize;
 
+  // [BLOB] [TODO]
+  return tbDataDoPutBlob(pMemTable, pTbData, pos, pRow);
+
   // create node
   level = tsdbMemSkipListRandLevel(&pTbData->sl);
   nSize = SL_NODE_SIZE(level);
@@ -596,34 +599,39 @@ _exit:
   return code;
 }
 
-static int32_t tbDataDoPutBlob(SMemTable *pMemTable, STbData *pTbData, SMemSkipListNode **pos, TSDBROW *pRow,
-                           int8_t forward) {
+static FORCE_INLINE int32_t blobListCursor(SMemBlobList *pBl) {
+  int8_t cursor = (pBl->cursor < pBl->size ? pBl->cursor : pBl->size - 1);
+  return cursor;
+}
+
+static int32_t tbDataDoPutBlob(SMemTable *pMemTable, STbData *pTbData, SMemBlobListNode **pos, TSDBROW *pRow) {
   int32_t           code = 0;
-  int8_t            level;
-  SMemSkipListNode *pNode = NULL;
+  int32_t           idx;
+  SMemBlobListNode *pNode = NULL;
   SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
   int64_t           nSize;
 
-  blobWriteFileSimple(SBlob *pBlob, const uint8_t *pBuf, pRow->pTSRow->len);
+  // blobWriteFileSimple(SBlob *pBlob, const uint8_t *pBuf, pRow->pTSRow->len);
 
   // taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen);
 
   /////////////////////////
 
   // create node
-  level = tsdbMemSkipListRandLevel(&pTbData->sl);
-  nSize = SL_NODE_SIZE(level);
+  // level = tsdbMemSkipListRandLevel(&pTbData->sl);
+  // nSize = SL_NODE_SIZE(level);
   if (pRow->type == TSDBROW_ROW_FMT) {
-    pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize + pRow->pTSRow->len);
+    pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len);
   } else if (pRow->type == TSDBROW_COL_FMT) {
-    pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize);
+    pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len); // [BLOB] [TODO]
   }
   if (pNode == NULL) {
     code = terrno;
     goto _exit;
   }
 
-  pNode->level = level;
+  idx = blobListCursor(&pTbData->bl);
+  pNode->idx = idx;
   pNode->row = *pRow;
   if (pRow->type == TSDBROW_ROW_FMT) {
     pNode->row.pTSRow = (SRow *)((char *)pNode + nSize);
@@ -631,43 +639,48 @@ static int32_t tbDataDoPutBlob(SMemTable *pMemTable, STbData *pTbData, SMemSkipL
   }
 
   // set node
-  if (forward) {
-    for (int8_t iLevel = 0; iLevel < level; iLevel++) {
-      SL_NODE_FORWARD(pNode, iLevel) = SL_NODE_FORWARD(pos[iLevel], iLevel);
-      SL_NODE_BACKWARD(pNode, iLevel) = pos[iLevel];
-    }
-  } else {
-    for (int8_t iLevel = 0; iLevel < level; iLevel++) {
-      SL_NODE_FORWARD(pNode, iLevel) = pos[iLevel];
-      SL_NODE_BACKWARD(pNode, iLevel) = SL_NODE_BACKWARD(pos[iLevel], iLevel);
-    }
-  }
+  // if (forward) {
+  //   for (int8_t iLevel = 0; iLevel < level; iLevel++) {
+  //     SL_NODE_FORWARD(pNode, iLevel) = SL_NODE_FORWARD(pos[iLevel], iLevel);
+  //     SL_NODE_BACKWARD(pNode, iLevel) = pos[iLevel];
+  //   }
+  // } else {
+  //   for (int8_t iLevel = 0; iLevel < level; iLevel++) {
+  //     SL_NODE_FORWARD(pNode, iLevel) = pos[iLevel];
+  //     SL_NODE_BACKWARD(pNode, iLevel) = SL_NODE_BACKWARD(pos[iLevel], iLevel);
+  //   }
+  // }
 
   // set forward and backward
-  if (forward) {
-    for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
-      SMemSkipListNode *pNext = pos[iLevel]->forwards[iLevel];
+  // if (forward) {
+  //   for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
+  //     SMemSkipListNode *pNext = pos[iLevel]->forwards[iLevel];
 
-      SL_SET_NODE_FORWARD(pos[iLevel], iLevel, pNode);
-      SL_SET_NODE_BACKWARD(pNext, iLevel, pNode);
+  //     SL_SET_NODE_FORWARD(pos[iLevel], iLevel, pNode);
+  //     SL_SET_NODE_BACKWARD(pNext, iLevel, pNode);
 
-      pos[iLevel] = pNode;
-    }
-  } else {
-    for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
-      SMemSkipListNode *pPrev = pos[iLevel]->forwards[pos[iLevel]->level + iLevel];
+  //     pos[iLevel] = pNode;
+  //   }
+  // } else {
+  //   for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
+  //     SMemSkipListNode *pPrev = pos[iLevel]->forwards[pos[iLevel]->level + iLevel];
 
-      SL_SET_NODE_FORWARD(pPrev, iLevel, pNode);
-      SL_SET_NODE_BACKWARD(pos[iLevel], iLevel, pNode);
+  //     SL_SET_NODE_FORWARD(pPrev, iLevel, pNode);
+  //     SL_SET_NODE_BACKWARD(pos[iLevel], iLevel, pNode);
 
-      pos[iLevel] = pNode;
-    }
-  }
+  //     pos[iLevel] = pNode;
+  //   }
+  // }
 
-  pTbData->sl.size++;
-  if (pTbData->sl.level < pNode->level) {
-    pTbData->sl.level = pNode->level;
-  }
+  // set node
+
+  
+  pos[pTbData->bl.cursor] = pNode;
+  pTbData->bl.cursor++;
+  
+  // if (pTbData->sl.level < pNode->level) {
+  //   pTbData->sl.level = pNode->level;
+  // }
 
 _exit:
   return code;

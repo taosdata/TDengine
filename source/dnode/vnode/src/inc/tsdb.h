@@ -397,6 +397,20 @@ typedef struct SMemSkipList {
   SMemSkipListNode *pTail;
 } SMemSkipList;
 
+// [BLOB]
+typedef struct SMemBlobListNode {
+  int32_t           idx;
+  TSDBROW           row;
+  SMemBlobListNode *next[0];
+} SMemBlobListNode;
+
+typedef struct SMemBlobList {
+  int32_t           size;
+  int32_t           cursor;
+  SMemBlobListNode *pHead;
+  SMemBlobListNode *pTail;
+} SMemBlobList;
+
 struct STbData {
   tb_uid_t     suid;
   tb_uid_t     uid;
@@ -406,6 +420,7 @@ struct STbData {
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
+  SMemBlobList bl;
   STbData     *next;
   SRBTreeNode  rbtn[1];
 };
