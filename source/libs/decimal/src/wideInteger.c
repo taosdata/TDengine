@@ -9,7 +9,7 @@ uint64_t uInt128Lo(const UInt128* pInt) { return *pInt & 0xFFFFFFFFFFFFFFFF; }
 void uInt128Abs(UInt128* pInt);
 void uInt128Add(UInt128* pLeft, const UInt128* pRight) { *pLeft += *pRight; }
 void uInt128Subtract(UInt128* pLeft, const UInt128* pRight);
-void uInt128Multiply(UInt128* pLeft, const UInt128* pRight) { *pLeft = *pLeft * *pRight; }
+void uInt128Multiply(UInt128* pLeft, const UInt128* pRight) { *pLeft *= *pRight; }
 void uInt128Divide(UInt128* pLeft, const UInt128* pRight) { *pLeft /= *pRight; }
 void uInt128Mod(UInt128* pLeft, const UInt128* pRight) { *pLeft %= *pRight; }
 bool uInt128Lt(const UInt128* pLeft, const UInt128* pRight);
