@@ -337,6 +337,12 @@ TEST_F(CfgTest, cfgLoadFromEnvFile) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_NE(pConfig, nullptr);
 
+  EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt32(pConfig, "test_int32", 1, 0, 16, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt64(pConfig, "test_int64", 2, 0, 16, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddFloat(pConfig, "test_float", 3, 0, 16, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pConfig, "test_string", "4", 0, 0, 0), 0);
+
   TdFilePtr   envFile = NULL;
   const char *envFilePath = TD_TMP_DIR_PATH "envFile";
   envFile = taosOpenFile(envFilePath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
@@ -354,6 +360,12 @@ TEST_F(CfgTest, cfgLoadFromApollUrl) {
 
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_NE(pConfig, nullptr);
+
+  EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt32(pConfig, "test_int32", 1, 0, 16, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt64(pConfig, "test_int64", 2, 0, 16, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddFloat(pConfig, "test_float", 3, 0, 16, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pConfig, "test_string", "4", 0, 0, 0), 0);
 
   TdFilePtr   jsonFile = NULL;
   const char *jsonFilePath = TD_TMP_DIR_PATH "envJson.json";
