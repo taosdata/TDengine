@@ -345,13 +345,13 @@ nohup bash tsdbComparison.sh > test.log &
 ```
 5. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
 
-### 8.6 Crash_gen Test
+## 8.6 Crash_gen Test
 
 ```bash
 cd TDinternal/community/tests/pytest/ && ./crash_gen.sh
 ```
 
-## 8.5 TestNG Test
+## 8.7 TestNG Test
 
 1. Clone the code:
 ```bash
