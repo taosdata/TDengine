@@ -33,6 +33,10 @@ typedef struct Decimal128 {
   DecimalWord words[2];
 } Decimal128;
 
+#define Decimal        Decimal128
+#define decimalFromStr decimal128FromStr
+#define makeDecimal    makeDecimal128
+
 void makeDecimal64(Decimal64* pDec64, DecimalWord w);
 void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low);
 
@@ -41,13 +45,19 @@ void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low);
 int32_t decimalCalcTypeMod(const SDataType* pType);
 void    decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale);
 
-int32_t decimal64FromStr(const char* str, int32_t len, uint8_t* precision, uint8_t* scale, Decimal64* result);
-int32_t decimal128FromStr(const char* str, int32_t len, uint8_t* precision, uint8_t* scale, Decimal128* result);
+int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale, Decimal64* result);
+int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
+                          Decimal128* result);
 
 int32_t decimal64ToDataVal(const Decimal64* dec, SValue* pVal);
 int32_t decimal128ToDataVal(Decimal128* dec, SValue* pVal);
 
 int32_t decimalToStr(const DecimalWord* pDec, int8_t type, int8_t precision, int8_t scale, char* pBuf, int32_t bufLen);
+
+int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOperatorType opType, SDataType* pOutType);
+int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
+                  const void* pLeftData, const void* pRightData, void* pOutputData);
+int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* poutType);
 
 typedef struct SDecimalOps {
   void (*negate)(DecimalWord* pWord);

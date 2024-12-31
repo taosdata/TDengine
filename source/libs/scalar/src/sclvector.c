@@ -28,6 +28,7 @@
 #include "ttime.h"
 #include "ttypes.h"
 #include "geosWrapper.h"
+#include "decimal.h"
 
 #define LEFT_COL  ((pLeftCol->info.type == TSDB_DATA_TYPE_JSON ? (void *)pLeftCol : pLeftCol->pData))
 #define RIGHT_COL ((pRightCol->info.type == TSDB_DATA_TYPE_JSON ? (void *)pRightCol : pRightCol->pData))
@@ -38,6 +39,8 @@
       IS_JSON_NULL(pRight->columnData->info.type, colDataGetVarData(pRight->columnData, i))
 
 #define IS_HELPER_NULL(col, i) colDataIsNull_s(col, i) || IS_JSON_NULL(col->info.type, colDataGetVarData(col, i))
+#define GET_COL_DATA_TYPE(col) \
+  { .type = (col).type, .precision = (col).precision, .bytes = (col).bytes, .scale = (col).scale }
 
 bool noConvertBeforeCompare(int32_t leftType, int32_t rightType, int32_t optr) {
   return IS_NUMERIC_TYPE(leftType) && IS_NUMERIC_TYPE(rightType) &&
@@ -236,6 +239,16 @@ static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_
   }
 
   colDataSetInt64(pOut->columnData, rowIndex, &value);
+  SCL_RET(code);
+}
+
+static FORCE_INLINE int32_t varToDecimal(char* buf, SScalarParam* pOut, int32_t rowIndex, int32_t* overflow) {
+  Decimal *pDec = (Decimal *)colDataGetData(pOut->columnData, rowIndex);
+  int32_t code = decimalFromStr(buf, strlen(buf), pOut->columnData->info.precision, pOut->columnData->info.scale, pDec);
+  if (TSDB_CODE_SUCCESS != code) {
+    // TODO wjm set overflow???
+    SCL_RET(code);
+  }
   SCL_RET(code);
 }
 
@@ -495,6 +508,8 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
   } else if (TSDB_DATA_TYPE_VARBINARY == pCtx->outType) {
     func = varToVarbinary;
     vton = true;
+  } else if (IS_DECIMAL_TYPE(pCtx->outType)) {
+    func = varToDecimal;
   } else {
     sclError("invalid convert outType:%d, inType:%d", pCtx->outType, pCtx->inType);
     SCL_ERR_RET(TSDB_CODE_APP_ERROR);
@@ -987,6 +1002,22 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     case TSDB_DATA_TYPE_GEOMETRY: {
       return vectorConvertToVarData(&cCtx);
     }
+    case TSDB_DATA_TYPE_DECIMAL: {
+      for (int32_t i = cCtx.startIndex; i <= cCtx.endIndex; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataSetNULL(pOutputCol, i);
+          continue;
+        }
+
+        Decimal value = {0};
+        SDataType inputType = GET_COL_DATA_TYPE(pInputCol->info), outputType = GET_COL_DATA_TYPE(pOutputCol->info);
+        int32_t code = convertToDecimal(colDataGetData(pInputCol, i), &inputType, &value, &outputType);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        code = colDataSetVal(pOutputCol, i, (const char*)&value, false);
+        if (TSDB_CODE_SUCCESS != code) return code;
+      }
+      break;
+    }
     default:
       sclError("invalid convert output type:%d", cCtx.outType);
       return TSDB_CODE_APP_ERROR;
@@ -1278,7 +1309,23 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
       SCL_ERR_JRET(vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
     }
   } else if (IS_DECIMAL_TYPE(pOutputCol->info.type)) {
-
+    Decimal *output = (Decimal *)pOutputCol->pData;
+    if (pLeft->numOfRows == pRight->numOfRows) {
+      for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+        if (IS_NULL) {
+          colDataSetNULL(pOutputCol, i);
+          continue;
+        }
+        SDataType leftType = GET_COL_DATA_TYPE(pLeft->columnData->info),
+                  rightType = GET_COL_DATA_TYPE(pRight->columnData->info),
+                  outType = GET_COL_DATA_TYPE(pOutputCol->info);
+        SCL_ERR_JRET(decimalOp(OP_TYPE_ADD, &leftType, &rightType, &outType, colDataGetData(pLeftCol, i),
+                               colDataGetData(pRightCol, i), output));
+      }
+    } else if (pLeft->numOfRows == 1) {
+      // TODO wjm
+    } else if (pRight->numOfRows == 1) {
+    }
   }
 
 _return:
