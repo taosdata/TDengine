@@ -47,6 +47,7 @@ const char* terrstr();
 
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
+void     taosClearErrMsg();
 int32_t* taosGetErrno();
 int32_t* taosGetErrln();
 int32_t  taosGetErrSize();
