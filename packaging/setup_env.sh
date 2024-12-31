@@ -154,8 +154,11 @@ help() {
     echo "  disable_service             - Disable specified services"
     echo "  install_python              - Install Python and pip"
     echo "  install_java                - Install Java"
-    echo "  install_maven               - Install Maven"
+    echo "  install_java_via_sdkman     - Install Java via sdkman"
+    echo "  install_maven_via_sdkman    - Install Maven via sdkman"
     echo "  deploy_go                   - Deploy Go environment"
+    echo "  install_gvm                 - Install GVM"
+    echo "  install_go_via_gvm          - Install Go via GVM"
     echo "  deploy_rust                 - Deploy Rust environment"
     echo "  install_node                - Install Node via package manager or binary"
     echo "  install_node_via_nvm        - Install Node via NVM"
@@ -793,7 +796,7 @@ update_redhat_gcc() {
 update_redhat_tmux() {
     echo "Downloading the latest version of tmux..."
     cd /usr/local/src || exit
-    latest_tmux_version=$(curl -s https://api.github.com/repos/tmux/tmux/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
+    latest_tmux_version=$(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s https://api.github.com/repos/tmux/tmux/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
     wget https://github.com/tmux/tmux/releases/download/"${latest_tmux_version}"/tmux-"${latest_tmux_version}".tar.gz
 
     echo "Extracting tmux ${latest_tmux_version}..."
@@ -845,6 +848,7 @@ deploy_tmux() {
 # }
 
 # Install Java
+# shellcheck disable=SC2120
 install_java() {
     echo -e "${YELLOW}Installing Java...${NO_COLOR}"
     # Specify the major JDK version to search for; default is set to 17 if not specified
@@ -933,33 +937,62 @@ install_java() {
 
 # Install sdkman
 install_sdkman() {
+    echo -e "${YELLOW}Installing SDKMAN...${NO_COLOR}"
     install_package zip unzip
     if [ -d "$HOME/.sdkman" ]; then
         echo -e "${GREEN}SDKMAN is already installed.${NO_COLOR}"
     else
         echo -e "${YELLOW}Installing SDKMAN...${NO_COLOR}"
-        curl -s "https://get.sdkman.io" | bash
+        curl --retry 10 --retry-delay 5 --retry-max-time 120 -s "https://get.sdkman.io" | bash
     fi
+}
 
+# Install gvm
+install_gvm() {
+    echo -e "${YELLOW}Installing GVM...${NO_COLOR}"
+    install_package bison gcc make
+    bash < <(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+    source $HOME/.gvm/scripts/gvm
+    gvm version
+    check_status "Failed to install GVM" "GVM installed successfully." $?
+    add_config_if_not_exist "export GO111MODULE=on" "$BASH_RC"
+    add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" "$BASH_RC"
+    add_config_if_not_exist "export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/" "$BASH_RC"
+    add_config_if_not_exist "export GOROOT_BOOTSTRAP=$GOROOT" "$BASH_RC"
+    SOURCE_RESULTS+="GVM: source $HOME/.gvm/scripts/gvm\n"
 }
 
 # Install Maven
 # shellcheck disable=SC2120
-install_maven() {
+install_maven_via_sdkman() {
     echo -e "${YELLOW}Installing maven...${NO_COLOR}"
     if [ -n "$1" ]; then
         DEFAULT_MVN_VERSION="$1"
         install_sdkman
-        if [ -f "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
-            source "$HOME/.sdkman/bin/sdkman-init.sh"
-        fi
+        [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
         # 3.2.5
-        sdk install maven "$DEFAULT_MVN_VERSION"
+        yes | sdk install maven "$DEFAULT_MVN_VERSION"
     else
         install_package "maven"
     fi
+    [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
     mvn -version
     check_status "Failed to install maven" "Maven installed successfully." $?
+}
+
+install_java_via_sdkman() {
+    echo -e "${YELLOW}Installing java...${NO_COLOR}"
+    if [ -n "$1" ]; then
+        DEFAULT_JDK_VERSION="$1"
+    else
+        DEFAULT_JDK_VERSION="17"
+    fi
+    install_sdkman
+    [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+    yes | sdk install java "$DEFAULT_JDK_VERSION-open"
+    [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+    java -version
+    check_status "Failed to install java" "Java installed successfully." $?
     SOURCE_RESULTS+="Sdkman: source $HOME/.sdkman/bin/sdkman-init.sh\n"
 }
 
@@ -996,6 +1029,29 @@ deploy_go() {
     # Apply the environment variables
     $GO_INSTALL_DIR/bin/go version
     check_status "Failed to install GO" "Install GO successfully" $?
+    SOURCE_RESULTS+="Golang: source $BASH_RC\n"
+}
+
+# Install Go via gvm
+install_go_via_gvm() {
+    echo -e "${YELLOW}Installing Go...${NO_COLOR}"
+    if [ -n "$1" ]; then
+        DEFAULT_GO_VERSION="$1"
+    else
+        DEFAULT_GO_VERSION="1.23.0"
+    fi
+    install_gvm
+    export GO111MODULE=on
+    export GOPROXY=https://goproxy.cn,direct
+    export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/
+    export GOROOT_BOOTSTRAP=$GOROOT
+
+    gvm install go"$DEFAULT_GO_VERSION" -B
+    gvm use go"$DEFAULT_GO_VERSION"
+    gvm use go"$DEFAULT_GO_VERSION" --default
+
+    go version
+    check_status "Failed to install Go" "Go installed successfully." $?
     SOURCE_RESULTS+="Golang: source $BASH_RC\n"
 }
 
@@ -1074,7 +1130,7 @@ install_node_in_ubuntu18.04() {
     NODE_DISTRO="node-v$DEFAULT_NODE_VERSION-linux-x64"
     update_ubuntu_gcc_18.04
     echo "Installing Node..."
-    curl -O https://nodejs.org/dist/v22.0.0/node-v22.0.0.tar.gz
+    curl --retry 10 --retry-delay 5 --retry-max-time 120 -O https://nodejs.org/dist/v22.0.0/node-v22.0.0.tar.gz
     tar -xzf node-v22.0.0.tar.gz
     cd node-v22.0.0 || exit
     ./configure
@@ -1126,8 +1182,8 @@ install_node_via_nvm () {
 
     # Install NVM
     if ! command -v nvm &> /dev/null; then
-        NVM_VERSION=$(curl -s https://api.github.com/repos/nvm-sh/nvm/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/"$NVM_VERSION"/install.sh | bash
+        NVM_VERSION=$(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s https://api.github.com/repos/nvm-sh/nvm/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
+        curl --retry 10 --retry-delay 5 --retry-max-time 120 -o- https://raw.githubusercontent.com/nvm-sh/nvm/"$NVM_VERSION"/install.sh | bash
         export NVM_DIR="$HOME/.nvm"
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
@@ -1668,12 +1724,16 @@ config_cloud_init() {
 }
 
 cleanup() {
-    echo -e "${GREEN}===========================================\n${NO_COLOR}"
-    echo -e "${GREEN}Installation complete! \n${NO_COLOR}"
-    echo -e "${GREEN}Some tools require you to manually source${NO_COLOR}"
-    echo -e "${GREEN}or restart your terminal to take effect.\n${NO_COLOR}"
-    echo -e "${GREEN}===========================================\n${NO_COLOR}"
-    echo -e "${GREEN}$SOURCE_RESULTS${NO_COLOR}"
+    if [ -n "$SOURCE_RESULTS" ]; then
+        echo -e "${YELLOW}===========================================\n${NO_COLOR}"
+        echo -e "${YELLOW}Installation complete! \n${NO_COLOR}"
+        echo -e "${YELLOW}Some tools require you to manually source${NO_COLOR}"
+        echo -e "${YELLOW}or restart your terminal to take effect.\n${NO_COLOR}"
+        echo -e "${YELLOW}===========================================\n${NO_COLOR}"
+        echo -e "${YELLOW}$SOURCE_RESULTS${NO_COLOR}"
+    else
+        echo -e "${YELLOW}Installation complete \n${NO_COLOR}"
+    fi
 }
 
 # Clone a repository with a specified target directory
@@ -1773,16 +1833,16 @@ clone_repos() {
 new_funcs() {
     echo "Adding test..."
     install_python 3.10.12
-    install_java 21
+    install_java_via_sdkman 21.0.2
     install_node 16.20.2
-    install_maven 3.2.5
+    install_maven_via_sdkman 3.2.5
     deploy_rust
 }
 
 # deploy TDasset
 TDasset() {
-    install_java 21
-    install_maven 3.9.9
+    install_java_via_sdkman 21.0.2
+    install_maven_via_sdkman 3.9.9
     # not supported in centos7/ubuntu18 because of the old version of glibc
     install_node_via_nvm 22.0.0
     install_pnpm
@@ -1790,9 +1850,10 @@ TDasset() {
 
 # deploy TDinternal/TDengine/taosx
 TDinternal() {
-    deploy_go
+    install_go_via_gvm 1.23.3
     deploy_rust
-    install_java 17
+    install_java_via_sdkman 17
+    install_maven_via_sdkman 3.9.9
     install_node_via_nvm 16.20.2
     install_python 3.10.12
 }
@@ -1874,7 +1935,7 @@ deploy_dev() {
     install_python
     install_pip_pkg
     install_java
-    install_maven
+    install_maven_via_sdkman
     deploy_go
     deploy_rust
     install_node
@@ -1966,8 +2027,11 @@ main() {
             install_java)
                 install_java
                 ;;
-            install_maven)
-                install_maven
+            install_java_via_sdkman)
+                install_java_via_sdkman
+                ;;
+            install_maven_via_sdkman)
+                install_maven_via_sdkman
                 ;;
             deploy_cmake)
                 deploy_cmake
@@ -1983,6 +2047,12 @@ main() {
                 ;;
             deploy_go)
                 deploy_go
+                ;;
+            install_gvm)
+                install_gvm
+                ;;
+            install_go_via_gvm)
+                install_go_via_gvm
                 ;;
             deploy_rust)
                 deploy_rust
