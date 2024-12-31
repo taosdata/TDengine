@@ -227,6 +227,22 @@ class TDTestCase:
         
         tdSql.taosdStatus(0)
 
+    def disable_create_new_file_0_not_exist(self):
+        tdLog.info("============== disable_create_new_file_0_not_exist test ===============")
+        cfg={
+            '/mnt/data1 0 0 1' : 'dataDir',
+            '/mnt/data2 0 0 1' : 'dataDir'
+        }
+        tdSql.createDir('/mnt/data1')
+        tdSql.createDir('/mnt/data2')
+
+        tdLog.info("================= step1")
+        tdDnodes.deploy(1,cfg)
+        tdDnodes.startWithoutSleep(1)
+
+        tdLog.info("================= step2")
+        tdSql.taosdStatus(0)
+
     def trim_database(self):
         tdLog.info("============== trim_database test ===============")
         tdDnodes.stop(1)
@@ -280,6 +296,7 @@ class TDTestCase:
         self.more_than_128_disks()
         self.trim_database()
         self.missing_middle_level()
+        self.disable_create_new_file_0_not_exist()
         
 
 
