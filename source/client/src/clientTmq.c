@@ -2526,7 +2526,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     if (timeout >= 0) {
       int64_t currentTime = taosGetTimestampMs();
       int64_t elapsedTime = currentTime - startTime;
-      TSDB_CHECK_CONDITION(elapsedTime <= timeout && elapsedTime >= 0, terrno, lino, END, TSDB_CODE_TIMEOUT_ERROR);
+      TSDB_CHECK_CONDITION(elapsedTime <= timeout && elapsedTime >= 0, terrno, lino, END, TSDB_CODE_TMQ_POLL_TIMEOUT);
       (void)tsem2_timewait(&tmq->rspSem, (timeout - elapsedTime));
     } else {
       (void)tsem2_timewait(&tmq->rspSem, 1000);
