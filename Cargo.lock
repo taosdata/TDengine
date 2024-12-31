@@ -8830,6 +8830,7 @@ dependencies = [
  "serde_with",
  "snafu",
  "snap",
+ "taos 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
  "tokio",
  "tokio-stream",
  "tokio-util",

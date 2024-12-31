@@ -470,19 +470,19 @@ impl DataFaker {
                         ts: AtomicI64::new(dt.timestamp()),
                         interval: *interval,
                         curr_tick: AtomicU32::default(),
-                        tick: tick.unwrap_or(1),
+                        tick: tick.unwrap_or_default(),
                     },
                     TimestampInterval::Millisecond(interval) => Timestamp {
                         ts: AtomicI64::new(dt.timestamp_millis()),
                         interval: *interval,
                         curr_tick: AtomicU32::default(),
-                        tick: tick.unwrap_or(1),
+                        tick: tick.unwrap_or_default(),
                     },
                     TimestampInterval::Microsecond(interval) => Timestamp {
                         ts: AtomicI64::new(dt.timestamp_micros()),
                         interval: *interval,
                         curr_tick: AtomicU32::default(),
-                        tick: tick.unwrap_or(1),
+                        tick: tick.unwrap_or_default(),
                     },
                     TimestampInterval::Nanosecond(interval) => Timestamp {
                         ts: AtomicI64::new(
@@ -490,7 +490,7 @@ impl DataFaker {
                         ),
                         interval: *interval,
                         curr_tick: AtomicU32::default(),
-                        tick: tick.unwrap_or(1),
+                        tick: tick.unwrap_or_default(),
                     },
                 }
             }),

@@ -459,7 +459,7 @@ impl Parse for Json {
                     let values = json_values
                         .iter()
                         .map(|(_, v)| {
-                            if let Some(v) = v.as_ref().and_then(getter) {
+                            if let Some(v) = v.as_ref().and_then(getter).filter(|v| !v.is_null()) {
                                 v.as_str()
                                     .map(Cow::Borrowed)
                                     .or_else(|| serde_json::to_string(v).map(Cow::Owned).ok())
@@ -1323,15 +1323,22 @@ mod tests {
         ]));
         let (batch, _) = json.parse_array(&Field::new("payload", DataType::Utf8, false), &array)?;
         assert_eq!(
-            arrow::util::pretty::pretty_format_batches(&[batch])?.to_string(),
+            arrow::util::pretty::pretty_format_batches(&[batch.clone()])?.to_string(),
             "\
 +-----+-------+
 | ts  | value |
 +-----+-------+
 | 100 | 0.1   |
-| 100 | null  |
+| 100 |       |
 +-----+-------+"
         );
+
+        assert!(batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .is_null(1));
         Ok(())
     }
 }

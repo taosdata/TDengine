@@ -27,6 +27,7 @@ serde_json = "1.0.132"
 serde_with.workspace = true
 snafu = "0.8.5"
 snap = "1.1.1"
+taos.workspace = true
 tokio = { version = "1.41.0", features = ["full"] }
 tokio-stream = { version = "0.1.16", features = ["full"] }
 tokio-util = "0.7.12"
