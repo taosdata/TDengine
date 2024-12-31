@@ -453,6 +453,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_from_csv.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
