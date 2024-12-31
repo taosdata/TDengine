@@ -4590,8 +4590,7 @@ dependencies = [
 [[package]]
 name = "multi_index_map"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d9cca46f67fe11e59459232390cea92ca2af32c138ae85ca32e60adc52b1b10"
+source = "git+https://github.com/lun3x/multi_index_map.git?branch=master#241f2143874853be83c9eb70155437d31521348f"
 dependencies = [
  "multi_index_map_derive",
  "rustc-hash 1.1.0",
@@ -4601,8 +4600,7 @@ dependencies = [
 [[package]]
 name = "multi_index_map_derive"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ab049cf65e36cce997588f928eda57489a5cb6af3e3dfe96cb44eb9361b45fb"
+source = "git+https://github.com/lun3x/multi_index_map.git?branch=master#241f2143874853be83c9eb70155437d31521348f"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro-error",
