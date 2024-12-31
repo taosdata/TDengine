@@ -111,7 +111,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Flink RowD
 <dependency>
     <groupId>com.taosdata.flink</groupId>
     <artifactId>flink-connector-tdengine</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 
