@@ -1451,6 +1451,7 @@ export default {
     status: "状态",
     operation: "操作",
     addsource: "新建任务",
+    addsourceFromTemp: "从模版新建",
     sourcetype: "数据源类型",
     sourcename: "数据源名称",
     addtarget: "新增目标",

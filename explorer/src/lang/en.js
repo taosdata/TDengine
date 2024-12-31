@@ -1671,6 +1671,7 @@ export default {
     status: "Status",
     operation: "Operation",
     addsource: "Add Task",
+    addsourceFromTemp: "Add From A Template",
     sourcetype: "Source Type",
     sourcename: "Source Name",
     addtarget: "Add Target",

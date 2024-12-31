@@ -353,7 +353,7 @@ export default {
           this.data,
           this.sourceParent.sourceForm.data,
           this.sourceParent.currentDefinition,
-          this.isEdit && !this.isCopyable
+          this.isEdit && !this.isCopyable && !this.isImport
         )
           ? rules.concat(requireRule)
           : rules;
@@ -375,6 +375,9 @@ export default {
     isCopyable() {
       return this.sourceParent.isCopyable;
     },
+    isImport() {
+      return this.sourceParent.isImportable;
+    },
     timeFormats() {
       return TimeFormats;
     },
@@ -393,7 +396,7 @@ export default {
           this.data,
           this.sourceParent.sourceForm.data,
           this.sourceParent.currentDefinition,
-          this.isEdit && !this.isCopyable
+          this.isEdit && !this.isCopyable && !this.isImport
         );
       }
       if (typeof this.config.disabled === "string") {
@@ -414,7 +417,7 @@ export default {
           this.data,
           this.sourceParent.sourceForm.data,
           this.sourceParent.currentDefinition,
-          this.isEdit && !this.isCopyable
+          this.isEdit && !this.isCopyable && !this.isImport
         );
       }
       return this.config.required;

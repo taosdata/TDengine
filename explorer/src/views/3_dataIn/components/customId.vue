@@ -1,7 +1,7 @@
 <template>
   <div class="flexStart">
     <el-input
-      v-if="isEdit && !isCopy"
+      v-if="isEdit && !isCopy && !isImport"
       v-model="data[config.field]"
       style="flex: 1"
       :placeholder="config.placeholder"
@@ -68,6 +68,9 @@ export default {
     isCopy() {
       return this.sourceParent.isCopyable;
     },
+    isImport() {
+      return this.sourceParent.isImportable;
+    },
     switchField() {
       return `${this.config.field.startsWith('group') ? this.config.field + '_id' : this.config.field}_with_task_id`
     },
@@ -81,7 +84,7 @@ export default {
       // 兼容历史任务的 group 回显任务 id
       this.data['group'] = this.data['group'] || this.taskId;
     }
-    if (this.isCopy) {
+    if (this.isCopy || this.isImport) {
       // 复制时置空group/client_id
       this.data[this.config.field] = ''
     }

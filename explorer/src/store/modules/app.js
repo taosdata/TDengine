@@ -112,6 +112,7 @@ const state = {
   activeName: 'datasource',
   viaId: null, // 点击数据源列表中的agent
   s_model: {}, // 超级表模版
+  importJsonData: {}
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;

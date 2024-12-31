@@ -220,8 +220,14 @@ function mergeAuthentication(cfgAuth, data) {
 }
 
 // 前端组装数据，不使用后端的 from_detail
-export async function refreshTask(id) {
-    let taskDetail = await loadTaskDetail(id)
+export async function refreshTask(id, jsonData) {
+    let taskDetail = {}
+    if (id) {
+       taskDetail = await loadTaskDetail(id)
+    } else {
+        taskDetail = jsonData
+    }
+
     let dsType = taskDetail.from_expand.id;
 
     let dsConfig = getDataSource(i18n.locale, dsType);

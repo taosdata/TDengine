@@ -6,6 +6,7 @@
       :isEditable="isEditable"
       :isCopyable="isCopyable"
       :isViewable="isViewable"
+      :isImportable="isImportable"
       ref="table"
     ></component>
   </div>
@@ -33,6 +34,7 @@ export default {
       isEditable: false,
       isCopyable: false,
       isViewable: false,
+      isImportable: false,
       agentID: "",
       currentTaskStatus: "",
     };
@@ -99,6 +101,7 @@ export default {
           this.currentName = "sourceInfo";
           this.getData();
         } else {
+          // 编辑和复制、导入 json
           this.currentName = "sourceConfig";
           this.isEditable = true;
           this.getData();

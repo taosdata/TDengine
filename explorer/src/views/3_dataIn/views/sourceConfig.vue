@@ -146,7 +146,7 @@
               <span v-html="$t('communityTip')"></span>
             </template>
             <el-button type="primary" @click="save" size="small" :loading="loading" :disabled="$COMMUNITY">{{
-              isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
+              (isEditable && !isCopyable && !isImportable) ? $t("saveAndApply") : $t("submit")
             }}</el-button>
           </el-tooltip>
         </template>
@@ -179,7 +179,7 @@ import {
 } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
-import { debounce, parsinginZone, decrypt } from "@/utils/index";
+import { debounce, parsinginZone, decrypt, deepClone } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
 import ResultTable from "../components/transformResultTable.vue";
@@ -225,6 +225,9 @@ export default {
     isCopyable: {
       type: Boolean,
     },
+    isImportable: {
+      type: Boolean,
+    },
   },
 
   data() {
@@ -253,9 +256,14 @@ export default {
   },
   created() {
     if (this.isEditable) {
+      if (this.isImportable) {
+      this.getImportDetail('', this.$store.state.app.importJsonData)
+     } else {
       this.getDataSourceDetail();
-      this.isShowEditBtn = this.isCopyable ? false : true;
+     }
+      this.isShowEditBtn = (this.isCopyable || this.isImportable) ? false : true;
     }
+   
     this.getDBLists();
   },
   computed: {
@@ -347,7 +355,7 @@ export default {
         this.$nextTick(()=>{
           this.$refs.form.clearValidate();
         })
-        if (this.isEditable) {
+        if (this.isEditable && !this.isImportable) {
           this.getDataSourceDetail();
         }
       },
@@ -467,6 +475,30 @@ export default {
           this.requestIng = false;
         });
     },
+    async getImportDetail(id, jsonData) {
+      const data = await getDataSourceDetail(id, jsonData)
+       this.sourceForm.type = data.from_expand.id;
+       this.sourceForm.name = data.name;
+       this.sourceForm.targetDB = data?.to_expand?.subject;
+       this.sourceForm.agent = data.via;
+       this.editSourceConfig = getFormConfigByDataSource(
+         [data.from_detail],
+         data.parser
+       );
+       
+       this.oldParams.labels = data.labels;
+       this.oldParams.name = data.name;
+       this.oldParams.to = data.to;
+       if (data.via) {
+         this.oldParams.via = data.via;
+       }
+       if (data.parser) {
+         this.oldParams.parser = data.parser
+         if (data.from_expand.id === 'csv') {
+           this.$store.commit("app/SET_CSV_RAW_DATA", data.parser.input);
+         }
+      }
+    },
     getDataSource() {
       this.currentDefinition = this.defaultSourceConfig?.[this.sourceForm.type];
       if (!this.currentDefinition) return;
@@ -487,6 +519,7 @@ export default {
       if (
         this.isEditable &&
         !this.isCopyable &&
+        !this.isImportable &&
         !["stopped", "completed"].includes(status)
       ) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
@@ -597,7 +630,7 @@ export default {
             params.parser = this.$store.state.app.transformerfullparams;
           }
           
-          if (this.isEditable && this.editId && !this.isCopyable) {
+          if (this.isEditable && this.editId && !this.isCopyable && !this.isImportable) {
             const newParams = _.cloneDeep(params)
             delete newParams.from
             newParams.data = this.sourceForm.data
