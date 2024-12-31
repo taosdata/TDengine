@@ -162,59 +162,61 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
       return;
     }
 
-    int32_t nBytes = snprintf(buf + strlen(buf), cap, "[");
-    if (nBytes <= 0 || nBytes >= cap) {
-      taosMemoryFree(buf);
-      stError("%s failed to write buf, reason:%s", STREAM_STATE_TRANSFER, tstrerror(TSDB_CODE_OUT_OF_RANGE));
-      return;
-    }
-
-    int32_t wlen = 0;
     int32_t len = 0;
-    if (pSnapFile->pCurrent) {
-      len = snprintf(buf, cap,"current: %s,", pSnapFile->pCurrent);
-      if (len > 0) {
-        wlen += len;
-      } else {
-        stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
-      }
-    }
+    int32_t wlen = 1;
 
-    if (pSnapFile->pMainfest) {
-      len = snprintf(buf + wlen, cap - wlen, "MANIFEST: %s,", pSnapFile->pMainfest);
-      if (len > 0) {
-        wlen += len;
-      } else {
-        stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+    do {
+      buf[0] = '[';
+      if (pSnapFile->pCurrent) {
+        len = snprintf(buf + wlen, cap - wlen, "current: %s,", pSnapFile->pCurrent);
+        if (len > 0 && len < (cap - wlen)) {
+          wlen += len;
+        } else {
+          stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+          break;
+        }
       }
-    }
 
-    if (pSnapFile->pOptions) {
-      len = snprintf(buf + wlen, cap - wlen, "options: %s,", pSnapFile->pOptions);
-      if (len > 0) {
-        wlen += len;
-      } else {
-        stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+      if (pSnapFile->pMainfest) {
+        len = snprintf(buf + wlen, cap - wlen, "MANIFEST: %s,", pSnapFile->pMainfest);
+        if (len > 0 && len < (cap - wlen)) {
+          wlen += len;
+        } else {
+          stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+          break;
+        }
       }
-    }
 
-    if (pSnapFile->pSst) {
-      for (int32_t i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
-        char* name = taosArrayGetP(pSnapFile->pSst, i);
-        if (strlen(buf) + strlen(name) < cap) {
-          len = snprintf(buf + wlen, cap - wlen, "%s,", name);
-          if (len > 0) {
-            wlen += len;
-          } else {
-            stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+      if (pSnapFile->pOptions) {
+        len = snprintf(buf + wlen, cap - wlen, "options: %s,", pSnapFile->pOptions);
+        if (len > 0 && len < (cap - wlen)) {
+          wlen += len;
+        } else {
+          stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+          break;
+        }
+      }
+
+      if (pSnapFile->pSst) {
+        for (int32_t i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
+          char* name = taosArrayGetP(pSnapFile->pSst, i);
+          if (strlen(buf) + strlen(name) < cap) {
+            len = snprintf(buf + wlen, cap - wlen, "%s,", name);
+            if (len > 0 && len < (cap - wlen)) {
+              wlen += len;
+            } else {
+              stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+              break;
+            }
           }
         }
       }
-    }
+    } while (0);
 
-    if ((strlen(buf)) < cap) {
-      buf[wlen++] = ']';
+    if (wlen < cap) {
+      buf[wlen] = ']';
     }
+    buf[cap - 1] = '\0';
 
     stInfo("%s %" PRId64 "-%" PRId64 " get file list: %s", STREAM_STATE_TRANSFER, pSnapFile->snapInfo.streamId,
            pSnapFile->snapInfo.taskId, buf);
