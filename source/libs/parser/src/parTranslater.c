@@ -371,12 +371,40 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
+    .showType = QUERY_NODE_CREATE_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_CREATE_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_DROP_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { 
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_FILESETS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  },
+  }, 
+  { 
+    .showType = QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  }, 
 };
 // clang-format on
 
@@ -12330,6 +12358,16 @@ static int32_t translateResumeStream(STranslateContext* pCxt, SResumeStreamStmt*
   return buildCmdMsg(pCxt, TDMT_MND_RESUME_STREAM, (FSerializeFunc)tSerializeSMResumeStreamReq, &req);
 }
 
+static int32_t translateResetStream(STranslateContext* pCxt, SResetStreamStmt* pStmt) {
+  SMResetStreamReq req = {0};
+  SName            name;
+  int32_t          code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->streamName, strlen(pStmt->streamName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+  (void)tNameGetFullDbName(&name, req.name);
+  req.igNotExists = pStmt->ignoreNotExists;
+  return buildCmdMsg(pCxt, TDMT_MND_RESET_STREAM, (FSerializeFunc)tSerializeSMResetStreamReq, &req);
+}
+
 static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
   if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery) && QUERY_NODE_SET_OPERATOR != nodeType(pStmt->pQuery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VIEW_QUERY, "Invalid view query type");
@@ -13363,6 +13401,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_RESUME_STREAM_STMT:
       code = translateResumeStream(pCxt, (SResumeStreamStmt*)pNode);
+      break;
+    case QUERY_NODE_RESET_STREAM_STMT:
+      code = translateResetStream(pCxt, (SResetStreamStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = translateCreateFunction(pCxt, (SCreateFunctionStmt*)pNode);
@@ -16365,6 +16406,24 @@ static int32_t rewriteShowCompactDetailsStmt(STranslateContext* pCxt, SQuery* pQ
   return code;
 }
 
+static int32_t rewriteShowTransactionDetailsStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowTransactionDetailsStmt* pShow = (SShowTransactionDetailsStmt*)(pQuery->pRoot);
+  SSelectStmt*             pStmt = NULL;
+  int32_t                  code = createSelectStmtForShow(QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pShow->pTransactionId) {
+      code = createOperatorNode(OP_TYPE_EQUAL, "transaction_id", pShow->pTransactionId, &pStmt->pWhere);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
 static int32_t createParWhenThenNode(SNode* pWhen, SNode* pThen, SNode** ppResWhenThen) {
   SWhenThenNode* pWThen = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_WHEN_THEN, (SNode**)&pWThen);
@@ -16939,6 +16998,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = rewriteShowCompactDetailsStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
+      code = rewriteShowTransactionDetailsStmt(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:

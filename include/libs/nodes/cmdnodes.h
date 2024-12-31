@@ -439,6 +439,11 @@ typedef struct SShowCompactDetailsStmt {
   SNode*    pCompactId;
 } SShowCompactDetailsStmt;
 
+typedef struct SShowTransactionDetailsStmt {
+  ENodeType type;
+  SNode*    pTransactionId;
+} SShowTransactionDetailsStmt;
+
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 
 typedef struct SIndexOptions {
@@ -594,6 +599,12 @@ typedef struct SResumeStreamStmt {
   bool      ignoreNotExists;
   bool      ignoreUntreated;
 } SResumeStreamStmt;
+
+typedef struct SResetStreamStmt {
+  ENodeType type;
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+} SResetStreamStmt;
 
 typedef struct SCreateFunctionStmt {
   ENodeType type;
