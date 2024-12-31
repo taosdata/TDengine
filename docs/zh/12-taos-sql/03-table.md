@@ -23,10 +23,10 @@ create_subtable_clause: {
 }
 
 create_definition:
-    col_name column_definition 
+    col_name column_definition
 
 column_definition:
-    type_name [comment 'string_value'] [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type'] 
+    type_name [comment 'string_value'] [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
 
 table_options:
     table_option ...
@@ -52,9 +52,9 @@ table_option: {
 
 **参数说明**
 
-1. COMMENT：表注释。可用于超级表、子表和普通表。
+1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
 2. SMA：Small Materialized Aggregates，提供基于数据块的自定义预计算功能。预计算类型包括 MAX、MIN 和 SUM。可用于超级表/普通表。
-3. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
+3. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为[0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
 
 ## 创建子表
 
@@ -112,6 +112,11 @@ alter_table_option: {
 4. RENAME COLUMN：修改列名称。
 5. 普通表的主键列不能被修改，也不能通过 ADD/DROP COLUMN 来添加/删除主键列。
 
+**参数说明**
+
+1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
+2. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为[0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
+
 ### 增加列
 
 ```sql
@@ -134,6 +139,18 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 
 ```sql
 ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
+```
+
+### 修改表生命周期
+
+```sql
+ALTER TABLE tb_name TTL value
+```
+
+### 修改表注释
+
+```sql
+ALTER TABLE tb_name COMMENT 'string_value'
 ```
 
 ## 修改子表
@@ -159,10 +176,27 @@ alter_table_option: {
 
 1. 对子表的列和标签的修改，除了更改标签值以外，都要通过超级表才能进行。
 
+**参数说明**
+
+1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
+2. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为[0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
+
 ### 修改子表标签值
 
 ```
 ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+```
+
+### 修改表生命周期
+
+```sql
+ALTER TABLE tb_name TTL value
+```
+
+### 修改表注释
+
+```sql
+ALTER TABLE tb_name COMMENT 'string_value'
 ```
 
 ## 删除表

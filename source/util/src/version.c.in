@@ -5,3 +5,6 @@ char gitinfoOfInternal[48] = "${TD_VER_GIT_INTERNAL}";
 char buildinfo[64] = "${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}";
 
 void libtaos_${TD_LIB_VER_NUMBER}_${TD_VER_OSTYPE}_${TD_VER_CPUTYPE}_${TD_VER_VERTYPE}() {};
+char* getBuildInfo(){
+    return buildinfo;
+}

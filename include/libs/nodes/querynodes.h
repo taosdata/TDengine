@@ -628,6 +628,7 @@ char*   nodesGetStrValueFromNode(SValueNode* pNode);
 void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 SValueNode* nodesMakeValueNodeFromString(char* literal);
 SValueNode* nodesMakeValueNodeFromBool(bool b);
+SNode* nodesMakeValueNodeFromInt32(int32_t value);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);

@@ -30,10 +30,6 @@ typedef int64_t tb_uid_t;
 #define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
 #define TSWINDOW_IS_EQUAL(t1, t2)  (((t1).skey == (t2).skey) && ((t1).ekey == (t2).ekey))
 
-//define show cluster alive and show db.alive
-#define SHOW_STATUS_NOT_AVAILABLE  0
-#define SHOW_STATUS_AVAILABLE      1
-#define SHOW_STATUS_HALF_AVAILABLE 2
 
 typedef enum {
   TSDB_SUPER_TABLE = 1,   // super table
