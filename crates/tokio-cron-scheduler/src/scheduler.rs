@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::sync::RwLock;
-use tracing::error;
+use tracing::{error, Instrument};
 use uuid::Uuid;
 
 pub struct Scheduler {
@@ -80,6 +80,9 @@ impl Scheduler {
                     break 'next_tick;
                 }
                 tokio::time::sleep(Duration::from_millis(500)).await;
+
+                // `let now = Utc::now()` is previously located here, which may lead to a bug.
+
                 let next_ticks = {
                     let mut w = metadata_storage.write().await;
                     w.list_next_ticks().await
@@ -109,6 +112,7 @@ impl Scheduler {
 
                 next_ticks.retain(|n| n.next_tick != 0);
 
+                // Check if the job must run with the current time.
                 let now = Utc::now();
                 let must_runs = next_ticks.iter().filter_map(|n| {
                     let next_tick = n.next_tick_utc();
@@ -146,50 +150,43 @@ impl Scheduler {
                     }
                 });
 
+                // Use a join set to run the jobs concurrently, but wait for all of them to finish.
+                let mut set = tokio::task::JoinSet::new();
                 for uuid in must_runs {
-                    {
+                    let notify_tx = notify_tx.clone();
+                    let job_activation_tx = job_activation_tx.clone();
+                    let metadata_storage = metadata_storage.clone();
+
+                    set.spawn(async move {
                         let job = { metadata_storage.write().await.get(uuid).await };
-                        if let Ok(Some(data)) = job {
+                        if let Ok(Some(job)) = job {
                             tracing::trace!(job.id = %uuid,
-                                job.ran = data.ran,
-                                job.last.update = data.last_updated.map(|s|format!("{:?}", DateTime::from_timestamp(s as _, 0))),
-                                job.last_tick = data.last_tick.map(|s|format!("{:?}", DateTime::from_timestamp(s as _, 0))),
-                                job.next_tick = format!("{:?}", DateTime::from_timestamp(data.next_tick as _, 0)),
+                                job.ran = job.ran,
+                                job.last.update = job.last_updated.map(|s|format!("{:?}", DateTime::from_timestamp(s as _, 0))),
+                                job.last_tick = job.last_tick.map(|s|format!("{:?}", DateTime::from_timestamp(s as _, 0))),
+                                job.next_tick = format!("{:?}", DateTime::from_timestamp(job.next_tick as _, 0)),
                                 "Job sending");
-                            let job_type = JobType::from_i32(data.job_type).unwrap();
-                            if matches!(job_type, JobType::Repeated) && data.ran {
+                            let job_type = JobType::from_i32(job.job_type).unwrap();
+                            if matches!(job_type, JobType::Repeated) && job.ran {
                                 tracing::trace!(job.id = %uuid, "Skip concurrent job");
                             } else {
                                 // otherwise, send the job
                                 tracing::debug!(job.id = %uuid, "Activate job");
-                                {
-                                    let tx = notify_tx.clone();
-                                    tokio::spawn(async move {
-                                        if let Err(e) = tx.send((uuid, JobState::Scheduled)) {
-                                            error!("Error sending notification activation {:?}", e);
-                                        }
-                                    });
-                                }
-                                {
-                                    let tx = job_activation_tx.clone();
-                                    tokio::spawn(async move {
-                                        if let Err(e) = tx.send(uuid) {
-                                            error!("Error sending job activation tx {:?}", e);
-                                        }
-                                    });
-                                }
+                                tokio::spawn(async move {
+                                    if let Err(e) = notify_tx.send((uuid, JobState::Scheduled))
+                                    {
+                                        error!("Error sending notification activation {:?}", e);
+                                    }
+                                });
+                                tokio::spawn(async move {
+                                    if let Err(e) = job_activation_tx.send(uuid) {
+                                        error!("Error sending job activation tx {:?}", e);
+                                    }
+                                });
                             }
-                        }
-                    }
 
-                    let storage = metadata_storage.clone();
-                    tokio::spawn(async move {
-                        let mut w = storage.write().await;
-                        let job = w.get(uuid).await;
-
-                        let next_and_last_tick = match job {
-                            Ok(Some(job)) => {
-                                let job_type: JobType = JobType::from_i32(job.job_type).unwrap();
+                            {
+                                // update the next and last tick
                                 let schedule = job.schedule();
                                 let fixed_offset = FixedOffset::east_opt(job.time_offset_seconds)
                                     .unwrap_or(FixedOffset::east_opt(0).unwrap());
@@ -212,26 +209,27 @@ impl Scheduler {
                                     }),
                                 };
                                 let last_tick = Some(now);
-                                Some((
+                                let (next_tick, last_tick) = (
                                     next_tick.map(|nt| nt.with_timezone(&Utc)),
                                     last_tick.map(|nt| nt.with_timezone(&Utc)),
-                                ))
+                                );
+                                {
+                                    if let Err(e) = metadata_storage
+                                        .write()
+                                        .await
+                                        .set_next_and_last_tick(uuid, next_tick, last_tick)
+                                        .await
+                                    {
+                                        error!("Could not set next and last tick {:?}", e);
+                                    }
+                                }
                             }
-                            _ => {
-                                error!("Could not get job metadata");
-                                None
-                            }
-                        };
-
-                        if let Some((next_tick, last_tick)) = next_and_last_tick {
-                            if let Err(e) =
-                                w.set_next_and_last_tick(uuid, next_tick, last_tick).await
-                            {
-                                error!("Could not set next and last tick {:?}", e);
-                            }
+                        } else {
+                            error!("Could not get job metadata");
                         }
-                    });
+                    }.in_current_span());
                 }
+                set.join_all().await;
             }
         });
     }
@@ -246,12 +244,7 @@ impl Scheduler {
             Err(JobSchedulerError::TickError)
         } else {
             self.ticking.swap(true, Ordering::Relaxed);
-            let tx = {
-                let mut w = self.start_tx.write().await;
-                let mut tx: Option<Sender<bool>> = None;
-                std::mem::swap(&mut tx, &mut *w);
-                tx
-            };
+            let tx = { self.start_tx.write().await.take() };
 
             if let Some(tx) = tx {
                 if let Err(e) = tx.send(true) {
