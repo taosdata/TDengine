@@ -339,7 +339,7 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\data\\taosxagent", build::CUS_NAME)
+        format!("C:\\{}\\data\\{}xagent", build::CUS_NAME, build::CUS_PROMPT)
     } else {
         format!("/var/lib/{0}/{0}xagent", build::CUS_PROMPT)
     }

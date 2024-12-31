@@ -63,18 +63,6 @@ env_scripts = ['''
       set_env "PLUGINS_HOME" "/usr/local/${cus_prompt}/plugins"
     end
   end
-  
-  # setup cus_name
-  cus_name = get_env CUS_NAME
-  if is_empty ${cus_name}
-    set_env CUS_NAME "TDengine"
-  end
-
-  # setup cus_prompt
-  cus_prompt = get_env CUS_PROMPT
-  if is_empty ${cus_prompt}
-    set_env CUS_PROMPT "taos"
-  end
   ''']
 
 [config]
