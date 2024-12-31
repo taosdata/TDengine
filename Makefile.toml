@@ -680,6 +680,7 @@ command = "cargo"
 args = ["fmt", "--check", "--all"]
 
 [tasks.clippy]
+dependencies = ["assert-explorer-dist"]
 command = "cargo"
 args = [
   "clippy",
@@ -771,10 +772,11 @@ install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_a
 [tasks.install-toml-cli]
 install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
 [tasks.assert-explorer-dist]
+private = true
 script_runner = "@duckscript"
 script = """
-if not is_dir explorer/server/dist/
-  mkdir explorer/server/dist/
+if not is_dir explorer/dist/
+  mkdir explorer/dist/
 end
 """
 
