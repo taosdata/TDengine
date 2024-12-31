@@ -1725,11 +1725,19 @@ impl LushMessage {
 // pub struct LushMessageTables(Vec<LushInsertAttrs>);
 pub trait IpcMessage: Any + Send + Sync {
     fn as_any(&self) -> &dyn Any;
+    fn nrows(&self) -> usize;
 }
 
 impl IpcMessage for LushMessage {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn nrows(&self) -> usize {
+        match self {
+            LushMessage::Tables(_, _) => 0,
+            LushMessage::Insert(v) => v.iter().map(|v| v.num_rows()).sum(),
+            LushMessage::Control(_) => 0,
+        }
     }
 }
 

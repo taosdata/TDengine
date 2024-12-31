@@ -180,6 +180,7 @@ mod tests {
 
         // 以@开头，存在的文件
         let dsn = Dsn::from_str("opcua://?certificate=@./tests/opc/certificate.crt").unwrap();
+        dbg!(&dsn);
         let absolute_path = UaConnectConfig::parse_file_path(&dsn, "certificate")
             .unwrap()
             .unwrap();
@@ -187,6 +188,7 @@ mod tests {
 
         // 以@开头，不存在的文件
         let dsn = Dsn::from_str("opcua://?certificate=@abc").unwrap();
+        dbg!(&dsn);
         let content = UaConnectConfig::parse_file_path(&dsn, "certificate");
         assert!(content.is_err());
         assert!(content

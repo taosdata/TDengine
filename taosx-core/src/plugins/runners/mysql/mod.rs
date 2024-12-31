@@ -443,7 +443,7 @@ mod tests {
         }
     }
 
-    async fn test_create_table() {
+    async fn test_create_table(table_name: &str) {
         let _ = test_create_database().await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
@@ -452,10 +452,10 @@ mod tests {
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
-                let sql_drop_table = "drop table if exists t_metric";
-                let _ = query.pool.execute(sql_drop_table).await;
-                let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp)";
-                let _ = query.pool.execute(sql_create_table).await;
+                let sql_drop_table = format!("drop table if exists {table_name}");
+                let _ = query.pool.execute(sql_drop_table.as_str()).await;
+                let sql_create_table = format!("create table if not exists {table_name} (id int primary key auto_increment, name varchar(255), value double, ts timestamp)");
+                let _ = query.pool.execute(sql_create_table.as_str()).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -463,8 +463,8 @@ mod tests {
         }
     }
 
-    async fn test_insert_data(len: usize) {
-        let _ = test_create_table().await;
+    async fn test_insert_data(table_name: &str, len: usize) {
+        let _ = test_create_table(table_name).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -472,10 +472,11 @@ mod tests {
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
-                let sql_insert_data =
-                    "insert into t_metric (name, value, ts) values ('cpu', 0.8, now())";
+                let sql_insert_data = format!(
+                    "insert into {table_name} (name, value, ts) values ('cpu', 0.8, now())"
+                );
                 for _ in 0..len {
-                    let _ = query.pool.execute(sql_insert_data).await;
+                    let _ = query.pool.execute(sql_insert_data.as_str()).await;
                 }
             }
             Err(e) => {
@@ -484,15 +485,15 @@ mod tests {
         }
     }
 
-    async fn test_clear_data() {
+    async fn test_clear_data(table_name: &str) {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
         let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
             Ok(query) => {
-                let sql = "delete from t_metric where 1 = 1";
-                let _ = query.pool.execute(sql).await;
+                let sql = format!("delete from {table_name} where 1 = 1");
+                let _ = query.pool.execute(sql.as_str()).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -553,10 +554,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_sample() {
         // prepare data
-        let _ = test_create_table().await;
-        let _ = test_insert_data(4).await;
+        let _ = test_create_table("test_get_sample").await;
+        let _ = test_insert_data("test_get_sample", 4).await;
 
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from t_metric where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from test_get_sample where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
@@ -565,7 +566,7 @@ mod tests {
         println!("{}", serde_json::to_string_pretty(&res.unwrap()).unwrap());
 
         // clear data
-        let _ = test_clear_data().await;
+        let _ = test_clear_data("test_get_sample").await;
     }
 
     #[tokio::test]

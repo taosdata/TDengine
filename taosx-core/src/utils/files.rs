@@ -1,11 +1,18 @@
-use std::fs;
 use std::fs::File;
-use std::io::Read;
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
 use std::path::Path;
 
 use anyhow::anyhow;
+use arrow::array::RecordBatch;
 use chardetng::EncodingDetector;
+use chrono::Utc;
 use encoding_rs::Encoding;
+use parquet::arrow::ArrowWriter;
+use parquet::basic::{Compression, ZstdLevel};
+use parquet::file::properties::WriterProperties;
+
+use crate::get_data_dir;
 
 pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Error> {
     let path = Path::new(dir);
@@ -36,11 +43,12 @@ pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Err
     Ok(files)
 }
 
-pub fn get_encode(file_path: &str) -> anyhow::Result<&'static Encoding> {
+pub fn get_encode<T: AsRef<Path>>(file_path: T) -> anyhow::Result<&'static Encoding> {
+    let file_path = file_path.as_ref();
     let mut file = File::open(file_path).map_err(|e| {
         anyhow::anyhow!(
             "failed to open file: {}, cause: {}",
-            file_path,
+            file_path.display(),
             e.to_string()
         )
     })?;
@@ -49,7 +57,7 @@ pub fn get_encode(file_path: &str) -> anyhow::Result<&'static Encoding> {
     file.read_to_end(&mut buffer).map_err(|e| {
         anyhow::anyhow!(
             "failed to read file: {}, cause: {}",
-            file_path,
+            file_path.display(),
             e.to_string()
         )
     })?;
@@ -80,8 +88,50 @@ pub fn decompress_and_write_file(
     Ok(())
 }
 
+pub fn write_to_file(task_id: i64, filename: &String, record: &String) -> anyhow::Result<()> {
+    let data_dir = get_data_dir();
+    let path = data_dir.join("tasks").join(format!("{task_id}"));
+    if !path.exists() {
+        if let Err(err) = std::fs::create_dir_all(&path) {
+            tracing::error!("failed to create dir {:?}: {}", path, err);
+        }
+    }
+    let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    writeln!(file, "{}", record)?;
+    Ok(())
+}
+
+pub fn write_to_parquet_file(
+    task_id: i64,
+    filename: &String,
+    record: &RecordBatch,
+) -> anyhow::Result<()> {
+    let data_dir = get_data_dir();
+    let path = data_dir.join("tasks").join(format!("{task_id}"));
+    if !path.exists() {
+        if let Err(err) = std::fs::create_dir_all(&path) {
+            tracing::error!("failed to create dir {:?}: {}", path, err);
+        }
+    }
+    let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
+    let file = OpenOptions::new().create(true).append(true).open(path)?;
+    let schema = record.schema();
+    let props = WriterProperties::builder()
+        .set_compression(Compression::ZSTD(ZstdLevel::default()))
+        .build();
+    let mut writer = ArrowWriter::try_new(file, schema, Some(props)).unwrap();
+    writer.write(record)?;
+    writer.close()?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use arrow::array::{ArrayRef, Int32Array, StringArray};
+
     use super::*;
 
     #[test]
@@ -97,5 +147,25 @@ mod tests {
         let file_path = "./tests/opc/opcua-gbk.csv";
         let encode = get_encode(file_path).unwrap();
         assert_eq!(encode.name(), "GBK");
+    }
+
+    #[test]
+    fn test_write_to_file() {
+        let task_id = 1;
+        let filename = "cache".to_string();
+        let record = "hello world".to_string();
+        write_to_file(task_id, &filename, &record).unwrap();
+    }
+
+    #[test]
+    fn test_write_to_parquet_file() {
+        let task_id = 1;
+        let filename = "archive".to_string();
+        let record = RecordBatch::try_from_iter([
+            ("str1", Arc::new(StringArray::from(vec!["a"])) as ArrayRef),
+            ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+        ])
+        .unwrap();
+        write_to_parquet_file(task_id, &filename, &record).unwrap();
     }
 }

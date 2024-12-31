@@ -153,13 +153,21 @@ impl ArrowDataField {
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct UdtAST {
     #[serde(skip)]
+    pub(crate) script: String,
+    #[serde(skip)]
     pub(crate) ast: Option<AST>,
 
     #[serde(skip)]
     pub(crate) error: Option<ParseError>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+impl std::cmp::PartialEq for UdtAST {
+    fn eq(&self, other: &Self) -> bool {
+        self.script == other.script
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq)]
 pub struct Udt {
     pub(crate) udt: UdtAST,
 }
@@ -186,13 +194,15 @@ impl<'de> Deserialize<'de> for UdtAST {
             }
         }
 
-        let s = deserializer.deserialize_str(StringVisitor)?;
-        let udt_ast = match ENGINE.compile(s) {
+        let script = deserializer.deserialize_str(StringVisitor)?;
+        let udt_ast = match ENGINE.compile(&script) {
             Ok(ast) => UdtAST {
+                script,
                 ast: Some(ast),
                 error: None,
             },
             Err(e) => UdtAST {
+                script,
                 ast: None,
                 error: Some(e),
             },

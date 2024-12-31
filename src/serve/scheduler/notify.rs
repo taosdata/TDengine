@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::serve::{controller::TaskActivity, scheduler::SchedulerNotify};
+use crate::serve::{controller::Activity, scheduler::SchedulerNotify};
 use itertools::Itertools;
 use taosx_core::{
     sink::lush::{self, TableTagCache},
@@ -34,11 +34,13 @@ pub async fn notify_by_job_id(
     task_breakpoint_db: &Arc<RwLock<HashMap<i64, BreakpointDb>>>,
 ) -> Option<Result<()>> {
     let task_id = { tasks.read().await.get_by_job_id(job_id).map(|j| j.task_id) }?;
+    let span = tracing::info_span!("notify_by_job_id", task.id = task_id, job.id = %job_id);
+    let _enter = span.enter();
 
     match job_state {
         JobNotification::Stop => {
             info!("Stopping task {:?}", task_id);
-            global.send_agent_activity(TaskActivity::stop(task_id));
+            global.send_agent_activity(Activity::stop(task_id));
         }
         JobNotification::Scheduled => {
             info!("Scheduling task {:?}", task_id);
@@ -51,24 +53,28 @@ pub async fn notify_by_job_id(
             let tasks = tasks.clone();
             let global = global.clone();
             let job_id = *job_id;
-            tokio::task::spawn(async move {
-                let mut tasks = tasks.write().await;
-                let to_remove = {
-                    if let Some(task) = tasks.get_by_job_id(&job_id) {
-                        task.is_finished().await
-                    } else {
-                        false
-                    }
-                };
+            tokio::task::spawn(
+                async move {
+                    let mut tasks = tasks.write().await;
+                    let to_remove = {
+                        if let Some(task) = tasks.get_by_job_id(&job_id) {
+                            task.is_finished().await
+                        } else {
+                            false
+                        }
+                    };
 
-                if to_remove {
-                    if let Some(task) = tasks.remove_by_job_id(&job_id) {
-                        if task.task.task.via.is_some() {
-                            global.agent_runtime.remove_task(task_id).await;
+                    if to_remove {
+                        tracing::info!("Removing task {:?}", job_id);
+                        if let Some(task) = tasks.remove_by_job_id(&job_id) {
+                            if task.task.task.via.is_some() {
+                                global.agent_runtime.remove_task(task_id).await;
+                            }
                         }
                     }
                 }
-            });
+                .in_current_span(),
+            );
             // TODO： 只对 PI 任务执行下面的代码
             let lush_table_cache = lush_table_cache.clone();
             let task_breakpoint_db = task_breakpoint_db.clone();

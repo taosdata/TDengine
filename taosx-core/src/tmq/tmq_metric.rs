@@ -1,5 +1,6 @@
 use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use chrono::Utc;
+use crossbeam::atomic::AtomicCell;
 use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
@@ -8,6 +9,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::atomic::AtomicU16;
 use std::sync::atomic::Ordering::SeqCst;
+use std::time::{Duration, Instant};
 use taos::taos_query::tmq::Assignment;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -43,6 +45,10 @@ pub struct TmqMetrics {
     #[serde(default)]
     pub success_blocks: AtomicU64,
     #[serde(default)]
+    pub out_of_range_rows: AtomicU64,
+    #[serde(default)]
+    pub total_out_of_range_rows: AtomicU64,
+    #[serde(default)]
     pub total_consume_cost_ms: AtomicU64,
     #[serde(default)]
     pub total_write_raw_cost_ms: AtomicU64,
@@ -53,8 +59,15 @@ pub struct TmqMetrics {
     // Topic Name -> Vgroup ID -> Assignment
     #[serde(skip)]
     pub progress: DashMap<String, DashMap<i32, Assignment>>,
+
+    /// Last message timestamp in milliseconds.
+    #[serde(skip, default = "default_instant")]
+    pub last_message_instant: AtomicCell<Instant>,
 }
 
+fn default_instant() -> AtomicCell<Instant> {
+    AtomicCell::new(Instant::now())
+}
 #[derive(Serialize, Deserialize, Debug)]
 struct TopicProgress {
     pub topic: String,
@@ -81,11 +94,14 @@ impl Default for TmqMetrics {
             success_messages: AtomicU64::new(0),
             write_raw_fails: AtomicU64::new(0),
             success_blocks: AtomicU64::new(0),
+            out_of_range_rows: AtomicU64::new(0),
+            total_out_of_range_rows: AtomicU64::new(0),
             total_consume_cost_ms: AtomicU64::new(0),
             total_write_raw_cost_ms: AtomicU64::new(0),
             total_write_cost_ms: AtomicU64::new(0),
             commits: AtomicU64::new(0),
             progress: DashMap::new(),
+            last_message_instant: AtomicCell::new(Instant::now()),
         }
     }
 }
@@ -96,6 +112,14 @@ impl TmqMetrics {
             com: CommonMetrics::new(stable, task_id, task_name),
             ..Default::default()
         }
+    }
+
+    pub fn last_message_elapsed(&self) -> Duration {
+        self.last_message_instant.load().elapsed()
+    }
+
+    pub fn update_last_message_instant(&self) {
+        self.last_message_instant.store(Instant::now());
     }
 
     #[inline]
@@ -135,9 +159,30 @@ impl TmqMetrics {
     }
 
     #[inline]
-    pub fn update_progress(&self, assignments: HashMap<String, Vec<Assignment>>) {
+    pub fn add_out_of_range_rows(&self, n: u64) {
+        self.total_out_of_range_rows.fetch_add(n, SeqCst);
+        self.out_of_range_rows.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn update_progress(&self, assignments: HashMap<&str, Vec<Assignment>>) {
         for (topic, assignments) in assignments {
-            let topic_progress = self.progress.entry(topic).or_insert_with(DashMap::new);
+            if !self.progress.contains_key(topic) {
+                self.progress.insert(topic.to_string(), DashMap::new());
+            }
+            if let Some(topic_progress) = self.progress.get_mut(topic) {
+                for assignment in assignments {
+                    topic_progress.insert(assignment.vgroup_id(), assignment);
+                }
+            }
+        }
+    }
+    #[inline]
+    pub fn update_progress_of_topic(&self, topic: &str, assignments: Vec<Assignment>) {
+        if !self.progress.contains_key(topic) {
+            self.progress.insert(topic.to_string(), DashMap::new());
+        }
+        if let Some(topic_progress) = self.progress.get_mut(topic) {
             for assignment in assignments {
                 topic_progress.insert(assignment.vgroup_id(), assignment);
             }
@@ -195,6 +240,7 @@ impl TaskMetrics for TmqMetrics {
         self.success_messages.store(0, SeqCst);
         self.write_raw_fails.store(0, SeqCst);
         self.success_blocks.store(0, SeqCst);
+        self.out_of_range_rows.store(0, SeqCst);
     }
 
     fn com(&self) -> &CommonMetrics {
@@ -258,6 +304,11 @@ impl Display for TmqMetrics {
             )?;
         }
 
+        let out_range_rows = self.out_of_range_rows.load(SeqCst);
+        if out_range_rows > 0 {
+            writeln!(f, "out of range rows: {out_range_rows}")?;
+        }
+
         let blocks = self.success_blocks.load(SeqCst);
         if blocks > 0 {
             write!(
@@ -288,9 +339,10 @@ mod tests {
     fn test_get_progress_string() {
         let tmq_metrics = TmqMetrics::default();
         tmq_metrics.update_progress(HashMap::from_iter([(
-            "topic1".to_string(),
+            "topic1",
             vec![Assignment::default()],
         )]));
+        tmq_metrics.update_progress_of_topic("topic2", vec![Assignment::default()]);
         let progress = tmq_metrics.get_progress_string();
         println!("{}", progress);
     }

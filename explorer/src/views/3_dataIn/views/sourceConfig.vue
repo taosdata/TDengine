@@ -4,7 +4,7 @@
       <el-form
         :model="sourceForm"
         ref="form"
-        label-width="240px"
+        label-width="260px"
         label-position="left"
         size="small"
         :rules="rules"
@@ -189,6 +189,8 @@ import {
   generateFormInitData,
   getDsnData,
   NoNeedAgentType,
+  getAdvancedHealth,
+  advancedField
 } from "../utils";
 import BlockHeader from "../components/blockHeader.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
@@ -574,7 +576,9 @@ export default {
               `cluster-id::${id}`,
               `user::${localStorage.getItem("username")}`,
             ],
-            // trigger: { "resume": this.resume }
+            trigger: {  
+              "health": getAdvancedHealth(this.sourceForm.data[advancedField])
+            }
           };
           if (this.sourceForm.agent) {
             params["via"] = this.sourceForm.agent;
@@ -661,7 +665,6 @@ export default {
     },
 
     createAgent() {
-      this.$store.commit("app/SET_AGENT_DIALOG", true);
       this.$store.commit("SET_DIALOG", {
         component: () => import("../components/addAgent.vue"),
         config: {
