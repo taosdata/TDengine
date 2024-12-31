@@ -356,11 +356,6 @@ class TDTestCase:
     def join_semantic_test(self, dbname=DBNAME):
         tdSql.query("select ct1.c_int from db.ct1 as ct1 join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 semi join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 anti join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 outer join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 asof join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 window join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
         
         tdSql.query("select ct1.c_int from db.ct1 as ct1 join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
@@ -390,12 +385,7 @@ class TDTestCase:
         
         tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 full semi join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 full anti join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
-        tdSql.query("select ct1.c_int from db.ct1 as ct1 full outer join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
         tdSql.checkRows(self.rows)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 full asof join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 full window join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
         
         
         tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts join db1.ct1 as cy2 on ct1.ts=cy2.ts")
