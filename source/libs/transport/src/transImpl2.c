@@ -3711,7 +3711,7 @@ static int32_t evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req) {
   }
 
   transQueuePush(&pConn->reqsToSend, &req->q);
-  tGDebug("%s succ to get conn %p, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
+  tGDebug("%s conn %p get from pool, src:%s, dst:%s", pInst->label, pConn, pConn->src, pConn->dst);
 
   SFdCbArg arg = {.evtType = EVT_CONN_T,
                   .arg = pConn,
