@@ -284,16 +284,17 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
 
   STableDataCxt* pTableCtx = *pSrc;
   if (pStmt->sql.stbInterlaceMode) {
-    int16_t lastIdx = -1;
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+    // int16_t lastIdx = -1;
 
-    for (int32_t i = 0; i < pTableCtx->boundColsInfo.numOfBound; ++i) {
-      if (pTableCtx->boundColsInfo.pColIndex[i] < lastIdx) {
-        pStmt->sql.stbInterlaceMode = false;
-        break;
-      }
+    // for (int32_t i = 0; i < pTableCtx->boundColsInfo.numOfBound; ++i) {
+    //   if (pTableCtx->boundColsInfo.pColIndex[i] < lastIdx) {
+    //     pStmt->sql.stbInterlaceMode = false;
+    //     break;
+    //   }
 
-      lastIdx = pTableCtx->boundColsInfo.pColIndex[i];
-    }
+    //   lastIdx = pTableCtx->boundColsInfo.pColIndex[i];
+    // }
   }
 
   if (NULL == pStmt->sql.pBindInfo) {
@@ -497,9 +498,10 @@ static int32_t stmtRebuildDataBlock(STscStmt2* pStmt, STableDataCxt* pDataBlock,
 
 static int32_t stmtGetFromCache(STscStmt2* pStmt) {
   if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pDataCtx) {
-    pStmt->bInfo.needParse = false;
-    pStmt->bInfo.inExecCache = false;
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+    // pStmt->bInfo.needParse = false;
+    // pStmt->bInfo.inExecCache = false;
+    // return TSDB_CODE_SUCCESS;
   }
 
   pStmt->bInfo.needParse = true;
@@ -979,6 +981,7 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   }
 
   if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {
+    return TSDB_CODE_TSC_STMT_API_ERROR;
     // STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
   }
 
@@ -1009,6 +1012,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
   if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {
+    return TSDB_CODE_TSC_STMT_API_ERROR;
     // STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
   }
 
@@ -1078,7 +1082,8 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
   STableDataCxt** pDataBlock = NULL;
 
   if (pStmt->sql.stbInterlaceMode) {
-    pDataBlock = &pStmt->sql.siInfo.pDataCtx;
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+    // pDataBlock = &pStmt->sql.siInfo.pDataCtx;
   } else {
     pDataBlock =
         (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
@@ -1158,28 +1163,28 @@ SArray* stmtGetFreeCol(STscStmt2* pStmt, int32_t* idx) {
 //   return TSDB_CODE_SUCCESS;
 // }
 
-static FORCE_INLINE int32_t stmtGetTableColsFromCache(STscStmt2* pStmt, SArray** pTableCols) {
-  while (true) {
-    if (pStmt->sql.siInfo.pTableColsIdx < taosArrayGetSize(pStmt->sql.siInfo.pTableCols)) {
-      *pTableCols = (SArray*)taosArrayGetP(pStmt->sql.siInfo.pTableCols, pStmt->sql.siInfo.pTableColsIdx++);
-      break;
-    } else {
-      SArray* pTblCols = NULL;
-      for (int32_t i = 0; i < 100; i++) {
-        pTblCols = taosArrayInit(20, POINTER_BYTES);
-        if (NULL == pTblCols) {
-          return terrno;
-        }
+// static FORCE_INLINE int32_t stmtGetTableColsFromCache(STscStmt2* pStmt, SArray** pTableCols) {
+//   while (true) {
+//     if (pStmt->sql.siInfo.pTableColsIdx < taosArrayGetSize(pStmt->sql.siInfo.pTableCols)) {
+//       *pTableCols = (SArray*)taosArrayGetP(pStmt->sql.siInfo.pTableCols, pStmt->sql.siInfo.pTableColsIdx++);
+//       break;
+//     } else {
+//       SArray* pTblCols = NULL;
+//       for (int32_t i = 0; i < 100; i++) {
+//         pTblCols = taosArrayInit(20, POINTER_BYTES);
+//         if (NULL == pTblCols) {
+//           return terrno;
+//         }
 
-        if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
-          return terrno;
-        }
-      }
-    }
-  }
+//         if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
+//           return terrno;
+//         }
+//       }
+//     }
+//   }
 
-  return TSDB_CODE_SUCCESS;
-}
+//   return TSDB_CODE_SUCCESS;
+// }
 
 static int32_t stmtCacheBlock(STscStmt2* pStmt) {
   if (pStmt->sql.type != STMT_TYPE_MULTI_INSERT) {
@@ -1233,6 +1238,7 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_ADD_BATCH));
 
   if (pStmt->sql.stbInterlaceMode) {
+    return TSDB_CODE_TSC_STMT_API_ERROR;
     // todo:add stb interlace mode
     // int64_t startUs2 = taosGetTimestampUs();
     // pStmt->stat.addBatchUs += startUs2 - startUs;
@@ -1367,6 +1373,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
   }
 
   if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {
+    return TSDB_CODE_TSC_STMT_API_ERROR;
     // STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
   }
 
@@ -1393,14 +1400,15 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
   SStmtQNode* param = NULL;
   if (pStmt->sql.stbInterlaceMode) {
-    STMT_ERR_RET(stmtAllocQNodeFromBuf(&pStmt->sql.siInfo.tbBuf, (void**)&param));
-    STMT_ERR_RET(stmtGetTableColsFromCache(pStmt, &param->tblData.aCol));
-    taosArrayClear(param->tblData.aCol);
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+    // STMT_ERR_RET(stmtAllocQNodeFromBuf(&pStmt->sql.siInfo.tbBuf, (void**)&param));
+    // STMT_ERR_RET(stmtGetTableColsFromCache(pStmt, &param->tblData.aCol));
+    // taosArrayClear(param->tblData.aCol);
 
-    // param->tblData.aCol = taosArrayInit(20, POINTER_BYTES);
+    // // param->tblData.aCol = taosArrayInit(20, POINTER_BYTES);
 
-    param->restoreTbCols = false;
-    tstrncpy(param->tblData.tbName, pStmt->bInfo.tbName, TSDB_TABLE_NAME_LEN);
+    // param->restoreTbCols = false;
+    // tstrncpy(param->tblData.tbName, pStmt->bInfo.tbName, TSDB_TABLE_NAME_LEN);
   }
 
   int64_t startUs3 = taosGetTimestampUs();
@@ -1410,12 +1418,15 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
   if (colIdx < 0) {
     if (pStmt->sql.stbInterlaceMode) {
-      (*pDataBlock)->pData->flags = 0;
-      code = qBindStmtStbColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
-                                    pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
+      return TSDB_CODE_TSC_STMT_API_ERROR;
+      //  todo
+      // (*pDataBlock)->pData->flags = 0;
+      // code = qBindStmtStbColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
+      //                               pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema,
+      //                               pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
     } else {
-      code =
-          qBindStmtColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
+      code = qBindStmtColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
+                                 pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
     }
 
     if (code) {
@@ -1424,8 +1435,9 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
     }
   } else {
     if (pStmt->sql.stbInterlaceMode) {
-      tscError("bind single column not allowed in stb insert mode");
-      STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+      return TSDB_CODE_TSC_STMT_API_ERROR;
+      // tscError("bind single column not allowed in stb insert mode");
+      // STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
     }
 
     if (colIdx != (pStmt->bInfo.sBindLastIdx + 1) && colIdx != 0) {
@@ -1440,7 +1452,8 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
     }
 
     code = qBindStmtSingleColValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
-                                    pStmt->exec.pRequest->msgBufLen, colIdx, pStmt->bInfo.sBindRowNum, pStmt->taos->optionInfo.charsetCxt);
+                                    pStmt->exec.pRequest->msgBufLen, colIdx, pStmt->bInfo.sBindRowNum,
+                                    pStmt->taos->optionInfo.charsetCxt);
     if (code) {
       tscError("qBindStmtSingleColValue failed, error:%s", tstrerror(code));
       STMT_ERR_RET(code);
@@ -1451,6 +1464,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
   pStmt->stat.bindDataUs3 += startUs4 - startUs3;
 
   if (pStmt->sql.stbInterlaceMode) {
+    return TSDB_CODE_TSC_STMT_API_ERROR;
     //  to do
     // STMT_ERR_RET(stmtAppendTablePostHandle(pStmt, param));
   } else {
@@ -1660,23 +1674,26 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   }
 
   if (pStmt->sql.stbInterlaceMode) {
-    STMT_ERR_RET(stmtAddBatch2(pStmt));
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+    // STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
-      int64_t startTs = taosGetTimestampUs();
-      while (atomic_load_64(&pStmt->sql.siInfo.tbRemainNum)) {
-        taosUsleep(1);
-      }
-      pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
+      return TSDB_CODE_TSC_STMT_API_ERROR;
+      // todo:stb interlace mode
+      //  int64_t startTs = taosGetTimestampUs();
+      //  while (atomic_load_64(&pStmt->sql.siInfo.tbRemainNum)) {
+      //    taosUsleep(1);
+      //  }
+      //  pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
 
-      STMT_ERR_RET(qBuildStmtFinOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->sql.siInfo.pVgroupList));
-      taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
-      pStmt->sql.siInfo.pVgroupHash = NULL;
-      pStmt->sql.siInfo.pVgroupList = NULL;
+      // STMT_ERR_RET(qBuildStmtFinOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->sql.siInfo.pVgroupList));
+      // taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
+      // pStmt->sql.siInfo.pVgroupHash = NULL;
+      // pStmt->sql.siInfo.pVgroupList = NULL;
     } else {
       tDestroySubmitTbData(pStmt->exec.pCurrTbData, TSDB_MSG_FLG_ENCODE);
       taosMemoryFreeClear(pStmt->exec.pCurrTbData);

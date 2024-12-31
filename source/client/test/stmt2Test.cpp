@@ -815,7 +815,7 @@ TEST(stmt2Case, stmt2_init_prepare_Test) {
   taos_close(taos);
 }
 
-TEST(stmt2Case, stmt2_insert) {
+TEST(stmt2Case, stmt2_stb_insert) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
@@ -829,6 +829,58 @@ TEST(stmt2Case, stmt2_insert) {
 
   taos_close(taos);
 }
+
+// TEST(stmt2Case, stmt2_insert_all_types) {
+//   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+//   ASSERT_NE(taos, nullptr);
+//   do_query(taos, "drop database if exists example_all_type_stmt1");
+//   do_query(taos, "create database example_all_type_stmt1");
+//   do_query(taos,
+//            "create table example_all_type_stmt1.stb  (ts timestamp, int_col int,long_col bigint,double_col "
+//            "double,bool_col bool,binary_col binary(20),nchar_col nchar(20),varbinary_col varbinary(20),geometry_col "
+//            "geometry(200)) tags(int_tag int,long_tag bigint,double_tag double,bool_tag bool,binary_tag "
+//            "binary(20),nchar_tag nchar(20),varbinary_tag varbinary(20),geometry_tag geometry(200));");
+
+//   TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+
+//   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+//   ASSERT_NE(stmt, nullptr);
+
+//   const char* sql =
+//       "INSERT INTO `example_all_type_stmt1`.`stb1` "
+//       "(ts,int_col,long_col,double_col,bool_col,binary_col,nchar_col,varbinary_col,geometry_col,int_tag,long_tag,"
+//       "double_tag,bool_tag,binary_tag,nchar_tag,varbinary_tag ,geometry_tag,tbname)  VALUES "
+//       "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+//   int code = taos_stmt2_prepare(stmt, sql, 0);
+//   ASSERT_EQ(code, 0);
+
+//   int              t64_len[1] = {sizeof(int64_t)};
+//   int              b_len[1] = {3};
+//   int64_t          ts = 1591060628000;
+//   TAOS_STMT2_BIND  params[18] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts, t64_len, NULL, 1}};
+//   TAOS_STMT2_BIND* paramv = &params[0];
+//   char*            tbname = "tb1";
+//   TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, &paramv};
+//   code = taos_stmt2_bind_param(stmt, &bindv, -1);
+//   ASSERT_EQ(code, 0);
+
+//   taos_stmt2_exec(stmt, NULL);
+//   ASSERT_EQ(code, 0);
+
+//   TAOS_RES* pRes = taos_stmt2_result(stmt);
+//   ASSERT_NE(pRes, nullptr);
+
+//   int      getRecordCounts = 0;
+//   TAOS_ROW row;
+//   while ((row = taos_fetch_row(pRes))) {
+//     getRecordCounts++;
+//   }
+//   ASSERT_EQ(getRecordCounts, 1);
+//   taos_free_result(pRes);
+
+//   taos_stmt2_close(stmt);
+//   taos_close(taos);
+// }
 
 TEST(stmt2Case, stmt2_query) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
@@ -875,7 +927,7 @@ TEST(stmt2Case, stmt2_query) {
     getRecordCounts++;
   }
   ASSERT_EQ(getRecordCounts, 1);
-  taos_free_result(pRes);
+  // taos_free_result(pRes);
 
   taos_stmt2_close(stmt);
   taos_close(taos);
