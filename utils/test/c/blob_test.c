@@ -24,8 +24,9 @@
 
 
 #define CHARSET "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+#define MAXLEN 65510
 #define VARSTRLEN 51200 // 50 * 1024
-#define SQLLEN (VARSTRLEN + 1024)
+#define SQLLEN (MAXLEN + 1024)
 //#define N 10485 // (512M / VARSTRLEN)
 //#define N 5243 // (256M / VARSTRLEN)
 #define N 2621 // (128M / VARSTRLEN)
@@ -57,7 +58,7 @@ char* generate_random_string(int length) {
     return random_string;
 }
 
-void blob_sql_test(int nrows) {
+void blob_sql_test(int nrows, int len) {
   char *varstr;
   char sql[SQLLEN] = {0};
 
@@ -78,8 +79,9 @@ void blob_sql_test(int nrows) {
   taos_free_result(pRes);
 
   nrows <= 0 ? N : nrows;
+  len <= 0 ? VARSTRLEN : len;
   for (int i = 0; i < nrows; i++) {
-    varstr = generate_random_string(VARSTRLEN);
+    varstr = generate_random_string(len);
     sprintf(sql, "insert into tb6 using stb tags (6, 'ABC') values (now + 4s, '%s')", varstr);
     pRes = taos_query(taos, sql);
     taos_free_result(pRes);
@@ -95,7 +97,7 @@ void blob_sql_test(int nrows) {
 
 void usage() {
 	printf("\nusage: \n");
-	printf("%s <nrows> \n", exe_name);
+	printf("%s <nrows> <len>\n", exe_name);
 	printf("\n");
 }
 
@@ -104,11 +106,11 @@ int main(int argc, char *argv[]) {
 
   exe_name = argv[0];
 
-  if (argc != 2 || (atoi(argv[1]) < 0)) {
+  if (argc != 3 || (atoi(argv[1]) < 0)) {
     usage();
     return -1;
   }
   
-  blob_sql_test(atoi(argv[1]));
+  blob_sql_test(atoi(argv[1]), atoi(argv[2]));
   return ret;
 }

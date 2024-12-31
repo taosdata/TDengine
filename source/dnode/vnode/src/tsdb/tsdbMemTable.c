@@ -594,11 +594,13 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   nSize = SL_NODE_SIZE(level);
   if (pRow->type == TSDBROW_ROW_FMT) {
     // [BLOB] [TODO]
-    if (pRow->pTSRow->len > 10000) {
+    if (pRow->pTSRow->len == 51223 || pRow->pTSRow->len == 65540) {
       code = tbDataDoPutBlob(pMemTable, pTbData, pRow);
       if (code) {
         goto _exit;
       }
+      pRow->pTSRow->len = 128;
+    } else {
       pRow->pTSRow->len = 128;
     }
     pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize + pRow->pTSRow->len);
