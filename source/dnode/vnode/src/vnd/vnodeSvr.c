@@ -1845,6 +1845,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   pRsp->code = TSDB_CODE_SUCCESS;
 
+  taosMsleep(100000);
+
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
   if (0 == pMsg->version) {
