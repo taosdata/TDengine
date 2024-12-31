@@ -503,6 +503,74 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, STsdbRowKe
   }
 }
 
+// [BLOB] [TODO]
+// int32_t blobWriteFileSimple(SBlob *pBlob, const uint8_t *pBuf, int64_t size) {
+//   int32_t code = 0;
+//   int32_t lino;
+//   int64_t n = 0;
+
+//   n = taosWriteFile(pBlob->pFD, (char *)pBuf, size);
+//   if (n < 0) {
+//     TSDB_CHECK_CODE(code = terrno, lino, _exit);
+//   }
+
+//   // taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen);
+
+// _exit:
+//   if (code) {
+//     TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+//   }
+//   return code;
+// }
+
+static FORCE_INLINE int32_t blobListCursor(SMemBlobList *pBl) {
+  int8_t cursor = (pBl->cursor < pBl->size ? pBl->cursor : pBl->size - 1);
+  return cursor;
+}
+
+static int32_t tbDataDoPutBlob(SMemTable *pMemTable, STbData *pTbData, TSDBROW *pRow) {
+  int32_t           code = 0;
+  int32_t           idx;
+  SMemBlobListNode *pNode = NULL;
+  SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
+  int64_t           nSize;
+
+  // return code;
+
+  // blobWriteFileSimple(SBlob *pBlob, const uint8_t *pBuf, pRow->pTSRow->len);
+
+  // taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen);
+
+  /////////////////////////
+
+  // create node
+  if (pRow->type == TSDBROW_ROW_FMT) {
+    pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len);
+  } else if (pRow->type == TSDBROW_COL_FMT) {
+    pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len); // [BLOB] [TODO]
+  }
+  if (pNode == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  // idx = blobListCursor(&pTbData->bl);
+  // pNode->idx = idx;
+  // pNode->row = *pRow;
+  if (pRow->type == TSDBROW_ROW_FMT) {
+    pNode->row.pTSRow = (SRow *)((char *)pNode);
+    memcpy(pNode->row.pTSRow, pRow->pTSRow, pRow->pTSRow->len);
+  }
+
+  // set node
+  
+  // pos[pTbData->bl.cursor] = pNode;
+  // pTbData->bl.cursor++;
+
+_exit:
+  return code;
+}
+
 static FORCE_INLINE int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
   int8_t level = 1;
   int8_t tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
@@ -527,7 +595,7 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   if (pRow->type == TSDBROW_ROW_FMT) {
     // [BLOB] [TODO]
     if (pRow->pTSRow->len > 10000) {
-      code = tbDataDoPutBlob(pMemTable, pTbData, pos, pRow);
+      code = tbDataDoPutBlob(pMemTable, pTbData, pRow);
       if (code) {
         goto _exit;
       }
@@ -590,71 +658,6 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
 
   // [BLOB]
   // pTbData->bl.size = pTbData->sl.size;
-
-_exit:
-  return code;
-}
-
-int32_t blobWriteFileSimple(SBlob *pBlob, const uint8_t *pBuf, int64_t size) {
-  int32_t code = 0;
-  int32_t lino;
-  int64_t n = 0;
-
-  n = taosWriteFile(pBlob->pFD, (char *)pBuf, size);
-  if (n < 0) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  // taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
-static FORCE_INLINE int32_t blobListCursor(SMemBlobList *pBl) {
-  int8_t cursor = (pBl->cursor < pBl->size ? pBl->cursor : pBl->size - 1);
-  return cursor;
-}
-
-static int32_t tbDataDoPutBlob(SMemTable *pMemTable, STbData *pTbData, SMemBlobListNode **pos, TSDBROW *pRow) {
-  int32_t           code = 0;
-  int32_t           idx;
-  SMemBlobListNode *pNode = NULL;
-  SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
-  int64_t           nSize;
-
-  // blobWriteFileSimple(SBlob *pBlob, const uint8_t *pBuf, pRow->pTSRow->len);
-
-  // taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen);
-
-  /////////////////////////
-
-  // create node
-  if (pRow->type == TSDBROW_ROW_FMT) {
-    pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len);
-  } else if (pRow->type == TSDBROW_COL_FMT) {
-    pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len); // [BLOB] [TODO]
-  }
-  if (pNode == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-
-  // idx = blobListCursor(&pTbData->bl);
-  // pNode->idx = idx;
-  // pNode->row = *pRow;
-  if (pRow->type == TSDBROW_ROW_FMT) {
-    pNode->row.pTSRow = (SRow *)((char *)pNode);
-    memcpy(pNode->row.pTSRow, pRow->pTSRow, pRow->pTSRow->len);
-  }
-
-  // set node
-  
-  // pos[pTbData->bl.cursor] = pNode;
-  // pTbData->bl.cursor++;
 
 _exit:
   return code;

@@ -31,6 +31,7 @@
 #define N 2621 // (128M / VARSTRLEN)
 //#define N 20970 // (1G / VARSTRLEN)
 //#define N 83880 // (4G / VARSTRLEN)
+//#define N 1745 // (85M / VARSTRLEN)
 
 const char *exe_name;
 
