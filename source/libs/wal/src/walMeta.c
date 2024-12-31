@@ -226,7 +226,7 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
 
 _err:
   if (code != 0) {
-    wError("vgId:%d, failed to scan log file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
+    wError("vgId:%d, failed to scan log file due to %s, file:%s", pWal->cfg.vgId, tstrerror(terrno), fnameStr);
   }
   taosCloseFile(&pFile);
   taosMemoryFree(buf);
@@ -1063,7 +1063,7 @@ int32_t walLoadMeta(SWal* pWal) {
   }
   // read metafile
   int64_t fileSize = 0;
-  TAOS_CHECK_EXIT(taosStatFile(fnameStr, &fileSize, NULL, NULL) != 0);
+  TAOS_CHECK_EXIT(taosStatFile(fnameStr, &fileSize, NULL, NULL));
   if (fileSize == 0) {
     code = taosRemoveFile(fnameStr);
     if (code) {
