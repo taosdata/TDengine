@@ -104,7 +104,9 @@ fi
 internalDir="${baseDir}/${branch}/TDinternal"
 communityDir="${internalDir}/community"
 connectorDir="${baseDir}/${branch}/connector"
-exampleDir="${communityDir}/examples"
+exampleDir="${communityDir}/docs/examples"
+old_exampleDir="${communityDir}/examples"
+
 taosxDir="${baseDir}/${branch}/taosx"
 explorerDir="${baseDir}/${branch}/taosx/explorer"
 install_dir="${baseDir}/${branch}/install_dir"
@@ -546,15 +548,10 @@ function preparepkg() {
     # copy examples
     echo "mkdir -p ${install_dir}/examples"
     mkdir -p ${install_dir}/examples
-    cp -r ${exampleDir}/c ${install_dir}/examples || :
-    cp -r ${exampleDir}/JDBC ${install_dir}/examples || :
-    cp -r ${exampleDir}/matlab ${install_dir}/examples || :
-    cp -r ${exampleDir}/python ${install_dir}/examples || :
-    cp -r ${exampleDir}/R ${install_dir}/examples || :
-    cp -r ${exampleDir}/go ${install_dir}/examples || :
-    cp -r ${exampleDir}/nodejs ${install_dir}/examples || :
-    cp -r ${exampleDir}/C# ${install_dir}/examples || :
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${exampleDir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json || :
+    cp -r ${exampleDir}/* ${install_dir}/examples || :
+    cp -r ${old_exampleDir}/matlab ${install_dir}/examples || :
+
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${old_exampleDir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json || :
 
     # copy connectors
     mkdir -p ${install_dir}/connector
@@ -576,7 +573,7 @@ function preparepkg() {
     else
         # copy explorer
         cp ${taosxDir}/target/release/${prefix}-explorer ${install_dir}/bin || :
-        cp ${explorerDir}/server/examples/${prefix}-explorer.service ${install_dir}/cfg || :
+        cp ${explorerDir}/server/examples/explorer.service ${install_dir}/cfg/taos-explorer.service || :
         cp ${explorerDir}/server/examples/explorer.toml ${install_dir}/cfg || :
     fi
     
@@ -657,7 +654,7 @@ function make_linux_pkg() {
         tar -zcv -f package.tar.gz * --remove-files ||:
 
         cd ${install_dir}
-        cp -r connector/ driver/ examples/ share/ ${serverPackageName}/ || :
+        cp -r connector/ driver/ examples/ ${serverPackageName}/ || :
         if [ "${versionType}" != "community" ]; then
             cp -r taosx/ ${serverPackageName}/
         fi
@@ -821,8 +818,8 @@ function make_mac_pkg() {
         # sudo cp -f ${keeperDir}/config/taoskeeper.toml /opt/tdengine/cfg/
         
         sudo cp -f ${taosxDir}/target/release/taos-explorer /opt/tdengine/bin/
-        sudo cp -f ${explorerDir}/server/examples/taos-explorer.service /opt/tdengine/cfg/
-        sudo cp -f ${explorerDir}/server/examples/explorer.toml /opt/tdengine/cfg/
+        sudo cp -f ${explorerDir}/server/examples/explorer.service /opt/tdengine/cfg/taos-explorer.service
+        sudo cp -f ${explorerDir}/server/examples/explorer.toml /opt/tdengine/cfg
 
         sudo cp -f ${internalDir}/enterprise/packaging/start-all.sh /opt/tdengine/bin
         sudo cp -f ${internalDir}/enterprise/packaging/stop-all.sh /opt/tdengine/bin
@@ -937,8 +934,6 @@ build_TDengine &
 pid1=$!
 build_taosx &
 pid2=$!
-# build_taoskeeper &
-# pid3=$!
 update_connectors &
 pid4=$!
 
