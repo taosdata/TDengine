@@ -398,12 +398,7 @@ typedef struct SMemSkipList {
 } SMemSkipList;
 
 // [BLOB]
-typedef struct SMemBlobListNode {
-  int32_t           idx;
-  TSDBROW           row;
-  SMemBlobListNode *next[0];
-} SMemBlobListNode;
-
+typedef struct SMemBlobListNode SMemBlobListNode;
 typedef struct SMemBlobList {
   int32_t           size;
   int32_t           cursor;
@@ -460,6 +455,13 @@ struct SMemSkipListNode {
   int8_t            level;
   TSDBROW           row;
   SMemSkipListNode *forwards[0];
+};
+
+// [BLOB]
+struct SMemBlobListNode {
+  int32_t           idx;
+  TSDBROW           row;
+  SMemBlobListNode *next[0];
 };
 
 struct STsdbRowKey {
