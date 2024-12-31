@@ -48,6 +48,7 @@ typedef struct {
   queue         q;
   TdThreadMutex mutex;
   void         *hostThrd;
+  int8_t        stop;
 } SAsyncHandle;
 typedef struct {
   queue   q;
@@ -1858,6 +1859,9 @@ typedef struct {
   int64_t lastConnFailTs;
 } SHeap;
 
+static FORCE_INLINE void destroyReq(void *arg);
+static int32_t           evtHandleCliReq(SCliThrd2 *pThrd, SCliReq *req);
+
 static int32_t compareHeapNode(const HeapNode *a, const HeapNode *b);
 static int32_t transHeapInit(SHeap *heap, int32_t (*cmpFunc)(const HeapNode *a, const HeapNode *b));
 static void    transHeapDestroy(SHeap *heap);
@@ -1876,6 +1880,41 @@ static int32_t delConnFromHeapCache(SHashObj *pConnHeapCache, SCliConn *pConn);
 static SCliConn *getConnFromHeapCache(SHashObj *pConnHeap, char *key);
 static int32_t   addConnToHeapCache(SHashObj *pConnHeap, SCliConn *pConn);
 
+static void evtCliHandlReq(SCliReq *pReq, SCliThrd2 *pThrd);
+static void evtCliHandleQuit(SCliReq *pReq, SCliThrd2 *pThrd);
+static void evtCliHandleRelease(SCliReq *pReq, SCliThrd2 *pThrd);
+static void evtCliHandleRegiter(SCliReq *pReq, SCliThrd2 *pThrd);
+static void evtCliHandleUpdate(SCliReq *pReq, SCliThrd2 *pThrd);
+static void (*transCliAsyncFuncs[])(SCliReq *, SCliThrd2 *) = {evtCliHandlReq, evtCliHandleQuit, evtCliHandleRelease,
+                                                               evtCliHandleRelease, evtCliHandleUpdate};
+
+static void evtCliHandlReq(SCliReq *pReq, SCliThrd2 *pThrd) {
+  int32_t code = evtHandleCliReq(pThrd, pReq);
+  if (code != 0) {
+    tDebug("failed to handle req");
+  }
+}
+static void evtCliHandleQuit(SCliReq *pReq, SCliThrd2 *pThrd) {
+  tDebug("recv quit, set quit flag");
+  pThrd->quit = 1;
+  destroyReq(pReq);
+  return;
+}
+static void evtCliHandleRelease(SCliReq *pReq, SCliThrd2 *pThrd) {
+  tDebug("recv release, do nothing");
+  destroyReq(pReq);
+  return;
+}
+static void evtCliHandleRegiter(SCliReq *pReq, SCliThrd2 *pThrd) {
+  tDebug("recv register, do nothing");
+  destroyReq(pReq);
+  return;
+}
+static void evtCliHandleUpdate(SCliReq *pReq, SCliThrd2 *pThrd) {
+  tDebug("recv update, do nothing");
+  destroyReq(pReq);
+  return;
+}
 static int32_t createSocket(uint32_t ip, int32_t port, int32_t *fd) {
   int32_t code = 0;
   int32_t line = 0;
@@ -3719,7 +3758,11 @@ static void evtCliHandleAsyncCb(void *arg, int32_t status) {
     if (pReq == NULL) {
       continue;
     }
-    code = evtHandleCliReq(pThrd, pReq);
+    if (pReq->type == Quit) {
+      transCliAsyncFuncs[pReq->type](pReq, pThrd);
+      break;
+    }
+    transCliAsyncFuncs[pReq->type](pReq, pThrd);
   }
 }
 
@@ -3846,8 +3889,39 @@ _exit:
   terrno = code;
   return NULL;
 }
+static int32_t transSendQuit(SCliThrd2 *pThrd) {
+  if (pThrd->thrdInited == 0) {
+    return 0;
+  }
+  int32_t  code = 0;
+  SCliReq *msg = taosMemoryCalloc(1, sizeof(SCliReq));
+  if (msg == NULL) {
+    return terrno;
+  }
+
+  msg->type = Quit;
+  if ((code = evtAsyncSend(pThrd->asyncHandle, &msg->q)) != 0) {
+    code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+    taosMemoryFree(msg);
+    return code;
+  }
+
+  atomic_store_8(&pThrd->asyncHandle->stop, 1);
+  return 0;
+}
 void transCloseClient2(void *arg) {
-  int32_t code = 0;
+  int32_t   code = 0;
+  SCliObj2 *cli = arg;
+  for (int i = 0; i < cli->numOfThreads; i++) {
+    code = transSendQuit(cli->pThreadObj[i]);
+    if (code != 0) {
+      tError("failed to send quit to thread:%d since %s", i, tstrerror(code));
+    }
+
+    destroyThrdObj(cli->pThreadObj[i]);
+  }
+  taosMemoryFree(cli->pThreadObj);
+  taosMemoryFree(cli);
   return;
 }
 
