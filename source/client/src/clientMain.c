@@ -35,6 +35,10 @@
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
+#ifdef TAOSD_INTEGRATED
+void shellStopDaemon();
+#endif
+
 static int32_t sentinel = TSC_VAR_NOT_RELEASE;
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
 
@@ -260,9 +264,13 @@ void taos_cleanup(void) {
   taosConvDestroy();
   DestroyRegexCache();
 
+#ifdef TAOSD_INTEGRATED
+  shellStopDaemon();
+#endif
+
   tscInfo("all local resources released");
   taosCleanupCfg();
-  if (!tsAcoreOS) taosCloseLog();
+  if (!tsTaosdIntegrated) taosCloseLog();
 }
 
 static setConfRet taos_set_config_imp(const char *config) {

@@ -21,11 +21,20 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/client"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-target_link_libraries(
-    ${TAOS_LIB}
-    INTERFACE api
-    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
-)
+
+if(${TAOSD_INTEGRATED})
+    target_link_libraries(
+        ${TAOS_LIB}
+        INTERFACE api
+        PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry taosd
+    )
+else()
+    target_link_libraries(
+        ${TAOS_LIB}
+        INTERFACE api
+        PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
+    )
+endif()
 
 if(TD_WINDOWS)
     INCLUDE_DIRECTORIES(jni/windows)

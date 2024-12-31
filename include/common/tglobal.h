@@ -268,7 +268,7 @@ extern int64_t tsmaDataDeleteMark;
 extern int64_t tsWalFsyncDataSizeLimit;
 
 // misc
-extern bool tsAcoreOS;
+extern bool tsTaosdIntegrated;
 
 // internal
 extern bool    tsDiskIDCheckEnabled;

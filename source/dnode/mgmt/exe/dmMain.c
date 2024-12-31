@@ -318,10 +318,12 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
   char path[1024] = {0};
   taosGetCwd(path, sizeof(path));
 
-  char    args[1024] = {0};
-  int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
-  for (int32_t i = 1; i < argc; ++i) {
-    arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+  char args[1024] = {0};
+  if (argc > 0) {
+    int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
+    for (int32_t i = 1; i < argc; ++i) {
+      arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+    }
   }
 
   dInfo("startup path:%s args:%s", path, args);
@@ -387,7 +389,7 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
-#ifdef TD_ACORE
+#ifdef TAOSD_INTEGRATED
 int dmStartDaemon(int argc, char const *argv[]) {
 #else
 int main(int argc, char const *argv[]) {

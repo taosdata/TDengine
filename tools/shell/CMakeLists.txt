@@ -26,9 +26,9 @@ ELSE()
     SET(LINK_WEBSOCKET "")
 ENDIF()
 
-if(${TD_ACORE})
-    add_definitions(-DTD_ACORE)
-endif(${TD_ACORE})
+if(${TAOSD_INTEGRATED})
+    add_definitions(-DTAOSD_INTEGRATED)
+endif(${TAOSD_INTEGRATED})
 
 IF(TD_LINUX AND TD_ALPINE)
     SET(LINK_ARGP "/usr/lib/libargp.a")
@@ -42,7 +42,7 @@ else()
     target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif()
 
-if(${TD_ACORE})
+if(${TAOSD_INTEGRATED})
     target_link_libraries(
         shell
         PRIVATE os common transport geometry util taosd

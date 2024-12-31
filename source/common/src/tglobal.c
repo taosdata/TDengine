@@ -307,7 +307,7 @@ int32_t tsTtlFlushThreshold = 100;   /* maximum number of dirty items in memory.
 int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 
 // misc
-bool tsAcoreOS = false;
+bool tsTaosdIntegrated = false;
 
 // internal
 bool    tsDiskIDCheckEnabled = false;
