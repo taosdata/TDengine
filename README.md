@@ -38,7 +38,15 @@ List the software and tools required to work on the project.
 - node 16.20.2 (for taos-explorer)
 - python 3.10.12+ (for test)
 
-Step-by-step instructions to set up the prerequisites software.
+Run the script to set up the prerequisite software:
+
+```bash
+wget https://raw.githubusercontent.com/taosdata/TDengine/main/packaging/setup_env.sh
+chmod +x setup_env.sh
+./setup_env.sh TDinternal && ./setup_env.sh install_packages && source ~/.bashrc
+```
+
+You can also set up the prerequisite software by following the step-by-step instructions.
 
 ## 3.1 Install the required package
 
@@ -175,7 +183,7 @@ Recommend install node using nvm.
 curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh | bash
 ```
 
-Set up environment variables, add the following content to the end of the `~/.bashrc` file.
+Ensure that the following content is added to your `~/.bashrc` file:
 
 ```bash
 export NVM_DIR="$HOME/.nvm"
@@ -208,7 +216,7 @@ apt install python3-pip
 Install the dependent Python components.
 
 ```bash
-pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
+pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml
 ```
 
 Install the Python connector for TDengine.
@@ -232,7 +240,7 @@ cd /root
 git clone git@github.com:taosdata/TDinternal.git
 ```
 
-Execute the cmake command to download the community and other repositories (this may take about twenty minutes).
+Execute the cmake command to download the community and other repositories (this may take some minutes).
 
 ```bash
 cd /root/TDinternal && git checkout main
@@ -247,15 +255,16 @@ Select the current branch of community repositorie.
 cd /root/TDinternal/community && git checkout main
 ```
 
-Compile
+Run the following commands to compile and obtain the executables in debug/build/bin after a successful compilation.
 
 ```bash
 cd /root/TDinternal/debug
-cmake .. -DBUILD_TEST=true
+cmake .. -DBUILD_TEST=true 
 make -j4
 ```
 
 Install
+Run the following command to install the executables to /usr/bin and perform some additional configurations.
 
 ```bash
 make install
@@ -267,16 +276,18 @@ Using the following script to package the enterprise edition.
 
 ```bash
 cd /root/TDinternal/enterprise/packaging
-./new_ver_release.sh -n <version_number>
+./new_ver_release.sh -n <version_number>   # version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
 ```
 
-After the packaging is complete, you can see the following files.
+Once the packaging process is complete, you can find the installation package files listed below by executing the command:
 
 ```bash
 ll /root/TDinternal/community/release
 ```
 
 # 6. Installing
+
+Get the installation package from [installation package](http://192.168.1.252:5000/) or from the packaging step and run following commands to install:
 
 ```bash
 tar -xvzf TDengine-enterprise-<version_number>-Linux-x64.tar.gz
@@ -286,10 +297,11 @@ cd TDengine-enterprise-<version_number>-Linux-x64
 
 # 7. Running
 
+Run the following scripts to start/stop TDengine services.
+
 ```bash
-cd TDengine-enterprise-<version_number>-Linux-x64
-./start-all.sh
-./stop-all.sh
+start-all.sh
+stop-all.sh
 ```
 
 # 8. Testing
@@ -298,31 +310,31 @@ cd TDengine-enterprise-<version_number>-Linux-x64
 
 ```bash
 cd /root/TDinternal/community/tests/script
-./test.sh -f tsim/db/basic1.sim
+./test.sh -f path/to/tsimfile     #e.g. ./test.sh -f tsim/db/basic1.sim
 ```
 
 ## 8.2 Run the Python test script
 
 ```bash
 cd /root/TDinternal/community/tests/system-test
-python3 ./test.py -f 2-query/floor.py
+python3 ./test.py -f path/to/pythonfile  #e.g. python3 ./test.py -f 2-query/join.py
 ```
 
-## 8.3 Run unittest
+## 8.3 Run unit test
 
 ```bash
-cd /root/TDinternal/community/tests/unit-test/
+cd /root/TDinternal/community/tests/unit-test
 bash test.sh
 ```
 
-## 8.4 Smoke Testing
+## 8.4 Run smoke test
 
 ```bash
 cd /root/TDinternal/community/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
-## 8.5 TSBS Test
+## 8.5 Run TSBS test
 
 1. Clone the code
 ```bash
@@ -346,7 +358,7 @@ serverPass="taosdata123"   # server root password
 ```
 3. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
 
-### 8.6 Crash_gen Test
+### 8.6 Run crash_gen test
 
 ```bash
 cd /root/TDinternal/community/tests/pytest/ && ./crash_gen.sh
@@ -372,7 +384,7 @@ scp <installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
 
 # 10 CI/CD
 
-We use jenkins for CI/CD workflow configuration. See http://ci.bl.taosdata.com:8080/job/NewTest/view/change-requests/
+We use jenkins for CI/CD workflow configuration. See http://ci.bl.taosdata.com:8080/job/NewTest/view/change-requests/ (need login first)
 We can also run ci script locally.
 
 ```bash
