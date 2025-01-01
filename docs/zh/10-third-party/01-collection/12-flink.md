@@ -352,7 +352,7 @@ Properties 中配置参数如下：
 | topic | string | 订阅主题。||
 | td.jdbc.mode | strng | 连接器类型, cdc, sink。| 
 | group.id| string| 消费组 ID，同一消费组共享消费进度。 | 
-| auto.offset.reset| string| 消费组订阅的初始位置。<br/>`earliest`: 从头开始订阅 <br/> `latest`: 仅从最新数据开始订阅。<br> 默认 `latest`。|
+| auto.offset.reset| string| 消费组订阅的初始位置。<br/>`earliest`: 从头开始订阅 <br/> `latest`: 仅从最新数据开始订阅。<br/> 默认 `latest`。|
 | poll.interval_ms| integer| 拉取数据间隔, 默认 500ms。|
 | sink.db.name|string| 目标数据库名称。|
 | sink.supertable.name|string |写入的超级表名称。|
