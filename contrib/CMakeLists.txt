@@ -139,7 +139,7 @@ endif()
 
 # libuv
 if(${BUILD_WITH_UV})
-    cat("${TD_SUPPORT_DIR}/libuv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    include("${TD_SUPPORT_DIR}/libuv_CMakeLists.txt.in")
 endif(${BUILD_WITH_UV})
 
 # sqlite
@@ -380,14 +380,14 @@ endif(${BUILD_WCWIDTH})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if(TD_WINDOWS)
-        # There is no GetHostNameW function on win7.
-        file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
-        string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
-        file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
-    endif()
+    # freemine: if(TD_WINDOWS)
+    # freemine:     # There is no GetHostNameW function on win7.
+    # freemine:     file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
+    # freemine:     string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
+    # freemine:     file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
+    # freemine: endif()
 
-    add_subdirectory(libuv EXCLUDE_FROM_ALL)
+    # freemine: add_subdirectory(libuv EXCLUDE_FROM_ALL)
 endif(${BUILD_WITH_UV})
 
 # SQLite

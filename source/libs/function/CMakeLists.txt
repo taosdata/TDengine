@@ -13,7 +13,6 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
@@ -37,8 +36,7 @@ target_link_libraries(
     PRIVATE qcom
     PRIVATE scalar
     PRIVATE geometry
-    PRIVATE transport
-    PUBLIC uv_a
+    PUBLIC transport
 )
 
 add_executable(runUdf test/runUdf.c)
@@ -46,7 +44,6 @@ target_include_directories(
     runUdf
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/client"
@@ -60,7 +57,6 @@ ENDIF()
 
 target_link_libraries(
     runUdf
-    PUBLIC uv_a
     PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )
 
@@ -197,7 +193,6 @@ target_include_directories(
     udfd
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
@@ -211,6 +206,5 @@ ENDIF()
 
 target_link_libraries(
     udfd
-    PUBLIC uv_a
     PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )

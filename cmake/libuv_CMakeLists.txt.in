@@ -1,13 +1,19 @@
 
 # libuv
-ExternalProject_Add(libuv
+set(_base       "${TD_CONTRIB_DIR}/libuv")
+set(_ins        "${TD_CONTRIB_DIR}/libuv/install")
+
+ExternalProject_Add(ext_libuv
         GIT_REPOSITORY https://github.com/libuv/libuv.git
         GIT_TAG v1.49.2
-        SOURCE_DIR "${TD_CONTRIB_DIR}/libuv"
-        BINARY_DIR "${TD_CONTRIB_DIR}/libuv"
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        TEST_COMMAND ""
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DLIBUV_BUILD_SHARED:BOOL=OFF
+        CMAKE_ARGS -DCMAKE_C_FLAGS=-fPIC
+        CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
         GIT_SHALLOW true
         )
+
+set(TD_CONTRIB_EXT_LIBUV_INC_DIR      "${_ins}/include" PARENT_SCOPE)
+set(TD_CONTRIB_EXT_LIBUV_LIB_DIR      "${_ins}/lib"     PARENT_SCOPE)
+
