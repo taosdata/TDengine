@@ -181,7 +181,7 @@ endif(${BUILD_ADDR2LINE})
 
 # geos
 if(${BUILD_GEOS})
-    cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    include("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in")
 endif()
 
 #
@@ -456,33 +456,6 @@ if(${BUILD_ADDR2LINE})
         target_include_directories(addr2line PUBLIC "libdwarf/src/lib/libdwarf")
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
-
-# geos
-if(${BUILD_GEOS})
-    if(${TD_LINUX})
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
-
-        if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-            SET(CMAKE_BUILD_TYPE Release)
-        endif()
-    endif(${TD_LINUX})
-
-    option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" OFF)
-    add_subdirectory(geos EXCLUDE_FROM_ALL)
-
-    if(${TD_WINDOWS})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-    else()
-        unset(CMAKE_CXX_STANDARD CACHE) # undo libgeos's setting of global CMAKE_CXX_STANDARD
-    endif(${TD_WINDOWS})
-
-    target_include_directories(
-        geos_c
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
-    )
-endif(${BUILD_GEOS})
 
 if(${BUILD_PCRE2})
     add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
