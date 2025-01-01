@@ -19,6 +19,11 @@ target_link_libraries(util PUBLIC cjson)
 add_dependencies(util ext_geos)
 target_include_directories(util PUBLIC "${TD_CONTRIB_EXT_GEOS_INC_DIR}")
 
+add_dependencies(util ext_pcre2)
+target_include_directories(util PUBLIC "${TD_CONTRIB_EXT_PCRE2_INC_DIR}")
+target_link_directories(util PUBLIC "${TD_CONTRIB_EXT_PCRE2_LIB_DIR}")
+target_link_libraries(util PUBLIC pcre2-8)
+
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
     add_definitions(-DGRANTS_CFG)
 endif()
@@ -53,14 +58,12 @@ if(TD_LINUX)
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC pcre2-8
         PUBLIC api TSZ
     )
 else()
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC pcre2-8
         PUBLIC api TSZ
     )
 endif()

@@ -186,7 +186,7 @@ endif()
 
 #
 if(${BUILD_PCRE2})
-    cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    include("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in")
 endif()
 
 find_program(C_COMPILER_LEMON NAMES gcc)
@@ -458,7 +458,7 @@ if(${BUILD_ADDR2LINE})
 endif(${BUILD_ADDR2LINE})
 
 if(${BUILD_PCRE2})
-    add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
+    # add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
 endif(${BUILD_PCRE2})
 
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
