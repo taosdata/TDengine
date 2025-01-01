@@ -3604,7 +3604,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       FOREACH(pProjection, pProjectNode->pProjections) {
         FOREACH(pChildTarget, pChild->pTargets) {
           if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)
-          && ((SColumnNode*)pProjection)->node.bindTupleFuncIdx == 0) {
+          && ((SColumnNode*)pProjection)->node.tupleFuncIdx == 0) {
             SNode* pNew = NULL;
             code = nodesCloneNode(pChildTarget, &pNew);
             if (TSDB_CODE_SUCCESS == code) {

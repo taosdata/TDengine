@@ -3825,9 +3825,6 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   if (isVectorFunc(*pNode) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (isColsFunctionResult(*pNode)) {
-    return DEAL_RES_IGNORE_CHILD;
-  }
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
     SNode* pActualNode = getGroupByNode(pGroupNode);
@@ -3865,7 +3862,8 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   }
 
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
-    if (pSelect->selectFuncNum > 1 || (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) {
+    if ((pSelect->selectFuncNum > 1 || (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) &&
+                                          ((SExprNode*)*pNode)->bindTupleFuncIdx == 0) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     }
     if (isWindowJoinStmt(pSelect) &&
@@ -3874,7 +3872,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
 
-    if (pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
+    if ((pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) && ((SExprNode*)*pNode)->bindTupleFuncIdx == 0) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     }
 

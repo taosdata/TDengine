@@ -709,6 +709,12 @@ static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
 
   int32_t code = dataTypeInlineToMsg(&pNode->node.resType, pEncoder);
   if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI32(pEncoder, pNode->node.bindTupleFuncIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI32(pEncoder, pNode->node.tupleFuncIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueU64(pEncoder, pNode->tableId);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -758,6 +764,12 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
   SColumnNode* pNode = (SColumnNode*)pObj;
 
   int32_t code = msgToDataTypeInline(pDecoder, &pNode->node.resType);
+    if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI32(pDecoder, &pNode->node.bindTupleFuncIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI32(pDecoder, &pNode->node.tupleFuncIdx);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueU64(pDecoder, &pNode->tableId);
   }

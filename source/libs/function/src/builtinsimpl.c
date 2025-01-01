@@ -2403,7 +2403,6 @@ int32_t firstLastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResIn
   }
 
   SFirstLastRes*        pRes = GET_ROWCELL_INTERBUF(pResInfo);
-  SInputColumnInfoData* pInput = &pCtx->input;
 
   pRes->nullTupleSaved = false;
   pRes->nullTuplePos.pageId = -1;
