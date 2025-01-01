@@ -7,7 +7,7 @@ ENDIF()
 add_custom_command(
     OUTPUT ${TD_SOURCE_DIR}/source/libs/parser/src/sql.c ${TD_SOURCE_DIR}/include/common/ttokenauto.h
     COMMAND echo "Running lemon process in ${TD_SOURCE_DIR}/source/libs/parser/inc"
-    COMMAND ${TD_CONTRIB_DIR}/lemon/lemon sql.y || true
+    COMMAND "${TD_CONTRIB_LEMON}" -T${TD_CONTRIB_LEMON_SRC_DIR}/lempar.c sql.y || true
     COMMAND echo "copy sql.c from ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.c to ${TD_SOURCE_DIR}/source/libs/parser/src/"
     COMMAND mv ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.c ${TD_SOURCE_DIR}/source/libs/parser/src/sql.c
     COMMAND mv ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.h ${TD_SOURCE_DIR}/include/common/ttokenauto.h
@@ -20,6 +20,8 @@ add_custom_command(
 add_custom_target(lemon_sql ALL
     DEPENDS ${TD_SOURCE_DIR}/source/libs/parser/src/sql.c ${TD_SOURCE_DIR}/include/common/ttokenauto.h
 )
+
+add_dependencies(lemon_sql lemon)
 
 list(APPEND PARSER_SRC ${TD_SOURCE_DIR}/source/libs/parser/src/sql.c)
 
