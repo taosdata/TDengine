@@ -311,4 +311,4 @@ TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集�
 直接查子表更快。超级表带 TAG 过滤查询子查数据是为满足查询方便性，同时可对多个子表中数据进行过滤，如果目的是追求性能并已明确查询子表，直接从子表查性能更高
 
 ### 35 如何查看数据压缩率指标？
-TDengine 目前只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 taos-CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可[查看此处](https://docs.taosdata.com/reference/taos-sql/show/#show-table-distributed)
+TDengine 目前只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 taos-CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/show/#show-table-distributed)
