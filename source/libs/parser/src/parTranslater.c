@@ -7440,13 +7440,13 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
     SNode*  pExpr = nodesListGetNode(pFunc->pParameterList, 1);
     if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
       pCxt->status = TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC;
-      parserError("Invalid cols function, the first parameter must be a select function");
+      parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
       return DEAL_RES_ERROR;
     }
     if (pFunc->node.asAlias) {
       if (((SExprNode*)pExpr)->asAlias) {
         pCxt->status = TSDB_CODE_INVALID_COLS_ALIAS;
-        parserError("Invalid using alias for cols function");
+        parserError("%s Invalid using alias for cols function", __func__);
         return DEAL_RES_ERROR;
       } else {
         ((SExprNode*)pExpr)->asAlias = true;
@@ -7478,7 +7478,7 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
       nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
     } else {
       pCxt->status = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
-      parserError("Invalid cols function, the first parameter must be a select function");
+      parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
       return DEAL_RES_ERROR;
     }
     nodesDestroyNode(*pNode);
@@ -7532,14 +7532,14 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
         SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
         if(pFunc->node.asAlias) {
           code = TSDB_CODE_INVALID_COLS_ALIAS;
-          parserError("Invalid using alias for cols function");
+          parserError("%s Invalid using alias for cols function", __func__);
           goto _end;
         }
 
         SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
         if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
           code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
-          parserError("Invalid cols function, the first parameter must be a select function");
+          parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
           goto _end;
         }
         int32_t selectFuncIndex = getSelectFuncIndex(*selectFuncList, pSelectFunc);
@@ -7560,7 +7560,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
             nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
           } else {
             code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
-            parserError("Invalid cols function, the first parameter must be a select function");
+            parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
             goto _end;
           }
           if (TSDB_CODE_SUCCESS != code) goto _end;
