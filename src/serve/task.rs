@@ -199,7 +199,10 @@ pub(super) async fn create_task(
 
 pub fn check_parser_timestamp_precision(parser: &serde_json::Value) -> bool {
     let mut parser = parser.clone();
-    if let Some(parser) = parser.as_object_mut() {
+    if let Some(parser) = parser
+        .as_object_mut()
+        .and_then(|v| v.get_mut("parser").and_then(|v| v.as_object_mut()))
+    {
         parser.remove("s_model");
     }
     let parser_string = parser.to_string();
