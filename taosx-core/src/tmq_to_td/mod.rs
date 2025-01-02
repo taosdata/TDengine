@@ -1929,7 +1929,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_timestamp_out_of_range() -> anyhow::Result<()> {
+    async fn test_timestamp_out_of_range_with_taos() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "debug");
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::level_filters::LevelFilter::TRACE)
