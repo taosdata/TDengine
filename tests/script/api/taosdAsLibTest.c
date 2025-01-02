@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (code = taos_init()) {
+  if ((code = taos_init())) {
     printf("taos_init failed, reason:%s\n", tstrerror(code));
     TAOS_CHECK_EXIT(code);
   } else {
