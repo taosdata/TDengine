@@ -222,7 +222,7 @@ typedef struct SMPSessionChunk {
 } SMPSessionChunk;
 
 typedef struct SMPSession {
-  // SMPListNode        list;
+  SMPListNode list;     
 
   char*       sessionId;
   SMPJob*     pJob;
