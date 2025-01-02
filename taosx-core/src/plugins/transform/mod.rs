@@ -1392,32 +1392,6 @@ impl Parser {
                 }
             }
 
-            let name = table.name.replace("${", "{");
-            let mut template = TinyTemplate::new();
-            template.add_template("name", &name).unwrap();
-            let using = table.using.as_ref().map(|using| using.replace("${", "{"));
-            if let Some(using) = using.as_ref() {
-                template.add_template("using", using).unwrap();
-            }
-            let ts_field_name = table
-                .columns
-                .as_ref()
-                .and_then(|v| v.first())
-                .context("ts field not found")?;
-            let ts_field = schema
-                .field_with_name(ts_field_name)
-                .context("ts field not found")?;
-            let normal_cols = table
-                .columns
-                .as_ref()
-                .map(|cols| {
-                    cols.iter()
-                        .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
-                        .map(|s| s.as_str())
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-
             let tables = (0..transformed_batch.num_rows())
                 .filter(|row| !skip_indices.contains(row))
                 .map(|row| {
@@ -1472,6 +1446,32 @@ impl Parser {
                     err_timestamp_vec,
                 )?;
             }
+
+            let name = table.name.replace("${", "{");
+            let mut template = TinyTemplate::new();
+            template.add_template("name", &name).unwrap();
+            let using = table.using.as_ref().map(|using| using.replace("${", "{"));
+            if let Some(using) = using.as_ref() {
+                template.add_template("using", using).unwrap();
+            }
+            let ts_field_name = table
+                .columns
+                .as_ref()
+                .and_then(|v| v.first())
+                .context("ts field not found")?;
+            let ts_field = schema
+                .field_with_name(ts_field_name)
+                .context("ts field not found")?;
+            let normal_cols = table
+                .columns
+                .as_ref()
+                .map(|cols| {
+                    cols.iter()
+                        .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
+                        .map(|s| s.as_str())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
 
             // name: sub_table_name, indices: group row index
             for (name, indices) in tables {
@@ -3658,6 +3658,7 @@ mod parser_tests {
         Ok(())
     }
 
+    #[test]
     fn test_process_on_abnormal_serde() {
         let process_on_abnormal = ProcessOnAbnormal::default();
         let json = serde_json::to_string_pretty(&process_on_abnormal).unwrap();
@@ -3726,6 +3727,10 @@ mod parser_tests {
         // test2: the length of table name exceeds the limit, and the processing method is 'archive'
         let record = RecordBatch::try_from_iter([
             (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
+            (
                 "str1",
                 Arc::new(StringArray::from(vec!["1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567"])) as ArrayRef,
             ),
@@ -3743,6 +3748,10 @@ mod parser_tests {
 
         // test3: table name contains illegal characters, and the processing method is 'break'
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
             ("str1", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
@@ -3756,6 +3765,10 @@ mod parser_tests {
 
         // test4: table name variable mistake, and the processing method is 'skip'
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
             ("str2", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
@@ -3902,6 +3915,10 @@ mod parser_tests {
     #[test]
     fn test_table_name_contains_illegal_char() {
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
             ("str1", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
@@ -4044,6 +4061,10 @@ mod parser_tests {
     #[test]
     fn test_variable_not_exist_in_table_name_template() {
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
             (
                 "str1",
                 Arc::new(StringArray::from(vec!["12345"])) as ArrayRef,

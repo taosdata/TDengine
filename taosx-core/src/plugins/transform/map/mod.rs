@@ -153,7 +153,7 @@ pub struct FieldValue {
     r#as: Option<AsType>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum AsType {
     Ipc(IpcDataType),

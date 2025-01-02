@@ -6,7 +6,7 @@ use arrow_schema::{DataType, Schema};
 
 use super::{Parse, ParseError};
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq)]
 pub struct Convert {
     convert: HashMap<String, String>,
 }

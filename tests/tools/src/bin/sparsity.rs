@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
                     &col.col_name
                 ))
                 .await
-                .and_then(|v| Ok(v.map(|v| (col.col_name.clone(), v))))
+                .map(|v| v.map(|v| (col.col_name.clone(), v)))
         });
     }
     while let Some((name, count)) = futs.next().await.transpose()?.unwrap_or_default() {
