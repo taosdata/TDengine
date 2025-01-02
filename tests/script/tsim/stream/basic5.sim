@@ -463,8 +463,34 @@ if $data25 != 2 then
   goto loop14
 endi
 
+sql drop stream streams11
+sql drop stream streams10
+sql drop stream streams9
+sql drop stream streams8
+sql drop stream streams7
+sql drop stream streams3
+sql drop stream streams4
+sql drop stream streams5
+
 print sleep for 1min for checkpoint generate
 sleep 60000
+
+loop0:
+
+sleep 1000
+$loop_count = $loop_count + 1
+if $loop_count == 10000 then
+  return -1
+endi
+
+sql select checkpoint_time, checkpoint_ver from information_schema.ins_stream_tasks where checkpoint_time is null;
+
+if $rows != 0 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+print ================generate checkpoint completed
 
 print ================== restart to load checkpoint from snode
 
