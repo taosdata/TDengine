@@ -122,6 +122,7 @@ typedef struct STableMeta {
   SSchemaExt*   schemaExt;  // There is no additional memory allocation, and the pointer is fixed to the next address of
                             // the schema content.
   SColRef*      colRef;
+  int8_t        virtualStb;
   SSchema schema[];
 } STableMeta;
 #pragma pack(pop)
