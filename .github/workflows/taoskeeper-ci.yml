@@ -22,13 +22,13 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y build-essential cmake libgeos-dev
+          sudo apt install -y build-essential cmake
 
       - name: Install TDengine
         run: |
           mkdir debug
           cd debug
-          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
+          cmake .. -DBUILD_CONTRIB:BOOL=ON -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
           which taosd
