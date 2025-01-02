@@ -231,6 +231,14 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "True_for duration cannot be negative";
     case TSDB_CODE_PAR_TRUE_FOR_UNIT:
       return "Cannot use 'year' or 'month' as true_for duration";
+    case TSDB_CODE_PAR_INVALID_REF_COLUMN:
+      return "Invalid virtual table's ref column";
+    case TSDB_CODE_PAR_INVALID_TABLE_TYPE:
+      return "Invalid table type";
+    case TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE:
+      return "Invalid virtual table's ref column type";
+    case TSDB_CODE_PAR_COLUMN_HAS_REF:
+      return "Column has ref, can not be dropped/modified";
     default:
       return "Unknown error";
   }

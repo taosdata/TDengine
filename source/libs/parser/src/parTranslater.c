@@ -375,27 +375,6 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  {
-    .showType = QUERY_NODE_CREATE_TSMA_STMT,
-    .pDbName = "",
-    .pTableName = "",
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
-  {
-    .showType = QUERY_NODE_SHOW_CREATE_TSMA_STMT,
-    .pDbName = "",
-    .pTableName = "",
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
-  {
-    .showType = QUERY_NODE_DROP_TSMA_STMT,
-    .pDbName = "",
-    .pTableName = "",
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
   { 
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -2537,6 +2516,9 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
       setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+    } else if (NULL != pTable && QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+      setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
+      pCol->isPrimTs = true;
     } else {
       code = rewriteCountStarAsCount1(pCxt, pCount);
     }
@@ -15253,14 +15235,6 @@ typedef struct SVgroupCreateTableBatch {
   char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupCreateTableBatch;
 
-static int32_t setColRef(SColRef* colRef, col_id_t index, col_id_t colId, char* refColName, char* refTableName) {
-  colRef[index].id = colId;
-  colRef[index].hasRef = true;
-  tstrncpy(colRef[index].refColName, refColName, TSDB_COL_NAME_LEN);
-  tstrncpy(colRef[index].refTableName, refTableName, TSDB_TABLE_NAME_LEN);
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t buildVirtualTableBatchReq(const SCreateVTableStmt* pStmt, const SVgroupInfo* pVgroupInfo,
                                          SVgroupCreateTableBatch* pBatch) {
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -15286,7 +15260,7 @@ static int32_t buildVirtualTableBatchReq(const SCreateVTableStmt* pStmt, const S
     SSchema*        pSchema = req.ntb.schemaRow.pSchema + index;
     toSchema(pColDef, index + 1, pSchema);
     if (pColDef->pOptions && ((SColumnOptions*)pColDef->pOptions)->hasRef) {
-      PAR_ERR_JRET(setColRef(req.colRef.pColRef, index, index + 1, ((SColumnOptions*)pColDef->pOptions)->refColumn,
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, ((SColumnOptions*)pColDef->pOptions)->refColumn,
                              ((SColumnOptions*)pColDef->pOptions)->refTable));
     }
     ++index;
@@ -15340,12 +15314,12 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
       if (pSchema == NULL) {
         PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
-      PAR_ERR_JRET(setColRef(req.colRef.pColRef, pSchema->colId - 1, pSchema->colId, pColRef->refColName, pColRef->refTableName));
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[pSchema->colId - 1], pSchema->colId, pColRef->refColName, pColRef->refTableName));
     }
   } else {
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      PAR_ERR_JRET(setColRef(req.colRef.pColRef, index, index + 1, pColRef->refColName, pColRef->refTableName));
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pColRef->refColName, pColRef->refTableName));
       index++;
     }
   }
