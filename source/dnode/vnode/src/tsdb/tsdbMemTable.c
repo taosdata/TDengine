@@ -593,16 +593,6 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   level = tsdbMemSkipListRandLevel(&pTbData->sl);
   nSize = SL_NODE_SIZE(level);
   if (pRow->type == TSDBROW_ROW_FMT) {
-    // [BLOB] [TODO]
-    if (pRow->pTSRow->len == 51223 || pRow->pTSRow->len == 65540) {
-      code = tbDataDoPutBlob(pMemTable, pTbData, pRow);
-      if (code) {
-        goto _exit;
-      }
-      pRow->pTSRow->len = 128;
-    } else {
-      pRow->pTSRow->len = 128;
-    }
     pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize + pRow->pTSRow->len);
   } else if (pRow->type == TSDBROW_COL_FMT) {
     pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize);
@@ -765,20 +755,88 @@ _exit:
   return code;
 }
 
-static int32_t blobInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
-                                        SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
-  int32_t code = 0;
+// static int32_t getTableSchema(STsdb* pTsdb, STbData *pTbData, STSchema **ppSchema) {
+//   int32_t code = TSDB_CODE_SUCCESS;
+//   int32_t lino = 0;
+//   int32_t numOfTables = 0;
+//   STSchema *pSchema = NULL;
 
+//   ASSERT(pTsdb != NULL);
+
+//   if (!TSDB_CACHE_NO(pTsdb->pVnode->config)) {
+//     pSchema = pTsdb->rCache.pTSchema;
+//     goto end;
+//   }
+
+//   ASSERT(pTbData != NULL);
+
+//   if (pTbData->suid != 0) {
+//     code = metaGetTbTSchemaNotNull(pTsdb->pVnode->pMeta, suid, -1, 1, &pSchema);
+//     if (TSDB_CODE_SUCCESS != code) {
+//       tsdbWarn("stable:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", suid, idstr);
+//       if (code == TSDB_CODE_NOT_FOUND) {
+//         code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+//       }
+//       TSDB_CHECK_CODE(code, lino, _end);
+//     }
+//   } else {
+//     uint64_t uid = pTbData->uid;
+
+//     code = metaGetTbTSchemaMaybeNull(pTsdb->pVnode->pMeta, uid, -1, 1, &pSchema);
+//     TSDB_CHECK_CODE(code, lino, _end);
+
+//     if (pSchema == NULL) {
+//       tsdbWarn("failed to get the schema of table:%" PRIu64, uid);
+//       code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+//       TSDB_CHECK_CODE(code, lino, _end);
+//     }
+//   }
+
+// _end:
+//   *ppSchema = pSchema;
+
+//   if (code != TSDB_CODE_SUCCESS) {
+//     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+//   }
+//   return code;
+// }
+
+static int32_t blobInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
+                                        SSubmitTbData *pSubmitTbData) {
+  int32_t           code = 0;
   int32_t           nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
   SRow            **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
   STsdbRowKey       key;
-  // SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           tRow = {.type = TSDBROW_ROW_FMT, .version = version};
   int32_t           iRow = 0;
+  STSchema         *pSchema = NULL;
+  tb_uid_t          suid;
 
+  // get table schema, if cached, call 
+  // getTableSchema(pMemTable->pTsdb, pTbData);
+  code = vnodeGetTableSchema(pMemTable->pTsdb->pVnode, pTbData->uid, &pSchema, &suid);
+  if (code) {
+    goto _exit;
+  }
+
+  // get column data
+  
   tRow.pTSRow = aRow[iRow++];
+  // [BLOB] [TODO]
+  if (pRow->pTSRow->len == 51223 || pRow->pTSRow->len == 65540) {
+    code = tbDataDoPutBlob(pMemTable, pTbData, &tRow);
+    if (code) {
+      goto _exit;
+    }
+    pRow->pTSRow->len = 128;
+  } else {
+    pRow->pTSRow->len = 128;
+  }
 
   // [BLOB] [TODO] How to get col data from pSubmitTbData?
+_exit:
+
+  return code;
 }
 
 static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
@@ -794,7 +852,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   // [BLOB]
   if (pSubmitTbData->flags & SUBMIT_REQ_BLOB_DATA) {
-    blobInsertRowDataToTable(pMemTable, pTbData, version, pSubmitTbData, affectedRows);
+    blobInsertRowDataToTable(pMemTable, pTbData, version, pSubmitTbData);
   }
 
   // backward put first data
