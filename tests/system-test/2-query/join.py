@@ -369,7 +369,7 @@ class TDTestCase:
         tdSql.checkRows(self.rows)
         tdSql.query("select ct1.c_int from db.ct1 as ct1 left asof join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 left window join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 left window join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         
         tdSql.query("select ct1.c_int from db.ct1 as ct1 right join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
@@ -381,7 +381,7 @@ class TDTestCase:
         tdSql.checkRows(self.rows)
         tdSql.query("select ct1.c_int from db.ct1 as ct1 right asof join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
-        tdSql.error("select ct1.c_int from db.ct1 as ct1 right window join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_TSC_INVALID_OPERATION)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 right window join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         
         tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
