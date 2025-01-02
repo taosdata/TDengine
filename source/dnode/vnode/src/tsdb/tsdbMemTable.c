@@ -765,6 +765,22 @@ _exit:
   return code;
 }
 
+static int32_t blobInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
+                                        SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
+  int32_t code = 0;
+
+  int32_t           nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
+  SRow            **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+  STsdbRowKey       key;
+  // SMemSkipListNode *pos[SL_MAX_LEVEL];
+  TSDBROW           tRow = {.type = TSDBROW_ROW_FMT, .version = version};
+  int32_t           iRow = 0;
+
+  tRow.pTSRow = aRow[iRow++];
+
+  // [BLOB] [TODO] How to get col data from pSubmitTbData?
+}
+
 static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
                                         SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
   int32_t code = 0;
@@ -775,6 +791,11 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           tRow = {.type = TSDBROW_ROW_FMT, .version = version};
   int32_t           iRow = 0;
+
+  // [BLOB]
+  if (pSubmitTbData->flags & SUBMIT_REQ_BLOB_DATA) {
+    blobInsertRowDataToTable(pMemTable, pTbData, version, pSubmitTbData, affectedRows);
+  }
 
   // backward put first data
   tRow.pTSRow = aRow[iRow++];
