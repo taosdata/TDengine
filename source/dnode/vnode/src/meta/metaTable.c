@@ -162,6 +162,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   pMetaRsp->tableType = tableType;
   pMetaRsp->sversion = pSchema->version;
   pMetaRsp->tuid = uid;
+  pMetaRsp->virtualStb = false; // super table will never be processed here
 
   memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
 
@@ -200,6 +201,7 @@ int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   pMetaRsp->tuid = uid;
   pMetaRsp->tableType = tableType;
+  pMetaRsp->virtualStb = false; // super table will never be processed here
 
   return code;
 _return:
