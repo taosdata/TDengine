@@ -300,15 +300,13 @@ impl LocalConfig {
 }
 
 /// 增量备份任务，通过 TDengine 的订阅，将数据备份到本地
-#[instrument]
+#[instrument(skip_all, fields(task_id))]
 #[async_backtrace::framed]
 pub async fn tmq_to_local(
+    task_id: Option<String>,
     from: Dsn,
     to: Dsn,
-    jobs: usize,
-    _force: bool,
     cancel: CancellationToken,
-    task_id: Option<String>,
 ) -> Result<()> {
     tracing::info!("tmq_to_local start");
 
@@ -334,8 +332,8 @@ pub async fn tmq_to_local(
     // load metrics
     let metrics = get_metrics_arc(task_id.clone()).await;
 
-    // 根据 jobs 创建 consumer
-    let consumers = config.create_consumer(jobs).await?;
+    // 创建 consumer
+    let consumers = config.create_consumer().await?;
 
     // 创建 ZFileMan
     let man = Arc::new(ZFileMan {
@@ -1029,7 +1027,7 @@ mod tests {
         });
 
         let backup = tokio::spawn(async move {
-            tmq_to_local(from, to, 1, true, Default::default(), None)
+            tmq_to_local(None, from, to, Default::default())
                 .await
                 .unwrap();
         });

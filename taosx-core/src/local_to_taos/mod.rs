@@ -12,7 +12,7 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
-use tracing::Instrument;
+use tracing::{instrument, Instrument};
 
 use crate::core_metrics::{get_metrics_arc, CoreMetrics};
 use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
@@ -49,14 +49,12 @@ const FAILED_ROWS: FastStr = FastStr::from_static_str("backup_failed_rows");
 /// 2. 恢复任务需要按照 backup point 的时间戳顺序，依次恢复；同一个 vg_id 的备份文件，按照 index 顺序恢复
 /// 3. 如果 stop.at 为 None，则持续监听 backup_dir 下的新备份文件
 /// 4. local_to_tmq 任务可以被中断 @param cancel
-#[tracing::instrument]
+#[instrument(skip_all, fields(task_id))]
 #[async_backtrace::framed]
 pub async fn local_to_taos(
     task_id: Option<String>,
     from: Dsn,
     to: Dsn,
-    jobs: usize,
-    force: bool,
     cancel: CancellationToken,
 ) -> Result<()> {
     tracing::info!("local_to_taos start");
@@ -70,11 +68,11 @@ pub async fn local_to_taos(
 
     // 处理 backup object
     if config.is_obj_existed().await? {
-        if force {
+        if config.force {
             tracing::warn!("restore target exists, force to delete and recreate");
             config.delete_obj().await?;
         } else {
-            bail!("restore target already exists, please use -y/--yes-i-really-mean-it to delete and recreate");
+            bail!("restore target already exists, please delete and recreate");
         }
     }
     tracing::warn!("recreate backup object");
@@ -90,7 +88,7 @@ pub async fn local_to_taos(
     let (tx, rx) = flume::unbounded();
     // 创建 RestoreWorker
     let mut join_set = JoinSet::new();
-    let jobs = if jobs > 0 { jobs } else { 16 };
+    let jobs = 1;
     for i in 0..jobs {
         let rx = rx.clone();
         let mut worker = RestoreWorker {
@@ -121,31 +119,39 @@ pub async fn local_to_taos(
             match config.stop_at.as_ref() {
                 None => {
                     tracing::debug!("local_to_taos send file: {:?} to worker", f);
-                    // TODO handle send error
-                    tx.send(f)?;
+                    tx.send(f).map_err(|err| {
+                        tracing::error!("failed to send file to worker: {:#}", err);
+                        err
+                    })?;
                 }
                 Some(stop_at) => {
                     let file_name = f.file_name().unwrap().to_string_lossy();
                     let (_, ts, _, _idx) = ZFile::parse_file_name(file_name.as_ref())?;
-                    tracing::debug!("compare current point: {} with stop point: {}", ts, to);
+                    tracing::debug!(
+                        "compare current point: {} with stop point: {}",
+                        ts.to_rfc3339(),
+                        stop_at.to_rfc3339()
+                    );
                     match ts.cmp(stop_at) {
                         std::cmp::Ordering::Less => {
                             tracing::debug!("local_to_taos send file: {:?} to worker", f);
-                            // TODO handle send error
-                            tx.send(f)?;
+                            tx.send(f).map_err(|err| {
+                                tracing::error!("failed to send file to worker: {:#}", err);
+                                err
+                            })?;
                         }
                         std::cmp::Ordering::Equal => {
                             tracing::debug!("local_to_taos send file: {:?} to worker", f);
-                            // TODO handle send error
-                            tx.send(f)?;
+                            tx.send(f).map_err(|err| {
+                                tracing::error!("failed to send file to worker: {:#}", err);
+                                err
+                            })?;
                             stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
-                            tracing::debug!("set stop flag true since stop point reached");
                         }
                         std::cmp::Ordering::Greater => {
                             tracing::debug!("local_to_taos skip file: {:?}", f);
                             // skip
                             stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
-                            tracing::debug!("set stop flag true since stop point reached");
                         }
                     }
                 }
@@ -565,13 +571,9 @@ async fn restore(
         }
     }
 
-    // let mut zo = path.to_path_buf();
-    // zo.set_extension("zo");
-    // tokio::fs::write(zo, "").await?;
     drop(reader);
 
     metrics.add_extra_metric(&PROCESSED_ROWS, rows as u64);
-
     tracing::info!(
         "[{}] totally write {} rows from file {}",
         id,
@@ -675,12 +677,10 @@ mod tests {
         ])
         .await?;
         crate::tmq_to_local(
+            None,
             "tmq:///local_to_taos".parse()?,
             local.clone(),
-            1,
-            true,
             Default::default(),
-            None,
         )
         .await?;
 
@@ -695,8 +695,6 @@ mod tests {
             None,
             local.clone(),
             "taos:///".parse()?,
-            1,
-            true,
             CancellationToken::new(),
         )
         .await?;
