@@ -370,27 +370,6 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  {
-    .showType = QUERY_NODE_CREATE_TSMA_STMT,
-    .pDbName = "",
-    .pTableName = "",
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
-  {
-    .showType = QUERY_NODE_SHOW_CREATE_TSMA_STMT,
-    .pDbName = "",
-    .pTableName = "",
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
-  {
-    .showType = QUERY_NODE_DROP_TSMA_STMT,
-    .pDbName = "",
-    .pTableName = "",
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
   { 
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -2516,6 +2495,9 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
       setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+    } else if (NULL != pTable && QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+      setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
+      pCol->isPrimTs = true;
     } else {
       code = rewriteCountStarAsCount1(pCxt, pCount);
     }
