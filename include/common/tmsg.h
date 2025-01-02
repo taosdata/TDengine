@@ -653,6 +653,7 @@ typedef struct {
   int8_t      sysInfo;
   SSchema*    pSchemas;
   SSchemaExt* pSchemaExt;
+  int8_t      virtualStb;
   SColRef*    pColRefs;
 } STableMetaRsp;
 

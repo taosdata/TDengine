@@ -17501,6 +17501,10 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
 
   PAR_ERR_JRET(getTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta));
 
+  if (!pSuperTableMeta->virtualStb) {
+    PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_VIRTUAL_SUPER_TABLE);
+  }
+
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
 
   if (pStmt->pSpecificColRefs) {
