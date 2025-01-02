@@ -18,6 +18,9 @@ from frame.sql import *
 from frame.caseBase import *
 from frame.common import *
 
+from community.tests.army.frame.sql import tdSql
+
+
 class TDTestCase(TBase):
 
     def prepare_org_tables(self):
@@ -55,8 +58,7 @@ class TDTestCase(TBase):
                       "float_tag float,"
                       "double_tag double,"
                       "nchar_32_tag nchar(32),"
-                      "binary_32_tag binary(32)) "
-                      "virtual 1")
+                      "binary_32_tag binary(32))")
 
         tdLog.info(f"prepare org child table.")
         for i in range(30):
@@ -66,10 +68,311 @@ class TDTestCase(TBase):
         for i in range(30):
             tdSql.execute(f"CREATE TABLE `vtb_org_normal{i}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(64), nchar_32_col nchar(64), varbinary_16_col varbinary(16), varbinary_32_col varbinary(32), geo_16_col geometry(16), geo_32_col geometry(32))")
 
-    def run(self):
+    def test_create_virtual_super_table(self):
+        tdLog.info(f"prepare virtual super tables.")
+
+        tdSql.execute("use test_vtable_create;")
+        tdSql.execute("select database();")
+
+        tdSql.execute(f"CREATE STABLE `vtb_virtual_stb` ("
+                      "ts timestamp, "
+                      "u_tinyint_col tinyint unsigned, "
+                      "u_smallint_col smallint unsigned, "
+                      "u_int_col int unsigned, "
+                      "u_bigint_col bigint unsigned, "
+                      "tinyint_col tinyint, "
+                      "smallint_col smallint, "
+                      "int_col int, "
+                      "bigint_col bigint, "
+                      "float_col float, "
+                      "double_col double, "
+                      "bool_col bool, "
+                      "binary_16_col binary(16),"
+                      "binary_32_col binary(32),"
+                      "nchar_16_col nchar(64),"
+                      "nchar_32_col nchar(64),"
+                      "varbinary_16_col varbinary(16),"
+                      "varbinary_32_col varbinary(32),"
+                      "geo_16_col geometry(16),"
+                      "geo_32_col geometry(32)"
+                      ") TAGS ("
+                      "int_tag int,"
+                      "bool_tag bool,"
+                      "float_tag float,"
+                      "double_tag double,"
+                      "nchar_32_tag nchar(32),"
+                      "binary_32_tag binary(32))" 
+                      "VIRTUAL 1")
+
+    def test_create_virtual_child_table(self):
+        tdLog.info(f"test create virtual child tables.")
+
+        tdSql.execute("use test_vtable_create;")
+        tdSql.execute("select database();")
+
+        # 1.create virtual child table and don't use 'FROM' to specify the org table
+        # 1.1 specify part of columns of vtable
+        # 1.1.1 org table is child table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb0`("
+                      "vtb_org_child_0.u_tinyint_col, "
+                      "vtb_org_child_1.u_smallint_col, "
+                      "vtb_org_child_2.u_tinyint_col, "
+                      "vtb_org_child_3.u_bigint_col,"
+                      "vtb_org_child_4.tinyint_col) USING vtb_virtual_stb TAGS (0, false, 0, 0, 'vchild0', 'vchild0')")
+
+        # 1.1.2 org table is normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb1`("
+                      "vtb_org_normal_0.u_tinyint_col, "
+                      "vtb_org_normal_1.u_smallint_col, "
+                      "vtb_org_normal_2.u_tinyint_col, "
+                      "vtb_org_normal_3.u_bigint_col,"
+                      "vtb_org_normal_4.tinyint_col) USING vtb_virtual_stb TAGS (1, false, 1, 1, 'vchild1', 'vchild1')")
+
+        # 1.1.3 org table is child table and normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb2`("
+                      "vtb_org_child_0.u_tinyint_col, "
+                      "vtb_org_normal_1.u_smallint_col, "
+                      "vtb_org_child_2.u_tinyint_col, "
+                      "vtb_org_normal_3.u_bigint_col,"
+                      "vtb_org_child_4.tinyint_col) USING vtb_virtual_stb TAGS (2, false, 2, 2, 'vchild2', 'vchild2')")
+
+        # 1.2 specify all columns of vtable
+        # 1.2.1 org table is child table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb3`("
+                      "vtb_org_child_0.u_tinyint_col, "
+                      "vtb_org_child_1.u_smallint_col, "
+                      "vtb_org_child_2.u_tinyint_col, "
+                      "vtb_org_child_3.u_bigint_col,"
+                      "vtb_org_child_4.tinyint_col, "
+                      "vtb_org_child_5.smallint_col, "
+                      "vtb_org_child_6.int_col, "
+                      "vtb_org_child_7.bigint_col,"
+                      "vtb_org_child_8.float_col, "
+                      "vtb_org_child_9.double_col, "
+                      "vtb_org_child_10.bool_col, "
+                      "vtb_org_child_11.binary_16_col,"
+                      "vtb_org_child_12.binary_32_col, "
+                      "vtb_org_child_13.nchar_16_col, "
+                      "vtb_org_child_14.nchar_32_col,"
+                      "vtb_org_child_15.varbinary_16_col, "
+                      "vtb_org_child_16.varbinary_32_col, "
+                      "vtb_org_child_17.geo_16_col, "
+                      "vtb_org_child_18.geo_32_col) USING vtb_virtual_stb TAGS (3, false, 3, 3, 'vchild3', 'vchild3')")
+
+        # 1.2.2 org table is normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb4`("
+                      "vtb_org_normal_0.u_tinyint_col, "
+                      "vtb_org_normal_1.u_smallint_col, "
+                      "vtb_org_normal_2.u_tinyint_col, "
+                      "vtb_org_normal_3.u_bigint_col,"
+                      "vtb_org_normal_4.tinyint_col, "
+                      "vtb_org_normal_5.smallint_col, "
+                      "vtb_org_normal_6.int_col, "
+                      "vtb_org_normal_7.bigint_col,"
+                      "vtb_org_normal_8.float_col, "
+                      "vtb_org_normal_9.double_col, "
+                      "vtb_org_normal_10.bool_col, "
+                      "vtb_org_normal_11.binary_16_col,"
+                      "vtb_org_normal_12.binary_32_col, "
+                      "vtb_org_normal_13.nchar_16_col, "
+                      "vtb_org_normal_14.nchar_32_col,"
+                      "vtb_org_normal_15.varbinary_16_col, "
+                      "vtb_org_normal_16.varbinary_32_col, "
+                      "vtb_org_normal_17.geo_16_col, "
+                      "vtb_org_normal_18.geo_32_col) USING vtb_virtual_stb TAGS (4, false, 4, 4, 'vchild4', 'vchild4')")
+
+        # 1.2.3 org table is child table and normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb5`("
+                      "vtb_org_child_0.u_tinyint_col, "
+                      "vtb_org_normal_1.u_smallint_col, "
+                      "vtb_org_child_2.u_tinyint_col, "
+                      "vtb_org_normal_3.u_bigint_col,"
+                      "vtb_org_child_4.tinyint_col, "
+                      "vtb_org_normal_5.smallint_col, "
+                      "vtb_org_child_6.int_col, "
+                      "vtb_org_normal_7.bigint_col,"
+                      "vtb_org_child_8.float_col, "
+                      "vtb_org_normal_9.double_col, "
+                      "vtb_org_child_10.bool_col, "
+                      "vtb_org_normal_11.binary_16_col,"
+                      "vtb_org_child_12.binary_32_col, "
+                      "vtb_org_normal_13.nchar_16_col, "
+                      "vtb_org_child_14.nchar_32_col,"
+                      "vtb_org_normal_15.varbinary_16_col, "
+                      "vtb_org_child_16.varbinary_32_col, "
+                      "vtb_org_normal_17.geo_16_col, "
+                      "vtb_org_child_18.geo_32_col) USING vtb_virtual_stb TAGS (5, false, 5, 5, 'vchild5', 'vchild5')")
+
+        # 2.create virtual child table and use 'FROM' to specify the org table
+        # 2.1 specify part of columns of vtable
+        # 2.1.1 org table is child table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb6`("
+                      "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
+                      "u_bigint_col FROM vtb_org_child_3.u_bigint_col,"
+                      "int_col FROM vtb_org_child_6.int_col,"
+                      "float_col FROM vtb_org_child_8.float_col,"
+                      "bool_col FROM vtb_org_child_10.bool_col,"
+                      "binary_32_col FROM vtb_org_child_12.binary_32_col) USING vtb_virtual_stb  TAGS (6, false, 6, 6, 'vchild6', 'vchild6')")
+
+        # 2.1.2 org table is normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb7`("
+                      "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
+                      "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
+                      "int_col FROM vtb_org_normal_6.int_col,"
+                      "float_col FROM vtb_org_normal_8.float_col,"
+                      "bool_col FROM vtb_org_normal_10.bool_col,"
+                      "binary_32_col FROM vtb_org_normal_12.binary_32_col) USING vtb_virtual_stb TAGS (7, false, 7, 7, 'vchild7', 'vchild7')")
+
+        # 2.1.3 org table is child table and normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb8`("
+                      "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
+                      "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
+                      "int_col FROM vtb_org_child_6.int_col,"
+                      "float_col FROM vtb_org_normal_8.float_col,"
+                      "bool_col FROM vtb_org_child_10.bool_col,"
+                      "binary_32_col FROM vtb_org_normal_12.binary_32_col) USING vtb_virtual_stb TAGS (8, false, 8, 8, 'vchild8', 'vchild8')")
+
+        # 2.2 specify all columns of vtable
+        # 2.2.1 org table is child table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb9`("
+                      "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
+                      "u_smallint_col FROM vtb_org_child_1.u_smallint_col, "
+                      "u_int_col FROM vtb_org_child_2.u_int_col, "
+                      "u_bigint_col FROM vtb_org_child_3.u_bigint_col,"
+                      "tinyint_col FROM vtb_org_child_4.tinyint_col, "
+                      "smallint_col FROM vtb_org_child_5.smallint_col, "
+                      "int_col FROM vtb_org_child_6.int_col, "
+                      "bigint_col FROM vtb_org_child_7.bigint_col,"
+                      "float_col FROM vtb_org_child_8.float_col, "
+                      "double_col FROM vtb_org_child_9.double_col, "
+                      "bool_col FROM vtb_org_child_10.bool_col, "
+                      "binary_16_col FROM vtb_org_child_11.binary_16_col,"
+                      "binary_32_col FROM vtb_org_child_12.binary_32_col, "
+                      "nchar_16_col FROM vtb_org_child_13.nchar_16_col, "
+                      "nchar_32_col FROM vtb_org_child_14.nchar_32_col,"
+                      "varbinary_16_col FROM vtb_org_child_15.varbinary_16_col, "
+                      "varbinary_32_col FROM vtb_org_child_16.varbinary_32_col, "
+                      "geo_16_col FROM vtb_org_child_17.geo_16_col, "
+                      "geo_32_col FROM vtb_org_child_18.geo_32_col) USING vtb_virtual_stb TAGS (9, false, 9, 9, 'vchild9', 'vchild9')")
+
+        # 2.2.2 org table is normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb10`("
+                      "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
+                      "u_smallint_col FROM vtb_org_normal_1.u_smallint_col, "
+                      "u_int_col FROM vtb_org_normal_2.u_int_col, "
+                      "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
+                      "tinyint_col FROM vtb_org_normal_4.tinyint_col, "
+                      "smallint_col FROM vtb_org_normal_5.smallint_col, "
+                      "int_col FROM vtb_org_normal_6.int_col, "
+                      "bigint_col FROM vtb_org_normal_7.bigint_col,"
+                      "float_col FROM vtb_org_normal_8.float_col, "
+                      "double_col FROM vtb_org_normal_9.double_col, "
+                      "bool_col FROM vtb_org_normal_10.bool_col, "
+                      "binary_16_col FROM vtb_org_normal_11.binary_16_col,"
+                      "binary_32_col FROM vtb_org_normal_12.binary_32_col, "
+                      "nchar_16_col FROM vtb_org_normal_13.nchar_16_col, "
+                      "nchar_32_col FROM vtb_org_normal_14.nchar_32_col,"
+                      "varbinary_16_col FROM vtb_org_normal_15.varbinary_16_col, "
+                      "varbinary_32_col FROM vtb_org_normal_16.varbinary_32_col, "
+                      "geo_16_col FROM vtb_org_normal_17.geo_16_col, "
+                      "geo_32_col FROM vtb_org_normal_18.geo_32_col) USING vtb_virtual_stb TAGS (10, false, 10, 10, 'vchild10', 'vchild10')")
+
+        # 2.2.3 org table is child table and normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb11`("
+                      "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
+                      "u_smallint_col FROM vtb_org_normal_1.u_smallint_col, "
+                      "u_int_col FROM vtb_org_child_2.u_int_col, "
+                      "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
+                      "tinyint_col FROM vtb_org_child_4.tinyint_col, "
+                      "smallint_col FROM vtb_org_normal_5.smallint_col, "
+                      "int_col FROM vtb_org_child_6.int_col, "
+                      "bigint_col FROM vtb_org_normal_7.bigint_col,"
+                      "float_col FROM vtb_org_child_8.float_col, "
+                      "double_col FROM vtb_org_normal_9.double_col, "
+                      "bool_col FROM vtb_org_child_10.bool_col, "
+                      "binary_16_col FROM vtb_org_normal_11.binary_16_col,"
+                      "binary_32_col FROM vtb_org_child_12.binary_32_col, "
+                      "nchar_16_col FROM vtb_org_normal_13.nchar_16_col, "
+                      "nchar_32_col FROM vtb_org_child_14.nchar_32_col,"
+                      "varbinary_16_col FROM vtb_org_normal_15.varbinary_16_col, "
+                      "varbinary_32_col FROM vtb_org_child_16.varbinary_32_col, "
+                      "geo_16_col FROM vtb_org_normal_17.geo_16_col, "
+                      "geo_32_col FROM vtb_org_child_18.geo_32_col) USING vtb_virtual_stb TAGS (11, false, 11, 11, 'vchild11', 'vchild11')")
+
+        # 2.3 specify all columns in random order of vtable
+        # 2.3.1 org table is child table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb12`("
+                      "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
+                      "u_bigint_col FROM vtb_org_child_3.u_bigint_col,"
+                      "int_col FROM vtb_org_child_6.int_col,"
+                      "float_col FROM vtb_org_child_8.float_col,"
+                      "bool_col FROM vtb_org_child_10.bool_col,"
+                      "binary_32_col FROM vtb_org_child_12.binary_32_col,"
+                      "tinyint_col FROM vtb_org_child_4.tinyint_col, "
+                      "smallint_col FROM vtb_org_child_5.smallint_col, "
+                      "double_col FROM vtb_org_child_9.double_col, "
+                      "binary_16_col FROM vtb_org_child_11.binary_16_col,"
+                      "nchar_16_col FROM vtb_org_child_13.nchar_16_col, "
+                      "nchar_32_col FROM vtb_org_child_14.nchar_32_col,"
+                      "varbinary_16_col FROM vtb_org_child_15.varbinary_16_col, "
+                      "varbinary_32_col FROM vtb_org_child_16.varbinary_32_col, "
+                      "geo_16_col FROM vtb_org_child_17.geo_16_col, "
+                      "geo_32_col FROM vtb_org_child_18.geo_32_col, "
+                      "u_smallint_col FROM vtb_org_child_1.u_smallint_col, "
+                      "bigint_col FROM vtb_org_child_7.bigint_col) USING vtb_virtual_stb TAGS (12, false, 12, 12, 'vchild12', 'vchild12')")
+
+        # 2.3.2 org table is normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb13`("
+                      "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
+                      "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
+                      "int_col FROM vtb_org_normal_6.int_col,"
+                      "float_col FROM vtb_org_normal_8.float_col,"
+                      "bool_col FROM vtb_org_normal_10.bool_col,"
+                      "binary_32_col FROM vtb_org_normal_12.binary_32_col,"
+                      "tinyint_col FROM vtb_org_normal_4.tinyint_col, "
+                      "smallint_col FROM vtb_org_normal_5.smallint_col, "
+                      "double_col FROM vtb_org_normal_9.double_col, "
+                      "binary_16_col FROM vtb_org_normal_11.binary_16_col,"
+                      "nchar_16_col FROM vtb_org_normal_13.nchar_16_col, "
+                      "nchar_32_col FROM vtb_org_normal_14.nchar_32_col,"
+                      "varbinary_16_col FROM vtb_org_normal_15.varbinary_16_col, "
+                      "varbinary_32_col FROM vtb_org_normal_16.varbinary_32_col, "
+                      "geo_16_col FROM vtb_org_normal_17.geo_16_col, "
+                      "geo_32_col FROM vtb_org_normal_18.geo_32_col, "
+                      "u_smallint_col FROM vtb_org_normal_1.u_smallint_col, "
+                      "bigint_col FROM vtb_org_normal_7.bigint_col) USING vtb_virtual_stb TAGS (13, false, 13, 13, 'vchild13', 'vchild13')")
+
+        # 2.3.3 org table is child table and normal table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb14`("
+                      "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
+                      "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
+                      "int_col FROM vtb_org_child_6.int_col,"
+                      "float_col FROM vtb_org_normal_8.float_col,"
+                      "bool_col FROM vtb_org_child_10.bool_col,"
+                      "binary_32_col FROM vtb_org_normal_12.binary_32_col,"
+                      "tinyint_col FROM vtb_org_child_4.tinyint_col, "
+                      "smallint_col FROM vtb_org_normal_5.smallint_col, "
+                      "double_col FROM vtb_org_child_9.double_col, "
+                      "binary_16_col FROM vtb_org_normal_11.binary_16_col,"
+                      "nchar_16_col FROM vtb_org_child_13.nchar_16_col, "
+                      "nchar_32_col FROM vtb_org_normal_14.nchar_32_col,"
+                      "varbinary_16_col FROM vtb_org_child_15.varbinary_16_col, "
+                      "varbinary_32_col FROM vtb_org_normal_16.varbinary_32_col, "
+                      "geo_16_col FROM vtb_org_child_17.geo_16_col, "
+                      "geo_32_col FROM vtb_org_normal_18.geo_32_col, "
+                      "u_smallint_col FROM vtb_org_normal_1.u_smallint_col, "
+                      "bigint_col FROM vtb_org_child_7.bigint_col) USING vtb_virtual_stb TAGS (14, false, 14, 14, 'vchild14', 'vchild14')")
+
+        # 3. create virtual normal table
+        # 3.1 specify part of columns of vtable
+
+
+def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         self.prepare_org_tables()
+        self.test_create_virtual_super_table()
+        self.test_create_virtual_child_table()
 
         tdLog.success(f"{__file__} successfully executed")
 
