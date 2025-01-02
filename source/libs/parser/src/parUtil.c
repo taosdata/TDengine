@@ -227,6 +227,14 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Some functions cannot appear in the select list at the same time";
     case TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR:
       return "Syntax error in regular expression";
+    case TSDB_CODE_PAR_INVALID_REF_COLUMN:
+      return "Invalid virtual table's ref column";
+    case TSDB_CODE_PAR_INVALID_TABLE_TYPE:
+      return "Invalid table type";
+    case TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE:
+      return "Invalid virtual table's ref column type";
+    case TSDB_CODE_PAR_COLUMN_HAS_REF:
+      return "Column has ref, can not be dropped/modified";
     default:
       return "Unknown error";
   }
