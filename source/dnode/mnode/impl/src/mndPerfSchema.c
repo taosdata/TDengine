@@ -46,6 +46,7 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
   meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
+  meta.virtualStb = false;
 
   size_t               size = 0;
   const SSysTableMeta *pSysDbTableMeta = NULL;
@@ -113,6 +114,7 @@ int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *t
   pRsp->numOfTags = pMeta->numOfTags;
   pRsp->numOfColumns = pMeta->numOfColumns;
   pRsp->tableType = pMeta->tableType;
+  pRsp->virtualStb = pMeta->virtualStb;
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {

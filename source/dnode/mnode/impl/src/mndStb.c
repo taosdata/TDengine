@@ -2151,6 +2151,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   pRsp->tversion = pStb->tagVer;
   pRsp->suid = pStb->uid;
   pRsp->tuid = pStb->uid;
+  pRsp->virtualStb = pStb->virtualStb;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
