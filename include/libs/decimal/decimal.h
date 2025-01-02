@@ -37,6 +37,7 @@ typedef struct Decimal128 {
 #define decimalFromStr decimal128FromStr
 #define makeDecimal    makeDecimal128
 
+// TODO wjm check if we need to expose these functions in decimal.h
 void makeDecimal64(Decimal64* pDec64, DecimalWord w);
 void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low);
 
