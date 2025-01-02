@@ -47,6 +47,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
   meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
+  meta.virtualStb = false;
 
   size_t               size = 0;
   const SSysTableMeta *pInfosTableMeta = NULL;
@@ -128,6 +129,7 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
   pRsp->numOfTags = pMeta->numOfTags;
   pRsp->numOfColumns = pMeta->numOfColumns;
   pRsp->tableType = pMeta->tableType;
+  pRsp->virtualStb = pMeta->virtualStb;
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
