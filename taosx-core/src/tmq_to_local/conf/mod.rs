@@ -160,14 +160,12 @@ impl BackupConfig {
     }
 
     /// 按照 jobs 数量创建 consumer
-    pub async fn create_consumer(&self, mut jobs: usize) -> anyhow::Result<Vec<Consumer>> {
+    pub async fn create_consumer(&self) -> anyhow::Result<Vec<Consumer>> {
         let from = self.to_tmq_dsn();
         tracing::info!("create consumer with dsn: {}", &from);
 
-        // 如果 jobs 为 0，则使用 vgroups 数量创建 consumer
-        if jobs == 0 {
-            jobs = self.get_vgroups().await?;
-        }
+        // 使用 vgroups 数量创建 consumer
+        let jobs = self.get_vgroups().await?;
 
         let mut handlers = Vec::with_capacity(jobs);
         for id in 0..jobs {

@@ -30,6 +30,8 @@ pub struct LocalRestoreConfig {
     pub raw_to: Dsn,
     /// 恢复到指定的数据库，如果为 None，则使用 topic_meta.db_name
     pub database: Option<String>,
+    /// 强制恢复，如果为 true，则删除已存在的数据库或表。默认为 true
+    pub force: bool,
 }
 
 impl LocalRestoreConfig {
@@ -191,6 +193,9 @@ impl LocalRestoreConfigBuilder {
         let error_retry_interval = utils::parse_duration_in_dsn(&self.to, "retry_interval")?
             .unwrap_or(Duration::from_secs(5));
 
+        // force
+        let force = utils::parse_key_in_dsn::<bool>(&self.to, "force")?.unwrap_or(true);
+
         Ok(LocalRestoreConfig {
             backup_obj,
             backup_dir,
@@ -201,6 +206,7 @@ impl LocalRestoreConfigBuilder {
             error_retry_interval,
             raw_to: self.to.clone(),
             database: self.to.subject.clone(),
+            force,
         })
     }
 }
