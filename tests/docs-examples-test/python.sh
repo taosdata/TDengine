@@ -196,3 +196,4 @@ check_transactions || exit 1
 reset_cache || exit 1
 python3 tmq_websocket_example.py
 
+python3 stmt2_native.py

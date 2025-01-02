@@ -746,9 +746,19 @@ _return:
 }
 
 int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF) {
-  QW_ERR_RET(qwDropTask(QW_FPARAMS()));
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SQWTaskCtx *ctx = NULL;
 
-  return TSDB_CODE_SUCCESS;
+  QW_ERR_RET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
+
+  QW_LOCK(QW_WRITE, &ctx->lock);
+  QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
+
+_return:
+
+  QW_UNLOCK(QW_WRITE, &ctx->lock);    
+
+  return code;
 }
 
 int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {

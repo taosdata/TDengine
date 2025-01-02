@@ -1,12 +1,10 @@
 package com.taos.example;
 
-import com.taosdata.jdbc.ws.TSWSPreparedStatement;
-
 import java.sql.*;
 import java.util.Random;
 
 // ANCHOR: para_bind
-public class WSParameterBindingBasicDemo {
+public class WSParameterBindingStdInterfaceDemo {
 
     // modify host to your own
     private static final String host = "127.0.0.1";
@@ -19,31 +17,29 @@ public class WSParameterBindingBasicDemo {
         try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
             init(conn);
 
-            String sql = "INSERT INTO ? USING power.meters TAGS(?,?) VALUES (?,?,?,?)";
+            // If you are certain that the child table exists, you can avoid binding the tag column to improve performance.
+            String sql = "INSERT INTO power.meters (tbname, groupid, location, ts, current, voltage, phase) VALUES (?,?,?,?,?,?,?)";
 
-            try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                long current = System.currentTimeMillis();
 
                 for (int i = 1; i <= numOfSubTable; i++) {
-                    // set table name
-                    pstmt.setTableName("d_bind_" + i);
-
-                    // set tags
-                    pstmt.setTagInt(0, i);
-                    pstmt.setTagString(1, "location_" + i);
-
-                    // set columns
-                    long current = System.currentTimeMillis();
                     for (int j = 0; j < numOfRow; j++) {
-                        pstmt.setTimestamp(1, new Timestamp(current + j));
-                        pstmt.setFloat(2, random.nextFloat() * 30);
-                        pstmt.setInt(3, random.nextInt(300));
-                        pstmt.setFloat(4, random.nextFloat());
+                        pstmt.setString(1, "d_bind_" + i);
+
+                        pstmt.setInt(2, i);
+                        pstmt.setString(3, "location_" + i);
+
+                        pstmt.setTimestamp(4, new Timestamp(current + j));
+                        pstmt.setFloat(5, random.nextFloat() * 30);
+                        pstmt.setInt(6, random.nextInt(300));
+                        pstmt.setFloat(7, random.nextFloat());
                         pstmt.addBatch();
                     }
-                    int[] exeResult = pstmt.executeBatch();
-                    // you can check exeResult here
-                    System.out.println("Successfully inserted " + exeResult.length + " rows to power.meters.");
                 }
+                int[] exeResult = pstmt.executeBatch();
+                // you can check exeResult here
+                System.out.println("Successfully inserted " + exeResult.length + " rows to power.meters.");
             }
         } catch (Exception ex) {
             // please refer to the JDBC specifications for detailed exceptions info
