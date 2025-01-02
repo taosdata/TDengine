@@ -429,7 +429,11 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                 Ok(_) => DataSourceValidation::valid("mqtt", None),
                 Err(e) => DataSourceValidation::invalid(
                     "mqtt",
-                    format!("failed to connect to dsn: {}, cause: {:#}", dsn, e),
+                    format!(
+                        "failed to connect to dsn: {}, {:#}",
+                        dsn,
+                        anyhow::Error::new(e)
+                    ),
                 ),
             }
         }
