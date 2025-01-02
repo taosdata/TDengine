@@ -341,24 +341,25 @@ cd /root/TDinternal/community/packaging/smokeTest
 cd /root/ && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp && ./testTsbs.sh  
 ```
 2. if you want to test on client and server in diffrent machine. you need to setup env follow step:
-2.1. Modify IP and host of client and server in `test.ini`
-```ini
-clientIP="192.168.0.203"   # client ip
-clientHost="trd03"         # client hostname
-serverIP="192.168.0.204"   # server ip
-serverHost="trd04"         # server hostname
-```
-2.2. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
-```ini
-serverPass="taosdata123"   # server root password
-```
-2.3. Run the following command to start the test:
- ```bash
-./testTsbs.sh  
-```
+
+    2.1. Modify IP and host of client and server in `test.ini`
+    ```ini
+    clientIP="192.168.0.203"   # client ip
+    clientHost="trd03"         # client hostname
+    serverIP="192.168.0.204"   # server ip
+    serverHost="trd04"         # server hostname
+    ```
+    2.2. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+    ```ini
+    serverPass="taosdata123"   # server root password
+    ```
+    2.3. Run the following command to start the test:
+     ```bash
+    ./testTsbs.sh  
+    ```
 3. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
 
-## 8.6 Crash_gen Test
+## 8.6 Run Crash_gen Test
 
 ```bash
 cd /root/TDinternal/community/tests/pytest/ && ./crash_gen.sh
@@ -422,17 +423,17 @@ We can also run ci script locally.
 
 ```bash
 cd /root/TDinternal/community/tests
-./run_all_ci_cases.sh
+chmod +x run_all_ci_cases.sh && ./run_all_ci_cases.sh   # use -d $TDENGINE_DIR option if not use default /root/TDinternal/community
 ```
 
 # 11 Coverage
 
 We can see coverage result in https://coveralls.io/github/taosdata/TDengine
-We can also run coverage script locally.
+We can also run coverage script locally with following commands. Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a considerable amount of time.
 
 ```bash
 cd /root/TDinternal/community/tests
-./run_local_coverage.sh
+bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -d [TDengine dir] -b [Test branch] -i [Build test branch] -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case] -l [Lcov dir]     # for more infomation about options please refer to ./run_local_coverage.sh -h
 ```
 
 # 12 Contributing
