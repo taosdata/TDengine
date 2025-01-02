@@ -17,6 +17,7 @@ verType=$7
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/rpmworkroom"
+taosx_dir="$(readlink -f ${script_dir}/../../../../taosx)"
 spec_file="${script_dir}/tdengine.spec"
 
 #echo "curr_dir: ${curr_dir}"
@@ -76,7 +77,7 @@ cd ${pkg_dir}
 
 ${csudo}mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
-${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" -bb ${spec_file}
+${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" --define="_taosxdir ${taosx_dir}"   -bb ${spec_file}
 
 # copy rpm package to output_dir, and modify package name, then clean temp dir
 #${csudo}cp -rf RPMS/* ${output_dir}
