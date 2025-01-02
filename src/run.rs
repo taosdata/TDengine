@@ -5,13 +5,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use taos::*;
 use taosx_core::core_metrics::init_task_metrics;
+use taosx_core::task_set::prelude::EventLevel;
 use taosx_core::utils::license::validate_enterprise_license;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 use twelf::config;
 
 use taosx_core::utils::{self};
-use taosx_core::Action;
+use taosx_core::{Action, TaskNotify};
 
 use crate::serve::task::check_parser_string_timestamp_precision;
 
@@ -83,22 +84,22 @@ pub(super) struct Cli {
 struct ConfigArgs {
     /// When `endless` flag set, we'll re-write tmq timeout as `never` to wait messages
     /// without an ending, but it will still abort when there's error in the process.
-    #[clap(short, long)]
+    #[clap(short, long, hide = true)]
     endless: bool,
 
     /// Override default TDengine connection protocol to websocket, both `from` and `to` will be affected.
     ///
     /// So that you don't need to append `+ws` in DSN.
-    #[clap(short, long)]
+    #[clap(short, long, hide = true)]
     websocket: bool,
 }
 
 impl Cli {
-    #[tracing::instrument(skip(self, opt_args, config_args), name = "cli")]
+    #[tracing::instrument(skip_all, name = "cli")]
     pub(super) async fn run_with(
         self,
-        opt_args: super::OptArgs,
-        config_args: super::Global,
+        _opt_args: super::OptArgs,
+        _config_args: super::Global,
     ) -> Result<()> {
         // let _ = span.entered();
         tracing::info!("start cli");
@@ -123,21 +124,23 @@ impl Cli {
         // let span = tracing::info_span!("cli");
         let cancel = CancellationToken::new();
 
-        let (notify, receiver) = flume::unbounded();
+        let (notify, receiver) = flume::unbounded::<TaskNotify>();
 
         tokio::spawn(async move {
             while let Ok(notify) = receiver.recv_async().await {
-                match notify {
-                    taosx_core::TaskNotify::Info(info) => {
-                        tracing::info!("{}", info);
+                match notify.level {
+                    EventLevel::Info => {
+                        tracing::info!("{}", notify.message);
                     }
-                    taosx_core::TaskNotify::Error(error) => {
-                        tracing::error!("{}", error);
+                    EventLevel::Error => {
+                        tracing::error!("{}", notify.message);
                     }
-                    taosx_core::TaskNotify::Warn(warn) => {
-                        tracing::warn!("{}", warn);
+                    EventLevel::Warn => {
+                        tracing::warn!("{}", notify.message);
                     }
-                    _ => {}
+                    EventLevel::Fatal => {
+                        tracing::error!("{}", notify.message);
+                    }
                 }
             }
         });
@@ -152,13 +155,10 @@ impl Cli {
             transform: args.transform,
             to: args.to,
             parser,
-            jobs: config_args.jobs,
-            compression_level: None,
-            force: opt_args.yes_i_really_mean_it,
+            health: None,
             cancel: cancel.clone(),
             with_agent: None,
             breakpoints: None,
-            transferred: Default::default(),
             task_id: args.task_id.map(|v| v.to_string()),
             notify,
         };

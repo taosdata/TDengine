@@ -4,7 +4,7 @@ use crate::job::job_data::{JobState, JobType};
 #[cfg(feature = "has_bytes")]
 use crate::job::job_data_prost::{JobState, JobType};
 use crate::JobSchedulerError;
-use chrono::{FixedOffset, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -152,8 +152,78 @@ impl Scheduler {
 
                 for uuid in must_runs {
                     {
-                        if let Ok(Some(data)) = metadata_storage.write().await.get(uuid).await {
-                            if !data.ran {
+                        let job = { metadata_storage.write().await.get(uuid).await };
+                        if let Ok(Some(data)) = job {
+                            tracing::debug!(job.id = %uuid,
+                                job.ran = data.ran,
+                                job.last.update = data.last_updated.map(|s|format!("{:?}", DateTime::from_timestamp(s as _, 0))),
+                                job.last_tick = data.last_tick.map(|s|format!("{:?}", DateTime::from_timestamp(s as _, 0))),
+                                job.next_tick = format!("{:?}", DateTime::from_timestamp(data.next_tick as _, 0)),
+                                "Job sending");
+                            let job_type = JobType::from_i32(data.job_type).unwrap();
+                            if matches!(job_type, JobType::Repeated) && data.ran {
+                                let repeated_every = data.repeated_every();
+                                let last_tick = data.last_tick_utc();
+                                let next_tick = data.next_tick_utc();
+                                if let (Some(repeated_every), Some(last_tick), Some(next_tick)) =
+                                    (repeated_every, last_tick, next_tick)
+                                {
+                                    if next_tick - last_tick
+                                        > chrono::Duration::seconds(repeated_every as i64) * 10
+                                    {
+                                        tracing::debug!(job.id = %uuid, "Job is too late to run, sending a tick for fake running");
+                                        {
+                                            let tx = notify_tx.clone();
+                                            tokio::spawn(async move {
+                                                if let Err(e) = tx.send((uuid, JobState::Scheduled))
+                                                {
+                                                    error!(
+                                                    "Error sending notification activation {:?}",
+                                                    e
+                                                );
+                                                }
+                                            });
+                                        }
+                                        {
+                                            let tx = job_activation_tx.clone();
+                                            tokio::spawn(async move {
+                                                if let Err(e) = tx.send(uuid) {
+                                                    error!(
+                                                        "Error sending job activation tx {:?}",
+                                                        e
+                                                    );
+                                                }
+                                            });
+                                        }
+                                    } else {
+                                        tracing::debug!(job.id = %uuid, "Skip concurrent job");
+                                    }
+                                } else {
+                                    tracing::error!(job.id = %uuid, "Repeated job should never reach this");
+                                    // If the job is a repeated job and it has already ran, we don't want to run it again
+                                    {
+                                        let tx = notify_tx.clone();
+                                        tokio::spawn(async move {
+                                            if let Err(e) = tx.send((uuid, JobState::Scheduled)) {
+                                                error!(
+                                                    "Error sending notification activation {:?}",
+                                                    e
+                                                );
+                                            }
+                                        });
+                                    }
+                                    {
+                                        let tx = job_activation_tx.clone();
+                                        tokio::spawn(async move {
+                                            if let Err(e) = tx.send(uuid) {
+                                                error!("Error sending job activation tx {:?}", e);
+                                            }
+                                        });
+                                    }
+                                }
+                            } else {
+                                // If the job is a repeated job and it has already ran, we don't want to run it again
+                                tracing::debug!(job.id = %uuid, "Activate job");
                                 {
                                     let tx = notify_tx.clone();
                                     tokio::spawn(async move {

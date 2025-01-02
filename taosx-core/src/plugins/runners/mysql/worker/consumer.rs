@@ -191,18 +191,97 @@ impl Consumer {
 
 #[cfg(test)]
 mod tests {
-    use crate::runners::mysql::worker::producer::Producer;
+    use crate::runners::mysql::{config::connect::ConnectConfig, worker::producer::Producer};
 
     use super::*;
+    use sqlx::Executor;
     use std::str::FromStr;
     use taos::Dsn;
     use tests::appender::to_schema;
 
+    async fn test_create_database() {
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.45:3306/information_schema").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database if not exists test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table(table_name: &str) {
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_drop_table = format!("drop table if exists {table_name}");
+                let _ = query.pool.execute(sql_drop_table.as_str()).await;
+                let sql_create_table = format!("create table if not exists {table_name} (id int primary key auto_increment, name varchar(255), value double, ts timestamp)");
+                let _ = query.pool.execute(sql_create_table.as_str()).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(table_name: &str, len: usize) {
+        let _ = test_create_table(table_name).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_insert_data = format!(
+                    "insert into {table_name} (name, value, ts) values ('中文', 0.8, now())"
+                );
+                for _ in 0..len {
+                    let _ = query.pool.execute(sql_insert_data.as_str()).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data(table_name: &str) {
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = format!("delete from {table_name} where 1 = 1");
+                let _ = query.pool.execute(sql.as_str()).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ignore]
     async fn test_consumer() {
+        // prepare data
+        let _ = test_create_table("test_consumer").await;
+        let _ = test_insert_data("test_consumer", 7).await;
+
         // config
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from test_consumer&start=2024-01-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let mut config = MySqlConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);
@@ -214,7 +293,7 @@ mod tests {
             .await
             .unwrap();
         let row = query
-            .select_one_for_schema("select * from t_metric")
+            .select_one_for_schema("select * from test_consumer")
             .await
             .unwrap();
         let schema = match row {
@@ -254,5 +333,8 @@ mod tests {
         //         panic!("test_consumer error: {e}")
         //     }
         // }
+
+        // clear data
+        let _ = test_clear_data("test_consumer").await;
     }
 }

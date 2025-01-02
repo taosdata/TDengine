@@ -1,39 +1,33 @@
+use anyhow::{Context, Result};
+use itertools::Itertools;
 use std::{
     collections::HashMap,
     fmt::Debug,
     sync::{Arc, Weak},
     time::Duration,
 };
-
-use itertools::Itertools;
+use taos::{Dsn, IntoDsn};
 use taoslog::{
     utils::{QidMetadataSetter, Span},
     QidManager,
 };
-use taosx_core::{
-    sink::lush::TableTagCache,
-    utils::{breakpoints::BreakpointDb, trace::Qid},
-    DataSet,
-};
-use thiserror::Error;
-use tokio::sync::{Mutex, Notify, RwLock};
-use tokio_cron_scheduler::{Job, JobScheduler};
-
-use anyhow::{Context, Result};
-use taos::{Dsn, IntoDsn};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use tracing::{info, instrument, Instrument};
-
-use crate::serve::scheduler::runner::{TaskJob, TaskState};
+use taosx_core::sink::lush::TableTagCache;
+use taosx_core::utils::{breakpoints::BreakpointDb, trace::Qid};
+use taosx_core::DataSet;
+use thiserror::Error;
+use tokio::sync::{Mutex, Notify, RwLock};
+use tokio_cron_scheduler::{Job, JobBuilder, JobScheduler};
+use tracing::{instrument, Instrument};
 
 use self::runner::{AgentIntegrationChannel, GlobalState, MultiIndexTaskJobMap};
-
-use super::controller::{agent::Activity, Task, TaskActivity};
+use super::controller::{Activity, Task};
+use crate::serve::scheduler::runner::{TaskJob, TaskState};
 
 #[derive(Debug, Clone)]
 pub enum SchedulerNotify {
-    TaskActivity(TaskActivity),
+    TaskActivity(Activity),
     AgentActivity(Activity),
 }
 pub type NotifyChannel = tokio::sync::broadcast::Receiver<SchedulerNotify>;
@@ -41,12 +35,12 @@ pub type NotifySender = Weak<tokio::sync::broadcast::Sender<SchedulerNotify>>;
 pub type SchedulerNotifier = Arc<tokio::sync::broadcast::Sender<SchedulerNotify>>;
 
 pub trait NotifySenderExt {
-    fn push_task_activity(&self, activity: TaskActivity);
+    fn push_task_activity(&self, activity: Activity);
     fn push_agent_activity(&self, activity: Activity);
 }
 
 impl NotifySenderExt for NotifySender {
-    fn push_task_activity(&self, activity: TaskActivity) {
+    fn push_task_activity(&self, activity: Activity) {
         if let Some(sender) = self.upgrade() {
             let _ = sender.send(SchedulerNotify::TaskActivity(activity));
         }
@@ -304,14 +298,14 @@ impl TaskScheduler {
         let dropped_notifier_cloned = dropped_notifier.clone();
         tokio::spawn(async move {
             drop_notifier_cloned.notified().await;
-            info!("scheduler is dropping, suspend all running jobs");
+            tracing::info!("scheduler is dropping, suspend all running jobs");
             // tasks.write().await.clear();
             {
                 let tasks = tasks_cloned.write().await;
                 for (_, task) in tasks.iter() {
                     task.suspend().await;
                 }
-                info!(tasks.shutdown = tasks.len(), "all tasks are canceled");
+                tracing::info!(tasks.shutdown = tasks.len(), "all tasks are canceled");
             }
             if let Err(err) = global_state_in_drop_handler.go_die().await {
                 tracing::error!(
@@ -403,7 +397,7 @@ impl TaskScheduler {
     /// Wait until a task is stopped completely.
     #[instrument(skip_all, fields(task.id = task, elapsed = tracing::field::Empty))]
     pub async fn wait_task(&self, task: i64) {
-        info!("Waiting for task {} to finish", task);
+        tracing::info!("Waiting for task {} to finish", task);
         let instant = std::time::Instant::now();
         loop {
             let tasks = self.tasks.read().await;
@@ -434,8 +428,17 @@ impl TaskScheduler {
         self.tasks.read().await.get_by_task_id(&id).is_some()
     }
 
+    pub async fn is_cancelled(&self, id: i64) -> bool {
+        if let Some(task) = self.tasks.read().await.get_by_task_id(&id) {
+            task.task.cancellation.is_cancelled()
+        } else {
+            true
+        }
+    }
+
     #[instrument(skip_all, fields(task.id = task.id))]
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
+        tracing::info!("Push task to scheduler: {:?}", task);
         self.global_state.ensure_alive()?;
         let task_id = task.id;
         // 防止任务意外结束，没有没有正常释放断点数据库
@@ -460,28 +463,55 @@ impl TaskScheduler {
             Cron(schedule) => {
                 let task = task.clone();
                 let global = self.global_state.clone();
+                tracing::debug!("add cron job in scheduler, cron: {}", schedule);
                 Job::new_cron_job_async(schedule.as_str(), move |jid, _| {
+                    tracing::debug!(job.id = %jid, task.id = task.task.id, schedule = ?task.schedule(), "Cron job is scheduled");
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?
             }
             Oneshot => {
                 let task = task.clone();
                 let global = self.global_state.clone();
+                tracing::debug!("add oneshot job in scheduler");
                 Job::new_one_shot_async(Duration::from_secs(0), move |jid, _| {
+                    tracing::info!(job.id = %jid, task.id = task.task.id, schedule = ?task.schedule(), "Oneshot job is scheduled");
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?
             }
             Repeated(interval) => {
                 let task = task.clone();
-
                 let global = self.global_state.clone();
+                tracing::debug!("add repeated job in scheduler, interval: {:?}", interval);
                 Job::new_repeated_async(*interval, move |jid, _| {
+                    tracing::info!(job.id = %jid, task.id = task.task.id, schedule = ?task.schedule(), "Repeated job is scheduled");
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?
+            }
+            RepeatedWithStartAt(interval, start_at) => {
+                let task = task.clone();
+                let global = self.global_state.clone();
+                tracing::debug!(
+                    "add repeated job in scheduler, interval: {:?}, start_at: {:?}",
+                    interval,
+                    start_at
+                );
+                JobBuilder::new()
+                    .with_timezone(chrono::Utc)
+                    .with_repeated_job_type()
+                    .every_seconds(interval.as_secs())
+                    .start_at(*start_at)
+                    .with_run_async(Box::new(move |jid, _| {
+                        Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
+                    }))
+                    .build()?
             }
             RepeatedLimit(interval, _) => {
                 let task = task.clone();
                 let global = self.global_state.clone();
+                tracing::debug!(
+                    "add repeated limit job in scheduler, interval: {:?}",
+                    interval
+                );
                 Job::new_repeated_async(*interval, move |jid, _| {
                     Box::pin(runner::task_job_run(jid, task.clone(), global.clone()))
                 })?
@@ -497,7 +527,7 @@ impl TaskScheduler {
         })?;
 
         self.global_state
-            .send_task_activity(TaskActivity::queued(task_id, job_id));
+            .send_task_activity(Activity::queued(task_id, job_id));
 
         let task_job_ref = TaskJob::new(job_id, task, self.global_state.as_ref().clone());
         self.tasks.write().await.insert(task_job_ref);
@@ -895,21 +925,21 @@ mod tests {
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
-                    TaskActivity::running(id, "info activity".to_string()),
+                    Activity::running(id, "info activity".to_string()),
                 ))
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
-                    TaskActivity::error(id, "error activity".to_string()),
+                    Activity::error(id, "error activity".to_string()),
                 ))
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
-                    TaskActivity::completed(id, Uuid::new_v4()),
+                    Activity::completed(id, Uuid::new_v4()),
                 ))
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(11)).await;

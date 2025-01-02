@@ -1,6 +1,6 @@
 # .github/workflows/trigger-workflow.yml
 
-name: Schedule-Workflow-Coverage
+name: Schedule-Workflow-Testing-Coverage
 
 on:
   schedule:
@@ -12,6 +12,6 @@ jobs:
       - name: run job action
         uses: benc-uk/workflow-dispatch@v1.1
         with:
-          workflow: 3.0 QA-workflow     # 触发另一个工作流 Workflow on Specific Branch
+          workflow: Testing coverage on branch 3.0     # 触发另一个工作流 Workflow on Specific Branch
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: refs/heads/3.0                      # 指定该工作流执行的分支为3.0分支

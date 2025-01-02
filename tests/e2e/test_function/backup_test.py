@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from time import sleep
 
 import pytest
@@ -28,6 +29,10 @@ def test_sanity_backup(case_setup):
     backup_test_logger.info("start backup test...")
     env_data = case_setup
     case_data = Util.get_case_data_from_yaml("backup/test_backup.yaml", task_type)
+
+    # 创建备份目录
+    target_dir = case_data["to"]["target_dbname"]
+    os.system(f"mkdir -p {target_dir}")
 
     task = Task(env_data, case_data)
     payload = Util.get_task_payload(case_data, env_data, env_type=EnvType.LOCAL)

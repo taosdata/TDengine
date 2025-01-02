@@ -131,5 +131,24 @@ export default () => [
       { title: i18n.t('docs.tools.yonghongbi.step4'), dom: 'yonghongbi-createds' },
       { title: i18n.t('docs.tools.yonghongbi.step5'), dom: 'yonghongbi-report' }
     ]
+  },
+  {
+    name: 'Superset',
+    title: i18n.t('docs.tools.superset.name'),
+    icon: 'superset-logo',
+    desc: i18n.t('docs.tools.superset.desc'),
+    docs: {
+      zh: mdx.supersetDoc,
+      en: mdx.supersetDoc
+    },
+    version: '>=3.3.5.0',
+    isAli: true,
+    steps: [
+      { title: i18n.t('docs.tools.superset.step1'), dom: 'superset-repare' },
+      { title: i18n.t('docs.tools.superset.step2'), dom: 'superset-install' },
+      { title: i18n.t('docs.tools.superset.step3'), dom: 'superset-config' },
+      { title: i18n.t('docs.tools.superset.step4'), dom: 'superset-createds' },
+      { title: i18n.t('docs.tools.superset.step5'), dom: 'superset-report' }
+    ]
   }
 ];

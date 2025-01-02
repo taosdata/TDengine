@@ -1,3 +1,4 @@
+use crate::get_data_dir;
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
@@ -272,8 +273,19 @@ impl CsvParser {
     }
 
     async fn load_csv_with_path(file_path: &str) -> anyhow::Result<AsyncReader<File>> {
+        let file_path = Path::new(file_path);
+        let file_path = if file_path.exists() {
+            file_path.to_path_buf()
+        } else {
+            let path = get_data_dir().join(file_path);
+            if path.exists() && path.is_file() {
+                path
+            } else {
+                bail!("csv file not found: {}", file_path.display());
+            }
+        };
         // check the file encoding
-        let encoding = get_encode(file_path)?;
+        let encoding = get_encode(&file_path)?;
         if encoding.name() != "UTF-8" {
             bail!(
                 "invalid CSV file encoding: {}, only UTF-8 or UTF-8 BOM supported",
@@ -281,7 +293,7 @@ impl CsvParser {
             );
         }
 
-        Ok(AsyncReader::from_reader(File::open(file_path).await?))
+        Ok(AsyncReader::from_reader(File::open(&file_path).await?))
     }
 
     /// 将 string 解码，写入临时文件后打开

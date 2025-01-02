@@ -4,6 +4,7 @@ use std::{
     fmt::{Debug, Display},
     io::Write,
     num::NonZeroUsize,
+    ops::DerefMut,
     path::Path,
     str::FromStr,
     sync::{atomic::Ordering, Arc},
@@ -22,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument, warn, Instrument};
 
 use crate::{
-    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
+    core_metrics::{get_metrics, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
     utils::{self, breakpoints::BreakpointDb, constants::VERSION_3_3_0, sql::get_v2_precision},
     Action,
@@ -872,6 +873,12 @@ pub async fn sync_super_table_schema(
     target_opts: &TargetOpts,
     actions: &[Action],
 ) -> anyhow::Result<()> {
+    if target_opts.minimal {
+        sync_super_table_schema_only_fallback(from, name, to, remap, actions, target_opts.minimal)
+            .in_current_span()
+            .await?;
+        return Ok(());
+    }
     debug_assert!(!name.is_empty());
     let (_, sql): ((), String) = from
         .query_one(format!("show create table `{name}`"))
@@ -884,7 +891,11 @@ pub async fn sync_super_table_schema(
         .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
         .replace("create table", "CREATE TABLE IF NOT EXISTS")
         .replace("create stable", "CREATE STABLE IF NOT EXISTS")
-        .replace("IF NOT EXISTS IF NOT EXISTS ", "IF NOT EXISTS ");
+        .replace("IF NOT EXISTS IF NOT EXISTS ", "IF NOT EXISTS ")
+        .replace(
+            " ENCODE 'disabled' COMPRESS 'disabled' LEVEL 'disabled'",
+            "",
+        );
 
     let target_name: Cow<str> = if actions.is_empty() {
         name.into()
@@ -928,7 +939,15 @@ pub async fn sync_super_table_schema(
                 0x2600 | 0x2601 => {
                     // 0x2600: Syntax error
                     // 0x2601: Incomplete SQL statement
-                    sync_super_table_schema_only_fallback(from, name, to, remap, actions).await?;
+                    sync_super_table_schema_only_fallback(
+                        from,
+                        name,
+                        to,
+                        remap,
+                        actions,
+                        target_opts.minimal,
+                    )
+                    .await?;
                     break;
                 }
                 _ => {
@@ -1036,9 +1055,17 @@ pub async fn sync_super_table_schema_only_fallback(
     to: &Taos,
     remap: Option<&Arc<HashMap<String, String>>>,
     actions: &[Action],
+    minimal: bool,
 ) -> anyhow::Result<()> {
     debug_assert!(!name.is_empty());
-    let desc = from.describe(name).await?;
+    let mut desc = from.describe(name).await?;
+    if minimal {
+        desc.deref_mut().iter_mut().for_each(|c| {
+            let m = c.deref_mut();
+            m.compression = None;
+            m.note = None;
+        });
+    }
     let sql = desc.to_create_table_sql(name);
     let target_name: Cow<str> = if actions.is_empty() {
         name.into()
@@ -1659,7 +1686,7 @@ async fn sync_specified_tables_with_workers(
     todo: &Arc<LegacyTodo>,
     target_opts: TargetOpts,
     workers: usize,
-    task_id: &Option<String>,
+    task_id: Option<i64>,
 ) -> anyhow::Result<()> {
     tracing::info!(
         tables = todo.tables_todo(),
@@ -1672,12 +1699,9 @@ async fn sync_specified_tables_with_workers(
         Option<(Arc<String>, TimeRange)>,
         oneshot::Receiver<anyhow::Result<()>>,
     )>();
-    let task_id = task_id.clone().map(Arc::new);
-    let task_id_cloned = task_id.clone();
     let breakpoints = scheduler.breakpoints();
     let handle = tokio::spawn(async move {
         let mut fails = 0;
-        let task_id = task_id_cloned;
         while let Ok((sparse, reader)) = rx.recv_async().await {
             count += 1;
             match reader.await? {
@@ -1689,7 +1713,7 @@ async fn sync_specified_tables_with_workers(
                                 let breakpoint = end.to_string();
                                 if let Err(err) = breakpoints.set(&table, &breakpoint).await {
                                     tracing::warn!(
-                                        task.id = task_id.as_deref(),
+                                        task.id = task_id.as_ref(),
                                         "Set breakpoint error: {err:#}"
                                     );
                                 }
@@ -1698,7 +1722,7 @@ async fn sync_specified_tables_with_workers(
                     }
                 }
                 Err(err) => {
-                    tracing::error!(task.id = task_id.as_deref(), "Syncing error: {err:#}",);
+                    tracing::error!(task.id = task_id.as_ref(), "Syncing error: {err:#}",);
                     fails += 1;
                     if target_opts.fails_to.is_none() {
                         return Err(err);
@@ -1854,6 +1878,8 @@ pub struct SourceOpts {
     mode: SyncMode,
     table: TableOpts,
     forever: bool,
+    /// Sync metadata with less information to migrate from newer version to older version.
+    minimal: bool,
     tables: Option<Vec<String>>,
     /// Specified stables to sync.
     stables: Option<Vec<String>>,
@@ -2027,6 +2053,9 @@ impl SourceOpts {
             opts.fails_to.replace(value);
         }
 
+        if let Some(value) = dsn.remove("minimal") {
+            opts.minimal = matches!(value.as_str(), "" | "true" | "1" | "yes");
+        }
         Ok(opts)
     }
 }
@@ -2081,6 +2110,7 @@ pub struct TargetOpts {
     ///
     /// A map of table name to another map of field name to another.
     remap: Option<HashMap<String, Arc<HashMap<String, String>>>>,
+    minimal: bool,
 }
 
 impl Default for TargetOpts {
@@ -2101,6 +2131,7 @@ impl Default for TargetOpts {
             remap: None,
             retry_sleep: Duration::from_secs(2),
             retry_limit: 600,
+            minimal: false,
         }
     }
 }
@@ -2108,9 +2139,11 @@ impl Default for TargetOpts {
 impl Drop for TargetOpts {
     fn drop(&mut self) {
         if let Some(file) = self.fails_to.take() {
-            tokio::task::spawn(async move {
-                let _ = file.lock().await.flush();
-            });
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    let _ = file.lock().await.flush();
+                });
+            }
         }
     }
 }
@@ -2118,11 +2151,7 @@ impl Drop for TargetOpts {
 impl TargetOpts {
     /// 从 from DSN 和 to DSN 获取最终的 TargeOpts。
     /// 在 taosX 1.6.0 之前，TargetOpts 对应 to DSN， 但是 taosX 1.6.0 版本将某些与目标端相关的高级选项加入到了 from DSN 中，因此 TargetOpts 也需要参考 from DSN。
-    pub fn from_params(
-        source_opts: &SourceOpts,
-        to_dsn: &mut Dsn,
-        workers: usize,
-    ) -> anyhow::Result<Self> {
+    pub fn from_params(source_opts: &SourceOpts, to_dsn: &mut Dsn) -> anyhow::Result<Self> {
         let mut opts = Self::default();
         if let Some(value) = to_dsn.remove("schema") {
             opts.schema = value.parse().with_context(|| {
@@ -2159,6 +2188,8 @@ impl TargetOpts {
                 .parse()
                 .with_context(|| format!("invalid concurrent-limit value: {value}"))?;
         }
+
+        let workers = source_opts.workers;
         if let Some(write_concurrency) = source_opts.write_concurrency {
             // write-concurrency 是最大整体写并发，这里需要把它换算成 concurrent-limit
             let concurrent_limit = if write_concurrency != 0 && write_concurrency % workers == 0 {
@@ -2283,6 +2314,12 @@ impl TargetOpts {
                     .collect(),
             );
         }
+
+        opts.minimal = source_opts.minimal
+            || to_dsn.remove("minimal").map_or_else(
+                || false,
+                |v| matches!(v.as_str(), "" | "true" | "1" | "yes"),
+            );
         Ok(opts)
     }
 }
@@ -2895,25 +2932,11 @@ async fn realtime(
 
 #[instrument(skip_all)]
 pub async fn legacy_to_taos(
-    from: Dsn,
-    actions: Vec<Action>,
-    to: Dsn,
-    concurrency: usize,
-    cancel: CancellationToken,
-    task_id: Option<String>,
-) -> anyhow::Result<()> {
-    legacy_to_taos_impl(from, actions, to, concurrency, cancel, task_id)
-        .in_current_span()
-        .await
-}
-
-async fn legacy_to_taos_impl(
     mut from: Dsn,
     actions: Vec<Action>,
     mut to: Dsn,
-    concurrency: usize,
     cancel: CancellationToken,
-    task_id: Option<String>,
+    task_id: Option<i64>,
 ) -> anyhow::Result<()> {
     tracing::info!("synchronization started in legacy mode");
     let cancel = cancel.child_token();
@@ -2922,15 +2945,21 @@ async fn legacy_to_taos_impl(
     let _ = tracing::info_span!("check parameters").entered();
     // let span = span.entered();
 
-    let concurrent = if concurrency > 0 {
-        concurrency
-    } else {
-        std::thread::available_parallelism()
-            .map(|v| v.get())
-            .unwrap_or(20)
-    };
+    let concurrent = std::thread::available_parallelism()
+        .map(|v| v.get())
+        .unwrap_or(20);
 
-    let metrics_arc = get_metrics_arc(task_id.clone()).await;
+    let metrics_arc = {
+        let task_id = task_id.unwrap_or(-1);
+        if let Some(arc) = get_metrics(task_id).await {
+            arc
+        } else {
+            let _ = crate::core_metrics::init_task_metrics(&from, &to, task_id, None).await;
+            get_metrics(task_id)
+                .await
+                .ok_or_else(|| anyhow::format_err!("Cannot get metrics"))?
+        }
+    };
     let metrics = metrics_arc.as_ref().legacy();
 
     let from_database = from
@@ -2950,7 +2979,7 @@ async fn legacy_to_taos_impl(
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
 
-    let target_opts = TargetOpts::from_params(&source_opts, &mut to, source_opts.workers)?;
+    let target_opts = TargetOpts::from_params(&source_opts, &mut to)?;
     tracing::debug!("target options: {:?}", target_opts); // debug
     verify::verify_dsn(&to)
         .map_err(|err| anyhow::format_err!("Cannot parse target DSN params: {err}"))?;
@@ -2961,6 +2990,22 @@ async fn legacy_to_taos_impl(
         .context("Source connection pool error")?;
     tracing::debug!("Getting connection from source connection pool...");
     let source_taos = from_pool.get().await.context("Source connection error")?;
+
+    const SQL_PRECISION: &str =
+        "select `precision` from information_schema.ins_databases where name = database()";
+    let v1: String = source_taos.server_version().await?.to_string();
+    let source_is_v3 = !v1.starts_with("2");
+    let precision_of_from: Precision = if source_is_v3 {
+        source_taos
+            .query_one(SQL_PRECISION)
+            .await
+            .context("Get precision from source error")?
+            .ok_or_else(|| anyhow::format_err!("Cannot get precision from source"))?
+    } else {
+        get_v2_precision(&source_taos)
+            .await
+            .with_context(|| anyhow::anyhow!("Source (2.x) precision could no be detected"))?
+    };
 
     // let source_taos = from_pool.get().await.context("Target connection error")?;
     if target_opts.assert {
@@ -3011,12 +3056,21 @@ async fn legacy_to_taos_impl(
                         option_str,
                         ultimate_database_option
                     );
-                    target
-                        .exec(format!(
-                            "create database if not exists `{db}` {}",
-                            ultimate_database_option
-                        ))
-                        .await?;
+                    if source_opts.minimal {
+                        target
+                            .exec(format!(
+                                "create database if not exists `{db}` precision '{}'",
+                                precision_of_from
+                            ))
+                            .await?;
+                    } else {
+                        target
+                            .exec(format!(
+                                "create database if not exists `{db}` {}",
+                                ultimate_database_option
+                            ))
+                            .await?;
+                    }
                 }
             };
             to.subject = Some(db);
@@ -3032,8 +3086,6 @@ async fn legacy_to_taos_impl(
     tracing::debug!("Getting connection from target connection pool...");
     let target_taos = to_pool.get().await?;
 
-    let v1: String = source_taos.server_version().await?.to_string();
-    let source_is_v3 = !v1.starts_with("2");
     let v2: String = target_taos.server_version().await?.to_string();
     let target_is_v3 = !v2.starts_with('2');
 
@@ -3041,25 +3093,13 @@ async fn legacy_to_taos_impl(
         let (source_version, target_version) = (&v1, &v2);
         let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
         let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
-        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+        if !source_opts.minimal && source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0
+        {
             bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }
     }
 
     tracing::debug!("Checking precisions...");
-    const SQL_PRECISION: &str =
-        "select `precision` from information_schema.ins_databases where name = database()";
-    let precision_of_from: Precision = if source_is_v3 {
-        source_taos
-            .query_one(SQL_PRECISION)
-            .await
-            .context("Get precision from source error")?
-            .ok_or_else(|| anyhow::format_err!("Cannot get precision from source"))?
-    } else {
-        get_v2_precision(&source_taos)
-            .await
-            .with_context(|| anyhow::anyhow!("Source (2.x) precision could no be detected"))?
-    };
     let precision_of_to: Precision = if target_is_v3 {
         target_taos
             .query_one(SQL_PRECISION)
@@ -3119,9 +3159,9 @@ async fn legacy_to_taos_impl(
         source_opts.workers
     );
 
-    let breakpoints = if let Some(id) = task_id.as_deref() {
+    let breakpoints = if let Some(id) = task_id {
         Some(
-            BreakpointDb::new_with_task(id)
+            BreakpointDb::new_with_task(&format!("{id}"))
                 .await
                 .context("create breakpoint db failed")?, // TODO: handle error
         )
@@ -3245,7 +3285,7 @@ async fn legacy_to_taos_impl(
     let schema_polling_source_opts = source_opts.clone();
     let schema_polling_target_opts = target_opts.clone();
     let schema_polling_pool = from_pool.clone();
-    let schema_polling_task_id = task_id.clone();
+    let schema_polling_task_id = task_id;
     let schema_polling_metrics = metrics_arc.clone();
     let schema_polling_cancellation = cancel.clone();
     let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
@@ -3280,7 +3320,7 @@ async fn legacy_to_taos_impl(
 
                             if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
                                 // sync schema of the updated stables.
-                                sync_schema(&schema_polling_scheduler, &updates, concurrency)
+                                sync_schema(&schema_polling_scheduler, &updates, concurrent)
                                     .await
                                     .context("Spawn schema syncing of the updated stables error")?;
                             }
@@ -3295,7 +3335,7 @@ async fn legacy_to_taos_impl(
                                 &updates,
                                 schema_polling_target_opts.clone(),
                                 schema_polling_source_opts.workers as _,
-                                &schema_polling_task_id,
+                                schema_polling_task_id,
                             )
                             .await
                             .context("Spawn data syncing of the updated tables error")?;
@@ -3332,7 +3372,7 @@ async fn legacy_to_taos_impl(
             &todo_non_changed,
             target_opts,
             source_opts.workers as _,
-            &task_id,
+            task_id,
         );
         tokio::select! {
             _ = future => {}
@@ -3375,7 +3415,7 @@ async fn legacy_to_taos_impl(
 
                         if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
                             // sync schema of the updated tables.
-                            sync_schema(&schema_polling_scheduler, &updates, concurrency)
+                            sync_schema(&schema_polling_scheduler, &updates, concurrent)
                                 .await
                                 .context("Spawn schema syncing of the updated tables error")?;
                         }
@@ -3390,7 +3430,7 @@ async fn legacy_to_taos_impl(
                             &updates,
                             schema_polling_target_opts.clone(),
                             schema_polling_source_opts.workers as _,
-                            &schema_polling_task_id,
+                            schema_polling_task_id,
                         )
                         .await?;
                         Ok::<_, anyhow::Error>(())
@@ -3695,8 +3735,8 @@ fn process_option_pair(option: &str, option_value: &str) -> String {
         "KEEP" => {
             let mut new_option = String::from(" KEEP ");
             let value_array: Vec<&str> = option_value.split(",").collect();
-            if value_array.first().is_some() {
-                new_option.push_str(&process_unit_value(value_array.first().unwrap()));
+            if let Some(value) = value_array.first() {
+                new_option.push_str(&process_unit_value(value));
             }
             new_option
         }
@@ -3773,16 +3813,17 @@ mod tests {
 
     //
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn sync() -> anyhow::Result<()> {
+    async fn test_sync_with_taos() -> anyhow::Result<()> {
         let _ = pretty_env_logger::formatted_timed_builder()
             .filter_level(log::LevelFilter::Debug)
             .try_init();
         // prepare
-        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let taos = TaosBuilder::from_dsn("taos+ws:///")?.build().await?;
         taos.exec_many([
+            "drop topic if exists `x-sync-2`",
             "drop database if exists `x-sync-2`",
             "create database `x-sync-2`",
+            "drop topic if exists `x-sync`",
             "drop database if exists `x-sync`",
             "create database `x-sync`",
             "use `x-sync`",
@@ -3814,7 +3855,15 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
+        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
+        let _ = taos
+            .exec_many([
+                "drop topic if exists `x-sync-2`",
+                "drop database if exists `x-sync-2`",
+                "drop topic if exists `x-sync`",
+                "drop database if exists `x-sync`",
+            ])
+            .await;
         Ok(())
     }
 
@@ -3822,8 +3871,7 @@ mod tests {
     ///
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn sync_large_table() -> anyhow::Result<()> {
+    async fn test_sync_large_table_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
@@ -3903,7 +3951,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
+        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
 
         taos.exec(format!("use `{}`", db2)).await?;
         let _ = taos.describe(stable).await?;
@@ -3913,6 +3961,8 @@ mod tests {
             format!("drop database if exists `{db2}`"),
         ])
         .await?;
+
+        std::fs::remove_file("tests/large_table.sql")?;
         Ok(())
     }
 
@@ -3920,8 +3970,7 @@ mod tests {
     ///
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn sync_large_normal_table() -> anyhow::Result<()> {
+    async fn test_sync_large_normal_table_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
@@ -3990,7 +4039,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
+        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
 
         taos.exec(format!("use `{}`", db2)).await?;
 
@@ -4001,6 +4050,7 @@ mod tests {
             format!("drop database if exists `{db2}`"),
         ])
         .await?;
+        std::fs::remove_file("tests/large_normal_table.sql")?;
         Ok(())
     }
 
@@ -4049,8 +4099,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn test_incomplete_sqls() -> anyhow::Result<()> {
+    async fn test_incomplete_sqls_with_taos() -> anyhow::Result<()> {
         let sqls = [
             (0x2600, "CREATE STABLE `sTb1` (`ts` TIME"),
             (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, "),
@@ -4107,25 +4156,24 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_legacy_advance_options() {
         use taos::Dsn;
-        let from = "taos+ws://localhost:6041/db1?schema=only&fails-to=./fails-to.log&write-concurrency=10&workers=10";
+        let from = "taos+ws://localhost:6041/db1?schema=only&fails-to=./fails-to.log&write-concurrency=10&workers=10&minimal";
         let to = "taow+ws://localhost:6041/db2";
         let mut from_dsn = Dsn::from_str(from).unwrap();
         let source_opts = SourceOpts::from_params(&mut from_dsn).unwrap();
         assert_eq!(source_opts.workers, 10);
         assert_eq!(source_opts.write_concurrency, Some(10));
+        assert!(source_opts.minimal, "minimal should be true");
         let mut to_dsn = Dsn::from_str(to).unwrap();
-        let targe_opts =
-            TargetOpts::from_params(&source_opts, &mut to_dsn, source_opts.workers).unwrap();
+        let targe_opts = TargetOpts::from_params(&source_opts, &mut to_dsn).unwrap();
         assert_eq!(targe_opts.concurrent_limit, NonZeroUsize::new(1).unwrap());
         assert!(targe_opts.fails_to.is_some());
+        assert!(targe_opts.minimal, "minimal should be true");
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn ts5124() -> anyhow::Result<()> {
+    async fn test_ts5124_with_taos() -> anyhow::Result<()> {
         let builder = TaosBuilder::from_dsn("taos:///")?;
         let taos1 = builder.build().await?;
         let taos2 = builder.build().await?;
@@ -4163,15 +4211,7 @@ mod tests {
         crate::core_metrics::clear_metrics(tid).await;
         let _ = crate::core_metrics::init_task_metrics(&source, &sink, tid, None).await;
 
-        legacy_to_taos(
-            source,
-            actions,
-            sink,
-            1,
-            CancellationToken::new(),
-            Some(tid.to_string()),
-        )
-        .await?;
+        legacy_to_taos(source, actions, sink, CancellationToken::new(), Some(tid)).await?;
 
         // table nTb2 should be created
         let _ = taos2.exec(format!("desc `{}`.`nTb2`", db2)).await?;

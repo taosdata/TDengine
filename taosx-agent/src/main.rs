@@ -125,6 +125,9 @@ pub struct Args {
     token: String,
 
     log_keep_days: Option<i64>,
+
+    /// For in-memory cache queue capacity.
+    in_memory_cache_capacity: Option<usize>,
 }
 
 #[config]
@@ -155,11 +158,17 @@ pub struct ConfigArgs {
     #[clap(short = 'e', long)]
     endpoint: Option<String>,
 
+    /// Token for authentication.
     #[clap(short = 't', long)]
     token: Option<String>,
 
+    /// To enable compression.
     #[clap(long)]
     compression: Option<bool>,
+
+    /// For in-memory cache queue capacity.
+    #[clap(long)]
+    in_memory_cache_capacity: Option<usize>,
 
     /// For environment variable wised log level.
     #[clap(hide = true, env = "LOG_LEVEL")]
@@ -402,6 +411,7 @@ impl Args {
             log_level,
             log_keep_days,
             instance_id,
+            in_memory_cache_capacity,
             mut log,
             ..
         } = ConfigArgs::with_layers(&layers)?;
@@ -451,6 +461,7 @@ impl Args {
             token: token.ok_or_else(|| ArgsError::MissingRequiredArgument("token".to_string()))?,
             log_keep_days,
             log,
+            in_memory_cache_capacity,
         })
     }
 }
@@ -558,8 +569,10 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                         tracing::error!("Connection closed. Retry in 5 seconds");
                         if let Err(err) = error_gate.tick(err) {
                             tracing::info!("Connection failed: {err:#}");
-                            ret = Err(err);
-                            break;
+                            if tasks.is_empty() {
+                                ret = Err(err);
+                                break;
+                            }
                         }
                     }
                 }
@@ -567,7 +580,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
             }
             ret
          } => {
-            tracing::error!("Task listener failed");
+            tracing::error!("Task listener failed: {err:?}");
             err?;
         }
         _ = async {
@@ -744,28 +757,32 @@ fn export_metrics(
 }
 
 #[rustfmt::skip]
-fn print_effictive_config(log_keep_days: i64, args: &Args) {
-    let log_opts = serde_json::to_vec(&args.log).unwrap();
-    let log_opts_map = serde_json::from_slice::<HashMap<String, serde_json::Value>>(&log_opts).unwrap();
+fn print_effective_config(log_keep_days: i64, args: &Args) -> Result<(), std::io::Error> {
+    let log_opts = serde_json::to_vec(&args.log).expect("serialize log options failed");
+    let log_opts_map = serde_json::from_slice::<HashMap<String, serde_json::Value>>(&log_opts).expect("deserialize log options failed");
     let w = 18;
     let w2 = 20;
     let compression = *(AGENT_COMPRESSION.get().unwrap_or(&false));
-    let mut s = String::new();
-    s += "global config\n";
-    s += "================================================================\n";
-    s += &format!("{:<w$}{:<w2$}{}\n", ' ', "endpoint",  args.endpoint);
-    s += &format!("{:<w$}{:<w2$}{}\n", ' ', "plugins_home",  get_plugins_home_dir().display());
-    s += &format!("{:<w$}{:<w2$}{}\n", ' ', "data_dir",  get_data_dir().display());
+    let mut cache: Vec::<u8> = Vec::new();
+    let mut cursor = std::io::Cursor::new(&mut cache);
+    use std::io::Write;
+
+    writeln!(cursor, "global config")?;
+    writeln!(cursor, "================================================================")?;
+    writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "endpoint",  args.endpoint)?;
+    writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "plugins_home",  get_plugins_home_dir().display())?;
+    writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "data_dir",  get_data_dir().display())?;
     for (k, v) in log_opts_map {
         if v.is_null() {
             continue;
         }
-        s += &format!("{:<w$}{:<w2$}{}\n", ' ', k,  v)
+        writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', k,  v)?;
     }
-    s += &format!("{:<w$}{:<w2$}{}\n", ' ', "log_keep_days",  log_keep_days);
-    s += &format!("{:<w$}{:<w2$}{}\n", ' ', "compression",  compression);
-    s += "================================================================";
-    tracing::info!("{s}");
+    writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "log_keep_days",  log_keep_days)?;
+    writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "compression",  compression)?;
+    write!(cursor, "================================================================")?;
+    tracing::info!("{}", String::from_utf8_lossy(&cache));
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -865,7 +882,12 @@ fn main() -> anyhow::Result<()> {
     tracing::info!("version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
-    print_effictive_config(log_keep_days, &args);
+    print_effective_config(log_keep_days, &args)?;
+
+    if let Some(capacity) = args.in_memory_cache_capacity {
+        taosx_core::global::set_agent_in_memory_cache_capacity(capacity);
+    }
+
     tracing::info!("Start");
 
     // todo: arrow flight rpc client.

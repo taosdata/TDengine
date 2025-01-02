@@ -1,8 +1,6 @@
-use csv_async::AsyncReader;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use taos::Dsn;
-use tokio_stream::StreamExt;
 
 use crate::runners::opc::config::collect::da::DaCollectConfig;
 use crate::runners::opc::config::collect::dump::DumpConfig;
@@ -106,21 +104,8 @@ pub async fn parse_opc_node_ids(dsn: &Dsn, param_key: &str) -> anyhow::Result<Ve
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
     {
-        if let Some(path) = node.strip_prefix('@') {
-            // 如果以 @ 开头，说明是 csv 文件路径
-            let csv_content = tokio::fs::read_to_string(path).await?;
-            let rdr = AsyncReader::from_reader(csv_content.as_bytes());
-            let mut records = rdr.into_records();
-            while let Some(record) = records.next().await {
-                let record = record?;
-                let node_id = record[0].to_string();
-                node_ids.push(node_id);
-            }
-        } else {
-            // 如果不以 @ 开头，以 :: 进行分割，第一列是 point_id
-            let node_id = node.split_once("::").map(|(id, _)| id).unwrap_or(node);
-            node_ids.push(node_id.to_string());
-        }
+        let node_id = node.split_once("::").map(|(id, _)| id).unwrap_or(node);
+        node_ids.push(node_id.to_string());
     }
 
     Ok(node_ids)
@@ -190,62 +175,25 @@ mod tests {
     #[tokio::test]
     async fn test_parse_opc_node_ids_in_dsn() {
         // given
-        let dsn = "opcua://?ua.nodes=@./tests/opc/ua.nodes"
+        let dsn = "opcda://?ua.nodes=ns=3;i=1001,ns=3;i=1003"
             .into_dsn()
             .unwrap();
         // when
         let node_ids = parse_opc_node_ids(&dsn, "ua.nodes").await.unwrap();
         // then
         assert_eq!(node_ids.len(), 2);
-        assert_eq!(node_ids[0], "ns=3;i=1002");
-        assert_eq!(node_ids[1], "ns=3;i=1007");
+        assert_eq!(node_ids[0], "ns=3;i=1001");
+        assert_eq!(node_ids[1], "ns=3;i=1003");
 
         // given
-        let dsn = "opcda://?ua.nodes=@./tests/opc/ua.nodes,ns=3;i=1001,ns=3;i=1003"
-            .into_dsn()
-            .unwrap();
-        // when
-        let node_ids = parse_opc_node_ids(&dsn, "ua.nodes").await.unwrap();
-        // then
-        assert_eq!(node_ids.len(), 4);
-        assert_eq!(node_ids[0], "ns=3;i=1002");
-        assert_eq!(node_ids[1], "ns=3;i=1007");
-        assert_eq!(node_ids[2], "ns=3;i=1001");
-        assert_eq!(node_ids[3], "ns=3;i=1003");
-
-        // given
-        let dsn = "opcda://?da.tags=@./tests/opc/da.tags".into_dsn().unwrap();
+        let dsn = "opcda://?da.tags=tag3::tb3,tag4::tb4".into_dsn().unwrap();
         // when
         let node_ids = parse_opc_node_ids(&dsn, "da.tags").await.unwrap();
         // then
         assert_eq!(node_ids.len(), 2);
-        assert_eq!(node_ids[0], "tag1");
-        assert_eq!(node_ids[1], "tag2");
-
-        // given
-        let dsn = "opcda://?da.tags=@./tests/opc/da.tags,tag3::tb3,tag4::tb4"
-            .into_dsn()
-            .unwrap();
-        // when
-        let node_ids = parse_opc_node_ids(&dsn, "da.tags").await.unwrap();
-        // then
-        assert_eq!(node_ids.len(), 4);
-        assert_eq!(node_ids[0], "tag1");
-        assert_eq!(node_ids[1], "tag2");
-        assert_eq!(node_ids[2], "tag3");
-        assert_eq!(node_ids[3], "tag4");
+        assert_eq!(node_ids[0], "tag3");
+        assert_eq!(node_ids[1], "tag4");
     }
-
-    // #[test]
-    // fn test_parse_special_nodes() {
-    //     let mut dsn = format!(
-    //         "opcua://?ua.nodes={}",
-    //         r#""ns=3;s=Special_""!§$%&/()=?`´\+~*'#_-:.;,<>|@^°€µ{[]}::meter_3_Special_""!§$%&/()=?_´\+~*'#_-:_;,<>|@^°€µ{[]}","a::b""#
-    //     ).into_dsn().unwrap();
-    //
-    //     let config = get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes").unwrap();
-    //     assert_eq!(config[0], "ns=3;s=Special_\"!§$%");
-    // }
 
     #[test]
     fn test_parse_interval() {

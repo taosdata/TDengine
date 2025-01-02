@@ -10,7 +10,7 @@ use crate::plugins::transform::parse::ArrayForTaos;
 
 use super::{ValueBuilder, ValueBuilderError};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CastValueBuilder {
     cast: String,
     default: Option<String>,

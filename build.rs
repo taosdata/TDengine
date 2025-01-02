@@ -21,6 +21,10 @@ async fn init_sqlx(dsn: &str) -> Result<(), sqlx::Error> {
 const DEFAULT_CUS_NAME: &str = "TDengine";
 const DEFAULT_CUS_PROMPT: &str = "taos";
 fn labeling(mut file: &File) -> SdResult<()> {
+    let clippy_allow: &str =
+        r"#[allow(clippy::all, clippy::pedantic, clippy::restriction, clippy::nursery)]";
+    writeln!(file, "{clippy_allow}")?;
+
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let manifest_dir = Path::new(&manifest_dir);
     let readme = manifest_dir.join("src").join("CLI.md");
@@ -52,7 +56,11 @@ fn labeling(mut file: &File) -> SdResult<()> {
     if !target_dir.exists() {
         std::fs::create_dir_all(&target_dir).unwrap();
     }
-    std::fs::write(target_dir.join(format!("{cus_prompt}x.service")), service).unwrap();
+    std::fs::write(target_dir.join(format!("{cus_prompt}x.service")), &service).unwrap();
+
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let out_dir = std::path::Path::new(out_dir.as_str());
+    std::fs::write(out_dir.join(format!("{cus_prompt}x.service")), &service).unwrap();
 
     writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
     writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;

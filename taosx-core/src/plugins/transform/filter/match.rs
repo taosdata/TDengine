@@ -10,7 +10,7 @@ use serde_json::Value as JsonValue;
 
 use super::{RecordFilter, RecordFilterError};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MatchRecordFilter {
     r#match: LinkedHashMap<String, JsonValue>,
 }

@@ -36,13 +36,16 @@ use crate::{
     sink::{consume_flat_record, DEFAULT_MAX_RETRIES_FOR_CONNECTION},
     utils::{
         sql::{
-            describe_table_with_connection_retries, exec_sql_with_connection_retries,
+            describe_table_with_connection_retries, exec_sql_with_connection_retries, get_database,
             get_minimum_timestamp, values_to_sqls,
         },
         trace::{BatchCounter, Qid},
     },
     Parser,
 };
+
+use crate::global::SQL_TAG_CACHE_CAPACITY;
+use crate::global::TABLE_TAG_CACHE;
 
 use super::{ipc_metric::IpcMetrics, IpcErrorStrategy};
 
@@ -52,15 +55,25 @@ pub(crate) fn message_to_sql<'a>(
     precision: taos::Precision,
     with_meta: bool,
     with_field_names: bool,
-) -> Vec<Records> {
-    messages
+    database_name: Option<&str>,
+) -> (Vec<Records>, Vec<String>) {
+    let mut full_tablenames_need_to_cache = Vec::new();
+    let sql_records = messages
         .into_iter()
         .chunk_by(|m| m.stable_name())
         .into_iter()
         .flat_map(|(key, group)| {
             let values = group
                 .into_iter()
-                .flat_map(|m| m.sql_insert_part(precision, with_meta, with_field_names))
+                .flat_map(|m| {
+                    m.sql_insert_part(precision, with_meta, with_field_names, database_name)
+                })
+                .map(|(sql_part, row_count, full_tablename_not_in_cache)| {
+                    if let Some(full_table_name) = full_tablename_not_in_cache {
+                        full_tablenames_need_to_cache.push(full_table_name);
+                    }
+                    (sql_part, row_count)
+                })
                 .collect_vec();
             let stable_name_iter = std::iter::repeat(key);
 
@@ -74,7 +87,8 @@ pub(crate) fn message_to_sql<'a>(
                     records,
                 })
         })
-        .collect_vec()
+        .collect_vec();
+    (sql_records, full_tablenames_need_to_cache)
 }
 
 /// Write records to TDengine with `sql`, which contains `tables` num of tables,
@@ -246,6 +260,22 @@ async fn write_stable_with_sql(
     }
 }
 
+fn cache_table_name(table_names: &[String]) {
+    if table_names.is_empty() {
+        return;
+    }
+
+    let table_existed = TABLE_TAG_CACHE.get_or_init(|| {
+        tracing::info!("Init tag cache with capacity: {}", unsafe {
+            SQL_TAG_CACHE_CAPACITY
+        });
+        scc::HashSet::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
+    });
+    table_names.iter().for_each(|table| {
+        let _ = table_existed.insert(table.clone());
+    });
+}
+
 #[instrument(skip_all)]
 #[async_backtrace::framed]
 pub async fn flat_write_with_sql(
@@ -264,10 +294,18 @@ pub async fn flat_write_with_sql(
     let groups = messages
         .iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
+
+    let database_name = get_database(taos).await.ok();
     // insert into stable
     for (stable, messages) in groups.into_iter() {
         let instant = std::time::Instant::now();
-        let sqls = message_to_sql(messages.iter().copied(), target_precision, true, true);
+        let (sqls, full_table_names) = message_to_sql(
+            messages.iter().copied(),
+            target_precision,
+            true,
+            true,
+            database_name.as_deref(),
+        );
         tracing::trace!(
             stable = stable.as_deref(),
             sqls = sqls.len(),
@@ -275,6 +313,7 @@ pub async fn flat_write_with_sql(
             "message to sql cost: {:#?}",
             instant.elapsed()
         );
+
         let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
         // debug_assert!(qid.task_id() > 0);
         // debug_assert!(qid.batch_id() > 0);
@@ -289,6 +328,10 @@ pub async fn flat_write_with_sql(
                         metrics.add_inserted_sqls(1_u64);
                         metrics.add_written_rows(n as u64);
                         metrics.add_written_points((n * cols) as u64);
+
+                        if unsafe { SQL_TAG_CACHE_CAPACITY } > 0 {
+                            cache_table_name(&full_table_names);
+                        }
                         break;
                     }
                     Err(err) => {
@@ -459,7 +502,6 @@ pub async fn flat_write_with_raw_block(
         if records.records.num_rows() == 0 {
             continue;
         }
-        metrics.add_processed_rows(records.records.num_rows() as u64);
         if records.records.column(0).null_count() > 0 {
             bail!("Timestamp field contains null or invalid values");
         }
@@ -1123,7 +1165,7 @@ impl FlatSink {
                                             "Contains invalid timestamp, filter out them"
                                         );
                                         // filter timestamp.
-                                        let min = get_minimum_timestamp(
+                                        let (_, min) = get_minimum_timestamp(
                                             &pool,
                                             &mut taos,
                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
@@ -1301,10 +1343,11 @@ async fn consume_flat_record_with_sink(
     record: &FlatMessage,
     count: &mut usize,
     parser: &Parser,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let batch = message.record();
-        let batch = parser.parse_message_from_records(batch, true)?;
+        let batch = parser.parse_message_from_records(task_id, batch, true)?;
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -1330,6 +1373,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -1345,7 +1389,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
 
     let workers = parser.global().concurrent_limit();
 
-    let (msg_tx, msg_rx) = flume::bounded(workers * 4);
+    let (msg_tx, msg_rx) = flume::bounded::<Box<dyn IpcMessage>>(workers * 4);
     let (ack_tx, ack_rx) = flume::bounded(workers * 4);
 
     let mut writer_set = tokio::task::JoinSet::new();
@@ -1379,6 +1423,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
                 while let Ok(record) = msg_rx.recv_async().await {
+                    let raw_rows = record.nrows();
                     let batch_number = if let Some(batch_counter) = batch_counter.as_ref() {
                         let batch_number = batch_counter.next().await?;
                         qid.set_batch_id(batch_number);
@@ -1392,11 +1437,17 @@ pub async fn ipc_flat_stream_worker_vgroup(
                         std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
                     })
                     .unwrap();
-                    let res =
-                        consume_flat_record_with_sink(&flat_sink, &record, &mut written, &parser)
-                            .await;
+                    let res = consume_flat_record_with_sink(
+                        &flat_sink,
+                        &record,
+                        &mut written,
+                        &parser,
+                        task_id,
+                    )
+                    .await;
                     worker_written += written;
                     count.fetch_add(written, Ordering::SeqCst);
+                    metrics.add_processed_messages(raw_rows as u64);
                     match res {
                         Err(err) => {
                             metrics.add_failed_batches(1);
@@ -1415,7 +1466,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                             ack_tx.send_async(ack).await.context("ACK writer error")?;
                             if ipc_error_strategy.will_stop()
                                 || notifier
-                                    .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                    .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                                     .is_err()
                             {
                                 Err(err).context("write batch error")?;
@@ -1455,9 +1506,12 @@ pub async fn ipc_flat_stream_worker_vgroup(
 
     tokio::pin!(stream);
     while let Some(record) = stream.next().await {
-        metrics_arc.ipc().add_received_batches(1);
         match record {
             Ok(record) => {
+                metrics_arc.ipc().add_received_batches(1);
+                metrics_arc
+                    .ipc()
+                    .add_received_messages(record.nrows() as u64);
                 msg_tx.send_async(record).await?;
             }
             Err(err) => {
@@ -1507,6 +1561,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -1538,9 +1593,12 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     let metrics = metrics_arc.ipc();
     tokio::pin!(stream);
     while let Some(record) = stream.next().await {
-        metrics.add_received_batches(1);
         match record {
             Ok(record) => {
+                metrics_arc.ipc().add_received_batches(1);
+                metrics_arc
+                    .ipc()
+                    .add_received_messages(record.nrows() as u64);
                 // msg_tx.send_async(record).await?;
                 let batch_number = if let Some(batch_counter) = batch_counter.clone() {
                     Some(batch_counter.next().await?)
@@ -1553,8 +1611,14 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
                 })
                 .unwrap();
-                let res =
-                    consume_flat_record_with_sink(&flat_sink, &record, &mut written, parser).await;
+                let res = consume_flat_record_with_sink(
+                    &flat_sink,
+                    &record,
+                    &mut written,
+                    parser,
+                    task_id,
+                )
+                .await;
                 count.fetch_add(written, Ordering::SeqCst);
                 match res {
                     Err(err) => {
@@ -1574,7 +1638,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                         ack_tx.send_async(ack).await.context("ACK writer error")?;
                         if ipc_error_strategy.will_stop()
                             || notifier
-                                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                                 .is_err()
                         {
                             Err(err).context("write batch error")?;
@@ -1643,6 +1707,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
+    task_id: i64,
 ) -> anyhow::Result<()> {
     tokio::pin!(stream);
     let count = Arc::new(AtomicUsize::new(0));
@@ -1653,8 +1718,9 @@ pub async fn ipc_flat_stream_worker_concurrent(
     };
     // let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
     let workers = parser.global().concurrent_limit();
+    tracing::info!("flat stream concurrent workers count: {:?}", workers);
 
-    let (msg_tx, msg_rx) = flume::bounded(workers);
+    let (msg_tx, msg_rx) = flume::bounded::<Box<dyn IpcMessage>>(workers);
     let (ack_tx, ack_rx) = flume::bounded(workers);
 
     let (cancel, upstream) = (cancel.child_token(), cancel);
@@ -1697,6 +1763,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
                 while let Ok(record) = msg_rx.recv_async().await {
+                    let raw_rows = record.nrows();
                     if let Some(batch_counter) = batch_counter.as_ref() {
                         let batch_number = batch_counter.next().await?;
                         qid.set_batch_id(batch_number);
@@ -1717,10 +1784,12 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         context.target_precision,
                         metrics,
                         Some(&notifier),
+                        task_id,
                     )
                     .await;
                     worker_written += written;
                     count.fetch_add(written, Ordering::SeqCst);
+                    metrics.add_processed_messages(raw_rows as u64);
                     match res {
                         Err(err) => {
                             metrics.add_failed_batches(1);
@@ -1744,7 +1813,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                                 })
                                 .context("ACK writer error")?;
                             if let Err(error) =
-                                notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                             {
                                 tracing::warn!(%error, "Send error notify failed");
                                 cancel.cancel();
@@ -1819,12 +1888,16 @@ pub async fn ipc_flat_stream_worker_concurrent(
             error!(error = "Writer error: {err:#}");
             Err(err).context("IPC writer fail with error")?;
         }
+
         tokio::select! {
             Some(record) = stream.next() => {
                 batches += 1;
-                metrics_arc.ipc().add_received_batches(1);
                 match record {
                     Ok(record) => {
+                        metrics_arc.ipc().add_received_batches(1);
+                    metrics_arc
+                        .ipc()
+                        .add_received_messages(record.nrows() as u64);
                         msg_tx.send_async(record).await?;
                     }
                     Err(err) => {

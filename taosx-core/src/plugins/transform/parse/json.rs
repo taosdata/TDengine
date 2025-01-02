@@ -24,7 +24,7 @@ use thiserror::Error;
 
 use super::{super::Select, Parse};
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq)]
 pub struct Json {
     pub(crate) json: Option<Select>,
     #[serde(default)]

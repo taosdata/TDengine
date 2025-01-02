@@ -16,6 +16,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
+use tracing::instrument;
 use utoipa::*;
 
 use taosx_core::core_metrics::CoreMetrics;
@@ -92,8 +93,8 @@ where
     tag = "tasks",
     responses(
         (status = 200, description = "List current task items", body = [Task])
-        ),
-        params(
+    ),
+    params(
         TaskFilter,
         TaskDecorator,
     )
@@ -166,14 +167,12 @@ pub(super) async fn get_tasks_count(
     )
 )]
 #[post("/tasks")]
+#[instrument(level = "trace", skip(task_store))]
 pub(super) async fn create_task(
-    task: actix_web::web::Json<NewTask>,
+    task: Json<NewTask>,
     task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
-    // set current dir to DATA_DIR
-    let _ = std::env::set_current_dir(get_data_dir());
-
     let task = task.into_inner();
     tracing::info!(task.name, "create task with name");
 
@@ -189,6 +188,8 @@ pub(super) async fn create_task(
             ));
         }
     }
+
+    // create task
     let controller = task_store.into_inner();
     match controller.create(task).await {
         Ok(task) => Ok(HttpResponse::Created().json(task.decorate(&decorator))),
@@ -304,6 +305,11 @@ pub(super) async fn update_task(
     }
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct DeleteTaskParam {
+    pub after_delete: Option<String>,
+}
+
 /// Delete Task by given path variable id.
 ///
 /// This endpoint needs `api_key` authentication in order to call. Api key can be found from README.md.
@@ -319,8 +325,8 @@ pub(super) async fn update_task(
     ),
     params(
         ("id", description = "Unique storage id of Task")
-        ),
-        params(
+    ),
+    params(
         TaskDecorator,
     ),
 )]
@@ -328,10 +334,12 @@ pub(super) async fn update_task(
 pub(super) async fn delete_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
+    params: Query<DeleteTaskParam>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let id = id.into_inner();
-    match task_store.delete(id).await {
+    let params = params.into_inner();
+    match task_store.delete(id, Some(params)).await {
         Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
         Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
             Code::FAILED,
@@ -528,6 +536,7 @@ pub async fn stop_tasks(
     ))
 }
 
+/// 对 DataIn 任务做批量操作
 async fn batch_operation(
     operation: TaskBatchOperation,
     ids: Vec<i64>,
@@ -567,7 +576,7 @@ async fn batch_operation(
                         error: Some(format!("{:?}", err)),
                     },
                 },
-                TaskBatchOperation::Delete => match task_store_clone.delete(id_clone).await {
+                TaskBatchOperation::Delete => match task_store_clone.delete(id_clone, None).await {
                     Ok(Some(_)) => TaskBatchResponse {
                         id: Some(id_clone),
                         error: None,
@@ -640,7 +649,7 @@ pub(super) async fn get_task_offsets_by_id(
 #[utoipa::path(
     tag = "tasks",
     responses(
-        (status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
+        (status = 200, description = "Task activities of the task", body = Vec<Activity>),
         ),
     params(
         ("id", description = "Unique storage id of Task"),

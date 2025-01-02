@@ -8,9 +8,8 @@ use std::{
 };
 
 use crate::{
-    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
-    legacy_metric::LegacyToTaosMetrics,
-    sync_normal_table_schema, sync_super_table_schema, sync_super_table_schema_with_subs,
+    core_metrics::{get_metrics_arc_or, CoreMetrics, TaskMetrics},
+    sync_super_table_schema,
     tmq::{tmq_metric::TmqMetrics, *},
     utils::{constants::VERSION_3_3_0, interval::IntervalLimit},
     Action,
@@ -19,7 +18,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use faststr::FastStr;
 use humantime::parse_duration;
 use linked_hash_map::LinkedHashMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering::SeqCst;
 use taos::taos_query::tmq::Assignment;
 use taos::*;
@@ -113,6 +112,7 @@ async fn write_data(
     id: usize,
     rows: &mut usize,
     source: &TaosPool,
+    target: &TaosPool,
     taos: &Taos,
     table: Option<&str>,
     actions: &[Action],
@@ -138,7 +138,7 @@ async fn write_data(
             let code = *err.code().deref();
             match code {
                 // Table not exist error codes or invalid input.
-                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 => {
+                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 | 0x060B => {
                     tracing::debug!("Fallback to block-by-block method due to: {err:#}.");
                     last_error.replace(err);
                 }
@@ -252,131 +252,21 @@ async fn write_data(
         let raw_block_context = || format!("Error with block: {}", raw.pretty_format());
 
         if target_is_v3 {
-            let with_raw_block = async {
-                if let Err(err) = taos.write_raw_block(&raw).await {
-                    let code = *err.code().deref();
-                    tracing::debug!("Try to recover from error: {err}");
-                    if let Some(source_table_name) = source_table_name {
-                        match code {
-                            // invalid parameters
-                            0x0118 => {
-                                let from = source.get().await?;
-                                let database = topic.database.as_str();
-                                // sync schema
-                                let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?;
-                                if let Some(mut source_stable_name) = source_stable_name {
-                                    if actions.is_empty() {
-                                        let result = migrate_data_schema(
-                                            &raw.fields(),
-                                            taos,
-                                            &source_table_name,
-                                        )
-                                        .await?;
-                                        // if failed, do not retry again
-                                        if !result {
-                                            return anyhow::Ok(());
-                                        }
-                                    } else {
-                                        for action in actions {
-                                            match action {
-                                                Action::RenameTable(rename)
-                                                | Action::RenameSuperTable(rename) => rename
-                                                    .apply_in_place(&mut source_stable_name)?,
-                                                _ => (),
-                                            }
-                                        }
-                                        let result = migrate_data_schema(
-                                            &raw.fields(),
-                                            taos,
-                                            &source_stable_name,
-                                        )
-                                        .await?;
-                                        // if failed, do not retry again
-                                        if !result {
-                                            return anyhow::Ok(());
-                                        }
-                                    }
-                                } else {
-                                    let table = raw.table_name().unwrap();
-                                    let result =
-                                        migrate_data_schema(&raw.fields(), taos, table).await?;
-                                    // if failed, do not retry again
-                                    if !result {
-                                        return anyhow::Ok(());
-                                    }
-                                }
-                                taos.write_raw_block(&raw).await.context(
-                                    "Write raw block into target error after 0x0118 fix",
-                                )?;
-                            }
-                            // table not exist
-                            0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
-                                let from = source.get().await?;
-                                let database = topic.database.as_str();
-                                if topic.is_query() {
-                                    // sync as normal table.
-                                    sync_normal_table_schema(
-                                        &from,
-                                        &source_table_name,
-                                        actions,
-                                        None,
-                                        taos,
-                                    )
-                                    .await
-                                    .context("Create table error")?;
-                                }
-                                if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
-                                    let from = source.get().await?;
-                                    let target_opts = Default::default();
-                                    sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
-                                    // 临时代码，保证编译通过
-                                    let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
-                                    sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
-                                    taos.write_raw_block(&raw)
-                                        .await
-                                        .context("Write raw block into target error")?;
-                                } else {
-                                    // normal table
-                                    sync_normal_table_schema(&from, &source_table_name, actions, None, taos).await.context("Create table error")?;
-                                    taos.write_raw_block(&raw)
-                                        .await
-                                        .context("Write raw block into target error")?;
-                                }
-                            }
-                            // table has been modified
-                            0x061B => {
-                                // Table schema is old.
-                                let _ = taos.describe(raw.table_name().unwrap()).await;
-                                let mut max_retries = 5;
-                                loop {
-                                    if let Err(err) = taos.write_raw_block(&raw).await {
-                                        if max_retries == 0 {
-                                            Err(err).context("Try to fix 0x061B error failed")?;
-                                        } else {
-                                            max_retries -= 1;
-                                        }
-                                    }
-                                }
-                            }
-                            _ => Err(err)?,
-                        }
-                    } else if let Some(meta) = raw.to_create() {
-                        let sql = meta.to_string();
-                        taos.exec(&sql)
-                            .await
-                            .with_context(|| format!("SQL: {sql}"))?;
-                    } else {
-                        Err(err)?
-                    }
-                };
-                anyhow::Ok(())
-            };
-            with_raw_block
-                .await
-                .inspect_err(|_| metrics.add_write_raw_fails(1))
-                .with_context(raw_block_context)
-                .with_context(last_error_context)
-                .context("Write raw block into target error")?
+            worker::write_with_raw_block(
+                actions,
+                topic,
+                source,
+                target,
+                taos,
+                &raw,
+                source_table_name.as_deref(),
+                metrics,
+            )
+            .await
+            .inspect_err(|_| metrics.add_write_raw_fails(1))
+            .with_context(raw_block_context)
+            .with_context(last_error_context)
+            .context("Write raw block into target error")?
         } else {
             let with_stmt = async {
                 let mut stmt = Stmt::init(taos)
@@ -611,7 +501,7 @@ async fn write_meta(
                         // Fallback to sql method.
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
                         let sqls = json_meta.iter().map(ToString::to_string).collect_vec();
-                        taos.exec_many(&sqls)
+                        execute_many_sql(taos, sqls)
                             .in_current_span()
                             .await
                             .context("Write raw meta with sql error")?;
@@ -720,6 +610,7 @@ async fn sync_msg(
                 id,
                 rows,
                 source_pool,
+                target_pool,
                 taos,
                 table,
                 actions,
@@ -775,6 +666,7 @@ async fn sync_msg(
                     id,
                     rows,
                     source_pool,
+                    target_pool,
                     taos,
                     table,
                     actions,
@@ -803,11 +695,11 @@ async fn sync_msg(
     if let Err(err) = consumer.commit(offset).await {
         tracing::warn!(retries, "Commit error: {err:?}");
     }
+    metrics.add_commits(1);
     anyhow::Ok(())
 }
 
 #[instrument(skip_all, fields(consumer.id = id, table))]
-
 async fn sync(
     topic: &Topic,
     id: usize,
@@ -863,7 +755,7 @@ async fn sync(
                         .in_current_span()
                         .await?;
                     if refresh_progress_interval.ticked() {
-                        update_progress(source_pool, metrics, &topic.name, group_id).await;
+                        let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
                     }
 
                 } else {
@@ -872,7 +764,7 @@ async fn sync(
             }
         }
     }
-    update_progress(source_pool, metrics, &topic.name, group_id).await;
+    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -1095,7 +987,7 @@ async fn sync_interlace(
         clean_cache!();
         consumer.commit(last_offset.unwrap()).await?;
     }
-    update_progress(source_pool, metrics, &topic.name, group_id).await;
+    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -1164,11 +1056,14 @@ async fn sync_concurrently(
                     let now = std::time::Instant::now();
                     let res = worker.write(&mut message).in_current_span().await;
                     let elapse = now.elapsed();
-                    worker
-                        .metrics
-                        .as_ref()
-                        .tmq()
-                        .add_write_cost_ms(elapse.as_millis() as _);
+                    let metrics = worker.metrics.as_ref().tmq();
+                    metrics.add_write_cost_ms(elapse.as_millis() as _);
+                    if res.is_ok() {
+                        metrics.add_success_messages(1);
+                    } else {
+                        metrics.add_write_raw_fails(1);
+                    }
+
                     let _ = worker.sender.send_async(res).await;
                 }
                 tracing::info!("Worker done");
@@ -1225,7 +1120,7 @@ async fn sync_concurrently(
                 }
             } {
                 if refresh_progress_interval.ticked() {
-                    update_progress(source_pool, metrics, &topic.name, group_id).await;
+                    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
                 }
                 metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
@@ -1303,7 +1198,7 @@ async fn sync_concurrently(
                 metrics.add_commits(1);
             }
         }
-        update_progress(source_pool, metrics, &topic.name, group_id).await;
+        let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
         Ok(())
     }
     .in_current_span();
@@ -1326,42 +1221,62 @@ async fn update_progress(
     metrics: &TmqMetrics,
     topic: &String,
     group_id: &String,
-) {
+) -> anyhow::Result<()> {
     let Ok(taos) = source_pool.get().await.inspect_err(|err| {
         tracing::error!("Failed to get taos connection by source pool, {:?}", err);
     }) else {
-        return;
+        return Ok(());
     };
-    if let Ok(mut res) = taos.query("show subscriptions").await {
-        let records = res.to_records().await.unwrap_or_else(|err| {
-            tracing::error!("query 'show subscriptions' error: {err}");
-            vec![]
-        });
-        let mut assignments: HashMap<String, Vec<Assignment>> = HashMap::new();
-        records
-            .iter()
-            .filter_map(|r| {
-                if r.len() == 8 {
-                    let topic_name = match r[0] {
-                        Value::VarChar(ref topic_name) => topic_name.clone(),
-                        _ => "".to_string(),
-                    };
-                    let consumer_group = match r[1] {
-                        Value::VarChar(ref consumer_group) => consumer_group.clone(),
-                        _ => "".to_string(),
-                    };
-                    let vgroup_id = match r[2] {
-                        Value::Int(vgroup_id) => vgroup_id,
-                        _ => 0,
-                    };
-                    let offset = match r[6] {
-                        Value::VarChar(ref offset) => offset.clone(),
-                        _ => "".to_string(),
-                    };
-                    if &topic_name == topic
-                        && &consumer_group == group_id
-                        && offset.starts_with("wal:")
-                    {
+    if let Ok(mut res) = taos
+        .query(format!(
+            "select * from information_schema.ins_subscriptions \
+            where topic_name = '{topic}' and consumer_group = '{group_id}' \
+            and consumer_id is not NULL"
+        ))
+        .await
+        .inspect_err(|err| {
+            tracing::warn!(cause = %err, "execute sql 'show subscriptions' error");
+        })
+    {
+        #[derive(Deserialize)]
+        struct SubscriptionInformation {
+            consumer_id: Option<String>,
+            vgroup_id: i32,
+            user: Option<String>,
+            fqdn: Option<String>,
+            offset: Option<String>,
+            rows: i64,
+        }
+        if let Ok(records) = res.deserialize().try_collect().await {
+            let records: Vec<SubscriptionInformation> = records;
+
+            if tracing::enabled!(tracing::Level::DEBUG) {
+                let span = tracing::debug_span!("subscriptions", topic, group = group_id);
+                let _entered = span.enter();
+                tracing::debug!(
+                    "| consumer_id | vgroup_id |   user   |   fqdn   |   offset   | rows |"
+                );
+                for r in &records {
+                    tracing::debug!(
+                        "| {:11} | {:8} | {:8} | {:8} | {:10} | {:4} |",
+                        r.consumer_id.as_deref().unwrap_or(""),
+                        r.vgroup_id,
+                        r.user.as_deref().unwrap_or(""),
+                        r.fqdn.as_deref().unwrap_or(""),
+                        r.offset.as_deref().unwrap_or(""),
+                        r.rows
+                    );
+                }
+            }
+
+            if records.is_empty() && metrics.progress.contains_key(topic.as_str()) {
+                bail!("Consumer all dead for topic {topic} group {group_id}");
+            }
+
+            let assignments = records
+                .iter()
+                .filter_map(|r| {
+                    if let Some(offset) = r.offset.as_deref().filter(|s| s.starts_with("wal:")) {
                         let parts: Vec<&str> =
                             offset.trim_start_matches("wal:").split('/').collect();
                         if parts.len() == 2 {
@@ -1369,24 +1284,18 @@ async fn update_progress(
                             let part2 = parts[1];
                             let offset = part1.parse::<i64>().unwrap_or(0);
                             let end = part2.parse::<i64>().unwrap_or(0);
-                            return Some((topic_name, Assignment::new(vgroup_id, offset, 0, end)));
+                            return Some(Assignment::new(r.vgroup_id, offset, 0, end));
                         }
                     }
-                }
-                None
-            })
-            .for_each(|(topic, assignment)| {
-                assignments
-                    .entry(topic.clone())
-                    .or_default()
-                    .push(assignment);
-            });
-        if !assignments.is_empty() {
-            metrics.update_progress(assignments);
+                    None
+                })
+                .collect_vec();
+            if !assignments.is_empty() {
+                metrics.update_progress_of_topic(topic, assignments);
+            }
         }
-    } else {
-        tracing::warn!("execute sql 'show subscriptions' error");
     }
+    Ok(())
 }
 
 #[instrument(skip_all)]
@@ -1394,18 +1303,19 @@ pub async fn tmq_to_td(
     from: Dsn,
     actions: Vec<Action>,
     mut to: Dsn,
-    jobs: usize,
     cancel: CancellationToken,
     task_id: Option<String>,
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
+    let cancel = cancel.child_token();
+    let _drop_guard = cancel.clone().drop_guard();
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
 
     let jobs = from
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
-        .unwrap_or(jobs); // 0 means auto
+        .unwrap_or(0); // 0 means auto
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
@@ -1415,7 +1325,7 @@ pub async fn tmq_to_td(
         .or(from.remove("num.of.writers"))
         .or(std::env::var("TMQ_WRITE_CONCURRENCY").ok())
         .and_then(|s| s.parse().ok())
-        .unwrap_or(0); // 0 means auto, should be set after.
+        .unwrap_or(1); // 0 means auto, should be set after.
     let commit_chunk_size = from
         .remove("commit.chunk.size")
         .or(std::env::var("TMQ_COMMIT_CHUNK_SIZE").ok())
@@ -1446,11 +1356,11 @@ pub async fn tmq_to_td(
 
     let max_polling_timeout = from
         .remove("max.polling.timeout")
-        .or(from.remove("timeout")) // for compatibility
+        .or(from.get("timeout").cloned()) // for compatibility
         .or(std::env::var("TMQ_MAX_POLLING_TIMEOUT").ok())
         .map(|s| parse_timeout_duration(&s))
         .transpose()?
-        .unwrap_or_else(|| Duration::from_secs(5));
+        .unwrap_or_else(|| Duration::from_secs(60));
     let mut options = WriteOptions {
         with_meta_delete,
         with_meta_drop,
@@ -1472,13 +1382,16 @@ pub async fn tmq_to_td(
         if let Some(v) = to_params.get("token") {
             to.set("token", v);
         }
-        let group_id = group_id_hash(&from, &to);
+        let group_id = group_id_hash_by(&from, &to);
         tracing::info!("group.id not set, will use automatically generated group id: {group_id}");
         from_params.insert("group.id".to_string(), group_id);
         to.params = to_params;
     }
     from.params = from_params;
-    let metrics_arc = get_metrics_arc(task_id.clone()).await;
+    let metrics_arc = get_metrics_arc_or(task_id.as_deref().and_then(|s| s.parse().ok()), || {
+        Arc::new(CoreMetrics::TMQ(TmqMetrics::default()))
+    })
+    .await;
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(topics.len() as _, SeqCst);
 
@@ -1668,9 +1581,20 @@ pub async fn tmq_to_td(
             let topic = topic.name.clone();
             consumer_handles.push(tokio::spawn(async move {
                 tracing::debug!("Subscribe consumer {id}");
-                consumer.subscribe([&topic]).await.with_context(|| {
-                    format!("Subscribe consumer [{id}] with topic `{topic}` error")
-                })?;
+                let mut retries = 20;
+                loop {
+                    match consumer.subscribe([&topic]).await {
+                        Ok(_) => break,
+                        Err(err) => {
+                            tracing::warn!("Subscribe consumer {id} error: {err:#}");
+                            if retries == 0 {
+                                Err(err)?;
+                            }
+                            retries -= 1;
+                            tokio::time::sleep(Duration::from_secs(3)).await;
+                        }
+                    }
+                }
                 anyhow::Ok(consumer)
             }));
         }
@@ -1683,10 +1607,11 @@ pub async fn tmq_to_td(
         tracing::info!("Setup {} consumers in {:?}", jobs, duration);
 
         let from_params = from.params;
-        let group_id = from_params.get("group.id").cloned().unwrap();
+        let group_id = Arc::new(from_params.get("group.id").cloned().unwrap());
 
         let tmq = Arc::new(tmq);
         let topic = Arc::new(topic);
+        let mut wg = awaitgroup::WaitGroup::new();
         for mut consumer in consumers {
             let tmq = tmq.clone();
             let topic = topic.clone();
@@ -1707,6 +1632,7 @@ pub async fn tmq_to_td(
             let target = target.clone();
             let options = options.clone();
             let group_id = group_id.clone();
+            let worker = wg.worker();
             join_set.spawn(
                 async move {
                     let mut retries = 0;
@@ -1778,7 +1704,7 @@ pub async fn tmq_to_td(
                                     return Err(err);
                                 }
                                 let _ = notify
-                                    .send_async(crate::TaskNotify::Warn(format!(
+                                    .send_async(crate::TaskNotify::source_error(format!(
                                         "Consuming task {consumer_task_id} error: {err:#}"
                                     )))
                                     .await;
@@ -1794,6 +1720,8 @@ pub async fn tmq_to_td(
                             }
                         }
                     }
+                    tracing::info!("Consumer task {consumer_task_id} done",);
+                    worker.done();
                     anyhow::Ok(())
                 }
                 .in_current_span(),
@@ -1801,6 +1729,36 @@ pub async fn tmq_to_td(
             tracing::info!("Spawn consuming task with id {consumer_task_id}",);
             consumer_task_id += 1;
         }
+
+        join_set.spawn({
+            let group_id = group_id.clone();
+            let topic = topic.clone();
+            let metrics = metrics_arc.clone();
+            let source_pool = source_pool.clone();
+            let cancel = cancel.clone();
+            async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(4));
+                let metrics = metrics.tmq();
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            update_progress(&source_pool, metrics, &topic.name, &group_id)
+                                .await
+                                .inspect_err(|err| {
+                                    tracing::error!("TMQ process error: {err:#}");
+                                })?;
+                        }
+                        _ = cancel.cancelled() => {
+                            break Ok(());
+                        }
+                        _ = wg.wait() => {
+                            tracing::info!("All consumers done");
+                            break Ok(());
+                        }
+                    }
+                }
+            }
+        });
     }
 
     tracing::info!("Spawn consuming tasks {}", join_set.len());
@@ -1955,10 +1913,100 @@ fn parse_timeout_duration(s: &str) -> anyhow::Result<Duration> {
             .map(|d| if d.is_zero() { Duration::MAX } else { d })
     }
 }
+async fn execute_many_sql(conn: &Taos, sqls: Vec<String>) -> Result<()> {
+    for sql in sqls.iter() {
+        conn.exec(sql)
+            .in_current_span()
+            .await
+            .with_context(|| format!("failed to execute sql: {}", sql))?;
+    }
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_timestamp_out_of_range() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(tracing::level_filters::LevelFilter::TRACE)
+            .with_line_number(true)
+            .try_init();
+        let pool = TaosBuilder::from_dsn("taos:///")?.pool()?;
+        let conn = pool.get().await?;
+        let timestamp_ms = chrono::Utc::now().timestamp_millis();
+        let ms_5days_ago = timestamp_ms - 5 * 24 * 3600 * 1000;
+
+        let prefix = "test_timestamp_out_of_range";
+
+        #[allow(clippy::useless_format)]
+        conn.exec_many([
+            format!("DROP TOPIC IF EXISTS {prefix}_1"),
+            format!("DROP DATABASE IF EXISTS {prefix}_1"),
+            format!("DROP DATABASE IF EXISTS {prefix}_2"),
+            format!("CREATE DATABASE IF NOT EXISTS {prefix}_1 keep 10d duration 1h"),
+            format!("USE {prefix}_1"),
+            format!("CREATE TABLE IF NOT EXISTS t1 (ts TIMESTAMP, d DOUBLE)"),
+            format!("INSERT INTO t1 VALUES ({ms_5days_ago}, 1.0)"),
+            format!("INSERT INTO t1 VALUES ({ms_5days_ago} + 1s, 2.0)"),
+            format!("INSERT INTO t1 VALUES ({ms_5days_ago} + 1s, 3.0)"),
+            format!("CREATE DATABASE IF NOT EXISTS {prefix}_2 keep 3d duration 1h"),
+        ])
+        .await?;
+
+        // let tid = get_random_task_id();
+        let (sender, receiver) = flume::unbounded();
+
+        let from = format!(
+            "tmq:///{prefix}_1?snapshot=false&group.id={timestamp_ms}&enable.concurrent.polling=false"
+        )
+        .into_dsn()
+        .unwrap();
+        let to = format!("taos:///{prefix}_2").into_dsn().unwrap();
+
+        tmq_to_td(
+            from,
+            vec![],
+            to,
+            CancellationToken::new(),
+            None,
+            sender.clone(),
+        )
+        .await?;
+
+        // let from = format!("tmq:///{prefix}_1?snapshot=false&group.id={timestamp_ms}_2")
+        //     .into_dsn()
+        //     .unwrap();
+        // let to = format!("taos:///{prefix}_2").into_dsn().unwrap();
+
+        // tmq_to_td(from, vec![], to, CancellationToken::new(), None, sender).await?;
+
+        drop(sender);
+        assert_eq!(receiver.sender_count(), 0, "Sender should be dropped");
+        tracing::info!("Waiting for receiver");
+        while let Ok(msg) = receiver.recv() {
+            tracing::info!("Received: {msg:?}");
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_execute_many_sql_with_taos() {
+        // given
+        let dsn = "taos:///".into_dsn().unwrap();
+        let taos = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
+        // when
+        let res = execute_many_sql(&taos, vec!["invalid sql".to_string()]).await;
+        // then
+        assert!(res.is_err());
+        assert_eq!(
+            "failed to execute sql: invalid sql",
+            res.unwrap_err().to_string()
+        );
+    }
 
     #[test]
     fn dsn_parse_duration_test() {

@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use super::{ArrayForTaos, Parse};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Join {
     join: String,
 }

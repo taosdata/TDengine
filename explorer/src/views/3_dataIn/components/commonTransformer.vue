@@ -695,7 +695,7 @@ import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
-import { getDsnData, getDataRange } from "../utils.js";
+import { getDsnData, getDataRange, getWriteConfigData } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, getExampleList } from "@/utils"
 import cusSelect from "./cusSelect.vue";
@@ -1883,6 +1883,7 @@ export default {
 
       let parserData = {
         parser: {
+          global: getWriteConfigData(this.sourceParent.sourceForm.data),
           parse: this.$store.state.app.topParse.parser.parse,
           model: this.mappingParser.parser.model,
           mutate: this.mappingParser.parser.mutate,

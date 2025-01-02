@@ -99,7 +99,7 @@ pub trait Parse {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum FieldParser {
     Regex(Regex),
@@ -138,7 +138,7 @@ impl Parse for FieldParser {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
 pub struct ParserImpl(LinkedHashMap<String, FieldParser>);
 
 impl ParserImpl {

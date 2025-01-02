@@ -298,7 +298,7 @@ mod tests {
         assert_eq!(port, 1884);
 
         let dsn = Dsn::from_str("mqtt://127.0.0.1:")?;
-        assert_eq!(parse_host_port(&dsn)?, ("127.0.0.1".into(), 0));
+        assert!(parse_host_port(&dsn).is_err());
         let dsn = Dsn::from_str("mqtt://:1883")?;
         assert!(parse_host_port(&dsn).is_err());
 

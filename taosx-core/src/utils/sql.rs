@@ -1,13 +1,15 @@
-use std::{fmt::Write, io::Write as _, time::Duration};
-
 use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_schema::ArrowError;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::Deserialize;
+use std::collections::BTreeMap;
+use std::{fmt::Write, io::Write as _, time::Duration};
+use taos::Precision;
 use taos::{
     taos_query::{common::Describe, Manager},
-    AsyncFetchable, AsyncQueryable, Error as TaosError, RawBlock, TaosBuilder, TaosPool,
+    AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Error as TaosError, RawBlock, Taos,
+    TaosBuilder, TaosPool,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
@@ -104,9 +106,8 @@ pub async fn get_current_precision(
     }
 }
 
-#[ignore]
 #[tokio::test]
-async fn test_precision() {
+async fn test_precision_with_taos() {
     use taos::AsyncTBuilder;
     let dsn = "taos://";
     let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -133,12 +134,52 @@ async fn test_precision() {
 }
 
 #[tracing::instrument(skip_all)]
+async fn get_maximum_timestamp(
+    _pool: &TaosPool,
+    _taos: &mut Option<TaosConnection>,
+    _max_retries: u32,
+    _cancel: &CancellationToken,
+) -> Result<DateTime<Utc>, TaosError> {
+    Ok(chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600))
+}
+
+pub async fn get_database(taos: &mut Option<TaosConnection>) -> Result<String, TaosError> {
+    const SQL_SELECT_DATABASE: &str = "select database();";
+    if taos.is_none() {
+        return Err(TaosError::new(0xFFFF, "Connection is not established"));
+    }
+
+    match taos
+        .as_ref()
+        .unwrap()
+        .query_one::<_, String>(SQL_SELECT_DATABASE)
+        .in_current_span()
+        .await
+    {
+        Ok(n) => n.ok_or_else(|| TaosError::new(0xFFFF, "database name empty")),
+        Err(err) => Err(err.context("get database error")),
+    }
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn get_timestamp_range(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    max_retries: u32,
+    cancel: &CancellationToken,
+) -> Result<(Precision, DateTime<Utc>, DateTime<Utc>), TaosError> {
+    let min = get_minimum_timestamp(pool, taos, max_retries, cancel).await?;
+    let max = chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600);
+    Ok((min.0, min.1, max))
+}
+
+#[tracing::instrument(skip_all)]
 pub async fn get_minimum_timestamp(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     max_retries: u32,
     cancel: &CancellationToken,
-) -> Result<DateTime<Utc>, TaosError> {
+) -> Result<(Precision, DateTime<Utc>), TaosError> {
     const SQL_KEEP: &str =
         "select `precision`, `keep` from information_schema.ins_databases where name = database()";
     if taos.is_none() {
@@ -154,36 +195,22 @@ pub async fn get_minimum_timestamp(
         match taos
             .as_ref()
             .unwrap()
-            .query_one::<_, (String, String)>(SQL_KEEP)
+            .query_one::<_, (Precision, String)>(SQL_KEEP)
             .in_current_span()
             .await
         {
             Ok(n) => {
-                let keep = n
-                    .as_ref()
+                return n
                     .map(|(precision, keep)| {
                         keep.split_once(',')
-                            .map(|(keep1, _)| (precision, keep1))
-                            .unwrap_or((precision, keep.as_str()))
+                            .map(|(keep1, _)| (precision, keep1.to_string()))
+                            .unwrap_or((precision, keep))
                     })
-                    .and_then(|(precision, keep1)| {
-                        utils::parse_duration(keep1).ok().map(|d| (precision, d))
+                    .and_then(|(precision, keep)| {
+                        utils::parse_duration(&keep).ok().map(|d| (precision, d))
                     })
-                    .map(|(_precision, d)| {
-                        chrono::Utc::now() - d
-                        // let t = chrono::Utc::now() - d;
-
-                        // match precision.as_str() {
-                        //     "ms" => t.timestamp_millis(),
-                        //     "us" => t.timestamp_micros(),
-                        //     "ns" => t
-                        //         .timestamp_nanos_opt()
-                        //         .expect("timestamp_nano should always success"),
-                        //     _ => t.timestamp_millis(),
-                        // }
-                    })
-                    .unwrap_or(DateTime::from_timestamp(0, 0).unwrap());
-                return Ok(keep);
+                    .map(|(_precision, d)| (_precision, chrono::Utc::now() - d))
+                    .ok_or_else(|| taos::Error::from_string("Empty precision/keep result"));
             }
             Err(err) => {
                 if max_retries == 0 {
@@ -211,9 +238,8 @@ pub async fn get_minimum_timestamp(
     }
 }
 
-#[ignore]
 #[tokio::test]
-async fn test_min_timestamp() {
+async fn test_min_timestamp_with_taos() {
     use taos::AsyncTBuilder;
     let dsn = "taos://";
     let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -230,9 +256,10 @@ async fn test_min_timestamp() {
     let mut taos = Some(taos);
 
     let min = chrono::Utc::now();
-    let t = get_minimum_timestamp(&pool, &mut taos, 0, &CancellationToken::new())
+    let (precision, t) = get_minimum_timestamp(&pool, &mut taos, 0, &CancellationToken::new())
         .await
         .unwrap();
+    assert_eq!(precision, Precision::Millisecond);
     assert!(t <= min);
     taos.unwrap()
         .exec_many(["drop database if exists test_min_timestamp"])
@@ -604,10 +631,21 @@ pub fn sql_values_from_record_batch(
     if batch.num_rows() == 0 {
         return Ok(vec![]);
     }
+
+    let mut column_has_value = vec![];
     let schema = batch.schema();
     let names = schema
         .fields()
         .iter()
+        .filter(|f| {
+            let col_index = schema.index_of(f.name()).unwrap();
+            if !with_field_names || batch.column(col_index).null_count() < batch.num_rows() {
+                column_has_value.push(col_index);
+                true
+            } else {
+                false
+            }
+        })
         .map(|f| format!("`{}`", f.name()))
         .join(",");
     let vec = Vec::with_capacity(1);
@@ -634,16 +672,16 @@ pub fn sql_values_from_record_batch(
             });
             cursor.write_all(b"(")?;
             #[allow(clippy::needless_range_loop)]
-            for col in 0..batch.num_columns() {
-                let array = &columns[col];
-                if col > 0 {
+            for col in column_has_value.iter() {
+                let array = &columns[*col];
+                if *col > 0 {
                     cursor.write_all(b",")?;
                 }
                 if array.is_null(row) {
                     cursor.write_all(b"NULL")?;
                     continue;
                 }
-                match columns[col].data_type() {
+                match columns[*col].data_type() {
                     arrow_schema::DataType::Null => {
                         cursor.write_all(b"NULL")?;
                     }
@@ -1219,6 +1257,80 @@ fn valid_sql_or_none(
     }
 }
 
+/// 通过 dsn 连接 taosd 且不指定 database 和任何参数
+pub async fn connect_taos_root(dsn: &Dsn) -> anyhow::Result<Taos> {
+    let from_cloned = Dsn {
+        subject: None,
+        params: BTreeMap::new(),
+        ..dsn.clone()
+    };
+
+    let taos = TaosBuilder::from_dsn(&from_cloned)?
+        .build()
+        .await
+        .map_err(|err| {
+            anyhow::Error::from(err)
+                .context(format!("failed to connect taos with dsn: {}", from_cloned))
+        })?;
+
+    Ok(taos)
+}
+
+pub trait BlockPartitionBy: Sized {
+    fn partition_by(&self, slice: &[bool]) -> (Option<Self>, Option<Self>);
+}
+impl BlockPartitionBy for RawBlock {
+    fn partition_by(&self, slice: &[bool]) -> (Option<Self>, Option<Self>) {
+        let rle: Vec<(bool, usize, usize)> = Vec::new();
+        let (left, right): (Vec<_>, Vec<_>) = slice
+            .iter()
+            .enumerate()
+            .fold(rle, |mut acc, (idx, v)| {
+                if let Some((state, _start, _end)) = acc.last_mut() {
+                    if *state == *v {
+                        *_end = idx;
+                        return acc;
+                    }
+                }
+                acc.push((*v, idx, idx));
+                acc
+            })
+            .into_iter()
+            .partition_map(|(v, start, end)| {
+                if v {
+                    either::Either::Left(start..end + 1)
+                } else {
+                    either::Either::Right(start..end + 1)
+                }
+            });
+
+        let fn_take = |ranges: Vec<std::ops::Range<usize>>| -> Option<RawBlock> {
+            let views = self.column_views();
+            let precision = self.precision();
+            ranges
+                .into_iter()
+                .filter_map(|range| {
+                    let views = views
+                        .iter()
+                        .filter_map(|view| view.slice(range.clone()))
+                        .collect_vec();
+                    if views.is_empty() {
+                        None
+                    } else {
+                        Some(RawBlock::from_views(&views, precision))
+                    }
+                })
+                .reduce(|lhs, rhs| lhs.concat(&rhs))
+                .map(|mut block| {
+                    block.with_table_name(self.table_name().unwrap());
+                    block.with_field_names(self.field_names().to_vec());
+                    block
+                })
+        };
+        (fn_take(left), fn_take(right))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use arrow::array::*;
@@ -1229,6 +1341,7 @@ mod tests {
     use super::*;
 
     const ROWS: usize = 10;
+
     fn valid_values_record() -> RecordBatch {
         let now = chrono::Utc::now().timestamp_millis();
         RecordBatch::try_from_iter(vec![
@@ -1378,5 +1491,10 @@ mod tests {
             vec![("(`ts`,`value`) values(100,0.1)(101,NULL)".to_string(), 2)]
         );
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_connect_taos_root_with_taos() {
+        // TODO: test_connect_taos_root
     }
 }

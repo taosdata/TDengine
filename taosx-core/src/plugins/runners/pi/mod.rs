@@ -254,7 +254,7 @@ pub async fn pi_to_taos(
                         .await
                     {
                         tracing::info!("PI connector exit with {}", status);
-                        notify.send_async(TaskNotify::Info(format!(
+                        notify.send_async(TaskNotify::source_error(format!(
                             "PI connector exit with {}",
                             status
                         )));
