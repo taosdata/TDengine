@@ -48,9 +48,6 @@ int main(int argc, char *argv[]) {
   shell.args.cloud = true;
   shell.args.local = false;
 #endif
-#ifdef TAOSD_INTEGRATED
-  tsTaosdIntegrated = true;
-#endif
 
 #if 0
 #if !defined(WINDOWS)

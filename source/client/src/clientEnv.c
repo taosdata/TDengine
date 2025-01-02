@@ -1061,6 +1061,9 @@ void taos_init_imp(void) {
     }
   }
 #endif
+#ifdef TAOSD_INTEGRATED
+  tsTaosdIntegrated = true;
+#endif
 
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
