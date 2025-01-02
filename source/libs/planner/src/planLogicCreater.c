@@ -27,7 +27,6 @@ typedef struct SLogicPlanContext {
   SLogicNode*   pCurrRoot;
   SSHashObj*    pChildTables;
   bool          hasScan;
-  bool          refScan;
 } SLogicPlanContext;
 
 typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
@@ -774,13 +773,14 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_COL,
                                     &pVtableScan->pScanCols));
 
-  pCxt->refScan = true;
-  SNode *pNode = NULL;
+  SNode  *pNode = NULL;
   int32_t slotId = 0;
+  bool    onlyTs = false;
   FOREACH(pNode, pVtableScan->pScanCols) {
     SColumnNode *pCol = (SColumnNode*)pNode;
     if (pVirtualTable->pMeta->colRef[pCol->colId - 1].hasRef) {
-      if (pCol->isPrimTs) {
+      onlyTs = false;
+      if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
       SColRef *pColRef = &pVirtualTable->pMeta->colRef[pCol->colId - 1];
@@ -793,11 +793,36 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       PLAN_ERR_JRET(doCreateLogicNodeByTable(pCxt, pSelect, pRefTable, &pRefScan));
       PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->pMeta->schema[pCol->colId - 1], colId));
       PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)pRefScan));
+    } else if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      onlyTs = true;
     } else {
       pCol->hasRef = false;
+      onlyTs = false;
     }
   }
-  pCxt->refScan = false;
+
+  if (onlyTs) {
+    if (0 != LIST_LENGTH(pVtableScan->node.pChildren)) {
+      PLAN_ERR_JRET(TSDB_CODE_VTABLE_SCAN_UNMATCHED_COLUMN);
+    }
+    for (int32_t i = 0; i < pVirtualTable->pMeta->tableInfo.numOfColumns; i++) {
+      if (pVirtualTable->pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        continue;
+      } else {
+        col_id_t index = pVirtualTable->pMeta->schema[i].colId - 1;
+        if (pVirtualTable->pMeta->colRef[index].hasRef) {
+          SColRef *pColRef = &pVirtualTable->pMeta->colRef[index];
+          col_id_t colId = 0;
+          PLAN_ERR_JRET(findRefTableNode(pVirtualTable->refTables, pColRef->refTableName, &pRefTable));
+          PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId));
+          PLAN_ERR_JRET(doCreateLogicNodeByTable(pCxt, pSelect, pRefTable, &pRefScan));
+          PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->pMeta->schema[index], colId));
+          PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)pRefScan));
+        }
+      }
+    }
+  }
+
   // set output
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
@@ -2401,7 +2426,7 @@ static void setLogicSubplanType(bool hasScan, SLogicSubplan* pSubplan) {
 }
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
-  SLogicPlanContext cxt = {.pPlanCxt = pCxt, .pCurrRoot = NULL, .hasScan = false, .refScan = false};
+  SLogicPlanContext cxt = {.pPlanCxt = pCxt, .pCurrRoot = NULL, .hasScan = false};
 
   SLogicSubplan* pSubplan = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pSubplan);

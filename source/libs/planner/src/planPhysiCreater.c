@@ -516,6 +516,32 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setVtableNodeSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, SNode* pNode,
+                                   SNode** pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == pNode) {
+    PLAN_RET(code);
+  }
+
+  SNode* pRes = NULL;
+  PLAN_ERR_JRET(nodesCloneNode(pNode, &pRes));
+
+  SVTableSetSlotIdCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .hashArray = pCxt->pLocationHelper,
+      .projIdxHashArray = pCxt->pProjIdxLocHelper,
+      .pChild = pChild
+  };
+
+  nodesWalkExpr(pRes, doSetVtableSlotId, &cxt);
+  PLAN_ERR_JRET(cxt.errCode);
+
+  *pOutput = pRes;
+  return code;
+_return:
+  nodesDestroyNode(pRes);
+  return code;
+}
 
 static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, int16_t rightDataBlockId,
                              const SNodeList* pList, SNodeList** pOutput) {
@@ -599,6 +625,14 @@ static int32_t setConditionsSlotId(SPhysiPlanContext* pCxt, const SLogicNode* pL
   if (NULL != pLogicNode->pConditions) {
     return setNodeSlotId(pCxt, pPhysiNode->pOutputDataBlockDesc->dataBlockId, -1, pLogicNode->pConditions,
                          &pPhysiNode->pConditions);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setVtableConditionsSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, const SLogicNode* pLogicNode,
+                                         SPhysiNode* pPhysiNode) {
+  if (NULL != pLogicNode->pConditions) {
+    return setVtableNodeSlotId(pCxt, pChild, pLogicNode->pConditions, &pPhysiNode->pConditions);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1681,6 +1715,7 @@ static int32_t createVirtualScanCols(SPhysiPlanContext* pCxt, SVirtualScanPhysiN
 }
 
 static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
+                                                       SNodeList* pChild,
                                                        SVirtualScanLogicNode* pScanLogicNode,
                                                        SVirtualScanPhysiNode* pScanPhysiNode,
                                                        SPhysiNode** pPhyNode) {
@@ -1718,7 +1753,7 @@ static int32_t createVirtualTableScanPhysiNode(SPhysiPlanContext* pCxt, SNodeLis
     return terrno;
   }
 
-  PLAN_ERR_RET(createVirtualTableScanPhysiNodeFinalize(pCxt, pScanLogicNode, (SVirtualScanPhysiNode*)pVirtualScan, pPhyNode));
+  PLAN_ERR_RET(createVirtualTableScanPhysiNodeFinalize(pCxt, pChildren, pScanLogicNode, (SVirtualScanPhysiNode*)pVirtualScan, pPhyNode));
   PLAN_ERR_RET(setVtableListSlotId(pCxt, pChildren, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
   return code;
 }
