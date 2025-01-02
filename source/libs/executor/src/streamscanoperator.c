@@ -301,9 +301,9 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                 ", block start key:%" PRId64 ", end key:%" PRId64,
                 GET_TASKID(pTaskInfo), num, pInfo->pRes->info.id.uid, curTs, pInfo->pRes->info.window.skey,
                 pInfo->pRes->info.window.ekey);
-          code = buildRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, pInfo->pUpdateRes, num,
-                                      &pInfo->partitionSup, pInfo->pPartScalarSup);
-          QUERY_CHECK_CODE(code, lino, _end);
+          // code = buildRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, pInfo->pUpdateRes, num,
+          //                             &pInfo->partitionSup, pInfo->pPartScalarSup);
+          // QUERY_CHECK_CODE(code, lino, _end);
           code = blockDataTrimFirstRows(pInfo->pRes, num);
           QUERY_CHECK_CODE(code, lino, _end);
           code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
