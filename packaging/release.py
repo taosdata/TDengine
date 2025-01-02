@@ -365,7 +365,9 @@ def copy_taosx_service_file(taosx_install_path):
     taosx_exe_path = os.path.join(taosx_path, "taosx-srv.exe")
     srv_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-srv.exe")
     shutil.copy2(taosx_exe_path, srv_target)
-    taosx_xml_path = os.path.join(taosx_path, "taosx-srv.xml")
+
+    taosx_target_path = os.path.join(taosx_dir, "target")
+    taosx_xml_path = os.path.join(taosx_target_path, f"{release_info.CustomPrompt}x-srv.xml")
     xml_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-srv.xml")
     shutil.copy2(taosx_xml_path, xml_target)
 
@@ -379,7 +381,9 @@ def copy_taosx_agent_service_file(taosx_install_path):
     taosx_agent_exe_path = os.path.join(taosx_agent_path, "taosx-agent-srv.exe")
     srv_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-agent-srv.exe")
     shutil.copy2(taosx_agent_exe_path, srv_target)
-    taosx_agent_xml_path = os.path.join(taosx_agent_path, "taosx-agent-srv.xml")
+
+    taosx_target_path = os.path.join(taosx_dir, "target")
+    taosx_agent_xml_path = os.path.join(taosx_target_path, f"{release_info.CustomPrompt}x-agent-srv.xml")
     xml_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-agent-srv.xml")
     shutil.copy2(taosx_agent_xml_path, xml_target)
 
