@@ -779,6 +779,7 @@ cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
 cmd ::= PAUSE STREAM exists_opt(A) stream_name(B).                                { pCxt->pRootNode = createPauseStreamStmt(pCxt, A, &B); }
 cmd ::= RESUME STREAM exists_opt(A) ignore_opt(C) stream_name(B).                 { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, &B); }
+cmd ::= RESET STREAM exists_opt(A) stream_name(B).                                { pCxt->pRootNode = createResetStreamStmt(pCxt, A, &B); }
 
 %type col_list_opt                                                                { SNodeList* }
 %destructor col_list_opt                                                          { nodesDestroyList($$); }

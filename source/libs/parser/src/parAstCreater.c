@@ -3731,6 +3731,20 @@ _err:
   return NULL;
 }
 
+SNode* createResetStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkStreamName(pCxt, pStreamName));
+  SPauseStreamStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RESET_STREAM_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
   CHECK_PARSER_STATUS(pCxt);
   SKillStmt* pStmt = NULL;

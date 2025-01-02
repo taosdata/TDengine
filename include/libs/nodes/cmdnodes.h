@@ -601,6 +601,12 @@ typedef struct SResumeStreamStmt {
   bool      ignoreUntreated;
 } SResumeStreamStmt;
 
+typedef struct SResetStreamStmt {
+  ENodeType type;
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+} SResetStreamStmt;
+
 typedef struct SCreateFunctionStmt {
   ENodeType type;
   bool      orReplace;
