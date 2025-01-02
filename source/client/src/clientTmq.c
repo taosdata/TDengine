@@ -2356,22 +2356,21 @@ static SMqRspObj* buildRsp(SMqPollRspWrapper* pollRspWrapper){
 }
 
 static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
+  int32_t code = 0;
   SMqPollRspWrapper* pollRspWrapper = &pRspWrapper->pollRsp;
 
   if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {  // for vnode transform
-    int32_t code = askEp(tmq, NULL, false, true);
+    code = askEp(tmq, NULL, false, true);
     if (code != 0) {
       tqErrorC("consumer:0x%" PRIx64 " failed to ask ep, code:%s", tmq->consumerId, tstrerror(code));
-      return code;
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
-    int32_t code = askEp(tmq, NULL, false, false);
+    code = askEp(tmq, NULL, false, false);
     if (code != 0) {
       tqErrorC("consumer:0x%" PRIx64 " failed to ask ep, code:%s", tmq->consumerId, tstrerror(code));
-      return code;
     }
-  } else{
-    return pRspWrapper->code;
+  } else if (code == TSDB_CODE_TMQ_NO_TABLE_QUALIFIED){
+    code = 0;
   }
   tqInfoC("consumer:0x%" PRIx64 " msg from vgId:%d discarded, since %s", tmq->consumerId, pollRspWrapper->vgId,
           tstrerror(pRspWrapper->code));
@@ -2383,6 +2382,7 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
   }
   taosWUnLockLatch(&tmq->lock);
+
   return TSDB_CODE_SUCCESS;
 }
 static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){

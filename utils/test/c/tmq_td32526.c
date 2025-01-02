@@ -181,7 +181,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       printResult(tmqmessage);
       taos_free_result(tmqmessage);
     } else {
-      ASSERT(taos_errno(NULL) == TSDB_CODE_TIMEOUT_ERROR);
+      ASSERT(taos_errno(NULL) == TSDB_CODE_TMQ_POLL_TIMEOUT);
       break;
     }
   }
