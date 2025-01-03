@@ -1533,7 +1533,11 @@ impl Parser {
                 let using = table
                     .using
                     .as_ref()
-                    .and_then(|_| template.render("using", &json[name_row]).ok())
+                    .and_then(|_| {
+                        template
+                            .render_value("using", &serde_json::Value::from(json[name_row].clone()))
+                            .ok()
+                    })
                     .map(|using| self.global().canonical_table_name(&using).to_string());
 
                 let tags = tags
@@ -1682,7 +1686,7 @@ fn generate_table_name(
     let mut template = TinyTemplate::new();
     template.add_template("name", &table_name_org)?;
     // render table name
-    match template.render("name", data) {
+    match template.render_value("name", &serde_json::Value::from(data.clone())) {
         Ok(name) => {
             // the length of table name should not exceed 192
             if name.len() > 192 {

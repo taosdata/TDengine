@@ -65,7 +65,7 @@ impl SModel {
         }
 
         let mut models = HashMap::new();
-        for ctx in ctx.into_iter() {
+        for ctx in ctx.iter() {
             let ctx = serde_json::Value::from(ctx.clone());
             let name = template
                 .render_value("name", &ctx)
