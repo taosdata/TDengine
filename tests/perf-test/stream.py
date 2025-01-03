@@ -21,25 +21,29 @@ class MonitorSystemLoad:
     def get_proc_status(self):
         process = psutil.Process(self.pid)
 
-        while True:
-            cpu_percent = process.cpu_percent(interval=1)
+        with open('/tmp/pref.txt', 'w+') as f:
+            while True:
+                cpu_percent = process.cpu_percent(interval=1)
 
-            memory_info = process.memory_info()
-            memory_percent = process.memory_percent()
+                memory_info = process.memory_info()
+                memory_percent = process.memory_percent()
 
-            io_counters = process.io_counters()
-            sys_load = psutil.getloadavg()
+                io_counters = process.io_counters()
+                sys_load = psutil.getloadavg()
 
-            print("load: %s, CPU:%s, Mem:%.2f MiB(%.2f%%), Read: %.2fMiB(%d), Write: %.2fMib (%d)" % (
-                sys_load, cpu_percent, memory_info.rss / 1048576.0,
-                memory_percent, io_counters.read_bytes / 1048576.0, io_counters.read_count,
-                io_counters.write_bytes / 1048576.0, io_counters.write_count))
+                s = "load: %.2f, CPU:%s, Mem:%.2f MiB(%.2f%%), Read: %.2fMiB(%d), Write: %.2fMib (%d)" % (
+                    sys_load[0], cpu_percent, memory_info.rss / 1048576.0,
+                    memory_percent, io_counters.read_bytes / 1048576.0, io_counters.read_count,
+                    io_counters.write_bytes / 1048576.0, io_counters.write_count)
 
-            time.sleep(1)
-            self.count -= 1
+                print(s)
+                f.write(s + '\n')
 
-            if self.count <= 0:
-                break
+                time.sleep(1)
+
+                self.count -= 1
+                if self.count <= 0:
+                    break
 
 
 class StreamStarter:
@@ -60,11 +64,11 @@ class StreamStarter:
             "rest_port": 6041,
             "user": "root",
             "password": "taosdata",
-            "thread_count": 20,
-            "create_table_thread_count": 40,
+            "thread_count": 5,
+            "create_table_thread_count": 10,
             "result_file": "/tmp/taosBenchmark_result.log",
             "confirm_parameter_prompt": "no",
-            "insert_interval": 0,
+            "insert_interval": 1000,
             "num_of_records_per_req": 10000,
             "max_sql_len": 1024000,
             "databases": [
@@ -87,7 +91,7 @@ class StreamStarter:
                         {
                             "name": "stb",
                             "child_table_exists": "yes",
-                            "childtable_count": 500,
+                            "childtable_count": 50000,
                             "childtable_prefix": "ctb0_",
                             "escape_character": "no",
                             "auto_create_table": "yes",
