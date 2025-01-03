@@ -46,7 +46,7 @@ jobs:
             -DBUILD_TEST=false \
             -DBUILD_CONTRIB=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4 -v
+          make VERBOSE=1 -j 4
           sudo make install
           which taosd
           which taosadapter

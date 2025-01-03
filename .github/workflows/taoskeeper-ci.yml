@@ -29,7 +29,7 @@ jobs:
           mkdir debug
           cd debug
           cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false -DBUILD_CONTRIB=true
-          make -j 4 -v
+          make VERBOSE=1 -j 4
           sudo make install
           which taosd
           which taosadapter
