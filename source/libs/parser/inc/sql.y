@@ -1460,10 +1460,10 @@ joined_table(A) ::= win_joined(B).                                              
 
 /************************************************ inner join **********************************************************/
 inner_joined(A) ::=
-  table_reference(B) JOIN table_reference(E) join_on_clause(F).                   { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_NONE, A, B, E, F, NULL, NULL); }
+  table_reference(B) JOIN table_reference(E) join_on_clause_opt(F).               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_NONE, A, B, E, F, NULL, NULL); }
 
 inner_joined(A) ::=
-  table_reference(B) INNER JOIN table_reference(E) join_on_clause(F).             { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_NONE, A, B, E, F, NULL, NULL); }
+  table_reference(B) INNER JOIN table_reference(E) join_on_clause_opt(F).         { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_NONE, A, B, E, F, NULL, NULL); }
 
 /************************************************ outer join **********************************************************/
 outer_joined(A) ::=
@@ -1509,12 +1509,12 @@ asof_joined(A) ::=
 
 /************************************************ window join *********************************************************/
 win_joined(A) ::=
-  table_reference(B) LEFT WINDOW JOIN table_reference(E)
-  window_offset_clause(G) jlimit_clause_opt(H).                                   { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_WIN, A, B, E, NULL, G, H); }
+  table_reference(B) LEFT WINDOW JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause(G) jlimit_clause_opt(H).                                   { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
 
 win_joined(A) ::=
-  table_reference(B) RIGHT WINDOW JOIN table_reference(E)
-  window_offset_clause(G) jlimit_clause_opt(H).                                   { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_WIN, A, B, E, NULL, G, H); }
+  table_reference(B) RIGHT WINDOW JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause(G) jlimit_clause_opt(H).                                   { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
 
 join_on_clause_opt(A) ::= . [ON]                                                  { A = NULL; }
 join_on_clause_opt(A) ::= join_on_clause(B).                                      { A = B; }
