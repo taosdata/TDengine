@@ -336,11 +336,11 @@ cd /root/TDinternal/community/packaging/smokeTest
 
 ## 8.5 Run TSBS test
 
-1. Clone the code
+1. Clone the code and run test in localhost:
 ```bash
-cd /root/ && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp && ./testTsbs.sh  
+cd /usr/local/src && git clone https://github.com/taosdata/tsbs.git && git checkout enh/chr-td-33357 && cd tsbs/scripts/tsdbComp && ./testTsbs.sh  
 ```
-2. if you want to test on client and server in diffrent machine. you need to setup env follow step:
+2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
 
     2.1. Modify IP and host of client and server in `test.ini`
     ```ini
