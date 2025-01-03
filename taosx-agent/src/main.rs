@@ -8,7 +8,7 @@ use flume::{Receiver, Sender};
 use metrics::gauge;
 use std::{
     collections::HashMap,
-    ops::Range,
+    ops::RangeInclusive,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -131,7 +131,7 @@ pub struct Args {
     in_memory_cache_capacity: Option<usize>,
 
     // manually specified port range, eg. 9000-9099
-    ports: Option<Range<u16>>,
+    ports: Option<RangeInclusive<u16>>,
 }
 
 #[config]
@@ -181,11 +181,15 @@ pub struct ConfigArgs {
     #[clap(long, env = "LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
 
-    #[clap(long)]
-    port_min: Option<u16>,
+    #[clap(flatten)]
+    client_port_range: Option<ClientPortRange>,
+}
 
-    #[clap(long)]
-    port_max: Option<u16>,
+#[config]
+#[derive(Parser, Debug, Clone, serde::Serialize)]
+pub struct ClientPortRange {
+    min: Option<u16>,
+    max: Option<u16>,
 }
 
 #[derive(Parser, Debug)]
@@ -423,8 +427,7 @@ impl Args {
             instance_id,
             in_memory_cache_capacity,
             mut log,
-            port_min,
-            port_max,
+            client_port_range,
             ..
         } = ConfigArgs::with_layers(&layers)?;
 
@@ -466,14 +469,17 @@ impl Args {
         AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
 
         // set the range of client port
-        let ports = if port_min.is_some() || port_max.is_some() {
-            let port_min = port_min
+        let ports = if client_port_range.is_some() {
+            let client_port_range = client_port_range.unwrap();
+            let port_min = client_port_range
+                .min
                 .map(|port| port.clamp(49152, 65535))
                 .unwrap_or(49152);
-            let port_max = port_max
+            let port_max = client_port_range
+                .max
                 .map(|port| port.clamp(port_min, 65535))
                 .unwrap_or(65535);
-            Some(port_min..port_max)
+            Some(port_min..=port_max)
         } else {
             None
         };

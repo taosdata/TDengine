@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::future::Future;
-use std::ops::Range;
+use std::ops::RangeInclusive;
 use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -119,7 +119,10 @@ pub struct Task {
     pub breakpoints: Option<String>,
 }
 
-async fn new_channel(endpoint: String, ports: Option<Range<u16>>) -> anyhow::Result<Channel> {
+async fn new_channel(
+    endpoint: String,
+    ports: Option<RangeInclusive<u16>>,
+) -> anyhow::Result<Channel> {
     cfg_if! {
         if #[cfg(windows)] {
            let tcp_keepalive = None;
@@ -145,11 +148,11 @@ async fn new_channel(endpoint: String, ports: Option<Range<u16>>) -> anyhow::Res
 }
 
 struct Svc {
-    ports: Range<u16>,
+    ports: RangeInclusive<u16>,
 }
 
 impl Svc {
-    fn new(ports: Range<u16>) -> Self {
+    fn new(ports: RangeInclusive<u16>) -> Self {
         Self { ports }
     }
 }
@@ -199,7 +202,7 @@ impl Client {
     pub async fn new(
         endpoint: impl Display,
         token: impl Display,
-        ports: &Option<Range<u16>>,
+        ports: &Option<RangeInclusive<u16>>,
     ) -> Result<Self> {
         let endpoint = endpoint.to_string();
         let token = token.to_string();
@@ -830,7 +833,7 @@ mod agent_tests {
     #[tokio::test]
     async fn test_new_channel() {
         let endpoint = String::from("0.0.0.0:6030");
-        let ports = Some(9000..9099);
+        let ports = Some(9000..=9099);
         let _channel = new_channel(endpoint, ports).await.unwrap();
 
         // get the current process ID
