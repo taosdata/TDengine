@@ -19,8 +19,8 @@ Prepare the following environment:
 
 ## Install TDengine Python Connector
 
-The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.18 and later, which will be automatically installed in the Superset directory and provide data source services.  
-The connection uses the WebSocket protocol, so it is necessary to install the `taos-ws-py` component of TDengine separately. The complete installation script is as follows:  
+The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.21 and later, which will be automatically installed in the Superset directory and provide data source services.  
+The connection uses the WebSocket protocol, so it is necessary to install the `taos-ws-py`(version >= 0.3.8) component of TDengine separately. The complete installation script is as follows:  
 ```bash
 pip3 install taospy
 pip3 install taos-ws-py
