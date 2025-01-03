@@ -314,8 +314,7 @@ jobs:
       - name: get last coverage data from TDengine
         run: |
           response=$(curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
-          -d "select last(*) from coverage.report" \
-          http://$COVERAGE_DATABASE_URL:6041/rest/sql)
+          -d "select last(*) from coverage.report" $COVERAGE_DATABASE_URL)
           echo "taosx_coverage_last=$(echo $response | jq '.data[0][1]')" >> $GITHUB_ENV
           echo "influxdb_connector_coverage_last=$(echo $response | jq '.data[0][2]')" >> $GITHUB_ENV
           echo "opentsdb_connector_coverage_last=$(echo $response | jq '.data[0][3]')" >> $GITHUB_ENV
