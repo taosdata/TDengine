@@ -32,7 +32,10 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y build-essential cmake
+          sudo apt install -y build-essential cmake \
+            libjansson-dev libsnappy-dev liblzma-dev libz-dev \
+            zlib1g pkg-config libssl-dev gawk
+
 
       - name: Build and install TDengine
         run: |
