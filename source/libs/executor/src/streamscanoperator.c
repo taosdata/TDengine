@@ -1226,6 +1226,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   pInfo->comparePkColFn = getKeyComparFunc(pkType.type, TSDB_ORDER_ASC);
   pInfo->curRange = (SScanRange){0};
   pInfo->scanAllTables = false; //todo(liuyao) semi interval.
+  pInfo->hasPart = false;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);

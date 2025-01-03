@@ -572,8 +572,10 @@ int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId) {
 }
 
 void streamStateSetParNameInvalid(SStreamState* pState) {
-  tSimpleHashCleanup(pState->parNameMap);
-  pState->parNameMap = NULL;
+  if (pState != NULL) {
+    tSimpleHashCleanup(pState->parNameMap);
+    pState->parNameMap = NULL;
+  }
 }
 
 void streamStateDestroy(SStreamState* pState, bool remove) {

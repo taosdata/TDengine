@@ -542,6 +542,7 @@ typedef struct SStreamScanInfo {
   bool              useGetResultRange;
   STimeWindow       lastScanRange;
   SSDataBlock*      pRangeScanRes;  // update SSDataBlock
+  bool              hasPart;
 
   //nonblock data scan
   STableTsDataState     tsDataState;

@@ -1591,6 +1591,7 @@ int32_t initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pPar
   pScanInfo->partitionSup = *pParSup;
   pScanInfo->pPartScalarSup = pExpr;
   pScanInfo->pPartTbnameSup = pTbnameExpr;
+  pScanInfo->hasPart = true;
   for (int32_t j = 0; j < pResExprSupp->numOfExprs; j++) {
     if (pScanInfo->primaryKeyIndex == pResExprSupp->pExprInfo[j].base.pParam[0].pCol->slotId) {
       *pPkColIndex = j;

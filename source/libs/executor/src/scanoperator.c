@@ -2538,7 +2538,9 @@ int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowI
   blockDataCleanup(pInfo->pCreateTbRes);
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
-    pInfo->stateStore.streamStateSetParNameInvalid(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState);
+    if (pInfo->hasPart == false) {
+      pInfo->stateStore.streamStateSetParNameInvalid(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState);
+    }
   } else {
     code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
                                 &pInfo->tagCalSup, pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes,
@@ -4625,6 +4627,7 @@ static int32_t createStreamNormalScanOperatorInfo(SReadHandle* pHandle, STableSc
     pTaskInfo->streamInfo.snapshotVer = pHandle->version;
     pInfo->pCreateTbRes = buildCreateTableBlock(&pInfo->tbnameCalSup, &pInfo->tagCalSup);
     QUERY_CHECK_NULL(pInfo->pCreateTbRes, code, lino, _error, terrno);
+    pInfo->hasPart = false;
 
     code = blockDataEnsureCapacity(pInfo->pCreateTbRes, 8);
     QUERY_CHECK_CODE(code, lino, _error);
