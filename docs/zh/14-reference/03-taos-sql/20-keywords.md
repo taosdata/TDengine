@@ -231,6 +231,7 @@ description: TDengine 保留关键字的详细列表
 | LEADER               | |
 | LEADING              | |
 | LEFT                 | |
+| LEVEL                | 3.3.0.0 到 3.3.2.11 的所有版本 |
 | LICENCES             | |
 | LIKE                 | |
 | LIMIT                | |
