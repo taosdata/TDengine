@@ -499,7 +499,7 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pState->parNameMap == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {
