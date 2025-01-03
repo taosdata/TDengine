@@ -441,7 +441,11 @@ class TDTestCase:
         tdSql.checkData(1, 3, 2)
         tdSql.checkData(1, 4, 4)
         
+        # todo 1 , has same select function outof cols func
         #select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4;
+        # todo 2, sub query has cols func
+        # select * from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4);
+        # todo 3, cols on system table
 
     def funcSupperTableTest(self):
         tdSql.execute('create database if not exists db;')
