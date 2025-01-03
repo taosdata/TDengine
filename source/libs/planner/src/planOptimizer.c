@@ -202,6 +202,7 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
   if (NULL == pNode) {
     return;
   }
+  SLogicNode* pChild = NULL;
   pNode->inputTsOrder = order;
   switch (nodeType(pNode)) {
     // for those nodes that will change the order, stop propagating
@@ -222,6 +223,14 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       // We stop propagate the original order to parents.
       // Use window output ts order instead.
       order = pNode->outputTsOrder;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      pChild = (SLogicNode*)nodesListGetNode(((SProjectLogicNode*)pNode)->node.pChildren, 0);
+      if (pChild && DATA_ORDER_LEVEL_GLOBAL != pChild->resultDataOrder) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
+      pNode->outputTsOrder = order;
       break;
     default:
       pNode->outputTsOrder = order;
