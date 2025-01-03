@@ -16,6 +16,7 @@ verType=$7
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/debworkroom"
+taosx_dir="$(readlink -f ${script_dir}/../../../../taosx)"
 
 #echo "curr_dir: ${curr_dir}"
 #echo "top_dir: ${top_dir}"
@@ -81,11 +82,11 @@ fi
 if [ -f "${compile_dir}/test/cfg/taoskeeper.service" ]; then
     cp ${compile_dir}/test/cfg/taoskeeper.service	${pkg_dir}${install_home_path}/cfg || :
 fi
-if [ -f "${compile_dir}/../../../explorer/target/taos-explorer.service" ]; then
-    cp ${compile_dir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
+if [ -f "${taosx_dir}/explorer/server/examples/explorer.service" ]; then
+    cp ${taosx_dir}/explorer/server/examples/explorer.service ${pkg_dir}${install_home_path}/cfg/taos-explorer.service || :
 fi
-if [ -f "${compile_dir}/../../../explorer/server/example/explorer.toml" ]; then
-    cp ${compile_dir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
+if [ -f "${taosx_dir}/explorer/server/examples/explorer.toml" ]; then
+    cp ${taosx_dir}/explorer/server/examples/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
 fi
 
 # cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
@@ -113,8 +114,8 @@ if [ -f "${compile_dir}/build/bin/taoskeeper" ]; then
     cp ${compile_dir}/build/bin/taoskeeper                    ${pkg_dir}${install_home_path}/bin ||:
 fi
 
-if [ -f "${compile_dir}/../../../explorer/target/release/taos-explorer" ]; then
-    cp ${compile_dir}/../../../explorer/target/release/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
+if [ -f "${taosx_dir}/target/release/taos-explorer" ]; then
+    cp ${taosx_dir}/target/release/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin

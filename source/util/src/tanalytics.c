@@ -20,7 +20,7 @@
 
 #ifdef USE_ANALYTICS
 #include <curl/curl.h>
-#define ANAL_ALGO_SPLIT ","
+#define ANALYTICS_ALOG_SPLIT_CHAR ","
 
 typedef struct {
   int64_t       ver;
@@ -136,7 +136,7 @@ bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, 
     return false;
   }
 
-  pEnd = strstr(pStart, ANAL_ALGO_SPLIT);
+  pEnd = strstr(pStart, ANALYTICS_ALOG_SPLIT_CHAR);
   if (optMaxLen > 0) {
     if (pEnd > pStart) {
       int32_t len = (int32_t)(pEnd - pStart);
@@ -168,7 +168,7 @@ bool taosAnalGetOptInt(const char *option, const char *optName, int64_t *optValu
   int32_t bufLen = tsnprintf(buf, sizeof(buf), "%s=", optName);
 
   char *pos1 = strstr(option, buf);
-  char *pos2 = strstr(option, ANAL_ALGO_SPLIT);
+  char *pos2 = strstr(option, ANALYTICS_ALOG_SPLIT_CHAR);
   if (pos1 != NULL) {
     *optValue = taosStr2Int64(pos1 + bufLen, NULL, 10);
     return true;

@@ -250,9 +250,10 @@ _EXIT:
   streamBackendCleanup((void*)pBackend);
 
   if (code == 0) {
-    char* state = taosMemoryCalloc(1, strlen(pMeta->path) + 32);
+    int32_t len = strlen(pMeta->path) + 32;
+    char*   state = taosMemoryCalloc(1, len);
     if (state != NULL) {
-      sprintf(state, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
+      (void) snprintf(state, len, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
       taosRemoveDir(state);
       taosMemoryFree(state);
     } else {
@@ -379,7 +380,7 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   char*   tpath = taosMemoryCalloc(1, len);
   TSDB_CHECK_NULL(tpath, code, lino, _err, terrno);
 
-  sprintf(tpath, "%s%s%s", path, TD_DIRSEP, "stream");
+  (void) snprintf(tpath, len, "%s%s%s", path, TD_DIRSEP, "stream");
   pMeta->path = tpath;
 
   code = streamMetaOpenTdb(pMeta);
