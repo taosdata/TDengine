@@ -1,8 +1,9 @@
-use std::{fmt::Display, path::Path};
-
+use crate::utils::constants::VERSION_3_3_3;
 use anyhow::Context;
+use itertools::Itertools;
 use privileges::Privilege;
 use serde::{Deserialize, Serialize};
+use std::{fmt::Display, path::Path};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use users::User;
 
@@ -27,6 +28,7 @@ impl Default for Options {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 enum Op {
     /// Tilde requirements allow the patch part of the semver version (the third number) to increase.
     ///
@@ -40,6 +42,7 @@ enum Op {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 struct Comparator {
     #[allow(dead_code)]
     pub op: Op,
@@ -51,6 +54,7 @@ struct Comparator {
     pub pre: Option<String>,
 }
 
+#[allow(unused)]
 impl Comparator {
     pub fn tilde_from(version: &str) -> Self {
         let item = version.splitn(5, ['.', '-']).collect::<Vec<_>>();
@@ -239,14 +243,16 @@ impl Export {
         let conn = builder.pool()?.get().await?;
         self.apply(&conn).await
     }
+
     pub async fn apply(&self, conn: &taos::Taos) -> anyhow::Result<ApplyResults> {
         let version = conn.server_version().await?;
 
-        let comparator = Comparator::tilde_from(&self.version);
-        if !comparator.matches(&version) {
+        let compatible_version = version.split('.').take(3).join(".");
+        let compatible_version = semver::Version::parse(&compatible_version)?;
+        if compatible_version < VERSION_3_3_3 {
             return Err(anyhow::anyhow!(
-                "Version mismatch, expected {} compatible version, got {}",
-                self.version,
+                "Version mismatch, expected {} above version, got {}",
+                VERSION_3_3_3,
                 version
             ));
         }
@@ -420,9 +426,29 @@ pub async fn migrate(from: &Dsn, to: &Dsn, options: &Options) -> anyhow::Result<
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::constants::VERSION_3_3_3;
+    use itertools::Itertools;
     use std::str::FromStr;
-
     use taos::{AsyncQueryable, AsyncTBuilder, TaosBuilder};
+
+    #[test]
+    fn test_compare_version() {
+        let version = "3.3.5.0".split('.').take(3).join(".");
+        let version = semver::Version::parse(&version).unwrap();
+        assert!(version >= VERSION_3_3_3);
+
+        let version = "3.3.3.11".split('.').take(3).join(".");
+        let version = semver::Version::parse(&version).unwrap();
+        assert!(version >= VERSION_3_3_3);
+
+        let version = "3.3.3.0".split('.').take(3).join(".");
+        let version = semver::Version::parse(&version).unwrap();
+        assert!(version >= VERSION_3_3_3);
+
+        let version = "3.2.3.11".split('.').take(3).join(".");
+        let version = semver::Version::parse(&version).unwrap();
+        assert!(version < VERSION_3_3_3);
+    }
 
     #[test]
     fn test_comparator() {
