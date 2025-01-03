@@ -8,6 +8,7 @@ ExternalProject_Add(ext_pcre2
         GIT_TAG pcre2-10.43
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=Release
         CMAKE_ARGS -DPCRE2_BUILD_TESTS:BOOL=OFF
         GIT_SHALLOW true
         )

@@ -10,6 +10,7 @@ ExternalProject_Add(ext_lz4
         PREFIX "${_base}"
         SOURCE_SUBDIR "build/cmake"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=Release
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DBUILD_STATIC_LIBS:BOOL=ON
         GIT_SHALLOW true
