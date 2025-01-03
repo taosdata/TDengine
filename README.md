@@ -336,7 +336,7 @@ cd /root/TDinternal/community/packaging/smokeTest
 
 ## 8.5 Run TSBS test
 
-1. Clone the code and  run the tests locally on your machine:
+1. Clone the code and  run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
 ```bash
 cd /usr/local/src && git clone https://github.com/taosdata/tsbs.git && git checkout enh/chr-td-33357 && cd tsbs/scripts/tsdbComp && ./testTsbs.sh  
 ```
