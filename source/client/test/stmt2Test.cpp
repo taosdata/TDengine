@@ -818,21 +818,29 @@ TEST(stmt2Case, stmt2_init_prepare_Test) {
 TEST(stmt2Case, stmt2_stb_insert) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
-  // normal insert into stb
+  // normal
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
-  { do_stmt(taos, &option, "insert into db.stb (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, true); }
-  // normal using
+  { do_stmt(taos, &option, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, true); }
+  { do_stmt(taos, &option, "insert into `db`.? using `db`.`stb` tags(?,?) values(?,?)", 3, 3, 3, true, true); }
+
+  // async
   option = {0, true, true, stmtAsyncQueryCb, NULL};
-  { do_stmt(taos, &option, "insert into db.? using db.stb tags(?,?) values(?,?)", 3, 3, 3, true, true); }
-  // `db`.`stb` is not a super table
-  option = {0, true, true, NULL, NULL};
-  { do_stmt(taos, &option, "insert into `db`.`stb` (tbname,ts,b) values(?,?,?)", 3, 3, 3, false, true); }
-  // use db
+  { do_stmt(taos, &option, "insert into db.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, true); }
+  { do_stmt(taos, &option, "insert into db.? using db.stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, true); }
+  // { do_stmt(taos, &option, "insert into db.? values(?,?)", 3, 3, 3, false, true); }
+
+  // interlace = 0 & use db]
   do_query(taos, "use db");
+  option = {0, false, false, NULL, NULL};
+  { do_stmt(taos, &option, "insert into stb (tbname,ts,b) values(?,?,?)", 3, 3, 3, false, true); }
+  { do_stmt(taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, true); }
+  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
+
+  // interlace = 1
   option = {0, true, true, stmtAsyncQueryCb, NULL};
-  { do_stmt(taos, &option, "insert into stb (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, false); }
+  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
   option = {0, true, true, NULL, NULL};
-  { do_stmt(taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, false); }
+  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
 
   taos_close(taos);
 }
@@ -1004,6 +1012,7 @@ TEST(stmt2Case, stmt2_query) {
   do_query(taos,
            "insert into db.tb2 using db.stb tags(2,'xyz') values(1591060628000, "
            "'abc'),(1591060628001,'def'),(1591060628002, 'hij')");
+  do_query(taos, "use db");
 
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
