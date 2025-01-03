@@ -462,7 +462,7 @@ static int32_t evtCaclNextTimeout(SEvtMgt *pOpt, struct timeval *tv) {
     code = pOpt->caclTimeout(pOpt->arg, &timeout);
     if (timeout == 0) {
       tv->tv_sec = 0;
-      tv->tv_usec = 100 * 1000;
+      tv->tv_usec = 10 * 1000;
     } else if (timeout < 0) {
       tv->tv_sec = 30;
       tv->tv_usec = 0;
@@ -2931,7 +2931,7 @@ static bool cliIsEpsetUpdated(int32_t code, SReqCtx *pCtx) {
   if (code != 0) return false;
   return transReqEpsetIsEqual(pCtx->epSet, pCtx->origEpSet) ? false : true;
 }
-static int32_t cliNotifyImplCb(SCliConn *pConn, SCliReq *pReq, STransMsg *pResp) {
+static int32_t evtCliNotifyImplCb(SCliConn *pConn, SCliReq *pReq, STransMsg *pResp) {
   int32_t    code = 0;
   SCliThrd2 *pThrd = pConn->hostThrd;
   STrans    *pInst = pThrd->pInst;
@@ -2994,6 +2994,266 @@ static int32_t cliNotifyImplCb(SCliConn *pConn, SCliReq *pReq, STransMsg *pResp)
 
   return code;
 }
+FORCE_INLINE bool evtCliTryUpdateEpset(SCliReq *pReq, STransMsg *pResp) {
+  int32_t  code = 0;
+  SReqCtx *ctx = pReq->ctx;
+
+  if ((pResp == NULL || pResp->info.hasEpSet == 0)) {
+    return false;
+  }
+  // rebuild resp msg
+  SEpSet epset;
+  if ((code = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epset)) < 0) {
+    tError("failed to deserialize epset, code:%d", code);
+    return false;
+  }
+  SEpSet  tepset;
+  int32_t tlen = tSerializeSEpSet(NULL, 0, &tepset);
+
+  char   *buf = NULL;
+  int32_t len = pResp->contLen - tlen;
+  if (len != 0) {
+    buf = rpcMallocCont(len);
+    if (buf == NULL) {
+      pResp->code = TSDB_CODE_OUT_OF_MEMORY;
+      return false;
+    }
+    // TODO: check buf
+    memcpy(buf, (char *)pResp->pCont + tlen, len);
+  }
+  rpcFreeCont(pResp->pCont);
+
+  pResp->pCont = buf;
+  pResp->contLen = len;
+
+  pResp->info.hasEpSet = 1;
+
+  if (transCreateReqEpsetFromUserEpset(&epset, &ctx->epSet) != 0) {
+    return false;
+  }
+  return true;
+}
+static void evtCliMayResetRespCode(SCliReq *pReq, STransMsg *pResp) {
+  SReqCtx *pCtx = pReq->ctx;
+  if (pCtx->retryCode != TSDB_CODE_SUCCESS) {
+    int32_t code = pResp->code;
+    // return internal code app
+    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK ||
+        code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
+      pResp->code = pCtx->retryCode;
+    }
+  }
+
+  // check whole vnodes is offline on this vgroup
+  if (((pCtx->epSet != NULL) && pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) || pCtx->retryStep > 0) {
+    if (pResp->code == TSDB_CODE_RPC_BROKEN_LINK) {
+      pResp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;  // TSDB_CODE_RPC_SOMENODE_BROKEN_LINK;
+    }
+  }
+}
+void cliRetryMayInitCtx(STrans *pInst, SCliReq *pReq) {
+  SReqCtx *pCtx = pReq->ctx;
+  if (!pCtx->retryInit) {
+    pCtx->retryMinInterval = pInst->retryMinInterval;
+    pCtx->retryMaxInterval = pInst->retryMaxInterval;
+    pCtx->retryStepFactor = pInst->retryStepFactor;
+    pCtx->retryMaxTimeout = pInst->retryMaxTimeout;
+    pCtx->retryInitTimestamp = taosGetTimestampMs();
+    pCtx->retryNextInterval = pCtx->retryMinInterval;
+    pCtx->retryStep = 0;
+    pCtx->retryInit = 1;
+    pCtx->retryCode = TSDB_CODE_SUCCESS;
+    pReq->msg.info.handle = 0;
+  }
+}
+int32_t cliRetryIsTimeout(STrans *pInst, SCliReq *pReq) {
+  SReqCtx *pCtx = pReq->ctx;
+  if (pCtx->retryMaxTimeout != -1 && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+    return 1;
+  }
+  return 0;
+}
+
+int8_t cliRetryShouldRetry(STrans *pInst, STransMsg *pResp) {
+  bool retry = pInst->retry != NULL ? pInst->retry(pResp->code, pResp->msgType - 1) : false;
+  return retry == false ? 0 : 1;
+}
+
+void cliRetryUpdateRule(SReqCtx *pCtx, int8_t noDelay) {
+  if (noDelay == false) {
+    pCtx->epsetRetryCnt = 1;
+    pCtx->retryStep++;
+
+    int64_t factor = pow(pCtx->retryStepFactor, pCtx->retryStep - 1);
+    pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
+    if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
+      pCtx->retryNextInterval = pCtx->retryMaxInterval;
+    }
+  } else {
+    pCtx->retryNextInterval = 0;
+    pCtx->epsetRetryCnt++;
+  }
+}
+bool cliResetEpset(SReqCtx *pCtx, STransMsg *pResp, bool hasEpSet) {
+  bool noDelay = true;
+  if (hasEpSet == false) {
+    if (pResp->contLen == 0) {
+      if (pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) {
+        noDelay = false;
+      } else {
+        EPSET_FORWARD_INUSE(pCtx->epSet);
+      }
+    } else if (pResp->contLen != 0) {
+      SEpSet  epSet;
+      int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
+      if (valid < 0) {
+        tDebug("get invalid epset, epset equal, continue");
+        if (pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) {
+          noDelay = false;
+        } else {
+          EPSET_FORWARD_INUSE(pCtx->epSet);
+        }
+      } else {
+        if (!transCompareReqAndUserEpset(pCtx->epSet, &epSet)) {
+          tDebug("epset not equal, retry new epset1");
+          transPrintEpSet((SEpSet *)pCtx->epSet);
+          transPrintEpSet(&epSet);
+
+          if (transCreateReqEpsetFromUserEpset(&epSet, &pCtx->epSet) != 0) {
+            tDebug("failed to create req epset from user epset");
+          }
+          noDelay = false;
+        } else {
+          if (pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) {
+            noDelay = false;
+          } else {
+            tDebug("epset equal, continue");
+            EPSET_FORWARD_INUSE(pCtx->epSet);
+          }
+        }
+      }
+    }
+  } else {
+    SEpSet  epSet;
+    int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
+    if (valid < 0) {
+      tDebug("get invalid epset, epset equal, continue");
+      if (pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) {
+        noDelay = false;
+      } else {
+        EPSET_FORWARD_INUSE(pCtx->epSet);
+      }
+    } else {
+      if (!transCompareReqAndUserEpset(pCtx->epSet, &epSet)) {
+        tDebug("epset not equal, retry new epset2");
+        transPrintEpSet((SEpSet *)pCtx->epSet);
+        transPrintEpSet(&epSet);
+        if (transCreateReqEpsetFromUserEpset(&epSet, &pCtx->epSet) != 0) {
+          tError("failed to create req epset from user epset");
+        }
+        noDelay = false;
+      } else {
+        if (pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) {
+          noDelay = false;
+        } else {
+          tDebug("epset equal, continue");
+          EPSET_FORWARD_INUSE(pCtx->epSet);
+        }
+      }
+    }
+  }
+  return noDelay;
+}
+
+static void doDelayTask(void *param) {
+  STaskArg *arg = param;
+  if (arg && arg->param1) {
+    SCliReq *pReq = arg->param1;
+    pReq->inRetry = 1;
+  }
+  evtCliHandlReq((SCliReq *)arg->param1, (SCliThrd2 *)arg->param2);
+  taosMemoryFree(arg);
+}
+static int32_t evtCliDoSched(SCliReq *pReq, SCliThrd2 *pThrd) {
+  int32_t  code = 0;
+  STrans  *pInst = pThrd->pInst;
+  SReqCtx *pCtx = pReq->ctx;
+
+  STaskArg *arg = taosMemoryMalloc(sizeof(STaskArg));
+  if (arg == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  arg->param1 = pReq;
+  arg->param2 = pThrd;
+
+  SDelayTask *pTask = transDQSched(pThrd->pEvtMgt->arg, doDelayTask, arg, pCtx->retryNextInterval);
+  if (pTask == NULL) {
+    taosMemoryFree(arg);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return code;
+}
+static bool evtCliMayRetry(SCliConn *pConn, SCliReq *pReq, STransMsg *pResp) {
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+
+  SReqCtx *pCtx = pReq->ctx;
+  int32_t  code = pResp->code;
+
+  if (pReq && pReq->msg.info.qId != 0) {
+    return false;
+  }
+  cliRetryMayInitCtx(pInst, pReq);
+
+  if (!cliRetryShouldRetry(pInst, pResp)) {
+    return false;
+  }
+
+  if (cliRetryIsTimeout(pInst, pReq)) {
+    return false;
+  }
+
+  bool noDelay = false;
+  if (code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
+    noDelay = cliResetEpset(pCtx, pResp, false);
+    transFreeMsg(pResp->pCont);
+  } else if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_INTERNAL_ERROR ||
+             code == TSDB_CODE_SYN_PROPOSE_NOT_READY || code == TSDB_CODE_VND_STOPPED ||
+             code == TSDB_CODE_MNODE_NOT_FOUND || code == TSDB_CODE_APP_IS_STARTING ||
+             code == TSDB_CODE_APP_IS_STOPPING || code == TSDB_CODE_VND_STOPPED) {
+    tTrace("code str %s, contlen:%d 1", tstrerror(code), pResp->contLen);
+    noDelay = cliResetEpset(pCtx, pResp, true);
+    transFreeMsg(pResp->pCont);
+  } else if (code == TSDB_CODE_SYN_RESTORING) {
+    tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
+    noDelay = cliResetEpset(pCtx, pResp, true);
+    transFreeMsg(pResp->pCont);
+  } else {
+    tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
+    noDelay = cliResetEpset(pCtx, pResp, false);
+    transFreeMsg(pResp->pCont);
+  }
+  pResp->pCont = NULL;
+  pResp->info.hasEpSet = 0;
+  if (code != TSDB_CODE_RPC_BROKEN_LINK && code != TSDB_CODE_RPC_NETWORK_UNAVAIL && code != TSDB_CODE_SUCCESS) {
+    // save one internal code
+    pCtx->retryCode = code;
+  }
+
+  cliRetryUpdateRule(pCtx, noDelay);
+
+  pReq->sent = 0;
+  pReq->seq = 0;
+
+  code = evtCliDoSched(pReq, pThrd);
+  if (code != 0) {
+    pResp->code = code;
+    tError("failed to sched msg to next node since %s", tstrerror(code));
+    return false;
+  }
+  return true;
+}
 static int32_t cliNotifyCb(SCliConn *pConn, SCliReq *pReq, STransMsg *pResp) {
   int32_t    code = 0;
   SCliThrd2 *pThrd = pConn->hostThrd;
@@ -3001,17 +3261,17 @@ static int32_t cliNotifyCb(SCliConn *pConn, SCliReq *pReq, STransMsg *pResp) {
 
   if (pReq != NULL) {
     removeReqFromSendQ(pReq);
-    // if (pResp->code != TSDB_CODE_SUCCESS) {
-    //   if (cliMayRetry(pConn, pReq, pResp)) {
-    //     return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
-    //   }
-    //   cliMayResetRespCode(pReq, pResp);
-    // }
-    // if (cliTryUpdateEpset(pReq, pResp)) {
-    //   cliPerfLog_epset(pConn, pReq);
-    // }
+    if (pResp->code != TSDB_CODE_SUCCESS) {
+      if (evtCliMayRetry(pConn, pReq, pResp)) {
+        return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+      }
+      evtCliMayResetRespCode(pReq, pResp);
+    }
+    if (evtCliTryUpdateEpset(pReq, pResp)) {
+      // cliPerfLog_epset(pConn, pReq);
+    }
   }
-  return cliNotifyImplCb(pConn, pReq, pResp);
+  return evtCliNotifyImplCb(pConn, pReq, pResp);
 }
 static int32_t evtCliBuildRespFromCont(SCliReq *pReq, STransMsg *pResp, STransMsgHead *pHead) {
   pResp->contLen = transContLenFromMsg(pHead->msgLen);
