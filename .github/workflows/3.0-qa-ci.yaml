@@ -13,7 +13,7 @@ env:
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8788
   COVERAGE_REPORT_BASE_DIR: /data/code_coverage_taosx
-  COVERAGE_DATABASE_URL: 192.168.1.42
+  COVERAGE_DATABASE_URL: http://192.168.1.42:6041/rest/sql
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -324,8 +324,7 @@ jobs:
       - name: insert coverage percent into TDengine
         run: |
           curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
-          -d "insert into coverage.report values(now,$TAOSX_COVERAGE_PERCENT,$INFLUXDB_CONNECTOR_COVERAGE_PERCENT,$OPENTSDB_CONNECTOR_COVERAGE_PERCENT,$OPC_CONNECTOR_COVERAGE_PERCENT)"\
-          http://$COVERAGE_DATABASE_URL:6041/rest/sql
+          -d "insert into coverage.report values(now,$TAOSX_COVERAGE_PERCENT,$INFLUXDB_CONNECTOR_COVERAGE_PERCENT,$OPENTSDB_CONNECTOR_COVERAGE_PERCENT,$OPC_CONNECTOR_COVERAGE_PERCENT)" $COVERAGE_DATABASE_URL
       
       - name: Calculate the difference between the results of two adjacent executions
         run: |
