@@ -1,14 +1,24 @@
-name: taosKeeper CI
+name: TDengine Build
 
 on:
-  push:
-    paths:
-      - tools/keeper/**
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'docs/**'
+      - 'packaging/**'
+      - 'tests/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Run unit tests
+    name: Build and test
 
     steps:
       - name: Checkout the repository
@@ -24,11 +34,15 @@ jobs:
           sudo apt update -y
           sudo apt install -y build-essential cmake
 
-      - name: Install TDengine
+      - name: Build and install TDengine
         run: |
-          mkdir debug
-          cd debug
-          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false -DBUILD_CONTRIB=true
+          mkdir debug && cd debug
+          cmake .. -DBUILD_TOOLS=true \
+            -DBUILD_KEEPER=true \
+            -DBUILD_HTTP=false \
+            -DBUILD_TEST=false \
+            -DBUILD_CONTRIB=true \
+            -DBUILD_DEPENDENCY_TESTS=false
           make -j 4 -v
           sudo make install
           which taosd
@@ -44,13 +58,11 @@ jobs:
       - name: Start taosadapter
         run: nohup sudo taosadapter &
 
-      - name: Run tests with coverage
-        working-directory: tools/keeper
+      - name: Run tests with taosBenchmark
         run: |
-          go mod tidy
-          sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out
-
+          taosBenchmark -t 10 -n 10 -y 
+          taos -s "select count(*) from test.meters"
+         
       - name: Clean up
         if: always()
         run: |
