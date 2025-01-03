@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Context;
-use serde::Serialize;
+use serde_json::Value;
 use taos::Itertools;
 use tinytemplate::TinyTemplate;
 
@@ -39,11 +39,11 @@ impl SModel {
     }
 
     /// 每行一个 json map
-    pub fn apply<I>(&self, ctx: I, opts: &TableOptions) -> anyhow::Result<HashMap<String, Self>>
-    where
-        I: IntoIterator,
-        I::Item: Serialize,
-    {
+    pub fn apply(
+        &self,
+        ctx: &[serde_json::Map<String, Value>],
+        opts: &TableOptions,
+    ) -> anyhow::Result<HashMap<String, Self>> {
         let mut template = tinytemplate::TinyTemplate::new();
         let name = self.name.replace("${", "{");
         template
@@ -66,8 +66,9 @@ impl SModel {
 
         let mut models = HashMap::new();
         for ctx in ctx.into_iter() {
+            let ctx = serde_json::Value::from(ctx.clone());
             let name = template
-                .render("name", &ctx)
+                .render_value("name", &ctx)
                 .context("render stable name error")?;
             let name = opts.canonical_table_name(&name).to_string();
             let columns = self.render_column(&template, &ctx)?;
@@ -134,27 +135,24 @@ impl SModel {
             .collect()
     }
 
-    fn render_column<C>(&self, template: &TinyTemplate, ctx: C) -> anyhow::Result<Vec<Column>>
-    where
-        C: Serialize,
-    {
+    fn render_column(&self, template: &TinyTemplate, ctx: &Value) -> anyhow::Result<Vec<Column>> {
         self.columns
             .iter()
             .enumerate()
             .map(|(idx, col)| {
                 Ok(Column {
                     name: template
-                        .render(&format!("col_{idx}_name"), &ctx)
+                        .render_value(&format!("col_{idx}_name"), ctx)
                         .context("render stable column name error")?,
                     r#type: template
-                        .render(&format!("col_{idx}_type"), &ctx)
+                        .render_value(&format!("col_{idx}_type"), ctx)
                         .context("render stable column type error")?,
                     encode: col
                         .encode
                         .as_ref()
                         .map(|_| {
                             template
-                                .render(&format!("col_{idx}_encode"), &ctx)
+                                .render_value(&format!("col_{idx}_encode"), ctx)
                                 .context("render stable column encode error")
                         })
                         .transpose()?,
@@ -163,7 +161,7 @@ impl SModel {
                         .as_ref()
                         .map(|_| {
                             template
-                                .render(&format!("col_{idx}_compress"), &ctx)
+                                .render_value(&format!("col_{idx}_compress"), ctx)
                                 .context("render stable column compress error")
                         })
                         .transpose()?,
@@ -172,7 +170,7 @@ impl SModel {
                         .as_ref()
                         .map(|_| {
                             template
-                                .render(&format!("col_{idx}_level"), &ctx)
+                                .render_value(&format!("col_{idx}_level"), ctx)
                                 .context("render stable column level error")
                         })
                         .transpose()?,
@@ -194,18 +192,15 @@ impl SModel {
             .collect()
     }
 
-    fn render_tags<C>(&self, template: &TinyTemplate, ctx: C) -> anyhow::Result<Vec<Tag>>
-    where
-        C: Serialize,
-    {
+    fn render_tags(&self, template: &TinyTemplate, ctx: &Value) -> anyhow::Result<Vec<Tag>> {
         (0..self.tags.len())
             .map(|idx| {
                 Ok(Tag {
                     name: template
-                        .render(&format!("tag_{idx}_name"), &ctx)
+                        .render_value(&format!("tag_{idx}_name"), ctx)
                         .context("render stable tag name error")?,
                     r#type: template
-                        .render(&format!("tag_{idx}_type"), &ctx)
+                        .render_value(&format!("tag_{idx}_type"), ctx)
                         .context("render stable tag type error")?,
                 })
             })
@@ -325,7 +320,7 @@ mod tests {
             ],
         };
         let models = model.apply(
-            [json::json!({
+            &[json::json!({
                 "abc_x": "abc",
                 "col1_x": "col1",
                 "TIMESTAMP_x": "TIMESTAMP",
@@ -338,7 +333,10 @@ mod tests {
                 "INT_x": "INT",
                 "tag2_x": "tag2",
                 "VARCHAR(128)_x": "VARCHAR(128)"
-            })],
+            })
+            .as_object()
+            .cloned()
+            .unwrap()],
             &TableOptions::default(),
         )?;
         assert_eq!(
@@ -385,7 +383,7 @@ mod tests {
             ],
         };
         let models = model.apply(
-            [
+            &[
                 json::json!({
                     "abc_x": "abc",
                     "col1_x": "col1",
@@ -399,7 +397,10 @@ mod tests {
                     "INT_x": "INT",
                     "tag2_x": "tag2",
                     "VARCHAR(128)_x": "VARCHAR(128)"
-                }),
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
                 json::json!({
                     "abc_x": "abc",
                     "col1_x": "col11",
@@ -413,7 +414,10 @@ mod tests {
                     "INT_x": "INT",
                     "tag2_x": "tag2",
                     "VARCHAR(128)_x": "VARCHAR(128)"
-                }),
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
             ],
             &TableOptions::default(),
         )?;

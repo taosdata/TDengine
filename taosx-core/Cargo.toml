@@ -78,7 +78,7 @@ tokio-process-terminate = { version = "0.3" }
 toml = "0.8.5"
 either = "1.8"
 serde_regex = "1"
-tinytemplate = "1.2.1"
+tinytemplate = { git = "https://github.com/bitcapybara/TinyTemplate.git", rev = "9085af2b9c824e670750369827b9d6bbf24ae876" }
 serde_json_path = "0.7"
 csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
