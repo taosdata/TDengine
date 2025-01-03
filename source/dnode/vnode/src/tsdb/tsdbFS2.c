@@ -801,7 +801,6 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
       (void)taosThreadMutexUnlock(&pTsdb->mutex);
       return terrno;
     }
-    fset->mergeScheduled = false;
     tsdbFSSetBlockCommit(fset, false);
   }
 
@@ -945,7 +944,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
       // bool    skipMerge = false;
       int32_t numFile = TARRAY2_SIZE(lvl->fobjArr);
-      if (numFile >= sttTrigger && (!fset->mergeScheduled)) {
+      if (numFile >= sttTrigger && (!vnodeATaskValid(&fset->mergeTask))) {
         SMergeArg *arg = taosMemoryMalloc(sizeof(*arg));
         if (arg == NULL) {
           code = terrno;
@@ -957,7 +956,6 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
         code = vnodeAsync(MERGE_TASK_ASYNC, EVA_PRIORITY_HIGH, tsdbMerge, taosAutoMemoryFree, arg, &fset->mergeTask);
         TSDB_CHECK_CODE(code, lino, _exit);
-        fset->mergeScheduled = true;
       }
 
       if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR) {
