@@ -2142,7 +2142,6 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     if (pCxt->isStmtBind) {
       int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
       code = initTableColSubmitDataWithBoundInfo(*ppTableDataCxt, ctbCols);
-      insDestroyBoundColInfo(&ctbCols);
     } else {
       code = initTableColSubmitData(*ppTableDataCxt);
     }
@@ -2162,6 +2161,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   clearStbRowsDataContext(pStbRowsCxt);
+  insDestroyBoundColInfo(&ctbCols);
 
   return code;
 }
