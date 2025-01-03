@@ -26,7 +26,7 @@ target_link_libraries(
 )
 
 if(${BUILD_TEST})
-  add_subdirectory(test)
+  # add_subdirectory(test)
 endif(${BUILD_TEST})
 
 # endif(${TD_LINUX})

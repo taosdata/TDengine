@@ -18,6 +18,8 @@ target_link_libraries(util PUBLIC cjson)
 
 add_dependencies(util ext_geos)
 target_include_directories(util PUBLIC "${TD_CONTRIB_EXT_GEOS_INC_DIR}")
+target_link_directories(util PUBLIC "${TD_CONTRIB_EXT_GEOS_LIB_DIR}")
+target_link_libraries(util PUBLIC geos_c.a geos.a m stdc++)
 
 add_dependencies(util ext_pcre2)
 target_include_directories(util PUBLIC "${TD_CONTRIB_EXT_PCRE2_INC_DIR}")
