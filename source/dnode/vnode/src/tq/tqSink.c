@@ -1047,8 +1047,6 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         pTableSinkInfo->uid = 0;
         code = doPutSinkTableInfoIntoCache(pTask->outputInfo.tbSink.pTbInfo, pTableSinkInfo, groupId, id);
       } else {
-        metaReaderClear(&mr);
-
         tqError("s-task:%s vgId:%d dst-table:%s not auto-created, and not create in tsdb, discard data", id, vgId,
                 dstTableName);
         return TSDB_CODE_TDB_TABLE_NOT_EXIST;
