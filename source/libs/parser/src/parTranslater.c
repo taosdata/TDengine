@@ -7343,7 +7343,7 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
     ((SExprNode*)*pNode)->bindTupleFuncIdx = pCxt->bindTupleFuncIdx;
     int32_t len = strlen(((SExprNode*)*pNode)->aliasName);
     if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
-      parserWarn("The alias name is too long, the extra part will be truncated");
+      parserWarn("%s The alias name is too long, the extra part will be truncated", __func__);
       tsnprintf(((SExprNode*)*pNode)->aliasName + TSDB_COL_NAME_EXLEN - TSDB_COL_NAME_EXLEN, TSDB_COL_NAME_EXLEN, ".%d",
                 pCxt->bindTupleFuncIdx);
     } else {
