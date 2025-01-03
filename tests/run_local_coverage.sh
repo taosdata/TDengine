@@ -239,7 +239,7 @@ elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" = "YES" -o "$BRANCH_BUILD" = "y
     print_color "$GREEN" "Testing branch: $branch "
     print_color "$GREEN" "Build is required for this test!"
     buildTDengine
-elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" = "ONLY_INSTALL" -o "$BRANCH_BUILD" = "only_install"] ; then
+elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" = "ONLY_INSTALL" -o "$BRANCH_BUILD" = "only_install" ] ; then
     CURRENT_DIR=$(pwd)
     echo "CURRENT_DIR: $CURRENT_DIR"
     if [ -d .git ]; then
