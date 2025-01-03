@@ -91,10 +91,15 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
       goto _exit3;
     }
-    char tbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    TAOS_CHECK_GOTO(metaGetTableNameByUid(pVnode, tbUid, tbName), NULL, _exit3);
-    tstrncpy(metaRsp.tbName, varDataVal(tbName), TSDB_TABLE_NAME_LEN);
-    TAOS_CHECK_GOTO(metaGetTableEntryByName(&mer1, varDataVal(tbName)), NULL, _exit3);
+    SMetaReader mr3 = {0};
+    metaReaderDoInit(&mr3, ((SVnode *)pVnode)->pMeta, META_READER_NOLOCK);
+    if ((code = metaReaderGetTableEntryByUid(&mr3, tbUid)) < 0) {
+      metaReaderClear(&mr3);
+      TAOS_CHECK_GOTO(code, NULL, _exit3);
+    }
+    tstrncpy(metaRsp.tbName, mr3.me.name, TSDB_TABLE_NAME_LEN);
+    metaReaderClear(&mr3);
+    TAOS_CHECK_GOTO(metaGetTableEntryByName(&mer1, metaRsp.tbName), NULL, _exit3);
   } else if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     code = terrno;
     goto _exit3;
