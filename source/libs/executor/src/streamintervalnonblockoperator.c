@@ -126,7 +126,6 @@ static int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataB
     int32_t winCode = TSDB_CODE_SUCCESS;
     code = getIntervalSliceCurStateBuf(&pInfo->streamAggSup, &pInfo->interval, pInfo->hasInterpoFunc, &curWin, groupId, &curPoint, &prevPoint, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
-    ASSERT(curPoint.pResPos->pRowBuff != NULL);
 
     if(winCode != TSDB_CODE_SUCCESS && pInfo->hasInterpoFunc == false && pInfo->numOfKeep == 1) {
       SWinKey curKey = {.ts = curPoint.winKey.win.skey, .groupId = groupId};
