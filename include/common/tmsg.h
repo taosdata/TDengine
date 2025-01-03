@@ -2611,6 +2611,8 @@ typedef struct {
   int8_t                   assignedAcked;
   SMArbUpdateGroupAssigned assignedLeader;
   int64_t                  version;
+  int32_t                  code;
+  int64_t                  updateTimeMs;
 } SMArbUpdateGroup;
 
 typedef struct {
