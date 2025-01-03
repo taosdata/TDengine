@@ -75,7 +75,7 @@ static int32_t buildIntervalSliceResult(SOperatorInfo* pOperator, SSDataBlock** 
   uint16_t                          opType = pOperator->operatorType;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
 
-  doBuildDeleteResultImpl(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pState, pInfo->pDelWins, &pInfo->delIndex,
+  doBuildDeleteResultImpl(&pInfo->streamAggSup.stateStore, pTaskInfo->streamInfo.pState, pInfo->pDelWins, &pInfo->delIndex,
                           pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows != 0) {
     // process the rest of the data

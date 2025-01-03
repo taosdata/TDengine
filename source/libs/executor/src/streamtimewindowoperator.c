@@ -393,9 +393,9 @@ STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval) {
   return w;
 }
 
-static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWins, int32_t* index,
+static void doBuildDeleteResult(SExecTaskInfo* pTaskInfo, SArray* pWins, int32_t* index,
                                 SSDataBlock* pBlock) {
-  doBuildDeleteResultImpl(&pInfo->stateStore, pInfo->pState, pWins, index, pBlock);
+  doBuildDeleteResultImpl(&pTaskInfo->storageAPI.stateStore, pTaskInfo->streamInfo.pState, pWins, index, pBlock);
 }
 
 void doBuildDeleteResultImpl(SStateStore* pAPI, SStreamState* pState, SArray* pWins, int32_t* index,
@@ -1520,7 +1520,7 @@ static int32_t buildIntervalResult(SOperatorInfo* pOperator, SSDataBlock** ppRes
     }
   }
 
-  doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
+  doBuildDeleteResult(pTaskInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows != 0) {
     // process the rest of the data
     printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
@@ -1692,7 +1692,7 @@ static int32_t doStreamFinalIntervalAggNext(SOperatorInfo* pOperator, SSDataBloc
       }
       taosArrayDestroy(delWins);
 
-      doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
+      doBuildDeleteResult(pTaskInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
       if (pInfo->pDelRes->info.rows != 0) {
         // process the rest of the data
         printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
@@ -5640,7 +5640,7 @@ static SSDataBlock* buildMidIntervalResult(SOperatorInfo* pOperator) {
   }
 
   qDebug("===stream=== build mid interval result");
-  doBuildDeleteResult(pInfo, pInfo->pMidPullDatas, &pInfo->midDelIndex, pInfo->pDelRes);
+  doBuildDeleteResult(pTaskInfo, pInfo->pMidPullDatas, &pInfo->midDelIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows != 0) {
     // process the rest of the data
     printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
@@ -5760,7 +5760,7 @@ static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock*
       }
       taosArrayDestroy(delWins);
 
-      doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
+      doBuildDeleteResult(pTaskInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
       if (pInfo->pDelRes->info.rows != 0) {
         // process the rest of the data
         printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));

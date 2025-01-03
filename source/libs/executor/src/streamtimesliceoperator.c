@@ -1657,6 +1657,10 @@ static int32_t buildTimeSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRe
   uint16_t                      opType = pOperator->operatorType;
   SStreamAggSupporter*          pAggSup = &pInfo->streamAggSup;
 
+  if (pTaskInfo->streamInfo.pState->parNameMap == NULL) {
+    pAggSup->pState->parNameMap = NULL;
+  }
+
   
   doBuildTimeSliceDeleteResult(pAggSup, pInfo->pFillSup, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows != 0) {
