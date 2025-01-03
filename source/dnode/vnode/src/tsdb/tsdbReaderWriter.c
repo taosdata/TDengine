@@ -531,9 +531,6 @@ int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t
   int64_t bOffset = fOffset % pFD->szPage;
   int64_t n = 0;
 
-  // [BLOB] [TODO]
-  return blobWriteFile(pFD, offset, pBuf, size, encryptAlgorithm, encryptKey);
-
   do {
     if (pFD->pgno != pgno) {
       code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);

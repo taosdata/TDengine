@@ -1085,6 +1085,107 @@ _exit:
   return code;
 }
 
+static int32_t blobFileDoWriteData(SDataFileWriter *writer, SBlockData *bData) {
+  if (bData->nRow == 0) {
+    return 0;
+  }
+
+  if (!bData->uid) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  SBuffer *buffers = writer->buffers;
+  SBuffer *assist = writer->buffers + 4;
+
+  // SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = writer->config->cmprAlg};
+
+  // SBrinRecord record[1] = {{
+  //     .suid = bData->suid,
+  //     .uid = bData->uid,
+  //     .minVer = bData->aVersion[0],
+  //     .maxVer = bData->aVersion[0],
+  //     .blockOffset = writer->files[TSDB_FTYPE_DATA].size,
+  //     .smaOffset = writer->files[TSDB_FTYPE_SMA].size,
+  //     .blockSize = 0,
+  //     .blockKeySize = 0,
+  //     .smaSize = 0,
+  //     .numRow = bData->nRow,
+  //     .count = 1,
+  // }};
+
+  // tsdbRowGetKey(&tsdbRowFromBlockData(bData, 0), &record->firstKey);
+  // tsdbRowGetKey(&tsdbRowFromBlockData(bData, bData->nRow - 1), &record->lastKey);
+
+  // for (int32_t i = 1; i < bData->nRow; ++i) {
+  //   if (tsdbRowCompareWithoutVersion(&tsdbRowFromBlockData(bData, i - 1), &tsdbRowFromBlockData(bData, i)) != 0) {
+  //     record->count++;
+  //   }
+  //   if (bData->aVersion[i] < record->minVer) {
+  //     record->minVer = bData->aVersion[i];
+  //   }
+  //   if (bData->aVersion[i] > record->maxVer) {
+  //     record->maxVer = bData->aVersion[i];
+  //   }
+  // }
+
+  // tsdbWriterUpdVerRange(&writer->ctx->range, record->minVer, record->maxVer);
+
+  // code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, bData->suid != 0 ? bData->suid : bData->uid,
+  //                       &cmprInfo.pColCmpr);
+  // if (code) {
+  //   tsdbWarn("vgId:%d failed to get column compress algrithm", TD_VID(writer->config->tsdb->pVnode));
+  // }
+
+  // TAOS_CHECK_GOTO(tBlockDataCompress(bData, &cmprInfo, buffers, assist), &lino, _exit);
+
+  // record->blockKeySize = buffers[0].size + buffers[1].size;
+  // record->blockSize = record->blockKeySize + buffers[2].size + buffers[3].size;
+
+  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  for (int i = 0; i < 4; i++) {
+    TAOS_CHECK_GOTO(blobWriteFile(writer->fd[TSDB_FTYPE_DATA], writer->files[TSDB_FTYPE_DATA].size, buffers[i].data,
+                                  buffers[i].size, encryptAlgorithm, encryptKey),
+                    &lino, _exit);
+    writer->files[TSDB_FTYPE_DATA].size += buffers[i].size;
+  }
+
+  // to .sma file
+  tBufferClear(&buffers[0]);
+  // for (int32_t i = 0; i < bData->nColData; ++i) {
+  //   SColData *colData = bData->aColData + i;
+  //   if ((colData->cflag & COL_SMA_ON) == 0 || ((colData->flag & HAS_VALUE) == 0)) continue;
+
+  //   SColumnDataAgg sma[1] = {{.colId = colData->cid}};
+  //   tColDataCalcSMA[colData->type](colData, &sma->sum, &sma->max, &sma->min, &sma->numOfNull);
+
+  //   TAOS_CHECK_GOTO(tPutColumnDataAgg(&buffers[0], sma), &lino, _exit);
+  // }
+  // record->smaSize = buffers[0].size;
+
+  // if (record->smaSize > 0) {
+  //   TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd[TSDB_FTYPE_SMA], record->smaOffset, buffers[0].data, record->smaSize,
+  //                                 encryptAlgorithm, encryptKey),
+  //                   &lino, _exit);
+  //   writer->files[TSDB_FTYPE_SMA].size += record->smaSize;
+  // }
+
+  // // append SBrinRecord
+  // TAOS_CHECK_GOTO(tsdbDataFileWriteBrinRecord(writer, record), &lino, _exit);
+
+  tBlockDataClear(bData);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
+  }
+  // taosHashCleanup(cmprInfo.pColCmpr);
+  return code;
+}
+
 static int32_t tsdbDataFileDoWriteTSRow(SDataFileWriter *writer, TSDBROW *row) {
   int32_t code = 0;
   int32_t lino = 0;
