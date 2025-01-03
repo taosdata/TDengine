@@ -6,6 +6,26 @@ IF(COMPILER_SUPPORT_AVX2)
 ENDIF()
 add_library(util STATIC ${UTIL_SRC})
 
+add_dependencies(util ext_lz4)
+target_include_directories(util PUBLIC "${TD_CONTRIB_EXT_LZ4_INC_DIR}")
+target_link_directories(util PUBLIC "${TD_CONTRIB_EXT_LZ4_LIB_DIR}")
+target_link_libraries(util PUBLIC lz4)
+
+add_dependencies(util ext_cjson)
+target_include_directories(util PUBLIC "${TD_CONTRIB_EXT_CJSON_INC_DIR}/cjson")
+target_link_directories(util PUBLIC "${TD_CONTRIB_EXT_CJSON_LIB_DIR}")
+target_link_libraries(util PUBLIC cjson)
+
+add_dependencies(util ext_geos)
+target_include_directories(util PUBLIC "${TD_CONTRIB_EXT_GEOS_INC_DIR}")
+target_link_directories(util PUBLIC "${TD_CONTRIB_EXT_GEOS_LIB_DIR}")
+target_link_libraries(util PUBLIC geos_c.a geos.a m stdc++)
+
+add_dependencies(util ext_pcre2)
+target_include_directories(util PUBLIC "${TD_CONTRIB_EXT_PCRE2_INC_DIR}")
+target_link_directories(util PUBLIC "${TD_CONTRIB_EXT_PCRE2_LIB_DIR}")
+target_link_libraries(util PUBLIC pcre2-8)
+
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
     add_definitions(-DGRANTS_CFG)
 endif()
@@ -25,17 +45,14 @@ target_include_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/include/util"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-    PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
-    PRIVATE "${TD_SOURCE_DIR}/contrib/lzma2/"
     PRIVATE "${TD_SOURCE_DIR}/contrib/pcre2/"
 )
 
 target_link_directories(
     util
-    PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
     PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
 )
 
@@ -43,15 +60,13 @@ if(TD_LINUX)
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC lz4_static fast-lzma2 pcre2-8
-        PUBLIC api cjson geos_c TSZ
+        PUBLIC api TSZ
     )
 else()
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC lz4_static pcre2-8
-        PUBLIC api cjson geos_c TSZ
+        PUBLIC api TSZ
     )
 endif()
 
