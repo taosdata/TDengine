@@ -87,19 +87,14 @@ pub async fn local_to_taos(
 
     let (tx, rx) = flume::unbounded();
     // 创建 RestoreWorker
-    let mut join_set = JoinSet::new();
-    let jobs = 1;
-    for i in 0..jobs {
-        let rx = rx.clone();
-        let mut worker = RestoreWorker {
-            id: i,
-            rx,
-            backup_config: config.clone(),
-            backup_obj: config.backup_obj.clone(),
-            metrics: metrics_arc.clone(),
-        };
-        join_set.spawn(async move { worker.run().await }.in_current_span());
-    }
+    let rx = rx.clone();
+    let worker = RestoreWorker {
+        rx,
+        backup_config: config.clone(),
+        backup_obj: config.backup_obj.clone(),
+        metrics: metrics_arc.clone(),
+    };
+    let restore_worker = tokio::spawn(async move { worker.run().await }.in_current_span());
 
     let cancel_clone = cancel.clone();
     let stop_flag_clone = stop_flag.clone();
@@ -115,14 +110,11 @@ pub async fn local_to_taos(
     tokio::pin!(stream);
     tracing::debug!("local_to_taos start read files");
     while let Some(files) = stream.next().await {
+        let mut files_to_send = Vec::with_capacity(files.len());
         for f in files {
             match config.stop_at.as_ref() {
                 None => {
-                    tracing::debug!("local_to_taos send file: {:?} to worker", f);
-                    tx.send(f).map_err(|err| {
-                        tracing::error!("failed to send file to worker: {:#}", err);
-                        err
-                    })?;
+                    files_to_send.push(f);
                 }
                 Some(stop_at) => {
                     let file_name = f.file_name().unwrap().to_string_lossy();
@@ -134,18 +126,10 @@ pub async fn local_to_taos(
                     );
                     match ts.cmp(stop_at) {
                         std::cmp::Ordering::Less => {
-                            tracing::debug!("local_to_taos send file: {:?} to worker", f);
-                            tx.send(f).map_err(|err| {
-                                tracing::error!("failed to send file to worker: {:#}", err);
-                                err
-                            })?;
+                            files_to_send.push(f);
                         }
                         std::cmp::Ordering::Equal => {
-                            tracing::debug!("local_to_taos send file: {:?} to worker", f);
-                            tx.send(f).map_err(|err| {
-                                tracing::error!("failed to send file to worker: {:#}", err);
-                                err
-                            })?;
+                            files_to_send.push(f);
                             stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
                         }
                         std::cmp::Ordering::Greater => {
@@ -157,56 +141,95 @@ pub async fn local_to_taos(
                 }
             }
         }
+
+        tracing::debug!("local_to_taos send files: {:?} to worker", files_to_send);
+        tx.send(files_to_send).map_err(|err| {
+            tracing::error!("failed to send files to worker: {:#}", err);
+            err
+        })?;
+
+        // 检查是否需要停止
         if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
             tracing::debug!("local_to_taos stop reading files");
             break;
         }
     }
     drop(tx);
-    tracing::info!("local_to_taos read files done");
+    tracing::info!("local_to_taos completed");
 
     // 等待所有 worker 完成
-    while let Some(res) = join_set.join_next().await {
-        if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
-            tracing::error!("abort all local_to_taos workers since error: {:#}", err);
-            join_set.abort_all();
-            // TODO: 如果出现错误，要清理文件
-            return Err(err);
-        }
-    }
-    tracing::info!("local_to_taos completed");
-    Ok(())
+    restore_worker.await?
 }
 
 struct RestoreWorker {
-    id: usize,
     backup_config: LocalRestoreConfig,
     backup_obj: BackupObject,
-    rx: Receiver<PathBuf>,
+    rx: Receiver<Vec<PathBuf>>,
     metrics: Arc<CoreMetrics>,
 }
 
 impl RestoreWorker {
     /// 从 channel 中获取备份文件的路径，然后恢复到 taos
-    async fn run(&mut self) -> Result<()> {
-        tracing::info!("RestoreWorker {} started", self.id);
-        let taos = self.backup_config.connect_taos().await?;
+    async fn run(&self) -> Result<()> {
+        tracing::info!("RestoreWorker started");
 
-        while let Ok(file) = self.rx.recv() {
-            tracing::info!("restore file: {:?}", file);
-            restore(
-                self.id,
-                file,
-                &taos,
-                self.backup_obj.stable_name.as_deref(),
-                self.metrics.clone(),
-            )
-            .await?;
+        while let Ok(files) = self.rx.recv() {
+            let file_length = files.len();
+
+            // 按照 ts 分组，按照 ts 的先后顺序执行
+            let files = files
+                .into_iter()
+                .chunk_by(|f| {
+                    let file_name = f.file_name().unwrap().to_str().unwrap();
+                    let (_, ts, _, _) = ZFile::parse_file_name(file_name).unwrap();
+                    ts
+                })
+                .into_iter()
+                .map(|(_ts, chunk)| chunk.collect_vec())
+                .collect_vec();
+
+            for files_of_point in files {
+                // 按照 vg_id 分组，可以并行执行
+                let files_of_vgroup = files_of_point
+                    .into_iter()
+                    .chunk_by(|f| {
+                        let file_name = f.file_name().unwrap().to_str().unwrap();
+                        let (_, _, vg_id, _) = ZFile::parse_file_name(file_name).unwrap();
+                        vg_id
+                    })
+                    .into_iter()
+                    .map(|(_vg_id, chunk)| chunk.collect_vec())
+                    .collect_vec();
+
+                let mut join_set: JoinSet<Result<()>> = JoinSet::new();
+                // 每个 vgroup 一个 worker
+                for (idx, files) in files_of_vgroup.into_iter().enumerate() {
+                    let taos = self.backup_config.connect_taos().await?;
+                    let stable = self.backup_obj.stable_name.clone();
+                    let metrics = self.metrics.clone();
+
+                    join_set.spawn(async move {
+                        for f in files {
+                            tracing::debug!("worker[{idx}] restore files: {:?}", f);
+                            restore(idx, f, &taos, stable.clone(), metrics.clone()).await?;
+                        }
+                        Ok(())
+                    });
+                }
+                // 等待所有 worker 完成
+                while let Some(res) = join_set.join_next().await {
+                    if let Err(err) = res.map_err(anyhow::Error::from) {
+                        tracing::error!("restore worker error: {:#}", err);
+                        join_set.abort_all();
+                        return Err(err);
+                    }
+                }
+            }
 
             let metrics = self.metrics.ipc();
-            metrics.add_extra_metric(&PROCESSED_FILES, 1);
+            metrics.add_extra_metric(&PROCESSED_FILES, file_length as u64);
         }
-        tracing::info!("RestoreWorker {} stopped", self.id);
+        tracing::info!("RestoreWorker stopped");
         Ok(())
     }
 }
@@ -382,14 +405,8 @@ pub async fn local_to_taos_previous(from: Dsn, mut to: Dsn) -> Result<()> {
             let table = topic.table.as_ref().map(|t| t.table.clone());
             let handle = tokio::spawn(async move {
                 for (_ts, path) in files {
-                    let res = restore(
-                        task_id,
-                        path.path(),
-                        &taos,
-                        table.as_deref(),
-                        metrics.clone(),
-                    )
-                    .await;
+                    let res =
+                        restore(task_id, path.path(), &taos, table.clone(), metrics.clone()).await;
                     if res.is_err() {
                         drop(sem);
                         return res;
@@ -413,20 +430,20 @@ pub async fn local_to_taos_previous(from: Dsn, mut to: Dsn) -> Result<()> {
 
 #[async_backtrace::framed]
 async fn restore(
-    id: usize,
+    idx: usize,
     path: impl AsRef<Path>,
     taos: &Taos,
-    table: Option<&str>,
+    table: Option<String>,
     metrics: Arc<CoreMetrics>,
 ) -> Result<()> {
     let path = path.as_ref();
-    tracing::info!("[{}] restore with file: {:?}", id, path.display());
+    tracing::info!("[{}] restore with file: {:?}", idx, path.display());
     let reader = tokio::fs::File::open(path).await?;
     let reader = tokio::io::BufReader::new(reader);
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
     let mut reader = ZCodec::new(reader);
     let header = reader.header_async().await?;
-    tracing::debug!("[{id}] parse header: {:?}", header);
+    tracing::debug!("[{idx}] parse header: {:?}", header);
 
     let target_version = taos
         .server_version()
@@ -489,8 +506,8 @@ async fn restore(
                     }
                     ZMessage::Data(data) => {
                         for mut raw in data {
-                            if let Some(name) = table {
-                                raw.with_table_name(name);
+                            if let Some(name) = &table {
+                                raw.with_table_name(name.as_str());
                             }
                             let bytes = raw.as_raw_bytes().len() as u64;
                             rows += raw.nrows();
@@ -517,7 +534,7 @@ async fn restore(
                             };
                             metrics.add_extra_metric(&PROCESSED_BYTES, bytes);
                         }
-                        tracing::debug!("[{id}] current rows: {}", rows);
+                        tracing::debug!("[{idx}] current rows: {}", rows);
                     }
                     ZMessage::Raw(raw_type, raw) => {
                         let meta = raw.into();
@@ -562,10 +579,10 @@ async fn restore(
             }
             Err(err) => {
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {
-                    tracing::info!("[{id}] reading file {} done", path.display());
+                    tracing::info!("[{idx}] reading file {} done", path.display());
                     break;
                 }
-                tracing::debug!("[{id}] Reading data error: {}", &err);
+                tracing::debug!("[{idx}] Reading data error: {}", &err);
                 break;
             }
         }
@@ -576,7 +593,7 @@ async fn restore(
     metrics.add_extra_metric(&PROCESSED_ROWS, rows as u64);
     tracing::info!(
         "[{}] totally write {} rows from file {}",
-        id,
+        idx,
         rows,
         path.display()
     );
