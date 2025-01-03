@@ -292,7 +292,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbWalRetentionSize(-1);
   setDbWalRollPeriod(10);
   setDbWalSegmentSize(20);
-  setDbSstTrigger(1);
+  setDbSstTrigger(16);
   setDbHashPrefix(3);
   setDbHashSuffix(4);
   setDbTsdbPageSize(32);
@@ -320,7 +320,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "WAL_RETENTION_SIZE -1 "
       "WAL_ROLL_PERIOD 10 "
       "WAL_SEGMENT_SIZE 20 "
-      "STT_TRIGGER 1 "
+      "STT_TRIGGER 16 "
       "TABLE_PREFIX 3 "
       "TABLE_SUFFIX 4 "
       "TSDB_PAGESIZE 32");

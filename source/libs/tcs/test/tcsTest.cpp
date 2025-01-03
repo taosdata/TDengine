@@ -234,7 +234,6 @@ TEST(TcsTest, InterfaceTest) {
 
 // TEST(TcsTest, DISABLED_InterfaceNonBlobTest) {
 TEST(TcsTest, InterfaceNonBlobTest) {
-  if (true) return;
   int  code = 0;
   bool check = false;
   bool withcp = false;

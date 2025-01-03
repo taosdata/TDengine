@@ -459,7 +459,6 @@ TEST(clientCase, create_db_Test) {
 }
 
 TEST(clientCase, create_dnode_Test) {
-#ifdef TD_ENTERPRISE
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -476,11 +475,9 @@ TEST(clientCase, create_dnode_Test) {
   taos_free_result(pRes);
 
   taos_close(pConn);
-#endif
 }
 
 TEST(clientCase, drop_dnode_Test) {
-#ifdef TD_ENTERPRISE
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -503,7 +500,6 @@ TEST(clientCase, drop_dnode_Test) {
 
   taos_free_result(pRes);
   taos_close(pConn);
-#endif
 }
 
 TEST(clientCase, use_db_test) {
