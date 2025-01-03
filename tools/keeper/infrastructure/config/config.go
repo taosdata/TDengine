@@ -78,6 +78,11 @@ func InitConfig() *Config {
 	}
 
 	if *v {
+		if version.IsEnterprise == "true" {
+			fmt.Println("TDengine Enterprise Edition")
+		} else {
+			fmt.Println("TDengine Community Edition")
+		}
 		fmt.Printf("%s version: %s\n", Name, version.Version)
 		fmt.Printf("git: %s\n", version.Gitinfo)
 		fmt.Printf("build: %s\n", version.BuildInfo)
