@@ -103,6 +103,8 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
   COPY_SCALAR_FIELD(projIdx);
+  COPY_SCALAR_FIELD(bindTupleFuncIdx);
+  COPY_SCALAR_FIELD(tupleFuncIdx);
   return TSDB_CODE_SUCCESS;
 }
 

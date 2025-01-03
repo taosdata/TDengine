@@ -282,6 +282,8 @@ typedef struct tExprNode {
       struct SNode *pRootNode;
     } _optrRoot;
   };
+  int32_t   bindTupleFuncIdx;
+  int32_t   tupleFuncIdx;
 } tExprNode;
 
 struct SScalarParam {
