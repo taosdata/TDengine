@@ -1887,6 +1887,12 @@ static void evtCliHandleUpdate(SCliReq *pReq, SCliThrd2 *pThrd);
 static void (*transCliAsyncFuncs[])(SCliReq *, SCliThrd2 *) = {evtCliHandlReq, evtCliHandleQuit, evtCliHandleRelease,
                                                                evtCliHandleRelease, evtCliHandleUpdate};
 
+static FORCE_INLINE void removeReqFromSendQ(SCliReq *pReq);
+
+static void    transRefCliHandle(void *handle);
+static int32_t transUnrefCliHandle(void *handle);
+// static int32_t transGetRefCount(void *handle);
+
 static void evtCliHandlReq(SCliReq *pReq, SCliThrd2 *pThrd) {
   int32_t code = evtHandleCliReq(pThrd, pReq);
   if (code != 0) {
@@ -2007,10 +2013,11 @@ static void evtCliCloseIdleConn(void *param) {
   conn->task = NULL;
   taosMemoryFree(arg);
 
-  // int32_t ref = transUnrefCliHandle(conn);
-  // if (ref <= 0) {
-  //   return;
-  // }
+  // taosCloseSocketNoCheck1(conn->fd);
+  int32_t ref = transUnrefCliHandle(conn);
+  if (ref <= 0) {
+    return;
+  }
 }
 static void addConnToPool(void *pool, SCliConn *conn) {
   if (conn->status == ConnInPool) {
@@ -2191,6 +2198,207 @@ static FORCE_INLINE void destroyReqCtx(SReqCtx *ctx) {
     taosMemoryFree(ctx);
   }
 }
+
+static FORCE_INLINE bool filterAllReq(void *e, void *arg) { return 1; }
+
+static int32_t cliNotifyCb(SCliConn *pConn, SCliReq *pReq, STransMsg *pResp);
+static void    notifyAndDestroyReq(SCliConn *pConn, SCliReq *pReq, int32_t code) {
+     SCliThrd2 *pThrd = pConn->hostThrd;
+     STrans    *pInst = pThrd->pInst;
+
+     SReqCtx  *pCtx = pReq ? pReq->ctx : NULL;
+     STransMsg resp = {0};
+     resp.code = (pConn->connnected ? TSDB_CODE_RPC_BROKEN_LINK : TSDB_CODE_RPC_NETWORK_UNAVAIL);
+     if (code != 0) {
+       resp.code = code;
+  }
+
+     resp.msgType = pReq ? pReq->msg.msgType + 1 : 0;
+     resp.info.cliVer = pInst->compatibilityVer;
+     resp.info.ahandle = pCtx ? pCtx->ahandle : 0;
+     resp.info.handle = pReq->msg.info.handle;
+     if (pReq) {
+       resp.info.traceId = pReq->msg.info.traceId;
+  }
+
+     STraceId *trace = &resp.info.traceId;
+     tDebug("%s conn %p notify user and destroy msg %s since %s", pInst->label, pConn, TMSG_INFO(pReq->msg.msgType),
+            tstrerror(resp.code));
+
+     // handle noresp and inter manage msg
+     if (pCtx == NULL || pReq->msg.info.noResp) {
+       tDebug("%s conn %p destroy %s msg directly since %s", pInst->label, pConn, TMSG_INFO(pReq->msg.msgType),
+              tstrerror(resp.code));
+       destroyReq(pReq);
+       return;
+  }
+
+     pReq->seq = 0;
+     code = cliNotifyCb(pConn, pReq, &resp);
+     if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
+       return;
+  } else {
+       // already notify user
+    destroyReq(pReq);
+  }
+}
+
+static FORCE_INLINE void destroyReqInQueue(SCliConn *conn, queue *set, int32_t code) {
+  while (!QUEUE_IS_EMPTY(set)) {
+    queue *el = QUEUE_HEAD(set);
+    QUEUE_REMOVE(el);
+
+    SCliReq *pReq = QUEUE_DATA(el, SCliReq, q);
+    removeReqFromSendQ(pReq);
+    notifyAndDestroyReq(conn, pReq, code);
+  }
+}
+static FORCE_INLINE int32_t destroyAllReqs(SCliConn *conn) {
+  int32_t    code = 0;
+  SCliThrd2 *pThrd = conn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+  queue      set;
+  QUEUE_INIT(&set);
+  // TODO
+  // 1. from qId from thread table
+  // 2. not itera to all reqs
+  transQueueRemoveByFilter(&conn->reqsSentOut, filterAllReq, NULL, &set, -1);
+  transQueueRemoveByFilter(&conn->reqsToSend, filterAllReq, NULL, &set, -1);
+
+  destroyReqInQueue(conn, &set, 0);
+  return 0;
+}
+static void evtCliDestroyAllQidFromThrd(SCliConn *conn) {
+  int32_t    code = 0;
+  SCliThrd2 *pThrd = conn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+
+  void *pIter = taosHashIterate(conn->pQTable, NULL);
+  while (pIter != NULL) {
+    int64_t *qid = taosHashGetKey(pIter, NULL);
+
+    code = taosHashRemove(pThrd->pIdConnTable, qid, sizeof(*qid));
+    if (code != 0) {
+      tDebug("%s conn %p failed to remove state %" PRId64 " since %s", pInst->label, conn, *qid, tstrerror(code));
+    } else {
+      tDebug("%s conn %p destroy sid::%" PRId64 "", pInst->label, conn, *qid);
+    }
+
+    STransCtx *ctx = pIter;
+    transCtxCleanup(ctx);
+
+    transReleaseExHandle(transGetRefMgt(), *qid);
+    transRemoveExHandle(transGetRefMgt(), *qid);
+
+    pIter = taosHashIterate(conn->pQTable, pIter);
+  }
+  taosHashCleanup(conn->pQTable);
+  conn->pQTable = NULL;
+}
+static void evtCliDestroy(SCliConn *pConn) {
+  int32_t    code = 0;
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+  // cliResetConnTimer(conn);
+
+  tDebug("%s conn %p try to destroy", pInst->label, pConn);
+
+  code = destroyAllReqs(pConn);
+  if (code != 0) {
+    tDebug("%s conn %p failed to all reqs since %s", pInst->label, pConn, tstrerror(code));
+  }
+
+  pConn->forceDelFromHeap = 1;
+  code = delConnFromHeapCache(pThrd->connHeapCache, pConn);
+  if (code != 0) {
+    tDebug("%s conn %p failed to del conn from heapcach since %s", pInst->label, pConn, tstrerror(code));
+  }
+
+  taosMemoryFree(pConn->dstAddr);
+  // taosMemoryFree(conn->stream);
+  taosMemoryFree(pConn->ipStr);
+  // cliDestroyAllQidFromThrd(conn);
+
+  if (pConn->pInitUserReq) {
+    taosMemoryFree(pConn->pInitUserReq);
+    pConn->pInitUserReq = NULL;
+  }
+
+  // taosMemoryFree(conn->buf);
+  // destroyWQ(&conn->wq);
+
+  taosCloseSocketNoCheck1(pConn->fd);
+  transDestroyBuffer(&pConn->readBuf);
+
+  tTrace("%s conn %p destroy successfully", pInst->label, pConn);
+
+  taosMemoryFree(pConn);
+}
+static void evtCliDestroyConn(SCliConn *pConn, bool force) {
+  int32_t    code = 0;
+  SCliThrd2 *pThrd = pConn->hostThrd;
+  STrans    *pInst = pThrd->pInst;
+
+  // cliResetConnTimer(conn);
+  code = destroyAllReqs(pConn);
+  if (code != 0) {
+    tError("%s conn %p failed to destroy all reqs on conn since %s", pInst->label, pConn, tstrerror(code));
+  }
+
+  evtCliDestroyAllQidFromThrd(pConn);
+  if (pThrd->quit == false && pConn->list) {
+    QUEUE_REMOVE(&pConn->q);
+    pConn->list->totalSize -= 1;
+    pConn->list = NULL;
+  }
+
+  if (pConn->task != NULL) {
+    transDQCancel(((SCliThrd2 *)pConn->hostThrd)->pEvtMgt->arg, pConn->task);
+    pConn->task = NULL;
+  }
+  pConn->forceDelFromHeap = 1;
+  code = delConnFromHeapCache(pThrd->connHeapCache, pConn);
+  if (code != 0) {
+    tError("%s conn %p failed to del conn from heapcach since %s", pInst->label, pConn, tstrerror(code));
+  }
+
+  if (pConn->registered) {
+    int8_t ref = pConn->ref;
+    if (ref == 0) {
+      // uv_close((uv_handle_t *)conn->stream, cliDestroy);
+    }
+  }
+  return;
+}
+static void transRefCliHandle(void *handle) {
+  int32_t ref = 0;
+  if (handle == NULL) {
+    return;
+  }
+  SCliConn  *conn = (SCliConn *)handle;
+  SCliThrd2 *thrd = conn->hostThrd;
+  conn->ref++;
+
+  tTrace("%s conn %p ref %d", thrd->pInst->label, conn, conn->ref);
+}
+static int32_t transUnrefCliHandle(void *handle) {
+  if (handle == NULL) {
+    return 0;
+  }
+  int32_t    ref = 0;
+  SCliConn  *conn = (SCliConn *)handle;
+  SCliThrd2 *thrd = conn->hostThrd;
+  conn->ref--;
+  ref = conn->ref;
+
+  tTrace("%s conn %p ref:%d", thrd->pInst->label, conn, conn->ref);
+  if (conn->ref == 0) {
+    evtCliDestroyConn(conn, false);
+  }
+  return ref;
+}
+// static int32_t transGet
+
 static FORCE_INLINE void removeReqFromSendQ(SCliReq *pReq) {
   if (pReq == NULL || pReq->inSendQ == 0) {
     return;
