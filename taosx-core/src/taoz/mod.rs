@@ -503,6 +503,16 @@ mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
 
+    #[tokio::test]
+    async fn test_parse_file_name() {
+        let file_name = "abc-1630000000-22-1.z";
+        let (topic, ts, vg_id, index) = ZFile::parse_file_name(file_name).unwrap();
+        assert_eq!("abc", topic);
+        assert_eq!(1630000000, ts.timestamp());
+        assert_eq!(22, vg_id);
+        assert_eq!(1, index);
+    }
+
     #[ignore]
     #[tokio::test]
     async fn test_is_taos_valid_timeout() {
