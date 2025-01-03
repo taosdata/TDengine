@@ -553,28 +553,29 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
       taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pMgmt->runngingHash == NULL) {
     dError("failed to init vnode hash since %s", terrstr());
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pMgmt->closedHash =
       taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pMgmt->closedHash == NULL) {
     dError("failed to init vnode closed hash since %s", terrstr());
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pMgmt->creatingHash =
       taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pMgmt->creatingHash == NULL) {
     dError("failed to init vnode creatingHash hash since %s", terrstr());
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SWrapperCfg *pCfgs = NULL;
   int32_t      numOfVnodes = 0;
-  if (vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes) != 0) {
-    dInfo("failed to get vnode list from disk since %s", terrstr());
-    return -1;
+  int32_t      code = 0;
+  if ((code = vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes)) != 0) {
+    dInfo("failed to get vnode list from disk since %s", tstrerror(code));
+    return code;
   }
 
   pMgmt->state.totalVnodes = numOfVnodes;
@@ -634,13 +635,12 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 
   if ((pMgmt->state.openVnodes + pMgmt->state.dropVnodes) != pMgmt->state.totalVnodes) {
     dError("there are total vnodes:%d, opened:%d", pMgmt->state.totalVnodes, pMgmt->state.openVnodes);
-    terrno = TSDB_CODE_VND_INIT_FAILED;
-    return -1;
+    return terrno = TSDB_CODE_VND_INIT_FAILED;
   }
 
-  if (updateVnodesList && vmWriteVnodeListToFile(pMgmt) != 0) {
-    dError("failed to write vnode list since %s", terrstr());
-    return -1;
+  if (updateVnodesList && (code = vmWriteVnodeListToFile(pMgmt)) != 0) {
+    dError("failed to write vnode list since %s", tstrerror(code));
+    return code;
   }
 
   dInfo("successfully opened %d vnodes", pMgmt->state.totalVnodes);
