@@ -95,7 +95,6 @@ struct STFileSet {
   TSKEY        lastCompact;
   TSKEY        lastCommit;
 
-  bool      mergeScheduled;
   SVATaskID mergeTask;
   SVATaskID compactTask;
   SVATaskID retentionTask;

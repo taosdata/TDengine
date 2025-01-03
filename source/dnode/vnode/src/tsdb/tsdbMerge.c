@@ -484,7 +484,6 @@ static int32_t tsdbMergeGetFSet(SMerger *merger) {
     return code;
   }
 
-  fset->mergeScheduled = false;
   (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
   return 0;
 }
