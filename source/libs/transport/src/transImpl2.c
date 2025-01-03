@@ -1683,7 +1683,7 @@ typedef struct SCliConn {
 
   // SCliBatch *pBatch;
 
-  // SDelayTask *task;
+  SDelayTask *task;
 
   HeapNode node;  // for heap
   int8_t   inHeap;
@@ -1999,6 +1999,19 @@ static int32_t getOrCreateConnList(SCliThrd2 *pThrd, const char *key, SConnList 
   }
   return 0;
 }
+static void evtCliCloseIdleConn(void *param) {
+  STaskArg  *arg = param;
+  SCliConn  *conn = arg->param1;
+  SCliThrd2 *thrd = arg->param2;
+  tDebug("%s conn %p idle, close it", thrd->pInst->label, conn);
+  conn->task = NULL;
+  taosMemoryFree(arg);
+
+  // int32_t ref = transUnrefCliHandle(conn);
+  // if (ref <= 0) {
+  //   return;
+  // }
+}
 static void addConnToPool(void *pool, SCliConn *conn) {
   if (conn->status == ConnInPool) {
     return;
@@ -2029,8 +2042,7 @@ static void addConnToPool(void *pool, SCliConn *conn) {
     arg->param2 = thrd;
 
     STrans *pInst = thrd->pInst;
-    // conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, (10 * CONN_PERSIST_TIME(pInst->idleTime) /
-    // 3));
+    conn->task = transDQSched(thrd->pEvtMgt->arg, evtCliCloseIdleConn, arg, (1000 * (pInst->idleTime)));
   }
 }
 
@@ -2060,6 +2072,12 @@ static int32_t getConnFromPool(SCliThrd2 *pThrd, const char *key, SCliConn **ppC
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
   conn->list = plist;
+
+  if (conn->task != NULL) {
+    SDelayTask *task = conn->task;
+    conn->task = NULL;
+    transDQCancel(((SCliThrd2 *)conn->hostThrd)->pEvtMgt->arg, task);
+  }
 
   tDebug("conn %p get from pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
 
