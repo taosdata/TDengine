@@ -1200,6 +1200,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pOptions->pDelay);
       nodesDestroyNode(pOptions->pWatermark);
       nodesDestroyNode(pOptions->pDeleteMark);
+      nodesDestroyNode(pOptions->pRecInterval);
       break;
     }
     case QUERY_NODE_TSMA_OPTIONS: {

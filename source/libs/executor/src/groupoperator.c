@@ -1393,10 +1393,14 @@ static int32_t buildStreamCreateTableResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*                pTask = pOperator->pTaskInfo;
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                  pSrc = pInfo->pInputDataBlock;
-  if ((pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) ||
-      taosHashGetSize(pInfo->pPartitions) == 0) {
+  if ((pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0)) {
+    pTask->storageAPI.stateStore.streamStateSetParNameInvalid(pTask->streamInfo.pState);
     goto _end;
   }
+  if (taosHashGetSize(pInfo->pPartitions) == 0) {
+    goto _end;
+  }
+
   blockDataCleanup(pInfo->pCreateTbRes);
   code = blockDataEnsureCapacity(pInfo->pCreateTbRes, taosHashGetSize(pInfo->pPartitions));
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1587,6 +1591,7 @@ int32_t initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pPar
   pScanInfo->partitionSup = *pParSup;
   pScanInfo->pPartScalarSup = pExpr;
   pScanInfo->pPartTbnameSup = pTbnameExpr;
+  pScanInfo->hasPart = true;
   for (int32_t j = 0; j < pResExprSupp->numOfExprs; j++) {
     if (pScanInfo->primaryKeyIndex == pResExprSupp->pExprInfo[j].base.pParam[0].pCol->slotId) {
       *pPkColIndex = j;

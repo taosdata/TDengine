@@ -2905,10 +2905,11 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE            1
-#define STREAM_TRIGGER_WINDOW_CLOSE       2
-#define STREAM_TRIGGER_MAX_DELAY          3
-#define STREAM_TRIGGER_FORCE_WINDOW_CLOSE 4
+#define STREAM_TRIGGER_AT_ONCE                 1
+#define STREAM_TRIGGER_WINDOW_CLOSE            2
+#define STREAM_TRIGGER_MAX_DELAY               3
+#define STREAM_TRIGGER_FORCE_WINDOW_CLOSE      4
+#define STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE 5
 
 #define STREAM_DEFAULT_IGNORE_EXPIRED 1
 #define STREAM_FILL_HISTORY_ON        1
@@ -2956,6 +2957,7 @@ typedef struct {
   // 3.3.0.0
   SArray* pCols;  // array of SField
   int64_t smaId;
+  int64_t recalculateInterval;
 } SCMCreateStreamReq;
 
 typedef struct {

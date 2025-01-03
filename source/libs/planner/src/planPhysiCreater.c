@@ -2171,6 +2171,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   if (nodeType(pWindow) == QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL) {
     pWindow->node.inputTsOrder = pWindowLogicNode->node.outputTsOrder;
   }
+  pWindow->recalculateInterval = pWindowLogicNode->recalculateInterval;
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;

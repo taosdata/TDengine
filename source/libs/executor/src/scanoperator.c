@@ -1326,7 +1326,7 @@ _end:
   return code;
 }
 
-static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   STableScanInfo* pInfo = pOperator->info;
@@ -1665,7 +1665,7 @@ static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t grou
   }
 }
 
-void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint64_t ver) {
+void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, int64_t ver) {
   pTableScanInfo->base.cond.twindows = *pWin;
   pTableScanInfo->base.cond.startVersion = 0;
   pTableScanInfo->base.cond.endVersion = ver;
@@ -1677,8 +1677,8 @@ void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint6
   pTableScanInfo->scanMode = TABLE_SCAN__BLOCK_ORDER;
 }
 
-static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbUid, TSKEY startTs, TSKEY endTs,
-                                       int64_t maxVersion) {
+SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbUid, TSKEY startTs, TSKEY endTs,
+                                int64_t maxVersion) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   STableKeyInfo tblInfo = {.uid = tbUid, .groupId = 0};
@@ -1754,7 +1754,7 @@ bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal) {
   return false;
 }
 
-bool hasPrimaryKeyCol(SStreamScanInfo* pInfo) { return pInfo->primaryKeyIndex != -1; }
+static bool hasPrimaryKeyCol(SStreamScanInfo* pInfo) { return pInfo->primaryKeyIndex != -1; }
 
 static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion, void* pVal) {
   SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, uid, ts, ts, maxVersion);
@@ -1848,7 +1848,7 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   // coverity scan
   QUERY_CHECK_NULL(pInfo->pUpdateInfo, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
-  qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey,
+  qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRId64, win.skey, win.ekey,
          pInfo->pUpdateInfo->maxDataVersion);
   resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
   pInfo->pTableScanOp->status = OP_OPENED;
@@ -1862,8 +1862,8 @@ _end:
   }
 }
 
-static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
-                                    SDataBlockInfo* pDataBlockInfo, int32_t* pRowIndex, bool hasGroup) {
+STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
+                             SDataBlockInfo* pDataBlockInfo, int32_t* pRowIndex, bool hasGroup) {
   SResultRowInfo dumyInfo = {0};
   dumyInfo.cur.pageId = -1;
   STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, startTsCol[*pRowIndex], pInterval, TSDB_ORDER_ASC);
@@ -2532,12 +2532,15 @@ _end:
   return code;
 }
 
-static int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
+int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   blockDataCleanup(pInfo->pCreateTbRes);
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
+    if (pInfo->hasPart == false) {
+      pInfo->stateStore.streamStateSetParNameInvalid(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState);
+    }
   } else {
     code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
                                 &pInfo->tagCalSup, pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes,
@@ -2806,7 +2809,7 @@ _end:
   return code;
 }
 
-static int32_t doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeWindow* pWindow, const char* id) {
+int32_t doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeWindow* pWindow, const char* id) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool*   p = NULL;
@@ -2907,7 +2910,7 @@ _end:
 }
 
 // re-build the delete block, ONLY according to the split timestamp
-static int32_t rebuildDeleteBlockData(SSDataBlock* pBlock, STimeWindow* pWindow, const char* id) {
+int32_t rebuildDeleteBlockData(SSDataBlock* pBlock, STimeWindow* pWindow, const char* id) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t numOfRows = pBlock->info.rows;
@@ -2966,7 +2969,7 @@ _end:
   return code;
 }
 
-static int32_t colIdComparFn(const void* param1, const void* param2) {
+int32_t colIdComparFn(const void* param1, const void* param2) {
   int32_t p1 = *(int32_t*)param1;
   int32_t p2 = *(int32_t*)param2;
 
@@ -2977,8 +2980,8 @@ static int32_t colIdComparFn(const void* param1, const void* param2) {
   }
 }
 
-static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
-                               bool filter) {
+int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
+                        bool filter) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
@@ -3241,10 +3244,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   return pRes;
 }
 
-static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo) {
+int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, STqReader* pReader, SStoreTqReader* pReaderFn) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
-  STqReader* pReader = pInfo->tqReader;
   int32_t    rows = pSrc->info.rows;
   code = blockDataEnsureCapacity(pDst, rows);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3262,7 +3264,7 @@ static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, S
 
   int32_t j = 0;
   for (int32_t i = 0; i < rows; i++) {
-    if (pInfo->readerFn.tqReaderIsQueriedTable(pReader, uidCol[i])) {
+    if (pReaderFn->tqReaderIsQueriedTable(pReader, uidCol[i])) {
       code = colDataSetVal(pDstStartCol, j, (const char*)&startCol[i], false);
       QUERY_CHECK_CODE(code, lino, _end);
 
@@ -3293,7 +3295,7 @@ _end:
 }
 
 // for partition by tag
-static int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
@@ -3535,7 +3537,7 @@ static int32_t copyGetResultBlock(SSDataBlock* dest, TSKEY start, TSKEY end) {
   return appendDataToSpecialBlock(dest, &start, &end, NULL, NULL, NULL);
 }
 
-static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t *deleteNum) {
+int32_t deletePartName(SStateStore* pStore, SStreamState* pState, SSDataBlock* pBlock, int32_t *deleteNum) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
@@ -3545,7 +3547,7 @@ static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
     int64_t*         gpIdCol = (int64_t*)pGpIdCol->pData;
     void*            pParName = NULL;
     int32_t          winCode = 0;
-    code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i],
+    code = pStore->streamStateGetParName(pState, gpIdCol[i],
                                                    &pParName, false, &winCode);
     if (TSDB_CODE_SUCCESS == code && winCode != 0) {
       qDebug("delete stream part Name for:%"PRId64 " not found", gpIdCol[i]);
@@ -3559,9 +3561,9 @@ static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
     int64_t len = tsnprintf(varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1, "%s", pParName);
     code = colDataSetVal(pTbnameCol, i, varTbName, false);
     qDebug("delete stream part for:%"PRId64 " res tb: %s", gpIdCol[i], (char*)pParName);
-    pInfo->stateStore.streamStateFreeVal(pParName);
+    pStore->streamStateFreeVal(pParName);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = pInfo->stateStore.streamStateDeleteParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i]);
+    code = pStore->streamStateDeleteParName(pState, gpIdCol[i]);
     QUERY_CHECK_CODE(code, lino, _end);
     pBlock->info.id.groupId = gpIdCol[i];
     // currently, only one valid row in pBlock
@@ -3738,7 +3740,7 @@ FETCH_NEXT_BLOCK:
           code = createSpecialDataBlock(STREAM_DELETE_DATA, &pDelBlock);
           QUERY_CHECK_CODE(code, lino, _end);
 
-          code = filterDelBlockByUid(pDelBlock, pBlock, pInfo);
+          code = filterDelBlockByUid(pDelBlock, pBlock, pInfo->tqReader, &pInfo->readerFn);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           pDelBlock = pBlock;
@@ -3816,7 +3818,7 @@ FETCH_NEXT_BLOCK:
       } break;
       case STREAM_DROP_CHILD_TABLE: {
         int32_t deleteNum = 0;
-        code = deletePartName(pInfo, pBlock, &deleteNum);
+        code = deletePartName(&pInfo->stateStore, pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, pBlock, &deleteNum);
         QUERY_CHECK_CODE(code, lino, _end);
         if (deleteNum == 0) goto FETCH_NEXT_BLOCK;
       } break;
@@ -4074,7 +4076,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   int32_t      code = doStreamScanNext(pOperator, &pRes);
   return pRes;
 }
-static int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray** ppArrayRes) {
+int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray** ppArrayRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SArray* tableIdList = taosArrayInit(4, sizeof(uint64_t));
@@ -4496,9 +4498,9 @@ _end:
   return code;
 }
 
-int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
-                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
-                                     SOperatorInfo** pOptrInfo) {
+static int32_t createStreamNormalScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode,
+                                                  SNode* pTagCond, STableListInfo* pTableListInfo,
+                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t          code = TSDB_CODE_SUCCESS;
@@ -4625,6 +4627,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     pTaskInfo->streamInfo.snapshotVer = pHandle->version;
     pInfo->pCreateTbRes = buildCreateTableBlock(&pInfo->tbnameCalSup, &pInfo->tagCalSup);
     QUERY_CHECK_NULL(pInfo->pCreateTbRes, code, lino, _error, terrno);
+    pInfo->hasPart = false;
 
     code = blockDataEnsureCapacity(pInfo->pCreateTbRes, 8);
     QUERY_CHECK_CODE(code, lino, _error);
@@ -4741,6 +4744,16 @@ _error:
   }
   pTaskInfo->code = code;
   return code;
+}
+
+int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
+                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
+                                     SOperatorInfo** pOptrInfo) {
+  if (pTableScanNode->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    return createStreamDataScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, pOptrInfo);
+  } else {
+    return createStreamNormalScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, pOptrInfo);
+  }
 }
 
 static int32_t doTagScanOneTable(SOperatorInfo* pOperator, SSDataBlock* pRes, SMetaReader* mr, SStorageAPI* pAPI) {

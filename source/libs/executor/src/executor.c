@@ -1114,21 +1114,22 @@ _end:
   return code;
 }
 
-static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow) {
+static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow);
+    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow, pRecInteral);
   }
   SStreamScanInfo* pScanOp = (SStreamScanInfo*) pOperator->info;
   *pWaterMark = pScanOp->twAggSup.waterMark;
   *pInterval = pScanOp->interval;
   *pLastWindow = pScanOp->lastScanRange;
+  *pRecInteral = pScanOp->recalculateInterval;
   return TSDB_CODE_SUCCESS; 
 }
 
-int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow) {
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  return getOpratorIntervalInfo(pOperator, pWaterMark, pInterval, pLastWindow);
+  return getOpratorIntervalInfo(pOperator, pWaterMark, pInterval, pLastWindow, pRecInteral);
 }
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
@@ -1147,7 +1148,9 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
 
       pSup->calTriggerSaved = pSup->calTrigger;
       pSup->deleteMarkSaved = pSup->deleteMark;
-      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
+      if (pSup->calTrigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+        pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
+      }
       pSup->deleteMark = INT64_MAX;
       pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
       pInfo->ignoreExpiredData = false;

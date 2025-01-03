@@ -416,6 +416,7 @@ typedef struct SStreamAggSupporter {
   struct SUpdateInfo* pUpdateInfo;
   int32_t             windowCount;
   int32_t             windowSliding;
+  SStreamStateCur*    pCur;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
@@ -452,6 +453,7 @@ typedef struct STimeWindowAggSupp {
 typedef struct SSteamOpBasicInfo {
   int32_t primaryPkIndex;
   bool    updateOperatorInfo;
+  bool    isFillHistoryOperator;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
@@ -528,18 +530,27 @@ typedef struct SStreamScanInfo {
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
-  SSDataBlock*   pCreateTbRes;
-  int8_t         igCheckUpdate;
-  int8_t         igExpired;
-  void*          pState;  // void
-  SStoreTqReader readerFn;
-  SStateStore    stateStore;
-  SSDataBlock*   pCheckpointRes;
-  int8_t         pkColType;
-  int32_t        pkColLen;
-  bool           useGetResultRange;
-  STimeWindow    lastScanRange;
-  SSDataBlock*   pRangeScanRes;   // update SSDataBlock
+  SSDataBlock*      pCreateTbRes;
+  int8_t            igCheckUpdate;
+  int8_t            igExpired;
+  void*             pState;  // void
+  SStoreTqReader    readerFn;
+  SStateStore       stateStore;
+  SSDataBlock*      pCheckpointRes;
+  int8_t            pkColType;
+  int32_t           pkColLen;
+  bool              useGetResultRange;
+  STimeWindow       lastScanRange;
+  SSDataBlock*      pRangeScanRes;  // update SSDataBlock
+  bool              hasPart;
+
+  //nonblock data scan
+  STableTsDataState     tsDataState;
+  TSKEY                  recalculateInterval;
+  __compar_fn_t          comparePkColFn;
+  SScanRange             curRange;
+  struct SOperatorInfo*  pRecTableScanOp;
+  bool                   scanAllTables;
 } SStreamScanInfo;
 
 typedef struct {
@@ -887,6 +898,7 @@ typedef struct SStreamIntervalSliceOperatorInfo {
   bool                  hasFill;
   bool                  hasInterpoFunc;
   int32_t*              pOffsetInfo;
+  int32_t               numOfKeep;
 } SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)

@@ -287,21 +287,41 @@ int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, voi
   return code;
 }
 
-int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+int32_t streamStateCreate(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
+  return createRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen);
+}
+
+int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                                  int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  code = streamStateGet(pState, key, pVal, pVLen, pWinCode);
-  QUERY_CHECK_CODE(code, lino, _end);
 
+  bool isEnd = false;
   SSHashObj* pSearchBuff = getSearchBuff(pState->pFileState);
   if (pSearchBuff != NULL) {
     SArray* pWinStates = NULL;
-    code = addArrayBuffIfNotExist(pSearchBuff, key->groupId, &pWinStates);
+    code = addArrayBuffIfNotExist(pSearchBuff, pKey->groupId, &pWinStates);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = addSearchItem(pState->pFileState, pWinStates, key);
+
+    // recover
+    if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pState->pFileState)) {
+      code = recoverHashSortBuff(pState->pFileState, pWinStates, pKey->groupId);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    code = addSearchItem(pState->pFileState, pWinStates, pKey, &isEnd);
     QUERY_CHECK_CODE(code, lino, _end);
   }
+
+  if (isEnd) {
+    code = streamStateCreate(pState, pKey, pVal, pVLen);
+    QUERY_CHECK_CODE(code, lino, _end);
+    (*pWinCode) = TSDB_CODE_FAILED;
+  } else {
+    code = streamStateGet(pState, pKey, pVal, pVLen, pWinCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -478,6 +498,10 @@ int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, ch
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  if (pState->parNameMap == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {
     if (tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       code = tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
@@ -497,6 +521,11 @@ _end:
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache, int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  if (pState->parNameMap == NULL) {
+    (*pWinCode) = TSDB_CODE_FAILED;
+    return code;
+  }
+
   void*   pStr = tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t));
   if (!pStr) {
     if (onlyCache && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
@@ -527,6 +556,10 @@ _end:
 }
 
 int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId) {
+  if (pState->parNameMap == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   int32_t code = tSimpleHashRemove(pState->parNameMap, &groupId, sizeof(int64_t));
   if (TSDB_CODE_SUCCESS != code) {
     qWarn("failed to remove parname from cache, code:%d", code);
@@ -536,6 +569,13 @@ int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId) {
     qWarn("failed to remove parname from rocksdb, code:%d", code);
   }
   return TSDB_CODE_SUCCESS;
+}
+
+void streamStateSetParNameInvalid(SStreamState* pState) {
+  if (pState != NULL) {
+    tSimpleHashCleanup(pState->parNameMap);
+    pState->parNameMap = NULL;
+  }
 }
 
 void streamStateDestroy(SStreamState* pState, bool remove) {
@@ -611,9 +651,66 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
   return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);
 }
 
-void streamStateClearExpiredState(SStreamState* pState) { clearExpiredState(pState->pFileState); }
+void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep) { clearExpiredState(pState->pFileState, numOfKeep); }
 
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {
   return getRowStatePrevRow(pState->pFileState, pKey, pResKey, pVal, pVLen, pWinCode);
 }
+
+int32_t streamStateGetAllPrev(SStreamState* pState, const SWinKey* pKey, SArray* pResArray, int32_t maxNum) {
+  return getRowStateAllPrevRow(pState->pFileState, pKey, pResArray, maxNum);
+}
+
+int32_t streamStateGetAndSetTsData(STableTsDataState* pState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
+                                   TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode) {
+  return getAndSetTsData(pState, tableUid, pCurTs, ppCurPkVal, lastTs, pLastPkVal, lastPkLen, pWinCode);
+}
+
+int32_t streamStateTsDataCommit(STableTsDataState* pState) {
+  int32_t code = doTsDataCommit(pState);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  return  doRangeDataCommit(pState);
+}
+
+int32_t streamStateInitTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
+  return initTsDataState(pTsDataState, pkType, pkLen, pState);
+}
+
+void streamStateDestroyTsDataState(STableTsDataState* pTsDataState) {
+  destroyTsDataState(pTsDataState);
+}
+
+int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState) {
+  return recoverTsData(pTsDataState);
+}
+
+SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState) {
+  return getLastStateCur(pState->pFileState);
+}
+
+void streamStateLastStateCurNext(SStreamStateCur* pCur) {
+  moveLasstStateCurNext(pCur);
+}
+
+int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** pVal){
+  return getLastStateKVByCur(pCur, pVal);
+}
+
+int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) {
+  return reloadTsDataState(pTsDataState);
+}
+
+int32_t streamStateMergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
+                                         uint64_t uId) {
+  return mergeAndSaveScanRange(pTsDataState, pWin, gpId, uId);
+}
+
+int32_t streamStateMergeAllScanRange(STableTsDataState* pTsDataState) {
+  return mergeAllScanRange(pTsDataState);
+}
+
+int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
+  return popScanRange(pTsDataState, pRange);
+}
+

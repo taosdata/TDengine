@@ -4293,7 +4293,7 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
   }
 }
 
-int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal,
+int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, void** pVal,
                                             int32_t* pVLen) {
   stDebug("streamStateFillGetKVByCur_rocksdb");
   if (!pCur) {
@@ -4320,7 +4320,6 @@ int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGro
   return 0;
 }
 
-#ifdef BUILD_NO_CALL
 int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen) {
   int    code = 0;
   char*  tVal;
@@ -4335,7 +4334,7 @@ int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void
 
   return code;
 }
-#endif
+
 // parname cfg
 int32_t streamStatePutParName_rocksdb(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
   int code = 0;
@@ -5282,8 +5281,9 @@ SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWin
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
 
-  char buf[128] = {0};
-  int  len = winKeyEncode((void*)key, buf);
+  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  char      buf[128] = {0};
+  int       len = stateKeyEncode((void*)&sKey, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
     streamStateFreeCur(pCur);
     return NULL;
@@ -5297,7 +5297,7 @@ SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWin
     size_t  kLen = 0;
     char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     TAOS_UNUSED(winKeyDecode((void*)&curKey, keyStr));
-    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) > 0) {
+    if (winKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) > 0) {
       return pCur;
     }
     rocksdb_iter_prev(pCur->iter);

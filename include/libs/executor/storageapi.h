@@ -125,6 +125,7 @@ typedef struct SRowBuffPos {
   bool  beUsed;
   bool  needFree;
   bool  beUpdated;
+  bool  invalid;
 } SRowBuffPos;
 
 // tq
@@ -318,7 +319,7 @@ typedef struct SUpdateInfo {
   TSKEY        minTS;
   SScalableBf* pCloseWinSBF;
   SHashObj*    pMap;
-  uint64_t     maxDataVersion;
+  int64_t      maxDataVersion;
   int8_t       pkColType;
   int32_t      pkColLen;
   char*        pKeyBuff;
@@ -327,6 +328,20 @@ typedef struct SUpdateInfo {
   int (*comparePkRowFn)(void* pValue1, void* pTs, void* pPkVal, __compar_fn_t cmpPkFn);
   __compar_fn_t comparePkCol;
 } SUpdateInfo;
+
+typedef struct SScanRange {
+  STimeWindow win;
+  SSHashObj* pGroupIds;
+  SSHashObj* pUIds;
+} SScanRange;
+typedef struct STableTsDataState {
+  SSHashObj*    pTableTsDataMap;
+  __compar_fn_t comparePkColFn;
+  void*         pPkValBuff;
+  int32_t       pkValLen;
+  void*         pState;
+  SArray*       pScanRanges;
+} STableTsDataState;
 
 typedef struct {
   void*   iter;      //  rocksdb_iterator_t*    iter;
@@ -347,14 +362,16 @@ typedef struct SStateStore {
   int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache,
                                    int32_t* pWinCode);
   int32_t (*streamStateDeleteParName)(SStreamState* pState, int64_t groupId);
+  void (*streamStateSetParNameInvalid)(SStreamState* pState);
 
-  int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+  int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                                       int32_t* pWinCode);
   void (*streamStateReleaseBuf)(SStreamState* pState, void* pVal, bool used);
   void (*streamStateClearBuff)(SStreamState* pState, void* pVal);
   void (*streamStateFreeVal)(void* val);
   int32_t (*streamStateGetPrev)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
                                 int32_t* pVLen, int32_t* pWinCode);
+  int32_t (*streamStateGetAllPrev)(SStreamState* pState, const SWinKey* pKey, SArray* pResArray, int32_t maxNum);
 
   int32_t (*streamStatePut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
   int32_t (*streamStateGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode);
@@ -389,7 +406,7 @@ typedef struct SStateStore {
   int32_t (*streamStateFillGetGroupKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
   int32_t (*streamStateGetKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
-  void (*streamStateClearExpiredState)(SStreamState* pState);
+  void (*streamStateClearExpiredState)(SStreamState* pState, int32_t numOfKeep);
 
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                              int32_t* pVLen, int32_t* pWinCode);
@@ -456,6 +473,22 @@ typedef struct SStateStore {
   void (*streamStateDestroy)(SStreamState* pState, bool remove);
   void (*streamStateReloadInfo)(SStreamState* pState, TSKEY ts);
   void (*streamStateCopyBackend)(SStreamState* src, SStreamState* dst);
+
+  int32_t (*streamStateGetAndSetTsData)(STableTsDataState* pState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
+                                        TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
+  int32_t (*streamStateTsDataCommit)(STableTsDataState* pState);
+  int32_t (*streamStateInitTsDataState)(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
+  void (*streamStateDestroyTsDataState)(STableTsDataState* pTsDataState);
+  int32_t (*streamStateRecoverTsData)(STableTsDataState* pTsDataState);
+  int32_t (*streamStateReloadTsDataState)(STableTsDataState* pTsDataState);
+  int32_t (*streamStateMergeAndSaveScanRange)(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
+                                              uint64_t uId);
+  int32_t (*streamStateMergeAllScanRange)(STableTsDataState* pTsDataState);
+  int32_t (*streamStatePopScanRange)(STableTsDataState* pTsDataState, SScanRange* pRange);
+
+  SStreamStateCur* (*streamStateGetLastStateCur)(SStreamState* pState);
+  void (*streamStateLastStateCurNext)(SStreamStateCur* pCur);
+  int32_t (*streamStateLastStateGetKVByCur)(SStreamStateCur* pCur, void** pVal);
 } SStateStore;
 
 typedef struct SStorageAPI {

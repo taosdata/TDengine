@@ -56,6 +56,8 @@ void              streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuf
 
 int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                              int32_t* pWinCode);
+int32_t createRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
+
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                    int32_t* pWinCode);
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
@@ -144,12 +146,31 @@ SSHashObj* getGroupIdCache(SStreamFileState* pFileState);
 int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos);
 int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
                            int32_t* pVLen, int32_t* pWinCode);
-int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SWinKey* pKey);
+int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SWinKey* pKey, bool* pIsEnd);
+int32_t getRowStateAllPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SArray* pResArray, int32_t maxNum);
 
 //twa
 void setFillInfo(SStreamFileState* pFileState);
-void clearExpiredState(SStreamFileState* pFileState);
+void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep);
 int32_t addArrayBuffIfNotExist(SSHashObj* pSearchBuff, uint64_t groupId, SArray** ppResStates);
+int32_t recoverHashSortBuff(SStreamFileState* pFileState, SArray* pWinStates, uint64_t groupId);
+
+int32_t getAndSetTsData(STableTsDataState* pTsDataState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
+                        TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
+int32_t doTsDataCommit(STableTsDataState* pTsDataState);
+int32_t doRangeDataCommit(STableTsDataState* pTsDataState);
+int32_t initTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
+void destroyTsDataState(STableTsDataState* pTsDataState);
+int32_t recoverTsData(STableTsDataState* pTsDataState);
+int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId, uint64_t uId);
+int32_t mergeAllScanRange(STableTsDataState* pTsDataState);
+int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange);
+
+// continuous
+SStreamStateCur* getLastStateCur(SStreamFileState* pFileState);
+void moveLasstStateCurNext(SStreamStateCur* pCur);
+int32_t getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal);
+int32_t reloadTsDataState(STableTsDataState* pTsDataState);
 
 #ifdef __cplusplus
 }

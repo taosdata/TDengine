@@ -155,6 +155,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStatePutParName = streamStatePutParName;
   pStore->streamStateGetParName = streamStateGetParName;
   pStore->streamStateDeleteParName = streamStateDeleteParName;
+  pStore->streamStateSetParNameInvalid = streamStateSetParNameInvalid;
 
   pStore->streamStateAddIfNotExist = streamStateAddIfNotExist;
   pStore->streamStateReleaseBuf = streamStateReleaseBuf;
@@ -171,6 +172,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateGetInfo = streamStateGetInfo;
   pStore->streamStateSetNumber = streamStateSetNumber;
   pStore->streamStateGetPrev = streamStateGetPrev;
+  pStore->streamStateGetAllPrev = streamStateGetAllPrev;
 
   pStore->streamStateFillPut = streamStateFillPut;
   pStore->streamStateFillGet = streamStateFillGet;
@@ -236,6 +238,20 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateDestroy = streamFileStateDestroy;
   pStore->streamFileStateClear = streamFileStateClear;
   pStore->needClearDiskBuff = needClearDiskBuff;
+
+  pStore->streamStateGetAndSetTsData = streamStateGetAndSetTsData;
+  pStore->streamStateTsDataCommit = streamStateTsDataCommit;
+  pStore->streamStateInitTsDataState = streamStateInitTsDataState;
+  pStore->streamStateDestroyTsDataState = streamStateDestroyTsDataState;
+  pStore->streamStateRecoverTsData = streamStateRecoverTsData;
+  pStore->streamStateReloadTsDataState = streamStateReloadTsDataState;
+  pStore->streamStateMergeAndSaveScanRange = streamStateMergeAndSaveScanRange;
+  pStore->streamStateMergeAllScanRange = streamStateMergeAllScanRange;
+  pStore->streamStatePopScanRange = streamStatePopScanRange;
+
+  pStore->streamStateGetLastStateCur = streamStateGetLastStateCur;
+  pStore->streamStateLastStateCurNext = streamStateLastStateCurNext;
+  pStore->streamStateLastStateGetKVByCur = streamStateLastStateGetKVByCur;
 
   pStore->streamStateOpen = streamStateOpen;
   pStore->streamStateClose = streamStateClose;

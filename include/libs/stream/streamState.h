@@ -50,6 +50,7 @@ void    streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, vo
 int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode);
+int32_t streamStateGetAllPrev(SStreamState* pState, const SWinKey* pKey, SArray* pResArray, int32_t maxNum);
 
 // session window
 int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal, int32_t* pVLen,
@@ -85,7 +86,7 @@ int32_t streamStateFillGetNext(SStreamState* pState, const SWinKey* pKey, SWinKe
 int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                                int32_t* pWinCode);
 
-int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                                  int32_t* pWinCode);
 void    streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used);
 void    streamStateClearBuff(SStreamState* pState, void* pVal);
@@ -107,7 +108,7 @@ int32_t streamStateFillGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, con
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
 // twa
-void streamStateClearExpiredState(SStreamState* pState);
+void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep);
 
 void streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
 void streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
@@ -115,12 +116,31 @@ void streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache, int32_t* pWinCode);
 int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId);
+void streamStateSetParNameInvalid(SStreamState* pState);
 
 // group id
 int32_t streamStateGroupPut(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
 SStreamStateCur* streamStateGroupGetCur(SStreamState* pState);
 void streamStateGroupCurNext(SStreamStateCur* pCur);
 int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
+
+// ts data
+int32_t streamStateGetAndSetTsData(STableTsDataState* pState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
+                                  TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
+int32_t streamStateTsDataCommit(STableTsDataState* pState);
+int32_t streamStateInitTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
+void    streamStateDestroyTsDataState(STableTsDataState* pTsDataState);
+int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState);
+int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState);
+int32_t streamStateMergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
+                                         uint64_t uId);
+int32_t streamStateMergeAllScanRange(STableTsDataState* pTsDataState);
+int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRange);
+
+// continuous
+SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState);
+void streamStateLastStateCurNext(SStreamStateCur* pCur);
+int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** pVal);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
 

@@ -1059,6 +1059,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     pWindow->deleteMark = pCxt->pPlanCxt->deleteMark;
     pWindow->igExpired = pCxt->pPlanCxt->igExpired;
     pWindow->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
+    pWindow->recalculateInterval = pCxt->pPlanCxt->recalculateInterval;
   }
   pWindow->node.inputTsOrder = ORDER_ASC;
   pWindow->node.outputTsOrder = ORDER_ASC;

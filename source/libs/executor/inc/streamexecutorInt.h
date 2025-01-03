@@ -54,10 +54,24 @@ typedef struct SSlicePoint {
   SRowBuffPos*   pResPos;
 } SSlicePoint;
 
+typedef struct SInervalSlicePoint {
+  SSessionKey      winKey;
+  bool             *pFinished;
+  SSliceRowData*   pLastRow;
+  SRowBuffPos*     pResPos;
+} SInervalSlicePoint;
+
+typedef enum SIntervalSliceType {
+  INTERVAL_SLICE_START = 1,
+  INTERVAL_SLICE_END = 2,
+} SIntervalSliceType;
+
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
 void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
+void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
+bool isFillHistoryOperator(SSteamOpBasicInfo* pBasicInfo);
 
 int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption);
 void    removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins);
@@ -105,6 +119,51 @@ int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, 
 int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
 int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
 TSKEY   compareTs(void* pKey);
+void doStreamIntervalSaveCheckpoint(struct SOperatorInfo* pOperator);
+int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, bool needPrev, STimeWindow* pTWin, int64_t groupId,
+                                    SInervalSlicePoint* pCurPoint, SInervalSlicePoint* pPrevPoint, int32_t* pWinCode);
+int32_t getIntervalSlicePrevStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, SWinKey* pCurKey,
+                                     SInervalSlicePoint* pPrevPoint);
+bool isInterpoWindowFinished(SInervalSlicePoint* pPoint);
+void resetIntervalSliceFunctionKey(SqlFunctionCtx* pCtx, int32_t numOfOutput);
+int32_t setIntervalSliceOutputBuf(SStreamAggSupporter* pAggSup, SInervalSlicePoint* pPoint, SqlFunctionCtx* pCtx,
+                                  int32_t numOfOutput, int32_t* rowEntryInfoOffset);
+void doSetElapsedEndKey(TSKEY winKey, SExprSupp* pSup);
+void doStreamSliceInterpolation(SSliceRowData* pPrevWinVal, TSKEY winKey, TSKEY curTs, SSDataBlock* pDataBlock,
+                                int32_t curRowIndex, SExprSupp* pSup, SIntervalSliceType type, int32_t* pOffsetInfo);
+void setInterpoWindowFinished(SInervalSlicePoint* pPoint);
+int32_t doStreamIntervalNonblockAggNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
+void streamIntervalNonblockReleaseState(struct SOperatorInfo* pOperator);
+void streamIntervalNonblockReloadState(struct SOperatorInfo* pOperator);
+
+int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, STqReader* pReader, SStoreTqReader* pReaderFn);
+int32_t rebuildDeleteBlockData(struct SSDataBlock* pBlock, STimeWindow* pWindow, const char* id);
+int32_t deletePartName(SStateStore* pStore, SStreamState* pState, SSDataBlock* pBlock, int32_t *deleteNum);
+int32_t doTableScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
+void streamScanOperatorSaveCheckpoint(struct SStreamScanInfo* pInfo);
+int32_t doStreamDataScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
+void streamDataScanReleaseState(struct SOperatorInfo* pOperator);
+void streamDataScanReloadState(struct SOperatorInfo* pOperator);
+int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray** ppArrayRes);
+int32_t colIdComparFn(const void* param1, const void* param2);
+int32_t doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeWindow* pWindow, const char* id);
+STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
+                             SDataBlockInfo* pDataBlockInfo, int32_t* pRowIndex, bool hasGroup);
+int32_t appendPkToSpecialBlock(SSDataBlock* pBlock, TSKEY* pTsArray, SColumnInfoData* pPkCol, int32_t rowId,
+                               uint64_t* pUid, uint64_t* pGp, void* pTbName);
+SSDataBlock* readPreVersionData(struct SOperatorInfo* pTableScanOp, uint64_t tbUid, TSKEY startTs, TSKEY endTs,
+                                int64_t maxVersion);
+bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal);
+typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
+int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn);
+void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, int64_t ver);
+int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId);
+int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
+                        bool filter);
+int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
+int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
+                                         STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
+                                         struct SOperatorInfo** pOptrInfo);
 
 #ifdef __cplusplus
 }
