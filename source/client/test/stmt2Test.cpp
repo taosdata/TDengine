@@ -114,10 +114,10 @@ void do_query(TAOS* taos, const char* sql) {
 
 void do_stmt(TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUMS, int ROW_NUMS, int CYC_NUMS,
              bool hastags, bool createTable) {
+  printf("%s\n", sql);
   do_query(taos, "drop database if exists db");
   do_query(taos, "create database db");
   do_query(taos, "create table db.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
-  do_query(taos, "use db");
 
   TAOS_STMT2* stmt = taos_stmt2_init(taos, option);
   ASSERT_NE(stmt, nullptr);
@@ -818,14 +818,21 @@ TEST(stmt2Case, stmt2_init_prepare_Test) {
 TEST(stmt2Case, stmt2_stb_insert) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
+  // normal insert into stb
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
   { do_stmt(taos, &option, "insert into db.stb (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, true); }
+  // normal using
   option = {0, true, true, stmtAsyncQueryCb, NULL};
   { do_stmt(taos, &option, "insert into db.? using db.stb tags(?,?) values(?,?)", 3, 3, 3, true, true); }
-  option = {0, false, false, NULL, NULL};
+  // `db`.`stb` is not a super table
+  option = {0, true, true, NULL, NULL};
+  { do_stmt(taos, &option, "insert into `db`.`stb` (tbname,ts,b) values(?,?,?)", 3, 3, 3, false, true); }
+  // use db
+  do_query(taos, "use db");
+  option = {0, true, true, stmtAsyncQueryCb, NULL};
   { do_stmt(taos, &option, "insert into stb (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, false); }
   option = {0, true, true, NULL, NULL};
-  { do_stmt(taos, &option, "insert into db.stb (tbname,ts,b) values(?,?,?)", 3, 3, 3, false, true); }
+  { do_stmt(taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, false); }
 
   taos_close(taos);
 }
@@ -933,7 +940,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
   taos_close(taos);
 }
 
-//TD-33419
+// TD-33419
 TEST(stmt2Case, stmt2_insert_db) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
@@ -997,7 +1004,6 @@ TEST(stmt2Case, stmt2_query) {
   do_query(taos,
            "insert into db.tb2 using db.stb tags(2,'xyz') values(1591060628000, "
            "'abc'),(1591060628001,'def'),(1591060628002, 'hij')");
-  do_query(taos, "use db");
 
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 

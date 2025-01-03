@@ -1449,12 +1449,12 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
 int32_t initTableColSubmitDataWithBoundInfo(STableDataCxt* pTableCxt, SBoundColInfo pBoundColsInfo) {
   insDestroyBoundColInfo(&(pTableCxt->boundColsInfo));
   pTableCxt->boundColsInfo = pBoundColsInfo;
-  pTableCxt->boundColsInfo.pColIndex = taosMemoryCalloc(pBoundColsInfo.numOfBound - 1, sizeof(int16_t));
+  pTableCxt->boundColsInfo.pColIndex = taosMemoryCalloc(pBoundColsInfo.numOfBound, sizeof(int16_t));
   if (NULL == pTableCxt->boundColsInfo.pColIndex) {
     return terrno;
   }
   (void)memcpy(pTableCxt->boundColsInfo.pColIndex, pBoundColsInfo.pColIndex,
-               sizeof(int16_t) * pBoundColsInfo.numOfBound - 1);
+               sizeof(int16_t) * pBoundColsInfo.numOfBound);
   for (int32_t i = 0; i < pBoundColsInfo.numOfBound; ++i) {
     SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
     SColData* pCol = taosArrayReserve(pTableCxt->pData->aCol, 1);
