@@ -7342,7 +7342,13 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
   if (nodesIsExprNode(*pNode)) {
     ((SExprNode*)*pNode)->bindTupleFuncIdx = pCxt->bindTupleFuncIdx;
     int32_t len = strlen(((SExprNode*)*pNode)->aliasName);
-    tsnprintf(((SExprNode*)*pNode)->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pCxt->bindTupleFuncIdx);
+    if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
+      parserWarn("The alias name is too long, the extra part will be truncated");
+      tsnprintf(((SExprNode*)*pNode)->aliasName + TSDB_COL_NAME_EXLEN - TSDB_COL_NAME_EXLEN, TSDB_COL_NAME_EXLEN, ".%d",
+                pCxt->bindTupleFuncIdx);
+    } else {
+      tsnprintf(((SExprNode*)*pNode)->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pCxt->bindTupleFuncIdx);
+    }
     SFunctionNode* pFunc = (SFunctionNode*)*pNode;
   }
   return DEAL_RES_CONTINUE;
@@ -7450,7 +7456,7 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
         return DEAL_RES_ERROR;
       } else {
         ((SExprNode*)pExpr)->asAlias = true;
-        tstrncpy(((SExprNode*)pExpr)->userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN + TSDB_COL_NAME_EXLEN);
+        tstrncpy(((SExprNode*)pExpr)->userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
       }
     }
     if(*pCxt->selectFuncList == NULL) {
