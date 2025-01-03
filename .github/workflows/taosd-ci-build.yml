@@ -42,7 +42,7 @@ jobs:
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
-            -DBUILD_TEST=false \
+            -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
