@@ -669,7 +669,6 @@ SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState) {
   newPos->needFree = false;
   newPos->beUpdated = true;
   newPos->invalid = false;
-  ASSERT(newPos->pRowBuff != NULL);
   return newPos;
 
 _error:
@@ -692,7 +691,6 @@ int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t k
       *pVal = *pos;
       (*pos)->beUsed = true;
       (*pos)->beFlushed = false;
-      ASSERT((*pos)->pRowBuff != NULL);
     }
     goto _end;
   }
