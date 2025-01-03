@@ -57,7 +57,7 @@
 void streamIntervalNonblockReleaseState(SOperatorInfo* pOperator) {
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
-  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
+  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
   pAggSup->stateStore.streamStateCommit(pAggSup->pState);
   int32_t resSize = sizeof(TSKEY);
   pAggSup->stateStore.streamStateSaveInfo(pAggSup->pState, STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME,
@@ -128,7 +128,7 @@ static int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataB
     QUERY_CHECK_CODE(code, lino, _end);
     ASSERT(curPoint.pResPos->pRowBuff != NULL);
 
-    if(winCode != TSDB_CODE_SUCCESS && pInfo->hasInterpoFunc == false) {
+    if(winCode != TSDB_CODE_SUCCESS && pInfo->hasInterpoFunc == false && pInfo->numOfKeep == 1) {
       SWinKey curKey = {.ts = curPoint.winKey.win.skey, .groupId = groupId};
       code = getIntervalSlicePrevStateBuf(&pInfo->streamAggSup, &pInfo->interval, &curKey, &prevPoint);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -150,8 +150,17 @@ static int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataB
         setInterpoWindowFinished(&prevPoint);
       }
 
-      void* pResPtr = taosArrayPush(pUpdated, &prevPoint.pResPos);
-      QUERY_CHECK_NULL(pResPtr, code, lino, _end, terrno);
+      if (pInfo->numOfKeep == 1) {
+        void* pResPtr = taosArrayPush(pUpdated, &prevPoint.pResPos);
+        QUERY_CHECK_NULL(pResPtr, code, lino, _end, terrno);
+      } else {
+        SWinKey curKey = {.groupId = groupId};
+        curKey.ts = taosTimeAdd(curTs, -pInfo->interval.interval, pInfo->interval.intervalUnit,
+                                pInfo->interval.precision, NULL) + 1;
+        code = pInfo->streamAggSup.stateStore.streamStateGetAllPrev(pInfo->streamAggSup.pState, &curKey, pUpdated,
+                                                                    pInfo->numOfKeep);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
 
     code = setIntervalSliceOutputBuf(&pInfo->streamAggSup, &curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
@@ -229,10 +238,10 @@ _end:
 }
 
 int32_t buildIntervalHistoryResult(SOperatorInfo* pOperator) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t                           code = TSDB_CODE_SUCCESS;
+  int32_t                           lino = 0;
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
-  SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
+  SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
   code = getHistoryRemainResultInfo(pAggSup, pInfo->pUpdated, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
   if (taosArrayGetSize(pInfo->pUpdated) > 0) {
@@ -249,6 +258,13 @@ _end:
     qError("%s failed at line %d since %s.", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+void releaseFlusedPos(void* pRes) {
+  SRowBuffPos* pPos = *(SRowBuffPos**)pRes;
+  if (pPos != NULL && pPos->needFree) {
+    pPos->beUsed = false;
+  }
 }
 
 int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -292,7 +308,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       return code;
     }
 
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
     return code;
@@ -371,6 +387,9 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
   }
 
   taosArraySort(pInfo->pUpdated, winPosCmprImpl);
+  if (pInfo->numOfKeep > 1) {
+    taosArrayRemoveDuplicate(pInfo->pUpdated, winPosCmprImpl, releaseFlusedPos);
+  }
 
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pInfo->pUpdated);
   pInfo->pUpdated = taosArrayInit(1024, POINTER_BYTES);
@@ -391,7 +410,8 @@ _end:
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
     pTaskInfo->code = code;
   }
-  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
+
+  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep);
   setStreamOperatorCompleted(pOperator);
   (*ppRes) = NULL;
   return code;

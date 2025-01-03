@@ -1412,7 +1412,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
       goto _end;
     }
 
-    pInfo->stateStore.streamStateClearExpiredState(pInfo->pState);
+    pInfo->stateStore.streamStateClearExpiredState(pInfo->pState, 1);
     resetStreamFillInfo(pInfo);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
@@ -1484,7 +1484,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   QUERY_CHECK_CODE(code, lino, _end);
 
   if ((*ppRes) == NULL) {
-    pInfo->stateStore.streamStateClearExpiredState(pInfo->pState);
+    pInfo->stateStore.streamStateClearExpiredState(pInfo->pState, 1);
     resetStreamFillInfo(pInfo);
     setStreamOperatorCompleted(pOperator);
   }

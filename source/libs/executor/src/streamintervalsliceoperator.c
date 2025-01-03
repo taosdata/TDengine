@@ -391,7 +391,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       return code;
     } 
 
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
     return code;
@@ -485,7 +485,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       (*ppRes) = pInfo->pCheckpointRes;
       return code;
     } 
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
     setStreamOperatorCompleted(pOperator);
   }
 
@@ -647,6 +647,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->pOperator = pOperator;
   pInfo->hasFill = false;
   pInfo->hasInterpoFunc = windowinterpNeeded(pExpSup->pCtx, numOfExprs);
+  pInfo->numOfKeep = ceil(pInfo->interval.interval / pInfo->interval.sliding);
 
   setOperatorInfo(pOperator, "StreamIntervalSliceOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);

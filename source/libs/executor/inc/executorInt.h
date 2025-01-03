@@ -897,6 +897,7 @@ typedef struct SStreamIntervalSliceOperatorInfo {
   bool                  hasFill;
   bool                  hasInterpoFunc;
   int32_t*              pOffsetInfo;
+  int32_t               numOfKeep;
 } SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)

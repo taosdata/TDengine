@@ -1485,7 +1485,7 @@ void getPrevResKey(int64_t curGroupId, SArray* pKeyArray, int32_t curIndex, TSKE
 }
 
 void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwSup, SStreamFillSupporter* pFillSup,
-                                 SStreamFillInfo* pFillInfo, SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo) {
+                                 SStreamFillInfo* pFillInfo, SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo, SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   blockDataCleanup(pBlock);
@@ -1512,7 +1512,7 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, STimeWindowAggSup
     void*   tbname = NULL;
     int32_t winCode = TSDB_CODE_SUCCESS;
     code =
-        pAggSup->stateStore.streamStateGetParName(pAggSup->pState, pBlock->info.id.groupId, &tbname, false, &winCode);
+        pAggSup->stateStore.streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname, false, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
     if (winCode != TSDB_CODE_SUCCESS) {
       pBlock->info.parTbName[0] = 0;
@@ -1565,7 +1565,7 @@ _end:
   }
 }
 
-static void doBuildTimeSliceDeleteResult(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, SArray* pWins, int32_t* index, SSDataBlock* pBlock) {
+static void doBuildTimeSliceDeleteResult(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, SArray* pWins, int32_t* index, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   blockDataCleanup(pBlock);
@@ -1626,7 +1626,7 @@ static void doBuildTimeSliceDeleteResult(SStreamAggSupporter* pAggSup, SStreamFi
     void*    tbname = NULL;
     int32_t  winCode = TSDB_CODE_SUCCESS;
 
-    code = pAggSup->stateStore.streamStateGetParName(pAggSup->pState, pKey->groupId, &tbname, false, &winCode);
+    code = pAggSup->stateStore.streamStateGetParName(pTaskInfo->streamInfo.pState, pKey->groupId, &tbname, false, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (winCode != TSDB_CODE_SUCCESS) {
@@ -1656,13 +1656,8 @@ static int32_t buildTimeSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SExecTaskInfo*                pTaskInfo = pOperator->pTaskInfo;
   uint16_t                      opType = pOperator->operatorType;
   SStreamAggSupporter*          pAggSup = &pInfo->streamAggSup;
-
-  if (pTaskInfo->streamInfo.pState->parNameMap == NULL) {
-    pAggSup->pState->parNameMap = NULL;
-  }
-
   
-  doBuildTimeSliceDeleteResult(pAggSup, pInfo->pFillSup, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
+  doBuildTimeSliceDeleteResult(pAggSup, pInfo->pFillSup, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes, pTaskInfo);
   if (pInfo->pDelRes->info.rows != 0) {
     // process the rest of the data
     printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
@@ -1670,7 +1665,7 @@ static int32_t buildTimeSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRe
     goto _end;
   }
 
-  doBuildTimeSlicePointResult(pAggSup, &pInfo->twAggSup, pInfo->pFillSup, pInfo->pFillInfo, pInfo->pRes, &pInfo->groupResInfo);
+  doBuildTimeSlicePointResult(pAggSup, &pInfo->twAggSup, pInfo->pFillSup, pInfo->pFillInfo, pInfo->pRes, &pInfo->groupResInfo, pTaskInfo);
   if (pInfo->pRes->info.rows != 0) {
     printDataBlock(pInfo->pRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
     (*ppRes) = pInfo->pRes;
@@ -1833,7 +1828,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
+      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
     }
     setStreamOperatorCompleted(pOperator);
     resetStreamFillSup(pInfo->pFillSup);
@@ -1956,7 +1951,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
 
   if (!(*ppRes)) {
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState);
+      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
     }
     setStreamOperatorCompleted(pOperator);
     resetStreamFillSup(pInfo->pFillSup);

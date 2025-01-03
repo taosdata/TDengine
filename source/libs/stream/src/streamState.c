@@ -649,11 +649,15 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
   return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);
 }
 
-void streamStateClearExpiredState(SStreamState* pState) { clearExpiredState(pState->pFileState); }
+void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep) { clearExpiredState(pState->pFileState, numOfKeep); }
 
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {
   return getRowStatePrevRow(pState->pFileState, pKey, pResKey, pVal, pVLen, pWinCode);
+}
+
+int32_t streamStateGetAllPrev(SStreamState* pState, const SWinKey* pKey, SArray* pResArray, int32_t maxNum) {
+  return getRowStateAllPrevRow(pState->pFileState, pKey, pResArray, maxNum);
 }
 
 int32_t streamStateGetAndSetTsData(STableTsDataState* pState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
