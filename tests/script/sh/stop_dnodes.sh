@@ -7,17 +7,21 @@ unset LD_PRELOAD
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
 
+psby() {
+  if [ "$OS_TYPE" != "Darwin" ]; then
+    ps -C $1
+  else
+    ps a -c
+  fi
+}
+
 PID=`ps -ef|grep /usr/bin/taosd | grep -v grep | awk '{print $2}'`
 if [ -n "$PID" ]; then
   echo systemctl stop taosd
   systemctl stop taosd
 fi
 
-if [ "$OS_TYPE" != "Darwin" ]; then
-  PID=`ps -C taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
-else
-  PID=`ps a -c | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
-fi
+PID=`psby taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 taosd
@@ -28,18 +32,10 @@ while [ -n "$PID" ]; do
   else
     lsof -nti:6030 | xargs kill -9
   fi
-  if [ "$OS_TYPE" != "Darwin" ]; then
-    PID=`ps -C taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
-  else
-    PID=`ps a -c | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
-  fi
+  PID=`psby taosd | grep -w "[t]aosd" | awk '{print $1}' | head -n 1`
 done
 
-if [ "$OS_TYPE" != "Darwin" ]; then
-  PID=`ps -C taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
-else
-  PID=`ps a -c | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
-fi
+PID=`psby taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 taos
@@ -50,18 +46,10 @@ while [ -n "$PID" ]; do
   else
     lsof -nti:6030 | xargs kill -9
   fi
-  if [ "$OS_TYPE" != "Darwin" ]; then
-    PID=`ps -C taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
-  else
-    PID=`ps a -c | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
-  fi
+  PID=`psby taos | grep -w "[t]aos" | awk '{print $1}' | head -n 1`
 done
 
-if [ "$OS_TYPE" != "Darwin" ]; then
-  PID=`ps -C tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
-else
-  PID=`ps a -c | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
-fi
+PID=`psby tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
 while [ -n "$PID" ]; do
   echo kill -9 $PID
   #pkill -9 tmq_sim
@@ -72,9 +60,5 @@ while [ -n "$PID" ]; do
   else
     lsof -nti:6030 | xargs kill -9
   fi
-  if [ "$OS_TYPE" != "Darwin" ]; then
-    PID=`ps -C tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
-  else
-    PID=`ps a -c | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
-  fi
+  PID=`psby tmq_sim | grep -w "[t]mq_sim" | awk '{print $1}' | head -n 1`
 done
