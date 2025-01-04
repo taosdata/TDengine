@@ -411,7 +411,9 @@ static OldFileKeeper *taosOpenNewFile() {
 
   TdFilePtr pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    uError("open new log file fail! reason:%s, reuse lastlog", tstrerror(terrno));
+    tsLogObj.flag ^= 1;
+    tsLogObj.lines = tsNumOfLogLines - 1000;
+    uError("open new log file %s fail! reason:%s, reuse lastlog", name, tstrerror(terrno));
     return NULL;
   }
 
@@ -728,10 +730,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     if (tsNumOfLogLines > 0) {
       TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, 1));
       if ((tsLogObj.lines > tsNumOfLogLines) && (tsLogObj.openInProgress == 0)) {
-        int32_t code = taosOpenNewLogFile();
-        if (code != 0) {
-          uError("failed to open new log file, reason:%s", tstrerror(code));
-        }
+        TAOS_UNUSED(taosOpenNewLogFile());
       }
     }
   }
