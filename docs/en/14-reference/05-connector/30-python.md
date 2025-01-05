@@ -71,8 +71,9 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
-|0.3.5 | Added support for VARBINARY and GEOMETRY types, fixed known issues.                                                     | 3.3.0.0 and higher|
-|0.3.2 | Optimize WebSocket SQL query and insertion performance, modify readme and documentation, fix known issues.              | 3.2.3.0 and higher|
+|0.3.8 | Support Apache Superset connection to TDengine Cloud data source                                                        | 3.2.3.0 and higher|
+|0.3.5 | Added support for VARBINARY and GEOMETRY types, fixed known issues.                                                     | - |
+|0.3.2 | Optimize WebSocket SQL query and insertion performance, modify readme and documentation, fix known issues.              | - |
 |0.2.9 | Known issue fixes.                                                                                                      | - |
 |0.2.5 | 1. Data subscription supports obtaining and resetting consumption progress. <br/>2 Support schemaless. <br/>3 Support STMT. | - |
 |0.2.4 | Data Subscription Addition/Unsubscribe Method.                                                                          | 3.0.5.0 and higher|
