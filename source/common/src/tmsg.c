@@ -8277,7 +8277,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
 
     for (int32_t i = 0; i < nColData; ++i) {
       SColData *pColData = taosArrayReserve(pSubmitTbData->aCol, 1);
-      if ((pColData->cid <= 0) || (pColData->flag = 0) || (pColData->flag >= 8)) {
+      if ((pColData->cid <= 0) || (pColData->flag <= 0) || (pColData->flag >= 8)) {
         code = TSDB_CODE_INVALID_PARA;
         goto _exit;
       }
