@@ -17,6 +17,7 @@
 #include "functionMgt.h"
 #include "parser.h"
 #include "planInt.h"
+#include "plannodes.h"
 #include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
@@ -211,7 +212,7 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
     case QUERY_NODE_LOGIC_PLAN_SORT:
     case QUERY_NODE_LOGIC_PLAN_FILL:
       if (pNode == pNodeForcePropagate) {
-        pNode->outputTsOrder = order;
+        pNode->outputTsOrder = pNodeForcePropagate->outputTsOrder;
         break;
       } else
         return;
@@ -226,8 +227,10 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       break;
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       pChild = (SLogicNode*)nodesListGetNode(((SProjectLogicNode*)pNode)->node.pChildren, 0);
-      if (pChild && DATA_ORDER_LEVEL_GLOBAL != pChild->resultDataOrder) {
+      if (pChild && (DATA_ORDER_LEVEL_IN_BLOCK == pChild->resultDataOrder ||
+                     DATA_ORDER_LEVEL_IN_GROUP == pChild->resultDataOrder)) {
         pNode->outputTsOrder = TSDB_ORDER_NONE;
+        optSetParentOrder(pNode->pParent, TSDB_ORDER_NONE, pNodeForcePropagate);
         return;
       }
       pNode->outputTsOrder = order;
