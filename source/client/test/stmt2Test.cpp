@@ -54,7 +54,8 @@ void stmtAsyncQueryCb(void* param, TAOS_RES* pRes, int code) {
 void getFieldsSuccess(TAOS* taos, const char* sql, TAOS_FIELD_ALL* expectedFields, int expectedFieldNum) {
   TAOS_STMT2_OPTION option = {0};
   TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
-  int               code = taos_stmt2_prepare(stmt, sql, 0);
+  ASSERT_NE(stmt, nullptr);
+  int code = taos_stmt2_prepare(stmt, sql, 0);
   ASSERT_EQ(code, 0);
 
   int             fieldNum = 0;
@@ -78,7 +79,8 @@ void getFieldsSuccess(TAOS* taos, const char* sql, TAOS_FIELD_ALL* expectedField
 void getFieldsError(TAOS* taos, const char* sql, int errorCode) {
   TAOS_STMT2_OPTION option = {0};
   TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
-  int               code = taos_stmt2_prepare(stmt, sql, 0);
+  ASSERT_NE(stmt, nullptr);
+  int code = taos_stmt2_prepare(stmt, sql, 0);
   ASSERT_EQ(code, 0);
 
   int             fieldNum = 0;
@@ -92,7 +94,8 @@ void getFieldsError(TAOS* taos, const char* sql, int errorCode) {
 void getQueryFields(TAOS* taos, const char* sql, int expectedFieldNum) {
   TAOS_STMT2_OPTION option = {0};
   TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
-  int               code = taos_stmt2_prepare(stmt, sql, 0);
+  ASSERT_NE(stmt, nullptr);
+  int code = taos_stmt2_prepare(stmt, sql, 0);
   ASSERT_EQ(code, 0);
 
   int             fieldNum = 0;
@@ -219,11 +222,6 @@ void do_stmt(TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUM
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
-}
-
-TEST(clientCase, driverInit_Test) {
-  // taosInitGlobalCfg();
-  //  taos_init();
 }
 
 TEST(stmt2Case, insert_stb_get_fields_Test) {
