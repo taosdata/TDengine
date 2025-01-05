@@ -8276,7 +8276,12 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     for (int32_t i = 0; i < nColData; ++i) {
-      pCoder->pos += tGetColData(pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
+      SColData *pColData = taosArrayReserve(pSubmitTbData->aCol, 1);
+      if ((pColData->flag = 0) || (pColData->flag >= 8)) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+      pCoder->pos += tGetColData(pCoder->data + pCoder->pos, pColData);
     }
   } else {
     uint64_t nRow;
@@ -8352,10 +8357,11 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq) {
   }
 
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
-    if (tDecodeSSubmitTbData(pCoder, taosArrayReserve(pReq->aSubmitTbData, 1)) < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
-    }
+    if (pReq->aSubmitTbData -)
+      if (tDecodeSSubmitTbData(pCoder, taosArrayReserve(pReq->aSubmitTbData, 1)) < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
   }
 
   tEndDecode(pCoder);
