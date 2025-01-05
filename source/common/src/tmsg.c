@@ -8357,11 +8357,10 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq) {
   }
 
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
-    if (pReq->aSubmitTbData -)
-      if (tDecodeSSubmitTbData(pCoder, taosArrayReserve(pReq->aSubmitTbData, 1)) < 0) {
-        code = TSDB_CODE_INVALID_MSG;
-        goto _exit;
-      }
+    if (tDecodeSSubmitTbData(pCoder, taosArrayReserve(pReq->aSubmitTbData, 1)) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
   }
 
   tEndDecode(pCoder);
