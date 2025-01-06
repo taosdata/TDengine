@@ -22,43 +22,32 @@ jobs:
   set_env:
     runs-on: [self-hosted, linux, x64, qa, rust]
     outputs:
-      COVERAGE_REPORT_DIR: ${{ steps.set_env.outputs.coverage_report_dir }}
-    #   app_token: ${{ steps.app-token.outputs.token }}
+      coverage_report_dir: ${{ steps.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Set COVERAGE_REPORT_DIR
         id: set_env
         run: |
-          echo "coverage_report_dir=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
+          echo "coverage_report_dir=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_OUTPUT
       - name: Print COVERAGE_REPORT_DIR
-        run: echo $COVERAGE_REPORT_DIR
+        run: echo $COVERAGE_REPORT_DI
   
-  echo_env:
-    runs-on: [self-hosted, linux, x64, qa, rust]
+
+  remove_artifacts:
     needs: set_env
+    env:
+      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+    runs-on: [self-hosted, linux, x64, qa, rust]
     steps:
+      - name: Remove artifacts
+        run: |
+          mkdir -p /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/
+          find /data/code_coverage_taosx/ -mindepth 1 -mtime +10 -exec rm -rf {} + 2>/dev/null
+          rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
+          rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
       - name: Print COVERAGE_REPORT_DIR
-        env:
-          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run: echo $COVERAGE_REPORT_DIR
-  # remove_artifacts:
-  #   needs: set_env
-  #   runs-on: [self-hosted, linux, x64, qa, rust]
-    
-  #   steps:
-  #     - name: Remove artifacts
-  #       env:
-  #         COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
-  #       run: |
-  #         mkdir -p /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/
-  #         find /data/code_coverage_taosx/ -mindepth 1 -mtime +10 -exec rm -rf {} + 2>/dev/null
-  #         rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
-  #         rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
-  #         mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
-  #         mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
-  #     - name: Print COVERAGE_REPORT_DIR
-  #       env:
-  #         COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
-  #       run: echo $COVERAGE_REPORT_DIR
 
   # build_rust_run_unit_test:
   #   needs: [remove_artifacts,set_env]
