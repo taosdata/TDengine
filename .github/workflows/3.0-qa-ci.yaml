@@ -324,7 +324,7 @@ jobs:
       - name: insert coverage percent into TDengine
         run: |
           curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
-          -d "insert into coverage.report values(now,$TAOSX_COVERAGE_PERCENT,$INFLUXDB_CONNECTOR_COVERAGE_PERCENT,$OPENTSDB_CONNECTOR_COVERAGE_PERCENT,$OPC_CONNECTOR_COVERAGE_PERCENT)" $COVERAGE_DATABASE_URL
+          -d "insert into coverage.taosx_coverage values(now,$TAOSX_COVERAGE_PERCENT,$INFLUXDB_CONNECTOR_COVERAGE_PERCENT,$OPENTSDB_CONNECTOR_COVERAGE_PERCENT,$OPC_CONNECTOR_COVERAGE_PERCENT)" $COVERAGE_DATABASE_URL
       
       - name: Calculate the difference between the results of two adjacent executions
         run: |
