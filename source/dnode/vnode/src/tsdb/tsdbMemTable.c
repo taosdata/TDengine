@@ -395,11 +395,10 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
     SL_NODE_FORWARD(pTbData->sl.pTail, iLevel) = NULL;
   }
 
-  // [BLOB] [TODO]
-  // pTbData->bl.cursor = 0;
-  // pTbData->bl.size = pTbData->sl.size;
-  // pTbData->bl.pHead = pTbData->sl.pHead;
-  // pTbData->bl.pTail = pTbData->sl.pTail;
+  // [BLOB]
+  pTbData->bl.size = 0;
+  pTbData->bl.head = NULL;
+  pTbData->bl.tail = NULL;
   
   taosInitRWLatch(&pTbData->lock);
 
@@ -528,6 +527,7 @@ static FORCE_INLINE int32_t blobListCursor(SMemBlobList *pBl) {
   return cursor;
 }
 
+// [BLOB]
 static int32_t tbDataDoPutBlob(SMemTable *pMemTable, STbData *pTbData, TSDBROW *pRow) {
   int32_t           code = 0;
   int32_t           idx;
@@ -535,37 +535,28 @@ static int32_t tbDataDoPutBlob(SMemTable *pMemTable, STbData *pTbData, TSDBROW *
   SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
   int64_t           nSize;
 
-  // return code;
-
-  // blobWriteFileSimple(SBlob *pBlob, const uint8_t *pBuf, pRow->pTSRow->len);
-
-  // taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen);
-
-  /////////////////////////
-
   // create node
   if (pRow->type == TSDBROW_ROW_FMT) {
     pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len);
   } else if (pRow->type == TSDBROW_COL_FMT) {
-    pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len); // [BLOB] [TODO]
+    pNode = (SMemBlobListNode *)vnodeBufPoolMallocAligned(pPool, pRow->pTSRow->len);
   }
   if (pNode == NULL) {
     code = terrno;
     goto _exit;
   }
 
-  // idx = blobListCursor(&pTbData->bl);
-  // pNode->idx = idx;
-  // pNode->row = *pRow;
   if (pRow->type == TSDBROW_ROW_FMT) {
     pNode->row.pTSRow = (SRow *)((char *)pNode);
     memcpy(pNode->row.pTSRow, pRow->pTSRow, pRow->pTSRow->len);
-  }
+  } // [BLOB] [TODO] what about column format ?
 
-  // set node
-  
-  // pos[pTbData->bl.cursor] = pNode;
-  // pTbData->bl.cursor++;
+  // append node [TODO] need atomic ?
+  if (pTbData->bl.tail != NULL) {
+    pTbData->bl.tail->next = pNode;
+  }
+  pTbData->bl.tail = pNode;
+  pTbData->bl.size++;
 
 _exit:
   return code;
@@ -662,6 +653,11 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
   int32_t    nColData = TARRAY_SIZE(pSubmitTbData->aCol);
   SColData  *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
+
+  // [BLOB]
+  if (pSubmitTbData->flags & SUBMIT_REQ_BLOB_DATA) {
+    blobInsertColDataToTable(pMemTable, pTbData, version, pSubmitTbData);
+  }
 
   // copy and construct block data
   SBlockData *pBlockData = vnodeBufPoolMalloc(pPool, sizeof(*pBlockData));
@@ -823,14 +819,14 @@ static int32_t blobInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   
   tRow.pTSRow = aRow[iRow++];
   // [BLOB] [TODO]
-  if (pRow->pTSRow->len == 51223 || pRow->pTSRow->len == 65540) {
+  if (tRow.pTSRow->len == 51223 || tRow.pTSRow->len == 65540) {
     code = tbDataDoPutBlob(pMemTable, pTbData, &tRow);
     if (code) {
       goto _exit;
     }
-    pRow->pTSRow->len = 128;
+    tRow.pTSRow->len = 128;
   } else {
-    pRow->pTSRow->len = 128;
+    tRow.pTSRow->len = 128;
   }
 
   // [BLOB] [TODO] How to get col data from pSubmitTbData?

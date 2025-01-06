@@ -439,6 +439,10 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   code = syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // [BLOB]
+  code = blobFlush(pVnode->pBlob);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  
   code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 

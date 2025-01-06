@@ -44,6 +44,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "wal.h"
+#include "blob.h"
 
 #include "vnode.h"
 
@@ -497,6 +498,7 @@ struct SVnode {
   int64_t       blockSeq;
   SQHandle*     pQuery;
   SVMonitorObj  monitor;
+  SBlob*        pBlob;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

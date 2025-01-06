@@ -106,6 +106,11 @@ static int32_t tsdbCommitCloseWriter(SCommitter2 *committer) {
   return tsdbFSetWriterClose(&committer->writer, 0, committer->fopArray);
 }
 
+// [BLOB]
+// static int32_t tsdbFlushBlob(SCommitter2 *committer) {
+//   blobWriteFile();
+// }
+
 static int32_t tsdbCommitTSData(SCommitter2 *committer) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -375,6 +380,8 @@ static int32_t tsdbCommitFileSet(SCommitter2 *committer) {
   int32_t lino = 0;
 
   TAOS_CHECK_GOTO(tsdbCommitFileSetBegin(committer), &lino, _exit);
+  // // [BLOB]
+  // TAOS_CHECK_GOTO(tsdbFlushBlob(committer), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbCommitTSData(committer), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbCommitTombData(committer), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbCommitFileSetEnd(committer), &lino, _exit);
