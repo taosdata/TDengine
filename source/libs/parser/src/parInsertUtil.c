@@ -571,6 +571,20 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
     code = tEncodeSubmitReq(&encoder, pReq);
     tEncoderClear(&encoder);
+
+    // decode
+    SSubmitReq2 pSubmitReq = {0};
+    void *d = POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg));
+    int32_t lenTmp = len -sizeof(SSubmitReq2Msg);
+    SDecoder dc = {0};
+    tDecoderInit(&dc, d, lenTmp);
+    int ret = tDecodeSubmitReq(&dc, &pSubmitReq);
+    if (ret < 0) {
+      uError("decode submit request failed :%d", ret);
+    }
+    tDecoderClear(&dc);
+    uInfo("decode submit request,vgId:%d,contLen:%d", vgId, lenTmp);
+
   }
 
   if (TSDB_CODE_SUCCESS == code) {
