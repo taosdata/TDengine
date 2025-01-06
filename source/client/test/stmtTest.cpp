@@ -60,14 +60,16 @@ typedef struct {
   float   phase;
 } Row;
 
-void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, int CTB_NUMS, int ROW_NUMS, int CYC_NUMS) {
+void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, const char *sql, int CTB_NUMS, int ROW_NUMS, int CYC_NUMS,
+                bool isCreateTable) {
   // create database and table
   do_query(taos, "DROP DATABASE IF EXISTS power");
   do_query(taos, "CREATE DATABASE IF NOT EXISTS power");
-  do_query(taos, "USE power");
   do_query(taos,
            "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
            "(groupId INT, location BINARY(24))");
+  do_query(taos, "USE power");
+
   // init
   TAOS_STMT *stmt;
   if (option == nullptr) {
@@ -76,12 +78,6 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, int CTB_NUMS, int ROW_NUM
     stmt = taos_stmt_init_with_options(taos, option);
   }
   ASSERT_NE(stmt, nullptr);
-  const char *sql;
-  if (option == nullptr) {
-    sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
-  } else {
-    sql = "INSERT INTO ? VALUES (?,?,?,?)";
-  }
   int code = taos_stmt_prepare(stmt, sql, 0);
   ASSERT_EQ(code, 0);
   int total_affected = 0;
@@ -92,10 +88,11 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, int CTB_NUMS, int ROW_NUM
       TAOS_MULTI_BIND tags[2];
 
       sprintf(table_name, "d_bind_%d", i);
-      if (option != nullptr) {
+      if (isCreateTable && k == 0) {
         char *tmp = (char *)taosMemoryMalloc(100);
         sprintf(tmp, "CREATE TABLE %s using meters TAGS (1, 'abc')", table_name);
         do_query(taos, tmp);
+        taosMemFree(tmp);
       } else {
         char *location = (char *)taosMemoryMalloc(20);
         sprintf(location, "location_%d", i);
@@ -117,7 +114,7 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, int CTB_NUMS, int ROW_NUM
         tags[1].num = 1;
       }
 
-      if (option == nullptr) {
+      if (!isCreateTable) {
         if (k % 2 == 0) {
           code = taos_stmt_set_tbname_tags(stmt, table_name, tags);
           ASSERT_EQ(code, 0);
@@ -135,7 +132,7 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, int CTB_NUMS, int ROW_NUM
           ASSERT_EQ(code, 0);
         }
       } else {
-        code = taos_stmt_set_sub_tbname(stmt, table_name);
+        code = taos_stmt_set_tbname(stmt, table_name);
         ASSERT_EQ(code, 0);
       }
 
@@ -265,11 +262,16 @@ TEST(stmtCase, stb_insert) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
   // interlace = 0
-  { insertData(taos, nullptr, 3, 3, 3); }
+  { insertData(taos, nullptr, "INSERT INTO power.? USING meters TAGS(?,?) VALUES (?,?,?,?)", 1, 1, 1, false); }
+
+  { insertData(taos, nullptr, "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)", 3, 3, 3, false); }
+
+  { insertData(taos, nullptr, "INSERT INTO ? VALUES (?,?,?,?)", 3, 3, 3, true); }
+
   // interlace = 1
   {
     TAOS_STMT_OPTIONS options = {0, true, true};
-    insertData(taos, &options, 1, 1, 1);
+    insertData(taos, &options, "INSERT INTO ? VALUES (?,?,?,?)", 3, 3, 3, true);
   }
 
   taos_close(taos);
