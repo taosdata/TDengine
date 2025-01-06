@@ -1710,7 +1710,7 @@ fn generate_table_name(
             process_on_abnormal
                 .variable_not_exist_in_table_name_template
                 .handle(
-                    &table_name_org,
+                    table_name_org,
                     data,
                     format!("render table name '{table_name_org}' failed, e: {:?}", e),
                 )
