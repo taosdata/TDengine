@@ -1,0 +1,16 @@
+# reference
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# merge team
+# @guanshengliang	Shengliang Guan
+# @zitsen         Linhe Huo
+# @wingwing2005   Ya Qiang Li
+# @feici02        WANG Xu
+# @hzcheng        Hongze Cheng
+# @dapan1121	    Pan Wei
+# @sheyanjie-qq	  She Yanjie
+# @pigzhou        ZacharyZhou
+
+*                 @taosdata/merge
+/.github/         @feici02
+/packaging/       @feici02
