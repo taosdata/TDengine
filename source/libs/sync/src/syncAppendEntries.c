@@ -150,6 +150,20 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
+  if (sDebugFlag & DEBUG_TRACE) {
+    T_MD5_CTX context;
+    tMD5Init(&context);
+    tMD5Update(&context, (uint8_t*)pEntry->data, (uint32_t)pEntry->dataLen);
+    tMD5Final(&context);
+
+    char md5[65] = {0};
+    for (uint8_t i = 0; i < tListLen(context.digest); ++i) {
+      snprintf(md5 + 2 * i, 65, "%02x", context.digest[i]);
+    }
+    sTrace("vgId:%d, recv append entries. index:%" PRId64 ", term:%" PRId64 ", len:%d, md5:%s", ths->vgId,
+           pEntry->index, pEntry->term, pEntry->dataLen, md5);
+  }
+
   if (pMsg->prevLogIndex + 1 != pEntry->index || pEntry->term < 0) {
     sError("vgId:%d, invalid previous log index in msg. index:%" PRId64 ",  term:%" PRId64 ", prevLogIndex:%" PRId64
            ", prevLogTerm:%" PRId64,

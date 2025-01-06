@@ -3741,6 +3741,20 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     pEntry = syncEntryBuildFromRpcMsg(pMsg, term, index);
   }
 
+  if (sDebugFlag & DEBUG_TRACE) {
+    T_MD5_CTX context;
+    tMD5Init(&context);
+    tMD5Update(&context, (uint8_t*)pEntry->data, (uint32_t)pEntry->dataLen);
+    tMD5Final(&context);
+
+    char md5[65] = {0};
+    for (uint8_t i = 0; i < tListLen(context.digest); ++i) {
+      snprintf(md5 + 2 * i, 65, "%02x", context.digest[i]);
+    }
+    sTrace("vgId:%d, propose entries. index:%" PRId64 ", term:%" PRId64 ", len:%d, md5:%s", ths->vgId, pEntry->index,
+           pEntry->term, pEntry->dataLen, md5);
+  }
+
   if (pEntry == NULL) {
     sError("vgId:%d, failed to process client request since %s.", ths->vgId, terrstr());
     return TSDB_CODE_SYN_INTERNAL_ERROR;
