@@ -355,6 +355,19 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t*)(pMsg->pCont + sizeof(SSubmitReq2Msg)), (uint32_t)(pMsg->contLen - sizeof(SSubmitReq2Msg)));
+  tMD5Final(&context);
+
+  char md5Str[64] = {0};
+  char temp[8] = {0};
+  for (int i = 0; i < 16; i++) {
+    sprintf(temp, "%02x", context.digest[i]);
+    strcat(md5Str, temp);
+  }
+  vInfo("vnodePreProcessSubmitMsg decode submit request,vgId:%d,contLen:%d,md5:%s", TD_VID(pVnode), (int)(pMsg->contLen - sizeof(SSubmitReq2Msg)), md5Str);
+
   uint64_t nSubmitTbData;
   if (tDecodeU64v(pCoder, &nSubmitTbData) < 0) {
     code = TSDB_CODE_INVALID_MSG;

@@ -583,7 +583,20 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
       uError("decode submit request failed :%d", ret);
     }
     tDecoderClear(&dc);
-    uInfo("decode submit request,vgId:%d,contLen:%d", vgId, lenTmp);
+
+    T_MD5_CTX context;
+    tMD5Init(&context);
+    tMD5Update(&context, (uint8_t*)d, (uint32_t)lenTmp);
+    tMD5Final(&context);
+
+    char md5Str[64] = {0};
+    char temp[8] = {0};
+    for (int i = 0; i < 16; i++) {
+      sprintf(temp, "%02x", context.digest[i]);
+      strcat(md5Str, temp);
+    }
+
+    uInfo("decode submit request,vgId:%d,contLen:%d,md5:%s", vgId, lenTmp, md5Str);
 
   }
 
