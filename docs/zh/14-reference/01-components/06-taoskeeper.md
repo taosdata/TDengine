@@ -365,12 +365,12 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 | taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                             |
 | taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                             |
 | taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s)                                            |
-| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入取速率（单位 Byte/s)                                      |
-| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入取速率（单位 Byte/s)                                          |
-| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入取速率（单位 Byte/s)                                      |
+| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s)                                        |
+| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s)                                            |
+| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s)                                        |
 | taos_dnodes_info_masters       | counter | 主节点数量                                                                               |
 | taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB)                                                    |
-| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节的系统所使用的内存（单位 KB)                                              |
+| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB)                                            |
 | taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB)                                                      |
 | taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s)                                            |
 | taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s)                                            |
