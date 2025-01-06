@@ -41,14 +41,16 @@ impl SModel {
     /// 每行一个 json map
     pub fn apply(
         &self,
-        ctx: &[serde_json::Map<String, Value>],
+        ctx: &[Value],
         opts: &TableOptions,
     ) -> anyhow::Result<HashMap<String, Self>> {
         let mut template = tinytemplate::TinyTemplate::new();
         let name = self.name.replace("${", "{");
-        template
-            .add_template("name", &name)
-            .context("add name template error")?;
+        if self.name.contains("${") {
+            template
+                .add_template("name", &name)
+                .context("add name template error")?;
+        }
 
         let col_templates = self.column_templates();
         for (name, text) in &col_templates {
@@ -65,47 +67,43 @@ impl SModel {
         }
 
         let mut models = HashMap::new();
+        let mut curr_columns = HashSet::new();
+        let mut curr_tags = HashSet::new();
         for ctx in ctx.iter() {
-            let ctx = serde_json::Value::from(ctx.clone());
-            let name = template
-                .render_value("name", &ctx)
-                .context("render stable name error")?;
+            let name = if self.name.contains("${") {
+                template
+                    .render_value("name", ctx)
+                    .context("render stable name error")?
+            } else {
+                self.name.clone()
+            };
             let name = opts.canonical_table_name(&name).to_string();
-            let columns = self.render_column(&template, &ctx)?;
-            let tags = self.render_tags(&template, &ctx)?;
+            let columns = self.render_column(&template, ctx)?;
+            let tags = self.render_tags(&template, ctx)?;
             models
                 .entry(name.clone())
                 .and_modify(|model: &mut SModel| {
-                    {
-                        let curr_columns = model
-                            .columns
-                            .iter()
-                            .map(|col| col.name.clone())
-                            .collect::<HashSet<_>>();
-
-                        for col in columns
-                            .into_iter()
-                            .filter(|col| !curr_columns.contains(&col.name))
-                        {
-                            model.columns.push(col);
+                    for col in &columns {
+                        if !curr_columns.contains(&col.name) {
+                            curr_columns.insert(col.name.clone());
+                            model.columns.push(col.clone());
                         }
                     }
-                    let curr_tags = model
-                        .tags
-                        .iter()
-                        .map(|col| col.name.clone())
-                        .collect::<HashSet<_>>();
-                    for tag in tags
-                        .into_iter()
-                        .filter(|tag| !curr_tags.contains(&tag.name))
-                    {
-                        model.tags.push(tag);
+                    for tag in &tags {
+                        if !curr_tags.contains(&tag.name) {
+                            curr_tags.insert(tag.name.clone());
+                            model.tags.push(tag.clone());
+                        }
                     }
                 })
-                .or_insert(SModel {
-                    name,
-                    columns: self.render_column(&template, &ctx)?,
-                    tags: self.render_tags(&template, &ctx)?,
+                .or_insert_with(|| {
+                    curr_columns.extend(columns.iter().map(|v| v.name.clone()));
+                    curr_tags.extend(tags.iter().map(|v| v.name.clone()));
+                    SModel {
+                        name,
+                        columns,
+                        tags,
+                    }
                 });
         }
 
@@ -117,20 +115,23 @@ impl SModel {
             .iter()
             .enumerate()
             .flat_map(|(idx, col)| {
-                let mut cols = vec![
-                    (format!("col_{idx}_name"), col.name.replace("${", "{")),
-                    (format!("col_{idx}_type"), col.r#type.replace("${", "{")),
-                ];
-                if let Some(encode) = col.encode.as_ref() {
-                    cols.push((format!("col_{idx}_encode"), encode.replace("${", "{")));
+                let mut templates = Vec::new();
+                if col.name.contains("${") {
+                    templates.push((format!("col_{idx}_name"), col.name.replace("${", "{")));
                 }
-                if let Some(encode) = col.compress.as_ref() {
-                    cols.push((format!("col_{idx}_compress"), encode.replace("${", "{")));
+                if col.r#type.contains("${") {
+                    templates.push((format!("col_{idx}_type"), col.r#type.replace("${", "{")))
                 }
-                if let Some(encode) = col.level.as_ref() {
-                    cols.push((format!("col_{idx}_level"), encode.replace("${", "{")));
+                if let Some(encode) = col.encode.as_ref().filter(|s| s.contains("${")) {
+                    templates.push((format!("col_{idx}_encode"), encode.replace("${", "{")));
                 }
-                cols
+                if let Some(encode) = col.compress.as_ref().filter(|s| s.contains("${")) {
+                    templates.push((format!("col_{idx}_compress"), encode.replace("${", "{")));
+                }
+                if let Some(encode) = col.level.as_ref().filter(|s| s.contains("${")) {
+                    templates.push((format!("col_{idx}_level"), encode.replace("${", "{")));
+                }
+                templates
             })
             .collect()
     }
@@ -141,15 +142,24 @@ impl SModel {
             .enumerate()
             .map(|(idx, col)| {
                 Ok(Column {
-                    name: template
-                        .render_value(&format!("col_{idx}_name"), ctx)
-                        .context("render stable column name error")?,
-                    r#type: template
-                        .render_value(&format!("col_{idx}_type"), ctx)
-                        .context("render stable column type error")?,
+                    name: if col.name.contains("${") {
+                        template
+                            .render_value(&format!("col_{idx}_name"), ctx)
+                            .context("render stable column name error")?
+                    } else {
+                        col.name.clone()
+                    },
+                    r#type: if col.r#type.contains("${") {
+                        template
+                            .render_value(&format!("col_{idx}_type"), ctx)
+                            .context("render stable column type error")?
+                    } else {
+                        col.r#type.clone()
+                    },
                     encode: col
                         .encode
                         .as_ref()
+                        .filter(|v| v.contains("${"))
                         .map(|_| {
                             template
                                 .render_value(&format!("col_{idx}_encode"), ctx)
@@ -159,6 +169,7 @@ impl SModel {
                     compress: col
                         .compress
                         .as_ref()
+                        .filter(|v| v.contains("${"))
                         .map(|_| {
                             template
                                 .render_value(&format!("col_{idx}_compress"), ctx)
@@ -168,6 +179,7 @@ impl SModel {
                     level: col
                         .level
                         .as_ref()
+                        .filter(|v| v.contains("${"))
                         .map(|_| {
                             template
                                 .render_value(&format!("col_{idx}_level"), ctx)
@@ -184,24 +196,38 @@ impl SModel {
             .iter()
             .enumerate()
             .flat_map(|(idx, tag)| {
-                vec![
-                    (format!("tag_{idx}_name"), tag.name.replace("${", "{")),
-                    (format!("tag_{idx}_type"), tag.r#type.replace("${", "{")),
-                ]
+                let mut templates = Vec::new();
+                if tag.name.contains("${") {
+                    templates.push((format!("tag_{idx}_name"), tag.name.replace("${", "{")));
+                }
+                if tag.r#type.contains("${") {
+                    templates.push((format!("tag_{idx}_type"), tag.r#type.replace("${", "{")));
+                }
+                templates
             })
             .collect()
     }
 
     fn render_tags(&self, template: &TinyTemplate, ctx: &Value) -> anyhow::Result<Vec<Tag>> {
-        (0..self.tags.len())
-            .map(|idx| {
+        self.tags
+            .iter()
+            .enumerate()
+            .map(|(idx, tag)| {
                 Ok(Tag {
-                    name: template
-                        .render_value(&format!("tag_{idx}_name"), ctx)
-                        .context("render stable tag name error")?,
-                    r#type: template
-                        .render_value(&format!("tag_{idx}_type"), ctx)
-                        .context("render stable tag type error")?,
+                    name: if tag.name.contains("${") {
+                        template
+                            .render_value(&format!("tag_{idx}_name"), ctx)
+                            .context("render stable tag name error")?
+                    } else {
+                        tag.name.clone()
+                    },
+                    r#type: if tag.r#type.contains("${") {
+                        template
+                            .render_value(&format!("tag_{idx}_type"), ctx)
+                            .context("render stable tag type error")?
+                    } else {
+                        tag.r#type.clone()
+                    },
                 })
             })
             .collect::<anyhow::Result<_>>()
@@ -333,10 +359,7 @@ mod tests {
                 "INT_x": "INT",
                 "tag2_x": "tag2",
                 "VARCHAR(128)_x": "VARCHAR(128)"
-            })
-            .as_object()
-            .cloned()
-            .unwrap()],
+            })],
             &TableOptions::default(),
         )?;
         assert_eq!(
@@ -397,10 +420,7 @@ mod tests {
                     "INT_x": "INT",
                     "tag2_x": "tag2",
                     "VARCHAR(128)_x": "VARCHAR(128)"
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
+                }),
                 json::json!({
                     "abc_x": "abc",
                     "col1_x": "col11",
@@ -414,10 +434,7 @@ mod tests {
                     "INT_x": "INT",
                     "tag2_x": "tag2",
                     "VARCHAR(128)_x": "VARCHAR(128)"
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
+                }),
             ],
             &TableOptions::default(),
         )?;

@@ -1148,7 +1148,11 @@ impl Parser {
 
         let json: Vec<_> = json_batches
             .iter()
-            .map(|batch| batch.to_json_rows())
+            .map(|batch| {
+                batch
+                    .to_json_rows()
+                    .map(|v| v.into_iter().map(serde_json::Value::from))
+            })
             .flatten_ok()
             .try_collect()?;
 
@@ -1533,11 +1537,7 @@ impl Parser {
                 let using = table
                     .using
                     .as_ref()
-                    .and_then(|_| {
-                        template
-                            .render_value("using", &serde_json::Value::from(json[name_row].clone()))
-                            .ok()
-                    })
+                    .and_then(|_| template.render_value("using", &json[name_row]).ok())
                     .map(|using| self.global().canonical_table_name(&using).to_string());
 
                 let tags = tags
@@ -1679,14 +1679,14 @@ fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
 fn generate_table_name(
     process_on_abnormal: ProcessOnAbnormal,
     table_name_org: &str,
-    data: &serde_json::Map<String, serde_json::Value>,
+    data: &serde_json::Value,
 ) -> anyhow::Result<(HandlingResult, String)> {
     // generate template
     let table_name_org = table_name_org.replace("${", "{");
     let mut template = TinyTemplate::new();
     template.add_template("name", &table_name_org)?;
     // render table name
-    match template.render_value("name", &serde_json::Value::from(data.clone())) {
+    match template.render_value("name", data) {
         Ok(name) => {
             // the length of table name should not exceed 192
             if name.len() > 192 {
