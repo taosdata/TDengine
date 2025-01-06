@@ -1,0 +1,7 @@
+[01/02 18:00:31.723721] SUCC: created database (db)
+[01/02 18:00:31.753957] INFO: start creating 10 table(s) with 1 thread(s)
+[01/02 18:00:31.762258] SUCC: Spent 0.0090 seconds to create 10 table(s) with 1 thread(s) speed: 1111 tables/s, already exist 0 table(s), actual 10 table(s) pre created, 0 table(s) will be auto created
+[01/02 18:00:33.784067] SUCC: thread[1] progressive mode, completed total inserted rows: 500000, 253883.79 records/second
+[01/02 18:00:33.840957] SUCC: thread[0] progressive mode, completed total inserted rows: 500000, 246815.46 records/second
+[01/02 18:00:33.841333] SUCC: Spent 2.077681 (real 1.997605) seconds to insert rows: 1000000 with 2 thread(s) into db 481305.84 (real 500599.47) records/second
+[01/02 18:00:33.841344] SUCC: insert delay, min: 3.2490ms, avg: 11.7506ms, p90: 15.5190ms, p95: 17.1080ms, p99: 23.9990ms, max: 33.2240ms
