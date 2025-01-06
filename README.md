@@ -413,6 +413,64 @@ option "-c test/cfg" specifies the system configuration file directory.
 
 ## 8.1 Linux platform testing
 
+### 8.1.1 Run the TSIM test script
+Run the TSIM test script to simulate TDengine.
+```bash
+cd /root/TDengine/tests/script
+./test.sh -f tsim/db/basic1.sim
+```
+
+### 8.1.2 Run the Python test script
+Run the Python test script to simulate TDengine.
+```bash
+cd /root/TDengine/tests/system-test
+python3 ./test.py -f 2-query/floor.py
+```
+
+### 8.1.3 Run unittest
+Run the unit test script to simulate TDengine.
+```bash
+cd /root/TDengine/tests/unit-test/
+bash test.sh
+```
+
+### 8.1.4 Smoke Testing
+Run the smoke test script to simulate TDengine.
+```bash
+cd /root/TDengine/packaging/smokeTest
+./test_smoking_selfhost.sh
+```
+
+### 8.1.5 TSBS Test --replace
+Run the TSBS test script to simulate TDengine.
+1. Clone the code
+```bash
+cd /root && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp
+```
+2. Modify IP and host of client and server in `test.ini`
+```ini
+clientIP="192.168.0.203"   # client ip
+clientHost="trd03"         # client hostname
+serverIP="192.168.0.204"   # server ip
+serverHost="trd04"         # server hostname
+```
+3. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+```ini
+serverPass="taosdata123"   # server root password
+```
+4. Run the following command to start the test:
+ ```bash
+nohup bash tsdbComparison.sh > test.log &
+```
+5. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+
+### 8.1.6 Crash_gen Test
+Run the crash_gen script to simulate TDengine.
+```bash
+cd /root/TDengine/tests/pytest/ && ./crash_gen.sh
+```
+
+
 ## 8.2 Windows platform testing
 
 ## 8.3 MacOS platform testing
@@ -425,16 +483,16 @@ option "-c test/cfg" specifies the system configuration file directory.
 
 ## 9.3 MacOS platform releasing
 
-# 10. CI/CD
+# 10. CI/CD 
 We use jenkins for CI/CD workflow configuration. See http://ci.bl.taosdata.com:8080/job/NewTest/view/change-requests/
 We can also run ci script locally.
 
 ```bash
 cd /root/TDengine/tests
-./run_all_ci_cases.sh
+./run_all_ci_cases.sh -b main
 ```
 
-# 11. Coverage
+# 11. Coverage --replace
 We can see coverage result in https://coveralls.io/github/taosdata/TDengine
 We can also run coverage script locally.
 
