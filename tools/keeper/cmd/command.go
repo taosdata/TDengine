@@ -58,7 +58,7 @@ func NewCommand(conf *config.Config) *Command {
 		panic(err)
 	}
 
-	imp := &Command{
+	return &Command{
 		client:   client,
 		conn:     conn,
 		username: conf.TDengine.Username,
@@ -70,7 +70,6 @@ func NewCommand(conf *config.Config) *Command {
 			RawQuery: fmt.Sprintf("db=%s&precision=ms", conf.Metrics.Database.Name),
 		},
 	}
-	return imp
 }
 
 func (cmd *Command) Process(conf *config.Config) {
@@ -101,7 +100,7 @@ func (cmd *Command) Process(conf *config.Config) {
 }
 
 func (cmd *Command) ProcessTransfer(conf *config.Config) {
-	fromTime, err := time.Parse("2006-01-02T15:04:05Z07:00", conf.FromTime)
+	fromTime, err := time.Parse(time.RFC3339, conf.FromTime)
 	if err != nil {
 		logger.Errorf("parse fromTime error, msg:%s", err)
 		return
@@ -401,7 +400,6 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 
 // cluster_info
 func (cmd *Command) TransferTableToDst(sql string, dstTable string, tagNum int) error {
-
 	ctx := context.Background()
 
 	endTime := time.Now()
