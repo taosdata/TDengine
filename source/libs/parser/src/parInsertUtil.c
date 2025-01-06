@@ -752,7 +752,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++){
         SSchema*  pColSchema = &pSchema[j];
-        uInfo("colIndex:%d/%d, source type:%d, bytes:%d, dest type:%d, dest bytes:%d, pColSchema->name:%s",
+        uDebug("colIndex:%d/%d, source type:%d, bytes:%d, dest type:%d, dest bytes:%d, pColSchema->name:%s",
               j, boundInfo->numOfBound, *fields, pColSchema->type, *(int32_t*)(fields + sizeof(int8_t)), pColSchema->bytes,
               pColSchema->name);
         if(strcmp(pColSchema->name, tFields[i].name) == 0){
