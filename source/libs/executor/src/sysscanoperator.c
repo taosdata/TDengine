@@ -1721,27 +1721,8 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   int32_t ret = 0;
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
-    STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
-
-    // table name
-    SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, n, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // database name
-    pColInfoData = taosArrayGet(p->pDataBlock, 1);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // vgId
-    pColInfoData = taosArrayGet(p->pDataBlock, 6);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    int32_t tableType = pInfo->pCur->mr.me.type;
+    int32_t          tableType = pInfo->pCur->mr.me.type;
+    SColumnInfoData* pColInfoData = NULL;
     if (tableType == TSDB_CHILD_TABLE) {
       // create time
       int64_t ts = pInfo->pCur->mr.me.ctbEntry.btime;
@@ -1863,6 +1844,25 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
     }
+
+    STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
+    // table name
+    pColInfoData = taosArrayGet(p->pDataBlock, 0);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, n, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // database name
+    pColInfoData = taosArrayGet(p->pDataBlock, 1);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // vgId
+    pColInfoData = taosArrayGet(p->pDataBlock, 6);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     pColInfoData = taosArrayGet(p->pDataBlock, 9);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);

@@ -1224,6 +1224,11 @@ class TDTestCase:
         self.test_create_tsma()
         self.test_drop_tsma()
         self.test_tb_ddl_with_created_tsma()
+
+    def test_show_tables(self):
+        sql = "show test.tables"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(11)
     
     def run(self):
         self.init_data()
@@ -1240,6 +1245,8 @@ class TDTestCase:
         tdSql.execute("drop tsma test.tsma5")
         for _ in range(4):
             self.test_td_32519()
+
+        self.test_show_tables()
 
     def test_td_32519(self):
         self.create_recursive_tsma('tsma1', 'tsma_r', 'test', '1h', 'meters', ['avg(c1)', 'avg(c2)', 'count(ts)'])
