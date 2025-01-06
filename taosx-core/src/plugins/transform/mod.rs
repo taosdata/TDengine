@@ -1397,11 +1397,20 @@ impl Parser {
                 }
             }
 
+            let name = table.name.replace("${", "{");
+            let mut template = TinyTemplate::new();
+            template.add_template("name", &name).unwrap();
+            let using = table.using.as_ref().map(|using| using.replace("${", "{"));
+            if let Some(using) = using.as_ref() {
+                template.add_template("using", using).unwrap();
+            }
+
             let tables = (0..transformed_batch.num_rows())
                 .filter(|row| !skip_indices.contains(row))
                 .map(|row| {
                     match generate_table_name(
                         self.global.process_on_abnormal.clone(),
+                        &template,
                         &table.name,
                         &json[row],
                     ) {
@@ -1452,13 +1461,6 @@ impl Parser {
                 )?;
             }
 
-            let name = table.name.replace("${", "{");
-            let mut template = TinyTemplate::new();
-            template.add_template("name", &name).unwrap();
-            let using = table.using.as_ref().map(|using| using.replace("${", "{"));
-            if let Some(using) = using.as_ref() {
-                template.add_template("using", using).unwrap();
-            }
             let ts_field_name = table
                 .columns
                 .as_ref()
@@ -1679,13 +1681,10 @@ fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
 /// - data: the record processed by mutate
 fn generate_table_name(
     process_on_abnormal: ProcessOnAbnormal,
+    template: &TinyTemplate,
     table_name_org: &str,
     data: &serde_json::Value,
 ) -> anyhow::Result<(HandlingResult, String)> {
-    // generate template
-    let table_name_org = table_name_org.replace("${", "{");
-    let mut template = TinyTemplate::new();
-    template.add_template("name", &table_name_org)?;
     // render table name
     match template.render_value("name", data) {
         Ok(name) => {
