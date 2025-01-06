@@ -11510,6 +11510,10 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     }
   }
 
+  if (NULL != pSelect->pHaving) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported Having");
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
