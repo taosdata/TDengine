@@ -18,16 +18,23 @@ pub struct FileWatcher {
     dir: PathBuf,
     /// 监视新文件的间隔
     interval: Duration,
-    /// 已经看到的文件
-    seen_files: Arc<Mutex<HashSet<PathBuf>>>,
     /// 文件名的过滤条件
     name_filter: Arc<Option<NameFilter>>,
     /// 文件名的排序规则
     sorter: Arc<Option<FileSorter>>,
+
+    /// 已经看到的文件
+    seen_files: Arc<Mutex<HashSet<PathBuf>>>,
     /// 停止标志
     stop_flag: Arc<AtomicBool>,
 }
 
+/// 使用 LocalRestoreConfig 创建 FileWatcher，默认使用 500 ms 的间隔
+/// ### 文件名称的过滤条件：
+/// 1. 文件名以 topic 开头，以 .z 结尾
+/// 2. 如果 config.start_from 有值，那么，文件的时间戳必须大于等于 start_from 条件
+/// ### 文件名称的排序规则：
+/// 按照备份点 ts 时间戳 + 文件序号 idx 排序
 impl From<LocalRestoreConfig> for FileWatcher {
     fn from(config: LocalRestoreConfig) -> Self {
         let backup_dir = config.backup_dir.clone();
@@ -45,7 +52,7 @@ impl From<LocalRestoreConfig> for FileWatcher {
             {
                 return false;
             }
-            // 如果有from条件，那么，文件的时间戳必须大于等于from条件
+            // 如果有from条件，那么，文件的时间戳必须大于等于start_from条件
             if let Some(from) = config.start_from {
                 return match ZFile::parse_file_name(file_name) {
                     Err(_) => false,
@@ -64,14 +71,18 @@ impl From<LocalRestoreConfig> for FileWatcher {
 fn compare_file_name(a: &Path, b: &Path) -> std::cmp::Ordering {
     let a = a.file_name().unwrap().to_string_lossy();
     let b = b.file_name().unwrap().to_string_lossy();
-    let (_, a_ts, _, a_idx) = ZFile::parse_file_name(a.as_ref()).unwrap();
-    let (_, b_ts, _, b_idx) = ZFile::parse_file_name(b.as_ref()).unwrap();
+    let (_, a_ts, a_vg_id, a_idx) = ZFile::parse_file_name(a.as_ref()).unwrap();
+    let (_, b_ts, b_vg_id, b_idx) = ZFile::parse_file_name(b.as_ref()).unwrap();
 
     // 按照备份点和文件序号排序
     match a_ts.cmp(&b_ts) {
         std::cmp::Ordering::Less => std::cmp::Ordering::Less,
         std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
-        std::cmp::Ordering::Equal => a_idx.cmp(&b_idx),
+        std::cmp::Ordering::Equal => match a_vg_id.cmp(&b_vg_id) {
+            std::cmp::Ordering::Less => std::cmp::Ordering::Less,
+            std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
+            std::cmp::Ordering::Equal => a_idx.cmp(&b_idx),
+        },
     }
 }
 
@@ -162,8 +173,46 @@ impl FileWatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use itertools::Itertools;
     use std::sync::atomic::Ordering;
     use tokio_stream::StreamExt;
+
+    #[test]
+    fn test_sort_file_name() {
+        let files = vec![
+            "xb4a5d2d8954-1735784520-6179-1.z",
+            "xb4a5d2d8954-1735784520-6179-10.z",
+            "xb4a5d2d8954-1735784520-6179-2.z",
+            "xb4a5d2d8954-1735784520-6179-3.z",
+            "xb4a5d2d8954-1735784520-6179-4.z",
+            "xb4a5d2d8954-1735784520-6179-5.z",
+            "xb4a5d2d8954-1735784520-6179-6.z",
+            "xb4a5d2d8954-1735784520-6179-7.z",
+            "xb4a5d2d8954-1735784520-6179-8.z",
+            "xb4a5d2d8954-1735784520-6179-9.z",
+            "xb4a5d2d8954-1735784520-6180-1.z",
+            "xb4a5d2d8954-1735784520-6180-10.z",
+            "xb4a5d2d8954-1735784520-6180-2.z",
+            "xb4a5d2d8954-1735784520-6180-3.z",
+            "xb4a5d2d8954-1735784520-6180-4.z",
+            "xb4a5d2d8954-1735784520-6180-5.z",
+            "xb4a5d2d8954-1735784520-6180-6.z",
+            "xb4a5d2d8954-1735784520-6180-7.z",
+            "xb4a5d2d8954-1735784520-6180-8.z",
+            "xb4a5d2d8954-1735784520-6180-9.z",
+        ];
+
+        let files = files
+            .iter()
+            .sorted_by(|a, b| compare_file_name(Path::new(a), Path::new(b)))
+            .map(|s| s.to_string())
+            .collect_vec();
+
+        assert_eq!(files[0], "xb4a5d2d8954-1735784520-6179-1.z");
+        assert_eq!(files[9], "xb4a5d2d8954-1735784520-6179-10.z");
+        assert_eq!(files[10], "xb4a5d2d8954-1735784520-6180-1.z");
+        assert_eq!(files[19], "xb4a5d2d8954-1735784520-6180-10.z");
+    }
 
     #[tokio::test]
     async fn test_file_watcher() {

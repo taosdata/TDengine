@@ -250,21 +250,14 @@ impl TaskOpts {
                 ("tmq" | "sync", "local") => {
                     let mut from = from.clone();
                     from.driver = "tmq".to_string();
-                    tmq_to_local(
-                        from.clone(),
-                        to.clone(),
-                        0,
-                        true,
-                        cancel.clone(),
-                        task_id.clone(),
-                    )
-                    .await?;
-                    // tmq_to_local(from.clone(), to.clone(), cancel.clone(), task_id.clone()).await?;
+                    tmq_to_local(task_id.clone(), from.clone(), to.clone(), cancel.clone())
+                        .in_current_span()
+                        .await?;
                 }
                 ("local", "taos" | "tmq") => {
                     let mut to = to.clone();
                     to.driver = "taos".to_string();
-                    local_to_taos(task_id.clone(), from.clone(), to, 0, true, cancel.clone())
+                    local_to_taos(task_id.clone(), from.clone(), to, cancel.clone())
                         .in_current_span()
                         .await?;
                 }

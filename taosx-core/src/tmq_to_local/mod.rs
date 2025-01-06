@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context as AnyhowContext, Result};
 use chrono::{DateTime, Local, Utc};
 use dashmap::DashMap;
 use scc::HashMap;
@@ -101,7 +101,12 @@ impl ZFileMan {
                     self.max_file_size,
                     self.move_to.clone(),
                 )
-                .await?;
+                .await
+                .inspect_err(|error| {
+                    tracing::error!(?error, "create new ZFile for vgroup {vgroup} error");
+                })
+                .with_context(|| format!("create new ZFile for vgroup: {}", vgroup))?;
+                tracing::debug!("create new ZFile for vgroup: {}", vgroup);
                 let _ = self.writers.insert(vgroup, tokio::sync::Mutex::new(file));
             }
         }
@@ -131,15 +136,23 @@ impl ZFileMan {
         metrics: &TmqMetrics,
         stop_at: Option<DateTime<Local>>,
     ) -> Result<(usize, bool)> {
-        self.assert_vgroup(vgroup).await?;
+        self.assert_vgroup(vgroup)
+            .await
+            .with_context(|| format!("vgroup {vgroup} error"))?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
         let mut writer = entry.value().lock().await;
-        writer.start_raw_block().await?;
+        writer
+            .start_raw_block()
+            .await
+            .with_context(|| format!("vgroup {vgroup} start raw block error"))?;
         let mut nrows = 0;
         let mut last_ts = None;
         while let Some(block) = data.fetch_raw_block().await.unwrap() {
             // dbg!(&block);
-            writer.write_raw_block(&block).await?;
+            writer
+                .write_raw_block(&block)
+                .await
+                .with_context(|| format!("vgroup {vgroup} write raw block"))?;
             if let Some(view) = block.column_views().first() {
                 match view {
                     ColumnView::Timestamp(view) => {
@@ -158,7 +171,10 @@ impl ZFileMan {
             metrics.add_written_rows(block.nrows() as _);
             metrics.add_written_points((block.nrows() * block.ncols()) as _);
         }
-        writer.finish_raw_block().await?;
+        writer
+            .finish_raw_block()
+            .await
+            .with_context(|| format!("vgroup {vgroup} flush raw blocks error"))?;
 
         let mut stop = false;
         if let (Some(stop_at), Some(last_ts)) = (stop_at, last_ts) {
@@ -180,6 +196,7 @@ impl ZFileMan {
         let entry = self.writers.get(&vgroup).expect("should always exist");
         let mut writer = entry.value().lock().await;
         writer.write_raw(raw, raw_type).await?;
+
         Ok(())
     }
 
@@ -283,15 +300,13 @@ impl LocalConfig {
 }
 
 /// 增量备份任务，通过 TDengine 的订阅，将数据备份到本地
-#[instrument]
+#[instrument(skip_all, fields(task_id))]
 #[async_backtrace::framed]
 pub async fn tmq_to_local(
+    task_id: Option<String>,
     from: Dsn,
     to: Dsn,
-    jobs: usize,
-    _force: bool,
     cancel: CancellationToken,
-    task_id: Option<String>,
 ) -> Result<()> {
     tracing::info!("tmq_to_local start");
 
@@ -317,8 +332,8 @@ pub async fn tmq_to_local(
     // load metrics
     let metrics = get_metrics_arc(task_id.clone()).await;
 
-    // 根据 jobs 创建 consumer
-    let consumers = config.create_consumer(jobs).await?;
+    // 创建 consumer
+    let consumers = config.create_consumer().await?;
 
     // 创建 ZFileMan
     let man = Arc::new(ZFileMan {
@@ -426,7 +441,10 @@ impl BackupWorker {
         Self::wait_for_upcoming_impl(self.config.upcoming).await?;
         tracing::info!("tmq_to_local worker: {:?} start", self.id);
 
-        // self.assign().await?;
+        if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
+            // TODO: 如果是使用 offset 作为备份点生成方式，设置备份点为当前时间
+            // self.man.ts = Some(Utc::now());
+        }
 
         let run_impl = self.run_impl().in_current_span();
 
@@ -440,8 +458,8 @@ impl BackupWorker {
                         tracing::info!("tmq_to_local worker: {} completed", self.id);
                     }
                     Err(err) => {
-                        tracing::error!("tmq_to_local worker: {} exit with error: {:#}", self.id, err);
-                        bail!(err);
+                        tracing::error!(?err, "tmq_to_local worker: {} exit with error: {:#}", self.id, err);
+                        return Err(err);
                     }
                 }
             }
@@ -494,24 +512,36 @@ impl BackupWorker {
                     let raw = meta.as_raw_meta().await?;
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Meta)
-                        .await?;
-                    self.man.flush_vgroup(vg_id).await?;
+                        .await
+                        .context("Backup raw meta message failed")?;
+                    self.man
+                        .flush_vgroup(vg_id)
+                        .await
+                        .context("Flush vgroup error")?;
                     metrics.add_messages_of_meta(1);
                 }
                 MessageSet::Data(data) => {
                     let raw = data.as_raw_data().await?;
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Data)
-                        .await?;
-                    self.man.flush_vgroup(vg_id).await?;
+                        .await
+                        .context("Backup raw data message failed")?;
+                    self.man
+                        .flush_vgroup(vg_id)
+                        .await
+                        .context("Flush vgroup error")?;
                     metrics.add_messages_of_data(1);
                 }
                 MessageSet::MetaData(_meta, data) => {
                     let raw = data.as_raw_data().await?;
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Both)
-                        .await?;
-                    self.man.flush_vgroup(vg_id).await?;
+                        .await
+                        .context("Backup raw metadata message failed")?;
+                    self.man
+                        .flush_vgroup(vg_id)
+                        .await
+                        .context("Flush vgroup error")?;
                     metrics.add_messages_of_data(1);
                 }
             }
@@ -997,7 +1027,7 @@ mod tests {
         });
 
         let backup = tokio::spawn(async move {
-            tmq_to_local(from, to, 1, true, Default::default(), None)
+            tmq_to_local(None, from, to, Default::default())
                 .await
                 .unwrap();
         });

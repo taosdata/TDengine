@@ -160,14 +160,12 @@ impl BackupConfig {
     }
 
     /// 按照 jobs 数量创建 consumer
-    pub async fn create_consumer(&self, mut jobs: usize) -> anyhow::Result<Vec<Consumer>> {
+    pub async fn create_consumer(&self) -> anyhow::Result<Vec<Consumer>> {
         let from = self.to_tmq_dsn();
         tracing::info!("create consumer with dsn: {}", &from);
 
-        // 如果 jobs 为 0，则使用 vgroups 数量创建 consumer
-        if jobs == 0 {
-            jobs = self.get_vgroups().await?;
-        }
+        // 使用 vgroups 数量创建 consumer
+        let jobs = self.get_vgroups().await?;
 
         let mut handlers = Vec::with_capacity(jobs);
         for id in 0..jobs {
@@ -224,7 +222,7 @@ impl BackupConfig {
 
         let sql = format!(
             "SELECT `offset` FROM information_schema.ins_subscriptions WHERE topic_name = '{}' AND consumer_group = '{}' AND vgroup_id = {}",
-            topic, topic,vg_id
+            topic, topic, vg_id
         );
         tracing::trace!("query with sql: {}", sql);
 
@@ -321,6 +319,10 @@ impl BackupConfigBuilder {
         // interval
         let interval = utils::parse_duration_in_dsn(&self.from, "interval")?;
         if let Some(interval) = interval {
+            if interval < Duration::from_secs(10 * 60) {
+                bail!("interval must be greater than 10 minutes");
+            }
+
             let sql = format!("SELECT `wal_retention_period` FROM information_schema.ins_databases WHERE name = '{}'", &database);
             tracing::debug!("query with sql: {}", sql);
             let wal_retention_period: u64 = taos.query_one(sql).await?.unwrap();
@@ -355,9 +357,13 @@ impl BackupConfigBuilder {
         let move_to = utils::parse_dir_in_dsn(&self.to, Some("move.to"))?;
 
         // backup_max_size
-        let backup_max_size =
-            utils::parse_keys_in_dsn(&self.to, &["backup_max_size", "max.file.size"])?
-                .unwrap_or(1024 * 1024 * 1024);
+        let backup_max_size = utils::parse_keys_in_dsn::<String>(
+            &self.to,
+            &["max_size", "backup_max_size", "max.file.size"],
+        )?
+        .map(|s| utils::parse_bytes(&s))
+        .transpose()?
+        .unwrap_or(1024 * 1024 * 1024);
 
         // backup_comp_level
         let backup_comp_level =
@@ -404,9 +410,7 @@ impl BackupConfigBuilder {
 
     /// 解析 dsn 中的压缩等级参数
     fn parse_compression_level(dsn: &Dsn) -> anyhow::Result<Option<async_compression::Level>> {
-        dsn.get("compression.level")
-            .or_else(|| dsn.get("compression_level"))
-            .filter(|s| !s.is_empty())
+        utils::parse_keys_in_dsn::<String>(dsn, &["compression.level", "compression_level"])?
             .map(|s| {
                 let level = s.to_lowercase();
                 match level.as_str() {
@@ -441,6 +445,65 @@ impl BackupConfigBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 测试解析备份文件的压缩等级
+    /// 测试用例：
+    /// 1. compression.level=fastest
+    /// 2. compression.level=best
+    /// 3. compression.level=default
+    /// 4. compression.level=balanced
+    /// 5. compression.level=5
+    /// 6. compression.level=
+    /// 7. compression.level=abc
+    /// 8. 不包含 compression.level
+    #[test]
+    fn test_parse_compression_level() {
+        let dsn = "local:/tmp?compression.level=fastest".into_dsn().unwrap();
+        let level = BackupConfigBuilder::parse_compression_level(&dsn)
+            .unwrap()
+            .unwrap();
+        assert_eq!("Fastest", format!("{:?}", level));
+
+        let dsn = "local:/tmp?compression.level=best".into_dsn().unwrap();
+        let level = BackupConfigBuilder::parse_compression_level(&dsn)
+            .unwrap()
+            .unwrap();
+        assert_eq!("Best", format!("{:?}", level));
+
+        let dsn = "local:/tmp?compression.level=default".into_dsn().unwrap();
+        let level = BackupConfigBuilder::parse_compression_level(&dsn)
+            .unwrap()
+            .unwrap();
+        assert_eq!("Default", format!("{:?}", level));
+
+        let dsn = "local:/tmp?compression.level=balanced".into_dsn().unwrap();
+        let level = BackupConfigBuilder::parse_compression_level(&dsn)
+            .unwrap()
+            .unwrap();
+        assert_eq!("Default", format!("{:?}", level));
+
+        let dsn = "local:/tmp?compression.level=5".into_dsn().unwrap();
+        let level = BackupConfigBuilder::parse_compression_level(&dsn)
+            .unwrap()
+            .unwrap();
+        assert_eq!("Precise(5)", format!("{:?}", level));
+
+        let dsn = "local:/tmp".into_dsn().unwrap();
+        let level = BackupConfigBuilder::parse_compression_level(&dsn).unwrap();
+        assert!(level.is_none());
+
+        let dsn = "local:/tmp?compression.level=".into_dsn().unwrap();
+        let level = BackupConfigBuilder::parse_compression_level(&dsn).unwrap();
+        assert!(level.is_none());
+
+        let dsn = "local:/tmp?compression.level=abc".into_dsn().unwrap();
+        let level = BackupConfigBuilder::parse_compression_level(&dsn);
+        assert!(level.is_err());
+        assert_eq!(
+            "invalid compression level: abc",
+            format!("{}", level.err().unwrap())
+        );
+    }
 
     #[test]
     fn test_parse_backup_dir() {

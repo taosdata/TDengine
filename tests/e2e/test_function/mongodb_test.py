@@ -26,6 +26,9 @@ def input_data():
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(
+    reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == 860"
+)
 def test_case_base(input_data):
     """
     用例概述: mongodb 用例, 测试子表字段
@@ -156,6 +159,9 @@ def test_case_base_0(database, collection, start, end, expected, input_data):
 
 @pytest.mark.sanity
 @pytest.mark.parametrize("with_agent", [True, False])
+@pytest.mark.xfail(
+    reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == 1089"
+)
 def test_case_subtable(with_agent, input_data):
     """
     用例概述: mongodb 用例, 测试子表字段
