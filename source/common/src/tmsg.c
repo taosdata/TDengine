@@ -8207,6 +8207,9 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     if (tEncodeU64v(pCoder, nColData) < 0) return -1;
 
     for (uint64_t i = 0; i < nColData; i++) {
+      uInfo("encode submit data:%p cid:%d, type:%d, flag:%d. coder size:%d, pos:%d, uid%"PRId64,
+            pCoder->data, aColData[i].cid, aColData[i].type, aColData[i].flag,
+            pCoder->size, pCoder->pos, pSubmitTbData->uid);
       pCoder->pos += tPutColData(pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
     }
   } else {
