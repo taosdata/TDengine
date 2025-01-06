@@ -70,6 +70,7 @@ bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);
 bool        keysHasCol(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
+bool        projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject);
 SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
 int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict);
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan);
