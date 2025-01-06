@@ -1,6 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    cell::Cell,
+    collections::{HashMap, HashSet},
+};
 
 use anyhow::Context;
+use faststr::FastStr;
 use serde_json::Value;
 use taos::Itertools;
 use tinytemplate::TinyTemplate;
@@ -8,28 +12,28 @@ use tinytemplate::TinyTemplate;
 use crate::plugins::transform::TableOptions;
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct SModel {
-    pub name: String,
+pub struct STableModel {
+    pub name: FastStr,
     pub columns: Vec<Column>,
     pub tags: Vec<Tag>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Tag {
-    pub name: String,
-    pub r#type: String,
+    pub name: FastStr,
+    pub r#type: FastStr,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Column {
-    pub name: String,
-    pub r#type: String,
-    pub encode: Option<String>,
-    pub compress: Option<String>,
-    pub level: Option<String>,
+    pub name: FastStr,
+    pub r#type: FastStr,
+    pub encode: Option<FastStr>,
+    pub compress: Option<FastStr>,
+    pub level: Option<FastStr>,
 }
 
-impl SModel {
+impl STableModel {
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -43,7 +47,7 @@ impl SModel {
         &self,
         ctx: &[Value],
         opts: &TableOptions,
-    ) -> anyhow::Result<HashMap<String, Self>> {
+    ) -> anyhow::Result<HashMap<FastStr, Self>> {
         let mut template = tinytemplate::TinyTemplate::new();
         let name = self.name.replace("${", "{");
         if self.name.contains("${") {
@@ -66,8 +70,13 @@ impl SModel {
                 .context("add template error")?;
         }
 
-        let mut models = HashMap::new();
-        let mut curr_columns = HashSet::new();
+        thread_local! {
+            static STABLES_LEN:Cell<usize> = const { Cell::new(1) };
+            static COLUMNS_LEN:Cell<usize> = const { Cell::new(1024) };
+        };
+
+        let mut models = STABLES_LEN.with(|len| HashMap::with_capacity(len.get()));
+        let mut curr_columns = COLUMNS_LEN.with(|len| HashSet::with_capacity(len.get()));
         let mut curr_tags = HashSet::new();
         for ctx in ctx.iter() {
             let name = if self.name.contains("${") {
@@ -75,14 +84,14 @@ impl SModel {
                     .render_value("name", ctx)
                     .context("render stable name error")?
             } else {
-                self.name.clone()
+                self.name.to_string()
             };
-            let name = opts.canonical_table_name(&name).to_string();
+            let name: FastStr = opts.canonical_table_name(&name).to_string().into();
             let columns = self.render_column(&template, ctx)?;
             let tags = self.render_tags(&template, ctx)?;
             models
                 .entry(name.clone())
-                .and_modify(|model: &mut SModel| {
+                .and_modify(|model: &mut STableModel| {
                     for col in &columns {
                         if !curr_columns.contains(&col.name) {
                             curr_columns.insert(col.name.clone());
@@ -99,13 +108,25 @@ impl SModel {
                 .or_insert_with(|| {
                     curr_columns.extend(columns.iter().map(|v| v.name.clone()));
                     curr_tags.extend(tags.iter().map(|v| v.name.clone()));
-                    SModel {
-                        name,
+                    STableModel {
+                        name: name.clone(),
                         columns,
                         tags,
                     }
                 });
         }
+
+        STABLES_LEN.with(|len| {
+            if len.get() < models.len() {
+                len.set(models.len())
+            }
+        });
+
+        COLUMNS_LEN.with(|len| {
+            if len.get() < curr_columns.len() {
+                len.set(curr_columns.len())
+            }
+        });
 
         Ok(models)
     }
@@ -115,7 +136,7 @@ impl SModel {
             .iter()
             .enumerate()
             .flat_map(|(idx, col)| {
-                let mut templates = Vec::new();
+                let mut templates = Vec::with_capacity(5);
                 if col.name.contains("${") {
                     templates.push((format!("col_{idx}_name"), col.name.replace("${", "{")));
                 }
@@ -146,6 +167,7 @@ impl SModel {
                         template
                             .render_value(&format!("col_{idx}_name"), ctx)
                             .context("render stable column name error")?
+                            .into()
                     } else {
                         col.name.clone()
                     },
@@ -153,6 +175,7 @@ impl SModel {
                         template
                             .render_value(&format!("col_{idx}_type"), ctx)
                             .context("render stable column type error")?
+                            .into()
                     } else {
                         col.r#type.clone()
                     },
@@ -163,6 +186,7 @@ impl SModel {
                         .map(|_| {
                             template
                                 .render_value(&format!("col_{idx}_encode"), ctx)
+                                .map(|v| v.into())
                                 .context("render stable column encode error")
                         })
                         .transpose()?,
@@ -173,6 +197,7 @@ impl SModel {
                         .map(|_| {
                             template
                                 .render_value(&format!("col_{idx}_compress"), ctx)
+                                .map(|v| v.into())
                                 .context("render stable column compress error")
                         })
                         .transpose()?,
@@ -183,6 +208,7 @@ impl SModel {
                         .map(|_| {
                             template
                                 .render_value(&format!("col_{idx}_level"), ctx)
+                                .map(|v| v.into())
                                 .context("render stable column level error")
                         })
                         .transpose()?,
@@ -218,6 +244,7 @@ impl SModel {
                         template
                             .render_value(&format!("tag_{idx}_name"), ctx)
                             .context("render stable tag name error")?
+                            .into()
                     } else {
                         tag.name.clone()
                     },
@@ -225,6 +252,7 @@ impl SModel {
                         template
                             .render_value(&format!("tag_{idx}_type"), ctx)
                             .context("render stable tag type error")?
+                            .into()
                     } else {
                         tag.r#type.clone()
                     },
@@ -277,31 +305,31 @@ mod tests {
 
     #[test]
     fn create_stable_sql_test() -> anyhow::Result<()> {
-        let model = SModel {
-            name: "abc".to_string(),
+        let model = STableModel {
+            name: "abc".into(),
             columns: vec![
                 Column {
-                    name: "col1".to_string(),
-                    r#type: "TIMESTAMP".to_string(),
-                    encode: Some("delta-i".to_string()),
-                    compress: Some("lz4".to_string()),
-                    level: Some("medium".to_string()),
+                    name: "col1".into(),
+                    r#type: "TIMESTAMP".into(),
+                    encode: Some("delta-i".into()),
+                    compress: Some("lz4".into()),
+                    level: Some("medium".into()),
                 },
                 Column {
-                    name: "col2".to_string(),
-                    r#type: "VARCHAR(128)".to_string(),
-                    compress: Some("lz4".to_string()),
+                    name: "col2".into(),
+                    r#type: "VARCHAR(128)".into(),
+                    compress: Some("lz4".into()),
                     ..Default::default()
                 },
             ],
             tags: vec![
                 Tag {
-                    name: "tag1".to_string(),
-                    r#type: "INT".to_string(),
+                    name: "tag1".into(),
+                    r#type: "INT".into(),
                 },
                 Tag {
-                    name: "tag2".to_string(),
-                    r#type: "VARCHAR(128)".to_string(),
+                    name: "tag2".into(),
+                    r#type: "VARCHAR(128)".into(),
                 },
             ],
         };
@@ -317,31 +345,31 @@ mod tests {
 
     #[test]
     fn apply_single_column_test() -> anyhow::Result<()> {
-        let model = SModel {
-            name: "${abc_x}".to_string(),
+        let model = STableModel {
+            name: "${abc_x}".into(),
             columns: vec![
                 Column {
-                    name: "${col1_x}".to_string(),
-                    r#type: "${TIMESTAMP_x}".to_string(),
-                    encode: Some("${delta-i_x}".to_string()),
-                    compress: Some("${lz4_x}".to_string()),
-                    level: Some("${medium_x}".to_string()),
+                    name: "${col1_x}".into(),
+                    r#type: "${TIMESTAMP_x}".into(),
+                    encode: Some("${delta-i_x}".into()),
+                    compress: Some("${lz4_x}".into()),
+                    level: Some("${medium_x}".into()),
                 },
                 Column {
-                    name: "${col2_x}".to_string(),
-                    r#type: "${VARCHAR(128)_x}".to_string(),
-                    compress: Some("${lz4_x}".to_string()),
+                    name: "${col2_x}".into(),
+                    r#type: "${VARCHAR(128)_x}".into(),
+                    compress: Some("${lz4_x}".into()),
                     ..Default::default()
                 },
             ],
             tags: vec![
                 Tag {
-                    name: "${tag1_x}".to_string(),
-                    r#type: "${INT_x}".to_string(),
+                    name: "${tag1_x}".into(),
+                    r#type: "${INT_x}".into(),
                 },
                 Tag {
-                    name: "${tag2_x}".to_string(),
-                    r#type: "${VARCHAR(128)_x}".to_string(),
+                    name: "${tag2_x}".into(),
+                    r#type: "${VARCHAR(128)_x}".into(),
                 },
             ],
         };
@@ -377,31 +405,31 @@ mod tests {
 
     #[test]
     fn apply_multi_column_test() -> anyhow::Result<()> {
-        let model = SModel {
-            name: "${abc_x}".to_string(),
+        let model = STableModel {
+            name: "${abc_x}".into(),
             columns: vec![
                 Column {
-                    name: "${col1_x}".to_string(),
-                    r#type: "${TIMESTAMP_x}".to_string(),
-                    encode: Some("${delta-i_x}".to_string()),
-                    compress: Some("${lz4_x}".to_string()),
-                    level: Some("${medium_x}".to_string()),
+                    name: "${col1_x}".into(),
+                    r#type: "${TIMESTAMP_x}".into(),
+                    encode: Some("${delta-i_x}".into()),
+                    compress: Some("${lz4_x}".into()),
+                    level: Some("${medium_x}".into()),
                 },
                 Column {
-                    name: "${col2_x}".to_string(),
-                    r#type: "${VARCHAR(128)_x}".to_string(),
-                    compress: Some("${lz4_x}".to_string()),
+                    name: "${col2_x}".into(),
+                    r#type: "${VARCHAR(128)_x}".into(),
+                    compress: Some("${lz4_x}".into()),
                     ..Default::default()
                 },
             ],
             tags: vec![
                 Tag {
-                    name: "${tag1_x}".to_string(),
-                    r#type: "${INT_x}".to_string(),
+                    name: "${tag1_x}".into(),
+                    r#type: "${INT_x}".into(),
                 },
                 Tag {
-                    name: "${tag2_x}".to_string(),
-                    r#type: "${VARCHAR(128)_x}".to_string(),
+                    name: "${tag2_x}".into(),
+                    r#type: "${VARCHAR(128)_x}".into(),
                 },
             ],
         };

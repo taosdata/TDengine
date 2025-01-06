@@ -38,9 +38,10 @@ use datafusion::{
     prelude::{col, ExprFunctionExt, SessionContext},
 };
 use either::Either;
+use faststr::FastStr;
 use handling_strategy::{HandlingResult, ProcessOnAbnormal};
 use itertools::Itertools;
-use modeler::s_model::SModel;
+use modeler::stable::STableModel;
 use scc::HashMap;
 use serde::{Deserialize, Serialize};
 use taos::{
@@ -94,7 +95,7 @@ pub struct Pipeline {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    s_model: Option<SModel>,
+    s_model: Option<STableModel>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     model: Option<Modeler>,
 }
@@ -989,7 +990,7 @@ pub struct Parser {
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
-    s_model: Option<SModel>,
+    s_model: Option<STableModel>,
     model: Modeler,
 }
 
@@ -1049,7 +1050,7 @@ impl Parser {
     pub fn new(
         parse: Option<ParserImpl>,
         mutate: Vec<Mutate>,
-        s_model: Option<SModel>,
+        s_model: Option<STableModel>,
         model: Modeler,
     ) -> Self {
         Self {
@@ -1545,9 +1546,9 @@ impl Parser {
                     .map(|batch| Arc::new(batch.slice(name_row, 1)));
 
                 let using = match (&stables, using) {
-                    (Some(map), Some(using)) => {
-                        map.get(&using).map(|m| Arc::new(STable::Model(m.clone())))
-                    }
+                    (Some(map), Some(using)) => map
+                        .get(&FastStr::from(using))
+                        .map(|m| Arc::new(STable::Model(m.clone()))),
                     (None, Some(using)) => Some(Arc::new(STable::Name(using))),
                     (_, None) => None,
                 };
@@ -2009,7 +2010,7 @@ pub struct MessageChildTable {
 #[derive(Debug, Clone, PartialEq)]
 pub enum STable {
     Name(String),
-    Model(SModel),
+    Model(STableModel),
 }
 
 impl STable {
@@ -2020,7 +2021,7 @@ impl STable {
         }
     }
 
-    pub fn model(&self) -> Option<&SModel> {
+    pub fn model(&self) -> Option<&STableModel> {
         match self {
             STable::Name(_) => None,
             STable::Model(model) => Some(model),

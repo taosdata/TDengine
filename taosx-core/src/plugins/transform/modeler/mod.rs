@@ -1,4 +1,4 @@
-pub mod s_model;
+pub mod stable;
 
 use std::ops::Deref;
 use std::sync::Arc;
