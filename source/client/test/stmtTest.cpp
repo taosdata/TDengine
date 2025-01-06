@@ -293,4 +293,137 @@ TEST(stmtCase, get_fields) {
   taos_close(taos);
 }
 
+TEST(stmtCase, all_type) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists db");
+  do_query(taos, "create database db");
+  do_query(taos, "use db");
+  do_query(taos,
+           "create stable db.stb(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint, c7 "
+           "tinyint, c8 bool, c9 nchar(8))TAGS(tts timestamp, t1 int, t2 bigint, t3 float, t4 double, t5 binary(8), t6 "
+           "smallint, t7 "
+           "tinyint, t8 bool, t9 nchar(8))");
+
+  TAOS_STMT *stmt = taos_stmt_init(taos);
+  ASSERT_NE(stmt, nullptr);
+
+  uintptr_t c10len = 0;
+  struct {
+    int64_t       c1;
+    int32_t       c2;
+    int64_t       c3;
+    float         c4;
+    double        c5;
+    unsigned char c6[8];
+    int16_t       c7;
+    int8_t        c8;
+    int8_t        c9;
+    char          c10[32];
+  } v = {0};
+  TAOS_MULTI_BIND params[11];
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[0].buffer_length = sizeof(v.c1);
+  params[0].buffer = &v.c1;
+  params[0].length = (int32_t *)&params[0].buffer_length;
+  params[0].is_null = NULL;
+  params[0].num = 1;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_INT;
+  params[1].buffer_length = sizeof(v.c2);
+  params[1].buffer = &v.c2;
+  params[1].length = (int32_t *)&params[1].buffer_length;
+  params[1].is_null = NULL;
+  params[1].num = 1;
+
+  params[2].buffer_type = TSDB_DATA_TYPE_BIGINT;
+  params[2].buffer_length = sizeof(v.c3);
+  params[2].buffer = &v.c3;
+  params[2].length = (int32_t *)&params[2].buffer_length;
+  params[2].is_null = NULL;
+  params[2].num = 1;
+
+  params[3].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params[3].buffer_length = sizeof(v.c4);
+  params[3].buffer = &v.c4;
+  params[3].length = (int32_t *)&params[3].buffer_length;
+  params[3].is_null = NULL;
+  params[3].num = 1;
+
+  params[4].buffer_type = TSDB_DATA_TYPE_DOUBLE;
+  params[4].buffer_length = sizeof(v.c5);
+  params[4].buffer = &v.c5;
+  params[4].length = (int32_t *)&params[4].buffer_length;
+  params[4].is_null = NULL;
+  params[4].num = 1;
+
+  params[5].buffer_type = TSDB_DATA_TYPE_BINARY;
+  params[5].buffer_length = sizeof(v.c6);
+  params[5].buffer = &v.c6;
+  params[5].length = (int32_t *)&params[5].buffer_length;
+  params[5].is_null = NULL;
+  params[5].num = 1;
+
+  params[6].buffer_type = TSDB_DATA_TYPE_SMALLINT;
+  params[6].buffer_length = sizeof(v.c7);
+  params[6].buffer = &v.c7;
+  params[6].length = (int32_t *)&params[6].buffer_length;
+  params[6].is_null = NULL;
+  params[6].num = 1;
+
+  params[7].buffer_type = TSDB_DATA_TYPE_TINYINT;
+  params[7].buffer_length = sizeof(v.c8);
+  params[7].buffer = &v.c8;
+  params[7].length = (int32_t *)&params[7].buffer_length;
+  params[7].is_null = NULL;
+  params[7].num = 1;
+
+  params[8].buffer_type = TSDB_DATA_TYPE_BOOL;
+  params[8].buffer_length = sizeof(v.c9);
+  params[8].buffer = &v.c9;
+  params[8].length = (int32_t *)&params[8].buffer_length;
+  params[8].is_null = NULL;
+  params[8].num = 1;
+
+  params[9].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  params[9].buffer_length = sizeof(v.c10);
+  params[9].buffer = &v.c10;
+  params[9].length = (int32_t *)&c10len;
+  params[9].is_null = NULL;
+  params[9].num = 1;
+
+  char *stmt_sql = "insert into ? using stb tags(?,?,?,?,?,?,?,?,?,?)values (?,?,?,?,?,?,?,?,?,?)";
+  int   code = taos_stmt_prepare(stmt, stmt_sql, 0);
+  ASSERT_EQ(code, 0);
+
+  code = taos_stmt_set_tbname(stmt, "ntb");
+  ASSERT_EQ(code, 0);
+
+  code = taos_stmt_set_tags(stmt, params);
+  ASSERT_EQ(code, 0);
+
+  v.c1 = (int64_t)1591060628000;
+  v.c2 = (int32_t)2147483647;
+  v.c3 = (int64_t)2147483648;
+  v.c4 = (float)0.1;
+  v.c5 = (double)0.000000001;
+  for (int j = 0; j < sizeof(v.c6); j++) {
+    v.c6[j] = (char)('a');
+  }
+  v.c7 = 32767;
+  v.c8 = 127;
+  v.c9 = 1;
+  strcpy(v.c10, "一二三四五六七八");
+  c10len = strlen(v.c10);
+  taos_stmt_bind_param(stmt, params);
+  taos_stmt_add_batch(stmt);
+
+  code = taos_stmt_execute(stmt);
+  ASSERT_EQ(code, 0);
+
+  taos_stmt_close(stmt);
+  taos_close(taos);
+}
+
 #pragma GCC diagnostic pop
