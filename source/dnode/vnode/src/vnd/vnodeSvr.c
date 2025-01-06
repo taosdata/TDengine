@@ -366,7 +366,7 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     sprintf(temp, "%02x", context.digest[i]);
     strcat(md5Str, temp);
   }
-  vInfo("vnodePreProcessSubmitMsg decode submit request,vgId:%d,contLen:%d,md5:%s", TD_VID(pVnode), (int)(pMsg->contLen - sizeof(SSubmitReq2Msg)), md5Str);
+  vDebug("vnodePreProcessSubmitMsg decode submit request,vgId:%d,contLen:%d,md5:%s", TD_VID(pVnode), (int)(pMsg->contLen - sizeof(SSubmitReq2Msg)), md5Str);
 
   uint64_t nSubmitTbData;
   if (tDecodeU64v(pCoder, &nSubmitTbData) < 0) {

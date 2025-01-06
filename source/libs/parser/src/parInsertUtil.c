@@ -572,18 +572,18 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
     code = tEncodeSubmitReq(&encoder, pReq);
     tEncoderClear(&encoder);
 
-    // decode
-    SSubmitReq2 pSubmitReq = {0};
+//    // decode
+//    SSubmitReq2 pSubmitReq = {0};
     void *d = POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg));
     int32_t lenTmp = len -sizeof(SSubmitReq2Msg);
-    SDecoder dc = {0};
-    tDecoderInit(&dc, d, lenTmp);
-    int ret = tDecodeSubmitReq(&dc, &pSubmitReq);
-    if (ret < 0) {
-      uError("decode submit request failed :%d", ret);
-    }
-    tDecoderClear(&dc);
-
+//    SDecoder dc = {0};
+//    tDecoderInit(&dc, d, lenTmp);
+//    int ret = tDecodeSubmitReq(&dc, &pSubmitReq);
+//    if (ret < 0) {
+//      uError("decode submit request failed :%d", ret);
+//    }
+//    tDecoderClear(&dc);
+//
     T_MD5_CTX context;
     tMD5Init(&context);
     tMD5Update(&context, (uint8_t*)d, (uint32_t)lenTmp);
@@ -596,7 +596,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
       strcat(md5Str, temp);
     }
 
-    uInfo("decode submit request,vgId:%d,contLen:%d,md5:%s", vgId, lenTmp, md5Str);
+    uDebug("decode submit request,vgId:%d,contLen:%d,md5:%s", vgId, lenTmp, md5Str);
 
   }
 
@@ -721,7 +721,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     for (int j = 0; j < boundInfo->numOfBound; j++){
       SSchema*  pColSchema = &pSchema[j];
       SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
-      uInfo("colIndex:%d/%d, source type:%d, bytes:%d, dest type:%d, dest bytes:%d, pColSchema->name:%s",
+      uDebug("colIndex:%d/%d, source type:%d, bytes:%d, dest type:%d, dest bytes:%d, pColSchema->name:%s",
             j, boundInfo->numOfBound, *fields, pColSchema->type, *(int32_t*)(fields + sizeof(int8_t)), pColSchema->bytes,
             pColSchema->name);
       if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
