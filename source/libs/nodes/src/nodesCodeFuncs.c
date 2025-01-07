@@ -193,6 +193,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PauseStreamStmt";
     case QUERY_NODE_RESUME_STREAM_STMT:
       return "ResumeStreamStmt";
+    case QUERY_NODE_RESET_STREAM_STMT:
+      return "ResetStreamStmt";
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return "BalanceVgroupStmt";
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
@@ -7288,6 +7290,32 @@ static int32_t jsonToDropStreamStmt(const SJson* pJson, void* pObj) {
 
   return code;
 }
+
+static const char* jkResetStreamStmtStreamName = "StreamName";
+static const char* jkResetStreamStmtIgnoreNotExists = "IgnoreNotExists";
+
+static int32_t resetStreamStmtToJson(const void* pObj, SJson* pJson) {
+  const SResetStreamStmt* pNode = (const SResetStreamStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkResetStreamStmtStreamName, pNode->streamName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkResetStreamStmtIgnoreNotExists, pNode->ignoreNotExists);
+  }
+
+  return code;
+}
+
+static int32_t jsonToResetStreamStmt(const SJson* pJson, void* pObj) {
+  SResetStreamStmt* pNode = (SResetStreamStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkResetStreamStmtStreamName, pNode->streamName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkResetStreamStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  }
+
+  return code;
+}
+
 
 static const char* jkMergeVgroupStmtVgroupId1 = "VgroupId1";
 static const char* jkMergeVgroupStmtVgroupId2 = "VgroupId2";

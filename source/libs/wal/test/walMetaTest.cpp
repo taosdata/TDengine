@@ -627,6 +627,68 @@ TEST_F(WalKeepEnv, walRollback) {
   ASSERT_EQ(code, 0);
 }
 
+TEST_F(WalKeepEnv, walChangeWrite) {
+  walResetEnv();
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walChangeWrite(pWal, 50);
+  ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalCleanEnv, walRepairLogFileTs2) {
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  for (i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  for (i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  // Try to step in ts repair logic.
+  SWalFileInfo* pFileInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 2);
+  pFileInfo->closeTs = -1;
+
+  code = walCheckAndRepairMeta(pWal);
+  ASSERT_EQ(code, 0);
+}
+
 TEST_F(WalRetentionEnv, repairMeta1) {
   walResetEnv();
   int code;

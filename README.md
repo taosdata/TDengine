@@ -1,4 +1,3 @@
-<p>
 <p align="center">
   <a href="https://tdengine.com" target="_blank">
   <img
@@ -8,10 +7,12 @@
   />
   </a>
 </p>
-<p>
 
-[![Build Status](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml/badge.svg)](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/tdengine/taosd-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/tdengine)
+<br />
+![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)
 ![GitHub License](https://img.shields.io/github/license/taosdata/tdengine)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 <br />
@@ -20,9 +21,6 @@
 [![Discord Community](https://img.shields.io/badge/Join_Discord--white?logo=discord&style=social)](https://discord.com/invite/VZdSuUg4pS)
 [![LinkedIn](https://img.shields.io/badge/Follow_LinkedIn--white?logo=linkedin&style=social)](https://www.linkedin.com/company/tdengine)
 [![StackOverflow](https://img.shields.io/badge/Ask_StackOverflow--white?logo=stackoverflow&style=social&logoColor=orange)](https://stackoverflow.com/questions/tagged/tdengine)
-<br />
-![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/tdengine)
 
 English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine.com) | [Learn more about TSDB](https://tdengine.com/tsdb/)
 
