@@ -252,13 +252,12 @@ function runCasesOneByOne () {
 }
 
 function runUnitTest() {
+    pgrep taosd || taosd >> /dev/null 2>&1 &
     get_DIR
     print_color "$GREEN" "cd $BUILD_DIR"
     cd $BUILD_DIR
-    pgrep taosd || taosd >> /dev/null 2>&1 &
     sleep 10
-    #ctest -E "cunit_test" -j8
-    ctest 
+    ctest -E "cunit_test" -j8
     print_color "$GREEN" "3.0 unit test done"
 }
 
@@ -266,7 +265,7 @@ function runSimCases() {
     print_color "$GREEN" "=== Run sim cases ==="
 
     cd $TDENGINE_DIR/tests/script
-    runCasesOneByOne $TDENGINE_DIR/tests/parallel_test/cases_tdengine.task.task sim
+    runCasesOneByOne $TDENGINE_DIR/tests/parallel_test/cases_tdengine.task sim
 
     totalSuccess=`grep 'sim success' $TDENGINE_ALLCI_REPORT | wc -l`
     if [ "$totalSuccess" -gt "0" ]; then
@@ -283,19 +282,19 @@ function runPythonCases() {
     print_color "$GREEN" "=== Run python cases ==="
 
     cd $TDENGINE_DIR/tests/parallel_test
-    sed -i '/compatibility.py/d' cases_tdengine.task.task
+    sed -i '/compatibility.py/d' cases_tdengine.task
 
     # army
     cd $TDENGINE_DIR/tests/army
-    runCasesOneByOne ../parallel_test/cases_tdengine.task.task army
+    runCasesOneByOne ../parallel_test/cases_tdengine.task army
 
     # system-test
     cd $TDENGINE_DIR/tests/system-test
-    runCasesOneByOne ../parallel_test/cases_tdengine.task.task system-test
+    runCasesOneByOne ../parallel_test/cases_tdengine.task system-test
 
     # develop-test
     cd $TDENGINE_DIR/tests/develop-test
-    runCasesOneByOne ../parallel_test/cases_tdengine.task.task develop-test
+    runCasesOneByOne ../parallel_test/cases_tdengine.task develop-test
 
     totalSuccess=`grep 'py success' $TDENGINE_ALLCI_REPORT | wc -l`
     if [ "$totalSuccess" -gt "0" ]; then
