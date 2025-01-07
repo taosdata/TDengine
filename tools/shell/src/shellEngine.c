@@ -1180,6 +1180,10 @@ bool shellGetGrantInfo(char *buf) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
     taos_free_result(tres);
+#ifdef TD_ENTERPRISE
+    community = false;
+    sprintf(buf, "Server is %s, %s and the expire time is unknown.\r\n", TD_PRODUCT_NAME, sinfo);
+#endif
     return community;
   }
 
