@@ -787,6 +787,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   bool            inBuf = false;
   SSyncRaftEntry* pNextEntry = NULL;
   bool            nextInBuf = false;
+  bool            restoreFinishAtThisCommit = false;
 
   if (commitIndex <= pBuf->commitIndex) {
     sDebug("vgId:%d, stale commit index. current:%" PRId64 ", notified:%" PRId64 "", vgId, pBuf->commitIndex,
@@ -901,7 +902,6 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   } while (true);
 
   code = 0;
-  bool restoreFinishAtThisCommit = false;
 _out:
   // mark as restored if needed
   if (!pNode->restoreFinish && pBuf->commitIndex >= pNode->commitIndex && pEntry != NULL &&
