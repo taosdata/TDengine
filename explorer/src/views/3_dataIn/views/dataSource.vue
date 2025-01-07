@@ -71,7 +71,7 @@
           type="primary"
           >{{ $t("datasource.addsource") }}</el-button
         >
-        <el-upload
+        <!-- <el-upload
           class="ml15"
           style="display: inline-block;"
           :action="uploadUrl"
@@ -85,7 +85,7 @@
           <el-button size="small" type="primary" icon="el-icon-plus" plain :loading="uploadRequest" :disabled="$COMMUNITY">
             {{ $t("datasource.addsourceFromTemp")}}
           </el-button>
-        </el-upload>
+        </el-upload> -->
       </div>
     </div>
     <div class="data-source">
