@@ -4,7 +4,10 @@ title: 窗口预聚集
 description: 窗口预聚集使用说明
 ---
 
-为了提高大数据量的聚合函数查询性能，通过创建窗口预聚集 (TSMA Time-Range Small Materialized Aggregates) 对象, 使用固定时间窗口对指定的聚集函数进行预计算，并将计算结果存储下来，查询时通过查询预计算结果以提高查询性能。
+在大数据量场景下, 经常需要查询某段时间内的汇总结果, 当历史数据变多或者时间范围变大时, 查询时间也会相应增加. 通过预聚集的方式可以将计算结果提前存储下来, 后续查询可以直接读取聚集结果, 而不需要扫描原始数据, 如当前Block内的SMA (Small Materialized Aggregates)信息.
+Block内的SMA信息粒度较小, 若查询时间范围是日,月甚至年时, Block的数量将会很多, 因此TSMA (Time-Range Small Materialized Aggregates)支持用户指定时间窗口进行预聚集. 通过对固定时间窗口内的数据进行预计算， 并将计算结果存储下来， 查询时通过查询预计算结果以提高查询性能。
+
+![TSMA Introduction](./pic/TSMA_intro.png)
 
 ## 创建TSMA
 
