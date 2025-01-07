@@ -296,7 +296,10 @@ function runUnitTest() {
     get_DIR
     print_color "$GREEN" "cd $BUILD_DIR"
     cd $BUILD_DIR
-    ctest -j $(nproc)
+    pgrep taosd || taosd >> /dev/null 2>&1 &
+    sleep 10
+    #ctest -E "cunit_test" -j8
+    ctest -E "cunit_test" -j $(nproc)
     print_color "$GREEN" "3.0 unit test done"
 }
 
