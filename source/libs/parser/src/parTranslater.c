@@ -9118,6 +9118,12 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
                                    "The table name cannot contain '.'");
   }
 
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot create table of system database: `%s`.`%s`", pStmt->dbName,
+                                   pStmt->tableName);
+  }
+
   SDbCfgInfo dbCfg = {0};
   int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
   if (TSDB_CODE_SUCCESS == code && !createStable && NULL != dbCfg.pRetensions) {
