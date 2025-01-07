@@ -50,7 +50,7 @@ Supports Python 3.0 and above.
 -The platforms supported by native connections are consistent with those supported by the TDengine client driver.
 -WebSocket/REST connections support all platforms that can run Python.
 
-## Versions History
+## Version History
 
 Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
 
