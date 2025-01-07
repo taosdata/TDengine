@@ -77,7 +77,7 @@ function get_DIR() {
             TDENGINE_ALLCI_REPORT="$TDENGINE_DIR/tests/all-ci-report-$today.log"
             BACKUP_DIR="$TDENGINE_DIR/tests/ci_bak"
             mkdir -p "$BACKUP_DIR"
-            cp $TDENGINE_DIR/tests/cases.task $TDENGINE_DIR/tests/cases_tdengine.task 
+            cp $TDENGINE_DIR/tests/parallel_test/cases.task $TDENGINE_DIR/tests/parallel_test/cases_tdengine.task 
         fi
     elif [[ "$PROJECT_DIR" == *"/TDinternal" ]]; then
         TDENGINE_DIR="$PROJECT_DIR/community"
@@ -85,7 +85,7 @@ function get_DIR() {
         TDENGINE_ALLCI_REPORT="$TDENGINE_DIR/tests/all-ci-report-$today.log"
         BACKUP_DIR="$TDENGINE_DIR/tests/ci_bak"
         mkdir -p "$BACKUP_DIR"
-        cp $TDENGINE_DIR/tests/cases.task $TDENGINE_DIR/tests/cases_tdengine.task 
+        cp $TDENGINE_DIR/tests/parallel_test/cases.task $TDENGINE_DIR/tests/parallel_test/cases_tdengine.task 
     elif [[ "$PROJECT_DIR" == *"/TDengine" ]]; then
         TDENGINE_DIR="$PROJECT_DIR"
         BUILD_DIR="$PROJECT_DIR/debug"
