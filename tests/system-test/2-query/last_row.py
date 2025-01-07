@@ -1044,8 +1044,6 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table ==============")
 
         self.initLastRowDelayTest("DELAYTEST")
-        self.lastrow_in_subquery("db1")
-        return
 
         # cache_last 0
         self.prepare_datas("'NONE' ")
@@ -1074,7 +1072,8 @@ class TDTestCase:
         self.lastRowDelayTest("DELAYTEST")
         
         self.lastrow_in_subquery("db1")
-
+        
+        self.lastrow_in_subquery("db1")
 
     def stop(self):
         tdSql.close()
