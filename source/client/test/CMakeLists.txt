@@ -105,12 +105,14 @@ TARGET_INCLUDE_DIRECTORIES(
 TARGET_INCLUDE_DIRECTORIES(
         stmt2Test
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
 TARGET_INCLUDE_DIRECTORIES(
         stmtTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 

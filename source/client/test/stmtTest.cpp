@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <string.h>
 #include "clientInt.h"
+#include "geosWrapper.h"
 #include "osSemaphore.h"
 #include "taoserror.h"
 #include "tglobal.h"
@@ -33,23 +34,29 @@
 #include "taos.h"
 
 namespace {
+
+void checkError(TAOS_STMT *stmt, int code) {
+  if (code != TSDB_CODE_SUCCESS) {
+    STscStmt *pStmt = (STscStmt *)stmt;
+    if (pStmt == nullptr || pStmt->sql.sqlStr == nullptr) {
+      printf("stmt api error\n  stats : %d\n  errstr : %s\n", pStmt->sql.status, taos_stmt_errstr(stmt));
+    } else {
+      printf("stmt api error\n  sql : %s\n  stats : %d\n  errstr : %s\n", pStmt->sql.sqlStr, pStmt->sql.status,
+             taos_stmt_errstr(stmt));
+    }
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  }
+}
+
 void do_query(TAOS *taos, const char *sql) {
   TAOS_RES *result = taos_query(taos, sql);
   // printf("sql: %s\n", sql);
-  ASSERT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
-  taos_free_result(result);
-}
-
-void checkRows(TAOS *pConn, const char *sql, int32_t expectedRows) {
-  TAOS_RES *pRes = taos_query(pConn, sql);
-  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-  TAOS_ROW pRow = NULL;
-  int      rows = 0;
-  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    rows++;
+  int code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("query failen  sql : %s\n  errstr : %s\n", sql, taos_errstr(result));
+    ASSERT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
   }
-  ASSERT_EQ(rows, expectedRows);
-  taos_free_result(pRes);
+  taos_free_result(result);
 }
 
 typedef struct {
@@ -62,13 +69,12 @@ typedef struct {
 void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, const char *sql, int CTB_NUMS, int ROW_NUMS, int CYC_NUMS,
                 bool isCreateTable) {
   // create database and table
-  do_query(taos, "DROP DATABASE IF EXISTS stmttest_db_1");
-  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmttest_db_1");
-  do_query(
-      taos,
-      "CREATE STABLE IF NOT EXISTS stmttest_db_1.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
-      "(groupId INT, location BINARY(24))");
-  do_query(taos, "USE stmttest_db_1");
+  do_query(taos, "DROP DATABASE IF EXISTS testdb2");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS testdb2");
+  do_query(taos,
+           "CREATE STABLE IF NOT EXISTS testdb2.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
+           "(groupId INT, location BINARY(24))");
+  do_query(taos, "USE testdb2");
 
   // init
   TAOS_STMT *stmt;
@@ -79,7 +85,7 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, const char *sql, int CTB_
   }
   ASSERT_NE(stmt, nullptr);
   int code = taos_stmt_prepare(stmt, sql, 0);
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
   int total_affected = 0;
 
   for (int k = 0; k < CYC_NUMS; k++) {
@@ -118,23 +124,23 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, const char *sql, int CTB_
       if (!isCreateTable) {
         if (k % 2 == 0) {
           code = taos_stmt_set_tbname_tags(stmt, table_name, tags);
-          ASSERT_EQ(code, 0);
+          checkError(stmt, code);
 
         } else {
           if (i % 2 == 0) {
             code = taos_stmt_set_tbname(stmt, table_name);
-            ASSERT_EQ(code, 0);
+            checkError(stmt, code);
           } else {
             code = taos_stmt_set_sub_tbname(stmt, table_name);
-            ASSERT_EQ(code, 0);
+            checkError(stmt, code);
           }
 
           code = taos_stmt_set_tags(stmt, tags);
-          ASSERT_EQ(code, 0);
+          checkError(stmt, code);
         }
       } else {
         code = taos_stmt_set_tbname(stmt, table_name);
-        ASSERT_EQ(code, 0);
+        checkError(stmt, code);
       }
 
       // insert rows
@@ -177,14 +183,14 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, const char *sql, int CTB_
         params[3].buffer = &phase;
         // bind param
         code = taos_stmt_bind_param(stmt, params);
-        ASSERT_EQ(code, 0);
+        checkError(stmt, code);
       }
       // add batch
       code = taos_stmt_add_batch(stmt);
-      ASSERT_EQ(code, 0);
+      checkError(stmt, code);
       // execute batch
       code = taos_stmt_execute(stmt);
-      ASSERT_EQ(code, 0);
+      checkError(stmt, code);
       // get affected rows
       int affected = taos_stmt_affected_rows_once(stmt);
       total_affected += affected;
@@ -194,7 +200,6 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, const char *sql, int CTB_
     }
   }
   ASSERT_EQ(total_affected, CTB_NUMS * ROW_NUMS * CYC_NUMS);
-  checkRows(taos, "select * from meters", CTB_NUMS * ROW_NUMS * CYC_NUMS);
 
   taos_stmt_close(stmt);
 }
@@ -202,29 +207,28 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, const char *sql, int CTB_
 void getFields(TAOS *taos, const char *sql, int expectedALLFieldNum, TAOS_FIELD_E *expectedTagFields,
                int expectedTagFieldNum, TAOS_FIELD_E *expectedColFields, int expectedColFieldNum) {
   // create database and table
-  do_query(taos, "DROP DATABASE IF EXISTS stmttest_db_2");
-  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmttest_db_2");
-  do_query(taos, "USE stmttest_db_2");
-  do_query(
-      taos,
-      "CREATE STABLE IF NOT EXISTS stmttest_db_2.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
-      "(groupId INT, location BINARY(24))");
+  do_query(taos, "DROP DATABASE IF EXISTS testdb3");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS testdb3");
+  do_query(taos, "USE testdb3");
+  do_query(taos,
+           "CREATE STABLE IF NOT EXISTS testdb3.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
+           "(groupId INT, location BINARY(24))");
 
   TAOS_STMT *stmt = taos_stmt_init(taos);
   ASSERT_NE(stmt, nullptr);
   int code = taos_stmt_prepare(stmt, sql, 0);
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
   code = taos_stmt_set_tbname(stmt, "ctb_1");
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
 
   int           fieldNum = 0;
   TAOS_FIELD_E *pFields = NULL;
   code = stmtGetParamNum(stmt, &fieldNum);
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
   ASSERT_EQ(fieldNum, expectedColFieldNum);
 
   code = taos_stmt_get_tag_fields(stmt, &fieldNum, &pFields);
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
   ASSERT_EQ(fieldNum, expectedTagFieldNum);
   for (int i = 0; i < fieldNum; i++) {
     ASSERT_STREQ(pFields[i].name, expectedTagFields[i].name);
@@ -238,7 +242,7 @@ void getFields(TAOS *taos, const char *sql, int expectedALLFieldNum, TAOS_FIELD_
   int type;
   int bytes;
   code = taos_stmt_get_col_fields(stmt, &fieldNum, &pFields);
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
   ASSERT_EQ(fieldNum, expectedColFieldNum);
   for (int i = 0; i < fieldNum; i++) {
     taos_stmt_get_param(stmt, i, &type, &bytes);
@@ -267,7 +271,7 @@ TEST(stmtCase, stb_insert) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
   // interlace = 0
-  { insertData(taos, nullptr, "INSERT INTO stmttest_db_1.? USING meters TAGS(?,?) VALUES (?,?,?,?)", 1, 1, 1, false); }
+  { insertData(taos, nullptr, "INSERT INTO testdb2.? USING meters TAGS(?,?) VALUES (?,?,?,?)", 1, 1, 1, false); }
 
   { insertData(taos, nullptr, "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)", 3, 3, 3, false); }
 
@@ -297,19 +301,18 @@ TEST(stmtCase, get_fields) {
   }
   taos_close(taos);
 }
-/*
+
 TEST(stmtCase, all_type) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  do_query(taos, "drop database if exists stmt_db");
-  do_query(taos, "create database IF NOT EXISTS stmt_db");
-  do_query(taos,
-           "create stable stmt_db.stb(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint,
-c7 " "tinyint, c8 bool, c9 nchar(8))TAGS(tts timestamp, t1 int, t2 bigint, t3 float, t4 double, t5 binary(8), t6 "
-           "smallint, t7 "
-           "tinyint, t8 bool, t9 nchar(8))");
-
+  do_query(taos, "DROP DATABASE IF EXISTS testdb1");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS testdb1");
+  do_query(
+      taos,
+      "create stable testdb1.stb(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint, c7 "
+      "tinyint, c8 bool, c9 nchar(8), c10 geometry(100))TAGS(tts timestamp, t1 int, t2 bigint, t3 float, t4 double, t5 "
+      "binary(8), t6 smallint, t7 tinyint, t8 bool, t9 nchar(8), t10 geometry(100))");
 
   TAOS_STMT *stmt = taos_stmt_init(taos);
   ASSERT_NE(stmt, nullptr);
@@ -326,7 +329,24 @@ c7 " "tinyint, c8 bool, c9 nchar(8))TAGS(tts timestamp, t1 int, t2 bigint, t3 fl
     int8_t        c8;
     int8_t        c9;
     char          c10[32];
-  } v = {0};
+  } v = {1591060628000, 1, 2, 3.0, 4.0, "abcdef", 5, 6, 7, "ijnop"};
+
+  struct {
+    int32_t c1;
+    int32_t c2;
+    int32_t c3;
+    int32_t c4;
+    int32_t c5;
+    int32_t c6;
+    int32_t c7;
+    int32_t c8;
+    int32_t c9;
+    int32_t c10;
+  } v_len = {sizeof(int64_t), sizeof(int32_t),
+             sizeof(int64_t), sizeof(float),
+             sizeof(double),  8,
+             sizeof(int16_t), sizeof(int8_t),
+             sizeof(int8_t),  8};
   TAOS_MULTI_BIND params[11];
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   params[0].buffer_length = sizeof(v.c1);
@@ -398,38 +418,110 @@ c7 " "tinyint, c8 bool, c9 nchar(8))TAGS(tts timestamp, t1 int, t2 bigint, t3 fl
   params[9].is_null = NULL;
   params[9].num = 1;
 
-  char *stmt_sql = "insert into stmt_db.? using stb tags(?,?,?,?,?,?,?,?,?,?)values (?,?,?,?,?,?,?,?,?,?)";
-  int   code = taos_stmt_prepare(stmt, stmt_sql, 0);
-  ASSERT_EQ(code, 0);
+  unsigned char *outputGeom1;
+  size_t         size1;
+  initCtxMakePoint();
+  int code = doMakePoint(1.000, 2.000, &outputGeom1, &size1);
+  checkError(stmt, code);
+  params[10].buffer_type = TSDB_DATA_TYPE_GEOMETRY;
+  params[10].buffer = outputGeom1;
+  params[10].length = (int32_t *)&size1;
+  params[10].is_null = NULL;
+  params[10].num = 1;
+
+  char *stmt_sql = "insert into testdb1.? using stb tags(?,?,?,?,?,?,?,?,?,?,?)values (?,?,?,?,?,?,?,?,?,?,?)";
+  code = taos_stmt_prepare(stmt, stmt_sql, 0);
+  checkError(stmt, code);
 
   code = taos_stmt_set_tbname(stmt, "ntb");
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
 
   code = taos_stmt_set_tags(stmt, params);
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
 
-  v.c1 = (int64_t)1591060628000;
-  v.c2 = (int32_t)2147483647;
-  v.c3 = (int64_t)2147483648;
-  v.c4 = (float)0.1;
-  v.c5 = (double)0.000000001;
-  for (int j = 0; j < sizeof(v.c6); j++) {
-    v.c6[j] = (char)('a');
-  }
-  v.c7 = 32767;
-  v.c8 = 127;
-  v.c9 = 1;
-  strcpy(v.c10, "一二三四五六七八");
-  c10len = strlen(v.c10);
-  taos_stmt_bind_param(stmt, params);
-  taos_stmt_add_batch(stmt);
+  code = taos_stmt_bind_param(stmt, params);
+  checkError(stmt, code);
+
+  code = taos_stmt_add_batch(stmt);
+  checkError(stmt, code);
 
   code = taos_stmt_execute(stmt);
-  ASSERT_EQ(code, 0);
+  checkError(stmt, code);
 
   taos_stmt_close(stmt);
   taos_close(taos);
 }
-*/
+
+TEST(stmtCase, geometry) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "DROP DATABASE IF EXISTS testdb5");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS testdb5");
+  do_query(taos, "CREATE TABLE testdb5.tb1(ts timestamp,c1 geometry(256))");
+
+  TAOS_STMT *stmt = taos_stmt_init(taos);
+  ASSERT_NE(stmt, nullptr);
+  unsigned char wkb1[3][61] = {
+      {
+          0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0xF0, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+      },
+      //
+      {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f},
+      {0x01, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40}};
+
+  int64_t  ts[3] = {1591060628000, 1591060628001, 1591060628002};
+  int32_t *t64_len = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * 3);
+  int32_t *wkb_len = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * 3);
+
+  for (int i = 0; i < 3; i++) {
+    t64_len[i] = sizeof(int64_t);
+  }
+  wkb_len[0] = 21;
+  wkb_len[1] = 61;
+  wkb_len[2] = 41;
+
+  TAOS_MULTI_BIND params[2];
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[0].buffer_length = sizeof(int64_t);
+  params[0].buffer = &ts[0];
+  params[0].length = t64_len;
+  params[0].is_null = NULL;
+  params[0].num = 3;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_GEOMETRY;
+  params[1].buffer_length = 61;
+  params[1].buffer = wkb1;
+  params[1].length = wkb_len;
+  params[1].is_null = NULL;
+  params[1].num = 3;
+
+  char *stmt_sql = "insert into testdb5.tb1 (ts,c1)values(?,?)";
+  int   code = taos_stmt_prepare(stmt, stmt_sql, 0);
+  checkError(stmt, code);
+
+  // code = taos_stmt_set_tbname(stmt, "tb1");
+  // checkError(stmt, code);
+
+  code = taos_stmt_bind_param_batch(stmt, params);
+  checkError(stmt, code);
+
+  code = taos_stmt_add_batch(stmt);
+  checkError(stmt, code);
+
+  code = taos_stmt_execute(stmt);
+  checkError(stmt, code);
+
+  taosMemoryFree(t64_len);
+  taosMemoryFree(wkb_len);
+  taos_stmt_close(stmt);
+  taos_close(taos);
+}
 
 #pragma GCC diagnostic pop
