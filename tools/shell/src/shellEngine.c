@@ -1392,6 +1392,7 @@ int32_t shellExecute() {
   }
 #endif
 #endif
+    // printf version
     if (verType == TSDB_VERSION_ENTERPRISE || verType == TSDB_VERSION_CLOUD) {
       printf("%s\n", buf);
     }
