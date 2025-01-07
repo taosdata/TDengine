@@ -1915,3 +1915,12 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
   }
   TAOS_RETURN(code);
 }
+
+void metaHandleSyncEntry(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaErr(pMeta, code);
+  }
+  return;
+}
