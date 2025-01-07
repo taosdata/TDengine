@@ -15543,11 +15543,9 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
 static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
-  if (!pStmt->withOpt) return code;
-  pCxt->withOpt = true;
-
   SNode* pNode = NULL;
   char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
+
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
     if (IS_SYS_DBNAME(pClause->dbName)) {
@@ -15555,6 +15553,13 @@ static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) 
                                      "Cannot drop table of system database: `%s`.`%s`", pClause->dbName,
                                      pClause->tableName);
     }
+  }
+
+  if (!pStmt->withOpt) return code;
+
+  pCxt->withOpt = true;
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
     for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
       if (pClause->tableName[i] == '\0') {
         break;
