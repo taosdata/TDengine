@@ -17,6 +17,7 @@
 #include "audit.h"
 #include "mndConfig.h"
 #include "mndDnode.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndSync.h"
 #include "mndTrans.h"
@@ -33,8 +34,9 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndInitWriteCfg(SMnode *pMnode);
-static int32_t mndTryRebuildCfg(SMnode *pMnode);
+static int32_t mndSendRebuildReq(SMnode *pMnode);
 static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array);
+static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq);
 static void    cfgArrayCleanUp(SArray *array);
 static void    cfgObjArrayCleanUp(SArray *array);
 
@@ -59,6 +61,7 @@ int32_t mndInitConfig(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_SDB, mndTryRebuildConfigSdb);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -214,7 +217,7 @@ static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *pOld, SConfigObj *pNew
 
 static int32_t mndCfgActionDeploy(SMnode *pMnode) { return mndInitWriteCfg(pMnode); }
 
-static int32_t mndCfgActionAfterRestored(SMnode *pMnode) { return mndTryRebuildCfg(pMnode); }
+static int32_t mndCfgActionAfterRestored(SMnode *pMnode) { return mndSendRebuildReq(pMnode); }
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
@@ -340,7 +343,32 @@ _OVER:
   return code;
 }
 
-int32_t mndTryRebuildCfg(SMnode *pMnode) {
+int32_t mndSendRebuildReq(SMnode *pMnode) {
+  int32_t code = 0;
+
+  SRpcMsg rpcMsg = {.pCont = NULL,
+                    .contLen = 0,
+                    .msgType = TDMT_MND_CONFIG_SDB,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1,
+                    .info.refId = 0,
+                    .info.noResp = 0,
+                    .info.handle = 0};
+  SRpcMsg rpcRsp = {0};
+  SEpSet  epSet = {0};
+  int8_t  epUpdated = 0;
+  mndGetMnodeEpSet(pMnode, &epSet);
+
+  code = rpcSendRecvWithTimeout(pMnode->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated,
+                                tsStatusInterval * 5 * 1000);
+  if (code != 0) {
+    mError("failed to send rebuild config req, since %s", tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
   if (!mndIsLeader(pMnode)) {
     return TSDB_CODE_SUCCESS;
   }
