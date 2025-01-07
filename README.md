@@ -31,43 +31,22 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 - [2. Documentation](#2-documentation)
 - [3. Prerequisites](#3-prerequisites)
   - [3.1 Install dependencies tools](#31-install-dependencies-tools)
-    - [3.1.1 Linux platform](#311-linux-platform)
-      - [Install the required package for linux](#install-the-required-package-for-linux)
-      - [Install Go for linux](#install-go-for-linux)
-      - [Install node for linux](#install-node-for-linux)
-      - [Install Python-connector for linux](#install-python-connector-for-linux)
-    - [3.1.2 Windows platform](#312-windows-platform)
-      - [Install the required package for windows](#install-the-required-package-for-windows)
-    - [3.1.3 MacOS platform](#313-macos-platform)
-      - [Install the required package for macOS](#install-the-required-package-for-macos)
   - [3.2 Get the source codes](#32-get-the-source-codes)
   - [3.3 Special Note](#33-special-note)
 - [4. Building](#4-building)
-  - [4.1 Linux platform building](#41-linux-platform-building)
-  - [4.2 Windows platform building](#42-windows-platform-building)
-  - [4.3 MacOS platform building](#43-macos-platform-building)
 - [5. Packaging](#5-packaging)
-  - [5.1 Linux platform packaging](#51-linux-platform-packaging)
-  - [5.2 Windows platform packaging](#52-windows-platform-packaging)
-  - [5.3 MacOS platform packaging](#53-macos-platform-packaging)
 - [6. Installation](#6-installation)
-  - [6.1 Linux platform installation](#61-linux-platform-installation)
-  - [6.2 Windows platform installation](#62-windows-platform-installation)
-  - [6.3 MacOS platform installation](#63-macos-platform-installation)
 - [7. Running](#7-running)
-  - [7.1 Linux platform](#71-linux-platform)
-  - [7.2 Windows platform](#72-windows-platform)
-  - [7.3 MacOS platform](#73-macos-platform)
 - [8. Testing](#8-testing)
-  - [8.1 Linux platform testing](#81-linux-platform-testing)
-  - [8.2 Windows platform testing](#82-windows-platform-testing)
-  - [8.3 MacOS platform testing](#83-macos-platform-testing)
+  - [8.1 Run the TSIM test script](#81-run-the-tsim-test-script)
+  - [8.2 Run the Python test script](#82-run-the-python-test-script)
+  - [8.3 Run unittest](#83-run-unittest)
+  - [8.4 Smoke Testing](#84-smoke-testing)
+  - [8.5 TSBS Test --replace](#85-tsbs-test---replace)
+  - [8.6 Crash\_gen Test](#86-crash_gen-test)
 - [9. Releasing](#9-releasing)
-  - [9.1 Linux platform releasing](#91-linux-platform-releasing)
-  - [9.2 Windows platform realeasing](#92-windows-platform-realeasing)
-  - [9.3 MacOS platform releasing](#93-macos-platform-releasing)
 - [10. CI/CD](#10-cicd)
-- [11. Coverage](#11-coverage)
+- [11. Coverage --replace](#11-coverage---replace)
 - [12. Contributing](#12-contributing)
 
 # 1. Introduction
@@ -104,15 +83,13 @@ Step-by-step instructions to set up the prerequisites software.
 
 ## 3.1 Install dependencies tools
 
-### 3.1.1 Linux platform
-
-#### Install the required package for linux
+Install the required package for linux
 
 ```bash
 apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping
 ```
 
-#### Install Go for linux
+Install Go for linux
 
 Update the installation package to version 1.23.3.
 
@@ -150,7 +127,7 @@ go env
 go version
 ```
 
-#### Install node for linux
+Install node for linux
 
 Recommend install node using nvm.
 
@@ -179,7 +156,7 @@ npm config set registry=https://registry.npmmirror.com
 npm install -g yarn
 ```
 
-#### Install Python-connector for linux
+Install Python-connector for linux
 
 Install Python3.
 
@@ -200,14 +177,11 @@ Install the Python connector for TDengine.
 pip3 install taospy taos-ws-py
 ```
 
-### 3.1.2 Windows platform
+Install the required package for windows
 
-#### Install the required package for windows
+to be updated...
 
-
-### 3.1.3 MacOS platform
-
-#### Install the required package for macOS
+Install the required package for macOS
 
 ```
 brew install argp-standalone gflags pkgconfig
@@ -243,7 +217,7 @@ TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) a
 
 To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in the project directory.
 
-## 4.1 Linux platform building
+Linux platform building
 
 You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
 
@@ -276,7 +250,7 @@ aarch64:
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
 ```
 
-## 4.2 Windows platform building
+4.2 Windows platform building
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
 Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
@@ -308,7 +282,7 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-## 4.3 MacOS platform building
+MacOS platform building
 
 Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
 
@@ -319,15 +293,21 @@ cmake .. && cmake --build .
 
 # 5. Packaging
 
-## 5.1 Linux platform packaging
+Linux platform packaging
 
-## 5.2 Windows platform packaging
+to be updated...
 
-## 5.3 MacOS platform packaging
+Windows platform packaging
+
+to be updated...
+
+MacOS platform packaging
+
+to be updated...
 
 # 6. Installation
 
-## 6.1 Linux platform installation
+Linux platform installation
 
 After building successfully, TDengine can be installed by
 
@@ -337,9 +317,9 @@ sudo make install
 
 Users can find more information about directories installed on the system in the [directory and files](https://docs.tdengine.com/reference/directory/) section.
 
-Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.tdengine.com/get-started/package/) for it.
+Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
 
-## 6.2 Windows platform installation
+Windows platform installation
 
 After building successfully, TDengine can be installed by:
 
@@ -347,7 +327,7 @@ After building successfully, TDengine can be installed by:
 nmake install
 ```
 
-## 6.3 MacOS platform installation
+MacOS platform installation
 
 After building successfully, TDengine can be installed by:
 
@@ -355,29 +335,9 @@ After building successfully, TDengine can be installed by:
 sudo make install
 ```
 
-Users can find more information about directories installed on the system in the [directory and files](https://docs.tdengine.com/reference/directory/) section.
-
-Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.tdengine.com/get-started/package/) for it.
-
-To start the service after installation, double-click the /applications/TDengine to start the program, or in a terminal, use:
-
-```bash
-sudo launchctl start com.tdengine.taosd
-```
-
-Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
-
-```bash
-taos
-```
-
-If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
-
 # 7. Running
 
-## 7.1 Linux platform
-
-To start the service after installation, in a terminal, use:
+To start the service after installation on linux, in a terminal, use:
 
 ```bash
 sudo systemctl start taosd
@@ -405,87 +365,117 @@ In another terminal, use the TDengine CLI to connect the server:
 
 option "-c test/cfg" specifies the system configuration file directory.
 
-## 7.2 Windows platform
+To start the service after installation on windows, in a terminal, use:
 
-## 7.3 MacOS platform
+```bash
+to be updated
+```
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+to be updated
+```
+
+To start the service after installation on macOS, double-click the /applications/TDengine to start the program, or in a terminal, use:
+
+```bash
+sudo launchctl start com.tdengine.taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+taos
+```
+
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
 # 8. Testing
 
-## 8.1 Linux platform testing
+## 8.1 Run the TSIM test script
 
-### 8.1.1 Run the TSIM test script
-Run the TSIM test script to simulate TDengine.
+TSIM test framework is developed by c++ in the start-up period of TDengine， the test scripts are basic cases, you can run 
+the script with below command:
+
 ```bash
 cd /root/TDengine/tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
 
-### 8.1.2 Run the Python test script
-Run the Python test script to simulate TDengine.
+## 8.2 Run the Python test script
+Python test script includes almost all of the functions of TDengine, so some test case maybe fail cause the function only
+work for TDengine enterprise version, you can run the script with below command:
+
 ```bash
 cd /root/TDengine/tests/system-test
 python3 ./test.py -f 2-query/floor.py
 ```
 
-### 8.1.3 Run unittest
-Run the unit test script to simulate TDengine.
+## 8.3 Run unittest
+Unit test script is the smallest testable part and developed for some function, method or class of TDengine, you can run
+the script with below command:
+
 ```bash
 cd /root/TDengine/tests/unit-test/
 bash test.sh
 ```
 
-### 8.1.4 Smoke Testing
-Run the smoke test script to simulate TDengine.
+## 8.4 Smoke Testing
+Smoke test script is known as sanity testing to ensure that the critical functionalities of TDengine, you can run the 
+script with below command:
+
 ```bash
 cd /root/TDengine/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
-### 8.1.5 TSBS Test --replace
-Run the TSBS test script to simulate TDengine.
+## 8.5 TSBS Test --replace
+The Time Series Benchmark Suite(TSBS) test script provides a standardized approach to evaluate the performance of various
+time series databases, you can run the script with below command:
+
 1. Clone the code
 ```bash
 cd /root && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp
 ```
-2. Modify IP and host of client and server in `test.ini`
+1. Modify IP and host of client and server in `test.ini`
 ```ini
 clientIP="192.168.0.203"   # client ip
 clientHost="trd03"         # client hostname
 serverIP="192.168.0.204"   # server ip
 serverHost="trd04"         # server hostname
 ```
-3. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+1. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
 ```ini
 serverPass="taosdata123"   # server root password
 ```
-4. Run the following command to start the test:
+1. Run the following command to start the test:
  ```bash
 nohup bash tsdbComparison.sh > test.log &
 ```
-5. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+1. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
 
-### 8.1.6 Crash_gen Test
-Run the crash_gen script to simulate TDengine.
+## 8.6 Crash_gen Test
+Crash_gen is a chaotic testing tool developed by TDengine, it can evaluate the resilience of TDengine through simulating 
+normal operation、intentional fault injection and their combination, you can run the script with below command:
+
 ```bash
 cd /root/TDengine/tests/pytest/ && ./crash_gen.sh
 ```
 
+Windows platform testing
 
-## 8.2 Windows platform testing
+to be updated...
 
-## 8.3 MacOS platform testing
+MacOS platform testing
+
+to be updated...
 
 # 9. Releasing
 
-## 9.1 Linux platform releasing
-
-## 9.2 Windows platform realeasing
-
-## 9.3 MacOS platform releasing
+You can access the [Release](https://github.com/taosdata/TDengine/releases) for TDengine release version list.
 
 # 10. CI/CD 
-We use jenkins for CI/CD workflow configuration. See http://ci.bl.taosdata.com:8080/job/NewTest/view/change-requests/
-We can also run ci script locally.
+You can run ci script locally with below commands:
 
 ```bash
 cd /root/TDengine/tests
