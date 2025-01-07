@@ -665,6 +665,14 @@ typedef enum {
   ANAL_ALGO_TYPE_END,
 } EAnalAlgoType;
 
+typedef enum {
+  TSDB_VERSION_UNKNOWN = 0,
+  TSDB_VERSION_OSS,
+  TSDB_VERSION_ENTERPRISE,
+  TSDB_VERSION_CLOUD,
+  TSDB_VERSION_END,
+} EVersionType;
+
 #define MIN_RESERVE_MEM_SIZE 1024 // MB
 
 #ifdef __cplusplus
