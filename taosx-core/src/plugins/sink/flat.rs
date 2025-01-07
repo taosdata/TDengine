@@ -1890,14 +1890,17 @@ pub async fn ipc_flat_stream_worker_concurrent(
         }
 
         tokio::select! {
-            Some(record) = stream.next() => {
+            res = stream.next() => {
+                let Some(record) = res else {
+                    break;
+                };
                 batches += 1;
                 match record {
                     Ok(record) => {
                         metrics_arc.ipc().add_received_batches(1);
-                    metrics_arc
-                        .ipc()
-                        .add_received_messages(record.nrows() as u64);
+                        metrics_arc
+                            .ipc()
+                            .add_received_messages(record.nrows() as u64);
                         msg_tx.send_async(record).await?;
                     }
                     Err(err) => {
@@ -1918,7 +1921,6 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 };
             }
             _ = cancel.cancelled() => continue,
-            else => break
         }
     }
 
