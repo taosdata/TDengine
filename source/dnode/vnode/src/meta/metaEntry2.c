@@ -1920,7 +1920,7 @@ void metaHandleSyncEntry(SMeta *pMeta, const SMetaEntry *pEntry) {
   int32_t code = TSDB_CODE_SUCCESS;
   code = metaHandleEntry2(pMeta, pEntry);
   if (code) {
-    metaErr(pMeta, code);
+    metaErr(TD_VID(pMeta->pVnode), code);
   }
   return;
 }
