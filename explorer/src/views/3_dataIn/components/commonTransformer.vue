@@ -394,13 +394,28 @@
               <template slot="content">
                 <span v-html="$t('communityTip')"></span>
               </template>
+              <el-dropdown
+                v-if="$store.state.app.supportTopicBody" 
+                size="small" 
+                @command="createStable"
+                >
+                <el-button size="small" type="primary" plain>
+                  {{ $t('datasource.transformer.createstb') }}
+                  <i class="el-icon-arrow-down el-icon--right"></i>
+                </el-button>
+                <el-dropdown-menu slot="dropdown">
+                  <el-dropdown-item command="sqlCreate">{{ $t('datasource.transformer.createstb') }}</el-dropdown-item>
+                  <el-dropdown-item command="templateCreate">{{ $t('datasource.transformer.templatestb') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </el-dropdown>
               <el-button
+                v-else
                 type="primary"
                 class="btn-icon-small"
                 size="small"
                 icon="el-icon-plus"
                 plain
-                @click="createStable"
+                @click="createStable('sqlCreate')"
                 :disabled="$store.state.app.currentDBName == '' || columnsArr.length === 0 || $COMMUNITY"
               >
                 {{ $t("datasource.transformer.createstb") }}
@@ -620,15 +635,13 @@
         @close="closeDialog"
         :close-on-click-modal="false"
       >
-        <CreateSTB ref="createstb" :columnsArr="columnsArr"></CreateSTB>
-        <div class="buttons">
-          <el-button type="primary" size="small" @click="createST">
-            {{ $t("create") }}
-          </el-button>
-          <el-button size="small" @click="closeDialog">
-            {{ $t("cancel") }}
-          </el-button>
-        </div>
+        <CreateSTB ref="createstb" 
+          :activeType="activeType"
+          @close="closeDialog"
+          @create="createST"
+          @preview="previewStable"
+          :key="componentKey"
+        ></CreateSTB>
       </el-dialog>
       <!-- <el-dialog
         :title="$t('datasource.transformer.udtTip')"
@@ -676,7 +689,7 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getParser, checkParseData, getSampleDataMsgbody, listParserPlugins } from "@/api/explorer/datain";
+import { getParser, checkParseData, getSampleDataMsgbody, listParserPlugins, getStabelParser } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
@@ -687,6 +700,8 @@ import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, getExampleList } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
+import { VariableTableColumnType } from "@/const"
+import { convert } from "../utils.js";
 
 const PARSER_BUILDIN = ["json", "regex", "udt"];
 
@@ -759,6 +774,7 @@ export default {
       mappingcolumns: [],
       msgForm: {
         msgbody: "",
+        topicbody: []
       },
       params_columns: [],
       params_tags: [],
@@ -836,7 +852,9 @@ export default {
       dialogVisible: false,
       checkedProperties: [],
       requesting: false,
-      refreshKey: 0
+      refreshKey: 0,
+      componentKey: 0,
+      activeType: '',
     };
   },
   computed: {
@@ -1020,6 +1038,8 @@ export default {
         }
         result.input.map(item => {
           this.msgForm.msgbody += item.payload + "\n";
+          const { payload, ...rest } = item; 
+          this.msgForm.topicbody.push(rest)
         })
       } else {
         this.msgForm.msgbody = JSON.stringify(result);
@@ -1032,6 +1052,7 @@ export default {
     },
     clearMsgBody() {
       this.msgForm.msgbody = ''
+      this.msgForm.topicbody = []
     },
     validateSubName() {
       let flag = false;
@@ -1428,7 +1449,13 @@ export default {
             : this.isCSV
             ? csvechoTransData.msgBody
             : value.input.map((item) => item.value).join(" ");
-
+        // 回填解析 topic 的值
+        if (this.$store.state.app.supportTopicBody) {
+          value.input.map(item => {
+            const { payload, ...rest } = item; 
+            this.msgForm.topicbody.push(rest)
+          })
+        }
         let tagKey = "";
         switch (this.$store.state.app.currentDBType) {
           case "mqtt":
@@ -1472,7 +1499,7 @@ export default {
           let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
           let obj = {
             columnname: item[0],
-            expression: Object.values(item[1]).flat(1).join(";"),
+            expression: Object.keys(item[1]).toString() == 'convert'? JSON.stringify(Object.values(item[1])[0]) : Object.values(item[1]).flat(1).join(";"),
             type: Object.keys(item[1]).toString(),
             columns: this.columnsArr,
             key: Math.random(),
@@ -1549,7 +1576,9 @@ export default {
         }
         this.sruleForm.s_name = value.parser.model.using;
         // this.subrule.subname = value.parser.model.name;
-        await this.getSTbaleList(true);
+        // !!value.parser.s_model 为了判断是不是用模版创建的
+        this.$store.state.app.s_model = value.parser.s_model
+        await this.getSTbaleList(true,!!value.parser.s_model);
         await this.echoFetchMap();
         if (this.$store.state.app.currentDBType !== 'csv' && !this.$store.state.app.supportSQL) {
           await this.selectJson();
@@ -1802,6 +1831,11 @@ export default {
         },
       };
 
+      // mqtt 用模版的方式创建超级表增加的参数
+      if (JSON.stringify(this.$store.state.app.s_model) !== '{}') {
+        parserData.parser['s_model'] = this.$store.state.app.s_model
+      }
+
       // 至少必须配置一个tag和一个column 
       if (tags.length == 0 || commonColumns.length == 0) {
         Message.closeAll();
@@ -1866,6 +1900,10 @@ export default {
           currentPage: this.currentPage,
         },
       };
+
+      if (JSON.stringify(this.$store.state.app.s_model) !== '{}') {
+        parserData.parser['s_model'] = this.$store.state.app.s_model
+      }
     
       this.$store.commit("app/SET_TRANS_FULL_PARAMS", parserData);
       // this.$emit("getTransformerParams", parserData);
@@ -1892,35 +1930,32 @@ export default {
           return;
         }
         this.isbreak = false;
-        let outputColumns = result[0].fields.map((item) => item.name);
-        let outputTBData = result[0].columns.map((data) => {
-          return Object.fromEntries(
-            result[0].fields.map((item, index) => {
-              return [item.name, this.filterEmpty(data[index])];
-            })
-          );
-        });
-        let overlapColumns = [];
-        this.tableData
-          .map((val) => val["Name"])
-          .forEach((item) => {
-            if (outputColumns.includes(item)) {
-              overlapColumns.push(item);
-            }
-          });
-        if (outputColumns.includes("__tbname__")) {
-          let index = this.tableData.findIndex(
-            (item) => item["Type"] == "Tablename"
-          );
-          overlapColumns.push(this.tableData[index]["Name"]);
-        }
-        
+      
         // 预览映射结果table数据
-        let resultTableData = outputTBData.map(item => {
-          item.SubTableName = item['__tbname__'];
-          const { __using__, __tbname__, ...rest } = item;
-          return rest;
+        let resultTableData = [];
+        resultTableData = result.map(item => {
+          const fields = item.fields;
+          const columns = item.columns;
+          const fieldNames = fields.map(field => field.name); 
+
+          return columns.map(row => {
+            // 为每一行数据创建一个字典，字段名作为键，行数据作为值
+            let rowDict = {};
+            fieldNames.forEach((fieldName, index) => {
+                rowDict[fieldName] = this.filterEmpty(row[index]);
+            });
+
+            if (this.$store.state.app.currentDBType == 'mqtt') {
+              rowDict.SuperTableName = rowDict['__using__'];  
+            }
+            rowDict.SubTableName = rowDict['__tbname__'];  
+
+            const { __using__, __tbname__, ...rest } = rowDict;
+
+            return rest;
+          });
         });
+     
         this.$store.commit('app/SET_RESULTTB_SHOW',true);
         this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'mappingResTb');
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultTableData);
@@ -1962,6 +1997,8 @@ export default {
                     ? "" //parsinginZone(new Date())
                     : item.name;
               }
+                // inputobj['tp1'] = 'tp1' 有很多列需要插入锦进来
+
             } else if (this.$store.state.app.currentDBType == "kafka") {
               if (item.name == "value") {
                 inputobj["value"] = msg;
@@ -1985,6 +2022,13 @@ export default {
         });
         return inputobj;
       });
+
+      // mqtt 有主题解析时需要加上字段
+      inputList = inputList.map((item, index) => {
+        const newItem = this.msgForm.topicbody[index];
+        return { ...item, ...newItem };
+      });
+    
       return inputList.filter(v => JSON.stringify(v) !== '{}');
     },
     submitSuper(data) {
@@ -2093,6 +2137,52 @@ export default {
         }
       });
     },
+    async previewStable() {
+      this.$refs.createstb.$refs.form.validate(async (valid) => {
+        if (!valid) return false;
+        if (valid) {
+          const { name, columns, tags } = this.$refs.createstb.stable_form;
+          const newColumns = columns.map(col => {
+            return {
+              name: col.field,
+              length: col.length,
+              type: col.type + (VariableTableColumnType.includes(col.type) ? `(${col.length})` : ''),
+            }
+          })
+          const newTags = tags.map(col => {
+            return {
+              name: col.field,
+              length: col.length,
+              type: col.type + (VariableTableColumnType.includes(col.type) ? `(${col.length})` : ''),
+            }
+          })
+          const s_model = {
+            name,
+            columns: newColumns,
+            tags: newTags
+          }
+          const parserData = {
+          parser: {
+            parse: this.$store.state.app.topParse.parser.parse,
+            s_model: s_model,
+            mutate: this.$store.state.app.transformExtractParseData ? [].concat(this.$store.state.app.transformExtractParseData) : [],
+          },
+
+          input: this.$store.state.app.topParse.input
+        }
+
+        const result = await getStabelParser(parserData)
+        if (result && Object.hasOwnProperty.call(result,'code')) {
+          this.$error(result.message || result.desc)
+          return
+        }
+        this.$store.state.app.s_model = s_model
+        this.sruleForm.s_name = name;
+        this.getSTbaleList(false,true);
+        this.closeDialog()
+      }
+    })
+    },
     //获取初始化的stables
     async getInitStables() {
       try {
@@ -2109,7 +2199,7 @@ export default {
         console.log(error);
       }
     },
-    createStable() {
+    createStable(command) {
       if (!this.$store.state.app.currentDBName) {
         this.$store.commit("app/SET_CREATESTWITHOUT_DB", 1);
         return;
@@ -2121,7 +2211,9 @@ export default {
         this.$refs.extract[this.$refs.extract.length - 1].submitExtract(true);
       }
 
+      this.activeType = command
       this.showCreateDialog = true;
+      this.componentKey ++
     },
     //回显数据调用mapping接口
     echoFetchMap() {
@@ -2170,20 +2262,26 @@ export default {
         this.caculateMappingResult();
       }
     },
-    async getSTbaleList(isEcho) {
+    async getSTbaleList(isEcho, isTemplateCreate) {
       try {
         this.currentPage = 1;
-        let res = await sendSQLReq(
-          `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
-        );
-        let precision = await sendSQLReq(`
+        let res = {}
+        if (isTemplateCreate) {
+          res.data = convert(this.$store.state.app.s_model);
+        } else {
+          res = await sendSQLReq(
+            `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
+          );
+          if (res.desc) {
+            this.$error(res.desc);
+            return;
+          }
+        }
+        
+        const precision = await sendSQLReq(`
         select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
         `);
-        if (res.desc) {
-          this.$error(res.desc);
-          return;
-        }
-  
+
         if (this.$store.state.app.transformerMapCloumns) {
           this.$set(
             this,
@@ -2243,7 +2341,7 @@ export default {
           );
 
           tableRow.Type =
-              val[1] == "TIMESTAMP"
+              (val[1] == "TIMESTAMP")
                 ? val[1] + "(" + precision.data[0][0] + ")"
                 : val[1];
           tableRow.maptype =
@@ -2689,14 +2787,6 @@ export default {
     .el-button {
       width: 100%;
     }
-  }
-}
-.buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  .el-button {
-    width: 60px;
   }
 }
 .transdescription {

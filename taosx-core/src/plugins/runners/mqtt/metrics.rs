@@ -13,7 +13,7 @@ const DUMPED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_dumped_messages"
 const FETCHED_ACKS: FastStr = FastStr::from_static_str("mqtt_fetched_acks");
 const ACK_FAILS: FastStr = FastStr::from_static_str("mqtt_ack_fails");
 const UNPROCESSED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_unprocessed_messages");
-const PROCESSING_BATCHES: FastStr = FastStr::from_static_str("mqtt_processing_batches");
+const SENT_BATCHES: FastStr = FastStr::from_static_str("mqtt_sent_batches");
 const DISCARDED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_discarded_messages");
 const DISCARDED_DUMP_MESSAGES: FastStr = FastStr::from_static_str("mqtt_discarded_dump_messages");
 
@@ -26,7 +26,7 @@ pub(crate) struct MqttMetrics {
     fetched_acks: AtomicU64,
     ack_fails: AtomicU64,
     unprocessed_messages: AtomicU64,
-    processing_batches: AtomicU64,
+    sent_batches: AtomicU64,
     discard_messages: AtomicU64,
     discard_dump_messages: AtomicU64,
 }
@@ -40,7 +40,7 @@ impl MqttMetrics {
             fetched_acks: AtomicU64::default(),
             ack_fails: AtomicU64::default(),
             unprocessed_messages: AtomicU64::default(),
-            processing_batches: AtomicU64::default(),
+            sent_batches: AtomicU64::default(),
             discard_messages: AtomicU64::default(),
             discard_dump_messages: AtomicU64::default(),
         }
@@ -91,18 +91,12 @@ impl MqttMetrics {
         self.unprocessed_messages.load(atomic::Ordering::SeqCst)
     }
 
-    pub(crate) fn add_processing_batches(&self) {
-        self.processing_batches
-            .fetch_add(1, atomic::Ordering::SeqCst);
+    pub(crate) fn add_sent_batches(&self) {
+        self.sent_batches.fetch_add(1, atomic::Ordering::SeqCst);
     }
 
-    pub(crate) fn sub_processing_batches(&self) {
-        self.processing_batches
-            .fetch_sub(1, atomic::Ordering::SeqCst);
-    }
-
-    pub(crate) fn processing_batches(&self) -> u64 {
-        self.processing_batches.load(atomic::Ordering::SeqCst)
+    pub(crate) fn sent_batches(&self) -> u64 {
+        self.sent_batches.load(atomic::Ordering::SeqCst)
     }
 
     pub(crate) fn add_discarded_messages(&self) {
@@ -129,7 +123,7 @@ impl MqttMetrics {
         metrics.set_extra_metric(&FETCHED_ACKS, 0);
         metrics.set_extra_metric(&ACK_FAILS, 0);
         metrics.set_extra_metric(&UNPROCESSED_MESSAGES, 0);
-        metrics.set_extra_metric(&PROCESSING_BATCHES, 0);
+        metrics.set_extra_metric(&SENT_BATCHES, 0);
         metrics.set_extra_metric(&DISCARDED_MESSAGES, 0);
         metrics.set_extra_metric(&DISCARDED_DUMP_MESSAGES, 0);
     }
@@ -141,7 +135,7 @@ impl MqttMetrics {
         metrics.set_extra_metric(&FETCHED_ACKS, self.fetched_acks());
         metrics.set_extra_metric(&ACK_FAILS, self.ack_fails());
         metrics.set_extra_metric(&UNPROCESSED_MESSAGES, self.unprocessed_messages());
-        metrics.set_extra_metric(&PROCESSING_BATCHES, self.processing_batches());
+        metrics.set_extra_metric(&SENT_BATCHES, self.sent_batches());
         metrics.set_extra_metric(&DISCARDED_MESSAGES, self.discarded_messages());
         metrics.set_extra_metric(&DISCARDED_DUMP_MESSAGES, self.discard_dump_messages());
     }
@@ -169,9 +163,7 @@ mod tests {
         metrics.add_unprocessed_messages();
         metrics.add_unprocessed_messages();
         metrics.sub_unprocessed_messages(1);
-        metrics.add_processing_batches();
-        metrics.add_processing_batches();
-        metrics.sub_processing_batches();
+        metrics.add_sent_batches();
         metrics.add_discarded_messages();
         metrics.add_discarded_dump_messages();
 
@@ -182,7 +174,7 @@ mod tests {
         assert_eq!(get_value(extras, &FETCHED_ACKS).await, Some(1));
         assert_eq!(get_value(extras, &ACK_FAILS).await, Some(1));
         assert_eq!(get_value(extras, &UNPROCESSED_MESSAGES).await, Some(1));
-        assert_eq!(get_value(extras, &PROCESSING_BATCHES).await, Some(1));
+        assert_eq!(get_value(extras, &SENT_BATCHES).await, Some(1));
         assert_eq!(get_value(extras, &DISCARDED_MESSAGES).await, Some(1));
         assert_eq!(get_value(extras, &DISCARDED_DUMP_MESSAGES).await, Some(1));
 
@@ -193,7 +185,7 @@ mod tests {
         assert_eq!(get_value(extras, &FETCHED_ACKS).await, Some(0));
         assert_eq!(get_value(extras, &ACK_FAILS).await, Some(0));
         assert_eq!(get_value(extras, &UNPROCESSED_MESSAGES).await, Some(0));
-        assert_eq!(get_value(extras, &PROCESSING_BATCHES).await, Some(0));
+        assert_eq!(get_value(extras, &SENT_BATCHES).await, Some(0));
         assert_eq!(get_value(extras, &DISCARDED_MESSAGES).await, Some(0));
         assert_eq!(get_value(extras, &DISCARDED_DUMP_MESSAGES).await, Some(0));
         Ok(())

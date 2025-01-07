@@ -2936,6 +2936,17 @@ export function getDataSources(lang) {
                 edit_disabled: true,
               },
               {
+                name: "topic_pattern",
+                display: "Topic Analysis",
+                hint: {
+                  type: "str",
+                },
+                short_description: "",
+                description: "Resolves the subscription topic wildcard content into variables",
+                required: false,
+                placeholder: "_/_/site_controller_id/_/point_name/data_type",
+              },
+              {
                 name: "compression",
                 display: "Compression",
                 hint: {
@@ -8768,6 +8779,17 @@ export function getDataSources(lang) {
                   "输入格式有误，请按照格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，例如： `topic1::0,topic2::1`",
                 placeholder: "topic1::0,topic2::1",
                 edit_disabled: true,
+              },
+              {
+                name: "topic_pattern",
+                display: "主题解析",
+                hint: {
+                  type: "str",
+                },
+                short_description: "",
+                description: "将订阅主题通配符内容解析为变量",
+                required: false,
+                placeholder: "_/_/site_controller_id/_/point_name/data_type",
               },
               {
                 name: "compression",

@@ -46,6 +46,12 @@ where
     }
 }
 
+impl Processor for () {
+    fn process(&self, src: Vec<u8>) -> anyhow::Result<Vec<u8>> {
+        Ok(src)
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Decompressor {
     Noop,

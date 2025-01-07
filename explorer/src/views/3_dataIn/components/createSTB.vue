@@ -74,7 +74,7 @@
               style="min-width: 60px"
             >
           </el-input>
-          <el-tag effect="plain" type="info" v-if="index==1 && version_gt_3300">
+          <el-tag effect="plain" type="info" v-if="index==1 && version_gt_3300 && activeType=='sqlCreate'">
               <el-checkbox 
                 v-model="column.primaryKey"  
                 :disabled="parmaryKeyType.findIndex((item) => column.type.startsWith(item.value)) == -1"
@@ -82,7 +82,7 @@
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.encode')" v-if="version_gt_3300">
+              :content="$t('console.encode')" v-if="version_gt_3300 && activeType=='sqlCreate'">
               <el-select
                 size="small"
                 default-first-option
@@ -101,7 +101,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.compress')" v-if="version_gt_3300">
+              :content="$t('console.compress')" v-if="version_gt_3300 && activeType=='sqlCreate'">
               <el-select
                 size="small"
                 default-first-option
@@ -120,7 +120,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.level')" v-if="version_gt_3300">
+              :content="$t('console.level')" v-if="version_gt_3300 && activeType=='sqlCreate'">
               <el-select
                 size="small"
                 default-first-option
@@ -172,7 +172,7 @@
             class="columnPrependBtn"
           >
             <el-option
-              v-for="item in tagType"
+              v-for="item in handleTypeList(column.type, 'tagType')"
               :key="item.value"
               v-bind="item"
             ></el-option>
@@ -208,6 +208,14 @@
         </div>
       </el-collapse-item>
     </el-collapse>
+    <div class="buttons">
+      <el-button type="primary" size="small" @click="submit">
+        {{ $t("create") }}
+      </el-button>
+      <el-button size="small" @click="close">
+        {{ $t("cancel") }}
+      </el-button>
+    </div>
   </div>
 </template>
 <script>
@@ -279,48 +287,86 @@ export default {
         ],
       },
       activeNames: ["1", "2"],
-      VariableTableColumnType
+      VariableTableColumnType,
+      // activeType: 'sqlCreate',
+      templateDataType: []
     };
   },
   props: {
-    columnsArr: {
-      type: Array,
-      default: () => [],
+    activeType: {
+      type: String,
+      default: ''
     }
   },
   mixins: [VersionMixin],
   watch: {
-    "$store.state.app.stbDefaultColumns": {
-      handler(columnsArr_new) {
-        if (columnsArr_new.length > 0) {
-          let arr = columnsArr_new;
-          arr = arr.map(item => {
-            let type = item.localType.toUpperCase()
-            type = type.startsWith('TIMESTAMP') ? type.split('(')[0] : type
-            return {
-              field: item.name,
-              type: type,
-              encode: this.handleEncodeList(type)['defaultEncode'],
-              compress: this.handleEncodeList(type)['defaultCompress'],
-              level: 'medium'
-            }
-          })
-          arr.unshift(deepClone(this.column_item_ts))
-          this.stable_form.columns = arr;
-          this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+    activeType: {
+      handler(type) {
+        if (type == 'templateCreate') {
+          // 模版创建初始值UI
+          this.initTemplateColumns()
         } else {
-          this.$set(this.stable_form.columns, 0, deepClone(this.column_item_ts));
-          this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
-          this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+          this.initColumns()
         }
       },
       immediate: true,
-      deep: true,
     }
   },
   mounted() {
   },
   methods: {
+    initColumns(){
+      let arr = this.$store.state.app.stbDefaultColumns;
+      if (this.$store.state.app.stbDefaultColumns.length>0) {
+        arr = arr.map(item => {
+        let type = item.localType.toUpperCase()
+        type = type.startsWith('TIMESTAMP') ? type.split('(')[0] : type
+        return {
+          field: item.name,
+          type: type,
+          encode: this.handleEncodeList(type)['defaultEncode'],
+          compress: this.handleEncodeList(type)['defaultCompress'],
+          level: 'medium'
+        }
+      })
+      arr.unshift(deepClone(this.column_item_ts))
+      this.stable_form.columns = arr;
+      this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+      } else {
+        this.$set(this.stable_form.columns, 0, deepClone(this.column_item_ts));
+        this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
+        this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+      }
+    },
+    initTemplateColumns() {
+      const column_item = {
+        type: "TIMESTAMP", 
+        field: "ts", 
+        value: "",
+        length:8, 
+        primaryKey: false 
+      }
+      if (JSON.stringify(this.$store.state.app.s_model) == '{}') {
+        this.stable_form.name =''
+        this.stable_form.columns = [].concat(column_item, deepClone(this.column_item))
+        this.stable_form.tags = [].concat(deepClone(this.column_item))
+      } else {
+        const s_model = deepClone(this.$store.state.app.s_model)
+        this.stable_form.name = s_model.name
+        this.stable_form.columns = s_model.columns.map(item => ({...item,field:item.name}))
+        this.stable_form.tags = s_model.tags.map(item => ({...item,field:item.name}))
+      }
+      
+      let arr = this.$store.state.app.stbDefaultColumns;
+      arr = arr.map(item => {
+        return {
+          label: `\${${item.name}}`,
+          value: `\${${item.name}}`
+        }
+      })
+      // 动态获取字段{label: 'data_type','value': 'data_type'}
+      this.templateDataType = arr
+    },
     handleChange(newVal, oldVal, type, index) {
       this.$set(this.stable_form.columns[index], "length", newVal);
     },
@@ -392,8 +438,22 @@ export default {
       }
     },
     handleTypeList(currentType, name) {
-      return this[name];
+      if (this.activeType === 'sqlCreate') {
+        return this[name];
+      } else {
+        return this[name].concat(this.templateDataType)
+      }
     },
+    submit(){
+      if(this.activeType == 'sqlCreate') {
+        this.$emit('create')
+      } else {
+        this.$emit('preview')
+      }
+    },
+    close() {
+      this.$emit('close')
+    }
   },
 };
 </script>
@@ -486,5 +546,13 @@ export default {
 
 .create-stb ::v-deep .el-tag {
   border-left: none;
+}
+.buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  .el-button {
+    width: 60px;
+  }
 }
 </style>

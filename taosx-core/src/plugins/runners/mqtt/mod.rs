@@ -3,16 +3,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
-use arrow::array::{
-    BinaryBuilder, RecordBatch, StringBuilder, TimestampNanosecondBuilder, UInt8Builder,
-};
 use arrow::ipc::writer::StreamWriter;
-use arrow_schema::{DataType, Field, Schema};
-use client::{GenericMessagePoller, Message, MessagePoller};
+use batch::{build_schema, RecordBatchBuilder};
+use client::{GenericMessagePoller, MessagePoller};
 use config::MqttConnectConfig;
 use flume::TrySendError;
 use futures::pin_mut;
-use linked_hash_map::LinkedHashMap;
 use metrics::MqttMetrics;
 use serde_json::json;
 use taos::Dsn;
@@ -26,16 +22,18 @@ use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::mqtt::config::MqttConfig;
-use crate::utils::codec::{Decompressor, Processor, StringDecoder};
+use crate::utils::codec::Processor;
 use crate::utils::defer::defer;
 use crate::{build_ipc, Parser, Transferred};
 
 use super::{get_data_dir, set_tcp_keepalive};
 
+mod batch;
 mod client;
 mod config;
 mod dump;
 mod metrics;
+mod topic;
 
 pub const MQTT_ID: &str = "mqtt";
 
@@ -94,7 +92,7 @@ pub async fn mqtt_to_taos(
     {
         Ok(tasks) => tasks,
         Err(e) => {
-            tracing::error!("start execute MQTT tasks error: {e}");
+            tracing::error!("start execute MQTT tasks error: {e:#}");
             cancel_token.cancel();
             ipc_server_handle.close().await.ok();
             return Err(e).context("start execute MQTT tasks error");
@@ -128,12 +126,12 @@ pub async fn mqtt_to_taos(
                     Some(Ok(Ok(_))) => {},
                     Some(Ok(Err(e))) => {
                         safe_exit!();
-                        tracing::error!("MQTT client exit with error: {e}");
+                        tracing::error!("MQTT client exit with error: {e:#}");
                         return Err(e);
                     }
                     Some(Err(e)) => {
                         safe_exit!();
-                        tracing::error!("MQTT client paniced: {e}");
+                        tracing::error!("MQTT client paniced: {e:#}");
                         return Err(e).context("MQTT task paniced");
                     }
                     None => break,
@@ -171,7 +169,7 @@ async fn execute(
 ) -> anyhow::Result<JoinSet<Result<(), anyhow::Error>>> {
     let config: MqttConfig = from.try_into()?;
     let mut tasks = JoinSet::new();
-    let schema = build_schema();
+    let schema = build_schema(config.topic_pattern.as_ref());
 
     tasks.spawn(
         {
@@ -221,7 +219,6 @@ async fn execute(
                 metrics.add_fetched_acks();
                 // add permit
                 permit_tx.send(()).ok();
-                metrics.sub_processing_batches();
                 // handle ack error
                 if !ack.success() {
                     metrics.add_ack_fails();
@@ -260,7 +257,7 @@ async fn execute(
                         ipc_writer
                             .write(&batch)
                             .context("Write batch to ipc writer error")?;
-                        metrics.add_processing_batches();
+                        metrics.add_sent_batches();
                     }
                     Err(_) => break,
                 }
@@ -271,7 +268,9 @@ async fn execute(
     });
 
     // build client
-    let mut poller = GenericMessagePoller::from_config(&config.mqtt, config.topics).await?;
+    let mut poller = GenericMessagePoller::from_config(&config.mqtt, config.topics)
+        .await
+        .context("build MQTT poller from config error")?;
 
     // read from mqtt
     let (message_tx, message_rx) = flume::bounded(config.task.unprocessed_messages_buffer_size);
@@ -316,7 +315,7 @@ async fn execute(
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Fetch MQTT message error: {e}");
+                        tracing::error!("Fetch MQTT message error: {e:#}");
                         return Err(e).context("Fetch MQTT message error");
                     }
                 }
@@ -378,7 +377,11 @@ async fn execute(
     // build batch
     tasks.spawn(
         async move {
-            let mut builder = RecordBatchBuilder::new(schema, config.codec_processor);
+            let mut builder = RecordBatchBuilder::new(
+                Arc::new(schema),
+                config.codec_processor,
+                config.topic_pattern,
+            );
             let chunk_stream = message_rx.into_stream().chunks_timeout(
                 config.task.batch_size,
                 Duration::from_millis(config.task.batch_timeout as u64),
@@ -410,90 +413,6 @@ async fn execute(
     Ok(tasks)
 }
 
-fn build_schema() -> Schema {
-    let fields = vec![
-        Field::new(
-            "ts",
-            DataType::Timestamp(arrow::datatypes::TimeUnit::Nanosecond, None),
-            false,
-        ),
-        Field::new("topic", DataType::Utf8, false),
-        Field::new("qos", DataType::UInt8, false),
-        Field::new("payload", DataType::Binary, false),
-    ];
-
-    let meta = HashMap::from_iter([
-        ("version".to_string(), "1.0".to_string()),
-        ("stream".to_string(), "flat".to_string()),
-        ("ack".to_string(), "lush".to_string()),
-    ]);
-
-    Schema::new_with_metadata(fields, meta)
-}
-
-struct RecordBatchBuilder {
-    schema: Schema,
-
-    ts: TimestampNanosecondBuilder,
-    topic: StringBuilder,
-    qos: UInt8Builder,
-    payload: BinaryBuilder,
-
-    codec_err_count: usize,
-    codec_processor: (Option<Decompressor>, Option<StringDecoder>),
-}
-
-impl RecordBatchBuilder {
-    fn new(schema: Schema, codec_processor: (Option<Decompressor>, Option<StringDecoder>)) -> Self {
-        Self {
-            schema,
-            codec_err_count: 0,
-            codec_processor,
-            ts: TimestampNanosecondBuilder::new(),
-            topic: StringBuilder::new(),
-            qos: UInt8Builder::new(),
-            payload: BinaryBuilder::new(),
-        }
-    }
-
-    fn build<I>(&mut self, messages: I) -> anyhow::Result<RecordBatch>
-    where
-        I: IntoIterator<Item = Message>,
-    {
-        for message in messages {
-            let payload = match self.codec_processor.process(message.payload.to_vec()) {
-                Ok(payload) => {
-                    self.codec_err_count = 0;
-                    payload
-                }
-                Err(e) => {
-                    tracing::error!("codec process message error: {e:#}");
-                    self.codec_err_count += 1;
-                    if self.codec_err_count < 3 {
-                        continue;
-                    }
-                    return Err(e);
-                }
-            };
-            self.ts.append_value(message.ts);
-            self.qos.append_value(message.qos);
-            self.topic.append_value(message.topic);
-            self.payload.append_value(payload);
-        }
-
-        RecordBatch::try_new(
-            Arc::new(self.schema.clone()),
-            vec![
-                Arc::new(self.ts.finish()),
-                Arc::new(self.topic.finish()),
-                Arc::new(self.qos.finish()),
-                Arc::new(self.payload.finish()),
-            ],
-        )
-        .context("build record batch error")
-    }
-}
-
 /// Check the connectivity of the mqtt server
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match TryInto::<MqttConnectConfig>::try_into(dsn) {
@@ -510,7 +429,11 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                 Ok(_) => DataSourceValidation::valid("mqtt", None),
                 Err(e) => DataSourceValidation::invalid(
                     "mqtt",
-                    format!("failed to connect to dsn: {}, cause: {:}", dsn, e),
+                    format!(
+                        "failed to connect to dsn: {}, {:#}",
+                        dsn,
+                        anyhow::Error::new(e)
+                    ),
                 ),
             }
         }
@@ -519,17 +442,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 
 /// get sample data from mqtt server
 pub async fn get_sample(dsn: &Dsn, limit: usize, timeout: Duration) -> anyhow::Result<DsSampleIn> {
-    let sample_list: Vec<String> = get_sample_message(dsn, limit, timeout).await?;
-
-    let mut sample_vec: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
-    for payload in sample_list {
-        let mut p = LinkedHashMap::new();
-        p.insert("payload".to_string(), json!(payload));
-        sample_vec.push(p);
-    }
+    let samples = get_sample_message(dsn, limit, timeout).await?;
 
     let sample_json = json!({
-        "input": sample_vec,
+        "input": samples,
         "parser": {}
     });
 
@@ -543,18 +459,20 @@ async fn get_sample_message(
     dsn: &Dsn,
     limit: usize,
     timeout: Duration,
-) -> anyhow::Result<Vec<String>> {
+) -> anyhow::Result<Vec<HashMap<String, String>>> {
     let mut config: MqttConfig = dsn.try_into()?;
     // generate a unique client if for get sample operation
     config
         .mqtt
         .client_id
         .push_str(&format!("_sample_{}", uuid::Uuid::new_v4().simple()));
-    let mut poller = GenericMessagePoller::from_config(&config.mqtt, config.topics).await?;
+    let mut poller = GenericMessagePoller::from_config(&config.mqtt, config.topics)
+        .await
+        .context("build MQTT poller from config error")?;
 
     let start = std::time::Instant::now();
     let mut count = 0;
-    let mut payload_list: Vec<String> = Vec::with_capacity(limit);
+    let mut res = Vec::with_capacity(limit);
     loop {
         let elapsed = start.elapsed();
         if elapsed >= timeout || count >= limit {
@@ -566,7 +484,13 @@ async fn get_sample_message(
             Err(_elapsed) => continue,
         };
 
-        payload_list.push(
+        let mut map = HashMap::with_capacity(limit);
+        if let Some(pattern) = config.topic_pattern.as_mut() {
+            map.extend(pattern.parse_topic(&message.topic)?);
+        }
+
+        map.insert(
+            "payload".to_string(),
             config
                 .codec_processor
                 .process(message.payload.to_vec())
@@ -574,8 +498,10 @@ async fn get_sample_message(
                     String::from_utf8(s).context("parse mqtt string message from bytes error")
                 })?,
         );
+
+        res.push(map);
         count += 1;
     }
 
-    Ok(payload_list)
+    Ok(res)
 }

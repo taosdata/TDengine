@@ -1,5 +1,5 @@
 <template>
-  <div class="result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight}">
+  <div class="result-table" v-if="showtable" ref="result" :style="{'max-height': resultTableMaxHeight +'px'}">
     <div class="title-block">
       <span class="title">{{ $t(`datasource.transformer.${title}`) }}</span>
       <span class="title-block">
@@ -12,45 +12,19 @@
         <span class='el-icon-close' @click="showtable=false"></span>
       </span>
     </div>
-    <el-table
-      border
-      style="width: 100%"
-      :max-height="defaultHeight-99"
-      :data="pageTableData"
-      :row-class-name="tableRowClassName"
-      ref='table'
-      v-if="!drawer"
-    >
-      <el-table-column
-        v-for="item in columns"
-        :key="item"
-        :prop="item"
-        :sortable="item == 'Name' ? true : false"
-        show-overflow-tooltip
-        :label="item"
-      >
-      <template slot="header">
-        <el-tooltip :content="item" placement="top-start">
-          <span>{{ item }}</span>
-        </el-tooltip>
-      </template>
-    </el-table-column>
-    </el-table>
-    <el-drawer
-      :title="$t(`datasource.transformer.${title}`)"
-      :visible.sync="drawer"
-      direction="rtl"
-      size="100%">
+    <template v-for="(tableItme, index) in pageTableData">
       <el-table
+        :key="index"
         border
-        style="width: 100%"
-        :data="pageTableData"
+        style="width: 100%;margin-bottom: 20px;"
+        :max-height="defaultHeight-99"
+        :data="tableItme"
         :row-class-name="tableRowClassName"
         ref='table'
-        size='small'
-        v-if="drawer">
+        v-if="!drawer"
+      >
         <el-table-column
-          v-for="item in columns"
+          v-for="item in columns[index]"
           :key="item"
           :prop="item"
           :sortable="item == 'Name' ? true : false"
@@ -64,6 +38,38 @@
         </template>
       </el-table-column>
       </el-table>
+    </template>
+    <el-drawer
+      :title="$t(`datasource.transformer.${title}`)"
+      :visible.sync="drawer"
+      direction="rtl"
+      size="100%">
+      <template v-for="(tableItme, index) in pageTableData">
+        <el-table
+          :key="index"
+          border
+          style="width: 100%;margin-bottom: 20px;"
+          :data="tableItme"
+          :row-class-name="tableRowClassName"
+          ref='table'
+          size='small'
+          v-if="drawer">
+          <el-table-column
+            v-for="item in columns[index]"
+            :key="item"
+            :prop="item"
+            :sortable="item == 'Name' ? true : false"
+            show-overflow-tooltip
+            :label="item"
+          >
+          <template slot="header">
+            <el-tooltip :content="item" placement="top-start">
+              <span>{{ item }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        </el-table>
+      </template>
     </el-drawer>
     <!-- <div class="block-page">
       <el-pagination
@@ -101,9 +107,10 @@ export default {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       MongoDBDefaultCols: ["value"],
-      mappingCol: "SubTableName",
+      mappingCol: ["SubTableName", "SuperTableName"],
       defaultHeight:510,
-      drawer: false
+      drawer: false,
+      resultTableMaxHeight: 510
     };
   },
   mounted() {
@@ -117,9 +124,11 @@ export default {
       this.handleScroll();
     }
     const mainDom = document.querySelector(".main_content");
+    const parserDom = document.querySelector('#parser')
     this.$nextTick(()=>{
       let height=mainDom.offsetHeight
       this.defaultHeight=height-100
+      this.resultTableMaxHeight = parserDom?.offsetHeight-200
     })
     mainDom.addEventListener("scroll", this.handleScroll);
     this.$once("hook:beforeDestroy", () => {
@@ -170,8 +179,17 @@ export default {
       this.pageTableData.splice(0, Infinity);
       this.setPageTableData();
     },
+    isArray2D(arr) {
+      return Array.isArray(arr) && arr.length >0 && arr.every(item => Array.isArray(item));
+    },
     getResultData(data) {
-      let totalData = [];
+      let data2D = []
+      if (this.isArray2D(data)) {
+        data2D = data
+      } else {
+        data2D.push(data)
+      }
+
       let hiddenCols = [];
       if (this.$store.state.app.currentDBType == "mqtt") {
         hiddenCols = this.mqttDefaultCols;
@@ -182,42 +200,28 @@ export default {
       if (this.$store.state.app.currentDBType == "mongodb") {
         hiddenCols = this.MongoDBDefaultCols;
       }
-      let columns = Object.keys(data[0]).filter((item) => {
-        return !hiddenCols.includes(item);
-      });
+      let columns = data2D.map(item => {
+        return Object.keys(item[0]).filter((field) => {
+          return !hiddenCols.includes(field);
+        });
+        
+      })
+
       this.columns = columns;
       this.totalCount = columns.length;
       if (this.$store.state.app.resultTbTitle == 'mappingResTb') {
-        const index = this.columns.indexOf(this.mappingCol);
-        if (index > 0) {
-          this.columns.splice(index, 1);
-          this.columns.unshift(this.mappingCol);
-        }
-      }
-      this.tableData = data.slice(0,this.limitOffset);
+        this.mappingCol.forEach(item => {
+          this.columns.forEach(cols => {
+            const index = cols.indexOf(item);
+            if (index > 0) {
+              cols.splice(index, 1);
+              cols.unshift(item);
+            }
+          })
+        })
 
-      // this.tableData = columns
-        // .map((key) => {
-        //   let obj = {};
-        //   obj["Name"] = key;
-        //   obj["Value"] = data
-        //     .map((val) => {
-        //       return val[key];
-        //     })
-        //     .join(";");
-        //   return obj;
-        // })
-        // .map((val) => {
-        //   let final = {};
-        //   final["Output1"] = null;
-        //   final["Output2"] = null;
-        //   final["Output3"] = null;
-        //   final["Name"] = val["Name"];
-        //   val["Value"].split(";").map((v, ind) => {
-        //     final["Output" + (ind + 1)] = v;
-        //   });
-        //   return final;
-        // });
+      }
+      this.tableData = data2D.map(arr => arr.slice(0,this.limitOffset))
 
       const timer = setTimeout(() => {
         clearTimeout(timer)
@@ -297,6 +301,7 @@ export default {
   //   max-width: 600px;
   //   min-width: 480px;
   position: absolute;
+  overflow-y: auto;
   .block-page {
     overflow: auto;
   }

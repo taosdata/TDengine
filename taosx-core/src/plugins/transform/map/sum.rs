@@ -60,6 +60,8 @@ mod tests {
     use arrow_schema::DataType;
     use taosx_ipc::prelude::IpcDataType;
 
+    use crate::plugins::transform::map::AsType;
+
     use super::*;
 
     #[test]
@@ -169,7 +171,7 @@ mod tests {
         .unwrap();
 
         let (field, value) = builder
-            .build_field("sum", &batch, Some(IpcDataType::Float64))
+            .build_field("sum", &batch, Some(AsType::Ipc(IpcDataType::Float64)))
             .unwrap();
 
         assert_eq!(field.name(), "sum");
@@ -198,7 +200,7 @@ mod tests {
         .unwrap();
 
         let (field, value) = builder
-            .build_field("sum", &batch, Some(IpcDataType::Float64))
+            .build_field("sum", &batch, Some(AsType::Ipc(IpcDataType::Float64)))
             .unwrap();
 
         assert_eq!(field.name(), "sum");

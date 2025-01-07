@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{path::PathBuf, time::Duration};
 
+use anyhow::Context;
 use clap::Parser;
 use crossterm::event::EventStream;
 use futures::StreamExt;
@@ -49,7 +50,7 @@ async fn main() {
 
     let token = CancellationToken::new();
 
-    let faker = Arc::new(DataFaker::from_toml(args.schema).await.unwrap());
+    let faker = Arc::new(DataFaker::from_file(args.schema).unwrap());
 
     let mut config = ClientConfig::new();
     config.set("bootstrap.servers", args.servers);
@@ -93,7 +94,7 @@ async fn main() {
                     p
                 },
                 Err(e) => {
-                    println!("create producer error: {e}");
+                    println!("create producer error: {e:#}");
                     return
                 },
             };
@@ -121,9 +122,13 @@ async fn main() {
                             rayon::spawn({
                                 let faker = faker.clone();
                                 move || {
-                                    let value = faker.rand_json().inspect_err(|e| println!("gen fake data error: {e}")).unwrap();
-                                    let value = serde_json::to_vec(&value).inspect_err(|e| println!("serialize json error: {e}")).unwrap();
-                                    let value = processor.process(value).inspect_err(|e| println!("process payload error: {e}")).unwrap();
+                                    let value = faker
+                                        .rand_json()
+                                        .context("gen fake data error")
+                                        .and_then(|value| serde_json::to_vec(&value).context("serialize json error"))
+                                        .and_then(|value| processor.process(value).context("processer process error"))
+                                        .inspect_err(|e| println!("get value error: {e:#}"))
+                                        .unwrap();
                                     tx.send(value).ok();
                                 }
                             });

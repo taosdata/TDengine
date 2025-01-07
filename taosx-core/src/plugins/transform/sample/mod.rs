@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Context;
+use arrow_compute_ext::RecordBatchExt;
 use arrow_schema::{DataType, Field};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
@@ -10,6 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::plugins::transform::parse::{FieldParser, ParserImpl};
 use utoipa::ToSchema;
+
+use super::to_json_valid_batches;
 
 /// Sample data input with transform pipeline.
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -74,6 +77,49 @@ impl DsSampleIn {
             .map(|batch| batch.to_modeled_json())
             .collect_vec();
         Ok(output)
+    }
+
+    pub fn stable_preview(&self) -> anyhow::Result<impl Serialize> {
+        if self.input.is_empty() {
+            anyhow::bail!("Input should not be empty");
+        }
+
+        let json = self
+            .input
+            .iter()
+            .flat_map(|value| serde_json::to_vec(value).unwrap())
+            .collect_vec();
+
+        let schema = self.to_schema()?;
+
+        let mut reader = arrow::json::reader::ReaderBuilder::new(Arc::new(schema))
+            .build(json.as_slice())
+            .context("Could not build record reader from json stream")?;
+        let batch = reader.next().unwrap()?;
+
+        let batch = self.parser.transform_records(&batch)?;
+
+        let json_batches = to_json_valid_batches(&[batch]);
+
+        let json: Vec<_> = json_batches
+            .iter()
+            .map(|batch| {
+                batch
+                    .to_json_rows()
+                    .map(|v| v.into_iter().map(serde_json::Value::from))
+            })
+            .flatten_ok()
+            .try_collect()?;
+
+        let stables = self
+            .parser
+            .s_model
+            .as_ref()
+            .map(|s| s.apply(&json, &self.parser.global))
+            .transpose()?
+            .context("stable model not found")?;
+
+        Ok(stables.values().cloned().collect::<Vec<_>>())
     }
 
     pub fn to_schema(&self) -> anyhow::Result<arrow::datatypes::Schema> {

@@ -48,7 +48,7 @@ impl Failed<()> {
     pub fn from_error(err: impl Display) -> Self {
         Self {
             code: Code::FAILED,
-            message: format!("{}", err),
+            message: format!("{err}"),
             data: (),
         }
     }
@@ -182,8 +182,7 @@ pub(super) async fn create_task(
     // validate parser
     if let Some(parser) = task.parser.as_ref() {
         // check TIMESTAMP Precision: all columns should have same precision
-        let parser_string = parser.to_string();
-        if !check_parser_timestamp_precision(&parser_string) {
+        if !check_parser_timestamp_precision(parser) {
             return Err(Failed::from_error(
                 "parser shouldn't contains different timestamp precision",
             ));
@@ -198,16 +197,24 @@ pub(super) async fn create_task(
     }
 }
 
-pub fn check_parser_timestamp_precision(parser_string: &str) -> bool {
-    if (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#))
+pub fn check_parser_timestamp_precision(parser: &serde_json::Value) -> bool {
+    let mut parser = parser.clone();
+    if let Some(parser) = parser
+        .as_object_mut()
+        .and_then(|v| v.get_mut("parser").and_then(|v| v.as_object_mut()))
+    {
+        parser.remove("s_model");
+    }
+    let parser_string = parser.to_string();
+    check_parser_string_timestamp_precision(&parser_string)
+}
+
+pub fn check_parser_string_timestamp_precision(parser_string: &str) -> bool {
+    !((parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#))
         || (parser_string.contains(r#""TIMESTAMP""#)
             && parser_string.contains(r#""TIMESTAMP(ns)""#))
         || (parser_string.contains(r#""TIMESTAMP(us)""#)
-            && parser_string.contains(r#""TIMESTAMP(ns)""#))
-    {
-        return false;
-    }
-    true
+            && parser_string.contains(r#""TIMESTAMP(ns)""#)))
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -288,8 +295,7 @@ pub(super) async fn update_task(
     // validate parser
     if let Some(parser) = task.parser.as_ref() {
         // check TIMESTAMP Precision: all columns should have same precision
-        let parser_string = parser.to_string();
-        if !check_parser_timestamp_precision(&parser_string) {
+        if !check_parser_timestamp_precision(parser) {
             return Err(Failed::from_error(
                 "parser shouldn't contains different timestamp precision",
             ));

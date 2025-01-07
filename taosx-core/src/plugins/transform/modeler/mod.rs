@@ -1,9 +1,11 @@
+pub mod stable;
+
 use std::ops::Deref;
 use std::sync::Arc;
 
 use anyhow::Context;
 use arrow::{
-    array::{ArrayRef, StringArray},
+    array::{Array, ArrayRef, StringArray},
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
@@ -12,11 +14,15 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taosx_ipc::prelude::IpcDataType;
 
+use crate::plugins::transform::pivot;
 use crate::plugins::{
     expr::{BooleanExpr, Expr},
-    transform::constants::{
-        FIELD_NAME_TBNAME, FIELD_NAME_USING, SCOPE_COLUMN, SCOPE_PRIMARY_KEY, SCOPE_S_TABLE_NAME,
-        SCOPE_TABLE_NAME, SCOPE_TAG,
+    transform::{
+        constants::{
+            FIELD_NAME_TBNAME, FIELD_NAME_USING, SCOPE_COLUMN, SCOPE_PRIMARY_KEY,
+            SCOPE_S_TABLE_NAME, SCOPE_TABLE_NAME, SCOPE_TAG,
+        },
+        indices_to_ranges,
     },
 };
 
@@ -184,12 +190,11 @@ impl ModeledRecordBatch {
 
 impl Modeler {
     pub fn apply(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, super::Error> {
-        let records: Vec<_> = self
-            .0
+        self.0
             .iter()
             .map(|table| table.apply(records))
-            .try_collect()?;
-        Ok(records)
+            .flatten_ok()
+            .try_collect()
     }
 }
 
@@ -281,7 +286,7 @@ impl Table {
         Ok(name_array)
     }
 
-    pub fn apply(&self, records: &RecordBatch) -> Result<ModeledRecordBatch, super::Error> {
+    pub fn apply(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, super::Error> {
         // Check if the table has at least two column.
         assert!(records.num_columns() >= 2);
         if self.name.is_empty() {
@@ -384,6 +389,13 @@ impl Table {
             fields.push(primary_field);
             columns.push(primary_array);
 
+            let pivot_names = names.iter().filter_map(|name| {
+                name.strip_prefix("${")
+                    .and_then(|name| name.strip_suffix("}"))
+                    .map(|s| s.to_string())
+            });
+            let mut names = names.to_vec();
+            names.extend(pivot_names);
             for name in &names[1..] {
                 let field = schema.field_with_name(name)?;
                 let mut metadata = field.metadata().clone();
@@ -414,7 +426,71 @@ impl Table {
 
         let schema = Arc::new(Schema::new(fields));
         let batch = RecordBatch::try_new(schema, columns)?;
-        Ok(ModeledRecordBatch::new(batch))
+
+        let pivot_fields = records
+            .schema_ref()
+            .fields()
+            .iter()
+            .filter_map(|f| {
+                f.name()
+                    .strip_prefix("${")
+                    .and_then(|name| name.strip_suffix("}"))
+                    .map(|name| (name, f.name().as_str()))
+            })
+            .collect_vec();
+        if pivot_fields.is_empty() {
+            return Ok(vec![ModeledRecordBatch::new(batch)]);
+        }
+
+        let ts_field = self
+            .columns
+            .as_ref()
+            .and_then(|cols| cols.first())
+            .and_then(|col| batch.schema_ref().field_with_name(col).ok())
+            .context("ts field not found")?;
+
+        let normal_cols = batch
+            .schema_ref()
+            .fields()
+            .iter()
+            .map(|f| f.name())
+            .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>();
+
+        // record 行 按照 子表名称分类
+        let tables = (0..batch.num_rows())
+            .filter_map(|row| {
+                batch
+                    .column_by_name(FIELD_NAME_TBNAME)
+                    .and_then(|array| array.as_any().downcast_ref::<StringArray>())
+                    .map(|v| (v.value(row), row))
+            })
+            .into_group_map();
+
+        let mut res = Vec::new();
+        for (name, indices) in tables {
+            // because we did not set a useful name, so we skip it
+            if name.is_empty() || indices.is_empty() {
+                continue;
+            }
+            // 获取当前子表名的所有 batch 拼接为一个 batch
+            let ranges = indices_to_ranges(&indices);
+            // pivot
+            let batches = ranges
+                .iter()
+                .map(|range| batch.slice(range.start, range.len()))
+                .collect_vec();
+            let pivot_batch = arrow::compute::concat_batches(batch.schema_ref(), batches.iter())
+                .context("pivot concat batch error")?;
+
+            let batches = pivot(pivot_batch, ts_field, &pivot_fields, &normal_cols)?;
+            for batch in batches {
+                res.push(ModeledRecordBatch::new(batch))
+            }
+        }
+
+        Ok(res)
     }
 }
 

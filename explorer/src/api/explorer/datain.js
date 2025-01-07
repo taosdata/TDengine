@@ -259,8 +259,14 @@ function parseglobal(data) {
 }
 
 // 前端组装数据，不使用后端的 from_detail
-export async function refreshTask(id) {
-    let taskDetail = await loadTaskDetail(id)
+export async function refreshTask(id, jsonData) {
+    let taskDetail = {}
+    if (id) {
+       taskDetail = await loadTaskDetail(id)
+    } else {
+        taskDetail = jsonData
+    }
+
     let dsType = taskDetail.from_expand.id;
 
     let dsConfig = getDataSource(i18n.locale, dsType);
@@ -412,6 +418,23 @@ export function getParser(data, messagebox) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
         url: `/transform/sample/flat?tz=${getLocalTimezone()}`,
+        method: 'post',
+        transformResponse: [function (data) {
+            try {
+              return JSONbig.parse(data);
+            } catch (error) {
+              return data;
+            }
+          }],
+        data
+    })
+}
+
+// 用模版的方式创建超级表的预览api
+export function getStabelParser(data, messagebox) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/transform/sample/flat/s_model/preview?tz=${getLocalTimezone()}`,
         method: 'post',
         transformResponse: [function (data) {
             try {

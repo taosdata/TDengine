@@ -33,6 +33,8 @@ mod tests {
     use std::sync::Arc;
     use taosx_ipc::prelude::IpcDataType;
 
+    use crate::plugins::transform::map::AsType;
+
     use super::*;
 
     #[test]
@@ -95,7 +97,7 @@ mod tests {
         .unwrap();
 
         let (field, value) = builder
-            .build_field("c", &batch, Some(IpcDataType::VarChar(32)))
+            .build_field("c", &batch, Some(AsType::Ipc(IpcDataType::VarChar(32))))
             .unwrap();
 
         assert_eq!(field.name(), "c");

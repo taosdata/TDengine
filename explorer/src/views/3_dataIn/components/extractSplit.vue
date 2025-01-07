@@ -134,7 +134,7 @@ export default {
       extractParseData: {},
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
-      extractTypes: ["split", "regex", "join"],
+      extractTypes: ["split", "regex", "join", "convert"],
       ruleForm: {
         col_name: "",
         filter_name: "",
@@ -407,6 +407,7 @@ export default {
         //多json对象
         resultMsgbody = this.$parent.msgForm.msgbody
           .replace(/\}\s*\{/g, "}&${")
+          .trim()
           .split("&$");
         this.isJson = true;
       } else {
@@ -419,6 +420,7 @@ export default {
             .replace(/[\n\s]/g, "*&$*")
             .split("*&$*");
           this.isJson = false;
+          console.log('22222222:');
         } else {
           try {
             if (
@@ -428,6 +430,7 @@ export default {
               //单json对象
               resultMsgbody = [].concat(this.$parent.msgForm.msgbody);
               this.isJson = true;
+              console.log('33333:');
             }
           } catch (error) {
             this.$error(this.$t("datasource.transformer.jsontip"));
@@ -457,17 +460,17 @@ export default {
         this.indentifiedColumns
           .filter((val) => !hiddenCols.includes(val.name))
           .forEach((item) => {
-                        if (this.$store.state.app.currentDBType == "mqtt") {
+            if (this.$store.state.app.currentDBType == "mqtt") {
               if (item.name == "payload") {
-                                inputobj["payload"] = isall
+                inputobj["payload"] = isall
                   ? msg
                   : this.isJson
                     ? JSON.stringify({
                         [`${this.itemData.columnname}`]:
-                          JSON.parse(msg)[this.itemData.columnname],
+                          JSON.parse(msg.replace(/\n/g, '\\n'))[this.itemData.columnname]
                       })
                     : msg;
-                                } else {
+              } else {
                 inputobj[item.name] =
                   item.type == "timestamp"
                     ? parsinginZone(new Date())
@@ -509,6 +512,22 @@ export default {
           });
         return inputobj;
       });
+
+      // 如果手动增加了编辑了输入框中值，可能导致顺序发生变化
+      if (this.$store.state.app.currentDBType == "mqtt") {
+        inputList = inputList.map((msg, index) => {
+          let inputobj = {...msg};
+          inputobj[this.itemData.columnname] = this.$parent.msgForm.topicbody[index][this.itemData.columnname] 
+          if (isall) {
+            inputobj = {...this.$parent.msgForm.topicbody[index], ...inputobj}
+          }
+          if (inputobj.payload === '{}') {
+            delete inputobj.payload
+          }
+          return inputobj;
+        });
+      }
+
       this.extractParseData = {
         extract: {},
       };
@@ -520,28 +539,32 @@ export default {
       }
       deepClone(this.$parent.extractArr)
         .map((item) => {
-          let splitobj = null;
-          if (item.type == "split") {
-            splitobj = Object.fromEntries(
-              Object.entries(item?.splitParams).filter(([key, value]) => {
-                return value !== null && value != undefined && value != "";
-              })
+          let value;
+
+          if (item.type === "regex" || item.type === "join") {
+            value = item.expression;
+          } else if (item.type === "split") {
+            // 处理split类型
+            const splitobj = Object.fromEntries(
+              Object.entries(item.splitParams).filter(([key, value]) => value != null && value !== "")
             );
-            splitobj["n"] = Number(splitobj["n"]);
+            splitobj.n = Number(splitobj.n);
             Object.hasOwnProperty.call(splitobj, "names")
               ? (splitobj["names"] = splitobj["names"].split(","))
               : splitobj;
+            value = splitobj;
+          } else if(item.type === 'convert') {
+            value = item.expression ? JSON.parse(item.expression) : {};
+          } else {
+            // 处理其他类型
+            value = item.expression
+              ? item.expression.split(";").map((str) => str.trim())
+              : item.expression;
           }
+
           return {
             [`${item.columnname}`]: {
-              [`${item.type}`]:
-                item.type == "regex" || item.type == "join"
-                  ? item.expression
-                  : item.type == "split"
-                  ? splitobj
-                  : item.expression
-                  ? item.expression.split(";").map((item) => item.trim())
-                  : item.expression,
+              [`${item.type}`]: value,
             },
           };
         })
