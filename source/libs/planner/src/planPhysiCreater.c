@@ -2053,6 +2053,23 @@ static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
   return DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder ? true : false;
 }
 
+bool projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject) {
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+  if (DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder) {
+    return false;
+  }
+  if (GROUP_ACTION_KEEP == pProject->node.groupAction) {
+    return false;
+  }
+  if (DATA_ORDER_LEVEL_NONE == pProject->node.resultDataOrder) {
+    return true;
+  }
+  if (1 != LIST_LENGTH(pProject->node.pChildren)) {
+    return true;
+  }
+  return false;
+}
+
 static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                       SProjectLogicNode* pProjectLogicNode, SPhysiNode** pPhyNode) {
   SProjectPhysiNode* pProject =
