@@ -1527,6 +1527,11 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
     goto end;
   }
 
+  code = catalogRefreshTableMeta(pCatalog, &conn, &pName, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;

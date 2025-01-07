@@ -19,110 +19,77 @@
 #include "taos.h"
 #include "types.h"
 
-int buildStable(TAOS* pConn, TAOS_RES* pRes) {
-  pRes = taos_query(pConn,
-                    "CREATE STABLE `meters` (`ts` TIMESTAMP, `current` INT, `voltage` INT, `phase` FLOAT) TAGS "
-                    "(`groupid` INT, `location` VARCHAR(16))");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table meters, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
+TAOS* pConn = NULL;
+void  action(char* sql) {
+  TAOS_RES* pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table d0 using meters tags(1, 'San Francisco')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table d0, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "insert into d0 (ts, current) values (now, 120)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to insert into table d0, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table d1 using meters tags(2, 'San Francisco')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table d1, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table d2 using meters tags(3, 'San Francisco')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table d2, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  return 0;
 }
 
-int32_t init_env() {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  if (pConn == NULL) {
-    return -1;
-  }
-
-  TAOS_RES* pRes = taos_query(pConn, "drop database if exists db_raw");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create database if not exists db_raw vgroups 2");
-  if (taos_errno(pRes) != 0) {
-    printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "use db_raw");
-  if (taos_errno(pRes) != 0) {
-    printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  buildStable(pConn, pRes);
-
-  pRes = taos_query(pConn, "select * from d0");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  void   *data = NULL;
+int32_t test_write_raw_block(char* query, char* dst) {
+  TAOS_RES* pRes = taos_query(pConn, query);
+  ASSERT(taos_errno(pRes) == 0);
+  void*   data = NULL;
   int32_t numOfRows = 0;
   int     error_code = taos_fetch_raw_block(pRes, &numOfRows, &data);
   ASSERT(error_code == 0);
-  ASSERT(numOfRows == 1);
-
-  taos_write_raw_block(pConn, numOfRows, data, "d1");
+  error_code = taos_write_raw_block(pConn, numOfRows, data, dst);
   taos_free_result(pRes);
+  return error_code;
+}
 
-  pRes = taos_query(pConn, "select ts,phase from d0");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  error_code = taos_fetch_raw_block(pRes, &numOfRows, &data);
+int32_t test_write_raw_block_with_fields(char* query, char* dst) {
+  TAOS_RES* pRes = taos_query(pConn, query);
+  ASSERT(taos_errno(pRes) == 0);
+  void*   data = NULL;
+  int32_t numOfRows = 0;
+  int     error_code = taos_fetch_raw_block(pRes, &numOfRows, &data);
   ASSERT(error_code == 0);
-  ASSERT(numOfRows == 1);
 
   int         numFields = taos_num_fields(pRes);
-  TAOS_FIELD *fields = taos_fetch_fields(pRes);
-  taos_write_raw_block_with_fields(pConn, numOfRows, data, "d2", fields, numFields);
+  TAOS_FIELD* fields = taos_fetch_fields(pRes);
+  error_code = taos_write_raw_block_with_fields(pConn, numOfRows, data, dst, fields, numFields);
   taos_free_result(pRes);
+  return error_code;
+}
 
-  taos_close(pConn);
-  return 0;
+void init_env() {
+  pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn);
+
+  action("drop database if exists db_raw");
+  action("create database if not exists db_raw vgroups 2");
+  action("use db_raw");
+
+  action(
+      "CREATE STABLE `meters` (`ts` TIMESTAMP, `current` INT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, "
+      "`location` VARCHAR(16))");
+  action("create table d0 using meters tags(1, 'San Francisco')");
+  action("create table d1 using meters tags(2, 'San Francisco')");
+  action("create table d2 using meters tags(3, 'San Francisco')");
+  action("insert into d0 (ts, current) values (now, 120)");
+
+  action("create table ntba(ts timestamp, addr binary(32))");
+  action("create table ntbb(ts timestamp, addr binary(8))");
+  action("create table ntbc(ts timestamp, addr binary(8), c2 int)");
+
+  action("insert into ntba values(now,'123456789abcdefg123456789')");
+  action("insert into ntbb values(now + 1s,'hello')");
+  action("insert into ntbc values(now + 13s, 'sdf', 123)");
 }
 
 int main(int argc, char* argv[]) {
-  if (init_env() < 0) {
-    return -1;
-  }
+  printf("test write_raw_block start.\n");
+  init_env();
+  ASSERT(test_write_raw_block("select * from d0", "d1") == 0);                     // test schema same
+  ASSERT(test_write_raw_block("select * from ntbb", "ntba") == 0);                 // test schema compatible
+  ASSERT(test_write_raw_block("select * from ntbb", "ntbc") == 0);                 // test schema small
+  ASSERT(test_write_raw_block("select * from ntbc", "ntbb") == 0);                 // test schema bigger
+  ASSERT(test_write_raw_block("select * from ntba", "ntbb") != 0);                 // test schema mismatch
+  ASSERT(test_write_raw_block("select * from ntba", "no-exist-table") != 0);       // test no exist table
+  ASSERT(test_write_raw_block("select addr from ntba", "ntbb") != 0);              // test without ts
+  ASSERT(test_write_raw_block_with_fields("select ts,phase from d0", "d2") == 0);  // test with fields
+
+  printf("test write_raw_block end.\n");
+  return 0;
 }

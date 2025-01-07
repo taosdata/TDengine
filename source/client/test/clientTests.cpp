@@ -1504,6 +1504,32 @@ TEST(clientCase, sub_tb_test) {
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
 }
 
+TEST(clientCase, process_dump_memory) {
+  char name[128] = "mem.dump";
+  TdFilePtr pFile = taosOpenFile(name, TD_FILE_READ);
+  assert (pFile != NULL);
+
+  int64_t fileSize = 0;
+  int32_t code = taosStatFile(name, &fileSize, NULL, NULL);
+  assert (code == 0);
+
+  void*   pMemBuf = taosMemoryCalloc(1, fileSize);
+  assert (pMemBuf != NULL);
+
+
+  assert ((taosReadFile(pFile, pMemBuf, fileSize)) == fileSize);
+
+  // decode
+  SSubmitReq2 pSubmitReq = {0};
+  SDecoder    dc = {0};
+  tDecoderInit(&dc, (uint8_t*)pMemBuf, fileSize);
+  code = tDecodeSubmitReq(&dc, &pSubmitReq);
+  assert (code == 0);
+  tDecoderClear(&dc);
+  taosMemoryFree(pMemBuf);
+  taosCloseFile(&pFile);
+}
+
 TEST(clientCase, sub_tb_mt_test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   TdThread qid[20] = {0};

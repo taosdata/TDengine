@@ -661,8 +661,68 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
   return false;
 }
 
+int32_t checkSchema(SSchema* pColSchema, int8_t* fields, char* errstr, int32_t errstrLen) {
+  if (*fields != pColSchema->type) {
+    if (errstr != NULL)
+      snprintf(errstr, errstrLen, "column type not equal, name:%s, schema type:%s, data type:%s", pColSchema->name,
+               tDataTypes[pColSchema->type].name, tDataTypes[*fields].name);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) > pColSchema->bytes) {
+    if (errstr != NULL)
+      snprintf(errstr, errstrLen,
+               "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+               *(int32_t*)(fields + sizeof(int8_t)));
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
+    if (errstr != NULL)
+      snprintf(errstr, errstrLen,
+               "column normal data bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+               *(int32_t*)(fields + sizeof(int8_t)));
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return 0;
+}
+
+#define PRCESS_DATA(i, j)                                                                                 \
+  ret = checkSchema(pColSchema, fields, errstr, ERR_MSG_LEN);                                               \
+  if (ret != 0) {                                                                                         \
+    goto end;                                                                                             \
+  }                                                                                                       \
+                                                                                                          \
+  if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {                                                 \
+    hasTs = true;                                                                                         \
+  }                                                                                                       \
+                                                                                                          \
+  int8_t* offset = pStart;                                                                                \
+  if (IS_VAR_DATA_TYPE(pColSchema->type)) {                                                               \
+    pStart += numOfRows * sizeof(int32_t);                                                                \
+  } else {                                                                                                \
+    pStart += BitmapLen(numOfRows);                                                                       \
+  }                                                                                                       \
+  char* pData = pStart;                                                                                   \
+                                                                                                          \
+  SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);                                               \
+  ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData); \
+  if (ret != 0) {                                                                                         \
+    goto end;                                                                                             \
+  }                                                                                                       \
+  fields += sizeof(int8_t) + sizeof(int32_t);                                                             \
+  if (needChangeLength && version == BLOCK_VERSION_1) {                                                   \
+    pStart += htonl(colLength[i]);                                                                        \
+  } else {                                                                                                \
+    pStart += colLength[i];                                                                               \
+  }                                                                                                       \
+  boundInfo->pColIndex[j] = -1;
+
+#define ERR_MSG_LEN 256
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD* tFields,
                      int numFields, bool needChangeLength) {
+  char errstr[ERR_MSG_LEN] = {0};
   void* tmp = taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
   STableDataCxt* pTableCxt = NULL;
   int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
@@ -697,6 +757,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   p += sizeof(uint64_t);
 
   int8_t* fields = p;
+  if (*fields >= TSDB_DATA_TYPE_MAX || *fields < 0) {
+    uError("fields type error:%d", *fields);
+    ret = TSDB_CODE_INVALID_PARA;
+    goto end;
+  }
   p += numOfCols * (sizeof(int8_t) + sizeof(int32_t));
 
   int32_t* colLength = (int32_t*)p;
@@ -708,99 +773,53 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   SBoundColInfo* boundInfo = &pTableCxt->boundColsInfo;
 
   if (tFields != NULL && numFields != numOfCols) {
-    uError("numFields:%d != numOfCols:%d", numFields, numOfCols);
+    if (errstr != NULL) snprintf(errstr, ERR_MSG_LEN, "numFields:%d not equal to data cols:%d", numFields, numOfCols);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
-  if (tFields != NULL && numFields > boundInfo->numOfBound) {
-    uError("numFields:%d > boundInfo->numOfBound:%d", numFields, boundInfo->numOfBound);
-    ret = TSDB_CODE_INVALID_PARA;
-    goto end;
-  }
-  if(tFields == NULL){
-    for (int j = 0; j < boundInfo->numOfBound; j++){
-      SSchema*  pColSchema = &pSchema[j];
-      SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
-      uDebug("colIndex:%d/%d, source type:%d, bytes:%d, dest type:%d, dest bytes:%d, pColSchema->name:%s",
-            j, boundInfo->numOfBound, *fields, pColSchema->type, *(int32_t*)(fields + sizeof(int8_t)), pColSchema->bytes,
-            pColSchema->name);
-      if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-        uError("type or bytes not equal");
-        ret = TSDB_CODE_INVALID_PARA;
-        goto end;
-      }
 
-      int8_t* offset = pStart;
-      if (IS_VAR_DATA_TYPE(pColSchema->type)) {
-        pStart += numOfRows * sizeof(int32_t);
-      } else {
-        pStart += BitmapLen(numOfRows);
-      }
-      char* pData = pStart;
-      ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
-      if(ret != 0){
-        goto end;
-      }
-      fields += sizeof(int8_t) + sizeof(int32_t);
-      if (needChangeLength && version == BLOCK_VERSION_1) {
-        pStart += htonl(colLength[j]);
-      } else {
-        pStart += colLength[j];
-      }
+  bool hasTs = false;
+  if (tFields == NULL) {
+    int32_t len = TMIN(numOfCols, boundInfo->numOfBound);
+    for (int j = 0; j < len; j++) {
+      SSchema* pColSchema = &pSchema[j];
+      PRCESS_DATA(j, j)
     }
-  }else{
+  } else {
     for (int i = 0; i < numFields; i++) {
-      for (int j = 0; j < boundInfo->numOfBound; j++){
-        SSchema*  pColSchema = &pSchema[j];
-        uDebug("colIndex:%d/%d, source type:%d, bytes:%d, dest type:%d, dest bytes:%d, pColSchema->name:%s",
-              j, boundInfo->numOfBound, *fields, pColSchema->type, *(int32_t*)(fields + sizeof(int8_t)), pColSchema->bytes,
-              pColSchema->name);
-        if(strcmp(pColSchema->name, tFields[i].name) == 0){
-          if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-            uError("type or bytes not equal");
-            ret = TSDB_CODE_INVALID_PARA;
-            goto end;
-          }
-
-          int8_t* offset = pStart;
-          if (IS_VAR_DATA_TYPE(pColSchema->type)) {
-            pStart += numOfRows * sizeof(int32_t);
-          } else {
-            pStart += BitmapLen(numOfRows);
-          }
-          char* pData = pStart;
-
-          SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
-          ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
-          if(ret != 0){
-            goto end;
-          }
-          fields += sizeof(int8_t) + sizeof(int32_t);
-          if (needChangeLength && version == BLOCK_VERSION_1) {
-            pStart += htonl(colLength[i]);
-          } else {
-            pStart += colLength[i];
-          }
-          boundInfo->pColIndex[j] = -1;
+      for (int j = 0; j < boundInfo->numOfBound; j++) {
+        SSchema* pColSchema = &pSchema[j];
+        char*    fieldName = ((TAOS_FIELD*)tFields)[i].name;
+        if (strcmp(pColSchema->name, fieldName) == 0) {
+          PRCESS_DATA(i, j)
           break;
         }
       }
-
     }
+  }
 
-    for (int c = 0; c < boundInfo->numOfBound; ++c) {
-      if( boundInfo->pColIndex[c] != -1){
-        SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
-        ret = tColDataAddValueByDataBlock(pCol, 0, 0, numOfRows, NULL, NULL);
-        if(ret != 0){
-          goto end;
-        }
-      }else{
-        boundInfo->pColIndex[c] = c;  // restore for next block
+  if (!hasTs) {
+    if (errstr != NULL) snprintf(errstr, ERR_MSG_LEN, "timestamp column(primary key) not found in raw data");
+    ret = TSDB_CODE_INVALID_PARA;
+    goto end;
+  }
+
+  // process NULL data
+  for (int c = 0; c < boundInfo->numOfBound; ++c) {
+    if (boundInfo->pColIndex[c] != -1) {
+      SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
+      ret = tColDataAddValueByDataBlock(pCol, 0, 0, numOfRows, NULL, NULL);
+      if (ret != 0) {
+        goto end;
       }
+    } else {
+      boundInfo->pColIndex[c] = c;  // restore for next block
     }
   }
 
 end:
+  if (ret != 0 && errstr != NULL) {
+    uError("rawBlockBindData error, code:%s msg:%s", tstrerror(ret), errstr);
+  }
   return ret;
 }
