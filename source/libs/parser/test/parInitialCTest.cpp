@@ -325,6 +325,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "WAL_RETENTION_SIZE -1 "
       "WAL_ROLL_PERIOD 10 "
       "WAL_SEGMENT_SIZE 20 "
+      "STT_TRIGGER 1 "
       "TABLE_PREFIX 3 "
       "TABLE_SUFFIX 4 "
       "TSDB_PAGESIZE 32");
