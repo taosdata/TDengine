@@ -223,6 +223,13 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       // Use window output ts order instead.
       order = pNode->outputTsOrder;
       break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      if (projectCouldMergeUnsortDataBlock((SProjectLogicNode*)pNode)) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
+      pNode->outputTsOrder = order;
+      break;
     default:
       pNode->outputTsOrder = order;
       break;
