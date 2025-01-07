@@ -13,4 +13,14 @@
 
 *                 @taosdata/merge
 /.github/         @feici02
+/cmake/           @guanshengliang
+/contrib/         @guanshengliang
+/deps/            @guanshengliang
+/docs/            @guanshengliang @zitsen
+/examples/        @guanshengliang @zitsen
+/include/         @guanshengliang @hzcheng @dapan1121
 /packaging/       @feici02
+/source/          @guanshengliang @hzcheng @dapan1121
+/tests/           @guanshengliang @zitsen
+/tools/           @guanshengliang @zitsen
+/utils/           @guanshengliang
