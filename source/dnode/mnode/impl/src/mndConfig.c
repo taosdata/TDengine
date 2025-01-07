@@ -518,6 +518,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   SMCfgDnodeReq cfgReq = {0};
   SConfigObj   *vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
+    code = TSDB_CODE_SDB_OBJ_NOT_THERE;
+    mInfo("failed to acquire mnd config version, since %s", tstrerror(code));
     goto _err_out;
   }
 
