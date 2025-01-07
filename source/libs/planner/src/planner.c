@@ -49,6 +49,7 @@ static int32_t printPlanNode(SLogicNode *pNode, int32_t level) {
   char *blanks = taosMemoryMalloc(level * 4);
   memset(blanks, ' ', level * 4);
   qInfo("%s%s", blanks, nodename);
+  taosMemFree(blanks);
   SNode *tmp = NULL;
   FOREACH(tmp, pNode->pChildren) {
     printPlanNode((SLogicNode *)tmp, level + 1);
