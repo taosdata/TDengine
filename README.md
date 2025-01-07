@@ -26,19 +26,18 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 
 # Table of Contents
 
-- [Table of Contents](#table-of-contents)
-- [1. Introduction](#1-introduction)
-- [2. Documentation](#2-documentation)
-- [3. Prerequisites](#3-prerequisites)
-- [4. Building](#4-building)
-- [5. Packaging](#5-packaging)
-- [6. Installation](#6-installation)
-- [7. Running](#7-running)
-- [8. Testing](#8-testing)
-- [9. Releasing](#9-releasing)
-- [10. CI/CD](#10-cicd)
-- [11. Coverage --replace](#11-coverage---replace)
-- [12. Contributing](#12-contributing)
+1. [Introduction](#1-introduction)
+1. [Documentation](#2-documentation)
+1. [Prerequisites](#3-prerequisites)
+1. [Building](#4-building)
+1. [Packaging](#5-packaging)
+1. [Installation](#6-installation)
+1. [Running](#7-running)
+1. [Testing](#8-testing)
+1. [Releasing](#9-releasing)
+1. [CI/CD](#10-cicd)
+1. [Coverage --replace](#11-coverage---replace)
+1. [Contributing](#12-contributing)
 
 # 1. Introduction
 
