@@ -2044,7 +2044,7 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0)));
     ++(pCxt->groupId);
   }
-  pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  info.pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
 _return:
   pCxt->split = true;
   return code;
