@@ -43,11 +43,12 @@ fn labeling(mut file: &File) -> SdResult<()> {
     } else {
         cus_prompt.trim()
     };
+    // OEM for README.md
     let content = std::fs::read_to_string(readme)
         .unwrap()
         .replace(DEFAULT_CUS_PROMPT, cus_prompt)
         .replace(DEFAULT_CUS_NAME, cus_name);
-
+    // OEM for systemd.service
     let service_template = manifest_dir.join("src").join("systemd.service");
     let service = std::fs::read_to_string(&service_template)
         .unwrap_or_else(|_| panic!("{}", service_template.display()))
@@ -57,10 +58,19 @@ fn labeling(mut file: &File) -> SdResult<()> {
         std::fs::create_dir_all(&target_dir).unwrap();
     }
     std::fs::write(target_dir.join(format!("{cus_prompt}x.service")), &service).unwrap();
-
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let out_dir = std::path::Path::new(out_dir.as_str());
     std::fs::write(out_dir.join(format!("{cus_prompt}x.service")), &service).unwrap();
+    // OEM for srv.xml
+    let srv_template = manifest_dir.join("bin").join("taosx-srv.xml");
+    let srv = std::fs::read_to_string(&srv_template)
+        .unwrap_or_else(|_| panic!("{}", srv_template.display()))
+        .replace(DEFAULT_CUS_PROMPT, cus_prompt)
+        .replace(DEFAULT_CUS_NAME, cus_name);
+    if !target_dir.exists() {
+        std::fs::create_dir_all(&target_dir).unwrap();
+    }
+    std::fs::write(target_dir.join(format!("{cus_prompt}x-srv.xml")), srv).unwrap();
 
     writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
     writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;

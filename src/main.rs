@@ -384,9 +384,9 @@ fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
 #[cfg(windows)]
 fn get_default_config_path() -> PathBuf {
     std::path::Path::new("C:\\")
-        .join("TDengine")
+        .join(build::CUS_NAME)
         .join("cfg")
-        .join("taosx.toml")
+        .join(format!("{}x.toml", build::CUS_PROMPT))
 }
 
 #[cfg(not(windows))]
@@ -729,7 +729,7 @@ fn get_env_log_dir() -> String {
     }
 
     if cfg!(windows) {
-        "C:\\TDengine\\log".to_string()
+        format!("C:\\{}\\log", build::CUS_NAME)
     } else {
         format!("/var/log/{}", build::CUS_PROMPT)
     }
@@ -741,7 +741,7 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        "C:\\TDengine\\data\\taosx".to_string()
+        format!("C:\\{}\\data\\{}x", build::CUS_NAME, build::CUS_PROMPT)
     } else {
         format!("/var/lib/{0}/{0}x", build::CUS_PROMPT)
     }
@@ -756,7 +756,7 @@ fn get_env_plugin_dir() -> String {
     }
 
     if cfg!(windows) {
-        "C:\\TDengine\\plugins".to_string()
+        format!("C:\\{}\\plugins", build::CUS_NAME)
     } else {
         format!("/usr/local/{}/plugins", build::CUS_PROMPT)
     }
