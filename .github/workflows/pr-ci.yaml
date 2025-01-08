@@ -17,6 +17,7 @@ on:
       - 'build.rs'
       - '.github/workflows/**'
       - 'tests/e2e/**'
+      - 'tests/**'
 
 env:
   RELEASE_HOST: taosx-ci-server
