@@ -1364,7 +1364,7 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
     tstrncpy(pCol->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    tstrncpy(pCol->node.userAlias, pExpr->aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pCol->node.userAlias, pExpr->userAlias, TSDB_COL_NAME_LEN);
   }
   pCol->node.resType = pExpr->resType;
   return TSDB_CODE_SUCCESS;
