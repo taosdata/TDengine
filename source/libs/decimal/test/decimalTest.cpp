@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include "decimal.h"
+#include "tcommon.h"
 #include "wideInteger.h"
 using namespace std;
 
@@ -101,6 +102,58 @@ TEST(decimal128, divide) {
   cout << " = ";
   ops->divide(d.words, d2.words, 2, remainder.words);
   printDecimal128(&d, out_precision, out_scale);
+}
+
+TEST(decimal, cpi_taos_fetch_rows) {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+  const char* db = "test";
+  const char* sql = "select c1, c2 from nt";
+
+  TAOS* pTaos = taos_connect(host, user, passwd, db, 0);
+  if (!pTaos) {
+    cout << "taos connect failed: " << host << " " << taos_errstr(NULL);
+    FAIL();
+  }
+
+  auto *res = taos_query(pTaos, sql);
+  int32_t code = taos_errno(res);
+  if (code != 0) {
+    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
+    FAIL();
+  }
+
+  char buf[1024] = {0};
+  auto *fields = taos_fetch_fields(res);
+  auto fieldNum = taos_field_count(res);
+  while (auto row = taos_fetch_row(res)) {
+    taos_print_row(buf, row, fields, fieldNum);
+    cout << buf << endl;
+  }
+  taos_free_result(res);
+
+  res = taos_query(pTaos, sql);
+  code = taos_errno(res);
+  if (code != 0) {
+    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
+    FAIL();
+  }
+
+  void* pData = NULL;
+  int32_t numOfRows = 0;
+  code = taos_fetch_raw_block(res, &numOfRows, &pData);
+  if (code != 0) {
+    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
+    FAIL();
+  }
+
+  SSDataBlock* pBlock;
+  taos_free_result(res);
+
+
+  taos_close(pTaos);
+  taos_cleanup();
 }
 
 int main(int argc, char **argv) {

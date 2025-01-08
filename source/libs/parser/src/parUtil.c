@@ -292,6 +292,8 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
 
 SSchema* getTableColumnSchema(const STableMeta* pTableMeta) { return (SSchema*)pTableMeta->schema; }
 
+SSchemaExt* getTableColumnExtSchema(const STableMeta* pTableMeta) { return pTableMeta->schemaExt; }
+
 static SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
   SSchema* pSchema = (SSchema*)pTableMeta->schema;
   return &pSchema[colIndex];
