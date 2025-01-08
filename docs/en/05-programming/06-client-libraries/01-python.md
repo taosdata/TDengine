@@ -4,7 +4,7 @@ title: TDengine Python Client Library
 description: This document describes the TDengine Python client library.
 ---
 
-`taospy` is the official Python client library for TDengine. `taospy` wraps the  [REST interface](/reference/rest-api) of TDengine. Additionally `taospy`  provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
+`taospy` is the official Python client library for TDengine. `taospy` wraps the  [REST interface](/tdengine-reference/client-libraries/rest-api/) of TDengine. Additionally `taospy`  provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
 The source code for the Python client library is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
@@ -86,7 +86,7 @@ The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 
 ### Use of the RestClient class
 
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+The `RestClient` class is a direct wrapper for the [REST API](/tdengine-reference/client-libraries/rest-api/). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
 
 ```python
 {{#include docs/examples/python/reference_rest_client.py}}
