@@ -118,6 +118,10 @@ To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in 
 
 ## 4.1 Build on Linux
 
+<details>
+
+<summary>Detailed steps to build on Linux</summary>
+
 You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
 
 ```bash
@@ -149,7 +153,13 @@ aarch64:
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
 ```
 
+</details>
+
 ## 4.2 Build on macOS
+
+<details>
+
+<summary>Detailed steps to build on macOS</summary>
 
 Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
 
@@ -158,7 +168,13 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
+</details>
+
 ## 4.3 Build on Windows
+
+<details>
+
+<summary>Detailed steps to build on Windows</summary>
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
 Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
@@ -189,6 +205,7 @@ mkdir debug && cd debug
 cmake .. -G "NMake Makefiles"
 nmake
 ```
+</details>
 
 # 5. Installation
 
