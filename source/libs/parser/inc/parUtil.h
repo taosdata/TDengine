@@ -125,6 +125,7 @@ int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr);
 
 SSchema*      getTableColumnSchema(const STableMeta* pTableMeta);
+SSchemaExt*   getTableColumnExtSchema(const STableMeta* pTableMeta);
 SSchema*      getTableTagSchema(const STableMeta* pTableMeta);
 int32_t       getNumOfColumns(const STableMeta* pTableMeta);
 int32_t       getNumOfTags(const STableMeta* pTableMeta);

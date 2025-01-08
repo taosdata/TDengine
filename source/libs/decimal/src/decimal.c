@@ -109,26 +109,6 @@ void decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale) {
   *scale = (uint8_t)(typeMod & 0xFF);
 }
 
-int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
-                         Decimal64* result) {
-  int32_t    code = 0;
-  DecimalVar var = {.type = DECIMAL_64, .words = result->words};
-  code = decimalVarFromStr(str, len, &var);
-  if (TSDB_CODE_SUCCESS != code) return code;
-  // TODO wjm precision check
-  // scale auto fit
-  return code;
-}
-
-int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
-                          Decimal128* result) {
-  int32_t    code = 0;
-  DecimalVar var = {.type = DECIMAL_128, .words = result->words};
-  code = decimalVarFromStr(str, len, &var);
-  if (TSDB_CODE_SUCCESS != code) return code;
-  return code;
-}
-
 static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* result) {
   int32_t code = 0, pos = 0;
   result->precision = 0;
@@ -183,10 +163,12 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
         } else {
           result->precision += places;
           if (afterPoint) {
-            result->scale++;
+            result->scale += places;
           }
           DecimalWord ten = 10, digit = str[pos] - '0';
-          pOps->multiply(result->words, &ten, 1);
+          while (places-- > 0) {
+            pOps->multiply(result->words, &ten, 1);
+          }
           pOps->add(result->words, &digit, 1);
           places = 0;
           break;
@@ -194,6 +176,7 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
       }
       case 'e':
       case 'E':
+        // TODO wjm handle E
         break;
       default:
         break;
@@ -212,9 +195,10 @@ int32_t decimal64ToDataVal(const Decimal64* dec, SValue* pVal) {
 }
 
 int32_t decimal128ToDataVal(Decimal128* dec, SValue* pVal) {
-  pVal->pData = taosMemCalloc(2, sizeof(DecimalWord));
-  if (!pVal->pData) return terrno;
-  valueSetDatum(pVal, TSDB_DATA_TYPE_DECIMAL, dec->words, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
+  void* pV = taosMemCalloc(1, sizeof(Decimal128));
+  if (!pV) return terrno;
+  memcpy(pV, dec->words, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
+  valueSetDatum(pVal, TSDB_DATA_TYPE_DECIMAL, pV, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -302,6 +286,7 @@ static bool    decimal128Lt(const DecimalWord* pLeft, const DecimalWord* pRight,
 static bool    decimal128Gt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
 static bool    decimal128Eq(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
 static int32_t decimal128ToStr(const DecimalWord* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
+static void    decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale);
 
 SDecimalOps decimal64Ops = {decimal64Negate,   decimal64Abs,    decimal64Add,  decimal64Subtract,
                             decimal64Multiply, decimal64divide, decimal64Mod,  decimal64Lt,
@@ -341,7 +326,9 @@ bool decimal64Eq(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t ri
   return *pLeft == *pRight;
 }
 int32_t decimal64ToStr(const DecimalWord* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
-  return snprintf(pBuf, bufLen, "%" PRId64, *pInt);
+  char format[16] = "\%0";
+  snprintf(format+2, 14, "%"PRIu8 PRIu64, scale);
+  return snprintf(pBuf, bufLen, *pInt != 0 ? format : "%"PRIu64, *pInt);
 }
 
 // TODO wjm handle endian problem
@@ -351,46 +338,48 @@ int32_t decimal64ToStr(const DecimalWord* pInt, uint8_t scale, char* pBuf, int32
 #define DECIMAL128_SIGN(pDec) (1 | (DECIMAL128_HIGH_WORDS(pDec) >> 63))
 
 // TODO wjm handle endian problem
+#define DEFINE_DECIMAL128(lo, hi) {lo, hi}
+
 static Decimal128 SCALE_MULTIPLIER_128[38 + 1] = {
-    {0, 1LL},
-    {0, 10LL},
-    {0, 100LL},
-    {0, 1000LL},
-    {0, 10000LL},
-    {0, 100000LL},
-    {0, 1000000LL},
-    {0, 10000000LL},
-    {0, 100000000LL},
-    {0, 1000000000LL},
-    {0, 10000000000LL},
-    {0, 100000000000LL},
-    {0, 1000000000000LL},
-    {0, 10000000000000LL},
-    {0, 100000000000000LL},
-    {0, 1000000000000000LL},
-    {0, 10000000000000000LL},
-    {0, 100000000000000000LL},
-    {0, 1000000000000000000LL},
-    {0LL, 10000000000000000000ULL},
-    {5LL, 7766279631452241920ULL},
-    {54LL, 3875820019684212736ULL},
-    {542LL, 1864712049423024128ULL},
-    {5421LL, 200376420520689664ULL},
-    {54210LL, 2003764205206896640ULL},
-    {542101LL, 1590897978359414784ULL},
-    {5421010LL, 15908979783594147840ULL},
-    {54210108LL, 11515845246265065472ULL},
-    {542101086LL, 4477988020393345024ULL},
-    {5421010862LL, 7886392056514347008ULL},
-    {54210108624LL, 5076944270305263616ULL},
-    {542101086242LL, 13875954555633532928ULL},
-    {5421010862427LL, 9632337040368467968ULL},
-    {54210108624275LL, 4089650035136921600ULL},
-    {542101086242752LL, 4003012203950112768ULL},
-    {5421010862427522LL, 3136633892082024448ULL},
-    {54210108624275221LL, 12919594847110692864ULL},
-    {542101086242752217LL, 68739955140067328ULL},
-    {5421010862427522170LL, 687399551400673280ULL},
+    DEFINE_DECIMAL128( 1LL,0),
+    DEFINE_DECIMAL128( 10LL,0),
+    DEFINE_DECIMAL128( 100LL,0),
+    DEFINE_DECIMAL128( 1000LL,0),
+    DEFINE_DECIMAL128( 10000LL,0),
+    DEFINE_DECIMAL128( 100000LL,0),
+    DEFINE_DECIMAL128( 1000000LL,0),
+    DEFINE_DECIMAL128( 10000000LL,0),
+    DEFINE_DECIMAL128( 100000000LL,0),
+    DEFINE_DECIMAL128( 1000000000LL,0),
+    DEFINE_DECIMAL128( 10000000000LL,0),
+    DEFINE_DECIMAL128( 100000000000LL,0),
+    DEFINE_DECIMAL128( 1000000000000LL,0),
+    DEFINE_DECIMAL128( 10000000000000LL,0),
+    DEFINE_DECIMAL128( 100000000000000LL,0),
+    DEFINE_DECIMAL128( 1000000000000000LL,0),
+    DEFINE_DECIMAL128( 10000000000000000LL,0),
+    DEFINE_DECIMAL128( 100000000000000000LL,0),
+    DEFINE_DECIMAL128( 1000000000000000000LL,0),
+    DEFINE_DECIMAL128( 10000000000000000000ULL,0LL),
+    DEFINE_DECIMAL128( 7766279631452241920ULL,5LL),
+    DEFINE_DECIMAL128( 3875820019684212736ULL,54LL),
+    DEFINE_DECIMAL128( 1864712049423024128ULL,542LL),
+    DEFINE_DECIMAL128( 200376420520689664ULL,5421LL),
+    DEFINE_DECIMAL128( 2003764205206896640ULL,54210LL),
+    DEFINE_DECIMAL128( 1590897978359414784ULL,542101LL),
+    DEFINE_DECIMAL128( 15908979783594147840ULL,5421010LL),
+    DEFINE_DECIMAL128( 11515845246265065472ULL,54210108LL),
+    DEFINE_DECIMAL128( 4477988020393345024ULL,542101086LL),
+    DEFINE_DECIMAL128( 7886392056514347008ULL,5421010862LL),
+    DEFINE_DECIMAL128( 5076944270305263616ULL,54210108624LL),
+    DEFINE_DECIMAL128( 13875954555633532928ULL,542101086242LL),
+    DEFINE_DECIMAL128( 9632337040368467968ULL,5421010862427LL),
+    DEFINE_DECIMAL128( 4089650035136921600ULL,54210108624275LL),
+    DEFINE_DECIMAL128( 4003012203950112768ULL,542101086242752LL),
+    DEFINE_DECIMAL128( 3136633892082024448ULL,5421010862427522LL),
+    DEFINE_DECIMAL128( 12919594847110692864ULL,54210108624275221LL),
+    DEFINE_DECIMAL128( 68739955140067328ULL,542101086242752217LL),
+    DEFINE_DECIMAL128( 687399551400673280ULL,5421010862427522170LL),
 };
 
 #define DECIMAL128_ONE SCALE_MULTIPLIER_128[0]
@@ -510,9 +499,9 @@ static void decimal128divide(DecimalWord* pLeft, const DecimalWord* pRight, uint
   uInt128Divide(&a, &b);
   uInt128Mod(&d, &b);
   makeDecimal128(pLeftDec, uInt128Hi(&a), uInt128Lo(&a));
-  makeDecimal128(pRemainderDec, uInt128Hi(&d), uInt128Lo(&d));
+  if (pRemainder) makeDecimal128(pRemainderDec, uInt128Hi(&d), uInt128Lo(&d));
   if (negate) decimal128Negate(pLeftDec->words);
-  if (DECIMAL128_SIGN(pLeftDec) == -1) decimal128Negate(pRemainderDec->words);
+  if (DECIMAL128_SIGN(pLeftDec) == -1 && pRemainder) decimal128Negate(pRemainderDec->words);
 }
 
 static void decimal128Mod(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {}
@@ -574,6 +563,7 @@ static int32_t decimal128ToStr(const DecimalWord* pInt, uint8_t scale, char* pBu
   }
   int32_t len = 0;
   for (int32_t i = digitNum - 1; i >= 0; --i) {
+    // TODO wjm test 0.0000000000000000000000000000000001
     len += snprintf(buf + len, 64 - len, i == digitNum - 1 ? "%" PRIu64 : "%018" PRIu64, segments[i]);
   }
   int32_t wholeLen = len - scale;
@@ -586,7 +576,7 @@ static int32_t decimal128ToStr(const DecimalWord* pInt, uint8_t scale, char* pBu
   }
   return 0;
 }
-
+// TODO wjm refine this interface
 int32_t decimalToStr(const DecimalWord* pDec, int8_t dataType, int8_t precision, int8_t scale, char* pBuf,
                      int32_t bufLen) {
   pBuf[0] = '\0';
@@ -606,8 +596,8 @@ int32_t decimalToStr(const DecimalWord* pDec, int8_t dataType, int8_t precision,
       if (!pOps->eq(whole.words, &zero, 1)) {
         pos += pOps->toStr(whole.words, scale, pBuf + pos, bufLen - pos);
       }
-      pos += snprintf(pBuf + pos, bufLen - pos, ".");
       code = decimalGetFrac(pDec, iType, scale, frac.words);
+      if (frac.words[0] != 0) pos += snprintf(pBuf + pos, bufLen - pos, ".");
       pOps->toStr(frac.words, scale, pBuf + pos, bufLen - pos);
       return 0;
     }
@@ -770,3 +760,48 @@ int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* p
   }
   return code;
 }
+
+void decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale) {
+  if (newScale < oldScale) {
+    Decimal64 divisor = SCALE_MULTIPLIER_64[oldScale - newScale];
+    decimal64divide(pDec->words, divisor.words, 1, NULL);
+  }
+}
+
+int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
+                         Decimal64* result) {
+  int32_t    code = 0;
+  DecimalVar var = {.type = DECIMAL_64, .words = result->words};
+  code = decimalVarFromStr(str, len, &var);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  Decimal64 max = {0};
+  DECIMAL64_GET_MAX(expectPrecision - expectScale, &max);
+  if (decimal64Gt(result->words, max.words, 1)) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
+  if (var.scale > expectScale) decimal64ScaleTo(result, var.scale, expectScale);
+  return code;
+}
+
+void decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newScale) {
+  if (newScale < oldScale) {
+    Decimal128 divisor = SCALE_MULTIPLIER_128[oldScale - newScale];
+    decimal128divide(pDec->words, divisor.words, 2, NULL);
+  }
+}
+
+int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
+                          Decimal128* result) {
+  int32_t    code = 0;
+  DecimalVar var = {.type = DECIMAL_128, .words = result->words};
+  code = decimalVarFromStr(str, len, &var);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  Decimal128 max = {0};
+  DECIMAL128_GET_MAX(expectPrecision - expectScale, &max);
+  if (decimal128Gt(result->words, max.words, 2)) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
+  if (var.scale > expectScale) decimal128ScaleTo(result, var.scale, expectScale);
+  return code;
+}
+
