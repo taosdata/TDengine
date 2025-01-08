@@ -325,10 +325,10 @@ jobs:
       
       - name: Calculate the difference between the results of two adjacent executions
         run: |
-          taosX_coverage_diff=$(echo "scale=1;$TAOSX_COVERAGE_PERCENT - $taosx_coverage_last" | bc| awk '{if ($1 < 0) print $1; else print "+"$1}')
-          influxdb_connector_coverage_diff=$(echo "scale=1;$INFLUXDB_CONNECTOR_COVERAGE_PERCENT - $influxdb_connector_coverage_last" | bc| awk '{if ($1 < 0) print $1; else print "+"$1}')
-          opentsdb_connector_coverage_diff=$(echo "scale=1;$OPENTSDB_CONNECTOR_COVERAGE_PERCENT - $opentsdb_connector_coverage_last" | bc| awk '{if ($1 < 0) print $1; else print "+"$1}')
-          opc_connector_coverage_diff=$(echo "scale=1;$OPC_CONNECTOR_COVERAGE_PERCENT - $opc_connector_coverage_last" | bc| awk '{if ($1 < 0) print $1; else print "+"$1}')
+          taosX_coverage_diff=$(echo "scale=1;$TAOSX_COVERAGE_PERCENT - $taosx_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          influxdb_connector_coverage_diff=$(echo "scale=1;$INFLUXDB_CONNECTOR_COVERAGE_PERCENT - $influxdb_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          opentsdb_connector_coverage_diff=$(echo "scale=1;$OPENTSDB_CONNECTOR_COVERAGE_PERCENT - $opentsdb_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          opc_connector_coverage_diff=$(echo "scale=1;$OPC_CONNECTOR_COVERAGE_PERCENT - $opc_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
           echo "taosX_coverage_diff=$taosX_coverage_diff" >> $GITHUB_ENV
           echo "influxdb_connector_coverage_diff=$influxdb_connector_coverage_diff" >> $GITHUB_ENV
           echo "opentsdb_connector_coverage_diff=$opentsdb_connector_coverage_diff" >> $GITHUB_ENV
