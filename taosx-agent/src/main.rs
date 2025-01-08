@@ -469,21 +469,19 @@ impl Args {
         AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
 
         // set the range of client port
-        let ports = client_port_range
-            .map(|client_port_range| {
-                if client_port_range.min.is_some() || client_port_range.max.is_some() {
-                    let port_min = client_port_range
-                        .min
-                        .map_or(49152, |port| port.clamp(49152, 65535));
-                    let port_max = client_port_range
-                        .max
-                        .map_or(65535, |port| port.clamp(port_min, 65535));
-                    Some(port_min..=port_max)
-                } else {
-                    None
-                }
-            })
-            .flatten();
+        let ports = client_port_range.and_then(|client_port_range| {
+            if client_port_range.min.is_some() || client_port_range.max.is_some() {
+                let port_min = client_port_range
+                    .min
+                    .map_or(49152, |port| port.clamp(49152, 65535));
+                let port_max = client_port_range
+                    .max
+                    .map_or(65535, |port| port.clamp(port_min, 65535));
+                Some(port_min..=port_max)
+            } else {
+                None
+            }
+        });
 
         Ok(Args {
             plugins_home,
