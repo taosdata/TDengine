@@ -5,6 +5,8 @@ add_executable(svrBench "")
 add_executable(cliBench "")
 add_executable(httpBench "")
 add_executable(transImpl2 "")
+add_executable(cliBench2 "")
+add_executable(svrBench2 "")
 
 target_sources(transUT
   PRIVATE
@@ -24,9 +26,18 @@ target_sources(svrBench
   PRIVATE
   "svrBench.c"
 )
+
+target_sources(svrBench2
+  PRIVATE
+  "svrBench2.c"
+)
 target_sources(cliBench
   PRIVATE
   "cliBench.c"
+)
+target_sources(cliBench2
+  PRIVATE
+  "cliBench2.c"
 )
 target_sources(httpBench
   PRIVATE
@@ -96,8 +107,33 @@ target_link_libraries(svrBench
   gtest_main
   transport
 )
+target_include_directories(svrBench2
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+target_link_libraries(svrBench2
+  os
+  util
+  common
+  gtest_main
+  transport
+)
 
 target_include_directories(cliBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+target_include_directories(httpBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+target_include_directories(cliBench2
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/transport"
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -124,6 +160,29 @@ target_link_libraries(transImpl2
 )
 
 target_link_libraries(cliBench
+  os
+  util
+  common
+  gtest_main
+  transport
+)
+
+target_link_libraries(svrBench
+  os
+  util
+  common
+  gtest_main
+  transport
+)
+
+target_link_libraries(cliBench2
+  os
+  util
+  common
+  gtest_main
+  transport
+)
+target_link_libraries(svrBench2
   os
   util
   common
