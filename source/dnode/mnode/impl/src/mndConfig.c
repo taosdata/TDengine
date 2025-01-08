@@ -359,8 +359,7 @@ int32_t mndSendRebuildReq(SMnode *pMnode) {
   int8_t  epUpdated = 0;
   mndGetMnodeEpSet(pMnode, &epSet);
 
-  code = rpcSendRecvWithTimeout(pMnode->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated,
-                                tsStatusInterval * 5 * 1000);
+  code = tmsgSendReq(&epSet, &rpcMsg);
   if (code != 0) {
     mError("failed to send rebuild config req, since %s", tstrerror(code));
   }
