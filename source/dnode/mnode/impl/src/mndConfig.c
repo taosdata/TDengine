@@ -35,6 +35,7 @@ static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndInitWriteCfg(SMnode *pMnode);
 static int32_t mndSendRebuildReq(SMnode *pMnode);
+static int32_t mndTryRebuildConfigSdbRsp(SRpcMsg *pRsp);
 static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array);
 static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq);
 static void    cfgArrayCleanUp(SArray *array);
@@ -62,6 +63,7 @@ int32_t mndInitConfig(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_SDB, mndTryRebuildConfigSdb);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_SDB_RSP, mndTryRebuildConfigSdbRsp);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -356,7 +358,7 @@ int32_t mndSendRebuildReq(SMnode *pMnode) {
                     .info.handle = 0};
   SRpcMsg rpcRsp = {0};
   SEpSet  epSet = {0};
-  int8_t  epUpdated = 0;
+
   mndGetMnodeEpSet(pMnode, &epSet);
 
   code = tmsgSendReq(&epSet, &rpcMsg);
@@ -635,6 +637,11 @@ _err_out:
 
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
   mInfo("config rsp from dnode");
+  return 0;
+}
+
+static int32_t mndTryRebuildConfigSdbRsp(SRpcMsg *pRsp) {
+  mInfo("rebuild config sdb rsp");
   return 0;
 }
 
