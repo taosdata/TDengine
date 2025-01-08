@@ -16923,8 +16923,18 @@ static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRef
 
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
+  // org table cannot has composite primary key
+  if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
+    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
+  }
+
   const SSchema* pRefCol = getColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
+    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
+  }
+
+  // cannot use tag as ref column
+  if (pRefCol->colId > getNumOfColumns(pRefTableMeta)) {
     PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
   }
 
@@ -16969,7 +16979,9 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
     }
     // check ref column exists and check type
-    PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->refTableName, pStmt->refColName, pStmt->dataType));
+    PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->refTableName, pStmt->refColName,
+                            (SDataType){.type = pStmt->dataType.type,
+                                        .bytes = calcTypeBytes(pStmt->dataType)}));
   }
 
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
@@ -17424,6 +17436,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   SName              name = {0};
   SArray*            pBufArray = NULL;
   SNode*             pNode = NULL;
+  int32_t            index = 0;
 
   pBufArray = taosArrayInit(1, POINTER_BYTES);
   if (NULL == pBufArray) {
@@ -17436,8 +17449,14 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
     SColumnDefNode *pColNode = (SColumnDefNode *)pNode;
     SColumnOptions *pColOptions = (SColumnOptions*)pColNode->pOptions;
     if (pColOptions->hasRef) {
-      PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pColOptions->refTable, pColOptions->refColumn, pColNode->dataType));
+      if (index == 0) {
+        PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_PRIMTS_HAS_REF));
+      }
+      PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pColOptions->refTable, pColOptions->refColumn,
+                               (SDataType){.type = pColNode->dataType.type,
+                                           .bytes = calcTypeBytes(pColNode->dataType)}));
     }
+    index++;
   }
 
   PAR_ERR_JRET(getTableHashVgroupImpl(pCxt, &name, &info));
@@ -17488,11 +17507,14 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       if (NULL == pSchema) {
         PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
+      if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
+      }
       PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pColRef->refTableName, pColRef->refColName,
                                (SDataType){.type = pSchema->type, .bytes = pSchema->bytes}));
     }
   } else {
-    int32_t index = 0;
+    int32_t index = 1;
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pColRef->refTableName, pColRef->refColName,
