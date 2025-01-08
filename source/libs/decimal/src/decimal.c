@@ -36,7 +36,7 @@ typedef struct DecimalVar {
   uint8_t             scale;
   int32_t             exponent;
   int8_t              sign;
-  DecimalWord*        words;
+  DecimalType*        pDec;
 } DecimalVar;
 
 static uint8_t maxPrecision(DecimalInternalType type) {
@@ -167,9 +167,9 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
           }
           DecimalWord ten = 10, digit = str[pos] - '0';
           while (places-- > 0) {
-            pOps->multiply(result->words, &ten, 1);
+            pOps->multiply(result->pDec, &ten, 1);
           }
-          pOps->add(result->words, &digit, 1);
+          pOps->add(result->pDec, &digit, 1);
           places = 0;
           break;
         }
@@ -183,21 +183,20 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
     }
   }
   if (result->sign < 0) {
-    DecimalWord sign = (DecimalWord)result->sign;
-    pOps->multiply(result->words, &sign, 1);
+    pOps->negate(result->pDec);
   }
   return code;
 }
 
 int32_t decimal64ToDataVal(const Decimal64* dec, SValue* pVal) {
-  VALUE_SET_TRIVIAL_DATUM(pVal, dec->words[0]);
+  VALUE_SET_TRIVIAL_DATUM(pVal, DECIMAL64_GET_VALUE(dec));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t decimal128ToDataVal(Decimal128* dec, SValue* pVal) {
   void* pV = taosMemCalloc(1, sizeof(Decimal128));
   if (!pV) return terrno;
-  memcpy(pV, dec->words, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
+  memcpy(pV, dec, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
   valueSetDatum(pVal, TSDB_DATA_TYPE_DECIMAL, pV, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
   return TSDB_CODE_SUCCESS;
 }
@@ -225,18 +224,20 @@ static Decimal64 SCALE_MULTIPLIER_64[19] = {1LL,
 
 #define DECIMAL64_ONE SCALE_MULTIPLIER_64[0]
 
-#define DECIMAL64_GET_MAX(precision, pMax)                                              \
-  do {                                                                                  \
-    *(pMax) = SCALE_MULTIPLIER_64[precision];                                           \
-    decimal64Subtract((pMax)->words, DECIMAL64_ONE.words, DECIMAL_WORD_NUM(Decimal64)); \
+#define DECIMAL64_GET_MAX(precision, pMax)                                \
+  do {                                                                    \
+    *(pMax) = SCALE_MULTIPLIER_64[precision];                             \
+    decimal64Subtract(pMax, &DECIMAL64_ONE, DECIMAL_WORD_NUM(Decimal64)); \
   } while (0)
 
-static int32_t decimalGetWhole(const DecimalWord* pDec, DecimalInternalType type, int8_t scale, DecimalWord* pWhole) {
+#define DECIMAL64_SIGN(pDec) (1 | (DECIMAL64_GET_VALUE(pDec) >> 63))
+
+static int32_t decimalGetWhole(const DecimalType* pDec, DecimalInternalType type, int8_t scale, DecimalType* pWhole) {
   SDecimalOps* pOps = getDecimalOpsImp(type);
   if (type == DECIMAL_64) {
-    pWhole[0] = *pDec;
+    DECIMAL64_CLONE(pWhole, pDec);
     Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
-    pOps->divide(pWhole, scaleMul.words, 1, NULL);
+    pOps->divide(pWhole, &scaleMul, 1, NULL);
     if (TSDB_CODE_SUCCESS != 0) {
       // TODO wjm
     }
@@ -244,55 +245,55 @@ static int32_t decimalGetWhole(const DecimalWord* pDec, DecimalInternalType type
   } else {
     memcpy(pWhole, pDec, DECIMAL_GET_WORD_NUM(type) * sizeof(DecimalWord));
     // TODO wjm
-    // pOps.divide(pWhole->words, )
+    // pOps.divide(pWhole, )
   }
   return 0;
 }
 
-static int32_t decimalGetFrac(const DecimalWord* pDec, DecimalInternalType type, int8_t scale, DecimalWord* pFrac) {
+static int32_t decimalGetFrac(const DecimalType* pDec, DecimalInternalType type, int8_t scale, DecimalType* pFrac) {
   SDecimalOps* pOps = getDecimalOpsImp(type);
   if (type == DECIMAL_64) {
-    pFrac[0] = *pDec;
+    DECIMAL64_CLONE(pFrac, pDec);
     Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
-    pOps->mod(pFrac, scaleMul.words, 1);
+    pOps->mod(pFrac, &scaleMul, 1);
     pOps->abs(pFrac);
   } else {
   }
   return 0;
 }
 
-static void    decimal64Negate(DecimalWord* pInt);
-static void    decimal64Abs(DecimalWord* pInt);
-static void    decimal64Add(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static void    decimal64Subtract(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static void    decimal64Multiply(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static void    decimal64divide(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum,
-                               DecimalWord* pRemainder);
-static void    decimal64Mod(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static bool    decimal64Lt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static bool    decimal64Gt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static bool    decimal64Eq(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static int32_t decimal64ToStr(const DecimalWord* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
+static void    decimal64Negate(DecimalType* pInt);
+static void    decimal64Abs(DecimalType* pInt);
+static void    decimal64Add(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static void    decimal64Subtract(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static void    decimal64Multiply(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static void    decimal64divide(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum,
+                               DecimalType* pRemainder);
+static void    decimal64Mod(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static bool    decimal64Lt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static bool    decimal64Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static bool    decimal64Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
 
-static void    decimal128Negate(DecimalWord* pInt);
-static void    decimal128Abs(DecimalWord* pWord);
-static void    decimal128Add(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static void    decimal128Subtract(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static void    decimal128Multiply(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static void    decimal128divide(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum,
-                                DecimalWord* pRemainder);
-static void    decimal128Mod(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static bool    decimal128Lt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static bool    decimal128Gt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static bool    decimal128Eq(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum);
-static int32_t decimal128ToStr(const DecimalWord* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
+static void    decimal128Negate(DecimalType* pInt);
+static void    decimal128Abs(DecimalType* pWord);
+static void    decimal128Add(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static void    decimal128Subtract(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static void    decimal128Multiply(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static void    decimal128Divide(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum,
+                                DecimalType* pRemainder);
+static void    decimal128Mod(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static bool    decimal128Lt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static bool    decimal128Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static bool    decimal128Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
 static void    decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale);
 
 SDecimalOps decimal64Ops = {decimal64Negate,   decimal64Abs,    decimal64Add,  decimal64Subtract,
                             decimal64Multiply, decimal64divide, decimal64Mod,  decimal64Lt,
                             decimal64Gt,       decimal64Eq,     decimal64ToStr};
 SDecimalOps decimal128Ops = {decimal128Negate,   decimal128Abs,    decimal128Add,  decimal128Subtract,
-                             decimal128Multiply, decimal128divide, decimal128Mod,  decimal128Lt,
+                             decimal128Multiply, decimal128Divide, decimal128Mod,  decimal128Lt,
                              decimal128Gt,       decimal128Eq,     decimal128ToStr};
 
 static SDecimalOps* getDecimalOpsImp(DecimalInternalType t) {
@@ -307,116 +308,167 @@ static SDecimalOps* getDecimalOpsImp(DecimalInternalType t) {
 }
 SDecimalOps* getDecimalOps(int8_t dataType) { return getDecimalOpsImp(DECIMAL_GET_INTERNAL_TYPE(dataType)); }
 
-void makeDecimal64(Decimal64* pDec64, DecimalWord w) { pDec64->words[0] = w; }
+void makeDecimal64(Decimal64* pDec64, int64_t w) { DECIMAL64_SET_VALUE(pDec64, w); }
 
 // TODO wjm handle overflow problem of DecimalWord
-void decimal64Negate(DecimalWord* pInt) { *pInt = -(int64_t)(*pInt); }
-void decimal64Abs(DecimalWord* pInt) { *pInt = TABS(*pInt); }
-void decimal64Add(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) { *pLeft += *pRight; }
-void decimal64Subtract(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) { *pLeft -= *pRight; }
-void decimal64Multiply(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) { *pLeft *= *pRight; }
-void decimal64divide(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum, DecimalWord* pRemainder) {
-  *pLeft /= *pRight;
-  if (pRemainder) *pRemainder = *pLeft % *pRight;
+// it's impossible that pDec == INT64_MIN, only 18 digits can be accepted.
+void decimal64Negate(DecimalType* pInt) {
+  Decimal64* pDec = pInt;
+  DECIMAL64_SET_VALUE(pDec, -DECIMAL64_GET_VALUE(pDec));
 }
-void decimal64Mod(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) { *pLeft %= *pRight; }
-bool decimal64Lt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) { return *pLeft < *pRight; }
-bool decimal64Gt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) { return *pLeft > *pRight; }
-bool decimal64Eq(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {
-  return *pLeft == *pRight;
+void decimal64Abs(DecimalType* pInt) {
+  Decimal64* pDec = pInt;
+  DECIMAL64_SET_VALUE(pDec, TABS(DECIMAL64_GET_VALUE(pDec)));
 }
-int32_t decimal64ToStr(const DecimalWord* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
+void decimal64Add(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
+  Decimal64*       pDecL = pLeft;
+  const Decimal64* pDecR = pRight;
+  DECIMAL64_SET_VALUE(pDecL, SAFE_INT64_ADD(DECIMAL64_GET_VALUE(pDecL), DECIMAL64_GET_VALUE(pDecR)));
+}
+void decimal64Subtract(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
+  Decimal64*       pDecL = pLeft;
+  const Decimal64* pDecR = pRight;
+  DECIMAL64_SET_VALUE(pDecL, SAFE_INT64_SUBTRACT(DECIMAL64_GET_VALUE(pDecL), DECIMAL64_GET_VALUE(pDecR)));
+}
+void decimal64Multiply(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
+  Decimal64* pDecL = pLeft;
+  Decimal64  decR = *((Decimal64*)pRight);
+  bool       sign = DECIMAL64_SIGN(pDecL) != DECIMAL64_SIGN(&decR);
+  decimal64Abs(pLeft);
+  decimal64Abs(&decR);
+  uint64_t x = DECIMAL64_GET_VALUE(pDecL), y = DECIMAL64_GET_VALUE(&decR);
+  x *= y;
+  DECIMAL64_SET_VALUE(pDecL, x);
+  if (sign) decimal64Negate(pDecL);
+}
+void decimal64divide(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum, DecimalType* pRemainder) {
+  Decimal64* pDecL = pLeft;
+  Decimal64  decR = *((Decimal64*)pRight);
+  Decimal64* pDecRemainder = pRemainder;
+  bool       sign = DECIMAL64_SIGN(pDecL) != DECIMAL64_SIGN(&decR);
+  decimal64Abs(pDecL);
+  decimal64Abs(&decR);
+  uint64_t x = DECIMAL64_GET_VALUE(pDecL), y = DECIMAL64_GET_VALUE(&decR);
+  uint64_t z = x;
+  x /= y;
+  DECIMAL64_SET_VALUE(pDecL, x);
+  if (sign) decimal64Negate(pDecL);
+  if (pDecRemainder) {
+    z %= y;
+    DECIMAL64_SET_VALUE(pDecRemainder, z);
+  }
+}
+void decimal64Mod(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
+  Decimal64  remainder = {0};
+  Decimal64* pDec = pLeft;
+  decimal64divide(pLeft, pRight, rightWordNum, &remainder);
+  DECIMAL64_SET_VALUE(pDec, DECIMAL64_GET_VALUE(&remainder));
+}
+
+bool decimal64Lt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
+  const Decimal64 *pDecL = pLeft, *pDecR = pRight;
+  return DECIMAL64_GET_VALUE(pDecL) < DECIMAL64_GET_VALUE(pDecR);
+}
+bool decimal64Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
+  return DECIMAL64_GET_VALUE((Decimal64*)pLeft) > DECIMAL64_GET_VALUE((Decimal64*)pRight);
+}
+bool decimal64Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
+  return DECIMAL64_GET_VALUE((Decimal64*)pLeft) == DECIMAL64_GET_VALUE(((Decimal64*)pRight));
+}
+int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
   char format[16] = "\%0";
-  snprintf(format+2, 14, "%"PRIu8 PRIu64, scale);
-  return snprintf(pBuf, bufLen, *pInt != 0 ? format : "%"PRIu64, *pInt);
+  snprintf(format + 2, 14, "%" PRIu8 PRIu64, scale);
+  return snprintf(pBuf, bufLen, DECIMAL64_GET_VALUE((Decimal64*)pInt) != 0 ? format : "%" PRIu64,
+                  DECIMAL64_GET_VALUE((Decimal64*)pInt));
 }
 
 // TODO wjm handle endian problem
-#define DECIMAL128_LOW_WORDS(pDec)  (uint64_t)((pDec)->words[0])
-#define DECIMAL128_HIGH_WORDS(pDec) (int64_t)((pDec)->words[1])
+#define DECIMAL128_LOW_WORD(pDec)           (uint64_t)((pDec)->words[0])
+#define DECIMAL128_SET_LOW_WORD(pDec, val)  (pDec)->words[0] = val
+#define DECIMAL128_HIGH_WORD(pDec)          (int64_t)((pDec)->words[1])
+#define DECIMAL128_SET_HIGH_WORD(pDec, val) *(int64_t*)((pDec)->words + 1) = val
 // return 1 if positive or zero, else return -1
-#define DECIMAL128_SIGN(pDec) (1 | (DECIMAL128_HIGH_WORDS(pDec) >> 63))
+#define DECIMAL128_SIGN(pDec) (1 | (DECIMAL128_HIGH_WORD(pDec) >> 63))
 
 // TODO wjm handle endian problem
 #define DEFINE_DECIMAL128(lo, hi) {lo, hi}
 
 static Decimal128 SCALE_MULTIPLIER_128[38 + 1] = {
-    DEFINE_DECIMAL128( 1LL,0),
-    DEFINE_DECIMAL128( 10LL,0),
-    DEFINE_DECIMAL128( 100LL,0),
-    DEFINE_DECIMAL128( 1000LL,0),
-    DEFINE_DECIMAL128( 10000LL,0),
-    DEFINE_DECIMAL128( 100000LL,0),
-    DEFINE_DECIMAL128( 1000000LL,0),
-    DEFINE_DECIMAL128( 10000000LL,0),
-    DEFINE_DECIMAL128( 100000000LL,0),
-    DEFINE_DECIMAL128( 1000000000LL,0),
-    DEFINE_DECIMAL128( 10000000000LL,0),
-    DEFINE_DECIMAL128( 100000000000LL,0),
-    DEFINE_DECIMAL128( 1000000000000LL,0),
-    DEFINE_DECIMAL128( 10000000000000LL,0),
-    DEFINE_DECIMAL128( 100000000000000LL,0),
-    DEFINE_DECIMAL128( 1000000000000000LL,0),
-    DEFINE_DECIMAL128( 10000000000000000LL,0),
-    DEFINE_DECIMAL128( 100000000000000000LL,0),
-    DEFINE_DECIMAL128( 1000000000000000000LL,0),
-    DEFINE_DECIMAL128( 10000000000000000000ULL,0LL),
-    DEFINE_DECIMAL128( 7766279631452241920ULL,5LL),
-    DEFINE_DECIMAL128( 3875820019684212736ULL,54LL),
-    DEFINE_DECIMAL128( 1864712049423024128ULL,542LL),
-    DEFINE_DECIMAL128( 200376420520689664ULL,5421LL),
-    DEFINE_DECIMAL128( 2003764205206896640ULL,54210LL),
-    DEFINE_DECIMAL128( 1590897978359414784ULL,542101LL),
-    DEFINE_DECIMAL128( 15908979783594147840ULL,5421010LL),
-    DEFINE_DECIMAL128( 11515845246265065472ULL,54210108LL),
-    DEFINE_DECIMAL128( 4477988020393345024ULL,542101086LL),
-    DEFINE_DECIMAL128( 7886392056514347008ULL,5421010862LL),
-    DEFINE_DECIMAL128( 5076944270305263616ULL,54210108624LL),
-    DEFINE_DECIMAL128( 13875954555633532928ULL,542101086242LL),
-    DEFINE_DECIMAL128( 9632337040368467968ULL,5421010862427LL),
-    DEFINE_DECIMAL128( 4089650035136921600ULL,54210108624275LL),
-    DEFINE_DECIMAL128( 4003012203950112768ULL,542101086242752LL),
-    DEFINE_DECIMAL128( 3136633892082024448ULL,5421010862427522LL),
-    DEFINE_DECIMAL128( 12919594847110692864ULL,54210108624275221LL),
-    DEFINE_DECIMAL128( 68739955140067328ULL,542101086242752217LL),
-    DEFINE_DECIMAL128( 687399551400673280ULL,5421010862427522170LL),
+    DEFINE_DECIMAL128(1LL, 0),
+    DEFINE_DECIMAL128(10LL, 0),
+    DEFINE_DECIMAL128(100LL, 0),
+    DEFINE_DECIMAL128(1000LL, 0),
+    DEFINE_DECIMAL128(10000LL, 0),
+    DEFINE_DECIMAL128(100000LL, 0),
+    DEFINE_DECIMAL128(1000000LL, 0),
+    DEFINE_DECIMAL128(10000000LL, 0),
+    DEFINE_DECIMAL128(100000000LL, 0),
+    DEFINE_DECIMAL128(1000000000LL, 0),
+    DEFINE_DECIMAL128(10000000000LL, 0),
+    DEFINE_DECIMAL128(100000000000LL, 0),
+    DEFINE_DECIMAL128(1000000000000LL, 0),
+    DEFINE_DECIMAL128(10000000000000LL, 0),
+    DEFINE_DECIMAL128(100000000000000LL, 0),
+    DEFINE_DECIMAL128(1000000000000000LL, 0),
+    DEFINE_DECIMAL128(10000000000000000LL, 0),
+    DEFINE_DECIMAL128(100000000000000000LL, 0),
+    DEFINE_DECIMAL128(1000000000000000000LL, 0),
+    DEFINE_DECIMAL128(10000000000000000000ULL, 0LL),
+    DEFINE_DECIMAL128(7766279631452241920ULL, 5LL),
+    DEFINE_DECIMAL128(3875820019684212736ULL, 54LL),
+    DEFINE_DECIMAL128(1864712049423024128ULL, 542LL),
+    DEFINE_DECIMAL128(200376420520689664ULL, 5421LL),
+    DEFINE_DECIMAL128(2003764205206896640ULL, 54210LL),
+    DEFINE_DECIMAL128(1590897978359414784ULL, 542101LL),
+    DEFINE_DECIMAL128(15908979783594147840ULL, 5421010LL),
+    DEFINE_DECIMAL128(11515845246265065472ULL, 54210108LL),
+    DEFINE_DECIMAL128(4477988020393345024ULL, 542101086LL),
+    DEFINE_DECIMAL128(7886392056514347008ULL, 5421010862LL),
+    DEFINE_DECIMAL128(5076944270305263616ULL, 54210108624LL),
+    DEFINE_DECIMAL128(13875954555633532928ULL, 542101086242LL),
+    DEFINE_DECIMAL128(9632337040368467968ULL, 5421010862427LL),
+    DEFINE_DECIMAL128(4089650035136921600ULL, 54210108624275LL),
+    DEFINE_DECIMAL128(4003012203950112768ULL, 542101086242752LL),
+    DEFINE_DECIMAL128(3136633892082024448ULL, 5421010862427522LL),
+    DEFINE_DECIMAL128(12919594847110692864ULL, 54210108624275221LL),
+    DEFINE_DECIMAL128(68739955140067328ULL, 542101086242752217LL),
+    DEFINE_DECIMAL128(687399551400673280ULL, 5421010862427522170LL),
 };
 
 #define DECIMAL128_ONE SCALE_MULTIPLIER_128[0]
 #define DECIMAL128_TEN SCALE_MULTIPLIER_128[1]
 
-#define DECIMAL128_GET_MAX(precision, pMax)                                                \
-  do {                                                                                     \
-    *(pMax) = SCALE_MULTIPLIER_128[precision];                                             \
-    decimal128Subtract((pMax)->words, DECIMAL128_ONE.words, DECIMAL_WORD_NUM(Decimal128)); \
+#define DECIMAL128_GET_MAX(precision, pMax)                                  \
+  do {                                                                       \
+    *(pMax) = SCALE_MULTIPLIER_128[precision];                               \
+    decimal128Subtract(pMax, &DECIMAL128_ONE, DECIMAL_WORD_NUM(Decimal128)); \
   } while (0)
 
 void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low) {
-  // TODO wjm handle endian problem
-  pDec128->words[1] = hi;
-  pDec128->words[0] = low;
+  DECIMAL128_SET_HIGH_WORD(pDec128, hi);
+  DECIMAL128_SET_LOW_WORD(pDec128, low);
 }
 
 static void makeDecimal128FromDecimal64(Decimal128* pTarget, Decimal64 decimal64) {
-  DecimalWord zero = 0, sign = 0;
-  if (decimal64Lt(decimal64.words, &zero, 1)) {
-    decimal64Negate(decimal64.words);
-    sign = -1;
+  bool        negative = false;
+  if (DECIMAL64_SIGN(&decimal64) == -1) {
+    decimal64Negate(&decimal64);
+    negative = true;
   }
-  makeDecimal128(pTarget, sign, (uint64_t)decimal64.words[0]);
+  makeDecimal128(pTarget, 0, DECIMAL64_GET_VALUE(&decimal64));
+  if (negative) decimal128Negate(pTarget);
 }
 
-static void decimal128Negate(DecimalWord* pWord) {
+static void decimal128Negate(DecimalType* pWord) {
   Decimal128* pDec = (Decimal128*)pWord;
-  uint64_t    lo = ~DECIMAL128_LOW_WORDS(pDec) + 1;
-  int64_t     hi = ~DECIMAL128_HIGH_WORDS(pDec);
+  uint64_t    lo = ~DECIMAL128_LOW_WORD(pDec) + 1;
+  int64_t     hi = ~DECIMAL128_HIGH_WORD(pDec);
   if (lo == 0) hi = SAFE_INT64_ADD(hi, 1);
   makeDecimal128(pDec, hi, lo);
 }
 
-static void decimal128Abs(DecimalWord* pWord) {
-  DecimalWord zero = 0;
-  if (decimal128Lt(pWord, &zero, 1)) {
+static void decimal128Abs(DecimalType* pWord) {
+  if (DECIMAL128_SIGN((Decimal128*)pWord) == -1) {
     decimal128Negate(pWord);
   }
 }
@@ -425,64 +477,64 @@ static void decimal128Abs(DecimalWord* pWord) {
 #define DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pTarget, rightDec, pWord) \
   if (rightWordNum != WORD_NUM(Decimal128)) {                                   \
     Decimal64 d64 = {0};                                                        \
-    makeDecimal64(&d64, *pWord);                                                \
+    makeDecimal64(&d64, *(int64_t*)pWord);                                      \
     makeDecimal128FromDecimal64(&rightDec, d64);                                \
     pTarget = &rightDec;                                                        \
   }
 
-static void decimal128Add(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {
+static void decimal128Add(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
-  int64_t  hi = SAFE_INT64_ADD(DECIMAL128_HIGH_WORDS(pLeftDec), DECIMAL128_HIGH_WORDS(pRightDec));
-  uint64_t lo = DECIMAL128_LOW_WORDS(pLeftDec) + DECIMAL128_LOW_WORDS(pRightDec);
-  hi = SAFE_INT64_ADD(hi, lo < DECIMAL128_LOW_WORDS(pLeftDec));
+  int64_t  hi = SAFE_INT64_ADD(DECIMAL128_HIGH_WORD(pLeftDec), DECIMAL128_HIGH_WORD(pRightDec));
+  uint64_t lo = DECIMAL128_LOW_WORD(pLeftDec) + DECIMAL128_LOW_WORD(pRightDec);
+  hi = SAFE_INT64_ADD(hi, lo < DECIMAL128_LOW_WORD(pLeftDec));
   makeDecimal128(pLeftDec, hi, lo);
 }
 
-static void decimal128Subtract(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {
+static void decimal128Subtract(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
-  int64_t  hi = SAFE_INT64_SUBTRACT(DECIMAL128_HIGH_WORDS(pLeftDec), DECIMAL128_HIGH_WORDS(pRightDec));
-  uint64_t lo = DECIMAL128_LOW_WORDS(pLeftDec) - DECIMAL128_LOW_WORDS(pRightDec);
-  hi = SAFE_INT64_SUBTRACT(hi, lo > DECIMAL128_LOW_WORDS(pLeftDec));
+  int64_t  hi = SAFE_INT64_SUBTRACT(DECIMAL128_HIGH_WORD(pLeftDec), DECIMAL128_HIGH_WORD(pRightDec));
+  uint64_t lo = DECIMAL128_LOW_WORD(pLeftDec) - DECIMAL128_LOW_WORD(pRightDec);
+  hi = SAFE_INT64_SUBTRACT(hi, lo > DECIMAL128_LOW_WORD(pLeftDec));
   makeDecimal128(pLeftDec, hi, lo);
 }
 
-static void decimal128Multiply(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {
+static void decimal128Multiply(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
   bool       negate = DECIMAL128_SIGN(pLeftDec) != DECIMAL128_SIGN(pRightDec);
   Decimal128 x = *pLeftDec, y = *pRightDec;
-  decimal128Abs(x.words);
-  decimal128Abs(y.words);
+  decimal128Abs(&x);
+  decimal128Abs(&y);
 
   UInt128 res = {0}, tmp = {0};
-  makeUInt128(&res, DECIMAL128_HIGH_WORDS(&x), DECIMAL128_LOW_WORDS(&x));
-  makeUInt128(&tmp, DECIMAL128_HIGH_WORDS(&y), DECIMAL128_LOW_WORDS(&y));
+  makeUInt128(&res, DECIMAL128_HIGH_WORD(&x), DECIMAL128_LOW_WORD(&x));
+  makeUInt128(&tmp, DECIMAL128_HIGH_WORD(&y), DECIMAL128_LOW_WORD(&y));
   uInt128Multiply(&res, &tmp);
   makeDecimal128(pLeftDec, uInt128Hi(&res), uInt128Lo(&res));
-  if (negate) decimal128Negate(pLeftDec->words);
+  if (negate) decimal128Negate(pLeftDec);
 }
 
-static bool decimal128Lt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {
+static bool decimal128Lt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
   // TODO wjm pRightDec use const
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
-  return DECIMAL128_HIGH_WORDS(pLeftDec) < DECIMAL128_HIGH_WORDS(pRightDec) ||
-         (DECIMAL128_HIGH_WORDS(pLeftDec) == DECIMAL128_HIGH_WORDS(pRightDec) &&
-          DECIMAL128_LOW_WORDS(pLeftDec) < DECIMAL128_LOW_WORDS(pRightDec));
+  return DECIMAL128_HIGH_WORD(pLeftDec) < DECIMAL128_HIGH_WORD(pRightDec) ||
+         (DECIMAL128_HIGH_WORD(pLeftDec) == DECIMAL128_HIGH_WORD(pRightDec) &&
+          DECIMAL128_LOW_WORD(pLeftDec) < DECIMAL128_LOW_WORD(pRightDec));
 }
 
-static void decimal128divide(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum,
-                             DecimalWord* pRemainder) {
+static void decimal128Divide(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum,
+                             DecimalType* pRemainder) {
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight, *pRemainderDec = (Decimal128*)pRemainder;
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
@@ -490,36 +542,37 @@ static void decimal128divide(DecimalWord* pLeft, const DecimalWord* pRight, uint
   bool       negate = DECIMAL128_SIGN(pLeftDec) != DECIMAL128_SIGN(pRightDec);
   UInt128    a = {0}, b = {0}, c = {0}, d = {0};
   Decimal128 x = *pLeftDec, y = *pRightDec;
-  decimal128Abs(x.words);
-  decimal128Abs(y.words);
-  makeUInt128(&a, DECIMAL128_HIGH_WORDS(&x), DECIMAL128_LOW_WORDS(&x));
-  makeUInt128(&d, DECIMAL128_HIGH_WORDS(&x), DECIMAL128_LOW_WORDS(&x));
-  makeUInt128(&b, DECIMAL128_HIGH_WORDS(&y), DECIMAL128_LOW_WORDS(&y));
+  decimal128Abs(&x);
+  decimal128Abs(&y);
+  makeUInt128(&a, DECIMAL128_HIGH_WORD(&x), DECIMAL128_LOW_WORD(&x));
+  makeUInt128(&d, DECIMAL128_HIGH_WORD(&x), DECIMAL128_LOW_WORD(&x));
+  makeUInt128(&b, DECIMAL128_HIGH_WORD(&y), DECIMAL128_LOW_WORD(&y));
   // TODO wjm refine the interface, so that here do not need to copy a
   uInt128Divide(&a, &b);
   uInt128Mod(&d, &b);
   makeDecimal128(pLeftDec, uInt128Hi(&a), uInt128Lo(&a));
   if (pRemainder) makeDecimal128(pRemainderDec, uInt128Hi(&d), uInt128Lo(&d));
-  if (negate) decimal128Negate(pLeftDec->words);
-  if (DECIMAL128_SIGN(pLeftDec) == -1 && pRemainder) decimal128Negate(pRemainderDec->words);
+  if (negate) decimal128Negate(pLeftDec);
+  if (DECIMAL128_SIGN(pLeftDec) == -1 && pRemainder) decimal128Negate(pRemainderDec);
 }
 
-static void decimal128Mod(DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {}
+static void decimal128Mod(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {}
 
-static bool decimal128Gt(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {
+static bool decimal128Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
-  return decimal128Lt(pRightDec->words, pLeftDec->words, WORD_NUM(Decimal128));
+  return decimal128Lt(pRightDec, pLeftDec, WORD_NUM(Decimal128));
 }
 
-static bool decimal128Eq(const DecimalWord* pLeft, const DecimalWord* pRight, uint8_t rightWordNum) {
+static bool decimal128Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
-  return pLeftDec->words == pRightDec->words;
+  return DECIMAL128_HIGH_WORD(pLeftDec) == DECIMAL128_HIGH_WORD(pRightDec) &&
+         DECIMAL128_LOW_WORD(pLeftDec) == DECIMAL128_LOW_WORD(pRightDec);
 }
 
 static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, int32_t* digitNum) {
@@ -528,7 +581,7 @@ static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, in
   UInt128        a = {0};
   UInt128        b = {0};
   *digitNum = 0;
-  makeUInt128(&a, DECIMAL128_HIGH_WORDS(pDec), DECIMAL128_LOW_WORDS(pDec));
+  makeUInt128(&a, DECIMAL128_HIGH_WORD(pDec), DECIMAL128_LOW_WORD(pDec));
   while (!uInt128Eq(&a, &uInt128Zero)) {
     uint64_t hi = a >> 64;
     uint64_t lo = a;
@@ -547,21 +600,23 @@ static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, in
 }
 
 // TODO wjm checkBuflen
-static int32_t decimal128ToStr(const DecimalWord* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
+static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
   const Decimal128* pDec = (const Decimal128*)pInt;
   bool              negative = DECIMAL128_SIGN(pDec) < 0;
   uint64_t          segments[3] = {0};
   int32_t           digitNum = 0;
   char              buf[64] = {0};
+  int32_t           len = 0;
   if (negative) {
     Decimal128 copy = {0};
-    makeDecimal128(&copy, DECIMAL128_HIGH_WORDS(pDec), DECIMAL128_LOW_WORDS(pDec));
-    decimal128Abs(copy.words);
+    makeDecimal128(&copy, DECIMAL128_HIGH_WORD(pDec), DECIMAL128_LOW_WORD(pDec));
+    decimal128Abs(&copy);
     extractDecimal128Digits(&copy, segments, &digitNum);
+    buf[0] = '-';
+    len = 1;
   } else {
     extractDecimal128Digits(pDec, segments, &digitNum);
   }
-  int32_t len = 0;
   for (int32_t i = digitNum - 1; i >= 0; --i) {
     // TODO wjm test 0.0000000000000000000000000000000001
     len += snprintf(buf + len, 64 - len, i == digitNum - 1 ? "%" PRIu64 : "%018" PRIu64, segments[i]);
@@ -577,7 +632,7 @@ static int32_t decimal128ToStr(const DecimalWord* pInt, uint8_t scale, char* pBu
   return 0;
 }
 // TODO wjm refine this interface
-int32_t decimalToStr(const DecimalWord* pDec, int8_t dataType, int8_t precision, int8_t scale, char* pBuf,
+int32_t decimalToStr(const DecimalType* pDec, int8_t dataType, int8_t precision, int8_t scale, char* pBuf,
                      int32_t bufLen) {
   pBuf[0] = '\0';
   DecimalInternalType iType = DECIMAL_GET_INTERNAL_TYPE(dataType);
@@ -586,19 +641,19 @@ int32_t decimalToStr(const DecimalWord* pDec, int8_t dataType, int8_t precision,
       int32_t      wordNum = DECIMAL_GET_WORD_NUM(iType);
       SDecimalOps* pOps = getDecimalOpsImp(iType);
       Decimal      whole = {0}, frac = {0};
-      DecimalWord  zero = 0;
+      DecimalWord  zero = 0;// TODO wjm remove zero, use SIGN
       int32_t      pos = 0;
 
       if (pOps->lt(pDec, &zero, 1)) {
         pos = sprintf(pBuf, "-");
       }
-      int32_t code = decimalGetWhole(pDec, iType, scale, whole.words);
-      if (!pOps->eq(whole.words, &zero, 1)) {
-        pos += pOps->toStr(whole.words, scale, pBuf + pos, bufLen - pos);
+      int32_t code = decimalGetWhole(pDec, iType, scale, &whole);
+      if (!pOps->eq(&whole, &zero, 1)) {
+        pos += pOps->toStr(&whole, scale, pBuf + pos, bufLen - pos);
       }
-      code = decimalGetFrac(pDec, iType, scale, frac.words);
-      if (frac.words[0] != 0) pos += snprintf(pBuf + pos, bufLen - pos, ".");
-      pOps->toStr(frac.words, scale, pBuf + pos, bufLen - pos);
+      code = decimalGetFrac(pDec, iType, scale, &frac);
+      if (DECIMAL64_GET_VALUE(&frac) != 0) pos += snprintf(pBuf + pos, bufLen - pos, ".");
+      pOps->toStr(&frac, scale, pBuf + pos, bufLen - pos);
       return 0;
     }
     case DECIMAL_128:
@@ -627,7 +682,7 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
   SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
   switch (op) {
     case OP_TYPE_ADD:
-      pOps->add(pLeft.words, pRight.words, WORD_NUM(Decimal));
+      pOps->add(&pLeft, &pRight, WORD_NUM(Decimal));
       break;
     default:
       break;
@@ -638,8 +693,8 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
 #define ABS_INT64(v)  (v) == INT64_MIN ? (uint64_t)INT64_MAX + 1 : (uint64_t)llabs(v)
 #define ABS_UINT64(v) (v)
 
-#define DECIMAL64_IS_OVERFLOW(v, max)  decimal64Gt((v).words, max.words, DECIMAL_WORD_NUM(Decimal64))
-#define DECIMAL128_IS_OVERFLOW(v, max) decimal128Gt((v).words, max.words, DECIMAL_WORD_NUM(Decimal128))
+#define DECIMAL64_IS_OVERFLOW(v, max)  decimal64Gt(&(v), &max, DECIMAL_WORD_NUM(Decimal64))
+#define DECIMAL128_IS_OVERFLOW(v, max) decimal128Gt(&(v), &max, DECIMAL_WORD_NUM(Decimal128))
 
 #define CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS) \
   ({                                                         \
@@ -764,44 +819,43 @@ int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* p
 void decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale) {
   if (newScale < oldScale) {
     Decimal64 divisor = SCALE_MULTIPLIER_64[oldScale - newScale];
-    decimal64divide(pDec->words, divisor.words, 1, NULL);
+    decimal64divide(pDec, &divisor, 1, NULL);
   }
 }
 
 int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
                          Decimal64* result) {
   int32_t    code = 0;
-  DecimalVar var = {.type = DECIMAL_64, .words = result->words};
+  DecimalVar var = {.type = DECIMAL_64, .pDec = result->words};
   code = decimalVarFromStr(str, len, &var);
   if (TSDB_CODE_SUCCESS != code) return code;
   Decimal64 max = {0};
   DECIMAL64_GET_MAX(expectPrecision - expectScale, &max);
-  if (decimal64Gt(result->words, max.words, 1)) {
+  if (var.scale > expectScale) decimal64ScaleTo(result, var.scale, expectScale);
+  if (decimal64Gt(result, &max, 1)) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
   }
-  if (var.scale > expectScale) decimal64ScaleTo(result, var.scale, expectScale);
   return code;
 }
 
 void decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newScale) {
   if (newScale < oldScale) {
     Decimal128 divisor = SCALE_MULTIPLIER_128[oldScale - newScale];
-    decimal128divide(pDec->words, divisor.words, 2, NULL);
+    decimal128Divide(pDec, &divisor, 2, NULL);
   }
 }
 
 int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
                           Decimal128* result) {
   int32_t    code = 0;
-  DecimalVar var = {.type = DECIMAL_128, .words = result->words};
+  DecimalVar var = {.type = DECIMAL_128, .pDec = result->words};
   code = decimalVarFromStr(str, len, &var);
   if (TSDB_CODE_SUCCESS != code) return code;
   Decimal128 max = {0};
   DECIMAL128_GET_MAX(expectPrecision - expectScale, &max);
-  if (decimal128Gt(result->words, max.words, 2)) {
+  if (var.scale > expectScale) decimal128ScaleTo(result, var.scale, expectScale);
+  if (decimal128Gt(result, &max, 2)) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
   }
-  if (var.scale > expectScale) decimal128ScaleTo(result, var.scale, expectScale);
   return code;
 }
-
