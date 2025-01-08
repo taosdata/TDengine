@@ -24,6 +24,7 @@ extern "C" {
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following sectio
+#ifndef TD_ACORE
 #ifndef ALLOW_FORBID_FUNC
 #define open    OPEN_FUNC_TAOS_FORBID
 #define fopen   FOPEN_FUNC_TAOS_FORBID
@@ -36,6 +37,7 @@ extern "C" {
 #define fsync   FSYNC_FUNC_TAOS_FORBID
 #define getline GETLINE_FUNC_TAOS_FORBID
 // #define fflush FFLUSH_FUNC_TAOS_FORBID
+#endif
 #endif
 
 #ifndef PATH_MAX

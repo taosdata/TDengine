@@ -73,12 +73,12 @@ typedef struct {
   void *mgt;
 } SDelayQueue;
 
-int32_t     transDQCreate(void *loop, SDelayQueue **queue);
-void        transDQDestroy(SDelayQueue *queue, void (*freeFunc)(void *arg));
-SDelayTask *transDQSched(SDelayQueue *queue, void (*func)(void *arg), void *arg, uint64_t timeoutMs);
-void        transDQCancel(SDelayQueue *queue, SDelayTask *task);
-int32_t     transDQHandleTimeout(SDelayQueue *queue);
-int32_t     transDQGetNextTimeout(SDelayQueue *queue);
+static int32_t transDQCreate(void *loop, SDelayQueue **queue);
+static void    transDQDestroy(SDelayQueue *queue, void (*freeFunc)(void *arg));
+SDelayTask    *transDQSched(SDelayQueue *queue, void (*func)(void *arg), void *arg, uint64_t timeoutMs);
+void           transDQCancel(SDelayQueue *queue, SDelayTask *task);
+int32_t        transDQHandleTimeout(SDelayQueue *queue);
+int32_t        transDQGetNextTimeout(SDelayQueue *queue);
 typedef struct {
   int       notifyCount;  //
   int       init;         // init or not
@@ -1622,10 +1622,8 @@ int32_t transSendResponse2(STransMsg *msg) {
     goto _return1;
   }
   m->msg = tmsg;
-
   m->type = Normal;
 
-  // STraceId *trace = (STraceId *)&msg->info.traceId;
   tGDebug("conn %p start to send resp (1/2)", exh->handle);
   if ((code = evtAsyncSend(pThrd->asyncHandle, &m->q)) != 0) {
     destroySmsg(m);
@@ -1646,8 +1644,6 @@ _return2:
   rpcFreeCont(msg->pCont);
   return code;
 }
-// int32_t transRegisterMsg(const STransMsg *msg) { return 0; }
-// int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }
 
 void transCloseServer2(void *arg) {
   // impl later
@@ -1663,10 +1659,6 @@ typedef struct SConnList {
 
 typedef struct SCliConn {
   int32_t ref;
-  // uv_connect_t connReq;
-  // uv_stream_t *stream;
-
-  // uv_timer_t *timer;  // read timer, forbidden
 
   void *hostThrd;
 
@@ -1680,8 +1672,6 @@ typedef struct SCliConn {
   STransCtx  ctx;
   bool       broken;  // link broken or not
   ConnStatus status;  //
-
-  // SCliBatch *pBatch;
 
   SDelayTask *task;
 
@@ -1760,19 +1750,12 @@ typedef struct SCliThrd2 {
   TdThread thread;  // tid
   int64_t  pid;     // pid
 
-  // uv_loop_t  *loop;
-  // SAsyncPool *asyncPool;
-  void *pool;  // conn pool
-  // timer handles
-  SArray *timerList;
-  // msg queue
+  void         *pool;  // conn pool
+  SArray       *timerList;
   queue         msg;
   TdThreadMutex msgMtx;
-  // SDelayQueue  *delayQueue;
-  // SDelayQueue  *timeoutQueue;
-  // SDelayQueue  *waitConnQueue;
-  uint64_t nextTimeout;  // next timeout
-  STrans  *pInst;        //
+  uint64_t      nextTimeout;  // next timeout
+  STrans       *pInst;        //
 
   void (*destroyAhandleFp)(void *ahandle);
   SHashObj *fqdn2ipCache;
@@ -1932,10 +1915,6 @@ static int32_t createSocket(uint32_t ip, int32_t port, int32_t *fd) {
   server_addr.sin_family = AF_INET;
   server_addr.sin_port = htons(port);
   server_addr.sin_addr.s_addr = ip;
-
-  // if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
-  //   TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
-  // }
 
   if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _end);
@@ -2365,6 +2344,7 @@ static void evtCliDestroyConn(SCliConn *pConn, bool force) {
   if (pConn->registered) {
     int8_t ref = pConn->ref;
     if (ref == 0) {
+      close(pConn->fd);
       // uv_close((uv_handle_t *)conn->stream, cliDestroy);
     }
   }
@@ -2456,6 +2436,9 @@ static int32_t createThrdObj(void *trans, SCliThrd2 **ppThrd) {
   if (pThrd->pQIdBuf == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
+
+  pThrd->pInst = pInst;
+  pThrd->shareConnLimit = pInst->shareConnLimit;
 
   *ppThrd = pThrd;
   return code;
@@ -4344,15 +4327,16 @@ void *transInitClient2(uint32_t ip, uint32_t port, char *label, int numOfThreads
 
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrd2 *pThrd = NULL;
+
     code = createThrdObj(arg, &pThrd);
     TAOS_CHECK_EXIT(code);
-    pThrd->pInst = pInst;
-    pThrd->shareConnLimit = pInst->shareConnLimit;
+
     code = evtInitPipe(pThrd->pipe_queue_fd);
     TAOS_CHECK_EXIT(code);
 
     code = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread2, (void *)(pThrd));
     TAOS_CHECK_EXIT(code);
+
     pThrd->thrdInited = 1;
     cli->pThreadObj[i] = pThrd;
   }
