@@ -1575,7 +1575,7 @@ static int32_t parseSchemaClauseTop(SInsertParseContext* pCxt, SVnodeModifyOpStm
 }
 
 static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql, SToken* pToken, SSchema* pSchema,
-                                   int16_t timePrec, SColVal* pVal) {
+                                   const SSchemaExt* pExtSchema, int16_t timePrec, SColVal* pVal) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
@@ -1790,7 +1790,12 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL: {
+      if (!pExtSchema) {
+        qError("Decimal type without ext schema info, cannot parse decimal values");
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
       uint8_t precision = 0, scale = 0;
+      decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
       Decimal128 dec = {0};
       int32_t code = decimal128FromStr(pToken->z, pToken->n, precision, scale, &dec);
       if (TSDB_CODE_SUCCESS != code) {
@@ -1807,7 +1812,12 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL64: {
+      if (!pExtSchema) {
+        qError("Decimal type without ext schema info, cannot parse decimal values");
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
       uint8_t precision = 0, scale = 0;
+      decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
       Decimal64 dec = {0};
       int32_t code = decimal64FromStr(pToken->z, pToken->n, precision, scale, &dec);
       if (TSDB_CODE_SUCCESS != code) {
@@ -1831,7 +1841,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
 }
 
 static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, SToken* pToken, SSchema* pSchema,
-                               int16_t timePrec, SColVal* pVal) {
+                               const SSchemaExt* pExtSchema, int16_t timePrec, SColVal* pVal) {
   int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, pSchema->type);
   if (TSDB_CODE_SUCCESS == code && isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
@@ -1846,7 +1856,7 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
     if (pToken->n == 0 && IS_NUMERIC_TYPE(pSchema->type)) {
       return buildSyntaxErrMsg(&pCxt->msg, "invalid numeric data", pToken->z);
     }
-    code = parseValueTokenImpl(pCxt, pSql, pToken, pSchema, timePrec, pVal);
+    code = parseValueTokenImpl(pCxt, pSql, pToken, pSchema, pExtSchema, timePrec, pVal);
   }
 
   return code;
@@ -1946,8 +1956,9 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char** ppSql,
                                  SStbRowsDataContext* pStbRowsCxt, SToken* pToken, const SBoundColInfo* pCols,
-                                 const SSchema* pSchemas, SToken* tagTokens, SSchema** tagSchemas, int* pNumOfTagTokens,
-                                 bool* bFoundTbName, bool* setCtbName, SBoundColInfo* ctbCols) {
+                                 const SSchema* pSchemas, const SSchemaExt* pExtSchemas, SToken* tagTokens,
+                                 SSchema** tagSchemas, int* pNumOfTagTokens, bool* bFoundTbName, bool* setCtbName,
+                                 SBoundColInfo* ctbCols) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagNames = pStbRowsCxt->aTagNames;
   SArray* pTagVals = pStbRowsCxt->aTagVals;
@@ -2025,9 +2036,10 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
       }
       if (pCols->pColIndex[i] < numOfCols) {
-        const SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
+        const SSchema*    pSchema = &pSchemas[pCols->pColIndex[i]];
+        const SSchemaExt* pExtSchema = pExtSchemas + pCols->pColIndex[i];
         SColVal*       pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
-        code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, precision, pVal);
+        code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, pExtSchema, precision, pVal);
         if (TK_NK_VARIABLE == pToken->type) {
           code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
         }
@@ -2075,6 +2087,7 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
                                bool* setCtbName, SBoundColInfo* ctbCols) {
   SBoundColInfo* pCols = &pStbRowsCxt->boundColsInfo;
   SSchema*       pSchemas = getTableColumnSchema(pStbRowsCxt->pStbMeta);
+  SSchemaExt*    pExtSchemas = getTableColumnExtSchema(pStbRowsCxt->pStbMeta);
 
   bool        bFoundTbName = false;
   const char* pOrigSql = *ppSql;
@@ -2084,7 +2097,7 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   SSchema* tagSchemas[TSDB_MAX_TAGS] = {0};
   int      numOfTagTokens = 0;
 
-  code = doGetStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pToken, pCols, pSchemas, tagTokens, tagSchemas,
+  code = doGetStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pToken, pCols, pSchemas, pExtSchemas, tagTokens, tagSchemas,
                            &numOfTagTokens, &bFoundTbName, setCtbName, ctbCols);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -2279,8 +2292,9 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
 
 static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
                        SToken* pToken) {
-  SBoundColInfo* pCols = &pTableCxt->boundColsInfo;
-  SSchema*       pSchemas = getTableColumnSchema(pTableCxt->pMeta);
+  SBoundColInfo*    pCols = &pTableCxt->boundColsInfo;
+  SSchema*          pSchemas = getTableColumnSchema(pTableCxt->pMeta);
+  const SSchemaExt* pExtSchemas = getTableColumnExtSchema(pTableCxt->pMeta);
 
   int32_t code = TSDB_CODE_SUCCESS;
   // 1. set the parsed value from sql string
@@ -2293,8 +2307,9 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
       break;
     }
 
-    SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
-    SColVal* pVal = taosArrayGet(pTableCxt->pValues, pCols->pColIndex[i]);
+    SSchema*          pSchema = &pSchemas[pCols->pColIndex[i]];
+    const SSchemaExt* pExtSchema = pExtSchemas + pCols->pColIndex[i];
+    SColVal*          pVal = taosArrayGet(pTableCxt->pValues, pCols->pColIndex[i]);
 
     if (pToken->type == TK_NK_QUESTION) {
       pCxt->isStmtBind = true;
@@ -2314,7 +2329,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
       }
 
       if (TSDB_CODE_SUCCESS == code) {
-        code = parseValueToken(pCxt, pSql, pToken, pSchema, getTableInfo(pTableCxt->pMeta).precision, pVal);
+        code = parseValueToken(pCxt, pSql, pToken, pSchema, pExtSchema, getTableInfo(pTableCxt->pMeta).precision, pVal);
       }
     }
 

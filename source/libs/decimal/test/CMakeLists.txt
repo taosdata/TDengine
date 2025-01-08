@@ -14,5 +14,5 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
         decimalTest
-        PUBLIC os util common gtest qcom decimal
+        PUBLIC gtest taos os common
 )
