@@ -12,14 +12,12 @@ mod test_tmq_to_local {
     #[tokio::test]
     async fn test_td31475_5rows_with_taos() -> anyhow::Result<()> {
         // given
-        const ADDR: &str = "tmq:///";
+        const ADDR: &str = "tmq://";
         const SRC_DB: &str = "td31475_backup_5rows";
         const DST_DB: &str = "td31475_backup_5rows_target";
 
         // prepare
-        let taos = TaosBuilder::from_dsn(format!("{ADDR}/").into_dsn()?)?
-            .build()
-            .await?;
+        let taos = TaosBuilder::from_dsn(ADDR)?.build().await?;
         drop_topic_and_database(&taos, SRC_DB).await?;
         drop_topic_and_database(&taos, DST_DB).await?;
         taos.exec_many(vec![
