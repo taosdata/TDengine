@@ -517,7 +517,7 @@ export default {
       if (this.$store.state.app.currentDBType == "mqtt") {
         inputList = inputList.map((msg, index) => {
           let inputobj = {...msg};
-          inputobj[this.itemData.columnname] = this.$parent.msgForm.topicbody[index][this.itemData.columnname] 
+          inputobj[this.itemData.columnname] = this.$parent.msgForm.topicbody[index] && this.$parent.msgForm.topicbody[index][this.itemData.columnname] 
           if (isall) {
             inputobj = {...this.$parent.msgForm.topicbody[index], ...inputobj}
           }
