@@ -886,8 +886,27 @@ static void tsdbCacheDeleter2(const void *key, size_t klen, void *value, void *u
   taosMemoryFree(value);
 }
 
+/*
+typedef struct {
+  SRowKey          rowKey;
+  int8_t           dirty;
+  SColVal          colVal;
+  ELastCacheStatus cacheStatus;
+} SLastCol;
+*/
+typedef struct {
+  int32_t nCols;
+  // SLastCol *lastArray;
+  // SLastCol *lastrowArray;
+  SArray *lastArray;
+  SArray *lastrowArray;
+} SLastRowTable;
+
 static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud) {
   // TODO: free internal resources
+  SLastRowTable *pTable = value;
+  taosArrayDestroy(pTable->lastArray);
+  taosArrayDestroy(pTable->lastrowArray);
   taosMemoryFree(value);
 }
 
@@ -1585,22 +1604,6 @@ _exit:
 
   TAOS_RETURN(code);
 }
-
-/*
-typedef struct {
-  SRowKey          rowKey;
-  int8_t           dirty;
-  SColVal          colVal;
-  ELastCacheStatus cacheStatus;
-} SLastCol;
-*/
-typedef struct {
-  int32_t nCols;
-  // SLastCol *lastArray;
-  // SLastCol *lastrowArray;
-  SArray *lastArray;
-  SArray *lastrowArray;
-} SLastRowTable;
 
 static int32_t tsdbCacheUpdate2(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray) {
   if (!updCtxArray || TARRAY_SIZE(updCtxArray) == 0) {
