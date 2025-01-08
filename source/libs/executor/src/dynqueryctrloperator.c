@@ -906,26 +906,28 @@ static int32_t seqJoinLaunchNewRetrieve(SOperatorInfo* pOperator, SSDataBlock** 
 }
 
 static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBlock* pBlock) {
-  if (pBlock && pStbJoin && pStbJoin->pOutputDataBlockDesc) {
-    pBlock->info.id.blockId = pStbJoin->pOutputDataBlockDesc->dataBlockId;
-    if (!pBlock->pDataBlock) return TSDB_CODE_SUCCESS;
+  if (pBlock) {
+    if (pStbJoin && pStbJoin->pOutputDataBlockDesc) {
+      pBlock->info.id.blockId = pStbJoin->pOutputDataBlockDesc->dataBlockId;
+      if (!pBlock->pDataBlock) return TSDB_CODE_SUCCESS;
 
-    for (int i = pBlock->pDataBlock->size; i < pStbJoin->pOutputDataBlockDesc->pSlots->length; i++) {
-      SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pStbJoin->pOutputDataBlockDesc->pSlots, i);
-      if (pSlot == NULL) {
-        qError("seqStableJoinComposeRes: pSlot is NULL, i:%d", i);
-        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      for (int i = pBlock->pDataBlock->size; i < pStbJoin->pOutputDataBlockDesc->pSlots->length; i++) {
+        SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pStbJoin->pOutputDataBlockDesc->pSlots, i);
+        if (pSlot == NULL) {
+          qError("seqStableJoinComposeRes: pSlot is NULL, i:%d", i);
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        }
+        SColumnInfoData colInfo = createColumnInfoData(pSlot->dataType.type, pSlot->dataType.bytes, pSlot->slotId);
+        colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
+        int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          return -1;
+        }
       }
-      SColumnInfoData colInfo = createColumnInfoData(pSlot->dataType.type, pSlot->dataType.bytes, pSlot->slotId);
-      colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
-      int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        return -1;
-      }
+    } else {
+      qError("seqStableJoinComposeRes: pBlock or pStbJoin is NULL");
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
-  } else {
-    qError("seqStableJoinComposeRes: pBlock or pStbJoin is NULL");
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   return TSDB_CODE_SUCCESS;
 }
