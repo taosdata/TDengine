@@ -65,13 +65,13 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 List the software and tools required to work on the project.
 
-- go 1.20+ (for taosadapter)
-- node 16.20.2 (for taos-explorer)
-- python 3.10.12+ (for test)
+  - go 1.20+ (for taosadapter)
+  - node 16.20.2 (for taos-explorer)
+  - python 3.10.12+ (for test)
 
 Step-by-step instructions to set up the prerequisites software.
 
-- Install dependencies tools
+#### Install dependencies tools
 
   - The required package for linux
 
@@ -177,7 +177,7 @@ Step-by-step instructions to set up the prerequisites software.
       brew install argp-standalone gflags pkgconfig
       ```
 
-- Get the source codes
+#### Get the source codes
 
   First of all, you may clone the source codes from github:
 
@@ -193,7 +193,7 @@ Step-by-step instructions to set up the prerequisites software.
       insteadOf = https://github.com/
   ```
 
-- Special Note
+#### Special Note
   [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc)， [Go Connector](https://github.com/taosdata/driver-go)，[Python Connector](https://github.com/taosdata/taos-connector-python)，[Node.js Connector](https://github.com/taosdata/taos-connector-node)，[C# Connector](https://github.com/taosdata/taos-connector-dotnet) ，[Rust Connector](https://github.com/taosdata/taos-connector-rust) and [Grafana plugin](https://github.com/taosdata/grafanaplugin) has been moved to standalone repository.
 
 # 4. Building
@@ -416,13 +416,13 @@ If TDengine CLI connects the server successfully, welcome messages and version i
   The Time Series Benchmark Suite(TSBS) test script provides a standardized approach to evaluate the performance of various
   time series databases, you can run the script with below command:
 
-  - Clone the code
+  Clone the code
 
     ```bash
     cd /root && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp
     ```
 
-  - Modify IP and host of client and server in `test.ini`
+  Modify IP and host of client and server in `test.ini`
     ```ini
     clientIP="192.168.0.203"   # client ip
     clientHost="trd03"         # client hostname
@@ -430,13 +430,13 @@ If TDengine CLI connects the server successfully, welcome messages and version i
     serverHost="trd04"         # server hostname
     ```
    
-  - Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+  Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
 
     ```ini
     serverPass="taosdata123"   # server root password
     ```
 
-  - Run the following command to start the test:
+  Run the following command to start the test:
     ```bash
     nohup bash tsdbComparison.sh > test.log &
     ```
@@ -472,8 +472,8 @@ cd /root/TDengine/tests
 ```
 
 # 11. Coverage --replace
-We can see coverage result in https://coveralls.io/github/taosdata/TDengine
-We can also run coverage script locally.
+You can see coverage result in https://coveralls.io/github/taosdata/TDengine
+You can also run coverage script locally.
 
 ```bash
 cd /root/TDengine/tests
