@@ -799,7 +799,6 @@ static void cfgObjArrayCleanUp(SArray *array) {
   for (int32_t i = 0; i < sz; ++i) {
     SConfigObj *obj = taosArrayGet(array, i);
     tFreeSConfigObj(obj);
-    taosMemoryFree(obj);
   }
   taosArrayDestroy(array);
 }
