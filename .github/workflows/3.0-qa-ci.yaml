@@ -325,10 +325,10 @@ jobs:
       
       - name: Calculate the difference between the results of two adjacent executions
         run: |
-          taosX_coverage_diff=$(echo "scale=1;$TAOSX_COVERAGE_PERCENT - $taosx_coverage_last" | bc| sed 's/^\./0./; s/^-\./-0./')
-          influxdb_connector_coverage_diff=$(echo "scale=1;$INFLUXDB_CONNECTOR_COVERAGE_PERCENT - $influxdb_connector_coverage_last" | bc| sed 's/^\./0./; s/^-\./-0./')
-          opentsdb_connector_coverage_diff=$(echo "scale=1;$OPENTSDB_CONNECTOR_COVERAGE_PERCENT - $opentsdb_connector_coverage_last" | bc| sed 's/^\./0./; s/^-\./-0./')
-          opc_connector_coverage_diff=$(echo "scale=1;$OPC_CONNECTOR_COVERAGE_PERCENT - $opc_connector_coverage_last" | bc| sed 's/^\./0./; s/^-\./-0./')
+          taosX_coverage_diff=$(echo "scale=1;$TAOSX_COVERAGE_PERCENT - $taosx_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          influxdb_connector_coverage_diff=$(echo "scale=1;$INFLUXDB_CONNECTOR_COVERAGE_PERCENT - $influxdb_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          opentsdb_connector_coverage_diff=$(echo "scale=1;$OPENTSDB_CONNECTOR_COVERAGE_PERCENT - $opentsdb_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          opc_connector_coverage_diff=$(echo "scale=1;$OPC_CONNECTOR_COVERAGE_PERCENT - $opc_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
           echo "taosX_coverage_diff=$taosX_coverage_diff" >> $GITHUB_ENV
           echo "influxdb_connector_coverage_diff=$influxdb_connector_coverage_diff" >> $GITHUB_ENV
           echo "opentsdb_connector_coverage_diff=$opentsdb_connector_coverage_diff" >> $GITHUB_ENV
@@ -354,9 +354,9 @@ jobs:
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           taosX Coverage: $TAOSX_COVERAGE_PERCENT%,difference to the last result is $taosX_coverage_diff%\n
-          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $influxdb_connector_coverage_diff%\n
-          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $opentsdb_connector_coverage_diff%\n
-          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $opc_connector_coverage_diff%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%, difference is $influxdb_connector_coverage_diff%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%, difference is $opentsdb_connector_coverage_diff%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%, difference is $opc_connector_coverage_diff%\n
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
       
@@ -380,8 +380,8 @@ jobs:
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           taosX Coverage: $TAOSX_COVERAGE_PERCENT%,difference to the last result is $taosX_coverage_diff%\n
-          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $influxdb_connector_coverage_diff%\n
-          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $opentsdb_connector_coverage_diff%\n
-          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%, difference to the last result is $opc_connector_coverage_diff%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%, difference is $influxdb_connector_coverage_diff%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%, difference is $opentsdb_connector_coverage_diff%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%, difference is $opc_connector_coverage_diff%\n
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
