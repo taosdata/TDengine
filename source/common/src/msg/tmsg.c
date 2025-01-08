@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "tmsg.h"
+#include "tglobal.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -11639,8 +11639,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, nColData));
 
     for (uint64_t i = 0; i < nColData; i++) {
-      pCoder->pos +=
-          tPutColData(SUBMIT_REQUEST_VERSION, pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
+      tPutColData(SUBMIT_REQUEST_VERSION, pCoder, &aColData[i]);
     }
   } else {
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)));
@@ -11695,7 +11694,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     for (int32_t i = 0; i < nColData; ++i) {
-      pCoder->pos += tGetColData(version, pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
+      tGetColData(version, pCoder, taosArrayReserve(pSubmitTbData->aCol, 1));
     }
   } else {
     uint64_t nRow;
