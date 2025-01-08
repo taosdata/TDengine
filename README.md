@@ -63,138 +63,42 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 # 3. Prerequisites
 
-List the software and tools required to work on the project.
+## 3.1 Install dependencies tools
 
-  - go 1.20+ (for taosadapter)
-  - node 16.20.2 (for taos-explorer)
-  - python 3.10.12+ (for test)
+### The required package for linux
 
-Step-by-step instructions to set up the prerequisites software.
+```bash
+apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping
+```
 
-#### Install dependencies tools
+### The required package for windows
 
-  - The required package for linux
+to be updated...
 
-    ```bash
-    apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping
-    ```
+### The required package for macOS
 
-    Install Go for linux
+```
+brew install argp-standalone gflags pkgconfig
+```
 
-    Update the installation package to version 1.23.3.
+## 3.2 Get the source codes
 
-    ```bash
-    cd /usr/local/
-    wget https://golang.google.cn/dl/go1.23.3.linux-amd64.tar.gz
-    rm -rf /usr/local/go && tar -C /usr/local -xzf go1.23.3.linux-amd64.tar.gz
-    ```
+First of all, you may clone the source codes from github:
 
-    Set up environment variables, first add the following content to the end of the `~/.bashrc` file.
+```bash
+git clone https://github.com/taosdata/TDengine.git
+cd TDengine
+```
 
-    ```bash
-    export GO_HOME=/usr/local/go
-    export PATH=$GO_HOME/bin:$PATH
-    export CGO_ENABLED=1
-    ```
+You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You will need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
 
-    Then make the environment variables take effect.
+```
+[url "git@github.com:"]
+    insteadOf = https://github.com/
+```
 
-    ```bash
-    source ~/.bashrc
-    ```
-
-    Configure proxy to accelerate the download of Go dependencies.
-
-    ```bash
-    go env -w GOPROXY=https://goproxy.cn,direct
-    go env -w GO111MODULE=on
-    ```
-
-    Check if the environment variables have taken effect and if the version is the installed version.
-
-    ```bash
-    go env
-    go version
-    ```
-
-    Install node for linux
-
-    Recommend install node using nvm.
-
-    ```bash
-    curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh | bash
-    ```
-
-    Set up environment variables, add the following content to the end of the `~/.bashrc` file.
-
-    ```bash
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    ```
-
-      Then make the environment variables take effect.
-
-      ```bash
-      source ~/.bashrc
-      ```
-
-      Finally, Install node and yarn.
-
-      ```bash
-      nvm install 16.20.2
-      npm config set registry=https://registry.npmmirror.com
-      npm install -g yarn
-      ```
-
-      Install Python-connector for linux
-
-      Install Python3.
-
-      ```bash
-      apt install python3
-      apt install python3-pip
-      ```
-
-      Install the dependent Python components.
-
-      ```bash
-      pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
-      ```
-
-      Install the Python connector for TDengine.
-
-      ```bash
-      pip3 install taospy taos-ws-py
-      ```
-
-  - The required package for windows
-
-      to be updated...
-
-  - The required package for macOS
-
-      ```
-      brew install argp-standalone gflags pkgconfig
-      ```
-
-#### Get the source codes
-
-  First of all, you may clone the source codes from github:
-
-  ```bash
-  git clone https://github.com/taosdata/TDengine.git
-  cd TDengine
-  ```
-
-  You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You will need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
-
-  ```
-  [url "git@github.com:"]
-      insteadOf = https://github.com/
-  ```
-
-#### Special Note
-  [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc)， [Go Connector](https://github.com/taosdata/driver-go)，[Python Connector](https://github.com/taosdata/taos-connector-python)，[Node.js Connector](https://github.com/taosdata/taos-connector-node)，[C# Connector](https://github.com/taosdata/taos-connector-dotnet) ，[Rust Connector](https://github.com/taosdata/taos-connector-rust) and [Grafana plugin](https://github.com/taosdata/grafanaplugin) has been moved to standalone repository.
+## 3.3 Special Note
+[JDBC Connector](https://github.com/taosdata/taos-connector-jdbc)， [Go Connector](https://github.com/taosdata/driver-go)，[Python Connector](https://github.com/taosdata/taos-connector-python)，[Node.js Connector](https://github.com/taosdata/taos-connector-node)，[C# Connector](https://github.com/taosdata/taos-connector-dotnet) ，[Rust Connector](https://github.com/taosdata/taos-connector-rust) and [Grafana plugin](https://github.com/taosdata/grafanaplugin) has been moved to standalone repository.
 
 # 4. Building
 
@@ -206,79 +110,79 @@ TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) a
 
 To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in the project directory.
 
-- Linux platform building
+## 4.1 Linux platform building
 
-  You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
+You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
 
-  ```bash
-  ./build.sh
-  ```
+```bash
+./build.sh
+```
 
-  It equals to execute following commands:
+It equals to execute following commands:
 
-  ```bash
-  mkdir debug
-  cd debug
-  cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
-  make
-  ```
+```bash
+mkdir debug
+cd debug
+cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
+make
+```
 
-  You can use Jemalloc as memory allocator instead of glibc:
+You can use Jemalloc as memory allocator instead of glibc:
 
-  ```
-  apt install autoconf
-  cmake .. -DJEMALLOC_ENABLED=true
-  ```
+```
+apt install autoconf
+cmake .. -DJEMALLOC_ENABLED=true
+```
 
-  TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 platform.
-  You can also specify CPUTYPE option like aarch64 too if the detection result is not correct:
+TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 platform.
+You can also specify CPUTYPE option like aarch64 too if the detection result is not correct:
 
-  aarch64:
+aarch64:
 
-  ```bash
-  cmake .. -DCPUTYPE=aarch64 && cmake --build .
-  ```
+```bash
+cmake .. -DCPUTYPE=aarch64 && cmake --build .
+```
 
-- Windows platform building
+## 4.2 Windows platform building
 
-  If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
-  Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
+If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
+Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
 
-  ```cmd
-  mkdir debug && cd debug
-  "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
-  cmake .. -G "NMake Makefiles"
-  nmake
-  ```
+```cmd
+mkdir debug && cd debug
+"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
+cmake .. -G "NMake Makefiles"
+nmake
+```
 
-  If you use the Visual Studio 2019 or 2017:
+If you use the Visual Studio 2019 or 2017:
 
-  please open a command window by executing "cmd.exe".
-  Please specify "x64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
+please open a command window by executing "cmd.exe".
+Please specify "x64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
 
-  ```cmd
-  mkdir debug && cd debug
-  "c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
-  cmake .. -G "NMake Makefiles"
-  nmake
-  ```
+```cmd
+mkdir debug && cd debug
+"c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
+cmake .. -G "NMake Makefiles"
+nmake
+```
 
-  Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
+Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
 
-  ```cmd
-  mkdir debug && cd debug
-  cmake .. -G "NMake Makefiles"
-  nmake
-  ```
+```cmd
+mkdir debug && cd debug
+cmake .. -G "NMake Makefiles"
+nmake
+```
 
-- MacOS platform building
+## 4.3 MacOS platform building
 
-  Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
 
-  ```shell
-  mkdir debug && cd debug
-  cmake .. && cmake --build .
-  ```
+```shell
+mkdir debug && cd debug
+cmake .. && cmake --build .
+```
 
 # 5. Packaging
 
@@ -286,176 +190,143 @@ To be updated...
 
 # 6. Installation
 
-- Linux platform installation
+## 6.1 Linux platform installation
 
-  After building successfully, TDengine can be installed by
+After building successfully, TDengine can be installed by
 
-  ```bash
-  sudo make install
-  ```
+```bash
+sudo make install
+```
 
-  Users can find more information about directories installed on the system in the [directory and files](https://docs.tdengine.com/reference/directory/) section.
+Users can find more information about directories installed on the system in the [directory and files](https://docs.tdengine.com/reference/directory/) section.
 
-  Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
+Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
 
-- Windows platform installation
+## 6.2 Windows platform installation
 
-  After building successfully, TDengine can be installed by:
+After building successfully, TDengine can be installed by:
 
-  ```cmd
-  nmake install
-  ```
+```cmd
+nmake install
+```
 
-- MacOS platform installation
+## 6.3 MacOS platform installation
 
-  After building successfully, TDengine can be installed by:
+After building successfully, TDengine can be installed by:
 
-  ```bash
-  sudo make install
-  ```
+```bash
+sudo make install
+```
 
 # 7. Running
 
-- To start the service after installation on linux, in a terminal, use:
+## 7.1 Run TDengine on linux
 
-  ```bash
-  sudo systemctl start taosd
-  ```
+To start the service after installation on linux, in a terminal, use:
 
-  Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+```bash
+sudo systemctl start taosd
+```
 
-  ```bash
-  taos
-  ```
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
 
-  If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+```bash
+taos
+```
 
-  If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
-  ```bash
-  ./build/bin/taosd -c test/cfg
-  ```
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
 
-  In another terminal, use the TDengine CLI to connect the server:
+```bash
+./build/bin/taosd -c test/cfg
+```
 
-  ```bash
-  ./build/bin/taos -c test/cfg
-  ```
+In another terminal, use the TDengine CLI to connect the server:
 
-  option "-c test/cfg" specifies the system configuration file directory.
+```bash
+./build/bin/taos -c test/cfg
+```
 
-- To start the service after installation on windows, in a terminal, use:
+option "-c test/cfg" specifies the system configuration file directory.
 
-  ```bash
-  to be updated
-  ```
-  Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+## 7.2 Run TDengine on windows
 
-  ```bash
-  to be updated
-  ```
+To start the service after installation on windows, in a terminal, use:
 
-- To start the service after installation on macOS, double-click the /applications/TDengine to start the program, or in a terminal, use:
+```bash
+to be updated
+```
 
-  ```bash
-  sudo launchctl start com.tdengine.taosd
-  ```
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
 
-  Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+```bash
+taos
+```
 
-  ```bash
-  taos
-  ```
+## 7.3 Run TDengine on MacOS
+
+To start the service after installation on macOS, double-click the /applications/TDengine to start the program, or in a terminal, use:
+
+```bash
+sudo launchctl start com.tdengine.taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+taos
+```
 
 If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
 # 8. Testing
 
-- Run the TSIM test script
+## 8.1 Run the TSIM test script
 
-  TSIM test framework is developed by c++ in the start-up period of TDengine， the test scripts are basic cases, you can run 
-  the script with below command:
+TSIM test framework is developed by c++ in the start-up period of TDengine， the test scripts are basic cases, you can run 
+the script with below command:
 
-  ```bash
-  cd /root/TDengine/tests/script
-  ./test.sh -f tsim/db/basic1.sim
-  ```
+```bash
+cd /root/TDengine/tests/script
+./test.sh -f tsim/db/basic1.sim
+```
 
-- Run the Python test script
-  
-  Python test script includes almost all of the functions of TDengine, so some test case maybe fail cause the function only
-  work for TDengine enterprise version, you can run the script with below command:
+## 8.2 Run the Python test script
 
-  ```bash
-  cd /root/TDengine/tests/system-test
-  python3 ./test.py -f 2-query/floor.py
-  ```
+Python test script includes almost all of the functions of TDengine, so some test case maybe fail cause the function only
+work for TDengine enterprise version, you can run the script with below command:
 
-- Run unittest
-  
-  Unit test script is the smallest testable part and developed for some function, method or class of TDengine, you can run
-  the script with below command:
+```bash
+cd /root/TDengine/tests/system-test
+python3 ./test.py -f 2-query/floor.py
+```
 
-  ```bash
-  cd /root/TDengine/tests/unit-test/
-  bash test.sh
-  ```
+## 8.3 Run unittest
 
-- Smoke Testing
-  
-  Smoke test script is known as sanity testing to ensure that the critical functionalities of TDengine, you can run the 
-  script with below command:
+Unit test script is the smallest testable part and developed for some function, method or class of TDengine, you can run
+the script with below command:
 
-  ```bash
-  cd /root/TDengine/packaging/smokeTest
-  ./test_smoking_selfhost.sh
-  ```
+```bash
+cd /root/TDengine/tests/unit-test/
+bash test.sh
+```
 
-- TSBS Test --replace
+## 8.4 Smoke Testing
 
-  The Time Series Benchmark Suite(TSBS) test script provides a standardized approach to evaluate the performance of various
-  time series databases, you can run the script with below command:
+Smoke test script is known as sanity testing to ensure that the critical functionalities of TDengine, you can run the 
+script with below command:
 
-  Clone the code
+```bash
+cd /root/TDengine/packaging/smokeTest
+./test_smoking_selfhost.sh
+```
 
-    ```bash
-    cd /root && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp
-    ```
-
-  Modify IP and host of client and server in `test.ini`
-    ```ini
-    clientIP="192.168.0.203"   # client ip
-    clientHost="trd03"         # client hostname
-    serverIP="192.168.0.204"   # server ip
-    serverHost="trd04"         # server hostname
-    ```
-   
-  Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
-
-    ```ini
-    serverPass="taosdata123"   # server root password
-    ```
-
-  Run the following command to start the test:
-    ```bash
-    nohup bash tsdbComparison.sh > test.log &
-    ```
-  When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
-
-- Crash_gen Test
-  
-  Crash_gen is a chaotic testing tool developed by TDengine, it can evaluate the resilience of TDengine through simulating 
-  normal operation、intentional fault injection and their combination, you can run the script with below command:
-
-  ```bash
-  cd /root/TDengine/tests/pytest/ && ./crash_gen.sh
-  ```
-
-Windows platform testing
+## Windows platform testing
 
   to be updated...
 
-MacOS platform testing
+## MacOS platform testing
 
   to be updated...
 
