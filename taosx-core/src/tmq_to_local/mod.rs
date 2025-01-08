@@ -41,6 +41,8 @@ struct ZFileMan {
     backup_dir: PathBuf,
     /// 增量备份对应的 topic
     topic: String,
+    /// 备份点对应的时间，如果为 None，表示使用任务结束的时间作为备份点
+    ts: Option<DateTime<Utc>>,
     /// 压缩级别
     compression_level: async_compression::Level,
     /// 文件的最大大小
@@ -254,7 +256,9 @@ impl ZFileMan {
     async fn flush_vgroup(&self, vgroup: i32) -> Result<()> {
         self.assert_vgroup(vgroup).await?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
-        entry.value().lock().await.flush().await?;
+        let mut writer = entry.value().lock().await;
+        writer.check().await?;
+        writer.flush().await?;
         Ok(())
     }
 }
@@ -325,33 +329,37 @@ pub async fn tmq_to_local(
         config.create_topic().await?;
         // 在本地创建备份目录
         config.create_backup_dir().await?;
-        // 初始备份，不能通过 position 获取 current_offset
-        // config.set_backup_point_gen_mode(BackupPointGenMode::ByTimeout);
     }
-
-    // load metrics
-    let metrics = get_metrics_arc(task_id.clone()).await;
+    // 等待 upcoming
+    wait_for_upcoming_impl(config.upcoming).await?;
 
     // 创建 consumer
     let consumers = config.create_consumer().await?;
-
     // 创建 ZFileMan
-    let man = Arc::new(ZFileMan {
+    let mut man = ZFileMan {
         api_version: crate::build::PKG_VERSION.to_owned(),
         server_version: config.server_version.clone(),
         backup_dir: config.backup_dir.clone(),
         topic: config.topic.clone(),
+        ts: None,
         compression_level: config.backup_comp_level,
         max_file_size: config.backup_max_size,
         move_to: config.move_to.clone(),
         sync: tokio::sync::Mutex::new(()),
         writers: Default::default(),
-    });
-
+    };
+    // 如果是使用 offset 作为备份点生成方式，设置备份点为当前时间
+    if config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
+        man.ts = Some(Utc::now());
+    }
+    // load metrics
+    let metrics = get_metrics_arc(task_id.clone()).await;
+    // 创建 BackupWorker
+    let man = Arc::new(man);
     let mut join_set = JoinSet::new();
     for (idx, consumer) in consumers.into_iter().enumerate() {
         // 创建 worker
-        let task = BackupWorker {
+        let mut task = BackupWorker {
             id: idx,
             config: config.clone(),
             consumer,
@@ -397,24 +405,24 @@ struct BackupWorker {
     metrics: Arc<CoreMetrics>,
 }
 
-impl BackupWorker {
-    /// 如果当前时间比 upcoming 早，等待到 upcoming
-    async fn wait_for_upcoming_impl(upcoming: Option<DateTime<Utc>>) -> Result<()> {
-        if let Some(upcoming) = upcoming {
-            let now = Utc::now();
-            if now < upcoming {
-                let duration = upcoming - now;
-                tracing::info!("tmq_to_local worker wait for upcoming: {}", upcoming);
-                tokio::time::sleep(duration.to_std().map_err(|err| {
-                    anyhow::Error::from(err)
-                        .context(format!("failed to convert: {:?} to std duration", duration))
-                })?)
-                .await;
-            }
+/// 如果当前时间比 upcoming 早，等待到 upcoming
+async fn wait_for_upcoming_impl(upcoming: Option<DateTime<Utc>>) -> Result<()> {
+    if let Some(upcoming) = upcoming {
+        let now = Utc::now();
+        if now < upcoming {
+            let duration = upcoming - now;
+            tracing::info!("tmq_to_local wait for upcoming: {}", upcoming);
+            tokio::time::sleep(duration.to_std().map_err(|err| {
+                anyhow::Error::from(err)
+                    .context(format!("failed to convert: {:?} to std duration", duration))
+            })?)
+            .await;
         }
-        Ok(())
     }
+    Ok(())
+}
 
+impl BackupWorker {
     #[allow(unused)]
     async fn assign(&self) -> Result<()> {
         let assignments = self.consumer.assignments().await;
@@ -437,28 +445,20 @@ impl BackupWorker {
         Ok(())
     }
 
-    async fn run(&self) -> Result<()> {
-        Self::wait_for_upcoming_impl(self.config.upcoming).await?;
-        tracing::info!("tmq_to_local worker: {:?} start", self.id);
-
-        if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
-            // TODO: 如果是使用 offset 作为备份点生成方式，设置备份点为当前时间
-            // self.man.ts = Some(Utc::now());
-        }
-
+    async fn run(&mut self) -> Result<()> {
+        tracing::info!("tmq_to_local worker[{}] start", self.id);
         let run_impl = self.run_impl().in_current_span();
-
         select! {
             _ = self.cancel.cancelled() => {
-                tracing::warn!("tmq_to_local worker: {} cancelled", self.id);
+                tracing::warn!("tmq_to_local worker[{}] cancelled", self.id);
             }
             res = run_impl => {
                 match res {
                     Ok(_) => {
-                        tracing::info!("tmq_to_local worker: {} completed", self.id);
+                        tracing::info!("tmq_to_local worker[{}] completed", self.id);
                     }
                     Err(err) => {
-                        tracing::error!(?err, "tmq_to_local worker: {} exit with error: {:#}", self.id, err);
+                        tracing::error!(?err, "tmq_to_local worker[{}] exit with error: {:#}", self.id, err);
                         return Err(err);
                     }
                 }
@@ -469,7 +469,11 @@ impl BackupWorker {
     }
 
     async fn run_impl(&self) -> Result<()> {
-        tracing::debug!("tmq_to_local worker run with config: {:?}", self.config);
+        tracing::debug!(
+            "tmq_to_local worker[{}] run with config: {:?}",
+            self.id,
+            self.config
+        );
         let metrics = self.metrics.tmq();
 
         let mut stream = self.consumer.stream();
@@ -719,6 +723,7 @@ pub async fn tmq_to_local_previous(
             server_version: version.clone(),
             backup_dir: backup_dir.to_owned(),
             topic: topic.name.clone(),
+            ts: None,
             sync: tokio::sync::Mutex::new(()),
             writers: Default::default(),
             max_file_size,
@@ -948,19 +953,19 @@ mod tests {
     #[tokio::test]
     async fn test_wait_for_upcoming() {
         let now = Utc::now();
-        BackupWorker::wait_for_upcoming_impl(Some(now + chrono::Duration::seconds(2)))
+        wait_for_upcoming_impl(Some(now + chrono::Duration::seconds(2)))
             .await
             .unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 2);
 
         let now = Utc::now();
-        BackupWorker::wait_for_upcoming_impl(None).await.unwrap();
+        wait_for_upcoming_impl(None).await.unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 0);
 
         let now = Utc::now();
-        BackupWorker::wait_for_upcoming_impl(Some(now - chrono::Duration::days(1)))
+        wait_for_upcoming_impl(Some(now - chrono::Duration::days(1)))
             .await
             .unwrap();
         let current = Utc::now();
