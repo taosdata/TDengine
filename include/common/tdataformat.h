@@ -249,7 +249,7 @@ struct SValue {
   union {
     int64_t val;
     struct {
-      uint8_t *pData; // TODO wjm free or no free???
+      uint8_t *pData; // TODO wjm free or no free??? use single interface to destroy pData.
       uint32_t nData;
     };
   };
