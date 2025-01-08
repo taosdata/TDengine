@@ -3689,7 +3689,7 @@ _exit:
   return 0;
 }
 
-static int32_t tPutColDataVersion0(SEncoder *pEncoder, SColData *pColData) {
+static int32_t tEncodeColDataVersion0(SEncoder *pEncoder, SColData *pColData) {
   int32_t code = 0;
 
   if ((code = tEncodeI16v(pEncoder, pColData->cid))) return code;
@@ -3733,7 +3733,7 @@ static int32_t tPutColDataVersion0(SEncoder *pEncoder, SColData *pColData) {
   return code;
 }
 
-static int32_t tGetColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
+static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
   int32_t code = 0;
 
   if ((code = tDecodeI16v(pDecoder, &pColData->cid))) return code;
@@ -3783,38 +3783,52 @@ static int32_t tGetColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
   return code;
 }
 
-static int32_t tPutColDataVersion1(SEncoder *pEncoder, SColData *pColData) {
-  int32_t code = tPutColDataVersion0(pEncoder, pColData);
+static int32_t tEncodeColDataVersion1(SEncoder *pEncoder, SColData *pColData) {
+  int32_t code = tEncodeColDataVersion0(pEncoder, pColData);
   if (code) return code;
   return tEncodeI8(pEncoder, pColData->cflag);
 }
 
-static int32_t tGetColDataVersion1(SDecoder *pDecoder, SColData *pColData) {
-  int32_t code = tGetColDataVersion0(pDecoder, pColData);
+static int32_t tDecodeColDataVersion1(SDecoder *pDecoder, SColData *pColData) {
+  int32_t code = tDecodeColDataVersion0(pDecoder, pColData);
   if (code) return code;
 
   code = tDecodeI8(pDecoder, &pColData->cflag);
   return code;
 }
 
-int32_t tPutColData(uint8_t version, SEncoder *pEncoder, SColData *pColData) {
+int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData) {
   if (version == 0) {
-    return tPutColDataVersion0(pEncoder, pColData);
+    return tEncodeColDataVersion0(pEncoder, pColData);
   } else if (version == 1) {
-    return tPutColDataVersion1(pEncoder, pColData);
+    return tEncodeColDataVersion1(pEncoder, pColData);
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
 }
 
-int32_t tGetColData(uint8_t version, SDecoder *pDecoder, SColData *pColData) {
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData) {
   if (version == 0) {
-    return tGetColDataVersion0(pDecoder, pColData);
+    return tDecodeColDataVersion0(pDecoder, pColData);
   } else if (version == 1) {
-    return tGetColDataVersion1(pDecoder, pColData);
+    return tDecodeColDataVersion1(pDecoder, pColData);
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
+}
+
+int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow) { return tEncodeFixed(pEncoder, pRow, pRow->len); }
+
+int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow) {
+  if (ppRow == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pDecoder->pos + sizeof(SRow) > pDecoder->size) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  return tDecodeBinaryWithSize(pDecoder, ((SRow *)(pDecoder->data + pDecoder->pos))->len, (uint8_t **)ppRow);
 }
 
 #define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \

@@ -318,7 +318,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
 
     SColData colData = {0};
-    tGetColData(version, pCoder, &colData);
+    tDecodeColData(version, pCoder, &colData);
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
@@ -332,7 +332,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
 
     for (uint64_t i = 1; i < nColData; i++) {
-      tGetColData(version, pCoder, &colData);
+      tDecodeColData(version, pCoder, &colData);
     }
   } else {
     uint64_t nRow;

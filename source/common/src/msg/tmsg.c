@@ -11639,15 +11639,14 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, nColData));
 
     for (uint64_t i = 0; i < nColData; i++) {
-      tPutColData(SUBMIT_REQUEST_VERSION, pCoder, &aColData[i]);
+      TAOS_CHECK_EXIT(tEncodeColData(SUBMIT_REQUEST_VERSION, pCoder, &aColData[i]));
     }
   } else {
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)));
 
     SRow **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
     for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
-      if (pCoder->data) memcpy(pCoder->data + pCoder->pos, rows[iRow], rows[iRow]->len);
-      pCoder->pos += rows[iRow]->len;
+      TAOS_CHECK_EXIT(tEncodeFixed(pCoder, rows[iRow], rows[iRow]->len));
     }
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
@@ -11694,7 +11693,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     for (int32_t i = 0; i < nColData; ++i) {
-      tGetColData(version, pCoder, taosArrayReserve(pSubmitTbData->aCol, 1));
+      TAOS_CHECK_EXIT(tDecodeColData(version, pCoder, taosArrayReserve(pSubmitTbData->aCol, 1)));
     }
   } else {
     uint64_t nRow;
@@ -11711,8 +11710,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
         TAOS_CHECK_EXIT(terrno);
       }
 
-      *ppRow = (SRow *)(pCoder->data + pCoder->pos);
-      pCoder->pos += (*ppRow)->len;
+      TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
     }
   }
 
