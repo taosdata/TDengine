@@ -356,7 +356,6 @@ int32_t mndSendRebuildReq(SMnode *pMnode) {
                     .info.refId = 0,
                     .info.noResp = 0,
                     .info.handle = 0};
-  SRpcMsg rpcRsp = {0};
   SEpSet  epSet = {0};
 
   mndGetMnodeEpSet(pMnode, &epSet);
