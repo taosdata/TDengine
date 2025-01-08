@@ -8609,7 +8609,7 @@ static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt*
   }
   SDropDbReq dropReq = {0};
   SName      name = {0};
-  int32_t code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, dropReq.db);
   dropReq.ignoreNotExists = pStmt->ignoreNotExists;
