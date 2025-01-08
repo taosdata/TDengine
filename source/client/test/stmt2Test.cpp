@@ -124,7 +124,7 @@ void do_stmt(TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUM
   printf("test sql : %s\n", sql);
   do_query(taos, "drop database if exists testdb1");
   do_query(taos, "create database IF NOT EXISTS testdb1");
-  do_query(taos, "create table testdb1.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
+  do_query(taos, "create stable testdb1.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
 
   TAOS_STMT2* stmt = taos_stmt2_init(taos, option);
   ASSERT_NE(stmt, nullptr);
@@ -238,11 +238,11 @@ TEST(stmt2Case, insert_stb_get_fields_Test) {
   do_query(taos, "drop database if exists testdb2");
   do_query(taos, "create database IF NOT EXISTS testdb2 PRECISION 'ns'");
   do_query(taos,
-           "create table testdb2.stb (ts timestamp, b binary(10)) tags(t1 "
+           "create stable testdb2.stb (ts timestamp, b binary(10)) tags(t1 "
            "int, t2 binary(10))");
   do_query(
       taos,
-      "create table if not exists testdb2.all_stb(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, "
+      "create stable if not exists testdb2.all_stb(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, "
       "v6 tinyint unsigned, v7 smallint unsigned, v8 int unsigned, v9 bigint unsigned, v10 float, v11 double, v12 "
       "binary(20), v13 varbinary(20), v14 geometry(100), v15 nchar(20))tags(tts timestamp, tv1 bool, tv2 tinyint, tv3 "
       "smallint, tv4 int, tv5 bigint, tv6 tinyint unsigned, tv7 smallint unsigned, tv8 int unsigned, tv9 bigint "
@@ -449,11 +449,11 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
   do_query(taos, "drop database if exists testdb3");
   do_query(taos, "create database IF NOT EXISTS testdb3 PRECISION 'ns'");
   do_query(taos,
-           "create table testdb3.stb (ts timestamp, b binary(10)) tags(t1 "
+           "create stable testdb3.stb (ts timestamp, b binary(10)) tags(t1 "
            "int, t2 binary(10))");
   do_query(
       taos,
-      "create table if not exists testdb3.all_stb(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, "
+      "create stable if not exists testdb3.all_stb(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, "
       "v6 tinyint unsigned, v7 smallint unsigned, v8 int unsigned, v9 bigint unsigned, v10 float, v11 double, v12 "
       "binary(20), v13 varbinary(20), v14 geometry(100), v15 nchar(20))tags(tts timestamp, tv1 bool, tv2 tinyint, tv3 "
       "smallint, tv4 int, tv5 bigint, tv6 tinyint unsigned, tv7 smallint unsigned, tv8 int unsigned, tv9 bigint "
@@ -861,7 +861,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
   do_query(taos, "drop database if exists example_all_type_stmt1");
   do_query(taos, "create database IF NOT EXISTS example_all_type_stmt1");
   do_query(taos,
-           "create table example_all_type_stmt1.stb1  (ts timestamp, int_col int,long_col bigint,double_col "
+           "create stable example_all_type_stmt1.stb1  (ts timestamp, int_col int,long_col bigint,double_col "
            "double,bool_col bool,binary_col binary(20),nchar_col nchar(20),varbinary_col varbinary(20),geometry_col "
            "geometry(200)) tags(int_tag int,long_tag bigint,double_tag double,bool_tag bool,binary_tag "
            "binary(20),nchar_tag nchar(20),varbinary_tag varbinary(20),geometry_tag geometry(200));");
@@ -964,7 +964,7 @@ TEST(stmt2Case, stmt2_insert_db) {
   do_query(taos, "drop database if exists example_all_type_stmt1");
   do_query(taos, "create database IF NOT EXISTS example_all_type_stmt1");
   do_query(taos,
-           "create table `example_all_type_stmt1`.`stb1`  (ts timestamp, int_col int,long_col bigint,double_col "
+           "create stable `example_all_type_stmt1`.`stb1`  (ts timestamp, int_col int,long_col bigint,double_col "
            "double,bool_col bool,binary_col binary(20),nchar_col nchar(20),varbinary_col varbinary(20),geometry_col "
            "geometry(200)) tags(int_tag int,long_tag bigint,double_tag double,bool_tag bool,binary_tag "
            "binary(20),nchar_tag nchar(20),varbinary_tag varbinary(20),geometry_tag geometry(200));");
@@ -1014,7 +1014,7 @@ TEST(stmt2Case, stmt2_query) {
   ASSERT_NE(taos, nullptr);
   do_query(taos, "drop database if exists testdb7");
   do_query(taos, "create database IF NOT EXISTS testdb7");
-  do_query(taos, "create table testdb7.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
+  do_query(taos, "create stable testdb7.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
   do_query(taos,
            "insert into testdb7.tb1 using testdb7.stb tags(1,'abc') values(1591060628000, "
            "'abc'),(1591060628001,'def'),(1591060628002, 'hij')");

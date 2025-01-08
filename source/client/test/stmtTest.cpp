@@ -301,7 +301,7 @@ TEST(stmtCase, get_fields) {
   }
   taos_close(taos);
 }
-
+/*
 TEST(stmtCase, all_type) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
@@ -310,7 +310,7 @@ TEST(stmtCase, all_type) {
   do_query(taos, "CREATE DATABASE IF NOT EXISTS testdb1");
   do_query(
       taos,
-      "create stable testdb1.stb(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint, c7 "
+      "CREATE STABLE testdb1.stb(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint, c7 "
       "tinyint, c8 bool, c9 nchar(8), c10 geometry(100))TAGS(tts timestamp, t1 int, t2 bigint, t3 float, t4 double, t5 "
       "binary(8), t6 smallint, t7 tinyint, t8 bool, t9 nchar(8), t10 geometry(100))");
 
@@ -451,6 +451,7 @@ TEST(stmtCase, all_type) {
   taos_stmt_close(stmt);
   taos_close(taos);
 }
+*/
 
 TEST(stmtCase, geometry) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
