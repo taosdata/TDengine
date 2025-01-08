@@ -377,7 +377,7 @@ int32_t evtMgtHandleImpl(SEvtMgt *pOpt, SFdCbArg *pArg, int res) {
       SAsyncHandle *handle = pArg->arg;
 
       nBytes = read(pArg->fd, buf, sizeof(buf));
-      if (nBytes == 1 && buf[0] == '1') {
+      if (nBytes >= 1 && buf[0] == '1') {
         handle->cb(handle, 0);
       }
       tTrace("%s handle async read on fd:%d", pOpt->label, pArg->fd);
@@ -2213,7 +2213,7 @@ static int32_t evtCliGetOrCreateConn(SCliThrd2 *pThrd, char *ip, int32_t port, S
     return code;
   }
 
-  code = evtCliCreateNewSocket(pThrd, ip, port, &pConn);
+  code = evtCliCreateNewSocket(pThrd, ip, port, ppConn);
 
 _end:
   if (code != 0) {
