@@ -261,7 +261,8 @@ impl Cli {
         let controller =
             TaskControllerRef::from_sqlite(&database_url, scheduler, max_activities_per_entity)
                 .in_current_span()
-                .await?;
+                .await
+                .inspect_err(|err| tracing::error!("{err:#}"))?;
 
         if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");

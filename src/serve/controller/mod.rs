@@ -696,7 +696,8 @@ impl TaskController {
         } else {
             sqlite.to_string()
         };
-        let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(&sqlite)?
+        let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(&sqlite)
+            .with_context(|| format!("invalid sqlite file path: {sqlite}"))?
             .create_if_missing(true)
             .busy_timeout(Duration::from_secs(10))
             .auto_vacuum(sqlx::sqlite::SqliteAutoVacuum::Incremental)
@@ -722,7 +723,8 @@ impl TaskController {
             .idle_timeout(Some(Duration::from_secs(60 * 60)))
             .max_lifetime(Some(Duration::from_secs(60 * 60 * 24)))
             .connect_with(connect_options)
-            .await?;
+            .await
+            .with_context(|| format!("invalid sqlite data file: {sqlite}"))?;
         tracing::debug!("sqlite pool created, start migration");
         MIGRATOR.run(&pool).await?;
 
