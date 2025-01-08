@@ -921,7 +921,7 @@ static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBloc
         colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
         int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
         if (code != TSDB_CODE_SUCCESS) {
-          return -1;
+          return code;
         }
       }
     } else {
