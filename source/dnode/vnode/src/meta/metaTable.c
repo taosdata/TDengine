@@ -111,7 +111,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
   return 0;
 }
 
-int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp, int8_t tableType) {
+int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
     return terrno;
@@ -125,7 +125,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
 
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   pMetaRsp->numOfColumns = pSchema->nCols;
-  pMetaRsp->tableType = tableType;
+  pMetaRsp->tableType = TSDB_NORMAL_TABLE;
   pMetaRsp->sversion = pSchema->version;
   pMetaRsp->tuid = uid;
   pMetaRsp->virtualStb = false; // super table will never be processed here
