@@ -123,6 +123,10 @@ enum {
   TMQ_MSG_TYPE__POLL_BATCH_META_RSP,
 };
 
+static char* tmqMsgTypeStr[] = {
+    "data", "meta", "ask ep", "meta data", "wal info", "batch meta"
+};
+
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
