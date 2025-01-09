@@ -136,11 +136,6 @@ pub struct Args {
 
 #[config]
 #[derive(Parser, Debug)]
-#[clap(
-    name = build::CUS_CLI_NAME,
-    author, version = CLAP_SHORT_VERSION,
-    about = build::CUS_CLI_ABOUT,
-    long_about = build::CUS_CLI_ABOUT)]
 pub struct ConfigArgs {
     #[clap(long, env = "PLUGINS_HOME")]
     plugins_home: Option<String>,
@@ -193,6 +188,11 @@ pub struct ClientPortRange {
 }
 
 #[derive(Parser, Debug)]
+#[clap(
+    name = build::CUS_CLI_NAME,
+    author, version = CLAP_SHORT_VERSION,
+    about = build::CUS_CLI_ABOUT,
+    long_about = build::CUS_CLI_ABOUT)]
 pub struct ArgsParser {
     /// Config file.
     #[clap(short = 'c', long)]
@@ -320,7 +320,7 @@ fn get_effective_config_path(args: &ArgsParser) -> PathBuf {
 #[cfg(windows)]
 fn get_default_config_path() -> PathBuf {
     std::path::Path::new("C:\\")
-        .join("TDengine")
+        .join(build::CUS_NAME)
         .join("cfg")
         .join("agent.toml")
 }
@@ -341,7 +341,7 @@ fn get_env_log_dir() -> String {
     }
 
     if cfg!(windows) {
-        "C:\\TDengine\\log".to_string()
+        format!("C:\\{}\\log", build::CUS_NAME)
     } else {
         format!("/var/log/{}", build::CUS_PROMPT)
     }
@@ -353,7 +353,7 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        "C:\\TDengine\\data\\taosxagent".to_string()
+        format!("C:\\{}\\data\\{}xagent", build::CUS_NAME, build::CUS_PROMPT)
     } else {
         format!("/var/lib/{0}/{0}xagent", build::CUS_PROMPT)
     }
@@ -368,7 +368,7 @@ fn get_env_plugin_dir() -> String {
     }
 
     if cfg!(windows) {
-        "C:\\TDengine\\plugins".to_string()
+        format!("C:\\{}\\plugins", build::CUS_NAME)
     } else {
         format!("/usr/local/{}/plugins", build::CUS_PROMPT)
     }

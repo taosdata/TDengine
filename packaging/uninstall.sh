@@ -17,14 +17,14 @@ AGENT_DATA_DIR_NAME="${xName}agent"
 csudo=""
 COMMAND_ARGS=$@
 
-TAOSX_LOG_NAME="taosx_*.log*"
-TAOSX_AGENT_LOG_NAME="taosx_agent_*.log*"
-TAOS_EXPLORER_LOG_NAME="taosexplorer_*.log*"
+TAOSX_LOG_NAME="${PREFIX}x_*.log*"
+TAOSX_AGENT_LOG_NAME="${PREFIX}x_agent_*.log*"
+TAOS_EXPLORER_LOG_NAME="${PREFIX}explorer_*.log*"
 
-target="taosx-agent"
+target=${agentname}
 
-if command -v taosx >/dev/null; then
-  target="taosx"
+if command -v ${xName} >/dev/null; then
+  target=${xName}
 fi
 
 if command -v sudo >/dev/null; then
@@ -257,7 +257,7 @@ remove_taos_agent() {
 }
 
 remove_target() {
-    if [ "$target" = "taosx" ]; then
+    if [ "$target" = ${xName} ]; then
       remove_taosx
     else
       remove_taos_agent

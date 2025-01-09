@@ -18,7 +18,7 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "{#MyAppSourceDir}\plugins\*"; DestDir: "{app}\plugins"; Flags: recursesubdirs
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}"
-Source: "{#MyAppSourceDir}\config\taosx.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('taosx.toml');
+Source: "{#MyAppSourceDir}\config\{#CusPrompt}x.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('{#CusPrompt}x.toml');
 Source: "{#MyAppSourceDir}\config\agent.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('agent.toml');
 Source: "{#MyAppSourceDir}\config\explorer.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('exploerer.toml');
 Source: "{#MyAppSourceDir}\append\opc_gdba_32\*"; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
@@ -27,9 +27,9 @@ Source: "{#MyAppSourceDir}\append\opc_gdba_32\*"; DestDir: "{#OPCGdbaInstallPath
 Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en"; Types: full;
 
 [run]
-Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
-Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-agent-srv.exe'))
-Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))
+Filename: "{app}\\{#CusPrompt}x-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\{#CusPrompt}x-srv.exe'))
+Filename: "{app}\\{#CusPrompt}x-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\{#CusPrompt}x-agent-srv.exe'))
+Filename: "{app}\\{#CusPrompt}-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\{#CusPrompt}-explorer-srv.exe'))
 Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#AppName}_is1"" /V ""UninstallString""  \
   /T ""REG_SZ"" /D ""\""{app}\uninstall_{#AppName}.exe\"""" /F"; StatusMsg: Installing {#AppName}...; Flags: RunHidden WaitUntilTerminated
 Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#AppName}_is1"" /V ""QuietUninstallString"" \
@@ -38,12 +38,12 @@ Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPa
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 
 [UninstallRun]
-RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
-RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
-RunOnceId: "stoptaos-explorer"; Filename: {sys}\sc.exe; Parameters: "stop taos-explorer" ; Flags: runhidden
-RunOnceId: "deltaosx"; Filename: "{app}\\taosx-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
-RunOnceId: "deltaosx-agent"; Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
-RunOnceId: "deltaos-explorer"; Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "stop{#CusPrompt}x"; Filename: {sys}\sc.exe; Parameters: "stop {#CusPrompt}x" ; Flags: runhidden
+RunOnceId: "stop{#CusPrompt}x-agent"; Filename: {sys}\sc.exe; Parameters: "stop {#CusPrompt}x-agent" ; Flags: runhidden
+RunOnceId: "stop{#CusPrompt}-explorer"; Filename: {sys}\sc.exe; Parameters: "stop {#CusPrompt}-explorer" ; Flags: runhidden
+RunOnceId: "del{#CusPrompt}x"; Filename: "{app}\\{#CusPrompt}x-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "del{#CusPrompt}x-agent"; Filename: "{app}\\{#CusPrompt}x-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "del{#CusPrompt}-explorer"; Filename: "{app}\\{#CusPrompt}-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 
 [CODE]
 var
@@ -104,7 +104,7 @@ begin
   //    WizardForm.DirEdit.Text := InputDirWizardPage.Values[0] + '/{#SubDirectory}';
   //    WizardForm.DirEdit.Update;
   //end;
-  if '{#AppName}' = 'taosx' then
+  if '{#AppName}' = '{#CusPrompt}x' then
   begin
     if CurPageID = InputQueryPage.ID then
     begin
@@ -242,7 +242,7 @@ begin
   + ' If you use this connector, please make sure to install the required version.', 'Java 1.8+ required', JavaVersionString);
   AfterID := OutputMsgCheckJava.ID;
   
-  if '{#AppName}' = 'taosx' then
+  if '{#AppName}' = '{#CusPrompt}x' then
   begin
     InputQueryPage := CreateInputQueryPage(AfterID, 'Config Page', '', 'Set publicly accessible IP address or domain name you want expose to.');
     InputQueryPage.Add('&Default:localhost', False);

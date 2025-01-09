@@ -1270,14 +1270,17 @@ impl Worker {
             if message.meta.is_none() && message.data.is_none() {
                 tracing::error!("Write raw into target error: {err:#}");
                 tokio::time::sleep(Duration::from_millis(500)).await;
-                let _ = conn.write_raw_meta(&message.raw).await.inspect_err(|err| {
+                if let Err(err2) = conn.write_raw_meta(&message.raw).await.inspect_err(|err| {
                     tracing::debug!(
                         error = format!("{err:#}"),
                         "retry write raw with code {}",
                         err.code()
                     );
-                });
-                return Err(err).context("Write raw message into target error");
+                }) {
+                    return Err(err)
+                        .with_context(|| format!("Retry error: {err2}"))
+                        .context("Write raw message into target error");
+                }
             }
             if let Some(meta) = &message.meta {
                 match code {
