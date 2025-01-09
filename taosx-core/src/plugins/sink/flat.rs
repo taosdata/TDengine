@@ -12,6 +12,7 @@ use std::{
 use anyhow::{bail, Context};
 use arrow_schema::ArrowError;
 use async_backtrace::framed;
+use chrono::Utc;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use lazy_static::lazy_static;
 use serde_json::json;
@@ -33,7 +34,10 @@ use tracing::{error, info, instrument, trace, Instrument};
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     plugins::transform::MessageArrowRecords,
-    sink::{consume_flat_record, DEFAULT_MAX_RETRIES_FOR_CONNECTION},
+    sink::{
+        consume_flat_record, transform::handling_strategy::HandlingResult,
+        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+    },
     utils::{
         sql::{
             describe_table_with_connection_retries, exec_sql_with_connection_retries, get_database,
@@ -47,7 +51,11 @@ use crate::{
 use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::global::TABLE_TAG_CACHE;
 
-use super::{ipc_metric::IpcMetrics, IpcErrorStrategy};
+use super::{
+    ipc_metric::IpcMetrics,
+    transform::{archive_records, TableOptions},
+    IpcErrorStrategy,
+};
 
 /// All the messages should be in the same stable.
 pub(crate) fn message_to_sql<'a>(
@@ -286,6 +294,8 @@ pub async fn flat_write_with_sql(
     metrics: &IpcMetrics,
     _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
+    task_id: i64,
+    global: &TableOptions,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     // Split messages into different stales.
@@ -295,7 +305,12 @@ pub async fn flat_write_with_sql(
         .iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
 
-    let database_name = get_database(taos).await.ok();
+    let database_name = match get_database(taos).await {
+        Ok(db) => Some(db),
+        Err(err) => {
+            return handling_database_not_exist(task_id, global, messages, err);
+        }
+    };
     // insert into stable
     for (stable, messages) in groups.into_iter() {
         let instant = std::time::Instant::now();
@@ -493,6 +508,8 @@ pub async fn flat_write_with_raw_block(
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
+    task_id: i64,
+    global: &TableOptions,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
@@ -998,7 +1015,12 @@ pub async fn flat_write_with_raw_block(
                         }
                         index += 1;
                     }
-                } else if errno == 0xE001 || errno == 0xE002 || errno == 0xE003 || errno == 0x000B {
+                } else if errno == 0xE001
+                    || errno == 0xE002
+                    || errno == 0xE003
+                    || errno == 0xE004
+                    || errno == 0x000B
+                {
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     if cancel.is_cancelled() {
                         return Err(err)?;
@@ -1021,6 +1043,8 @@ pub async fn flat_write_with_raw_block(
                         metrics,
                         notifier,
                         cancel,
+                        task_id,
+                        global,
                     )
                     .await?;
                     break;
@@ -1050,6 +1074,39 @@ pub async fn flat_write_with_raw_block(
     Ok(count)
 }
 
+fn handling_database_not_exist(
+    task_id: i64,
+    global: &TableOptions,
+    messages: &[MessageArrowRecords],
+    err: taos::Error,
+) -> anyhow::Result<usize> {
+    match global
+        .process_on_abnormal
+        .database_not_exist
+        .handle(format!("get database error: {err:#}"))
+    {
+        Ok((HandlingResult::Skip, _)) => Ok(0),
+        Ok((HandlingResult::Archive, err)) => {
+            for batch in messages.iter().map(|m| m.records.clone()) {
+                let err_vec = vec![err.clone(); batch.num_rows()];
+                let err_timestamp_vec =
+                    vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
+                let _ = archive_records(
+                    task_id,
+                    &global.process_on_abnormal.archive.location,
+                    &batch,
+                    err_vec,
+                    err_timestamp_vec,
+                );
+            }
+            Ok(0)
+        }
+        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+        Err(e) => Err(e),
+    }
+}
+
 pub type FlatItem = (
     Vec<MessageArrowRecords>,
     Qid,
@@ -1073,6 +1130,7 @@ impl FlatSink {
         metrics_arc: Arc<CoreMetrics>,
         notifier: crate::TaskNotifySender,
         cancel: CancellationToken,
+        task_id: i64,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -1126,6 +1184,8 @@ impl FlatSink {
                                     metrics,
                                     Some(&notifier),
                                     &cancel,
+                                    task_id,
+                                    parser.global(),
                                 )
                                 .in_current_span()
                                 .await
@@ -1140,6 +1200,8 @@ impl FlatSink {
                                     metrics,
                                     Some(&notifier),
                                     &cancel,
+                                    task_id,
+                                    parser.global(),
                                 )
                                 .in_current_span()
                                 .await
@@ -1209,6 +1271,8 @@ impl FlatSink {
                                                 metrics,
                                                 Some(&notifier),
                                                 &cancel,
+                                                task_id,
+                                                parser.global(),
                                             )
                                             .in_current_span()
                                             .await
@@ -1223,6 +1287,8 @@ impl FlatSink {
                                                 metrics,
                                                 Some(&notifier),
                                                 &cancel,
+                                                task_id,
+                                                parser.global(),
                                             )
                                             .in_current_span()
                                             .await
@@ -1382,6 +1448,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
         metrics_arc.clone(),
         notifier.clone(),
         cancel,
+        task_id,
     )
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
@@ -1570,6 +1637,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
         metrics_arc.clone(),
         notifier.clone(),
         cancel,
+        task_id,
     )
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
@@ -2279,6 +2347,8 @@ mod tests {
             &metrics,
             None,
             &CancellationToken::new(),
+            0,
+            &TableOptions::default(),
         )
         .await?;
 

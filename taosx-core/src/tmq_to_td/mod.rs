@@ -1709,7 +1709,9 @@ pub async fn tmq_to_td(
                                 let err_str = format!("{err:#}");
                                 if !(err_str.contains("0xE001")
                                     || err_str.contains("0xE002")
-                                    || err_str.contains("0xE003"))
+                                    || err_str.contains("0xE003")
+                                    || err_str.contains("0xE004")
+                                    || err_str.contains("0xE00B"))
                                 {
                                     // 0xE001 is the error code for "Connection refused"
                                     // 0xE002 is the error code for "Connection reset without closing handshake"
