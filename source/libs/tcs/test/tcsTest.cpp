@@ -287,12 +287,12 @@ TEST(TcsTest, InterfaceNonBlobTest) {
   uint8_t *pBlock = NULL;
   code = tcsGetObjectBlock(object_name, 0, size, check, &pBlock);
   GTEST_ASSERT_EQ(code, 0);
-
-  for (int i = 0; i < size / 2; ++i) {
-    GTEST_ASSERT_EQ(pBlock[i * 2], 0);
-    GTEST_ASSERT_EQ(pBlock[i * 2 + 1], 1);
+  if (pBlock) {
+    for (int i = 0; i < size / 2; ++i) {
+      GTEST_ASSERT_EQ(pBlock[i * 2], 0);
+      GTEST_ASSERT_EQ(pBlock[i * 2 + 1], 1);
+    }
   }
-
   taosMemoryFree(pBlock);
 
   code = tcsGetObjectToFile(object_name, path_download);

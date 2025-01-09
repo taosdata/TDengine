@@ -15,16 +15,13 @@
 
 #include "tq.h"
 
-int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
-  int32_t    code = TDB_CODE_SUCCESS;
-  int32_t    lino = 0;
-  void*      buf = NULL;
-  TSDB_CHECK_NULL(pBlock, code, lino, END, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_NULL(pRsp, code, lino, END, TSDB_CODE_INVALID_PARA);
+static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
   size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
   int32_t dataStrLen = sizeof(SRetrieveTableRspForTmq) + dataEncodeBufSize;
-  buf = taosMemoryCalloc(1, dataStrLen);
+  void*   buf = taosMemoryCalloc(1, dataStrLen);
   TSDB_CHECK_NULL(buf, code, lino, END, terrno);
 
   SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)buf;
@@ -35,16 +32,17 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, dataEncodeBufSize, numOfCols);
   TSDB_CHECK_CONDITION(actualLen >= 0, code, lino, END, terrno);
+
   actualLen += sizeof(SRetrieveTableRspForTmq);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockDataLen, &actualLen), code, lino, END, terrno);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockData, &buf), code, lino, END, terrno);
 
-  tqDebug("add block data to block array, blockDataLen:%d, blockData:%p", actualLen, buf);
+  buf = NULL;
 END:
-  if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(buf);
-    tqError("%s failed at %d, failed to add block data to response:%s", __FUNCTION__, lino, tstrerror(code));
+  if (code != 0){
+    tqError("%s failed at line %d with msg:%s", __func__, lino, tstrerror(code));
   }
+  taosMemoryFree(buf);
   return code;
 }
 
@@ -173,7 +171,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
   TSDB_CHECK_CODE(code, lino, END);
 
   qStreamSetSourceExcluded(task, pRequest->sourceExcluded);
-  uint64_t st = taosGetTimestampMs();
+  int64_t st = taosGetTimestampMs();
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     code = getDataBlock(task, pHandle, vgId, &pDataBlock);
@@ -192,7 +190,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
     pRsp->blockNum++;
     totalRows += pDataBlock->info.rows;
-    if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > 1000)) {
+    if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > TMIN(TQ_POLL_MAX_TIME, pRequest->timeout))) {
       break;
     }
   }
@@ -207,22 +205,18 @@ END:
   return code;
 }
 
-int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* pOffset) {
+int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* pOffset, int64_t timeout) {
   int32_t code = 0;
   int32_t lino = 0;
   char* tbName = NULL;
   SSchemaWrapper* pSW = NULL;
-  TSDB_CHECK_NULL(pRsp, code, lino, END, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_NULL(pTq, code, lino, END, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_NULL(pHandle, code, lino, END, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_NULL(pOffset, code, lino, END, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_NULL(pBatchMetaRsp, code, lino, END, TSDB_CODE_INVALID_PARA);
   const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t          task = pExec->task;
   code = qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
   TSDB_CHECK_CODE(code, lino, END);
 
   int32_t rowCnt = 0;
+  int64_t st = taosGetTimestampMs();
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
@@ -236,20 +230,23 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
         tbName = taosStrdup(qExtractTbnameFromTask(task));
         TSDB_CHECK_NULL(tbName, code, lino, END, terrno);
         TSDB_CHECK_NULL(taosArrayPush(pRsp->blockTbName, &tbName), code, lino, END, terrno);
+        tqDebug("vgId:%d, add tbname:%s to rsp msg", pTq->pVnode->config.vgId, tbName);
         tbName = NULL;
       }
       if (pRsp->withSchema) {
-        pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
+        SSchemaWrapper* pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
         TSDB_CHECK_NULL(pSW, code, lino, END, terrno);
         TSDB_CHECK_NULL(taosArrayPush(pRsp->blockSchema, &pSW), code, lino, END, terrno);
         pSW = NULL;
       }
 
-      code = tqAddBlockDataToRsp(pDataBlock, pRsp, taosArrayGetSize(pDataBlock->pDataBlock), pTq->pVnode->config.tsdbCfg.precision);
+      code = tqAddBlockDataToRsp(pDataBlock, pRsp, taosArrayGetSize(pDataBlock->pDataBlock),
+                                 pTq->pVnode->config.tsdbCfg.precision);
       TSDB_CHECK_CODE(code, lino, END);
+
       pRsp->blockNum++;
       rowCnt += pDataBlock->info.rows;
-      if (rowCnt <= tmqRowSize) {
+      if (rowCnt <= tmqRowSize && (taosGetTimestampMs() - st <= TMIN(TQ_POLL_MAX_TIME, timeout))) {
         continue;
       }
     }
@@ -283,11 +280,10 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
       break;
     }
   }
-
   tqDebug("%s:%d success", __FUNCTION__, lino);
 END:
   if (code != 0){
-    tqDebug("%s:%d failed, code:%s", __FUNCTION__, lino, tstrerror(code) );
+    tqError("%s failed at %d, vgId:%d, task exec error since %s", __FUNCTION__ , lino, pTq->pVnode->config.vgId, tstrerror(code));
   }
   taosMemoryFree(pSW);
   taosMemoryFree(tbName);

@@ -268,7 +268,22 @@ An exporter used by Prometheus that exposes hardware and operating system metric
 
 ### Getting the VGroup ID of a table
 
-You can access the HTTP interface `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get the VGroup ID of a table.
+You can send a POST request to the HTTP interface `http://<fqdn>:<port>/rest/sql/<db>/vgid` to get the VGroup ID of a table. 
+The body should be a JSON array of multiple table names. 
+
+Example: Get the VGroup ID for the database power and tables d_bind_1 and d_bind_2.
+
+```shell
+curl --location 'http://127.0.0.1:6041/rest/sql/power/vgid' \
+--user 'root:taosdata' \
+--data '["d_bind_1","d_bind_2"]'
+```
+
+response:
+
+```json
+{"code":0,"vgIDs":[153,152]}
+```
 
 ## Memory Usage Optimization Methods
 
