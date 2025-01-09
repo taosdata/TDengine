@@ -115,7 +115,7 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
         } else {
           code = copyDataBlock(pInfo->pDeleteDataRes, pBlock);
           QUERY_CHECK_CODE(code, lino, _end);
-          pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
+          pInfo->pDeleteDataRes->info.type = STREAM_RECALCULATE_DATA;
         }
 
         code = setBlockGroupIdByUid(pInfo, pInfo->pDeleteDataRes);
@@ -1212,7 +1212,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 
-  code = createSpecialDataBlock(STREAM_DELETE_DATA, &pInfo->pDeleteDataRes);
+  code = createSpecialDataBlock(STREAM_RECALCULATE_DELETE, &pInfo->pDeleteDataRes);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = createSpecialDataBlock(STREAM_RECALCULATE_DATA, &pInfo->pUpdateRes);
@@ -1225,7 +1225,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   pInfo->readHandle = *pHandle;
   pInfo->comparePkColFn = getKeyComparFunc(pkType.type, TSDB_ORDER_ASC);
   pInfo->curRange = (SScanRange){0};
-  pInfo->scanAllTables = false; //todo(liuyao) semi interval.
+  pInfo->scanAllTables = false;
   pInfo->hasPart = false;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);

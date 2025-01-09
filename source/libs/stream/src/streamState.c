@@ -210,8 +210,8 @@ int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, in
   return addRowBuffIfNotExist(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen, pWinCode);
 }
 
-bool streamStateCheck(SStreamState* pState, const SWinKey* key) {
-  return hasRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey));
+bool streamStateCheck(SStreamState* pState, const SWinKey* pKey) {
+  return hasRowBuff(pState->pFileState, pKey, sizeof(SWinKey));
 }
 
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal) {
@@ -651,7 +651,7 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
   return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);
 }
 
-void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep) { clearExpiredState(pState->pFileState, numOfKeep); }
+void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs) { clearExpiredState(pState->pFileState, numOfKeep, minTs); }
 
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {
@@ -690,11 +690,19 @@ SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState) {
 }
 
 void streamStateLastStateCurNext(SStreamStateCur* pCur) {
-  moveLasstStateCurNext(pCur);
+  moveLastStateCurNext(pCur);
 }
 
-int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** pVal){
-  return getLastStateKVByCur(pCur, pVal);
+void streamStateOneStateCurNext(SStreamStateCur* pCur) {
+  moveOneStateCurNext(pCur);
+}
+
+int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** ppVal) {
+  return getLastStateKVByCur(pCur, ppVal);
+}
+
+int32_t streamStateGetOneStateKVByCur(SStreamStateCur* pCur, void** ppVal) {
+  return getOneStateKVByCur(pCur, ppVal);
 }
 
 int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) {

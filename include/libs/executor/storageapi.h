@@ -406,7 +406,7 @@ typedef struct SStateStore {
   int32_t (*streamStateFillGetGroupKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
   int32_t (*streamStateGetKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
-  void (*streamStateClearExpiredState)(SStreamState* pState, int32_t numOfKeep);
+  void (*streamStateClearExpiredState)(SStreamState* pState, int32_t numOfKeep, TSKEY minTs);
 
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                              int32_t* pVLen, int32_t* pWinCode);
@@ -488,7 +488,9 @@ typedef struct SStateStore {
 
   SStreamStateCur* (*streamStateGetLastStateCur)(SStreamState* pState);
   void (*streamStateLastStateCurNext)(SStreamStateCur* pCur);
-  int32_t (*streamStateLastStateGetKVByCur)(SStreamStateCur* pCur, void** pVal);
+  void (*streamStateOneStateCurNext)(SStreamStateCur* pCur);
+  int32_t (*streamStateLastStateGetKVByCur)(SStreamStateCur* pCur, void** ppVal);
+  int32_t (*streamStateGetOneStateKVByCur)(SStreamStateCur* pCur, void** ppVal);
 } SStateStore;
 
 typedef struct SStorageAPI {

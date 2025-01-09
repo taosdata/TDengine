@@ -452,8 +452,7 @@ typedef struct STimeWindowAggSupp {
 
 typedef struct SSteamOpBasicInfo {
   int32_t primaryPkIndex;
-  bool    updateOperatorInfo;
-  bool    isFillHistoryOperator;
+  int16_t operatorFlag;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
@@ -875,6 +874,9 @@ typedef struct SStreamTimeSliceOperatorInfo {
   struct SOperatorInfo* pOperator;
 } SStreamTimeSliceOperatorInfo;
 
+typedef int32_t (*IntervalAggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
+typedef int32_t (*GetRemainResultFn)(SStreamAggSupporter* pAggSup, SArray* pUpdated, int32_t capacity);
+
 typedef struct SStreamIntervalSliceOperatorInfo {
   SSteamOpBasicInfo     basic;
   SOptrBasicInfo        binfo;
@@ -899,6 +901,8 @@ typedef struct SStreamIntervalSliceOperatorInfo {
   bool                  hasInterpoFunc;
   int32_t*              pOffsetInfo;
   int32_t               numOfKeep;
+  TSKEY                 tsOfKeep;
+  IntervalAggImplFn     pIntervalAggFn;
 } SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)

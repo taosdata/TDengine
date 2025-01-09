@@ -72,6 +72,10 @@ void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
 void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
 void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isFillHistoryOperator(SSteamOpBasicInfo* pBasicInfo);
+bool needBuildAllResult(SSteamOpBasicInfo* pBasicInfo);
+void setSemiOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
+bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo);
+bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo);
 
 int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption);
 void    removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins);
@@ -135,6 +139,8 @@ void setInterpoWindowFinished(SInervalSlicePoint* pPoint);
 int32_t doStreamIntervalNonblockAggNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
 void streamIntervalNonblockReleaseState(struct SOperatorInfo* pOperator);
 void streamIntervalNonblockReloadState(struct SOperatorInfo* pOperator);
+int32_t compareWinKey(void* pKey, void* data, int32_t index);
+int32_t buildIntervalSliceResult(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
 int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, STqReader* pReader, SStoreTqReader* pReaderFn);
 int32_t rebuildDeleteBlockData(struct SSDataBlock* pBlock, STimeWindow* pWindow, const char* id);

@@ -1828,7 +1828,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
+      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1, INT64_MAX);
     }
     setStreamOperatorCompleted(pOperator);
     resetStreamFillSup(pInfo->pFillSup);
@@ -1951,7 +1951,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
 
   if (!(*ppRes)) {
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
+      pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1, INT64_MAX);
     }
     setStreamOperatorCompleted(pOperator);
     resetStreamFillSup(pInfo->pFillSup);

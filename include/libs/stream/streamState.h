@@ -108,7 +108,7 @@ int32_t streamStateFillGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, con
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
 // twa
-void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep);
+void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs);
 
 void streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
 void streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
@@ -140,7 +140,9 @@ int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRa
 // continuous
 SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState);
 void streamStateLastStateCurNext(SStreamStateCur* pCur);
-int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** pVal);
+void streamStateOneStateCurNext(SStreamStateCur* pCur);
+int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** ppVal);
+int32_t streamStateGetOneStateKVByCur(SStreamStateCur* pCur, void** ppVal);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
 

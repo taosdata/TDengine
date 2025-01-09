@@ -1438,6 +1438,8 @@
 ,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreCheckUpdate.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
+,,y,script,./test.sh -f tsim/stream/nonblockIntervalBasic.sim
+,,y,script,./test.sh -f tsim/stream/nonblockIntervalHistory.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnOther.sim

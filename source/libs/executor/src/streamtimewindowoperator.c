@@ -19,6 +19,7 @@
 #include "operator.h"
 #include "querytask.h"
 #include "streamexecutorInt.h"
+#include "streaminterval.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -193,7 +194,7 @@ static void removeResults(SArray* pWins, SSHashObj* pUpdatedMap) {
   }
 }
 
-static int32_t compareWinKey(void* pKey, void* data, int32_t index) {
+int32_t compareWinKey(void* pKey, void* data, int32_t index) {
   void* pDataPos = taosArrayGet((SArray*)data, index);
   return winKeyCmprImpl(pKey, pDataPos);
 }
@@ -1018,8 +1019,8 @@ void doBuildStreamIntervalResult(SOperatorInfo* pOperator, void* pState, SSDataB
   buildDataBlockFromGroupRes(pOperator, pState, pBlock, &pOperator->exprSupp, pGroupResInfo);
 }
 
-static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
-                                           TSKEY* primaryKeys, int32_t prevPosition) {
+int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
+                                    TSKEY* primaryKeys, int32_t prevPosition) {
   int32_t startPos = prevPosition + 1;
   if (startPos == pDataBlockInfo->rows) {
     startPos = -1;
@@ -1907,7 +1908,7 @@ _end:
   }
 }
 
-int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+static int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                               int32_t numOfChild, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
@@ -5500,6 +5501,22 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     return createStreamIntervalSliceOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, pOptrInfo);
   } else {
     return createStreamSingleIntervalOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, pOptrInfo);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createStreamDistributeIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+                                                   SExecTaskInfo* pTaskInfo, int32_t numOfChild, SReadHandle* pHandle,
+                                                   SOperatorInfo** pOptrInfo) {
+  SStreamIntervalPhysiNode* pIntervalPhyNode = (SStreamIntervalPhysiNode*)pPhyNode;
+  if (pIntervalPhyNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    if (numOfChild == 0) {
+      return createSemiIntervalSliceOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, pOptrInfo);
+    } else {
+      return createFinalIntervalSliceOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, pOptrInfo);
+    }
+  } else {
+    return createStreamFinalIntervalOperatorInfo(downstream, pPhyNode, pTaskInfo, numOfChild, pHandle, pOptrInfo);
   }
   return TSDB_CODE_SUCCESS;
 }

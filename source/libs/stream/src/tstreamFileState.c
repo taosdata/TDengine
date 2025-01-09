@@ -844,10 +844,22 @@ _end:
   return code;
 }
 
-bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen) {
+bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, int32_t keyLen) {
   SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, keyLen);
   if (pos) {
     return true;
+  }
+  void* pSearchBuff = getSearchBuff(pFileState);
+  if (pSearchBuff != NULL) {
+    void** ppBuff = (void**)tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
+    if (ppBuff != NULL) {
+      SArray* pWinStates = (SArray*)(*ppBuff);
+      if (taosArrayGetSize(pWinStates) <= NUM_OF_CACHE_WIN) {
+        return true;
+      }
+    } else {
+      return true;
+    }
   }
   return false;
 }
@@ -1314,7 +1326,7 @@ SSHashObj* getGroupIdCache(SStreamFileState* pFileState) {
   return pFileState->pGroupIdMap;
 }
 
-void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep) {
+void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   SSHashObj* pSearchBuff = pFileState->searchBuff;
@@ -1322,7 +1334,18 @@ void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep) {
   int32_t    iter = 0;
   while ((pIte = tSimpleHashIterate(pSearchBuff, pIte, &iter)) != NULL) {
     SArray* pWinStates = *((void**)pIte);
-    int32_t size = TARRAY_SIZE(pWinStates) - numOfKeep;
+    int32_t arraySize = TARRAY_SIZE(pWinStates);
+    if (minTs != INT64_MAX && arraySize > numOfKeep) {
+      SWinKey key = {.ts = minTs};
+      key.groupId = *(int64_t*) tSimpleHashGetKey(pIte, NULL);
+      int32_t index = binarySearch(pWinStates, arraySize, &key, fillStateKeyCompare);
+      if (index > 0 && (arraySize - index) > numOfKeep) {
+        numOfKeep = TMIN(arraySize - index, NUM_OF_CACHE_WIN);
+        qTrace("modify numOfKeep, numOfKeep:%d. %s at line %d", numOfKeep, __func__, __LINE__);
+      }
+    }
+
+    int32_t size = arraySize - numOfKeep;
     for (int32_t i = 0; i < size; i++) {
       SWinKey* pKey = taosArrayGet(pWinStates, i);
       int32_t  code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, sizeof(SWinKey));
@@ -1774,15 +1797,27 @@ SStreamStateCur* getLastStateCur(SStreamFileState* pFileState) {
     return NULL;
   }
   SSHashObj* pSearchBuff = pFileState->searchBuff;
+  pCur->buffIndex = 0;
   pCur->hashIter = 0;
   pCur->pHashData = NULL;
   pCur->pHashData = tSimpleHashIterate(pSearchBuff, pCur->pHashData, &pCur->hashIter);
   return pCur;
 }
 
-void moveLasstStateCurNext(SStreamStateCur* pCur) {
+void moveLastStateCurNext(SStreamStateCur* pCur) {
   SSHashObj* pSearchBuff = ((SStreamFileState*)(pCur->pStreamFileState))->searchBuff;
   pCur->pHashData = tSimpleHashIterate(pSearchBuff, pCur->pHashData, &pCur->hashIter);
+}
+
+void moveOneStateCurNext(SStreamStateCur* pCur) {
+  SSHashObj* pSearchBuff = ((SStreamFileState*)(pCur->pStreamFileState))->searchBuff;
+  SArray*  pWinStates = *((void**)pCur->pHashData);
+  if (pCur->buffIndex + 1 < taosArrayGetSize(pWinStates)) {
+    pCur->buffIndex++;
+    return;
+  }
+  pCur->pHashData = tSimpleHashIterate(pSearchBuff, pCur->pHashData, &pCur->hashIter);
+  pCur->buffIndex = 0;
 }
 
 int32_t getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal) {
@@ -1790,7 +1825,29 @@ int32_t getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal) {
     return TSDB_CODE_FAILED;
   }
   SArray*  pWinStates = *((void**)pCur->pHashData);
+  if (taosArrayGetSize(pWinStates) == 0) {
+    return TSDB_CODE_FAILED;
+  }
   SWinKey* pKey = taosArrayGetLast(pWinStates);
+  int32_t  len = 0;
+  int32_t  winCode = TSDB_CODE_SUCCESS;
+  int32_t  code = addRowBuffIfNotExist(pCur->pStreamFileState, (void*)pKey, sizeof(SWinKey), ppVal, &len, &winCode);
+  if (winCode != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since window not exist. ts:%" PRId64 ",groupId:%" PRIu64, __func__, __LINE__, pKey->ts,
+           pKey->groupId);
+  }
+  return code;
+}
+
+int32_t getOneStateKVByCur(SStreamStateCur* pCur, void** ppVal) {
+  if (pCur->pHashData == NULL) {
+    return TSDB_CODE_FAILED;
+  }
+  SArray*  pWinStates = *((void**)pCur->pHashData);
+  if (taosArrayGetSize(pWinStates) == 0) {
+    return TSDB_CODE_FAILED;
+  }
+  SWinKey* pKey = taosArrayGet(pWinStates, pCur->buffIndex);
   int32_t  len = 0;
   int32_t  winCode = TSDB_CODE_SUCCESS;
   int32_t  code = addRowBuffIfNotExist(pCur->pStreamFileState, (void*)pKey, sizeof(SWinKey), ppVal, &len, &winCode);

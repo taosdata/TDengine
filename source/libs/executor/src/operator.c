@@ -569,13 +569,13 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createMergeIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL == type) {
     int32_t children = 0;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
+    code = createStreamDistributeIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL == type) {
     int32_t children = pHandle->numOfVgroups;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
+    code = createStreamDistributeIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL == type) {
     int32_t children = pHandle->numOfVgroups;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
+    code = createStreamDistributeIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     code = createSortOperatorInfo(ops[0], (SSortPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT == type) {

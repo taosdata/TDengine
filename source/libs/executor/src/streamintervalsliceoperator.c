@@ -18,6 +18,7 @@
 #include "querytask.h"
 #include "storageapi.h"
 #include "streamexecutorInt.h"
+#include "streaminterval.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -67,7 +68,7 @@ void destroyStreamIntervalSliceOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static int32_t buildIntervalSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+int32_t buildIntervalSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                           code = TSDB_CODE_SUCCESS;
   int32_t                           lino = 0;
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
@@ -75,13 +76,17 @@ static int32_t buildIntervalSliceResult(SOperatorInfo* pOperator, SSDataBlock** 
   uint16_t                          opType = pOperator->operatorType;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
 
-  doBuildDeleteResultImpl(&pInfo->streamAggSup.stateStore, pTaskInfo->streamInfo.pState, pInfo->pDelWins, &pInfo->delIndex,
-                          pInfo->pDelRes);
-  if (pInfo->pDelRes->info.rows != 0) {
-    // process the rest of the data
-    printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
-    (*ppRes) = pInfo->pDelRes;
-    return code;
+  (*ppRes) = NULL;
+
+  if (pOperator->operatorType = OP_RES_TO_RETURN) {
+    doBuildDeleteResultImpl(&pInfo->streamAggSup.stateStore, pTaskInfo->streamInfo.pState, pInfo->pDelWins,
+                            &pInfo->delIndex, pInfo->pDelRes);
+    if (pInfo->pDelRes->info.rows != 0) {
+      // process the rest of the data
+      printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->pDelRes;
+      return code;
+    }
   }
 
   doBuildStreamIntervalResult(pOperator, pInfo->streamAggSup.pState, pInfo->binfo.pRes, &pInfo->groupResInfo);
@@ -391,7 +396,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       return code;
     } 
 
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1, INT64_MAX);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
     return code;
@@ -474,7 +479,6 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  (*ppRes) = NULL;
   code = buildIntervalSliceResult(pOperator, ppRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -485,7 +489,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       (*ppRes) = pInfo->pCheckpointRes;
       return code;
     } 
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1, INT64_MAX);
     setStreamOperatorCompleted(pOperator);
   }
 
@@ -529,6 +533,10 @@ int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupport
   pAggSup->pUpdateInfo = pScanInfo->pUpdateInfo;
   if (!hasSrcPrimaryKeyCol(pBasic)) {
     pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
+  }
+
+  if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
+    pScanInfo->scanAllTables = true;
   }
 
 _end:
@@ -648,6 +656,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->hasFill = false;
   pInfo->hasInterpoFunc = windowinterpNeeded(pExpSup->pCtx, numOfExprs);
   pInfo->numOfKeep = ceil(pInfo->interval.interval / pInfo->interval.sliding);
+  pInfo->tsOfKeep = INT64_MAX;
 
   setOperatorInfo(pOperator, "StreamIntervalSliceOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -656,6 +665,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
     if (pHandle->fillHistory) {
       setFillHistoryOperatorFlag(&pInfo->basic);
     }
+    pInfo->pIntervalAggFn = doStreamIntervalNonblockAggImpl;
     pOperator->fpSet =
         createOperatorFpSet(optrDummyOpenFn, doStreamIntervalNonblockAggNext, NULL, destroyStreamIntervalSliceOperatorInfo,
                             optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

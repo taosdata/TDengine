@@ -62,7 +62,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
                    int32_t* pWinCode);
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
-bool    hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
+bool    hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, int32_t keyLen);
 int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
@@ -151,7 +151,7 @@ int32_t getRowStateAllPrevRow(SStreamFileState* pFileState, const SWinKey* pKey,
 
 //twa
 void setFillInfo(SStreamFileState* pFileState);
-void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep);
+void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs);
 int32_t addArrayBuffIfNotExist(SSHashObj* pSearchBuff, uint64_t groupId, SArray** ppResStates);
 int32_t recoverHashSortBuff(SStreamFileState* pFileState, SArray* pWinStates, uint64_t groupId);
 
@@ -168,8 +168,10 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange);
 
 // continuous
 SStreamStateCur* getLastStateCur(SStreamFileState* pFileState);
-void moveLasstStateCurNext(SStreamStateCur* pCur);
+void moveLastStateCurNext(SStreamStateCur* pCur);
+void moveOneStateCurNext(SStreamStateCur* pCur);
 int32_t getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal);
+int32_t getOneStateKVByCur(SStreamStateCur* pCur, void** ppVal);
 int32_t reloadTsDataState(STableTsDataState* pTsDataState);
 
 #ifdef __cplusplus

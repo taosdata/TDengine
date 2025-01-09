@@ -14,31 +14,53 @@
  */
 
 #include "executorInt.h"
+#include "cmdnodes.h"
+
+#define UPDATE_OPERATOR_INFO       BIT_FLAG_MASK(0)
+#define FILL_HISTORY_OPERATOR      BIT_FLAG_MASK(1)
+#define RECALCULATE_OPERATOR       BIT_FLAG_MASK(2)
+#define SEMI_OPERATOR              BIT_FLAG_MASK(3)
 
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type) {
   if (type != STREAM_GET_ALL && type != STREAM_CHECKPOINT) {
-    pBasicInfo->updateOperatorInfo = true;
+    BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO);
   }
 }
 
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo) {
-  return pBasicInfo->updateOperatorInfo;
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO);
 }
 
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo) {
-  pBasicInfo->updateOperatorInfo = false;
+  BIT_FLAG_UNSET_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO);
 }
 
 void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
   pBasicInfo->primaryPkIndex = -1;
-  pBasicInfo->updateOperatorInfo = false;
-  pBasicInfo->isFillHistoryOperator = false;
+  pBasicInfo->operatorFlag = 0;
 }
 
 void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
-  pBasicInfo->isFillHistoryOperator = true;
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR);
 }
 
 bool isFillHistoryOperator(SSteamOpBasicInfo* pBasicInfo) {
-  return pBasicInfo->isFillHistoryOperator;
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR);
 }
+
+bool needBuildAllResult(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR) || BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
+}
+
+void setSemiOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
+}
+
+bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
+}
+
+bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
