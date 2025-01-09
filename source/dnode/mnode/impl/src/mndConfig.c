@@ -319,16 +319,16 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
 
   for (int i = 0; i < sz; ++i) {
     SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
-    SConfigObj   pObj;
-    if ((code = mndInitConfigObj(item, &pObj)) != 0) {
+    SConfigObj   obj;
+    if ((code = mndInitConfigObj(item, &obj)) != 0) {
       goto _OVER;
     }
-    if ((code = mndSetCreateConfigCommitLogs(pTrans, &pObj)) != 0) {
+    if ((code = mndSetCreateConfigCommitLogs(pTrans, &obj)) != 0) {
       mError("failed to init mnd config:%s, since %s", item->name, tstrerror(code));
-      tFreeSConfigObj(&pObj);
+      tFreeSConfigObj(&obj);
       goto _OVER;
     }
-    tFreeSConfigObj(&pObj);
+    tFreeSConfigObj(&obj);
   }
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
