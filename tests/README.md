@@ -1,5 +1,26 @@
 # Testing TDengine
 
+## Install the required tools
+
+Install Python3.
+
+```bash
+apt install python3
+apt install python3-pip
+```
+
+Install the dependent Python components.
+
+```bash
+pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
+```
+
+Install the Python connector for TDengine.
+
+```bash
+pip3 install taospy taos-ws-py
+```
+
 ## Unit Test
 
 Unit test script is the smallest testable part and developed for some function, method or class of TDengine, you can run

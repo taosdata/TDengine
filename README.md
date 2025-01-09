@@ -67,19 +67,32 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 ### For Ubuntu 18.04 or Later
 
 ```bash
-
+sudo apt-get udpate
+sudo apt-get install -y gcc cmake build-essential git libjansson-dev libsnappy-dev liblzma-dev zlib1g-dev pkg-config
 ```
 
-### For CentOS 7
+### For CentOS 8
 
 ```bash
-
+sudo yum update
+yum install -y epel-release gcc gcc-c++ make cmake git perl dnf-plugins-core 
+yum config-manager --set-enabled powertools
+yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
 ### For Fedora or Rocky Linux
 
 ```bash
+sudo dnf install -y gcc gcc-c++ make cmake git perl
+sudo dnf install -y zlib-devel xz-devel snappy-devel jansson-devel pkgconfig
+```
 
+To build the [taosTools](https://github.com/taosdata/taos-tools) on Fedora or Rocky, the following packages need to be installed.
+
+```bash
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --set-enabled powertools
+sudo dnf install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static
 ```
 
 ## 3.2 On macOS
@@ -110,7 +123,7 @@ cd TDengine
 
 At the moment, TDengine server supports running on Linux/Windows/MacOS systems. Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service. TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
 
-You can choose to install through source code, [container](https://docs.tdengine.com/get-started/docker/), [installation package](https://docs.tdengine.com/get-started/package/) or [Kubernetes](https://docs.tdengine.com/deployment/k8s/). This quick guide only applies to installing from source.
+You can choose to install through source code, [container](https://docs.tdengine.com/get-started/docker/), [installation package](https://docs.tdengine.com/get-started/package/) or [Kubernetes](https://docs.tdengine.com/deployment/k8s/). This quick guide only applies to install from source.
 
 TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
 
@@ -140,7 +153,6 @@ make
 You can use Jemalloc as memory allocator instead of glibc:
 
 ```bash
-apt install autoconf
 cmake .. -DJEMALLOC_ENABLED=true
 ```
 
@@ -271,17 +283,19 @@ option "-c test/cfg" specifies the system configuration file directory.
 
 ## 6.2 Run TDengine on Windows
 
-To start the service after installation on Windows, in a terminal, use:
+You can start TDengine server on windows platform with below commands:
 
-```bash
-to be updated
+```cmd
+.\build\bin\taosd.exe -c test\cfg
 ```
 
-Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+In another terminal, use the TDengine CLI to connect the server:
 
-```bash
-taos
+```cmd
+.\build\bin\taos.exe -c test\cfg
 ```
+
+option "-c test/cfg" specifies the system configuration file directory.
 
 ## 6.3 Run TDengine on macOS
 
