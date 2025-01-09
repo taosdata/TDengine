@@ -282,7 +282,9 @@ static void *dmCrashReportThreadFp(void *param) {
 
   while (1) {
     checkAndPrepareCrashInfo();
-    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+    if ((pMgmt->pData->dropped || pMgmt->pData->stopped) && reportThreadSetQuit()) {
+      break;
+    }
     if (loopTimes++ < reportPeriodNum) {
       taosMsleep(sleepTime);
       if(loopTimes < 0) loopTimes = reportPeriodNum;

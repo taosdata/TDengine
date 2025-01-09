@@ -839,9 +839,9 @@ static void *tscCrashReportThreadFp(void *param) {
 
   while (1) {
     checkAndPrepareCrashInfo();
-    if (clientStop > 0) break;
+    if (clientStop > 0 && reportThreadSetQuit()) break;
     if (loopTimes++ < reportPeriodNum) {
-      if(loopTimes < 0) loopTimes = reportPeriodNum;
+      if (loopTimes < 0) loopTimes = reportPeriodNum;
       taosMsleep(sleepTime);
       continue;
     }

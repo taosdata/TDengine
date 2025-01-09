@@ -1280,9 +1280,15 @@ _return:
   taosMemoryFree(pMsg);
 }
 
+typedef enum {
+  CRASH_LOG_WRITER_UNKNOWN = 0,
+  CRASH_LOG_WRITER_INIT = 1,
+  CRASH_LOG_WRITER_WAIT,
+  CRASH_LOG_WRITER_RUNNING,
+  CRASH_LOG_WRITER_QUIT
+} CrashStatus;
 typedef struct crashBasicInfo {
-  bool    init;
-  bool    isCrash;
+  int8_t  status;
   int64_t clusterId;
   int64_t startTime;
   char   *nodeType;
@@ -1292,24 +1298,55 @@ typedef struct crashBasicInfo {
 } crashBasicInfo;
 
 crashBasicInfo gCrashBasicInfo = {0};
-static void    writeCrashLogToFileInNewThead() {
-  if (!gCrashBasicInfo.init || !gCrashBasicInfo.isCrash) return;
-  char       *pMsg = NULL;
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;
-  int64_t     msgLen = -1;
 
-  if (tsEnableCrashReport) {
-    if (taosGenCrashJsonMsg(gCrashBasicInfo.signum, &pMsg, gCrashBasicInfo.clusterId, gCrashBasicInfo.startTime)) {
-      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
-    } else {
-      msgLen = strlen(pMsg);
-    }
+void setCrashWriterStatus(int8_t status) { atomic_store_8(&gCrashBasicInfo.status, status); }
+bool reportThreadSetQuit() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_INIT, CRASH_LOG_WRITER_QUIT);
+  if (status == CRASH_LOG_WRITER_INIT) {
+    return true;
+  } else {
+    return false;
   }
-  taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
-  gCrashBasicInfo.isCrash = false;
-  tsem_post(&gCrashBasicInfo.sem);
+}
+
+bool setReportThreadWait() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_INIT, CRASH_LOG_WRITER_WAIT);
+  if (status == CRASH_LOG_WRITER_INIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+bool setReportThreadRunning() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_WAIT, CRASH_LOG_WRITER_RUNNING);
+  if (status == CRASH_LOG_WRITER_RUNNING) {
+    return true;
+  } else {
+    return false;
+  }
+}
+static void writeCrashLogToFileInNewThead() {
+  if (setReportThreadRunning()) {
+    char       *pMsg = NULL;
+    const char *flags = "UTL FATAL ";
+    ELogLevel   level = DEBUG_FATAL;
+    int32_t     dflag = 255;
+    int64_t     msgLen = -1;
+
+    if (tsEnableCrashReport) {
+      if (taosGenCrashJsonMsg(gCrashBasicInfo.signum, &pMsg, gCrashBasicInfo.clusterId, gCrashBasicInfo.startTime)) {
+        taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+      } else {
+        msgLen = strlen(pMsg);
+      }
+    }
+    taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
+    setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
+    tsem_post(&gCrashBasicInfo.sem);
+  }
 }
 
 void checkAndPrepareCrashInfo() {
@@ -1322,23 +1359,19 @@ int32_t initCrashLogWriter() {
     uError("failed to init sem for crashLogWriter, code:%d", code);
     return code;
   }
-  gCrashBasicInfo.isCrash = false;
-  gCrashBasicInfo.init = true;
+  setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
   return code;
 }
 
 void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime) {
-  if (!gCrashBasicInfo.init) {
-    return;
+  if (setReportThreadWait()) {
+    gCrashBasicInfo.clusterId = clusterId;
+    gCrashBasicInfo.startTime = startTime;
+    gCrashBasicInfo.nodeType = nodeType;
+    gCrashBasicInfo.signum = signum;
+    gCrashBasicInfo.sigInfo = sigInfo;
+    tsem_wait(&gCrashBasicInfo.sem);
   }
-  gCrashBasicInfo.clusterId = clusterId;
-  gCrashBasicInfo.startTime = startTime;
-  gCrashBasicInfo.nodeType = nodeType;
-  gCrashBasicInfo.signum = signum;
-  gCrashBasicInfo.sigInfo = sigInfo;
-  gCrashBasicInfo.isCrash = true;
-
-  tsem_wait(&gCrashBasicInfo.sem);
 }
 
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd) {
