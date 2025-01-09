@@ -51,7 +51,8 @@ fn main() {
 
     let mut batches = Vec::new();
     // open the file
-    let file = File::open(file_source).expect(&format!("Unable to open file '{}'", file_source));
+    let file =
+        File::open(file_source).unwrap_or_else(|_| panic!("Unable to open file '{}'", file_source));
     let buffer = std::io::BufReader::new(file);
     // the flag to identify the split point
     let flag = b"PAR1PAR1";
@@ -71,7 +72,7 @@ fn main() {
                     content.truncate(content.len() - 4);
                     // transform to batches
                     match transform_bytes_to_record(content.clone()) {
-                        Ok(mut vec) => batches.extend(vec.drain(..)),
+                        Ok(mut vec) => batches.append(&mut vec),
                         Err(err) => {
                             eprintln!("Error reading file: {err:#}");
                         }
@@ -89,7 +90,7 @@ fn main() {
     }
     // last record
     match transform_bytes_to_record(content.clone()) {
-        Ok(mut vec) => batches.extend(vec.drain(..)),
+        Ok(mut vec) => batches.append(&mut vec),
         Err(err) => {
             eprintln!("Error reading file: {err:#}");
         }
@@ -99,10 +100,11 @@ fn main() {
     if let Some(file_target) = file_target {
         let mut file = OpenOptions::new()
             .create(true)
+            .truncate(true)
             .write(true)
             .open(file_target)
-            .expect(&format!("Unable to open file '{}'", file_target));
-        let _ = writeln!(file, "{}", format!("{:?}", batches));
+            .unwrap_or_else(|_| panic!("Unable to open file '{}'", file_target));
+        let _ = writeln!(file, "{:?}", batches);
     } else {
         println!("{:?}", batches);
     }
