@@ -30,14 +30,13 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 1. [Documentation](#2-documentation)
 1. [Prerequisites](#3-prerequisites)
 1. [Building](#4-building)
-1. [Packaging](#5-packaging)
-1. [Installation](#6-installation)
-1. [Running](#7-running)
-1. [Testing](#8-testing)
-1. [Releasing](#9-releasing)
-1. [CI/CD](#10-cicd)
-1. [Coverage --replace](#11-coverage---replace)
-1. [Contributing](#12-contributing)
+1. [Installation](#5-installation)
+1. [Running](#6-running)
+1. [Testing](#7-testing)
+1. [Releasing](#8-releasing)
+1. [CI/CD](#9-cicd)
+1. [Coverage](#10-coverage)
+1. [Contributing](#11-contributing)
 
 # 1. Introduction
 
@@ -63,42 +62,49 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 # 3. Prerequisites
 
-## 3.1 Install dependencies tools
+## 3.1 On Linux
 
-### The required package for linux
+### For Ubuntu 18.04 or Later
 
 ```bash
-apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping
-```
-
-### The required package for windows
-
-to be updated...
-
-### The required package for macOS
 
 ```
+
+### For CentOS 7
+
+```bash
+
+```
+
+### For Fedora or Rocky Linux
+
+```bash
+
+```
+
+## 3.2 On macOS
+
+Please intall the dependencies with [brew](https://brew.sh/).
+
+```bash
 brew install argp-standalone gflags pkgconfig
 ```
 
-## 3.2 Get the source codes
+## 3.3 On Windows
 
-First of all, you may clone the source codes from github:
+Work in Progress.
+
+## 3.4 Clone the repo
+
+Clone the repository to the target machine:
 
 ```bash
 git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
 
-You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You will need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
-
-```
-[url "git@github.com:"]
-    insteadOf = https://github.com/
-```
-
-## 3.3 Special Note
-[JDBC Connector](https://github.com/taosdata/taos-connector-jdbc)， [Go Connector](https://github.com/taosdata/driver-go)，[Python Connector](https://github.com/taosdata/taos-connector-python)，[Node.js Connector](https://github.com/taosdata/taos-connector-node)，[C# Connector](https://github.com/taosdata/taos-connector-dotnet) ，[Rust Connector](https://github.com/taosdata/taos-connector-rust) and [Grafana plugin](https://github.com/taosdata/grafanaplugin) has been moved to standalone repository.
+> [!NOTE]
+> TDengine Connectors can be found in following repositories: [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc), [Go Connector](https://github.com/taosdata/driver-go), [Python Connector](https://github.com/taosdata/taos-connector-python), [Node.js Connector](https://github.com/taosdata/taos-connector-node), [C# Connector](https://github.com/taosdata/taos-connector-dotnet), [Rust Connector](https://github.com/taosdata/taos-connector-rust).
 
 # 4. Building
 
@@ -110,7 +116,11 @@ TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) a
 
 To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in the project directory.
 
-## 4.1 Linux platform building
+## 4.1 Build on Linux
+
+<details>
+
+<summary>Detailed steps to build on Linux</summary>
 
 You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
 
@@ -129,7 +139,7 @@ make
 
 You can use Jemalloc as memory allocator instead of glibc:
 
-```
+```bash
 apt install autoconf
 cmake .. -DJEMALLOC_ENABLED=true
 ```
@@ -143,7 +153,28 @@ aarch64:
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
 ```
 
-## 4.2 Windows platform building
+</details>
+
+## 4.2 Build on macOS
+
+<details>
+
+<summary>Detailed steps to build on macOS</summary>
+
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
+
+```shell
+mkdir debug && cd debug
+cmake .. && cmake --build .
+```
+
+</details>
+
+## 4.3 Build on Windows
+
+<details>
+
+<summary>Detailed steps to build on Windows</summary>
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
 Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
@@ -174,23 +205,11 @@ mkdir debug && cd debug
 cmake .. -G "NMake Makefiles"
 nmake
 ```
+</details>
 
-## 4.3 MacOS platform building
+# 5. Installation
 
-Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
-
-```shell
-mkdir debug && cd debug
-cmake .. && cmake --build .
-```
-
-# 5. Packaging
-
-To be updated...
-
-# 6. Installation
-
-## 6.1 Linux platform installation
+## 5.1 Install on Linux
 
 After building successfully, TDengine can be installed by
 
@@ -202,15 +221,7 @@ Users can find more information about directories installed on the system in the
 
 Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
 
-## 6.2 Windows platform installation
-
-After building successfully, TDengine can be installed by:
-
-```cmd
-nmake install
-```
-
-## 6.3 MacOS platform installation
+## 5.2 Install on macOS
 
 After building successfully, TDengine can be installed by:
 
@@ -218,9 +229,17 @@ After building successfully, TDengine can be installed by:
 sudo make install
 ```
 
-# 7. Running
+## 5.3 Install on Windows
 
-## 7.1 Run TDengine on linux
+After building successfully, TDengine can be installed by:
+
+```cmd
+nmake install
+```
+
+# 6. Running
+
+## 6.1 Run TDengine on Linux
 
 To start the service after installation on linux, in a terminal, use:
 
@@ -250,9 +269,9 @@ In another terminal, use the TDengine CLI to connect the server:
 
 option "-c test/cfg" specifies the system configuration file directory.
 
-## 7.2 Run TDengine on windows
+## 6.2 Run TDengine on Windows
 
-To start the service after installation on windows, in a terminal, use:
+To start the service after installation on Windows, in a terminal, use:
 
 ```bash
 to be updated
@@ -264,7 +283,7 @@ Then users can use the TDengine CLI to connect the TDengine server. In a termina
 taos
 ```
 
-## 7.3 Run TDengine on MacOS
+## 6.3 Run TDengine on macOS
 
 To start the service after installation on macOS, double-click the /applications/TDengine to start the program, or in a terminal, use:
 
@@ -280,77 +299,34 @@ taos
 
 If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
-# 8. Testing
+# 7. Testing
 
-## 8.1 Run the TSIM test script
+For how to run different types of tests on TDengine, please see [Testing TDengine](./tests/README.md).
 
-TSIM test framework is developed by c++ in the start-up period of TDengine， the test scripts are basic cases, you can run 
-the script with below command:
+# 8. Releasing
+
+For the complete list of TDengine Releases, please see [Releases](https://github.com/taosdata/TDengine/releases).
+
+# 9. CI/CD
+
+Now, Jenkins is mainly used to build CI/CD pipeline for TDengine. To run the tests in the CI/CD pipeline, please run following commands:
 
 ```bash
-cd /root/TDengine/tests/script
-./test.sh -f tsim/db/basic1.sim
+cd tests
+./run_all_ci_cases.sh -b main # on main branch
 ```
 
-## 8.2 Run the Python test script
+TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml).
 
-Python test script includes almost all of the functions of TDengine, so some test case maybe fail cause the function only
-work for TDengine enterprise version, you can run the script with below command:
+# 10. Coverage
 
-```bash
-cd /root/TDengine/tests/system-test
-python3 ./test.py -f 2-query/floor.py
-```
-
-## 8.3 Run unittest
-
-Unit test script is the smallest testable part and developed for some function, method or class of TDengine, you can run
-the script with below command:
+Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). To create the test coverage report (in HTML format) locally, please run following commands:
 
 ```bash
-cd /root/TDengine/tests/unit-test/
-bash test.sh
-```
-
-## 8.4 Smoke Testing
-
-Smoke test script is known as sanity testing to ensure that the critical functionalities of TDengine, you can run the 
-script with below command:
-
-```bash
-cd /root/TDengine/packaging/smokeTest
-./test_smoking_selfhost.sh
-```
-
-## Windows platform testing
-
-  to be updated...
-
-## MacOS platform testing
-
-  to be updated...
-
-# 9. Releasing
-
-You can access the [Release](https://github.com/taosdata/TDengine/releases) for TDengine release version list.
-
-# 10. CI/CD 
-You can run ci script locally with below commands:
-
-```bash
-cd /root/TDengine/tests
-./run_all_ci_cases.sh -b main
-```
-
-# 11. Coverage --replace
-You can see coverage result in https://coveralls.io/github/taosdata/TDengine
-You can also run coverage script locally.
-
-```bash
-cd /root/TDengine/tests
+cd tests
 ./run_local_coverage.sh
 ```
 
-# 12. Contributing
+# 11. Contributing
 
-Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
+Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to TDengine.
