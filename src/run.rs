@@ -14,7 +14,7 @@ use twelf::config;
 use taosx_core::utils::{self};
 use taosx_core::{Action, TaskNotify};
 
-use crate::serve::check_parser_timestamp_precision;
+use crate::serve::task::check_parser_string_timestamp_precision;
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -117,7 +117,7 @@ impl Cli {
         };
         // validate parser
         if let Some(parser) = args.parser.as_ref() {
-            if !check_parser_timestamp_precision(parser) {
+            if !check_parser_string_timestamp_precision(parser) {
                 bail!("parser should have same timestamp precision");
             }
         }

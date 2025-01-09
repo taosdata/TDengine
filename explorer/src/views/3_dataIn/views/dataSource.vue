@@ -71,6 +71,21 @@
           type="primary"
           >{{ $t("datasource.addsource") }}</el-button
         >
+        <!-- <el-upload
+          class="ml15"
+          style="display: inline-block;"
+          :action="uploadUrl"
+          :data="{req_id: 'taosx-demo-file'}"
+          :on-success="handleSuccess"
+          :on-error="handleError"
+          accept=".json"
+          :file-list="fileList"
+          :show-file-list="false"
+        >
+          <el-button size="small" type="primary" icon="el-icon-plus" plain :loading="uploadRequest" :disabled="$COMMUNITY">
+            {{ $t("datasource.addsourceFromTemp")}}
+          </el-button>
+        </el-upload> -->
       </div>
     </div>
     <div class="data-source">
@@ -526,6 +541,9 @@ export default {
       showErrStatus: ['waiting','suspending','suspended','failed','interrupted'],
       permitDeleteStatus: ['completed','stopped','failed', 'interrupted', 'ticked'],
       multipleSelection: [],
+      fileList: [],
+      uploadRequest: false,
+      uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       showHealthStatus: ['running', 'stopping', 'waiting', 'resumed']
     };
   },
@@ -737,13 +755,14 @@ export default {
         this.$parent.toggleComponent("", data.from_expand.id, data.id, dbname);
       }
     },
-    edit(data, status, iscopy) {
+    edit(data, status, iscopy, isImport) {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
       this.$parent.setEditID(data.id);
       this.$parent.isCopyable = iscopy;
       this.$parent.isViewable = false;
+      this.$parent.isImportable = isImport;
       this.$store.commit("app/SET_CURRENT_EDITID", data.id);
       if (data.from_expand) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_expand?.id);
@@ -882,7 +901,7 @@ export default {
     //copy一个新的task
     copyTask(data, status) {
       this.$parent.isCopyable = true;
-      this.edit(data, status, true);
+      this.edit(data, status, true, false);
     },
     addDbSource() {
       this.$store.commit("app/SET_CURRENT_DBNAME", "");
@@ -892,8 +911,28 @@ export default {
       this.$store.commit("app/SET_CURRENT_EDITID", "");
       this.$parent.currentTaskStatus = "";
       this.$parent.isCopyable = false;
+      this.$parent.isImportable = false;
       this.$parent.changeEditable(false);
       this.$parent.toggleComponent("tmq");
+    },
+    importTask(data, status) {
+      this.$parent.isImportable = true
+      this.edit(data, status, false, true);
+    },
+    handleError() {
+      this.uploadRequest = false;
+    },
+    handleSuccess(_, file, fileList) {
+      const reader = new FileReader();
+  
+      reader.onload = (e) => {
+        const data = JSON.parse(e.target.result);
+        this.importTask(data, data.status)
+        this.$store.state.app.importJsonData = data
+        this.uploadRequest = false;
+      };
+    
+      reader.readAsText(file.raw); // 读取文本文件
     },
     async getList() {
       try {

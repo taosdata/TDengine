@@ -111,6 +111,8 @@ const state = {
   configData: [],
   activeName: 'datasource',
   viaId: null, // 点击数据源列表中的agent
+  s_model: {}, // 超级表模版
+  importJsonData: {}
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -246,6 +248,7 @@ const mutations = {
     state.currentDBType=data
     state.supportSQL = (data == 'avevaHistorian' || data == 'mysql' || data == 'postgres' || data == 'oracle' || data == "mssql")
     state.supportTransform = (data == 'avevaHistorian' || data == 'mysql' || data == 'postgres' || data == 'oracle' || data == "mssql" || data == "kafka" || data == "mqtt" || data == "mongodb")
+    state.supportTopicBody = (data == 'mqtt')
   },
   SET_CURRENT_RESUME:(state,data)=>{
     state.currentResume=data

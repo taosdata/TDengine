@@ -13,6 +13,7 @@ env:
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8788
   COVERAGE_REPORT_BASE_DIR: /data/code_coverage_taosx
+  COVERAGE_DATABASE_URL: http://192.168.1.42:6041/rest/sql
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -28,7 +29,9 @@ jobs:
         run: |
           echo "coverage_report_dir=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_OUTPUT
       - name: Print COVERAGE_REPORT_DIR
-        run: echo $COVERAGE_REPORT_DIR
+        run: echo $COVERAGE_REPORT_DI
+  
+
   remove_artifacts:
     needs: set_env
     env:
@@ -49,11 +52,10 @@ jobs:
   build_rust_run_unit_test:
     needs: [remove_artifacts,set_env]
     runs-on: [self-hosted, linux, x64, qa, rust]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        
       - name: Print Env
         run: |
           pwd
@@ -63,14 +65,14 @@ jobs:
       - name: Build Explorer
         run: |
           cargo make explorer
-      - name: Build taosx
+      - name: Build taosX
         run: |
           # build taosx and taosx-agent
           # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
           rm -rf ./target/debug/taosx-profraw/
           export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
           cargo build --target-dir ./target/debug/taosx-build/
-      - name: taosx unit test
+      - name: taosX unit test
         run: |
           echo "run taosx unit test"
           # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
@@ -100,8 +102,6 @@ jobs:
   build_go_run_unit_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [remove_artifacts,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -132,8 +132,6 @@ jobs:
   build_java_run_unit_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [remove_artifacts,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4    
@@ -171,8 +169,6 @@ jobs:
   deploy_taosx_plugins:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [build_rust_run_unit_test, build_go_run_unit_test, build_java_run_unit_test,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: Deploy taosx
         run: |
@@ -197,7 +193,8 @@ jobs:
           cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py 6055 eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
   run_e2e_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: deploy_taosx_plugins
+    needs: [deploy_taosx_plugins,set_env]
+    
     steps:
       - name: Update Repo
         run: |
@@ -227,8 +224,7 @@ jobs:
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+    
     steps:
       - name: allure report
         run: |
@@ -291,16 +287,18 @@ jobs:
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/influxdb/"
       
       - name: save report daily
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run: |
           cp -r $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/
           echo "see report at $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/"
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [generate_report,set_env]
-    env:
-      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
     steps:
       - name: get coverage percent for taosx and connecter
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run : |
           export TAOSX_COVERAGE_PERCENT=$(grep -oP '(?<=<td class="headerCovTableEntryLo">)[^&]+' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/taosx-report-merged/index.html | head -n 1)
           export INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/influxdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
@@ -310,7 +308,35 @@ jobs:
           echo "INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$INFLUXDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$OPENTSDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "OPC_CONNECTOR_COVERAGE_PERCENT=$OPC_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
+      - name: get last coverage data from TDengine
+        run: |
+          response=$(curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          -d "select last(*) from coverage.taosx_coverage" $COVERAGE_DATABASE_URL)
+          echo "response=$response"
+          echo "taosx_coverage_last=$(echo $response | jq '.data[0][1]')" >> $GITHUB_ENV
+          echo "influxdb_connector_coverage_last=$(echo $response | jq '.data[0][2]')" >> $GITHUB_ENV
+          echo "opentsdb_connector_coverage_last=$(echo $response | jq '.data[0][3]')" >> $GITHUB_ENV
+          echo "opc_connector_coverage_last=$(echo $response | jq '.data[0][4]')" >> $GITHUB_ENV
+
+      - name: insert coverage percent into TDengine
+        run: |
+          curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          -d "insert into coverage.taosx_coverage values(now,$TAOSX_COVERAGE_PERCENT,$INFLUXDB_CONNECTOR_COVERAGE_PERCENT,$OPENTSDB_CONNECTOR_COVERAGE_PERCENT,$OPC_CONNECTOR_COVERAGE_PERCENT)" $COVERAGE_DATABASE_URL
+      
+      - name: Calculate the difference between the results of two adjacent executions
+        run: |
+          taosX_coverage_diff=$(echo "scale=1;$TAOSX_COVERAGE_PERCENT - $taosx_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          influxdb_connector_coverage_diff=$(echo "scale=1;$INFLUXDB_CONNECTOR_COVERAGE_PERCENT - $influxdb_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          opentsdb_connector_coverage_diff=$(echo "scale=1;$OPENTSDB_CONNECTOR_COVERAGE_PERCENT - $opentsdb_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          opc_connector_coverage_diff=$(echo "scale=1;$OPC_CONNECTOR_COVERAGE_PERCENT - $opc_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          echo "taosX_coverage_diff=$taosX_coverage_diff" >> $GITHUB_ENV
+          echo "influxdb_connector_coverage_diff=$influxdb_connector_coverage_diff" >> $GITHUB_ENV
+          echo "opentsdb_connector_coverage_diff=$opentsdb_connector_coverage_diff" >> $GITHUB_ENV
+          echo "opc_connector_coverage_diff=$opc_connector_coverage_diff" >> $GITHUB_ENV
+      
       - name: Send Feishu Message to taosX CI Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run: |
           function post_to_feishu() {
             local text="$1"
@@ -327,14 +353,16 @@ jobs:
           PR_INFO="Testing coverage report for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
-          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
-          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
-          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
+          taosX Coverage: $TAOSX_COVERAGE_PERCENT%,difference to the last result is $taosX_coverage_diff%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%, difference is $influxdb_connector_coverage_diff%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%, difference is $opentsdb_connector_coverage_diff%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%, difference is $opc_connector_coverage_diff%\n
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
       
       - name: Send Feishu Message to Platform Notifications Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run: |
           function post_to_feishu() {
             local text="$1"
@@ -351,9 +379,9 @@ jobs:
           PR_INFO="Testing coverage report for taosX and its plugins\n
           PR Owner: @${{ github.actor }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          TaosX Coverage: $TAOSX_COVERAGE_PERCENT%\n
-          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%\n
-          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%\n
-          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%\n
+          taosX Coverage: $TAOSX_COVERAGE_PERCENT%,difference to the last result is $taosX_coverage_diff%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%, difference is $influxdb_connector_coverage_diff%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%, difference is $opentsdb_connector_coverage_diff%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%, difference is $opc_connector_coverage_diff%\n
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"

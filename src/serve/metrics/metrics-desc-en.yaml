@@ -76,7 +76,7 @@ mqtt_dumped_messages: Number of messages dumped in this task run
 mqtt_fetched_acks: Total number of ACKs received in this task run
 mqtt_ack_fails: Total number of ACK failures in this task run
 mqtt_unprocessed_messages: Number of messages currently in the cache queue in this task run
-mqtt_processing_batches: Number of batches currently being processed in this task run
+mqtt_sent_batches: Number of batches sent in this task run
 mqtt_discarded_messages: Number of messages discarded in this task run
 mqtt_discarded_dump_messages: Number of messages discarded by the dump operation during this task run
 total_csv_files: Total number of CSV files

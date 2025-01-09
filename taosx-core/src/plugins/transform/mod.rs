@@ -10,15 +10,19 @@
 
 use std::{
     borrow::{Borrow, Cow},
+    collections::BTreeMap,
     ops::Range,
     str::FromStr,
     sync::Arc,
 };
 
+use anyhow::Context;
 use arrow::{
     array::{
-        Array, BinaryArray, BooleanArray, StringArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray,
+        Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float16Array, Float32Array,
+        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
+        LargeStringArray, NullArray, StringArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt64Array,
     },
     compute::concat_batches,
     datatypes::{DataType, Field, Schema},
@@ -26,11 +30,18 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use arrow_compute_ext::RecordBatchExt;
+use arrow_schema::{FieldRef, TimeUnit};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use datafusion::{
+    functions_window::row_number::row_number,
+    prelude::{col, ExprFunctionExt, SessionContext},
+};
 use either::Either;
+use faststr::FastStr;
 use handling_strategy::{HandlingResult, ProcessOnAbnormal};
 use itertools::Itertools;
+use modeler::stable::STableModel;
 use scc::HashMap;
 use serde::{Deserialize, Serialize};
 use taos::{
@@ -84,6 +95,8 @@ pub struct Pipeline {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    s_model: Option<STableModel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     model: Option<Modeler>,
 }
 
@@ -106,6 +119,18 @@ impl Pipeline {
         } else {
             Ok(vec![ModeledRecordBatch::new(batch)])
         }
+    }
+
+    pub fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
+        let batch = self
+            .parse
+            .as_ref()
+            .map(|parse| parse.transform_record_batch(records))
+            .transpose()?
+            .unwrap_or_else(|| records.clone());
+        self.mutate
+            .iter()
+            .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))
     }
 
     fn check(&self) -> Result<(), Error> {
@@ -965,6 +990,7 @@ pub struct Parser {
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
+    s_model: Option<STableModel>,
     model: Modeler,
 }
 
@@ -1021,11 +1047,17 @@ impl FromStr for Parser {
 }
 
 impl Parser {
-    pub fn new(parse: Option<ParserImpl>, mutate: Vec<Mutate>, model: Modeler) -> Self {
+    pub fn new(
+        parse: Option<ParserImpl>,
+        mutate: Vec<Mutate>,
+        s_model: Option<STableModel>,
+        model: Modeler,
+    ) -> Self {
         Self {
             global: Arc::new(TableOptions::default()),
             parse,
             mutate,
+            s_model,
             model,
         }
     }
@@ -1088,30 +1120,6 @@ impl Parser {
             .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))
     }
 
-    fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
-        batches
-            .iter()
-            .map(|batch| {
-                let schema = batch.schema();
-                let fields = schema.fields();
-
-                RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
-                    |(idx, data)| {
-                        let dt = fields[idx].data_type();
-                        if matches!(dt, DataType::Binary | DataType::LargeBinary) {
-                            arrow::compute::cast(data, &DataType::Utf8)
-                                .ok()
-                                .map(|data| (fields[idx].name(), data))
-                        } else {
-                            Some((fields[idx].name(), data.clone()))
-                        }
-                    },
-                ))
-                .unwrap()
-            })
-            .collect()
-    }
-
     #[instrument(skip_all)]
     pub fn parse_message_from_records(
         &self,
@@ -1119,17 +1127,41 @@ impl Parser {
         records: &RecordBatch,
         filter_ts: bool,
     ) -> Result<Message, Error> {
-        let batch = self.transform_records(records)?;
-        let schema = batch.schema();
-        let batches = vec![batch];
-        let batch = &batches[0];
+        // (ts, value, point_name, ${point_name}, site_controller_id)
+        let transformed_batch = self.transform_records(records)?;
+        let schema = transformed_batch.schema();
+        let transformed_batches = vec![transformed_batch];
+        let transformed_batch = &transformed_batches[0];
+        // tracing::info!("Parse message {:?}", batch);
 
-        let json_batches = Parser::to_json_valid_batches(&batches);
+        let pivot_fields = schema
+            .fields()
+            .iter()
+            .filter_map(|f| {
+                f.name()
+                    .strip_prefix("${")
+                    .and_then(|name| name.strip_suffix("}"))
+                    .map(|name| (name, f.name().as_str()))
+            })
+            .collect_vec();
+
+        let json_batches = to_json_valid_batches(&transformed_batches);
+
         let json: Vec<_> = json_batches
             .iter()
-            .map(|batch| batch.to_json_rows())
+            .map(|batch| {
+                batch
+                    .to_json_rows()
+                    .map(|v| v.into_iter().map(serde_json::Value::from))
+            })
             .flatten_ok()
             .try_collect()?;
+
+        let stables = self
+            .s_model
+            .as_ref()
+            .map(|s| s.apply(&json, self.global()))
+            .transpose()?;
 
         let mut data = vec![];
 
@@ -1139,7 +1171,7 @@ impl Parser {
             let use_current_time_indices = HashMap::new();
 
             // get the columns and tags
-            let mut columns_indices = Vec::from_iter(0..batch.num_columns());
+            let mut columns_indices = Vec::from_iter(0..transformed_batch.num_columns());
             let spec_columns = if let Some(cols) = &table.columns {
                 let mut indices = Vec::new();
                 for name in cols {
@@ -1163,7 +1195,7 @@ impl Parser {
                     indices.push(i);
                     columns_indices[i] = usize::MAX;
                 }
-                let tags = batch.project(&indices)?;
+                let tags = transformed_batch.project(&indices)?;
                 let cols = if spec_columns.is_empty() {
                     columns_indices
                         .into_iter()
@@ -1172,14 +1204,14 @@ impl Parser {
                 } else {
                     spec_columns
                 };
-                (Some(tags), batch.project(&cols).unwrap())
+                (Some(tags), transformed_batch.project(&cols).unwrap())
             } else {
                 let cols = if spec_columns.is_empty() {
                     columns_indices
                 } else {
                     spec_columns
                 };
-                (None, batch.project(&cols).unwrap())
+                (None, transformed_batch.project(&cols).unwrap())
             };
 
             // check the field length of columns and tags
@@ -1213,14 +1245,14 @@ impl Parser {
                             tracing::warn!("archive and skip the batch due to {err}");
                             let mut err_vec = Vec::new();
                             let mut err_timestamp_vec = Vec::new();
-                            for _ in 0..batch.num_rows() {
+                            for _ in 0..transformed_batch.num_rows() {
                                 err_vec.push(err.clone());
                                 err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
                             }
                             archive_records(
                                 task_id,
                                 &self.global.process_on_abnormal.archive.location,
-                                batch,
+                                transformed_batch,
                                 err_vec,
                                 err_timestamp_vec,
                             )?;
@@ -1368,15 +1400,17 @@ impl Parser {
             let name = table.name.replace("${", "{");
             let mut template = TinyTemplate::new();
             template.add_template("name", &name).unwrap();
-            if let Some(using) = table.using.as_ref() {
+            let using = table.using.as_ref().map(|using| using.replace("${", "{"));
+            if let Some(using) = using.as_ref() {
                 template.add_template("using", using).unwrap();
             }
 
-            let tables = (0..batch.num_rows())
+            let tables = (0..transformed_batch.num_rows())
                 .filter(|row| !skip_indices.contains(row))
                 .map(|row| {
                     match generate_table_name(
                         self.global.process_on_abnormal.clone(),
+                        &template,
                         &table.name,
                         &json[row],
                     ) {
@@ -1415,9 +1449,9 @@ impl Parser {
                 });
                 let archive_batches = archive_indices_vec
                     .iter()
-                    .map(|row| batch.slice(*row, 1))
+                    .map(|row| transformed_batch.slice(*row, 1))
                     .collect_vec();
-                let archive_batch = concat_batches(&batch.schema(), &archive_batches)?;
+                let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)?;
                 archive_records(
                     task_id,
                     &self.global.process_on_abnormal.archive.location,
@@ -1427,6 +1461,26 @@ impl Parser {
                 )?;
             }
 
+            let ts_field_name = table
+                .columns
+                .as_ref()
+                .and_then(|v| v.first())
+                .context("ts field not found")?;
+            let ts_field = schema
+                .field_with_name(ts_field_name)
+                .context("ts field not found")?;
+            let normal_cols = table
+                .columns
+                .as_ref()
+                .map(|cols| {
+                    cols.iter()
+                        .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
+                        .map(|s| s.as_str())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            // name: sub_table_name, indices: group row index
             for (name, indices) in tables {
                 // 2. skip records
                 let indices = if skip_indices.is_empty() {
@@ -1453,7 +1507,7 @@ impl Parser {
                                 Utc::now().timestamp_nanos_opt()
                             } else {
                                 columns.column(0).is_null(row).then(|| {
-                                    batch
+                                    transformed_batch
                                         .column(0)
                                         .as_any()
                                         .downcast_ref::<TimestampMillisecondArray>()
@@ -1482,27 +1536,62 @@ impl Parser {
 
                 let ranges = indices_to_ranges(&indices);
                 let name_row = indices[0];
+
+                let using = table
+                    .using
+                    .as_ref()
+                    .and_then(|_| template.render_value("using", &json[name_row]).ok())
+                    .map(|using| self.global().canonical_table_name(&using).to_string());
+
+                let tags = tags
+                    .as_ref()
+                    .map(|batch| Arc::new(batch.slice(name_row, 1)));
+
+                let using = match (&stables, using) {
+                    (Some(map), Some(using)) => map
+                        .get(&FastStr::from(using))
+                        .map(|m| Arc::new(STable::Model(m.clone()))),
+                    (None, Some(using)) => Some(Arc::new(STable::Name(using))),
+                    (_, None) => None,
+                };
+
+                // without pivot
+                if pivot_fields.is_empty() {
+                    let sub_table_batches = ranges
+                        .iter()
+                        .map(|range| columns.slice(range.start, range.len()))
+                        .collect_vec();
+                    let sub_table_batch = arrow::compute::concat_batches(
+                        &columns.schema(),
+                        sub_table_batches.iter(),
+                    )?;
+                    let meta = MessageTableMeta::new(name, using, tags);
+                    let item = MessageArrowRecords {
+                        table: meta,
+                        records: sub_table_batch,
+                        opts: self.global.clone(),
+                    };
+                    data.push(item);
+                    continue;
+                }
+
+                let meta = MessageTableMeta::new(name.clone(), using.clone(), tags.clone());
+
                 let batches = ranges
-                    .into_iter()
-                    .map(|range| columns.slice(range.start, range.len()))
+                    .iter()
+                    .map(|range| transformed_batch.slice(range.start, range.len()))
                     .collect_vec();
-                let batch = concat_batches(&columns.schema(), batches.iter())?;
+                let pivot_batch =
+                    arrow::compute::concat_batches(transformed_batch.schema_ref(), batches.iter())?;
 
-                let using = if table.using.is_some() {
-                    template.render("using", &json[name_row]).ok()
-                } else {
-                    None
-                };
-
-                let tags = tags.as_ref().map(|batch| batch.slice(name_row, 1));
-
-                let meta = MessageTableMeta::new(name, using, tags);
-                let item = MessageArrowRecords {
-                    table: meta,
-                    records: batch,
-                    opts: self.global.clone(),
-                };
-                data.push(item);
+                let pivot_batches = pivot(pivot_batch, ts_field, &pivot_fields, &normal_cols)?;
+                for batch in pivot_batches {
+                    data.push(MessageArrowRecords {
+                        table: meta.clone(),
+                        records: batch,
+                        opts: self.global.clone(),
+                    })
+                }
             }
         }
         Ok(Message::Records(data))
@@ -1562,6 +1651,29 @@ impl Parser {
     }
 }
 
+fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
+    batches
+        .iter()
+        .map(|batch| {
+            let schema = batch.schema();
+            let fields = schema.fields();
+
+            RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
+                |(idx, data)| {
+                    let dt = fields[idx].data_type();
+                    if matches!(dt, DataType::Binary | DataType::LargeBinary) {
+                        arrow::compute::cast(data, &DataType::Utf8)
+                            .ok()
+                            .map(|data| (fields[idx].name(), data))
+                    } else {
+                        Some((fields[idx].name(), data.clone()))
+                    }
+                },
+            ))
+            .unwrap()
+        })
+        .collect()
+}
 /// generate subtable name by template and record value
 ///
 /// - process_on_abnormal: the configuration of abnormal handling method
@@ -1569,15 +1681,12 @@ impl Parser {
 /// - data: the record processed by mutate
 fn generate_table_name(
     process_on_abnormal: ProcessOnAbnormal,
+    template: &TinyTemplate,
     table_name_org: &str,
-    data: &serde_json::Map<String, serde_json::Value>,
+    data: &serde_json::Value,
 ) -> anyhow::Result<(HandlingResult, String)> {
-    // generate template
-    let table_name_org = table_name_org.replace("${", "{");
-    let mut template = TinyTemplate::new();
-    template.add_template("name", &table_name_org)?;
     // render table name
-    match template.render("name", data) {
+    match template.render_value("name", data) {
         Ok(name) => {
             // the length of table name should not exceed 192
             if name.len() > 192 {
@@ -1601,7 +1710,7 @@ fn generate_table_name(
             process_on_abnormal
                 .variable_not_exist_in_table_name_template
                 .handle(
-                    &table_name_org,
+                    table_name_org,
                     data,
                     format!("render table name '{table_name_org}' failed, e: {:?}", e),
                 )
@@ -1697,6 +1806,193 @@ fn archive_records(
 //     }
 // }
 
+pub fn pivot(
+    batch: RecordBatch,
+    ts_field: &Field,
+    pivot_fields: &[(&str, &str)],
+    common_fields: &[&str],
+) -> anyhow::Result<Vec<RecordBatch>> {
+    let ts_field_name = ts_field.name();
+    let df = SessionContext::new()
+        .read_batch(batch)
+        .context("build datafusion context error")?;
+    let window = row_number()
+        .partition_by(vec![col(ts_field_name)])
+        .order_by(vec![col(ts_field_name).sort(true, true)])
+        .build()
+        .context("build datafusion window error")?
+        .alias("row_number");
+
+    let window_func = df.window(vec![window]).context("add window func error")?;
+    let batches =
+        futures::executor::block_on(window_func.collect()).context("exec partition error")?;
+    let Some(batch) = batches
+        .first()
+        .map(|batch| arrow::compute::concat_batches(batch.schema_ref(), &batches))
+        .transpose()?
+    else {
+        return Ok(vec![]);
+    };
+    let row_numbers = batch
+        .column_by_name("row_number")
+        .context("row_number column not found")?;
+    let row_numbers = row_numbers
+        .as_any()
+        .downcast_ref::<UInt64Array>()
+        .context("row_number column not uint64")?;
+    let partitions = partition_by_row_number(row_numbers);
+
+    let mut records = Vec::with_capacity(partitions.len());
+    // 一个分区，生成一行数据，这行数据，是一个 recordbatch
+    for partition in partitions {
+        let mut fields = common_fields
+            .iter()
+            .filter_map(|f| {
+                batch
+                    .schema_ref()
+                    .field_with_name(f)
+                    .ok()
+                    .map(|r| Arc::new(r.clone()))
+            })
+            .collect::<Vec<_>>();
+
+        let mut arrays = common_fields
+            .iter()
+            .filter_map(|f| batch.column_by_name(f).map(|s| s.slice(partition.start, 1)))
+            .collect::<Vec<_>>();
+
+        // 对 pivot name 和 pivot value 进行逐行处理
+        for (pivot_name, pivot_value) in pivot_fields {
+            let batch = batch.slice(partition.start, partition.len());
+            if let (Some(name_column), Some(value_column)) = (
+                batch.column_by_name(pivot_name),
+                batch.column_by_name(pivot_value),
+            ) {
+                let name_column = name_column.as_string::<i32>();
+
+                macro_rules! value_array {
+                    ($name: ident, $array_type: ty, $row: ident) => {{
+                        let value_column =
+                            value_column.as_any().downcast_ref::<$array_type>().unwrap();
+                        if value_column.is_null($row) {
+                            (
+                                Arc::new(Field::new($name, value_column.data_type().clone(), true)),
+                                Arc::new(<$array_type>::new_null(1)),
+                            )
+                        } else {
+                            (
+                                Arc::new(Field::new($name, value_column.data_type().clone(), true)),
+                                Arc::new(<$array_type>::from(vec![value_column.value($row)])),
+                            )
+                        }
+                    }};
+                }
+
+                // 每一行的 name 和 value 转换为一列
+                let mut pivot_fields = BTreeMap::new();
+                for row in 0..batch.num_rows() {
+                    let name = name_column.value(row);
+                    let value_array: (FieldRef, ArrayRef) = match value_column.data_type() {
+                        DataType::Null => (
+                            Arc::new(Field::new(name, DataType::Null, true)),
+                            Arc::new(NullArray::new(1)),
+                        ),
+                        DataType::Boolean => {
+                            value_array!(name, BooleanArray, row)
+                        }
+                        DataType::Int8 => {
+                            value_array!(name, Int8Array, row)
+                        }
+                        DataType::Int16 => {
+                            value_array!(name, Int16Array, row)
+                        }
+                        DataType::Int32 => {
+                            value_array!(name, Int32Array, row)
+                        }
+                        DataType::Int64 => {
+                            value_array!(name, Int64Array, row)
+                        }
+                        DataType::UInt8 => {
+                            value_array!(name, Int8Array, row)
+                        }
+                        DataType::UInt16 => {
+                            value_array!(name, Int16Array, row)
+                        }
+                        DataType::UInt32 => {
+                            value_array!(name, Int32Array, row)
+                        }
+                        DataType::UInt64 => {
+                            value_array!(name, Int32Array, row)
+                        }
+                        DataType::Float16 => {
+                            value_array!(name, Float16Array, row)
+                        }
+                        DataType::Float32 => {
+                            value_array!(name, Float32Array, row)
+                        }
+                        DataType::Float64 => {
+                            value_array!(name, Float64Array, row)
+                        }
+                        DataType::Timestamp(TimeUnit::Second, _) => {
+                            value_array!(name, TimestampSecondArray, row)
+                        }
+                        DataType::Timestamp(TimeUnit::Millisecond, _) => {
+                            value_array!(name, TimestampMillisecondArray, row)
+                        }
+                        DataType::Timestamp(TimeUnit::Microsecond, _) => {
+                            value_array!(name, TimestampMicrosecondArray, row)
+                        }
+                        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                            value_array!(name, TimestampNanosecondArray, row)
+                        }
+                        DataType::Binary => value_array!(name, BinaryArray, row),
+                        DataType::LargeBinary => {
+                            value_array!(name, LargeBinaryArray, row)
+                        }
+                        DataType::Utf8 => value_array!(name, StringArray, row),
+                        DataType::LargeUtf8 => {
+                            value_array!(name, LargeStringArray, row)
+                        }
+                        t => return Err(anyhow::anyhow!("unsupported pivot value tyep: {t}")),
+                    };
+
+                    pivot_fields.insert(name, value_array);
+                }
+                for (field, array) in pivot_fields.into_values() {
+                    fields.push(field);
+                    arrays.push(array);
+                }
+            }
+        }
+        let batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays)
+            .context("build pivot recordbatch error")?;
+        records.push(batch);
+    }
+
+    Ok(records)
+}
+
+fn partition_by_row_number(row_numbers: &UInt64Array) -> Vec<Range<usize>> {
+    let mut partitions = Vec::new();
+    let mut start = None;
+    for (idx, value) in row_numbers
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, v)| v.map(|v| (idx, v)))
+    {
+        if value == 1 {
+            if let Some(s) = start {
+                partitions.push(s..idx);
+            }
+            start = Some(idx);
+        }
+    }
+    if let Some(s) = start {
+        partitions.push(s..row_numbers.len());
+    }
+    partitions
+}
+
 #[derive(Debug)]
 pub struct MessageTable {
     pub name: Arc<String>,
@@ -1709,18 +2005,41 @@ pub struct MessageChildTable {
     pub table: Arc<String>,
     pub stable: Option<(String, Vec<Value>)>,
 }
-#[derive(Debug, Clone)]
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum STable {
+    Name(String),
+    Model(STableModel),
+}
+
+impl STable {
+    pub fn name(&self) -> &str {
+        match self {
+            STable::Name(name) => name,
+            STable::Model(model) => model.name(),
+        }
+    }
+
+    pub fn model(&self) -> Option<&STableModel> {
+        match self {
+            STable::Name(_) => None,
+            STable::Model(model) => Some(model),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct MessageTableMeta {
     pub name: Arc<String>,
-    pub using: Option<String>,
-    pub tags: Option<RecordBatch>,
+    pub using: Option<Arc<STable>>,
+    pub tags: Option<Arc<RecordBatch>>,
 }
 
 impl MessageTableMeta {
     pub fn new(
         name: impl Into<Arc<String>>,
-        using: impl Into<Option<String>>,
-        tags: impl Into<Option<RecordBatch>>,
+        using: impl Into<Option<Arc<STable>>>,
+        tags: impl Into<Option<Arc<RecordBatch>>>,
     ) -> Self {
         Self {
             name: name.into(),
@@ -1739,7 +2058,7 @@ impl MessageTableMeta {
             .map(|array| array.value(0))
     }
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MessageArrowRecords {
     pub table: MessageTableMeta,
     pub records: RecordBatch,
@@ -2198,22 +2517,20 @@ impl MessageArrowRecords {
     }
 
     pub fn stable_sql(&self) -> Option<String> {
-        if let Some(using) = self.table.using.as_ref() {
-            let fields = self.column_meta();
-            let columns = fields.iter().map(|f| f.sql_repr()).join(",");
-            let tags = self
-                .tag_meta()
-                .unwrap()
-                .iter()
-                .map(|f| f.sql_repr())
-                .join(",");
-            Some(format!(
-                "create table `{}` ({}) tags ({})",
-                using, columns, tags
-            ))
-        } else {
-            None
-        }
+        self.table.using.as_ref().map(|using| match using.as_ref() {
+            STable::Name(using) => {
+                let fields = self.column_meta();
+                let columns = fields.iter().map(|f| f.sql_repr()).join(",");
+                let tags = self
+                    .tag_meta()
+                    .unwrap()
+                    .iter()
+                    .map(|f| f.sql_repr())
+                    .join(",");
+                format!("create table `{}` ({}) tags ({})", using, columns, tags)
+            }
+            STable::Model(model) => model.create_stable_sql(),
+        })
     }
     pub fn table_sql(&self) -> String {
         let table_name = self
@@ -2245,7 +2562,10 @@ impl MessageArrowRecords {
 
             format!(
                 "create table if not exists `{}` using `{}` ({}) tags({})",
-                table_name, using, names, values
+                table_name,
+                using.name(),
+                names,
+                values
             )
         } else {
             let fields = self.column_meta();
@@ -2340,7 +2660,11 @@ impl MessageArrowRecords {
                     (
                         format!(
                             "`{}` using `{}` ({}) tags({}) {}",
-                            tbname, using, names, tag_values, col_values
+                            tbname,
+                            using.name(),
+                            names,
+                            tag_values,
+                            col_values
                         ),
                         rows,
                         full_name_to_cache,
@@ -2358,7 +2682,10 @@ impl MessageArrowRecords {
                     (
                         format!(
                             "`{}` using `{}` tags ({}) {}",
-                            tbname, using, tag_values, col_values
+                            tbname,
+                            using.name(),
+                            tag_values,
+                            col_values
                         ),
                         rows,
                         None,
@@ -2388,7 +2715,7 @@ impl MessageArrowRecords {
     }
 
     pub fn stable_name(&self) -> Option<&str> {
-        self.table.using.as_deref()
+        self.table.using.as_ref().map(|s| s.name())
     }
 
     pub fn table_name(&self) -> &str {
@@ -2581,29 +2908,34 @@ fn indices_to_ranges(indices: &[usize]) -> Vec<Range<usize>> {
     ranges
 }
 
-#[test]
-fn test_indices_to_ranges() {
-    let indices = vec![0, 1, 2, 3, 5, 6, 7, 8, 10];
-    let ranges = indices_to_ranges(&indices);
-    dbg!(&ranges);
-    assert_eq!(ranges, vec![0..4, 5..9, 10..11]);
-}
-
 #[cfg(test)]
 mod parser_tests {
     use std::sync::Arc;
 
-    use arrow::array::{ArrayRef, Int32Array, RecordBatch, StringArray, TimestampNanosecondArray};
+    use anyhow::Context;
+    use arrow::{
+        array::{ArrayRef, Int32Array, RecordBatch, StringArray, TimestampNanosecondArray},
+        util::pretty,
+    };
     use chrono::Utc;
     use regex::Regex;
+    use serde_json as json;
     use tinytemplate::TinyTemplate;
 
     use crate::plugins::transform::{
-        modeler::Modeler, mutate::Mutate, parse::ParserImpl, Message, ProcessOnAbnormal,
+        modeler::Modeler, mutate::Mutate, parse::ParserImpl, Message, ProcessOnAbnormal, STable,
         TableOptions,
     };
 
-    use super::Parser;
+    use super::*;
+
+    #[test]
+    fn test_indices_to_ranges() {
+        let indices = vec![0, 1, 2, 3, 5, 6, 7, 8, 10];
+        let ranges = indices_to_ranges(&indices);
+        dbg!(&ranges);
+        assert_eq!(ranges, vec![0..4, 5..9, 10..11]);
+    }
 
     #[test]
     fn test_parser_serde() {
@@ -2694,6 +3026,643 @@ mod parser_tests {
     }
 
     #[test]
+    fn parse_message_from_records_test() -> anyhow::Result<()> {
+        let parser = json::json!({
+            "parse": {
+                "payload": {
+                    "json": ""
+                }
+            },
+            "s_model": {
+                "name": "site_${point_name}",
+                "tags": [
+                    {
+                        "name": "site_controller_id",
+                        "type": "VARCHAR(128)"
+                    }
+                ],
+                "columns": [
+                    {
+                        "name": "ts",
+                        "type": "TIMESTAMP"
+                    },
+                    {
+                        "name": "`value`",
+                        "type": "${data_type}"
+                    }
+                ]
+            },
+            "model": {
+                "name": "site_${point_name}_${site_controller_id}",
+                "using": "site_${point_name}",
+                "tags": [
+                    "site_controller_id"
+                ],
+                "columns": [
+                    "ts",
+                    "value"
+                ]
+            },
+            "mutate": [
+                {
+                    "extract": {
+                        "data_type": {
+                            "convert": {
+                                "boolean": "bool",
+                                "float": "double",
+                                "string": "varchar(128)"
+                            }
+                        }
+                    }
+                },
+                {
+                    "map": {
+                        "ts": {
+                            "cast": "ts",
+                            "as": "TIMESTAMP(ns)"
+                        },
+                        "value": {
+                            "cast": "value",
+                            "as": "VARCHAR"
+                        },
+                        "site_controller_id": {
+                            "cast": "site_controller_id",
+                            "as": "VARCHAR"
+                        }
+                    }
+                }
+            ]
+        });
+        let parser: Parser = json::from_value(parser)?;
+
+        let controllers: ArrayRef = Arc::new(StringArray::from(vec!["controller_1"]));
+        let points: ArrayRef = Arc::new(StringArray::from(vec!["point_1"]));
+        let data_types: ArrayRef = Arc::new(StringArray::from(vec!["string"]));
+        let timestamps: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![100]));
+        let values: ArrayRef = Arc::new(StringArray::from(vec!["abc"]));
+        let batch = RecordBatch::try_from_iter(vec![
+            ("site_controller_id", controllers),
+            ("point_name", points),
+            ("data_type", data_types),
+            ("ts", timestamps),
+            ("value", values),
+        ])?;
+        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let Message::Records(mut records) = message else {
+            anyhow::bail!("not records")
+        };
+
+        records.sort_by(|a, b| a.table_name().cmp(b.table_name()));
+
+        assert_eq!(records.len(), 1);
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+-------+
+| ts                            | value |
++-------------------------------+-------+
+| 1970-01-01T00:00:00.000000100 | abc   |
++-------------------------------+-------+"
+        );
+
+        let table = message.table;
+        assert_eq!(
+            table.name,
+            Arc::new("site_point_1_controller_1".to_string())
+        );
+        assert_eq!(
+            table.using,
+            Some(Arc::new(STable::Model(json::from_value(json::json!({
+                "name": "site_point_1",
+                "columns":[
+                    {
+                        "name": "ts",
+                        "type": "TIMESTAMP",
+                    },{
+                        "name": "`value`",
+                        "type": "varchar(128)",
+                    }
+                ],
+                "tags": [
+                    {
+                        "name": "site_controller_id",
+                        "type": "VARCHAR(128)"
+                    }
+                ]
+            }))?)))
+        );
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_1"]));
+                Some(array)
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parse_multi_columns_message_from_records_test() -> anyhow::Result<()> {
+        let parser = json::json!({
+            "parse": {
+                "payload": {
+                    "json": ""
+                }
+            },
+            "s_model": {
+                "name": "site",
+                "tags": [
+                    {
+                        "name": "site_controller_id",
+                        "type": "VARCHAR(128)"
+                    }
+                ],
+                "columns": [
+                    {
+                        "name": "ts",
+                        "type": "TIMESTAMP"
+                    },
+                    {
+                        "name": "${point_name}",
+                        "type": "${data_type}"
+                    }
+                ]
+            },
+            "model": {
+                "name": "site_${site_controller_id}",
+                "using": "site",
+                "tags": [
+                    "site_controller_id"
+                ],
+                "columns": [
+                    "ts",
+                    "${point_name}"
+                ]
+            },
+            "mutate": [
+                {
+                    "extract": {
+                        "data_type": {
+                            "convert": {
+                                "boolean": "bool",
+                                "float": "double",
+                                "string": "varchar(128)"
+                            }
+                        }
+                    }
+                },
+                {
+                    "map": {
+                        "ts": {
+                            "cast": "ts",
+                            "as": "TIMESTAMP(ns)"
+                        },
+                        "${point_name}": {
+                            "cast": "value",
+                            "as": "VARCHAR"
+                        },
+                        "site_controller_id": {
+                            "cast": "site_controller_id",
+                            "as": "VARCHAR"
+                        }
+                    }
+                }
+            ]
+        });
+        let parser: Parser = json::from_value(parser)?;
+
+        let controllers: ArrayRef = Arc::new(StringArray::from(vec![
+            "controller_2",
+            "controller_2",
+            "controller_2",
+            "controller_2",
+            "controller_1",
+            "controller_1",
+            "controller_1",
+            "controller_1",
+        ]));
+        let points: ArrayRef = Arc::new(StringArray::from(vec![
+            "point_3", "point_5", "point_4", "point_6", "point_1", "point_7", "point_2", "point_8",
+        ]));
+        let data_types: ArrayRef = Arc::new(StringArray::from(vec![
+            "string", "string", "string", "string", "string", "string", "string", "string",
+        ]));
+        let timestamps: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
+            100, 101, 100, 101, 100, 101, 100, 101,
+        ]));
+        let values: ArrayRef = Arc::new(StringArray::from(vec![
+            "0.1", "0.2", "3", "4", "abc", "def", "true", "false",
+        ]));
+        let batch = RecordBatch::try_from_iter(vec![
+            ("site_controller_id", controllers),
+            ("point_name", points),
+            ("data_type", data_types),
+            ("ts", timestamps),
+            ("value", values),
+        ])?;
+        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let Message::Records(mut records) = message else {
+            anyhow::bail!("not records")
+        };
+        records.sort_by(|a, b| a.table_name().cmp(b.table_name()));
+
+        assert_eq!(records.len(), 4);
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+---------+---------+
+| ts                            | point_1 | point_2 |
++-------------------------------+---------+---------+
+| 1970-01-01T00:00:00.000000100 | abc     | true    |
++-------------------------------+---------+---------+"
+        );
+
+        let table = message.table;
+        assert_eq!(table.name, Arc::new("site_controller_1".to_string()));
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+---------+---------+
+| ts                            | point_7 | point_8 |
++-------------------------------+---------+---------+
+| 1970-01-01T00:00:00.000000101 | def     | false   |
++-------------------------------+---------+---------+"
+        );
+
+        let table = message.table;
+        assert_eq!(table.name, Arc::new("site_controller_1".to_string()));
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_1"]));
+                Some(array)
+            }
+        );
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+---------+---------+
+| ts                            | point_3 | point_4 |
++-------------------------------+---------+---------+
+| 1970-01-01T00:00:00.000000100 | 0.1     | 3       |
++-------------------------------+---------+---------+"
+        );
+
+        let table = message.table;
+        assert_eq!(table.name, Arc::new("site_controller_2".to_string()));
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_2"]));
+                Some(array)
+            }
+        );
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+---------+---------+
+| ts                            | point_5 | point_6 |
++-------------------------------+---------+---------+
+| 1970-01-01T00:00:00.000000101 | 0.2     | 4       |
++-------------------------------+---------+---------+"
+        );
+
+        let table = message.table;
+        assert_eq!(table.name, Arc::new("site_controller_2".to_string()));
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_2"]));
+                Some(array)
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parse_multi_pivot_columns_message_from_records_test() -> anyhow::Result<()> {
+        let parser = json::json!({
+            "parse": {
+                "payload": {
+                    "json": ""
+                }
+            },
+            "s_model": {
+                "name": "site",
+                "tags": [
+                    {
+                        "name": "site_controller_id",
+                        "type": "VARCHAR(128)"
+                    }
+                ],
+                "columns": [
+                    {
+                        "name": "ts",
+                        "type": "TIMESTAMP",
+                    },
+                    {
+                        "name": "${point_name}",
+                        "type": "${data_type}",
+                    },
+                    {
+                        "name": "${controller_name}",
+                        "type": "${data_type}",
+                    }
+                ]
+            },
+            "model": {
+                "name": "site_${site_controller_id}",
+                "using": "site",
+                "tags": [
+                    "site_controller_id"
+                ],
+                "columns": [
+                    "ts",
+                    "${point_name}",
+                    "${controller_name}"
+                ]
+            },
+            "mutate": [
+                {
+                    "extract": {
+                        "data_type": {
+                            "convert": {
+                                "boolean": "bool",
+                                "float": "double",
+                                "string": "varchar(128)"
+                            }
+                        }
+                    }
+                },
+                {
+                    "map": {
+                        "ts": {
+                            "cast": "ts",
+                            "as": "TIMESTAMP(ns)"
+                        },
+                        "${point_name}": {
+                            "cast": "value1",
+                            "as": "VARCHAR"
+                        },
+                        "${controller_name}": {
+                            "cast": "value2",
+                            "as": "VARCHAR"
+                        },
+                        "site_controller_id": {
+                            "cast": "site_controller_id",
+                            "as": "VARCHAR"
+                        }
+                    }
+                }
+            ]
+        });
+        let parser: Parser = json::from_value(parser)?;
+
+        let controllers: ArrayRef = Arc::new(StringArray::from(vec![
+            "controller_2",
+            "controller_2",
+            "controller_2",
+            "controller_2",
+            "controller_1",
+            "controller_1",
+            "controller_1",
+            "controller_1",
+        ]));
+        let controller_names: ArrayRef = Arc::new(StringArray::from(vec![
+            "controller_name_1",
+            "controller_name_3",
+            "controller_name_5",
+            "controller_name_7",
+            "controller_name_2",
+            "controller_name_4",
+            "controller_name_6",
+            "controller_name_8",
+        ]));
+        let points: ArrayRef = Arc::new(StringArray::from(vec![
+            "point_3", "point_5", "point_4", "point_6", "point_1", "point_7", "point_2", "point_8",
+        ]));
+        let data_types: ArrayRef = Arc::new(StringArray::from(vec![
+            "float", "float", "float", "float", "float", "float", "float", "float",
+        ]));
+        let timestamps: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
+            100, 101, 100, 101, 100, 101, 100, 101,
+        ]));
+        let values_1: ArrayRef = Arc::new(Float64Array::from(vec![
+            Some(0.1),
+            None,
+            Some(0.3),
+            Some(0.4),
+            Some(0.5),
+            Some(0.6),
+            Some(0.7),
+            Some(0.8),
+        ]));
+        let values_2: ArrayRef = Arc::new(StringArray::from(vec![
+            Some("0.11"),
+            Some("0.12"),
+            Some("0.13"),
+            Some("0.14"),
+            Some("0.15"),
+            None,
+            Some("0.17"),
+            Some("0.18"),
+        ]));
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("site_controller_id", controllers, false),
+            ("controller_name", controller_names, false),
+            ("point_name", points, false),
+            ("data_type", data_types, false),
+            ("ts", timestamps, false),
+            ("value1", values_1, true),
+            ("value2", values_2, true),
+        ])?;
+        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let Message::Records(mut records) = message else {
+            anyhow::bail!("not records")
+        };
+        records.sort_by(|a, b| a.table_name().cmp(b.table_name()));
+
+        assert_eq!(records.len(), 4);
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+---------+---------+-------------------+-------------------+
+| ts                            | point_1 | point_2 | controller_name_2 | controller_name_6 |
++-------------------------------+---------+---------+-------------------+-------------------+
+| 1970-01-01T00:00:00.000000100 | 0.5     | 0.7     | 0.15              | 0.17              |
++-------------------------------+---------+---------+-------------------+-------------------+"
+        );
+
+        let table = message.table;
+        assert_eq!(table.name, Arc::new("site_controller_1".to_string()));
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_1"]));
+                Some(array)
+            }
+        );
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+---------+---------+-------------------+-------------------+
+| ts                            | point_7 | point_8 | controller_name_4 | controller_name_8 |
++-------------------------------+---------+---------+-------------------+-------------------+
+| 1970-01-01T00:00:00.000000101 | 0.6     | 0.8     |                   | 0.18              |
++-------------------------------+---------+---------+-------------------+-------------------+"
+        );
+
+        let table = message.table;
+        assert_eq!(table.name, Arc::new("site_controller_1".to_string()));
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_1"]));
+                Some(array)
+            }
+        );
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+---------+---------+-------------------+-------------------+
+| ts                            | point_3 | point_4 | controller_name_1 | controller_name_5 |
++-------------------------------+---------+---------+-------------------+-------------------+
+| 1970-01-01T00:00:00.000000100 | 0.1     | 0.3     | 0.11              | 0.13              |
++-------------------------------+---------+---------+-------------------+-------------------+"
+        );
+
+        let table = message.table;
+        assert_eq!(table.name, Arc::new("site_controller_2".to_string()));
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_2"]));
+                Some(array)
+            }
+        );
+
+        let message = records.remove(0);
+
+        assert_eq!(
+            pretty::pretty_format_batches(&[message.records])
+                .unwrap()
+                .to_string(),
+            "\
++-------------------------------+---------+---------+-------------------+-------------------+
+| ts                            | point_5 | point_6 | controller_name_3 | controller_name_7 |
++-------------------------------+---------+---------+-------------------+-------------------+
+| 1970-01-01T00:00:00.000000101 |         | 0.4     | 0.12              | 0.14              |
++-------------------------------+---------+---------+-------------------+-------------------+"
+        );
+
+        let table = message.table;
+        assert_eq!(table.name, Arc::new("site_controller_2".to_string()));
+        assert_eq!(
+            table
+                .tags
+                .as_ref()
+                .context("tags not found")?
+                .column_by_name("site_controller_id")
+                .cloned(),
+            {
+                let array: ArrayRef = Arc::new(StringArray::from(vec!["controller_2"]));
+                Some(array)
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn partition_by_row_number_test() -> anyhow::Result<()> {
+        let row_numbers = UInt64Array::from(vec![1, 2, 3, 1, 2, 1, 2, 3, 4]);
+        assert_eq!(
+            partition_by_row_number(&row_numbers),
+            vec![(0..3), (3..5), (5..9)]
+        );
+        let row_numbers = UInt64Array::from(vec![1, 1, 1]);
+        assert_eq!(
+            partition_by_row_number(&row_numbers),
+            vec![(0..1), (1..2), (2..3)]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn test_process_on_abnormal_serde() {
         let process_on_abnormal = ProcessOnAbnormal::default();
         let json = serde_json::to_string_pretty(&process_on_abnormal).unwrap();
@@ -2762,6 +3731,10 @@ mod parser_tests {
         // test2: the length of table name exceeds the limit, and the processing method is 'archive'
         let record = RecordBatch::try_from_iter([
             (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
+            (
                 "str1",
                 Arc::new(StringArray::from(vec!["1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567"])) as ArrayRef,
             ),
@@ -2779,6 +3752,10 @@ mod parser_tests {
 
         // test3: table name contains illegal characters, and the processing method is 'break'
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
             ("str1", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
@@ -2792,6 +3769,10 @@ mod parser_tests {
 
         // test4: table name variable mistake, and the processing method is 'skip'
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
             ("str2", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
@@ -2938,6 +3919,10 @@ mod parser_tests {
     #[test]
     fn test_table_name_contains_illegal_char() {
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
             ("str1", Arc::new(StringArray::from(vec!["1.2"])) as ArrayRef),
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
@@ -3080,6 +4065,10 @@ mod parser_tests {
     #[test]
     fn test_variable_not_exist_in_table_name_template() {
         let record = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from(vec![123])) as ArrayRef,
+            ),
             (
                 "str1",
                 Arc::new(StringArray::from(vec!["12345"])) as ArrayRef,

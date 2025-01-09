@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::future::Future;
+use std::ops::RangeInclusive;
+use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::task::Poll;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -14,11 +18,15 @@ use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::{StreamExt, TryStreamExt};
+use hyper::Uri;
+use hyper_util::rt::TokioIo;
 use serde::{Deserialize, Serialize};
 use taosx_core::task_set::prelude::HealthOpts;
 use taosx_core::utils::files::decompress_and_write_file;
+use tokio::net::{TcpSocket, TcpStream};
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
+use tower::{BoxError, Service};
 use tracing::{info, instrument};
 
 use taosx_core::{
@@ -111,7 +119,10 @@ pub struct Task {
     pub breakpoints: Option<String>,
 }
 
-async fn new_channel(endpoint: String) -> anyhow::Result<Channel> {
+async fn new_channel(
+    endpoint: String,
+    ports: Option<RangeInclusive<u16>>,
+) -> anyhow::Result<Channel> {
     cfg_if! {
         if #[cfg(windows)] {
            let tcp_keepalive = None;
@@ -119,24 +130,86 @@ async fn new_channel(endpoint: String) -> anyhow::Result<Channel> {
            let tcp_keepalive = Some(Duration::from_secs(5));
         }
     };
-    Endpoint::try_from(endpoint.clone())
+    let endpoint_builder = Endpoint::try_from(endpoint.clone())
         .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err:#}"))?
         .keep_alive_while_idle(true)
         .tcp_keepalive(tcp_keepalive)
         .http2_keep_alive_interval(Duration::from_secs(13))
-        .keep_alive_timeout(Duration::from_secs(120))
-        .connect()
-        .await
-        .map_err(|err| anyhow::format_err!("Unable to connect with endpoint `{endpoint}`: {err:#}"))
+        .keep_alive_timeout(Duration::from_secs(120));
+
+    match ports {
+        Some(ports) => {
+            let connector = Svc::new(ports);
+            endpoint_builder.connect_with_connector(connector).await
+        }
+        None => endpoint_builder.connect().await,
+    }
+    .with_context(|| format!("Unable to connect with endpoint `{endpoint}`"))
 }
+
+struct Svc {
+    ports: RangeInclusive<u16>,
+}
+
+impl Svc {
+    fn new(ports: RangeInclusive<u16>) -> Self {
+        Self { ports }
+    }
+}
+
+impl Service<Uri> for Svc {
+    type Response = TokioIo<TcpStream>;
+    type Error = BoxError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(
+        &mut self,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, uri: Uri) -> Self::Future {
+        match TcpSocket::new_v4() {
+            Ok(socket) => {
+                for port in self.ports.clone() {
+                    if let Err(err) = socket.bind(format!("0.0.0.0:{port}").parse().unwrap()) {
+                        match err.kind() {
+                            std::io::ErrorKind::AddrInUse => {
+                                continue;
+                            }
+                            _ => {
+                                tracing::error!("{err:#}");
+                                break;
+                            }
+                        }
+                    } else {
+                        break;
+                    };
+                }
+                Box::pin(async move {
+                    Ok::<_, tower::BoxError>(TokioIo::new(
+                        socket.connect(uri.to_string().parse()?).await?,
+                    ))
+                })
+            }
+            Err(err) => Box::pin(async move { Err(Box::new(err) as _) }),
+        }
+    }
+}
+
 impl Client {
-    pub async fn new(endpoint: impl Display, token: impl Display) -> Result<Self> {
+    pub async fn new(
+        endpoint: impl Display,
+        token: impl Display,
+        ports: &Option<RangeInclusive<u16>>,
+    ) -> Result<Self> {
         let endpoint = endpoint.to_string();
         let token = token.to_string();
         const MAX_RETRIES: usize = 5;
         let mut retries = 0;
         let channel = loop {
-            match new_channel(endpoint.clone()).await {
+            match new_channel(endpoint.clone(), ports.clone()).await {
                 Ok(channel) => break Ok(channel),
                 Err(err) => {
                     retries += 1;
@@ -747,5 +820,35 @@ async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) 
                 }))
                 .await;
         }
+    }
+}
+
+#[cfg(test)]
+mod agent_tests {
+    use std::process::{self, Command};
+
+    use super::new_channel;
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_new_channel() {
+        let endpoint = String::from("0.0.0.0:6030");
+        let ports = Some(9000..=9099);
+        let _channel = new_channel(endpoint, ports).await.unwrap();
+
+        // get the current process ID
+        let pid = process::id();
+
+        // get listening ports by netstat
+        let output = Command::new("netstat")
+            .arg("-anp")
+            .output()
+            .expect("Failed to execute command");
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        let filtered_output: Vec<&str> = output_str
+            .lines()
+            .filter(|line| line.contains(&pid.to_string()))
+            .collect();
+        println!("Listening ports:\n{:?}", filtered_output);
     }
 }

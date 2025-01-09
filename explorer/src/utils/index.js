@@ -564,7 +564,7 @@ export function getExampleList(demo_data, parsed) {
           return demo_string_arr;
         }
         try {
-          let item_parsed = JSON.parse(obj_list[i]);
+          let item_parsed = JSON.parse(obj_list[i].replace(/\n/g, '\\n'));
           if (parsed) {
             demo_string_arr.push(item_parsed);
           } else {

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use archive::Archive;
 use cache::Cache;
 use regex::Regex;
@@ -169,7 +170,7 @@ impl HandlingTableNameVariableMistake {
     pub fn handle(
         &self,
         table_name_org: &str,
-        data: &serde_json::Map<String, serde_json::Value>,
+        data: &serde_json::Value,
         err: String,
     ) -> anyhow::Result<(HandlingResult, String)> {
         // get all variables in table name
@@ -179,7 +180,10 @@ impl HandlingTableNameVariableMistake {
             .map(|c| c.get(1).unwrap().as_str())
             .collect::<Vec<_>>();
         // clone data
-        let mut data = data.clone();
+        let mut data = data
+            .as_object()
+            .context("table name mistake handle needs map type data")?
+            .clone();
         match self {
             HandlingTableNameVariableMistake::Skip => {
                 tracing::warn!("{err}: skip record");
@@ -197,7 +201,7 @@ impl HandlingTableNameVariableMistake {
                 });
                 let mut template = TinyTemplate::new();
                 template.add_template("name", table_name_org)?;
-                match template.render("name", &data) {
+                match template.render_value("name", &serde_json::Value::from(data)) {
                     Ok(name) => Ok((HandlingResult::Modify(name), err)),
                     Err(e) => {
                         tracing::error!(
@@ -216,7 +220,7 @@ impl HandlingTableNameVariableMistake {
                 });
                 let mut template = TinyTemplate::new();
                 template.add_template("name", table_name_org)?;
-                match template.render("name", &data) {
+                match template.render_value("name", &serde_json::Value::from(data)) {
                     Ok(name) => Ok((HandlingResult::Modify(name), err)),
                     Err(e) => {
                         tracing::error!(

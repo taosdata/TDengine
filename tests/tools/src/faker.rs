@@ -1,36 +1,40 @@
 use std::{
     collections::HashMap,
     path::Path,
+    str::FromStr,
     sync::{
-        atomic::{self, AtomicI64},
+        atomic::{self, AtomicI64, AtomicU32},
         OnceLock,
     },
 };
 
 use chrono::{FixedOffset, Local};
 use rand::{
-    distributions::{Alphanumeric, DistString},
-    seq::SliceRandom,
+    distributions::{Alphanumeric, DistString, Slice},
     Rng,
 };
 use serde_json as json;
+use serde_with::serde_as;
 use snafu::{ensure, ResultExt};
-use tokio::io::AsyncReadExt;
+
+use crate::topic::TopicFaker;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
-    #[snafu(display("Open schema file error: {source}"))]
+    #[snafu(display("Open schema file error"))]
     OpenFile { source: std::io::Error },
-    #[snafu(display("Read schema file error: {source}"))]
+    #[snafu(display("Read schema file error"))]
     ReadFile { source: std::io::Error },
-    #[snafu(display("Desiralize toml error: {source}"))]
+    #[snafu(display("Desiralize toml error"))]
     DeserializeToml { source: toml::de::Error },
-    #[snafu(display("Parse timestamp error: {source}"))]
+    #[snafu(display("Parse timestamp error"))]
     ParseDateTime { source: chrono::ParseError },
     #[snafu(display("Expected timestamp type"))]
     ExpectedTimestamp,
     #[snafu(display("Invalid timestamp"))]
     InvalidTimestamp,
+    #[snafu(display("Invalid timestamp interval"))]
+    InvalidTimestampInterval { source: std::num::ParseIntError },
     #[snafu(display("Expected length field"))]
     ExpectedLength,
 }
@@ -56,19 +60,10 @@ pub struct StringSchema {
 }
 
 #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
-pub struct UnsignedNumberSchema {
-    fixed: Option<u64>,
-    range: Option<UnsignedRangeSchema>,
-}
-
-impl UnsignedNumberSchema {
-    fn check(&self) -> Result<()> {
-        ensure!(
-            self.fixed.is_some() || self.range.is_some(),
-            ExpectedLengthSnafu
-        );
-        Ok(())
-    }
+#[serde(rename_all = "snake_case")]
+pub enum UnsignedNumberSchema {
+    Fixed(u64),
+    Range(UnsignedRangeSchema),
 }
 
 #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
@@ -78,9 +73,10 @@ pub struct UnsignedRangeSchema {
 }
 
 #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
-pub struct SignedNumberSchema {
-    fixed: Option<i64>,
-    range: Option<SignedRangeSchema>,
+#[serde(rename_all = "snake_case")]
+pub enum SignedNumberSchema {
+    Fixed(i64),
+    Range(SignedRangeSchema),
 }
 
 #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
@@ -99,33 +95,78 @@ pub struct OptionSchema {
     value: Box<DataFakeSchema>,
 }
 
+#[serde_as]
 #[derive(Debug, PartialEq, serde::Deserialize)]
 pub struct TimestampSchema {
     start_time: Option<TimestampValue>,
-    precision: Option<TimestampPrecision>,
+    #[serde_as(as = "Option<serde_with::DisplayFromStr>")]
+    interval: Option<TimestampInterval>,
+    tick: Option<u32>,
 }
 
 #[derive(Debug, PartialEq, serde::Deserialize)]
 #[serde(untagged)]
 pub enum TimestampValue {
     Integer(i64),
-    DateTime(toml::Value),
+    DateTime(toml::value::Datetime),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TimestampInterval {
+    Integer(i64),
+    Second(i64),
+    Millisecond(i64),
+    Microsecond(i64),
+    Nanosecond(i64),
+}
+
+impl FromStr for TimestampInterval {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        if let Some(interval) = s.strip_suffix("ns") {
+            return Ok(TimestampInterval::Nanosecond(
+                interval
+                    .parse::<i64>()
+                    .context(InvalidTimestampIntervalSnafu)?,
+            ));
+        }
+
+        if let Some(interval) = s.strip_suffix("Ms") {
+            return Ok(TimestampInterval::Microsecond(
+                interval
+                    .parse::<i64>()
+                    .context(InvalidTimestampIntervalSnafu)?,
+            ));
+        }
+
+        if let Some(interval) = s.strip_suffix("ms") {
+            return Ok(TimestampInterval::Millisecond(
+                interval
+                    .parse::<i64>()
+                    .context(InvalidTimestampIntervalSnafu)?,
+            ));
+        }
+
+        if let Some(interval) = s.strip_suffix("s") {
+            return Ok(TimestampInterval::Second(
+                interval
+                    .parse::<i64>()
+                    .context(InvalidTimestampIntervalSnafu)?,
+            ));
+        }
+
+        Ok(TimestampInterval::Integer(
+            s.parse::<i64>().context(InvalidTimestampIntervalSnafu)?,
+        ))
+    }
 }
 
 #[derive(Debug, PartialEq, serde::Deserialize)]
-pub enum TimestampPrecision {
-    #[serde(rename = "s")]
-    Second,
-    #[serde(rename = "ms")]
-    MilliSecond,
-    #[serde(rename = "ns")]
-    Nanosecond,
-}
-
-#[derive(Debug, PartialEq, serde::Deserialize)]
-pub struct FloatSchema {
-    fixed: Option<f64>,
-    range: Option<FloatRangeSchema>,
+#[serde(rename_all = "snake_case")]
+pub enum FloatSchema {
+    Fixed(f64),
+    Range(FloatRangeSchema),
 }
 
 #[derive(Debug, PartialEq, serde::Deserialize)]
@@ -213,20 +254,63 @@ impl DataFakeSchema {
     }
 }
 
+#[derive(Debug, PartialEq, serde::Deserialize)]
+pub struct SchemaFaker {
+    pub schema: Vec<Schema>,
+}
+
+impl SchemaFaker {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
+        let buf = std::fs::read_to_string(path).context(ReadFileSnafu)?;
+        toml::from_str(&buf).context(DeserializeTomlSnafu)
+    }
+}
+
+#[serde_as]
+#[derive(Debug, PartialEq, serde::Deserialize)]
+pub struct Schema {
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub topics: Vec<TopicFaker>,
+    pub qos: Option<u8>,
+    pub payload: DataFaker,
+}
+
+#[derive(Debug)]
+struct Timestamp {
+    ts: AtomicI64,
+    interval: i64,
+    curr_tick: AtomicU32,
+    tick: u32,
+}
+
+#[derive(Debug, serde::Deserialize)]
 pub struct DataFaker {
-    ts: OnceLock<AtomicI64>,
+    #[serde(skip_deserializing)]
+    ts: OnceLock<Timestamp>,
+    #[serde(flatten)]
     schema: DataFakeSchema,
 }
 
+impl PartialEq for DataFaker {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema == other.schema
+    }
+}
+
 impl DataFaker {
-    pub async fn from_toml(path: impl AsRef<Path>) -> Result<Self> {
-        let mut file = tokio::fs::File::open(path).await.context(OpenFileSnafu)?;
-        let mut buf = String::new();
-        file.read_to_string(&mut buf).await.context(ReadFileSnafu)?;
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
+        let buf = std::fs::read_to_string(path).context(ReadFileSnafu)?;
 
         Ok(Self {
             ts: OnceLock::new(),
             schema: toml::from_str(&buf).context(DeserializeTomlSnafu)?,
+        })
+    }
+
+    pub fn new(schema: DataFakeSchema) -> Result<Self> {
+        Ok(Self {
+            ts: OnceLock::new(),
+            schema,
         })
     }
 
@@ -257,7 +341,6 @@ impl DataFaker {
     }
 
     fn rand_array(&self, ArraySchema { elements, length }: &ArraySchema) -> Result<json::Value> {
-        length.check()?;
         let len = self.rand_unsigned_number(length)?.as_u64().unwrap() as usize;
 
         Ok(json::json!((0..len)
@@ -278,13 +361,12 @@ impl DataFaker {
         }
         ensure!(length.is_some(), ExpectedLengthSnafu);
         let length = length.as_ref().unwrap();
-        length.check()?;
         let len = self.rand_unsigned_number(length)?.as_u64().unwrap() as usize;
         let mut rng = rand::thread_rng();
         let value: String = match charset {
-            Some(charset) => charset
-                .as_bytes()
-                .choose_multiple(&mut rng, len)
+            Some(charset) => rng
+                .sample_iter(Slice::new(charset.as_bytes()).unwrap())
+                .take(len)
                 .map(|c| *c as char)
                 .collect(),
             None => Alphanumeric.sample_string(&mut rng, len),
@@ -308,116 +390,121 @@ impl DataFaker {
         self.rand_json_value(value)
     }
 
-    fn rand_unsigned_number(
-        &self,
-        UnsignedNumberSchema { fixed, range }: &UnsignedNumberSchema,
-    ) -> Result<json::Value> {
-        if let Some(fixed) = fixed {
-            return Ok(json::json!(fixed));
+    fn rand_unsigned_number(&self, schema: &UnsignedNumberSchema) -> Result<json::Value> {
+        match schema {
+            UnsignedNumberSchema::Fixed(fixed) => Ok(json::json!(fixed)),
+            UnsignedNumberSchema::Range(UnsignedRangeSchema { min, max }) => {
+                let (min, max) = (min.unwrap_or(u64::MIN), max.unwrap_or(u64::MAX));
+                Ok(json::json!(rand::thread_rng().gen_range(min..=max)))
+            }
         }
-
-        if let Some(UnsignedRangeSchema { min, max }) = range {
-            let (min, max) = (min.unwrap_or(u64::MIN), max.unwrap_or(u64::MAX));
-            return Ok(json::json!(rand::thread_rng().gen_range(min..=max)));
-        }
-
-        Ok(json::json!(rand::random::<u64>()))
     }
 
-    fn rand_sign_number(
-        &self,
-        SignedNumberSchema { fixed, range }: &SignedNumberSchema,
-    ) -> Result<json::Value> {
-        if let Some(fixed) = fixed {
-            return Ok(json::json!(fixed));
+    fn rand_sign_number(&self, schema: &SignedNumberSchema) -> Result<json::Value> {
+        match schema {
+            SignedNumberSchema::Fixed(fixed) => Ok(json::json!(fixed)),
+            SignedNumberSchema::Range(SignedRangeSchema { min, max }) => {
+                let (min, max) = (min.unwrap_or(i64::MIN), max.unwrap_or(i64::MAX));
+                Ok(json::json!(rand::thread_rng().gen_range(min..=max)))
+            }
         }
-
-        if let Some(SignedRangeSchema { min, max }) = range {
-            let (min, max) = (min.unwrap_or(i64::MIN), max.unwrap_or(i64::MAX));
-            return Ok(json::json!(rand::thread_rng().gen_range(min..=max)));
-        }
-
-        Ok(json::json!(rand::random::<i64>()))
     }
 
-    fn rand_float(&self, FloatSchema { fixed, range }: &FloatSchema) -> Result<json::Value> {
-        if let Some(fixed) = fixed {
-            return Ok(json::json!(fixed));
+    fn rand_float(&self, schema: &FloatSchema) -> Result<json::Value> {
+        match schema {
+            FloatSchema::Fixed(fixed) => Ok(json::json!(fixed)),
+            FloatSchema::Range(FloatRangeSchema { min, max }) => {
+                let (min, max) = (min.unwrap_or(f64::MIN), max.unwrap_or(f64::MAX));
+                Ok(json::json!(rand::thread_rng().gen_range(min..=max)))
+            }
         }
-
-        if let Some(FloatRangeSchema { min, max }) = range {
-            let (min, max) = (min.unwrap_or(f64::MIN), max.unwrap_or(f64::MAX));
-            return Ok(json::json!(rand::thread_rng().gen_range(min..=max)));
-        }
-
-        Ok(json::json!(rand::random::<f64>()))
     }
 
     fn get_timestamp(
         &self,
         TimestampSchema {
             start_time,
-            precision,
+            interval,
+            tick,
         }: &TimestampSchema,
     ) -> Result<json::Value> {
-        let precision = precision
-            .as_ref()
-            .unwrap_or(&TimestampPrecision::Nanosecond);
-        let ts = match start_time {
-            Some(value) => match value {
-                TimestampValue::Integer(value) => self.ts.get_or_init(|| AtomicI64::new(*value)),
-                TimestampValue::DateTime(value) => {
-                    let toml::Value::Datetime(value) = value else {
-                        return ExpectedTimestampSnafu.fail();
-                    };
-                    ensure!(value.date.is_some(), InvalidTimestampSnafu);
-                    let date = value.date.unwrap();
-                    let time = value.time.unwrap();
-                    let offset = value.offset;
-                    let dt = chrono::NaiveDate::from_ymd_opt(
-                        date.year as i32,
-                        date.month as u32,
-                        date.day as u32,
-                    )
-                    .unwrap()
-                    .and_hms_nano_opt(
-                        time.hour as u32,
-                        time.minute as u32,
-                        time.second as u32,
-                        time.nanosecond,
-                    )
-                    .unwrap();
-                    let dt = match offset {
-                        Some(toml::value::Offset::Z) => dt.and_utc(),
-                        Some(toml::value::Offset::Custom { minutes }) => dt
-                            .and_local_timezone(
-                                FixedOffset::east_opt((minutes as i32) * 60).unwrap(),
-                            )
-                            .unwrap()
-                            .to_utc(),
-                        None => dt.and_local_timezone(Local).unwrap().to_utc(),
-                    };
-
-                    let value = match precision {
-                        TimestampPrecision::Second => dt.timestamp(),
-                        TimestampPrecision::MilliSecond => dt.timestamp_millis(),
-                        TimestampPrecision::Nanosecond => dt.timestamp_nanos_opt().unwrap(),
-                    };
-                    self.ts.get_or_init(|| AtomicI64::new(value))
-                }
-            },
-            None => {
-                let now = Local::now();
-                let value = match precision {
-                    TimestampPrecision::Second => now.timestamp(),
-                    TimestampPrecision::MilliSecond => now.timestamp_millis(),
-                    TimestampPrecision::Nanosecond => now.timestamp_nanos_opt().unwrap(),
-                };
-                self.ts.get_or_init(|| AtomicI64::new(value))
+        let ts = match (start_time, interval) {
+            (Some(TimestampValue::Integer(value)), Some(TimestampInterval::Integer(interval))) => {
+                self.ts.get_or_init(|| Timestamp {
+                    ts: AtomicI64::new(*value),
+                    interval: *interval,
+                    curr_tick: AtomicU32::default(),
+                    tick: tick.unwrap_or(1),
+                })
             }
+            // TODO: use `get_or_try_init` when stable
+            (Some(TimestampValue::DateTime(value)), Some(interval)) => self.ts.get_or_init(|| {
+                let date = value.date.expect("invalid timestamp");
+                let time = value.time.expect("invalid timestamp");
+                let offset = value.offset;
+                let dt = chrono::NaiveDate::from_ymd_opt(
+                    date.year as i32,
+                    date.month as u32,
+                    date.day as u32,
+                )
+                .unwrap()
+                .and_hms_nano_opt(
+                    time.hour as u32,
+                    time.minute as u32,
+                    time.second as u32,
+                    time.nanosecond,
+                )
+                .unwrap();
+                let dt = match offset {
+                    Some(toml::value::Offset::Z) => dt.and_utc(),
+                    Some(toml::value::Offset::Custom { minutes }) => dt
+                        .and_local_timezone(FixedOffset::east_opt((minutes as i32) * 60).unwrap())
+                        .unwrap()
+                        .to_utc(),
+                    None => dt.and_local_timezone(Local).unwrap().to_utc(),
+                };
+
+                match interval {
+                    TimestampInterval::Integer(_) => panic!("duration timestamp interval needed"),
+                    TimestampInterval::Second(interval) => Timestamp {
+                        ts: AtomicI64::new(dt.timestamp()),
+                        interval: *interval,
+                        curr_tick: AtomicU32::default(),
+                        tick: tick.unwrap_or_default(),
+                    },
+                    TimestampInterval::Millisecond(interval) => Timestamp {
+                        ts: AtomicI64::new(dt.timestamp_millis()),
+                        interval: *interval,
+                        curr_tick: AtomicU32::default(),
+                        tick: tick.unwrap_or_default(),
+                    },
+                    TimestampInterval::Microsecond(interval) => Timestamp {
+                        ts: AtomicI64::new(dt.timestamp_micros()),
+                        interval: *interval,
+                        curr_tick: AtomicU32::default(),
+                        tick: tick.unwrap_or_default(),
+                    },
+                    TimestampInterval::Nanosecond(interval) => Timestamp {
+                        ts: AtomicI64::new(
+                            dt.timestamp_nanos_opt().expect("get nano timestamp error"),
+                        ),
+                        interval: *interval,
+                        curr_tick: AtomicU32::default(),
+                        tick: tick.unwrap_or_default(),
+                    },
+                }
+            }),
+            _ => return InvalidTimestampSnafu.fail(),
+        };
+        let curr_tick = ts.curr_tick.fetch_add(1, atomic::Ordering::SeqCst);
+        let ts = if curr_tick >= ts.tick {
+            ts.curr_tick.store(0, atomic::Ordering::SeqCst);
+            ts.ts.fetch_add(ts.interval, atomic::Ordering::SeqCst)
+        } else {
+            ts.ts.load(atomic::Ordering::SeqCst)
         };
 
-        Ok(json::json!(ts.fetch_add(1, atomic::Ordering::Relaxed)))
+        Ok(json::json!(ts))
     }
 }
 
@@ -428,7 +515,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_test() {
+    fn parse_datafaker_test() -> anyhow::Result<()> {
         {
             let schema = toml::from_str::<DataFakeSchema>(
                 r#"
@@ -447,13 +534,10 @@ mod tests {
                 &StringSchema {
                     fixed: Some("abc".to_string()),
                     charset: Some("abcdefg".to_string()),
-                    length: Some(UnsignedNumberSchema {
-                        fixed: None,
-                        range: Some(UnsignedRangeSchema {
-                            min: None,
-                            max: Some(999)
-                        })
-                    })
+                    length: Some(UnsignedNumberSchema::Range(UnsignedRangeSchema {
+                        min: None,
+                        max: Some(999)
+                    }))
                 }
             )
         }
@@ -462,29 +546,18 @@ mod tests {
                 r#"
                 type = "number"
                 fixed = 5
-                range = { min = 999 }
             "#,
             );
             assert!(schema.is_ok());
             let schema = schema.unwrap();
             let schema = schema.number();
             assert!(schema.is_some());
-            assert_eq!(
-                schema.unwrap(),
-                &SignedNumberSchema {
-                    fixed: Some(5),
-                    range: Some(SignedRangeSchema {
-                        min: Some(999),
-                        max: None
-                    })
-                }
-            )
+            assert_eq!(schema.unwrap(), &SignedNumberSchema::Fixed(5))
         }
         {
             let schema = toml::from_str::<DataFakeSchema>(
                 r#"
                 type = "float"
-                fixed = 5.8
                 range = { min = 999 }
             "#,
             );
@@ -494,13 +567,10 @@ mod tests {
             assert!(schema.is_some());
             assert_eq!(
                 schema.unwrap(),
-                &FloatSchema {
-                    fixed: Some(5.8),
-                    range: Some(FloatRangeSchema {
-                        min: Some(999.0),
-                        max: None
-                    })
-                }
+                &FloatSchema::Range(FloatRangeSchema {
+                    min: Some(999.0),
+                    max: None
+                })
             )
         }
         {
@@ -558,13 +628,10 @@ mod tests {
                 schema.unwrap(),
                 &ArraySchema {
                     elements: Box::new(DataFakeSchema::Bool(BoolSchema { fixed: Some(false) })),
-                    length: UnsignedNumberSchema {
-                        fixed: None,
-                        range: Some(UnsignedRangeSchema {
-                            min: None,
-                            max: Some(999)
-                        })
-                    }
+                    length: UnsignedNumberSchema::Range(UnsignedRangeSchema {
+                        min: None,
+                        max: Some(999)
+                    })
                 }
             )
         }
@@ -593,7 +660,7 @@ mod tests {
                 r#"
                 type = "timestamp"
                 start_time = 123
-                precision = "ns"
+                interval = "1ns"
             "#,
             );
             assert!(schema.is_ok());
@@ -604,7 +671,8 @@ mod tests {
                 schema.unwrap(),
                 &TimestampSchema {
                     start_time: Some(TimestampValue::Integer(123)),
-                    precision: Some(TimestampPrecision::Nanosecond)
+                    interval: Some(TimestampInterval::Nanosecond(1)),
+                    tick: None
                 }
             )
         }
@@ -613,22 +681,78 @@ mod tests {
                 r#"
                 type = "timestamp"
                 start_time = 2024-11-02T17:35:34
-                precision = "ns"
+                interval = "3ns"
+                tick = 100
             "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
+            )?;
             let schema = schema.timestamp();
             assert!(schema.is_some());
             assert_eq!(
                 schema.unwrap(),
                 &TimestampSchema {
-                    start_time: Some(TimestampValue::DateTime(toml::Value::Datetime(
+                    start_time: Some(TimestampValue::DateTime(
                         toml::value::Datetime::from_str("2024-11-02T17:35:34").unwrap()
-                    ))),
-                    precision: Some(TimestampPrecision::Nanosecond)
+                    )),
+                    interval: Some(TimestampInterval::Nanosecond(3)),
+                    tick: Some(100)
                 }
             )
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_schema_faker_test() -> anyhow::Result<()> {
+        let schema: SchemaFaker = toml::from_str(
+            r#"
+[[schema]]
+topics = [
+    "ems/site/{::60}/root/{::60}/string",
+    "ems/site/{::60}/{::60}/{::60}/{::60}/string",
+    "ems/site/{::60}/unit/{::60}/root/{::60}/string",
+    "ems/site/{::60}/unit/{::60}/{::60}/{::60}/{::60}/string",
+]
+qos = 0
+
+[schema.payload]
+type = "object"
+
+[schema.payload.properties]
+ts = { type = "timestamp", start_time = 2025-10-01T00:00:00.888888888, precision = "ns" }
+value = { type = "option", value = { type = "string", length = { range = { min = 10, max = 1000 } } } }
+        "#,
+        )?;
+        assert_eq!(schema.schema.len(), 1);
+        assert_eq!(
+            schema.schema[0].topics,
+            [
+                "ems/site/{::60}/root/{::60}/string".parse()?,
+                "ems/site/{::60}/{::60}/{::60}/{::60}/string".parse()?,
+                "ems/site/{::60}/unit/{::60}/root/{::60}/string".parse()?,
+                "ems/site/{::60}/unit/{::60}/{::60}/{::60}/{::60}/string".parse()?,
+            ]
+        );
+        assert_eq!(schema.schema[0].qos, Some(0));
+        assert_eq!(
+            schema.schema[0].payload,
+            toml::from_str(
+                r#"
+type = "object"
+[properties.ts]
+type = "timestamp"
+start_time = 2025-10-01T00:00:00.888888888
+precision = "ns"
+
+[properties.value]
+type = "option"
+
+[properties.value.value]
+type = "string"
+length = { range = { min = 10, max = 1000 } }
+        "#
+            )?
+        );
+        Ok(())
     }
 }

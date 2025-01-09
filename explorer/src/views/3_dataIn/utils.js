@@ -1942,3 +1942,23 @@ export function checkJson(_, value, callback) {
   }
   return callback();
 }
+
+// 将模版解析的结果转换成和用sql查询返回的数据结构一致
+export function convert(data){
+  return [].concat(data).flatMap(item => {
+    // 提取 tags 中所有字段名
+    const tags = item.tags.map(tag => tag.name);
+    const allData = item.columns.concat(item.tags)
+    return allData.map(col => {
+      const name = col.name.replace(/`/g, ''); // 去除反引号
+      const type = col.type;
+      const length = col.length !== null ? col.length : ''; 
+      const isTag = tags.includes(name) ? 'TAG' : ''; 
+
+      // 返回字段数据，带 TAG 的字段加上 TAG，其他字段正常返回
+      return length === '' 
+        ? [name, type, length] 
+        : [name, type, length, isTag].filter(Boolean); // 去除空值
+    });
+  });
+}

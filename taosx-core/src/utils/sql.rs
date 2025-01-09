@@ -1478,6 +1478,21 @@ mod tests {
         }
     }
 
+    #[test]
+    fn sql_values_from_record_batch_test() -> anyhow::Result<()> {
+        let ts_array: ArrayRef = Arc::new(Int64Array::from(vec![100, 101]));
+        let value_array: ArrayRef = Arc::new(Float64Array::from(vec![Some(0.1), None]));
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("ts", ts_array, false),
+            ("value", value_array, true),
+        ])?;
+        assert_eq!(
+            sql_values_from_record_batch(&batch, taos::Precision::Nanosecond, true)?,
+            vec![("(`ts`,`value`) values(100,0.1)(101,NULL)".to_string(), 2)]
+        );
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_connect_taos_root_with_taos() {
         // TODO: test_connect_taos_root

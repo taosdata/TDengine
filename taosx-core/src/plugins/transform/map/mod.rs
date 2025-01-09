@@ -54,7 +54,7 @@ impl TransformExt for Map {
             .iter()
             .map(|f| f.name().clone())
             .chain(fields.iter().map(|f| f.name().clone()))
-            .unique()
+            .unique() // (point_name, ts, value, ${point_name}, site_controller_id)
             .map(|name| {
                 if let Some((idx, field)) =
                     fields.iter().find_position(|field| name == *field.name())
@@ -106,11 +106,11 @@ trait ValueBuilder {
         &self,
         name: &str,
         record: &RecordBatch,
-        r#as: Option<IpcDataType>,
+        r#as: Option<AsType>,
     ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
         let array = self.build_from(record)?;
 
-        if let Some(ty) = r#as {
+        let build_ipc_type = |ty: IpcDataType| -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
             let mut m = HashMap::new();
             m.insert(META_FIELD_TYPE.to_string(), ty.to_string());
             m.insert("cast_from".to_string(), array.data_type().to_string());
@@ -128,6 +128,13 @@ trait ValueBuilder {
             let array =
                 arrow_cast_guess_precision::cast(&array, &ty).map_err(ValueBuilderError::Cast)?;
             Ok((Arc::new(Field::new(name, ty, true).with_metadata(m)), array))
+        };
+
+        if let Some(ty) = r#as {
+            match ty {
+                AsType::Ipc(ty) => build_ipc_type(ty),
+                AsType::Other(_) => build_ipc_type(IpcDataType::VarChar(128)),
+            }
         } else {
             Ok((
                 Arc::new(Field::new(name, array.data_type().clone(), true)),
@@ -143,11 +150,18 @@ trait ValueBuilder {
 pub struct FieldValue {
     #[serde(flatten)]
     builder: FieldValueBuilder,
-    r#as: Option<IpcDataType>,
+    r#as: Option<AsType>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum AsType {
+    Ipc(IpcDataType),
+    Other(String),
 }
 
 impl FieldValue {
-    pub fn new(builder: FieldValueBuilder, r#as: Option<IpcDataType>) -> Self {
+    pub fn new(builder: FieldValueBuilder, r#as: Option<AsType>) -> Self {
         Self { builder, r#as }
     }
 }
@@ -169,7 +183,7 @@ impl ValueBuilder for FieldValueBuilder {
         &self,
         name: &str,
         record: &RecordBatch,
-        r#as: Option<IpcDataType>,
+        r#as: Option<AsType>,
     ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
         match self {
             FieldValueBuilder::Cast(builder) => builder.build_field(name, record, r#as),
@@ -370,5 +384,23 @@ mod tests {
             .as_any()
             .downcast_ref::<StringArray>();
         dbg!(arr);
+    }
+
+    #[test]
+    fn json_parse_value_builder_test() -> anyhow::Result<()> {
+        let value = serde_json::json!({
+            "cast": "value",
+            "as": "${data_type}"
+        });
+        let field_value: FieldValue = serde_json::from_value(value)?;
+        assert!(matches!(field_value.r#as, Some(AsType::Other(_))));
+
+        let value = serde_json::json!({
+            "cast": "value",
+            "as": "INT"
+        });
+        let field_value: FieldValue = serde_json::from_value(value)?;
+        assert!(matches!(field_value.r#as, Some(AsType::Ipc(_))));
+        Ok(())
     }
 }

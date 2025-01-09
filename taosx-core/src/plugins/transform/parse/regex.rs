@@ -260,7 +260,7 @@ impl Parse for Regex {
                                 .iter()
                                 .map(|caps| {
                                     if let Some(caps) = caps {
-                                        caps.name(name).map(|v| v.as_str())
+                                        caps.name(name).map(|v| v.as_str().trim())
                                     } else {
                                         None
                                     }
@@ -454,5 +454,25 @@ mod tests {
         ];
         let array: ArrayRef = Arc::new(StringArray::from(values));
         assert_eq!(records.column(0), &array);
+    }
+
+    #[test]
+    #[ignore]
+    fn parse_regex_test() -> anyhow::Result<()> {
+        let re = Regex {
+            regex: regex::Regex::new(r"(.*(BMU_|__))?(?<ybb>.+?)(\(ms\sor\ss\))?$")?,
+            select: None,
+            keep: false,
+        };
+        let field = Field::new("point_name", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            "Batt2_SBMU4_warning_and_Fault__Balancing_circuit_fault=Balancingaaa",
+            "PCS_2PCS_Input_31_Filter",
+            "Batt2_MBMS_System_warning_and_fault_SBMU_Single_cell_over=Balancing",
+            "PCS_2PCS_Holding_2204_Active power decrease settling time (ms or s)",
+        ]));
+        let (batch, _) = re.parse_array(&field, &array)?;
+        arrow::util::pretty::print_batches(&[batch]).ok();
+        Ok(())
     }
 }

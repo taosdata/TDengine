@@ -73,7 +73,7 @@ mqtt_dumped_messages: 本次运行任务已 dump 的消息数
 mqtt_fetched_acks: 本次运行任务接收到的 ACK 总数
 mqtt_ack_fails: 本次运行任务启动开始 ACK 失败总次数
 mqtt_unprocessed_messages: 本次运行任务缓存队列中当前消息数量
-mqtt_processing_batches: 本次运行任务正在处理中的批次数量
+mqtt_sent_batches: 本次运行任务已发送的批次数量
 mqtt_discarded_messages: 本次运行任务丢弃的消息数量
 mqtt_discarded_dump_messages: 本次运行任务 dump 操作丢弃的消息数量
 total_csv_files: CSV 文件总数量

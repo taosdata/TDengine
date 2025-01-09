@@ -78,7 +78,7 @@ tokio-process-terminate = { version = "0.3" }
 toml = "0.8.5"
 either = "1.8"
 serde_regex = "1"
-tinytemplate = "1.2.1"
+tinytemplate = { git = "https://github.com/bitcapybara/TinyTemplate.git", rev = "9085af2b9c824e670750369827b9d6bbf24ae876" }
 serde_json_path = "0.7"
 csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
@@ -172,6 +172,7 @@ snafu = "0.8.5"
 parking_lot = "0.12.3"
 lz4 = "1.28.0"
 snap = "1.1.1"
+datafusion = "43.0.0"
 zstd = "0.13.2"
 awaitgroup = "0.7.0"
 

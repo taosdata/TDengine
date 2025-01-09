@@ -13,7 +13,7 @@ const MAX_RETRY_COUNT: i32 = 10;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
-    #[snafu(display("Invalid mqtt tls config: {source}"))]
+    #[snafu(display("Invalid mqtt tls config"))]
     InvalidTls { source: anyhow::Error },
     #[snafu(display("Invalid QoS: {qos}"))]
     InvalidQoS { qos: u8 },
@@ -21,7 +21,7 @@ pub enum Error {
     ExpectedConnAck,
     #[snafu(display("Receive unexpected MQTT packet, expected SubAck"))]
     ExpectedSubAck,
-    #[snafu(display("MQTT connection error: {source}"))]
+    #[snafu(display("MQTT connection error"))]
     ConnectionErrorV3 { source: rumqttc::ConnectionError },
     #[snafu(display("MQTT connect failed with code: {code:?}"))]
     ConnFailedWithCodeV3 { code: rumqttc::ConnectReturnCode },
@@ -30,7 +30,7 @@ pub enum Error {
         topic: Option<String>,
         code: rumqttc::SubscribeReasonCode,
     },
-    #[snafu(display("MQTT connection error: {source}"))]
+    #[snafu(display("MQTT connection error"))]
     ConnectionErrorV5 {
         source: rumqttc::v5::ConnectionError,
     },
@@ -45,9 +45,9 @@ pub enum Error {
     },
     #[snafu(display("MQTT task exited"))]
     TaskExited,
-    #[snafu(display("MQTT connection error: {source}"))]
+    #[snafu(display("MQTT connection error"))]
     UnexpectedPollErrorV3 { source: rumqttc::ConnectionError },
-    #[snafu(display("MQTT connection error: {source}"))]
+    #[snafu(display("MQTT connection error"))]
     UnexpectedPollErrorV5 {
         source: rumqttc::v5::ConnectionError,
     },
@@ -57,7 +57,7 @@ pub enum Error {
     RetryTooManyTimesV5 {
         source: rumqttc::v5::ConnectionError,
     },
-    #[snafu(display("Invalid UTF-8: {source}"))]
+    #[snafu(display("Invalid UTF-8"))]
     InvalidUtf8 { source: FromUtf8Error },
     #[snafu(display("MQTT subscription not found"))]
     SubscriptionEmpty,

@@ -351,6 +351,7 @@ import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, parsinginZone } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
+import { convert } from '../utils'
 
 export default {
   name: "CommonTransformer",
@@ -420,6 +421,7 @@ export default {
       mappingcolumns: [],
       msgForm: {
         msgbody: "",
+        topicbody: []
       },
       params_columns: [],
       params_tags: [],
@@ -1015,7 +1017,13 @@ export default {
             : this.isCSV
             ? csvechoTransData.msgBody
             : value.input.map((item) => item.value).join(" ");
-
+          // 回填解析 topic 的值
+        if (this.$store.state.app.supportTopicBody) {
+          value.input.map(item => {
+            const { payload, ...rest } = item; 
+            this.msgForm.topicbody.push(rest)
+          })
+        }
         let tagKey = "";
         switch (this.$store.state.app.currentDBType) {
           case "mqtt":
@@ -1052,7 +1060,7 @@ export default {
           let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
           let obj = {
             columnname: item[0],
-            expression: Object.values(item[1]).flat(1).join(";"),
+            expression: Object.keys(item[1]).toString() == 'convert'? JSON.stringify(Object.values(item[1])[0]) : Object.values(item[1]).flat(1).join(";"),
             type: Object.keys(item[1]).toString(),
             columns: this.columnsArr,
             key: Math.random(),
@@ -1128,8 +1136,9 @@ export default {
         //   await this.$refs.filter[0].submitFilter();
         // }
         this.sruleForm.s_name = value.parser.model.using;
+        this.$store.state.app.s_model = value.parser.s_model
         // this.subrule.subname = value.parser.model.name;
-        await this.getSTbaleList(true);
+        await this.getSTbaleList(true, !!value.parser.s_model);
         await this.echoFetchMap();
         await this.selectJson();
         // this.$store.commit("app/SET_RESULTTB_SHOW", false);
@@ -1678,18 +1687,24 @@ export default {
         this.caculateMappingResult();
       }
     },
-    async getSTbaleList(isEcho) {
+    async getSTbaleList(isEcho, isTemplateCreate) {
       try {
         this.currentPage = 1;
-        let res = await sendSQLReq(
-          `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
-        );
-        let precision = await sendSQLReq(`
-        select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
-        `);
-        if (res.desc) {
-          this.$error(res.desc);
-          return;
+        let res = {}
+        let precision = {}
+        if (isTemplateCreate) {
+          res.data = convert(this.$store.state.app.s_model);
+        } else {
+          res = await sendSQLReq(
+            `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
+          );
+          precision = await sendSQLReq(`
+          select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
+          `);
+          if (res.desc) {
+            this.$error(res.desc);
+            return;
+          }
         }
   
         if (this.$store.state.app.transformerMapCloumns) {
@@ -1751,7 +1766,7 @@ export default {
           );
 
           tableRow.Type =
-              val[1] == "TIMESTAMP"
+              (val[1] == "TIMESTAMP" && !isTemplateCreate)
                 ? val[1] + "(" + precision.data[0][0] + ")"
                 : val[1];
           tableRow.maptype =

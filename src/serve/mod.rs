@@ -44,7 +44,6 @@ use data_sources::*;
 use taoslog::middleware::TaosRootSpanBuilder;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::trace::Qid;
-pub use task::check_parser_timestamp_precision;
 use task::*;
 
 mod agent;
@@ -159,6 +158,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(data_sources_in_one)
             .service(data_source_collection)
             .service(data_source_sample)
+            .service(stable_preview)
             .service(list_all_parser_plugins)
             .service(download_all_data_set_file)
             .service(download_pi_default_config)

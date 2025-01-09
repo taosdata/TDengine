@@ -67,7 +67,7 @@ impl RecordBatchExt for RecordBatch {
         if json_data.is_empty() {
             return Ok(vec![]);
         }
-        serde_json::from_reader(json_data.as_slice()).map_err(|err| {
+        serde_json::from_slice(json_data.as_slice()).map_err(|err| {
             ArrowError::JsonError(format!("Can't cast batch to json rows: {:?}", err))
         })
     }

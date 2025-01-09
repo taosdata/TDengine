@@ -22,6 +22,7 @@ use arrow::{
     ipc::FixedSizeBinary,
     record_batch::RecordBatch,
 };
+use convert::Convert;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,7 @@ use thiserror::Error;
 use tracing::instrument;
 
 pub mod cast;
+mod convert;
 mod join;
 mod json;
 pub mod plugin;
@@ -54,6 +56,8 @@ pub enum ParseError {
     SplitError(#[from] split::SplitError),
     #[error("Unsupported data type: {0:?}")]
     UnsupportedDataType(arrow::datatypes::DataType),
+    #[error("map data type not utf8 string")]
+    MapNotUtf8,
     #[error(transparent)]
     OtherError(#[from] anyhow::Error),
 }
@@ -105,6 +109,7 @@ pub enum FieldParser {
     Udt(Udt),
     Join(Join),
     Plugin(plugin::ParserPlugin),
+    Convert(Convert),
     // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
 }
@@ -128,6 +133,7 @@ impl Parse for FieldParser {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
                 Ok((batch, None))
             }
+            FieldParser::Convert(map) => map.parse_array(field, array),
         }
     }
 }
@@ -183,8 +189,6 @@ impl TransformExt for ParserImpl {
         if self.is_empty() {
             return Ok(records.clone());
         }
-        // dbg!("before parser------");
-        // dbg!(records);
 
         let schema = records.schema();
         let metadata = schema.metadata().clone();
@@ -272,9 +276,6 @@ impl TransformExt for ParserImpl {
         let rschema = Schema::new_with_metadata(rfields, metadata);
 
         let batch = RecordBatch::try_new(Arc::new(rschema), rcolumns)?;
-
-        // dbg!("after parser------");
-        // dbg!(&batch);
 
         Ok(batch)
     }

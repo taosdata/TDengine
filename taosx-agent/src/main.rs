@@ -8,6 +8,7 @@ use flume::{Receiver, Sender};
 use metrics::gauge;
 use std::{
     collections::HashMap,
+    ops::RangeInclusive,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -128,6 +129,9 @@ pub struct Args {
 
     /// For in-memory cache queue capacity.
     in_memory_cache_capacity: Option<usize>,
+
+    // manually specified port range, eg. 9000-9099
+    ports: Option<RangeInclusive<u16>>,
 }
 
 #[config]
@@ -171,6 +175,16 @@ pub struct ConfigArgs {
 
     #[clap(long, env = "LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
+
+    #[clap(flatten)]
+    client_port_range: Option<ClientPortRange>,
+}
+
+#[config]
+#[derive(Parser, Debug, Clone, serde::Serialize)]
+pub struct ClientPortRange {
+    min: Option<u16>,
+    max: Option<u16>,
 }
 
 #[derive(Parser, Debug)]
@@ -413,6 +427,7 @@ impl Args {
             instance_id,
             in_memory_cache_capacity,
             mut log,
+            client_port_range,
             ..
         } = ConfigArgs::with_layers(&layers)?;
 
@@ -453,6 +468,21 @@ impl Args {
 
         AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
 
+        // set the range of client port
+        let ports = client_port_range.and_then(|client_port_range| {
+            if client_port_range.min.is_some() || client_port_range.max.is_some() {
+                let port_min = client_port_range
+                    .min
+                    .map_or(49152, |port| port.clamp(49152, 65535));
+                let port_max = client_port_range
+                    .max
+                    .map_or(65535, |port| port.clamp(port_min, 65535));
+                Some(port_min..=port_max)
+            } else {
+                None
+            }
+        });
+
         Ok(Args {
             plugins_home,
             data_dir,
@@ -462,6 +492,7 @@ impl Args {
             log_keep_days,
             log,
             in_memory_cache_capacity,
+            ports,
         })
     }
 }
@@ -471,9 +502,9 @@ mod runner;
 
 async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let ctrl_c = tokio::signal::ctrl_c();
-    let mut client = agent::Client::new(&args.endpoint, &args.token).await?;
-    let mut client2 = agent::Client::new(&args.endpoint, &args.token).await?;
-    let mut client3 = agent::Client::new(&args.endpoint, &args.token).await?;
+    let mut client = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
+    let mut client2 = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
+    let mut client3 = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
 
     let agent = client.agent();
     let agent_id = agent.id;

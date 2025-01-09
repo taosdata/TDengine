@@ -1,7 +1,7 @@
 use std::{
     any::Any,
     clone::Clone,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -131,6 +131,8 @@ pub enum FlatWriteError {
     ConnectionPoolError(#[from] deadpool::managed::PoolError<taos::Error>),
     #[error("Table not exists")]
     TableNotExits(String),
+    #[error("Invalid column")]
+    InvalidColumn,
     #[error("Container length too short: {0:#}")]
     ContainerLengthTooShort(String),
     #[error("Write SQL error: {0:#}")]
@@ -150,24 +152,31 @@ async fn assert_create_stable(
     req_id: u64,
     cancel: &CancellationToken,
 ) -> Result<(), FlatWriteError> {
-    match exec_sql_with_connection_retries(
-        pool,
-        taos,
-        sql,
-        req_id,
-        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-        cancel,
-    )
-    .await
-    {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            let code = err.code();
-            let errno: i32 = code.into();
-            tracing::warn!(sql, "Exec SQL error: {err:#}");
-            match errno {
-                0x032C | 0x0603 | 0x03C7 | 0x03D3 | 0x0360 => Ok(()),
-                _ => Err(err).context("Create stable error").map_err(Into::into),
+    loop {
+        match exec_sql_with_connection_retries(
+            pool,
+            taos,
+            sql,
+            req_id,
+            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+            cancel,
+        )
+        .await
+        {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                let code = err.code();
+                let errno: i32 = code.into();
+                tracing::warn!(sql, "Exec SQL error: {err:#}");
+                match errno {
+                    0x0603 | 0x0360 | 0x03C7 => return Ok(()),
+                    0x03D3 /* MND_TRANS_CONFLICT */ | 0x032C /* SDB_OBJ_CREATING */ => {
+                        // 等待一段时间后再次尝试创建，直到等到表已存在的错误后再退出
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
+                    _ => return Err(err).context("Create stable error").map_err(Into::into),
+                }
             }
         }
     }
@@ -222,6 +231,7 @@ async fn write_stable_with_sql(
                 "flat message write sql encountered unrecoverable err: {err:#}"
             );
             match errno {
+                0x2602 => Err(FlatWriteError::InvalidColumn),
                 0x2603 | 0x0618 => {
                     // stable/table not exists
                     Err(FlatWriteError::TableNotExits(
@@ -330,6 +340,61 @@ pub async fn flat_write_with_sql(
                         metrics.add_failed_points((records.records() * cols) as u64);
                         error!(stable, "write stable with sql error: {err:#}");
                         match err {
+                            FlatWriteError::InvalidColumn => {
+                                let Some(stable) = messages
+                                    .first()
+                                    .and_then(|m| m.table.using.as_ref())
+                                    .and_then(|s| s.model())
+                                else {
+                                    return Err(anyhow::Error::new(err));
+                                };
+                                let taos = taos.as_ref().unwrap();
+                                let stable_name = stable.name();
+                                let desc = taos.describe(stable.name()).await?;
+                                let actual_columns = desc
+                                    .iter()
+                                    .filter(|c| !c.is_tag())
+                                    .map(|v| v.field())
+                                    .collect::<HashSet<_>>();
+                                'OUTER: for sql in stable
+                                    .columns()
+                                    .filter(|c| !actual_columns.contains(c.name.as_str()))
+                                    .map(|c| {
+                                        format!(
+                                            "ALTER TABLE {stable_name} ADD COLUMN `{}` {};",
+                                            c.name, c.r#type
+                                        )
+                                    })
+                                {
+                                    loop {
+                                        if let Err(e) = taos.exec(&sql).await {
+                                            match e.code().into() {
+                                                0x036B => {
+                                                    // Column already exists
+                                                    continue 'OUTER;
+                                                }
+                                                0x03D3 => {
+                                                    // Conflict transaction not completed
+                                                    tracing::warn!(
+                                                        "add columns transaction conflict"
+                                                    );
+                                                    tokio::time::sleep(Duration::from_millis(100))
+                                                        .await;
+                                                    continue;
+                                                }
+                                                code => {
+                                                    tracing::error!(
+                                                        sql,
+                                                        code,
+                                                        "add columns error: {e:#}"
+                                                    );
+                                                    Err(e).context("add columns error")?
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             FlatWriteError::TableNotExits(_) => {
                                 if let Some(stable_sql) = messages[0].stable_sql() {
                                     qid.add_sub_batch_id();
@@ -491,8 +556,12 @@ pub async fn flat_write_with_raw_block(
                                 {
                                     // debug_assert!(ty == col.ty());
                                     if col.length() < length {
-                                        let table =
-                                            records.table.using.as_deref().unwrap_or(&table_name);
+                                        let table = records
+                                            .table
+                                            .using
+                                            .as_ref()
+                                            .map(|s| s.name())
+                                            .unwrap_or(&table_name);
                                         let sql = format!(
                                             "alter table `{table}` modify column `{}` {}({})",
                                             name, ty, length
@@ -520,7 +589,7 @@ pub async fn flat_write_with_raw_block(
                             }
                             Err(err) => {
                                 let code: i32 = err.code().into();
-                                if !matches!(code, 0x0218 | 0x2603 | 0x0618 | 0x0362) {
+                                if !matches!(code, 0x0218 | 0x2603 | 0x2602 | 0x0618 | 0x0362) {
                                     Err(err).with_context(|| {
                                         format!("Get table schema error for `{table_name}`")
                                     })?;
@@ -569,8 +638,7 @@ pub async fn flat_write_with_raw_block(
                                                 let code: i32 = err.code().into();
 
                                                 if code == 0x2605 {
-                                                    let table =
-                                                        records.table.using.as_deref().unwrap();
+                                                    let table = records.stable_name().unwrap();
                                                     let desc =
                                                         describe_table_with_connection_retries(
                                                             pool,
@@ -606,8 +674,7 @@ pub async fn flat_write_with_raw_block(
                                                 } else if code == 0x260D {
                                                     // Tags number not matched
                                                     // add Tag
-                                                    let table =
-                                                        records.table.using.as_deref().unwrap();
+                                                    let table = records.stable_name().unwrap();
                                                     let tags = records.tag_meta().unwrap();
                                                     for tag_meta in tags {
                                                         let mut need_add = true;
@@ -646,6 +713,55 @@ pub async fn flat_write_with_raw_block(
                                                                 cancel,
                                                             )
                                                             .await?;
+                                                        }
+                                                    }
+                                                } else if code == 0x2602 {
+                                                    let Some(stable) = messages
+                                                        .first()
+                                                        .and_then(|m| m.table.using.as_ref())
+                                                        .and_then(|s| s.model())
+                                                    else {
+                                                        return Err(anyhow::Error::new(err));
+                                                    };
+                                                    let taos = taos.as_ref().unwrap();
+                                                    let stable_name = stable.name();
+                                                    let desc = taos.describe(stable.name()).await?;
+                                                    let desc_columns = desc
+                                                        .iter()
+                                                        .filter(|c| !c.is_tag())
+                                                        .map(|v| v.field());
+                                                    let actual_columns =
+                                                        HashSet::<_>::from_iter(desc_columns);
+
+                                                    'OUTER: for sql in stable
+                                                        .columns()
+                                                        .filter(|c| {
+                                                            !actual_columns
+                                                                .contains(c.name.as_str())
+                                                        })
+                                                        .map(|c| {
+                                                            format!( "ALTER TABLE {stable_name} ADD COLUMN `{}` {};", c.name, c.r#type )
+                                                        })
+                                                    {
+                                                        loop {
+                                                            if let Err(e) = taos.exec(&sql).await {
+                                                                match e.code().into() {
+                                                                    0x036B => {
+                                                                        // Column already exists
+                                                                        continue 'OUTER;
+                                                                    }
+                                                                    0x03D3 => {
+                                                                        // Conflict transaction not completed
+                                                                        tracing::warn!("add columns transaction conflict");
+                                                                        tokio::time::sleep(Duration::from_millis(100)).await;
+                                                                        continue;
+                                                                    }
+                                                                    code => {
+                                                                        tracing::error!(sql,code,"add columns error: {e:#}");
+                                                                        Err(e).context("add columns error")?
+                                                                    }
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 } else {
@@ -753,7 +869,7 @@ pub async fn flat_write_with_raw_block(
                             Err(err) => {
                                 let code: i32 = err.code().into();
                                 if code == 0x2605 {
-                                    let table = records.table.using.as_deref().unwrap();
+                                    let table = records.stable_name().unwrap();
                                     let desc = describe_table_with_connection_retries(
                                         pool,
                                         taos,
@@ -816,7 +932,7 @@ pub async fn flat_write_with_raw_block(
                     )
                     .in_current_span()
                     .await?;
-                    let table = records.table.using.as_deref().unwrap_or(&table_name);
+                    let table = records.stable_name().unwrap_or(&table_name);
                     for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type()) {
                         let sql = format!(
                             "alter table `{table}` modify column `{}` {}({})",
@@ -864,11 +980,7 @@ pub async fn flat_write_with_raw_block(
                             }
                             let sql = format!(
                                 "alter table `{}` add column `{}` {}",
-                                records
-                                    .table
-                                    .using
-                                    .as_ref()
-                                    .unwrap_or(&table_name.to_string()),
+                                records.stable_name().unwrap_or(table_name.as_ref()),
                                 &column_name,
                                 ipc_data_type.unwrap(),
                             );
@@ -1646,6 +1758,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
         let cancel = cancel.clone();
         writer_set.spawn(
             async move {
+                let _guard = cancel.clone().drop_guard();
                 let mut taos = None;
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
@@ -1759,11 +1872,14 @@ pub async fn ipc_flat_stream_worker_concurrent(
     let mut batches = 0;
 
     loop {
-        if cancel.is_cancelled() && !upstream.is_cancelled() {
-            // Writer is failed
-            tracing::warn!("Writer may be failed, try join all workers");
+        if cancel.is_cancelled() {
+            if !upstream.is_cancelled() {
+                // Writer is failed
+                tracing::warn!("Writer may be failed, try join all workers");
+            }
             break;
         }
+
         if let Some(Err(err)) = writer_set
             .try_join_next()
             .transpose()
@@ -1772,34 +1888,39 @@ pub async fn ipc_flat_stream_worker_concurrent(
             error!(error = "Writer error: {err:#}");
             Err(err).context("IPC writer fail with error")?;
         }
-        if let Some(record) = stream.next().await {
-            batches += 1;
-            match record {
-                Ok(record) => {
-                    metrics_arc.ipc().add_received_batches(1);
-                    metrics_arc
-                        .ipc()
-                        .add_received_messages(record.nrows() as u64);
-                    msg_tx.send_async(record).await?;
-                }
-                Err(err) => {
-                    tracing::warn!("Consume message error: {err:#}");
-                    ack_tx
-                        .send_async(LushAck {
-                            code: 0xFFFF,
-                            message: Some(format!("Parse message error: {err:#}")),
-                            context: Some(
-                                json!({
-                                    "stream": "flat",
-                                })
-                                .to_string(),
-                            ),
-                        })
-                        .await?;
-                }
-            };
-        } else {
-            break;
+
+        tokio::select! {
+            res = stream.next() => {
+                let Some(record) = res else {
+                    break;
+                };
+                batches += 1;
+                match record {
+                    Ok(record) => {
+                        metrics_arc.ipc().add_received_batches(1);
+                        metrics_arc
+                            .ipc()
+                            .add_received_messages(record.nrows() as u64);
+                        msg_tx.send_async(record).await?;
+                    }
+                    Err(err) => {
+                        tracing::warn!("Consume message error: {err:#}");
+                        ack_tx
+                            .send_async(LushAck {
+                                code: 0xFFFF,
+                                message: Some(format!("Parse message error: {err:#}")),
+                                context: Some(
+                                    json!({
+                                        "stream": "flat",
+                                    })
+                                    .to_string(),
+                                ),
+                            })
+                            .await?;
+                    }
+                };
+            }
+            _ = cancel.cancelled() => continue,
         }
     }
 
@@ -1835,7 +1956,7 @@ mod tests {
     use taosx_ipc::prelude::IpcDataType;
     use IpcDataType::*;
 
-    use crate::plugins::transform::MessageTableMeta;
+    use crate::{plugins::transform::MessageTableMeta, sink::transform::STable};
 
     struct STableMessagesBuilder {
         /// The stable name of the table, if not set, use ordinary table instead.
@@ -2093,8 +2214,8 @@ mod tests {
 
                     MessageTableMeta {
                         name: Arc::new(table_name),
-                        using: Some(stable.to_string()),
-                        tags: Some(table_tags.slice(i, 1)),
+                        using: Some(Arc::new(STable::Name(stable.to_string()))),
+                        tags: Some(Arc::new(table_tags.slice(i, 1))),
                     }
                 })
                 .collect_vec();
