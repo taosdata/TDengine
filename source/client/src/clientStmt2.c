@@ -853,7 +853,7 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
 
   // The SQL statement specifies a database name, overriding the previously specified database
   taosMemoryFreeClear(pStmt->exec.pRequest->pDb);
-  pStmt->exec.pRequest->pDb = taosStrdup(dbName);
+  pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
   if (pStmt->exec.pRequest->pDb == NULL) {
     return terrno;
   }
