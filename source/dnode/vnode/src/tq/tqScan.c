@@ -241,7 +241,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
       }
 
       code = tqAddBlockDataToRsp(pDataBlock, pRsp, taosArrayGetSize(pDataBlock->pDataBlock),
-                          pTq->pVnode->config.tsdbCfg.precision);
+                                 pTq->pVnode->config.tsdbCfg.precision);
       TSDB_CHECK_CODE(code, lino, END);
 
       pRsp->blockNum++;

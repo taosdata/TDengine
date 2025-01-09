@@ -22,7 +22,9 @@ from frame.autogen import *
 
 
 class TDTestCase(TBase):
-    
+    clientCfgDict = { "keepColumnName": 1 }
+    updatecfgDict = { "clientCfg": clientCfgDict }
+
     def ts_30189(self):
         tdLog.info("create database ts_30189")
         tdSql.execute(f"create database ts_30189")
@@ -144,6 +146,40 @@ class TDTestCase(TBase):
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
 
+    def ts_5878(self):
+        # prepare data
+        tdLog.info("create database ts_5878")
+        tdSql.execute("create database ts_5878")
+        tdSql.execute("use ts_5878")
+        sqls = [
+            "CREATE STABLE meters (ts timestamp, c1 int) TAGS (gid int)",
+            "CREATE TABLE d0 USING meters (gid) TAGS (0)",
+            "CREATE TABLE d1 USING meters (gid) TAGS (1)",
+            "CREATE TABLE d2 USING meters (gid) TAGS (2)",
+            "INSERT INTO d0 VALUES ('2025-01-01 00:00:00', 0)",
+            "INSERT INTO d1 VALUES ('2025-01-01 00:01:00', 1)",
+            "INSERT INTO d2 VALUES ('2025-01-01 00:02:00', 2)"
+        ]
+        tdSql.executes(sqls)
+        # check column name in query result
+        sql1 = "SELECT * FROM (SELECT LAST_ROW(ts) FROM d1)"
+        cols = ["ts"]
+        rows = [["2025-01-01 00:01:00"]]
+        colNames = tdSql.getColNameList(sql1)
+        tdSql.checkColNameList(colNames, cols)
+        tdSql.checkDataMem(sql1, rows)
+
+        sql2 = "SELECT * FROM (SELECT LAST(ts) FROM meters PARTITION BY tbname) ORDER BY 1"
+        cols = ["ts"]
+        rows = [
+            ["2025-01-01 00:00:00"],
+            ["2025-01-01 00:01:00"],
+            ["2025-01-01 00:02:00"],
+        ]
+        colNames = tdSql.getColNameList(sql2)
+        tdSql.checkColNameList(colNames, cols)
+        tdSql.checkDataMem(sql2, rows)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -153,6 +189,9 @@ class TDTestCase(TBase):
 
         # TS-5443
         self.ts_5443()
+
+        # TS-5878
+        self.ts_5878()
 
         tdLog.success(f"{__file__} successfully executed")
 

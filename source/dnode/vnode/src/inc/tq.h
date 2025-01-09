@@ -175,9 +175,9 @@ int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, vo
     }                                   \
   } while (0)
 
-#define TQ_SUBSCRIBE_NAME           "subscribe"
-#define TQ_OFFSET_NAME              "offset-ver0"
-#define TQ_POLL_MAX_TIME            1000
+#define TQ_SUBSCRIBE_NAME "subscribe"
+#define TQ_OFFSET_NAME    "offset-ver0"
+#define TQ_POLL_MAX_TIME  1000
 
 #ifdef __cplusplus
 }

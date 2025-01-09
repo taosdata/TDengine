@@ -325,11 +325,6 @@ int32_t checkWKB(const unsigned char *wkb, size_t size) {
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
 
-  if (!GEOSisValid_r(geosCtx->handle, geom)) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-    goto _exit;
-  }
-
 _exit:
   if (geom) {
     GEOSGeom_destroy_r(geosCtx->handle, geom);

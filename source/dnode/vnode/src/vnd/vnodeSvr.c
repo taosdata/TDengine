@@ -318,7 +318,12 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
 
     SColData colData = {0};
-    pCoder->pos += tGetColData(version, pCoder->data + pCoder->pos, &colData);
+    code = tDecodeColData(version, pCoder, &colData);
+    if (code) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
@@ -332,7 +337,11 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
 
     for (uint64_t i = 1; i < nColData; i++) {
-      pCoder->pos += tGetColData(version, pCoder->data + pCoder->pos, &colData);
+      code = tDecodeColData(version, pCoder, &colData);
+      if (code) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
     }
   } else {
     uint64_t nRow;
@@ -816,7 +825,7 @@ _exit:
 
 _err:
   vError("vgId:%d, process %s request failed since %s, ver:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
-         tstrerror(code), ver);
+         tstrerror(terrno), ver);
   return code;
 }
 
