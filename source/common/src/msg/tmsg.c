@@ -11646,7 +11646,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
 
     SRow **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
     for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
-      TAOS_CHECK_EXIT(tEncodeFixed(pCoder, rows[iRow], rows[iRow]->len));
+      TAOS_CHECK_EXIT(tEncodeRow(pCoder, rows[iRow]));
     }
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));

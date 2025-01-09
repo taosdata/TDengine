@@ -3828,7 +3828,8 @@ int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  return tDecodeBinaryWithSize(pDecoder, ((SRow *)(pDecoder->data + pDecoder->pos))->len, (uint8_t **)ppRow);
+  SRow *pRow = (SRow *)(pDecoder->data + pDecoder->pos);
+  return tDecodeBinaryWithSize(pDecoder, pRow->len, (uint8_t **)ppRow);
 }
 
 #define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \
