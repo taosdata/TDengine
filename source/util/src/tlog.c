@@ -1295,6 +1295,7 @@ typedef struct crashBasicInfo {
   int     signum;
   void   *sigInfo;
   tsem_t  sem;
+  int64_t reportThread;
 } crashBasicInfo;
 
 crashBasicInfo gCrashBasicInfo = {0};
@@ -1359,11 +1360,15 @@ int32_t initCrashLogWriter() {
     uError("failed to init sem for crashLogWriter, code:%d", code);
     return code;
   }
+  gCrashBasicInfo.reportThread = taosGetSelfPthreadId();
   setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
   return code;
 }
 
 void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime) {
+  if (gCrashBasicInfo.reportThread == taosGetSelfPthreadId()) {
+    return;
+  }
   if (setReportThreadWait()) {
     gCrashBasicInfo.clusterId = clusterId;
     gCrashBasicInfo.startTime = startTime;
