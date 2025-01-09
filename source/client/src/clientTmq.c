@@ -1434,7 +1434,7 @@ static int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   tqDebugC("consumer:0x%" PRIx64 " ask ep from mnode,QID:0x%" PRIx64, pTmq->consumerId, sendInfo->requestId);
   code = asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
 
-  END:
+END:
   if (code != 0) {
     tqErrorC("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
   }
@@ -2243,7 +2243,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   pVg->seekUpdated = false;  // reset this flag.
   pTmq->pollCnt++;
 
-  END:
+END:
   if (code != 0){
     tqErrorC("%s failed at %d msg:%s", __func__, lino, tstrerror(code));
   }
@@ -2468,7 +2468,7 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     pRspObj->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP ? RES_TYPE__TMQ_META : RES_TYPE__TMQ_BATCH_META;
   }
 
-  END:
+END:
   terrno = code;
   taosWUnLockLatch(&tmq->lock);
   return pRspObj;
@@ -2506,7 +2506,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq) {
     }
   }
 
-  END:
+END:
   terrno = code;
   return returnVal;
 }
@@ -2549,7 +2549,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     }
   }
 
-  END:
+END:
   terrno = code;
   if (tmq != NULL) {
     tqErrorC("consumer:0x%" PRIx64 " poll error at line:%d, msg:%s", tmq->consumerId, lino, tstrerror(terrno));
