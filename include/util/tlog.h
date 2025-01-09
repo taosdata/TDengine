@@ -121,6 +121,7 @@ void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
 
 int32_t initCrashLogWriter();
 void    checkAndPrepareCrashInfo();
+bool    reportThreadSetQuit();
 void    writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime);
 
 // clang-format off
