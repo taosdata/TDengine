@@ -21,6 +21,7 @@
 #include "tjson.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "tcommon.h"
 
 #define LOG_MAX_LINE_SIZE              (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
@@ -1264,6 +1265,8 @@ _return:
 
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
+// print the stack trace
+#if 0
 #ifdef _TD_DARWIN_64
   taosPrintTrace(flags, level, dflag, 4);
 #elif !defined(WINDOWS)
@@ -1273,8 +1276,70 @@ _return:
 #else
   taosPrintTrace(flags, level, dflag, 8);
 #endif
-
+#endif
   taosMemoryFree(pMsg);
+}
+
+typedef struct crashBasicInfo {
+  bool    init;
+  bool    isCrash;
+  int64_t clusterId;
+  int64_t startTime;
+  char   *nodeType;
+  int     signum;
+  void   *sigInfo;
+  tsem_t  sem;
+} crashBasicInfo;
+
+crashBasicInfo gCrashBasicInfo = {0};
+static void    writeCrashLogToFileInNewThead() {
+  if (!gCrashBasicInfo.init || !gCrashBasicInfo.isCrash) return;
+  char       *pMsg = NULL;
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  int64_t     msgLen = -1;
+
+  if (tsEnableCrashReport) {
+    if (taosGenCrashJsonMsg(gCrashBasicInfo.signum, &pMsg, gCrashBasicInfo.clusterId, gCrashBasicInfo.startTime)) {
+      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+    } else {
+      msgLen = strlen(pMsg);
+    }
+  }
+  taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
+  gCrashBasicInfo.isCrash = false;
+  tsem_post(&gCrashBasicInfo.sem);
+}
+
+void checkAndPrepareCrashInfo() {
+  return writeCrashLogToFileInNewThead();
+}
+
+int32_t initCrashLogWriter() {
+  gCrashBasicInfo.init = true;
+  gCrashBasicInfo.isCrash = false;
+  int32_t code = tsem_init(&gCrashBasicInfo.sem, 0, 0);
+  uInfo("crashLogWriter init finished.");
+  return code;
+}
+
+void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime) {
+  if (!gCrashBasicInfo.init) {
+    uInfo("crashLogWriter has not init!");
+    return;
+  }
+  uInfo("write crash log to file, signum:%d, nodeType:%s, clusterId:%" PRId64, signum, nodeType, clusterId);
+  gCrashBasicInfo.isCrash = true;
+  gCrashBasicInfo.clusterId = clusterId;
+  gCrashBasicInfo.startTime = startTime;
+  gCrashBasicInfo.nodeType = nodeType;
+  gCrashBasicInfo.signum = signum;
+  gCrashBasicInfo.sigInfo = sigInfo;
+
+  tsem_wait(&gCrashBasicInfo.sem);
+
+  uInfo("write crash log to file done, signum:%d, nodeType:%s, clusterId:%" PRId64, signum, nodeType, clusterId);
 }
 
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd) {

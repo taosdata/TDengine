@@ -43,7 +43,7 @@
 #endif
 
 #ifndef CUS_PROMPT
-#define CUS_PROMPT "tao"
+#define CUS_PROMPT "taos"
 #endif
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -815,6 +815,12 @@ static void *tscCrashReportThreadFp(void *param) {
   int32_t   reportPeriodNum = 3600 * 1000 / sleepTime;
   int32_t   loopTimes = reportPeriodNum;
 
+  code = initCrashLogWriter();
+  if (code) {
+    tscError("failed to init crash log writer, code:%s", tstrerror(code));
+    return NULL;
+  }
+
 #ifdef WINDOWS
   if (taosCheckCurrentInDll()) {
     atexit(crashReportThreadFuncUnexpectedStopped);
@@ -832,8 +838,10 @@ static void *tscCrashReportThreadFp(void *param) {
   }
 
   while (1) {
+    checkAndPrepareCrashInfo();
     if (clientStop > 0) break;
     if (loopTimes++ < reportPeriodNum) {
+      if(loopTimes < 0) loopTimes = reportPeriodNum;
       taosMsleep(sleepTime);
       continue;
     }
@@ -921,21 +929,7 @@ void tscStopCrashReport() {
 }
 
 void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
-  char       *pMsg = NULL;
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;
-  int64_t     msgLen = -1;
-
-  if (tsEnableCrashReport) {
-    if (taosGenCrashJsonMsg(signum, &pMsg, lastClusterId, appInfo.startTime)) {
-      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
-    } else {
-      msgLen = strlen(pMsg);
-    }
-  }
-
-  taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
+  writeCrashLogToFile(signum, sigInfo, CUS_PROMPT, lastClusterId, appInfo.startTime);
 }
 
 void taos_init_imp(void) {
@@ -969,7 +963,7 @@ void taos_init_imp(void) {
   }
   taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
 
-  const char *logName = CUS_PROMPT "slog";
+  const char *logName = CUS_PROMPT "log";
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
   if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
