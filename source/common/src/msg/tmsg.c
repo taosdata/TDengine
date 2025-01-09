@@ -10950,8 +10950,10 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refTbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refColName));
+      break;
     case TSDB_ALTER_TABLE_REMOVE_COLUMN_REF:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      break;
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
