@@ -815,12 +815,6 @@ static void *tscCrashReportThreadFp(void *param) {
   int32_t   reportPeriodNum = 3600 * 1000 / sleepTime;
   int32_t   loopTimes = reportPeriodNum;
 
-  code = initCrashLogWriter();
-  if (code) {
-    tscError("failed to init crash log writer, code:%s", tstrerror(code));
-    return NULL;
-  }
-
 #ifdef WINDOWS
   if (taosCheckCurrentInDll()) {
     atexit(crashReportThreadFuncUnexpectedStopped);
@@ -834,6 +828,12 @@ static void *tscCrashReportThreadFp(void *param) {
   code = taosTelemetryMgtInit(&mgt, tsTelemServer);
   if (code) {
     tscError("failed to init telemetry management, code:%s", tstrerror(code));
+    return NULL;
+  }
+
+  code = initCrashLogWriter();
+  if (code) {
+    tscError("failed to init crash log writer, code:%s", tstrerror(code));
     return NULL;
   }
 
