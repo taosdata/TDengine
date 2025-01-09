@@ -52,20 +52,28 @@ static uint8_t maxPrecision(DecimalInternalType type) {
 
 int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOperatorType opType,
                           SDataType* pOutType) {
-  if (IS_FLOAT_TYPE(pLeftT->type) || IS_FLOAT_TYPE(pRightT->type)) {
+  if (IS_FLOAT_TYPE(pLeftT->type) || IS_FLOAT_TYPE(pRightT->type) || IS_VAR_DATA_TYPE(pLeftT->type) ||
+      IS_VAR_DATA_TYPE(pRightT->type)) {
     pOutType->type = TSDB_DATA_TYPE_DOUBLE;
     pOutType->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    return 0;
+  }
+
+  if (IS_NULL_TYPE(pLeftT->type) || IS_NULL_TYPE(pRightT->type)) {
+    pOutType->type = TSDB_DATA_TYPE_NULL;
+    pOutType->bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     return 0;
   }
 
   // TODO wjm check not supported types
   uint8_t p1 = pLeftT->precision, s1 = pLeftT->scale, p2 = pRightT->precision, s2 = pRightT->scale;
 
-  if (IS_DECIMAL_TYPE(pLeftT->type)) {
-    p2 = TSDB_DECIMAL128_MAX_PRECISION;
+  if (!IS_DECIMAL_TYPE(pLeftT->type)) {
+    p1 = TSDB_DECIMAL_MAX_PRECISION;
     s1 = s2;  // TODO wjm take which scale? Maybe use default DecimalMax
-  } else {
-    p1 = TSDB_DECIMAL128_MAX_PRECISION;
+  }
+  if (!IS_DECIMAL_TYPE(pRightT->type)) {
+    p1 = TSDB_DECIMAL_MAX_PRECISION;
     s2 = s1;
   }
 
@@ -90,8 +98,10 @@ int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOp
     default:
       return TSDB_CODE_TSC_INVALID_OPERATION;
   }
-  pOutType->type = TSDB_DATA_TYPE_DECIMAL;
-  pOutType->bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes;
+  pOutType->precision = TMIN(pOutType->precision, TSDB_DECIMAL_MAX_PRECISION);
+  pOutType->scale = TMIN(pOutType->scale, TSDB_DECIMAL_MAX_SCALE);
+  pOutType->type = pOutType->precision > TSDB_DECIMAL64_MAX_PRECISION ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64;
+  pOutType->bytes = tDataTypes[pOutType->type].bytes;
   return 0;
 }
 
@@ -458,6 +468,7 @@ static Decimal128 SCALE_MULTIPLIER_128[38 + 1] = {
 #define DECIMAL128_ONE SCALE_MULTIPLIER_128[0]
 #define DECIMAL128_TEN SCALE_MULTIPLIER_128[1]
 
+// TODO wjm pre define it??  actually, its MAX_INTEGER, not MAX
 #define DECIMAL128_GET_MAX(precision, pMax)                                  \
   do {                                                                       \
     *(pMax) = SCALE_MULTIPLIER_128[precision];                               \
@@ -641,7 +652,6 @@ static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBu
     return 0;
   }
   for (int32_t i = digitNum - 1; i >= 0; --i) {
-    // TODO wjm test 0.0000000000000000000000000000000001
     len += snprintf(buf + len, 64 - len, i == digitNum - 1 ? "%" PRIu64 : "%018" PRIu64, segments[i]);
   }
   int32_t wholeLen = len - scale;
@@ -673,15 +683,18 @@ int32_t decimalToStr(const DecimalType* pDec, int8_t dataType, int8_t precision,
 int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
                   const void* pLeftData, const void* pRightData, void* pOutputData) {
   int32_t code = 0;
-  if (pOutT->type != TSDB_DATA_TYPE_DECIMAL) return TSDB_CODE_INTERNAL_ERROR;
+  // TODO wjm if output precision <= 18, no need to convert to decimal128
 
-  Decimal pLeft = *(Decimal*)pLeftData, pRight = *(Decimal*)pRightData;
+  Decimal   pLeft = {0}, pRight = {0};
+  SDataType tmpType = *pOutT;
+  tmpType.type = TSDB_DATA_TYPE_DECIMAL;
+  tmpType.precision = TSDB_DECIMAL_MAX_PRECISION;
   if (TSDB_DATA_TYPE_DECIMAL != pLeftT->type || pLeftT->scale != pOutT->scale) {
-    code = convertToDecimal(pLeftData, pLeftT, &pLeft, pOutT);
+    code = convertToDecimal(pLeftData, pLeftT, &pLeft, &tmpType);
     if (TSDB_CODE_SUCCESS != code) return code;
   }
   if (pRightT && (TSDB_DATA_TYPE_DECIMAL != pRightT->type || pRightT->scale != pOutT->scale)) {
-    code = convertToDecimal(pRightData, pRightT, &pRight, pOutT);
+    code = convertToDecimal(pRightData, pRightT, &pRight, &tmpType);
     if (TSDB_CODE_SUCCESS != code) return code;
   }
 
@@ -693,7 +706,7 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
     default:
       break;
   }
-  return code;
+  return convertToDecimal(&pLeft, &tmpType, pOutputData, pOutT);
 }
 
 #define ABS_INT64(v)  (v) == INT64_MIN ? (uint64_t)INT64_MAX + 1 : (uint64_t)llabs(v)
@@ -796,8 +809,12 @@ static int32_t decimal128FromDecimal64(DecimalType* pDec, uint8_t prec, uint8_t 
   decimal128ScaleTo(pDec, valScale, scale);
   return 0;
 }
+
 static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t scale, const DecimalType* pVal,
                                         uint8_t valPrec, uint8_t valScale) {
+  Decimal128 max = {0};
+  DECIMAL128_GET_MAX(prec - scale, &max);
+
   return 0;
 }
 #define CHECK_OVERFLOW_AND_MAKE_DECIMAL128(pDec, v, max, ABS) \

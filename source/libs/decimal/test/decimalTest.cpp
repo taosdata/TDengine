@@ -230,6 +230,12 @@ TEST(decimal, decimalFromStr) {
   resExpect += 1;
   resExpect *= 100;
   ASSERT_EQ(res, resExpect);
+
+  char buf[64] = "999.999";
+  Decimal64 dec64 = {0};
+  code = decimal64FromStr(buf, strlen(buf), 6, 3, &dec64);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(999999, DECIMAL64_GET_VALUE(&dec64));
 }
 
 TEST(decimal, toStr) {
@@ -243,6 +249,78 @@ TEST(decimal, toStr) {
   code = decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 10, buf, 64);
   ASSERT_EQ(code, 0);
   ASSERT_STREQ(buf, "0");
+}
+
+SDataType getDecimalType(uint8_t prec, uint8_t scale) {
+  if (prec <= 18) {
+    return {.type = TSDB_DATA_TYPE_DECIMAL64, .precision = prec, .scale = scale, .bytes = 8};
+  } else if (prec <= 38) {
+    return {.type = TSDB_DATA_TYPE_DECIMAL, .precision = prec, .scale = scale, .bytes = 16};
+  }
+  return {};
+}
+
+bool operator==(const SDataType& lt, const SDataType& rt) {
+  return lt.type == rt.type && lt.precision == rt.precision && lt.scale == rt.scale && lt.bytes == rt.bytes;
+}
+
+TEST(decimal, decimalOpRetType) {
+  EOperatorType op = OP_TYPE_ADD;
+  auto ta = getDecimalType(10, 2);
+  auto tb = getDecimalType(10, 2);
+  SDataType tc{}, tExpect = {.type = TSDB_DATA_TYPE_DECIMAL64, .precision = 11, .scale = 2, .bytes = sizeof(Decimal64)};
+  int32_t code = decimalGetRetType(&ta, &tb, op, &tc);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(tExpect, tc);
+
+  ta.bytes = 8;
+  ta.type = TSDB_DATA_TYPE_TIMESTAMP;
+
+  code = decimalGetRetType(&ta, &tb, op, &tc);
+  ASSERT_EQ(code, 0);
+  tExpect.type = TSDB_DATA_TYPE_DECIMAL;
+  tExpect.precision = TSDB_DECIMAL_MAX_PRECISION;
+  tExpect.scale = 2;
+  tExpect.bytes = sizeof(Decimal);
+  ASSERT_EQ(tExpect, tc);
+
+  ta.bytes = 8;
+  ta.type = TSDB_DATA_TYPE_DOUBLE;
+  tc = {0};
+  code = decimalGetRetType(&ta, &tb, op, &tc);
+  ASSERT_EQ(code, 0);
+  tExpect.type = TSDB_DATA_TYPE_DOUBLE;
+  tExpect.precision = 0;
+  tExpect.scale = 0;
+  tExpect.bytes = 8;
+  ASSERT_EQ(tExpect, tc);
+}
+
+TEST(decimal, op) {
+  const char* stra = "123.99", * strb = "456.12";
+  EOperatorType op = OP_TYPE_ADD;
+  auto ta = getDecimalType(10, 2);
+  Decimal64 a = {0};
+  int32_t code = decimal64FromStr(stra, strlen(stra), ta.precision, ta.scale, &a);
+  ASSERT_EQ(code, 0);
+
+  auto tb = getDecimalType(10, 2);
+  Decimal64 b{0};
+  code = decimal64FromStr(strb, strlen(strb), tb.precision, tb.scale, &b);
+  ASSERT_EQ(code, 0);
+
+  SDataType tc{}, tExpect{.type = TSDB_DATA_TYPE_DECIMAL64, .precision = 11, .scale = 2, .bytes = sizeof(Decimal64)};
+  code = decimalGetRetType(&ta, &tb, op, &tc);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(tc, tExpect);
+  Decimal64 res{};
+  code = decimalOp(op, &ta, &tb, &tc, &a, &b, &res);
+  ASSERT_EQ(code, 0);
+
+  char buf[64] = {0};
+  code = decimalToStr(&res, TSDB_DATA_TYPE_DECIMAL64, tc.precision, tc.scale, buf, 64);
+  ASSERT_EQ(code, 0);
+  ASSERT_STREQ(buf, "580.11");
 }
 
 int main(int argc, char** argv) {
