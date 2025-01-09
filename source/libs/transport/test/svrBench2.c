@@ -47,9 +47,10 @@ MultiThreadQhandle *tMultiQ = NULL;
 
 void initLogEnv() {
   const char   *logDir = "/tmp/trans_svr";
-  const char   *defaultLogFileNamePrefix = "taoslog";
+  const char   *defaultLogFileNamePrefix = "taosdlog";
   const int32_t maxLogFileNum = 10000;
   tsAsyncLog = 0;
+  rpcDebugFlag = 143;
   // idxDebugFlag = 143;
   strcpy(tsLogDir, logDir);
   taosRemoveDir(tsLogDir);
@@ -125,12 +126,12 @@ int main(int argc, char *argv[]) {
   rpcInit.localPort = 7000;
   memcpy(rpcInit.localFqdn, "localhost", strlen("localhost"));
   rpcInit.label = "SER";
-  rpcInit.numOfThreads = 10;
+  rpcInit.numOfThreads = 1;
   rpcInit.cfp = processRequestMsg;
   rpcInit.idleTime = 2 * 1500;
 
   taosVersionStrToInt(td_version, &(rpcInit.compatibilityVer));
-  rpcDebugFlag = 131;
+  rpcDebugFlag = 143;
   rpcInit.compressSize = -1;
 
   for (int i = 1; i < argc; ++i) {
@@ -173,7 +174,7 @@ int main(int argc, char *argv[]) {
     tError("failed to start RPC server");
     return -1;
   }
-  // taosSsleep(5);
+  taosSsleep(5);
 
   tInfo("RPC server is running, ctrl-c to exit");
 
