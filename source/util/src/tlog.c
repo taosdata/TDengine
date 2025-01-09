@@ -411,9 +411,9 @@ static OldFileKeeper *taosOpenNewFile() {
 
   TdFilePtr pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    tsLogObj.openInProgress = 0;
+    tsLogObj.flag ^= 1;
     tsLogObj.lines = tsNumOfLogLines - 1000;
-    uError("open new log file fail! reason:%s, reuse lastlog", strerror(errno));
+    uError("open new log file %s fail! reason:%s, reuse lastlog", name, tstrerror(terrno));
     return NULL;
   }
 
@@ -425,7 +425,6 @@ static OldFileKeeper *taosOpenNewFile() {
   TdFilePtr pOldFile = tsLogObj.logHandle->pFile;
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
-  tsLogObj.openInProgress = 0;
   OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
     uError("create old log keep info faild! mem is not enough.");
@@ -468,7 +467,9 @@ static int32_t taosOpenNewLogFile() {
 
     OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     if (!oldFileKeeper) {
+      tsLogObj.openInProgress = 0;
       TAOS_UNUSED(taosThreadMutexUnlock(&tsLogObj.logMutex));
+      (void)taosThreadAttrDestroy(&attr);
       return terrno;
     }
     if (taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper) != 0) {
@@ -476,6 +477,7 @@ static int32_t taosOpenNewLogFile() {
       taosMemoryFreeClear(oldFileKeeper);
     }
     (void)taosThreadAttrDestroy(&attr);
+    tsLogObj.openInProgress = 0;
   }
 
   (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
@@ -728,10 +730,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     if (tsNumOfLogLines > 0) {
       TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, 1));
       if ((tsLogObj.lines > tsNumOfLogLines) && (tsLogObj.openInProgress == 0)) {
-        int32_t code = taosOpenNewLogFile();
-        if (code != 0) {
-          uError("failed to open new log file, reason:%s", tstrerror(code));
-        }
+        TAOS_UNUSED(taosOpenNewLogFile());
       }
     }
   }

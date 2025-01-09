@@ -1912,6 +1912,7 @@ TDinternal() {
     install_maven_via_sdkman 3.9.9
     install_node_via_nvm 16.20.2
     install_python_via_pyenv 3.10.12
+    install_via_pip pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml taospy taos-ws-py
 }
 
 # deploy TDgpt
