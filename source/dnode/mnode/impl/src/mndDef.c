@@ -731,10 +731,9 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
 }
 
 SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
-  SConfigObj *pObj = taosMemoryCalloc(1, sizeof(SConfigObj));
-  if (pObj == NULL) {
-    return NULL;
-  }
+  SConfigObj *pObj;
+  memset(pObj, 0, sizeof(SConfigObj));
+
   tstrncpy(pObj->name, pItem->name, CFG_NAME_MAX_LEN);
   pObj->dtype = pItem->dtype;
   switch (pItem->dtype) {
@@ -823,10 +822,9 @@ int32_t mndUpdateObj(SConfigObj *pObjNew, const char *name, char *value) {
 }
 
 SConfigObj *mndInitConfigVersion() {
-  SConfigObj *pObj = taosMemoryCalloc(1, sizeof(SConfigObj));
-  if (pObj == NULL) {
-    return NULL;
-  }
+  SConfigObj *pObj;
+  memset(pObj, 0, sizeof(SConfigObj));
+
   tstrncpy(pObj->name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
   pObj->dtype = CFG_DTYPE_INT32;
   pObj->i32 = 0;
