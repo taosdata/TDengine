@@ -1459,14 +1459,16 @@ static int32_t metaHandleVirtualNormalTableCreate(SMeta *pMeta, const SMetaEntry
   return code;
 }
 
-static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEntry *pEntry) {
+static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEntry *pEntry, const SMetaEntry *pSuperEntry) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   SMetaTableOp ops[] = {
-      {META_ENTRY_TABLE, META_TABLE_OP_INSERT},   //
-      {META_UID_IDX, META_TABLE_OP_INSERT},       //
-      {META_NAME_IDX, META_TABLE_OP_INSERT},      //
-      {META_BTIME_IDX, META_TABLE_OP_INSERT},     //
+      {META_ENTRY_TABLE, META_TABLE_OP_INSERT},  //
+      {META_UID_IDX, META_TABLE_OP_INSERT},      //
+      {META_NAME_IDX, META_TABLE_OP_INSERT},     //
+      {META_CHILD_IDX, META_TABLE_OP_INSERT},    //
+      {META_TAG_IDX, META_TABLE_OP_INSERT},      //
+      {META_BTIME_IDX, META_TABLE_OP_INSERT},    //
   };
 
   for (int i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
@@ -1474,6 +1476,7 @@ static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEn
 
     SMetaHandleParam param = {
         .pEntry = pEntry,
+        .pSuperEntry = pSuperEntry,
     };
 
     code = metaTableOpFn[op->table][op->op](pMeta, &param);
@@ -1483,15 +1486,36 @@ static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEn
     }
   }
 
+  if (TSDB_CODE_SUCCESS == code) {
+    metaUpdateStbStats(pMeta, pSuperEntry->uid, 1, 0);
+    int32_t ret = metaUidCacheClear(pMeta, pSuperEntry->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+
+    ret = metaTbGroupCacheClear(pMeta, pSuperEntry->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+  }
+
   return code;
 }
 
 static int32_t metaHandleVirtualChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SMetaEntry *pSuperEntry = NULL;
+
+  // get the super table entry
+  code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+    return code;
+  }
 
   // update TDB
   metaWLock(pMeta);
-  code = metaHandleVirtualChildTableCreateImpl(pMeta, pEntry);
+  code = metaHandleVirtualChildTableCreateImpl(pMeta, pEntry, pSuperEntry);
   metaULock(pMeta);
 
   // update other stuff
