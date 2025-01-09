@@ -2606,6 +2606,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   }
   code = tmq_subscribe(tmq, lst);
   tmq_list_destroy(lst);
+  tmqClearUnhandleMsg(tmq);
   if(code != 0){
     goto END;
   }
