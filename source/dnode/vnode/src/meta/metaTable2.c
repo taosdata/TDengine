@@ -1103,14 +1103,31 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   }
 
   // build response
-  if (metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pRsp) < 0) {
-    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  if (pEntry->type == TSDB_VIRTUAL_TABLE) {
+    if (metaUpdateVtbMetaRsp(pEntry->uid, pReq->tbName, pSchema, &pEntry->colRef, pRsp, pEntry->type) < 0) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    } else {
+      for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
+        SColRef *p = &pEntry->colRef.pColRef[i];
+        pRsp->pColRefs[i].hasRef = p->hasRef;
+        if (p->hasRef) {
+          pRsp->pColRefs[i].id = p->id;
+          tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
+        }
+      }
+    }
   } else {
-    for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
-      SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
-      pRsp->pSchemaExt[i].colId = p->id;
-      pRsp->pSchemaExt[i].compress = p->alg;
+    if (metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pRsp) < 0) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    } else {
+      for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
+        SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
+        pRsp->pSchemaExt[i].colId = p->id;
+        pRsp->pSchemaExt[i].compress = p->alg;
+      }
     }
   }
 
@@ -1204,14 +1221,31 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   }
 
   // build response
-  if (metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pRsp) < 0) {
-    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  if (pEntry->type == TSDB_VIRTUAL_TABLE) {
+    if (metaUpdateVtbMetaRsp(pEntry->uid, pReq->tbName, pSchema, &pEntry->colRef, pRsp, pEntry->type) < 0) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    } else {
+      for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
+        SColRef *p = &pEntry->colRef.pColRef[i];
+        pRsp->pColRefs[i].hasRef = p->hasRef;
+        if (p->hasRef) {
+          pRsp->pColRefs[i].id = p->id;
+          tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
+        }
+      }
+    }
   } else {
-    for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
-      SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
-      pRsp->pSchemaExt[i].colId = p->id;
-      pRsp->pSchemaExt[i].compress = p->alg;
+    if (metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pRsp) < 0) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    } else {
+      for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
+        SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
+        pRsp->pSchemaExt[i].colId = p->id;
+        pRsp->pSchemaExt[i].compress = p->alg;
+      }
     }
   }
 
@@ -1262,7 +1296,7 @@ int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     TAOS_RETURN(code);
   }
 
-  if (pChild->type != TSDB_CHILD_TABLE) {
+  if (pChild->type != TSDB_CHILD_TABLE && pChild->type != TSDB_VIRTUAL_CHILD_TABLE) {
     metaError("vgId:%d, %s failed at %s:%d since table %s is not a child table, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, version);
     metaFetchEntryFree(&pChild);

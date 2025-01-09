@@ -15236,6 +15236,13 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta);
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pSuperTableMeta->virtualStb) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_MISMATCH_STABLE_TYPE);
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     SName name = {0};
     toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
@@ -16528,22 +16535,15 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
   }
 
-  if (TSDB_VIRTUAL_TABLE == pTableMeta->tableType) {
-    // virtual table only accept column reference as option
-    if (!pStmt->pColOptions->commentNull || pStmt->pColOptions->bPrimaryKey || 0 != strlen(pStmt->pColOptions->compress) ||
-        0 != strlen(pStmt->pColOptions->encode) || 0 != pStmt->pColOptions->compressLevel) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
-    }
-    // check ref column exists and check type
-    PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->refTableName, pStmt->refColName,
-                            (SDataType){.type = pStmt->dataType.type,
-                                        .bytes = calcTypeBytes(pStmt->dataType)}));
-  }
-
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
     if (TSDB_VIRTUAL_TABLE != pTableMeta->tableType) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
     }
+
+    // check ref column exists and check type
+    PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->refTableName, pStmt->refColName,
+                            (SDataType){.type = pStmt->dataType.type,
+                                        .bytes = calcTypeBytes(pStmt->dataType)}));
 
     pReq->type = pStmt->dataType.type;
     pReq->bytes = calcTypeBytes(pStmt->dataType);
