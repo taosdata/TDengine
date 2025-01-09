@@ -27,15 +27,17 @@ typedef struct SValue    SValue;
 typedef void             DecimalType;
 
 typedef struct Decimal64 {
-  DecimalWord words[1]; // do not touch it directly, use DECIMAL64_GET_VALUE MACRO
+  DecimalWord words[1];  // do not touch it directly, use DECIMAL64_GET_VALUE MACRO
 } Decimal64;
 
-#define DECIMAL64_GET_VALUE(pDec) (int64_t)((pDec)->words[0])
+#define DECIMAL64_GET_VALUE(pDec)      (int64_t)((pDec)->words[0])
 #define DECIMAL64_SET_VALUE(pDec, val) (*(int64_t*)((pDec)->words)) = (int64_t)(val)
-#define DECIMAL64_CLONE(pDst, pFrom) ((Decimal64*)(pDst))->words[0] = ((Decimal64*)(pFrom))->words[0]
+#define DECIMAL64_CLONE(pDst, pFrom)   ((Decimal64*)(pDst))->words[0] = ((Decimal64*)(pFrom))->words[0]
+#define DECIMAL64_MAX                  999999999999999999LL
+#define DECIMAL64_MIN                  -999999999999999999LL
 
 typedef struct Decimal128 {
-  DecimalWord words[2]; // do not touch it directly, use DECIMAL128_HIGH_WORD/DECIMAL128_LOW_WORD
+  DecimalWord words[2];  // do not touch it directly, use DECIMAL128_HIGH_WORD/DECIMAL128_LOW_WORD
 } Decimal128;
 
 #define Decimal        Decimal128
@@ -63,7 +65,7 @@ int32_t decimalToStr(const DecimalType* pDec, int8_t type, int8_t precision, int
 int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOperatorType opType, SDataType* pOutType);
 int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
                   const void* pLeftData, const void* pRightData, void* pOutputData);
-int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* poutType);
+int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType);
 
 // TODO wjm change rightWordNum to DecimalType??
 typedef struct SDecimalOps {
@@ -81,6 +83,8 @@ typedef struct SDecimalOps {
 } SDecimalOps;
 
 SDecimalOps* getDecimalOps(int8_t dataType);
+
+__int128 decimal128ToInt128(const Decimal128* pDec);
 
 #ifdef __cplusplus
 }

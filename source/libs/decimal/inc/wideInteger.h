@@ -54,8 +54,9 @@ bool uInt128Lt(const UInt128* pLeft, const UInt128* pRight);
 bool uInt128Gt(const UInt128* pLeft, const UInt128* pRight);
 bool uInt128Eq(const UInt128* pLeft, const UInt128* pRight);
 
-extern UInt128 uInt128_1e18;
-extern UInt128 uInt128Zero;
+extern const UInt128  uInt128_1e18;
+extern const UInt128  uInt128Zero;
+extern const uint64_t k1e18;
 
 #ifdef __cplusplus
 }

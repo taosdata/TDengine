@@ -274,6 +274,8 @@ static bool    decimal64Lt(const DecimalType* pLeft, const DecimalType* pRight, 
 static bool    decimal64Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static bool    decimal64Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
+static void    decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown);
+static void    decimal64ScaleUp(Decimal64* pDec, uint8_t scaleUp);
 
 static void    decimal128Negate(DecimalType* pInt);
 static void    decimal128Abs(DecimalType* pWord);
@@ -287,7 +289,9 @@ static bool    decimal128Lt(const DecimalType* pLeft, const DecimalType* pRight,
 static bool    decimal128Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static bool    decimal128Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
-static void    decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale);
+void           decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newScale);
+void           decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown);
+void           decimal128ScaleUp(Decimal128* pDec, uint8_t scaleUp);
 
 SDecimalOps decimal64Ops = {decimal64Negate,   decimal64Abs,    decimal64Add,  decimal64Subtract,
                             decimal64Multiply, decimal64divide, decimal64Mod,  decimal64Lt,
@@ -376,10 +380,26 @@ bool decimal64Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t ri
   return DECIMAL64_GET_VALUE((Decimal64*)pLeft) == DECIMAL64_GET_VALUE(((Decimal64*)pRight));
 }
 int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
-  char format[16] = "\%0";
-  snprintf(format + 2, 14, "%" PRIu8 PRIu64, scale);
-  return snprintf(pBuf, bufLen, DECIMAL64_GET_VALUE((Decimal64*)pInt) != 0 ? format : "%" PRIu64,
-                  DECIMAL64_GET_VALUE((Decimal64*)pInt));
+  Decimal     whole = {0}, frac = {0};
+  DecimalWord zero = 0;  // TODO wjm remove zero, use SIGN
+  int32_t     pos = 0;
+
+  if (DECIMAL64_SIGN((Decimal64*)pInt) == -1) {
+    pos = sprintf(pBuf, "-");
+  }
+  int32_t code = decimalGetWhole(pInt, DECIMAL_64, scale, &whole);
+  pos += snprintf(pBuf + pos, bufLen - pos, "%" PRId64, DECIMAL64_GET_VALUE(&whole));
+  if (scale > 0) {
+    decimalGetFrac(pInt, DECIMAL_64, scale, &frac);
+    if (DECIMAL64_GET_VALUE(&frac) != 0 || DECIMAL64_GET_VALUE(&whole) != 0) {
+      TAOS_STRCAT(pBuf + pos, ".");
+      pos += 1;
+      char format[16] = "\%0";
+      snprintf(format + 2, 14, "%" PRIu8 PRIu64, scale);
+      snprintf(pBuf + pos, bufLen - pos, format, DECIMAL64_GET_VALUE(&frac));
+    }
+  }
+  return 0;
 }
 
 // TODO wjm handle endian problem
@@ -450,7 +470,7 @@ void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low) {
 }
 
 static void makeDecimal128FromDecimal64(Decimal128* pTarget, Decimal64 decimal64) {
-  bool        negative = false;
+  bool negative = false;
   if (DECIMAL64_SIGN(&decimal64) == -1) {
     decimal64Negate(&decimal64);
     negative = true;
@@ -577,13 +597,12 @@ static bool decimal128Eq(const DecimalType* pLeft, const DecimalType* pRight, ui
 
 static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, int32_t* digitNum) {
 #define DIGIT_NUM_ONCE 18
-  const uint64_t k1e18 = 100000000000000000;
-  UInt128        a = {0};
-  UInt128        b = {0};
+  UInt128 a = {0};
+  UInt128 b = {0};
   *digitNum = 0;
   makeUInt128(&a, DECIMAL128_HIGH_WORD(pDec), DECIMAL128_LOW_WORD(pDec));
   while (!uInt128Eq(&a, &uInt128Zero)) {
-    uint64_t hi = a >> 64;
+    uint64_t hi = a >> 64;  // TODO wjm ???
     uint64_t lo = a;
 
     uint64_t hiQuotient = hi / k1e18;
@@ -602,7 +621,7 @@ static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, in
 // TODO wjm checkBuflen
 static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
   const Decimal128* pDec = (const Decimal128*)pInt;
-  bool              negative = DECIMAL128_SIGN(pDec) < 0;
+  bool              negative = DECIMAL128_SIGN(pDec) == -1;
   uint64_t          segments[3] = {0};
   int32_t           digitNum = 0;
   char              buf[64] = {0};
@@ -616,6 +635,10 @@ static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBu
     len = 1;
   } else {
     extractDecimal128Digits(pDec, segments, &digitNum);
+  }
+  if (digitNum == 0) {
+    TAOS_STRNCAT(pBuf, "0", 2);
+    return 0;
   }
   for (int32_t i = digitNum - 1; i >= 0; --i) {
     // TODO wjm test 0.0000000000000000000000000000000001
@@ -637,25 +660,8 @@ int32_t decimalToStr(const DecimalType* pDec, int8_t dataType, int8_t precision,
   pBuf[0] = '\0';
   DecimalInternalType iType = DECIMAL_GET_INTERNAL_TYPE(dataType);
   switch (iType) {
-    case DECIMAL_64: {
-      int32_t      wordNum = DECIMAL_GET_WORD_NUM(iType);
-      SDecimalOps* pOps = getDecimalOpsImp(iType);
-      Decimal      whole = {0}, frac = {0};
-      DecimalWord  zero = 0;// TODO wjm remove zero, use SIGN
-      int32_t      pos = 0;
-
-      if (pOps->lt(pDec, &zero, 1)) {
-        pos = sprintf(pBuf, "-");
-      }
-      int32_t code = decimalGetWhole(pDec, iType, scale, &whole);
-      if (!pOps->eq(&whole, &zero, 1)) {
-        pos += pOps->toStr(&whole, scale, pBuf + pos, bufLen - pos);
-      }
-      code = decimalGetFrac(pDec, iType, scale, &frac);
-      if (DECIMAL64_GET_VALUE(&frac) != 0) pos += snprintf(pBuf + pos, bufLen - pos, ".");
-      pOps->toStr(&frac, scale, pBuf + pos, bufLen - pos);
-      return 0;
-    }
+    case DECIMAL_64:
+      return decimal64ToStr(pDec, scale, pBuf, bufLen);
     case DECIMAL_128:
       return decimal128ToStr(pDec, scale, pBuf, bufLen);
     default:
@@ -701,7 +707,7 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
     int32_t   code = 0;                                      \
     Decimal64 dv = {ABS(v)};                                 \
     if (DECIMAL64_IS_OVERFLOW(dv, max)) {                    \
-      code = TSDB_CODE_INTERNAL_ERROR;                       \
+      code = TSDB_CODE_DECIMAL_OVERFLOW;                     \
     } else {                                                 \
       makeDecimal64(pDec, (int64_t)(v));                     \
     }                                                        \
@@ -711,13 +717,96 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
 #define MAKE_DECIMAL64_SIGNED(pDec, v, max)   CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS_INT64)
 #define MAKE_DECIMAL64_UNSIGNED(pDec, v, max) CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS_UINT64);
 
+static int32_t decimal64FromInt64(DecimalType* pDec, uint8_t prec, uint8_t scale, int64_t val) {
+  Decimal64 max = {0};
+  DECIMAL64_GET_MAX(prec - scale, &max);
+  if (DECIMAL64_GET_VALUE(&max) < val || -DECIMAL64_GET_VALUE(&max) > val) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
+  DECIMAL64_SET_VALUE((Decimal64*)pDec, val);
+  decimal64ScaleUp(pDec, scale);
+  return 0;
+}
+
+static int32_t decimal64FromUint64(DecimalType* pDec, uint8_t prec, uint8_t scale, uint64_t val) {
+  Decimal64 max = {0};
+  DECIMAL64_GET_MAX(prec - scale, &max);
+  if ((uint64_t)DECIMAL64_GET_VALUE(&max) < val) return TSDB_CODE_DECIMAL_OVERFLOW;
+  DECIMAL64_SET_VALUE((Decimal64*)pDec, val);
+  decimal64ScaleUp(pDec, scale);
+  return 0;
+}
+
+static int32_t decimal64FromDouble(DecimalType* pDec, uint8_t prec, uint8_t scale, double val) { return 0; }
+
+static int32_t decimal64FromDecimal128(DecimalType* pDec, uint8_t pec, uint8_t scale, const DecimalType* pVal,
+                                       uint8_t valPrec, uint8_t valScale) {
+  return 0;
+}
+
+static int32_t decimal64FromDecimal64(DecimalType* pDec, uint8_t pec, uint8_t scale, const DecimalType* pVal,
+                                      uint8_t valPrec, uint8_t valScale) {
+  return 0;
+}
+
+static int32_t decimal128FromInt64(DecimalType* pDec, uint8_t prec, uint8_t scale, int64_t val) {
+  if (prec - scale <= 18) {
+    Decimal64 max = {0};
+    DECIMAL64_GET_MAX(prec - scale, &max);
+    if (DECIMAL64_GET_VALUE(&max) < val || -DECIMAL64_GET_VALUE(&max) > val) return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
+  uint64_t valAbs = ABS_INT64(val);
+  makeDecimal128(pDec, 0, valAbs);
+  if (val < 0) decimal128Negate(pDec);
+  decimal128ScaleUp(pDec, scale);
+  return 0;
+}
+
+static int32_t decimal128FromUint64(DecimalType* pDec, uint8_t prec, uint8_t scale, uint64_t val) {
+  if (prec - scale <= 19) {
+    Decimal128 max = {0}, decVal = {0};
+    DECIMAL128_GET_MAX(prec - scale, &max);
+    makeDecimal128(&decVal, 0, val);
+    if (decimal128Gt(&decVal, &max, DECIMAL_WORD_NUM(Decimal128))) {
+      return TSDB_CODE_DECIMAL_OVERFLOW;
+    }
+  }
+  makeDecimal128(pDec, 0, val);
+  decimal128ScaleUp(pDec, scale);
+  return 0;
+}
+
+static int32_t decimal128FromDouble(DecimalType* pDec, uint8_t prec, uint8_t scale, double val) { return 0; }
+
+static int32_t decimal128FromDecimal64(DecimalType* pDec, uint8_t prec, uint8_t scale, const DecimalType* pVal,
+                                       uint8_t valPrec, uint8_t valScale) {
+  Decimal64 dec64 = *(Decimal64*)pVal;
+  bool      negative = false;
+  if (DECIMAL64_SIGN(&dec64) == -1) {
+    decimal64Abs(&dec64);
+    negative = true;
+  }
+  Decimal128 max = {0};
+  DECIMAL128_GET_MAX(prec - scale, &max);
+  if (decimal128Lt(&max, &dec64, WORD_NUM(Decimal64))) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
+  makeDecimal128(pDec, 0, DECIMAL64_GET_VALUE(&dec64));
+  if (negative) decimal128Negate(pDec);
+  decimal128ScaleTo(pDec, valScale, scale);
+  return 0;
+}
+static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t scale, const DecimalType* pVal,
+                                        uint8_t valPrec, uint8_t valScale) {
+  return 0;
+}
 #define CHECK_OVERFLOW_AND_MAKE_DECIMAL128(pDec, v, max, ABS) \
   ({                                                          \
     int32_t    code = 0;                                      \
     Decimal128 dv = {0};                                      \
     makeDecimal128(&dv, 0, ABS(v));                           \
     if (DECIMAL128_IS_OVERFLOW(dv, max)) {                    \
-      code = TSDB_CODE_INTERNAL_ERROR;                        \
+      code = TSDB_CODE_DECIMAL_OVERFLOW;                      \
     } else {                                                  \
       makeDecimal128(pDec, v < 0 ? -1 : 0, ABS(v));           \
     }                                                         \
@@ -791,71 +880,168 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
     }                                                                                      \
   } while (0)
 
+#define CONVERT_TO_DECIMAL2(pData, pInputType, pOut, pOutType, decimal)                                          \
+  ({                                                                                                             \
+    int32_t  code = 0;                                                                                           \
+    int64_t  val = 0;                                                                                            \
+    uint64_t uval = 0;                                                                                           \
+    double   dval = 0;                                                                                           \
+    switch (pInputType->type) {                                                                                  \
+      case TSDB_DATA_TYPE_NULL:                                                                                  \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_BOOL:                                                                                  \
+        uval = *(const bool*)pData;                                                                              \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_TINYINT:                                                                               \
+        val = *(const int8_t*)pData;                                                                             \
+        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                              \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_SMALLINT:                                                                              \
+        val = *(const int16_t*)pData;                                                                            \
+        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                              \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_INT:                                                                                   \
+        val = *(const int32_t*)pData;                                                                            \
+        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                              \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_TIMESTAMP:                                                                             \
+      case TSDB_DATA_TYPE_BIGINT:                                                                                \
+        val = *(const int64_t*)pData;                                                                            \
+        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                              \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_UTINYINT:                                                                              \
+        uval = *(const uint8_t*)pData;                                                                           \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_USMALLINT:                                                                             \
+        uval = *(const uint16_t*)pData;                                                                          \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_UINT:                                                                                  \
+        uval = *(const uint32_t*)pData;                                                                          \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_UBIGINT:                                                                               \
+        uval = *(const uint64_t*)pData;                                                                          \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
+        break;                                                                                                   \
+      case TSDB_DATA_TYPE_FLOAT: {                                                                               \
+        dval = *(const float*)pData;                                                                             \
+        code = decimal##FromDouble(pOut, pOutType->precision, pOutType->scale, dval);                            \
+      } break;                                                                                                   \
+      case TSDB_DATA_TYPE_DOUBLE: {                                                                              \
+        dval = *(const double*)pData;                                                                            \
+        code = decimal##FromDouble(pOut, pOutType->precision, pOutType->scale, dval);                            \
+      } break;                                                                                                   \
+      case TSDB_DATA_TYPE_VARCHAR:                                                                               \
+      case TSDB_DATA_TYPE_VARBINARY:                                                                             \
+      case TSDB_DATA_TYPE_NCHAR: {                                                                               \
+        /*decimal##FromStr()*/                                                                                   \
+      } break;                                                                                                   \
+      case TSDB_DATA_TYPE_DECIMAL64: {                                                                           \
+        code = decimal##FromDecimal64(pOut, pOutType->precision, pOutType->scale, pData, pInputType->precision,  \
+                                      pInputType->scale);                                                        \
+      } break;                                                                                                   \
+      case TSDB_DATA_TYPE_DECIMAL: {                                                                             \
+        code = decimal##FromDecimal128(pOut, pOutType->precision, pOutType->scale, pData, pInputType->precision, \
+                                       pInputType->scale);                                                       \
+      } break;                                                                                                   \
+      default:                                                                                                   \
+        code = TSDB_CODE_OPS_NOT_SUPPORT;                                                                        \
+        break;                                                                                                   \
+    }                                                                                                            \
+    code;                                                                                                        \
+  })
+
 int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType) {
   if (pInputType->type == pOutType->type) return 0;
   int32_t code = 0;
 
   switch (pOutType->type) {
     case TSDB_DATA_TYPE_DECIMAL64: {
-      Decimal64 max = {0};
-      DECIMAL64_GET_MAX(pOutType->precision - pOutType->scale, &max);
-      CONVERT_TO_DECIMAL(pInputType->type, pData, pOut, MAKE_DECIMAL64, max, code);
+      code = CONVERT_TO_DECIMAL2(pData, pInputType, pOut, pOutType, decimal64);
     } break;
     case TSDB_DATA_TYPE_DECIMAL: {
-      Decimal128 max = {0};
-      DECIMAL128_GET_MAX(pOutType->precision - pOutType->scale, &max);
-      CONVERT_TO_DECIMAL(pInputType->type, pData, pOut, MAKE_DECIMAL128, max, code);
+      code = CONVERT_TO_DECIMAL2(pData, pInputType, pOut, pOutType, decimal128);
     } break;
     default:
       code = TSDB_CODE_INTERNAL_ERROR;
       break;
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    // scale to output scale
-  }
   return code;
+}
+
+void decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown) {
+  Decimal64 divisor = SCALE_MULTIPLIER_64[scaleDown];
+  decimal64divide(pDec, &divisor, WORD_NUM(Decimal64), NULL);
+}
+
+void decimal64ScaleUp(Decimal64* pDec, uint8_t scaleUp) {
+  Decimal64 multiplier = SCALE_MULTIPLIER_64[scaleUp];
+  decimal64Multiply(pDec, &multiplier, WORD_NUM(Decimal64));
 }
 
 void decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale) {
-  if (newScale < oldScale) {
-    Decimal64 divisor = SCALE_MULTIPLIER_64[oldScale - newScale];
-    decimal64divide(pDec, &divisor, 1, NULL);
-  }
+  if (newScale > oldScale)
+    decimal64ScaleUp(pDec, newScale - oldScale);
+  else if (newScale < oldScale)
+    decimal64ScaleDown(pDec, oldScale - newScale);
 }
 
-int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
-                         Decimal64* result) {
+int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale, Decimal64* pRes) {
   int32_t    code = 0;
-  DecimalVar var = {.type = DECIMAL_64, .pDec = result->words};
+  DecimalVar var = {.type = DECIMAL_64, .pDec = pRes->words};
+  DECIMAL64_SET_VALUE(pRes, 0);
   code = decimalVarFromStr(str, len, &var);
   if (TSDB_CODE_SUCCESS != code) return code;
   Decimal64 max = {0};
-  DECIMAL64_GET_MAX(expectPrecision - expectScale, &max);
-  if (var.scale > expectScale) decimal64ScaleTo(result, var.scale, expectScale);
-  if (decimal64Gt(result, &max, 1)) {
+  DECIMAL64_GET_MAX(expectPrecision, &max);
+  decimal64ScaleTo(pRes, var.scale, expectScale);
+  if (decimal64Gt(pRes, &max, 1)) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
   }
   return code;
+}
+
+void decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown) {
+  Decimal128 divisor = SCALE_MULTIPLIER_128[scaleDown];
+  decimal128Divide(pDec, &divisor, 2, NULL);
+}
+
+void decimal128ScaleUp(Decimal128* pDec, uint8_t scaleUp) {
+  Decimal128 multiplier = SCALE_MULTIPLIER_128[scaleUp];
+  decimal128Multiply(pDec, &multiplier, WORD_NUM(Decimal128));
 }
 
 void decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newScale) {
-  if (newScale < oldScale) {
-    Decimal128 divisor = SCALE_MULTIPLIER_128[oldScale - newScale];
-    decimal128Divide(pDec, &divisor, 2, NULL);
-  }
+  if (newScale > oldScale)
+    decimal128ScaleUp(pDec, newScale - oldScale);
+  else if (newScale < oldScale)
+    decimal128ScaleDown(pDec, oldScale - newScale);
 }
 
 int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
-                          Decimal128* result) {
+                          Decimal128* pRes) {
   int32_t    code = 0;
-  DecimalVar var = {.type = DECIMAL_128, .pDec = result->words};
+  DecimalVar var = {.type = DECIMAL_128, .pDec = pRes->words};
+  DECIMAL128_SET_HIGH_WORD(pRes, 0);
+  DECIMAL128_SET_LOW_WORD(pRes, 0);
   code = decimalVarFromStr(str, len, &var);
   if (TSDB_CODE_SUCCESS != code) return code;
   Decimal128 max = {0};
-  DECIMAL128_GET_MAX(expectPrecision - expectScale, &max);
-  if (var.scale > expectScale) decimal128ScaleTo(result, var.scale, expectScale);
-  if (decimal128Gt(result, &max, 2)) {
+  DECIMAL128_GET_MAX(expectPrecision, &max);
+  decimal128ScaleTo(pRes, var.scale, expectScale);
+  if (decimal128Gt(pRes, &max, 2)) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
   }
   return code;
+}
+
+__int128 decimal128ToInt128(const Decimal128* pDec) {
+  __int128 ret = 0;
+  ret = DECIMAL128_HIGH_WORD(pDec);
+  ret <<= 64;
+  ret |= DECIMAL128_LOW_WORD(pDec);
+  return ret;
 }

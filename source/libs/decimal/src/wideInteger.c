@@ -16,8 +16,9 @@ bool uInt128Lt(const UInt128* pLeft, const UInt128* pRight);
 bool uInt128Gt(const UInt128* pLeft, const UInt128* pRight);
 bool uInt128Eq(const UInt128* pLeft, const UInt128* pRight) { return *pLeft == *pRight; }
 
-UInt128 uInt128Zero = 0;
-UInt128 uInt128_1e18 = 1000000000000000000;
+const UInt128  uInt128Zero = 0;
+const uint64_t k1e18 = 1000000000000000000LL;
+const UInt128  uInt128_1e18 = k1e18;
 #else
 
 void uInt128Multiply(UInt128* pLeft, const UInt128* pRight) {}
