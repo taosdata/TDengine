@@ -229,6 +229,14 @@ impl ZFile {
         Ok((path, file))
     }
 
+    /// 检查当前文件是否存在，防止备份文件被误删
+    pub async fn check(&self) -> anyhow::Result<()> {
+        if !self.current_file.exists() {
+            bail!("file not exists: {}", self.current_file.display());
+        }
+        Ok(())
+    }
+
     pub async fn check_or_next(&mut self) -> anyhow::Result<()> {
         if self.current_size as u64 >= self.max_file_size {
             self.writer.flush().await.map_err(|err| {

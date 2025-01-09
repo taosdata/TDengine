@@ -319,10 +319,9 @@ impl BackupConfigBuilder {
         // interval
         let interval = utils::parse_duration_in_dsn(&self.from, "interval")?;
         if let Some(interval) = interval {
-            if interval < Duration::from_secs(10 * 60) {
-                bail!("interval must be greater than 10 minutes");
-            }
-
+            // if interval < Duration::from_secs(10 * 60) {
+            //     bail!("interval must be greater than 10 minutes");
+            // }
             let sql = format!("SELECT `wal_retention_period` FROM information_schema.ins_databases WHERE name = '{}'", &database);
             tracing::debug!("query with sql: {}", sql);
             let wal_retention_period: u64 = taos.query_one(sql).await?.unwrap();

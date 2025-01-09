@@ -109,21 +109,21 @@ def get_taosx_agent_version():
     return version
 
 def get_install_path():
-    target = "taosx"
+    target = f"{release_info.CustomPrompt}x"
     if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
-        target = taosx_agent_name
+        target = f"{release_info.CustomPrompt}x-agent"
 
     if release_info.OnlyBuild:
-        return os.path.join(taosx_dir,"release","taosx")
+        return os.path.join(taosx_dir, "release", f"{release_info.CustomPrompt}x")
     elif release_info.OS == 'Windows':  # Windows操作系统
-        return f'C:\\TDengine'
+        return f'C:\\{release_info.CustomName}'
     else:
         return os.path.join(taosx_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TdengineVersion, release_info.CpuType.lower()))
 
 def get_package_name():
-    target = "taosx"
+    target = f"{release_info.CustomPrompt}x"
     if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
-        target = taosx_agent_name
+        target = f"{release_info.CustomPrompt}x-agent"
     if release_info.OS == 'Windows':  # Windows操作系统
         return  f'{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}-installer'
     else:
@@ -131,15 +131,15 @@ def get_package_name():
 
 def get_taosx_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
-        return taosx_name + ".exe"
+        return f"{release_info.CustomPrompt}x.exe"
     else:
-        return taosx_name
+        return f"{release_info.CustomPrompt}x"
 
 def get_taosx_agent_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
-        return taosx_agent_name + ".exe"
+        return f"{release_info.CustomPrompt}x-agent.exe"
     else:
-        return taosx_agent_name
+        return f"{release_info.CustomPrompt}x-agent"
 
 def is_connector(element):
     if element in all_connectors:
@@ -357,24 +357,43 @@ def build_and_install_opc(mode):
 
 def copy_taosx_service_file(taosx_install_path):
     taosx_path = os.path.join(taosx_dir, "bin")
-    for filename in os.listdir(taosx_path):
-        if filename.startswith("taosx-srv"):
-            filepath = os.path.join(taosx_path, filename)
-            if os.path.isfile(filepath):
-                shutil.copy2(filepath, taosx_install_path)
+    # for filename in os.listdir(taosx_path):
+    #     if filename.startswith("taosx-srv"):
+    #         filepath = os.path.join(taosx_path, filename)
+    #         if os.path.isfile(filepath):
+    #             shutil.copy2(filepath, taosx_install_path)
+    taosx_exe_path = os.path.join(taosx_path, "taosx-srv.exe")
+    srv_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-srv.exe")
+    shutil.copy2(taosx_exe_path, srv_target)
+
+    taosx_target_path = os.path.join(taosx_dir, "target")
+    taosx_xml_path = os.path.join(taosx_target_path, f"{release_info.CustomPrompt}x-srv.xml")
+    xml_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-srv.xml")
+    shutil.copy2(taosx_xml_path, xml_target)
 
 def copy_taosx_agent_service_file(taosx_install_path):
     taosx_agent_path = os.path.join(taosx_dir, "taosx-agent", "bin")
-    for filename in os.listdir(taosx_agent_path):
-        if filename.startswith("taosx-agent-srv"):
-            filepath = os.path.join(taosx_agent_path, filename)
-            if os.path.isfile(filepath):
-                shutil.copy2(filepath, taosx_install_path)
+    # for filename in os.listdir(taosx_agent_path):
+    #     if filename.startswith("taosx-agent-srv"):
+    #         filepath = os.path.join(taosx_agent_path, filename)
+    #         if os.path.isfile(filepath):
+    #             shutil.copy2(filepath, taosx_install_path)
+    taosx_agent_exe_path = os.path.join(taosx_agent_path, "taosx-agent-srv.exe")
+    srv_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-agent-srv.exe")
+    shutil.copy2(taosx_agent_exe_path, srv_target)
+
+    taosx_target_path = os.path.join(taosx_dir, "target")
+    taosx_agent_xml_path = os.path.join(taosx_target_path, f"{release_info.CustomPrompt}x-agent-srv.xml")
+    xml_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-agent-srv.xml")
+    shutil.copy2(taosx_agent_xml_path, xml_target)
+
 
 def copy_taosx_cfg(taos_cfg_path):
     taosx_cfg = os.path.join(taosx_dir, "examples", "taosx.toml")
     try:
-        shutil.copy2(taosx_cfg, taos_cfg_path)
+        # shutil.copy2(taosx_cfg, taos_cfg_path)
+        cfg_target = os.path.join(taos_cfg_path, f"{release_info.CustomPrompt}x.toml")
+        shutil.copy2(taosx_cfg, cfg_target)
     except FileNotFoundError as e:
         print("Copy taosx cfg from {} to {} failed: {}".format(taosx_cfg, taos_cfg_path, e.strerror))
         sys.exit()
@@ -399,6 +418,12 @@ def build_and_install_taosx(mode):
     taosx_path = os.path.join(taosx_dir, "target", "deploy", get_taosx_output_name())
     try:
         shutil.copy2(taosx_path, taosx_install_path)
+        # if release_info.OS == 'Windows':  # Windows操作系统
+        #     exe_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x.exe")
+        #     shutil.copy2(taosx_path, exe_target)
+        # else:
+        #     exe_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x")
+        #     shutil.copy2(taosx_path, exe_target)
     except FileNotFoundError as e:
         print("Copy TaosX to {} failed: {}".format(taosx_path,  e.strerror))
         sys.exit()
@@ -420,6 +445,12 @@ def build_and_install_taosx_agent(mode):
     taosx_agent_path = os.path.join(taosx_dir, "target", "deploy", get_taosx_agent_output_name())
     try:
         shutil.copy2(taosx_agent_path, taosx_install_path)
+        # if release_info.OS == 'Windows':  # Windows操作系统
+        #     exe_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-agent.exe")
+        #     shutil.copy2(taosx_agent_path, exe_target)
+        # else:
+        #     exe_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x-agent")
+        #     shutil.copy2(taosx_agent_path, exe_target)
     except FileNotFoundError as e:
         print("Copy TaosX to {} failed: {}".format(taosx_agent_path, e.strerror))
         sys.exit()
@@ -512,15 +543,16 @@ def build_and_install_taos_explorer(mode):
 
 def package_on_windows():
     os.chdir(script_dir)
-    target = taosx_name
-    sub_directory = "taosX"
+    target = f"{release_info.CustomPrompt}x"
+    sub_directory = f"{release_info.CustomPrompt}x"
     app_before_install_txt = "info_before_install.txt"
     if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
-        target = taosx_agent_name
+        target = f"{release_info.CustomPrompt}x-agent"
     cmd = f'iscc /F"{release_info.PackageName}" '\
         f'/DMyAppVersion="{release_info.TdengineVersion}" '\
         f'/DMyAppSourceDir="{release_info.InstallPath}" '\
         f'/DCusName="{release_info.CustomName}" '\
+        f'/DCusPrompt="{release_info.CustomPrompt}" '\
         f'/DSubDirectory="{sub_directory}" '\
         f'/DMyAppBeforeInstallTxt="{app_before_install_txt}" '\
         f'/DAppName="{target}" '\
