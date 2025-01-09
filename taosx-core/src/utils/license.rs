@@ -467,6 +467,10 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
             }
 
+            if sink_version < VERSION_3_1_3 {
+                return Ok(LicenseKind::good());
+            }
+
             return check_connector_grant_of(&sink_builder, &sink_version, "td2.6")
                 .await
                 .with_context(sink_dsn_context);
