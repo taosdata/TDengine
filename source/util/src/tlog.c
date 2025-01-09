@@ -1317,29 +1317,28 @@ void checkAndPrepareCrashInfo() {
 }
 
 int32_t initCrashLogWriter() {
-  gCrashBasicInfo.init = true;
-  gCrashBasicInfo.isCrash = false;
   int32_t code = tsem_init(&gCrashBasicInfo.sem, 0, 0);
-  uInfo("crashLogWriter init finished.");
+  if (code != 0) {
+    uError("failed to init sem for crashLogWriter, code:%d", code);
+    return code;
+  }
+  gCrashBasicInfo.isCrash = false;
+  gCrashBasicInfo.init = true;
   return code;
 }
 
 void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime) {
   if (!gCrashBasicInfo.init) {
-    uInfo("crashLogWriter has not init!");
     return;
   }
-  uInfo("write crash log to file, signum:%d, nodeType:%s, clusterId:%" PRId64, signum, nodeType, clusterId);
-  gCrashBasicInfo.isCrash = true;
   gCrashBasicInfo.clusterId = clusterId;
   gCrashBasicInfo.startTime = startTime;
   gCrashBasicInfo.nodeType = nodeType;
   gCrashBasicInfo.signum = signum;
   gCrashBasicInfo.sigInfo = sigInfo;
+  gCrashBasicInfo.isCrash = true;
 
   tsem_wait(&gCrashBasicInfo.sem);
-
-  uInfo("write crash log to file done, signum:%d, nodeType:%s, clusterId:%" PRId64, signum, nodeType, clusterId);
 }
 
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd) {
