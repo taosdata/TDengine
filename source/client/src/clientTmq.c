@@ -64,6 +64,7 @@ enum {
 enum {
   TMQ_CONSUMER_STATUS__INIT = 0,
   TMQ_CONSUMER_STATUS__READY,
+  TMQ_CONSUMER_STATUS__LOST,
   TMQ_CONSUMER_STATUS__CLOSED,
 };
 
@@ -1318,6 +1319,9 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     if (code != TSDB_CODE_MND_CONSUMER_NOT_READY){
       tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
+      if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST){
+        atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__LOST);
+      }
     }
     goto END;
   }
@@ -2253,8 +2257,13 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
     return TSDB_CODE_INVALID_MSG;
   }
   int32_t code = 0;
-
   taosWLockLatch(&tmq->lock);
+
+  if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__LOST){
+    code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+    goto end;
+  }
+
   int32_t numOfTopics = taosArrayGetSize(tmq->clientTopics);
   tqDebugC("consumer:0x%" PRIx64 " start to poll data, numOfTopics:%d", tmq->consumerId, numOfTopics);
 
@@ -2366,7 +2375,7 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     if (code != 0) {
       tqErrorC("consumer:0x%" PRIx64 " failed to ask ep, code:%s", tmq->consumerId, tstrerror(code));
     }
-  } else if (code == TSDB_CODE_TMQ_NO_TABLE_QUALIFIED){
+  } else if (pRspWrapper->code == TSDB_CODE_TMQ_NO_TABLE_QUALIFIED){
     code = 0;
   }
   tqInfoC("consumer:0x%" PRIx64 " msg from vgId:%d discarded, since %s", tmq->consumerId, pollRspWrapper->vgId,
@@ -2533,7 +2542,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     if (timeout >= 0) {
       int64_t currentTime = taosGetTimestampMs();
       int64_t elapsedTime = currentTime - startTime;
-      TSDB_CHECK_CONDITION(elapsedTime <= timeout && elapsedTime >= 0, code, lino, END, TSDB_CODE_TMQ_POLL_TIMEOUT);
+      TSDB_CHECK_CONDITION(elapsedTime <= timeout && elapsedTime >= 0, code, lino, END, 0);
       (void)tsem2_timewait(&tmq->rspSem, (timeout - elapsedTime));
     } else {
       (void)tsem2_timewait(&tmq->rspSem, 1000);
@@ -2578,7 +2587,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   tqInfoC("consumer:0x%" PRIx64 " start to unsubscribe consumer, status:%d", tmq->consumerId, status);
 
   displayConsumeStatistics(tmq);
-  if (status != TMQ_CONSUMER_STATUS__READY) {
+  if (status != TMQ_CONSUMER_STATUS__READY && status != TMQ_CONSUMER_STATUS__LOST) {
     tqInfoC("consumer:0x%" PRIx64 " status:%d, already closed or not in ready state, no need unsubscribe", tmq->consumerId, status);
     goto END;
   }
