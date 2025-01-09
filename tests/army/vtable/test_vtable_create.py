@@ -104,6 +104,14 @@ class TDTestCase(TBase):
                       "binary_32_tag binary(32))" 
                       "VIRTUAL 1")
 
+    def check_virtual_table_create(self, vctable_num, vntable_num):
+        tdSql.query("show test_vtable_create.vtables;")
+        tdSql.checkRows(vctable_num + vntable_num)
+        tdSql.query("show child test_vtable_create.vtables;")
+        tdSql.checkRows(vctable_num)
+        tdSql.query("show normal test_vtable_create.vtables;")
+        tdSql.checkRows(vntable_num)
+
     def test_create_virtual_child_table(self):
         tdLog.info(f"test create virtual child tables.")
 
@@ -120,6 +128,8 @@ class TDTestCase(TBase):
                       "vtb_org_child_3.u_bigint_col,"
                       "vtb_org_child_4.tinyint_col) USING vtb_virtual_stb TAGS (0, false, 0, 0, 'vchild0', 'vchild0')")
 
+        self.check_virtual_table_create(1, 0)
+
         # 1.1.2 org table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb1`("
                       "vtb_org_normal_0.u_tinyint_col, "
@@ -128,6 +138,8 @@ class TDTestCase(TBase):
                       "vtb_org_normal_3.u_bigint_col,"
                       "vtb_org_normal_4.tinyint_col) USING vtb_virtual_stb TAGS (1, false, 1, 1, 'vchild1', 'vchild1')")
 
+        self.check_virtual_table_create(2, 0)
+
         # 1.1.3 org table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb2`("
                       "vtb_org_child_0.u_tinyint_col, "
@@ -135,6 +147,8 @@ class TDTestCase(TBase):
                       "vtb_org_child_2.u_int_col, "
                       "vtb_org_normal_3.u_bigint_col,"
                       "vtb_org_child_4.tinyint_col) USING vtb_virtual_stb TAGS (2, false, 2, 2, 'vchild2', 'vchild2')")
+
+        self.check_virtual_table_create(3, 0)
 
         # 1.2 specify all columns of vtable
         # 1.2.1 org table is child table
@@ -159,6 +173,8 @@ class TDTestCase(TBase):
                       "vtb_org_child_17.geo_16_col, "
                       "vtb_org_child_18.geo_32_col) USING vtb_virtual_stb TAGS (3, false, 3, 3, 'vchild3', 'vchild3')")
 
+        self.check_virtual_table_create(4, 0)
+
         # 1.2.2 org table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb4`("
                       "vtb_org_normal_0.u_tinyint_col, "
@@ -180,6 +196,8 @@ class TDTestCase(TBase):
                       "vtb_org_normal_16.varbinary_32_col, "
                       "vtb_org_normal_17.geo_16_col, "
                       "vtb_org_normal_18.geo_32_col) USING vtb_virtual_stb TAGS (4, false, 4, 4, 'vchild4', 'vchild4')")
+
+        self.check_virtual_table_create(5, 0)
 
         # 1.2.3 org table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb5`("
@@ -203,6 +221,8 @@ class TDTestCase(TBase):
                       "vtb_org_normal_17.geo_16_col, "
                       "vtb_org_child_18.geo_32_col) USING vtb_virtual_stb TAGS (5, false, 5, 5, 'vchild5', 'vchild5')")
 
+        self.check_virtual_table_create(6, 0)
+
         # 2.create virtual child table and use 'FROM' to specify the org table
         # 2.1 specify part of columns of vtable
         # 2.1.1 org table is child table
@@ -214,6 +234,8 @@ class TDTestCase(TBase):
                       "bool_col FROM vtb_org_child_10.bool_col,"
                       "binary_32_col FROM vtb_org_child_12.binary_32_col) USING vtb_virtual_stb  TAGS (6, false, 6, 6, 'vchild6', 'vchild6')")
 
+        self.check_virtual_table_create(7, 0)
+
         # 2.1.2 org table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb7`("
                       "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
@@ -223,6 +245,8 @@ class TDTestCase(TBase):
                       "bool_col FROM vtb_org_normal_10.bool_col,"
                       "binary_32_col FROM vtb_org_normal_12.binary_32_col) USING vtb_virtual_stb TAGS (7, false, 7, 7, 'vchild7', 'vchild7')")
 
+        self.check_virtual_table_create(8, 0)
+
         # 2.1.3 org table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb8`("
                       "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
@@ -231,6 +255,8 @@ class TDTestCase(TBase):
                       "float_col FROM vtb_org_normal_8.float_col,"
                       "bool_col FROM vtb_org_child_10.bool_col,"
                       "binary_32_col FROM vtb_org_normal_12.binary_32_col) USING vtb_virtual_stb TAGS (8, false, 8, 8, 'vchild8', 'vchild8')")
+
+        self.check_virtual_table_create(9, 0)
 
         # 2.2 specify all columns of vtable
         # 2.2.1 org table is child table
@@ -255,6 +281,8 @@ class TDTestCase(TBase):
                       "geo_16_col FROM vtb_org_child_17.geo_16_col, "
                       "geo_32_col FROM vtb_org_child_18.geo_32_col) USING vtb_virtual_stb TAGS (9, false, 9, 9, 'vchild9', 'vchild9')")
 
+        self.check_virtual_table_create(10, 0)
+
         # 2.2.2 org table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb10`("
                       "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
@@ -276,6 +304,8 @@ class TDTestCase(TBase):
                       "varbinary_32_col FROM vtb_org_normal_16.varbinary_32_col, "
                       "geo_16_col FROM vtb_org_normal_17.geo_16_col, "
                       "geo_32_col FROM vtb_org_normal_18.geo_32_col) USING vtb_virtual_stb TAGS (10, false, 10, 10, 'vchild10', 'vchild10')")
+
+        self.check_virtual_table_create(11, 0)
 
         # 2.2.3 org table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb11`("
@@ -299,6 +329,8 @@ class TDTestCase(TBase):
                       "geo_16_col FROM vtb_org_normal_17.geo_16_col, "
                       "geo_32_col FROM vtb_org_child_18.geo_32_col) USING vtb_virtual_stb TAGS (11, false, 11, 11, 'vchild11', 'vchild11')")
 
+        self.check_virtual_table_create(12, 0)
+
         # 2.3 specify all columns in random order of vtable
         # 2.3.1 org table is child table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb12`("
@@ -321,6 +353,8 @@ class TDTestCase(TBase):
                       "u_smallint_col FROM vtb_org_child_1.u_smallint_col, "
                       "bigint_col FROM vtb_org_child_7.bigint_col) USING vtb_virtual_stb TAGS (12, false, 12, 12, 'vchild12', 'vchild12')")
 
+        self.check_virtual_table_create(13, 0)
+
         # 2.3.2 org table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb13`("
                       "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
@@ -342,6 +376,8 @@ class TDTestCase(TBase):
                       "u_smallint_col FROM vtb_org_normal_1.u_smallint_col, "
                       "bigint_col FROM vtb_org_normal_7.bigint_col) USING vtb_virtual_stb TAGS (13, false, 13, 13, 'vchild13', 'vchild13')")
 
+        self.check_virtual_table_create(14, 0)
+
         # 2.3.3 org table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb14`("
                       "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
@@ -362,6 +398,8 @@ class TDTestCase(TBase):
                       "geo_32_col FROM vtb_org_normal_18.geo_32_col, "
                       "u_smallint_col FROM vtb_org_normal_1.u_smallint_col, "
                       "bigint_col FROM vtb_org_child_7.bigint_col) USING vtb_virtual_stb TAGS (14, false, 14, 14, 'vchild14', 'vchild14')")
+
+        self.check_virtual_table_create(15, 0)
 
     def test_create_virtual_normal_table(self):
         tdLog.info(f"test create virtual normal tables.")
@@ -393,6 +431,8 @@ class TDTestCase(TBase):
                       "geo_16_col geometry(16) from vtb_org_child_17.geo_16_col,"
                       "geo_32_col geometry(32) from vtb_org_child_18.geo_32_col)")
 
+        self.check_virtual_table_create(15, 1)
+
         # 3.1.2 org table is normal table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb1` ("
                       "ts timestamp, "
@@ -416,6 +456,8 @@ class TDTestCase(TBase):
                       "geo_16_col geometry(16) from vtb_org_normal_17.geo_16_col,"
                       "geo_32_col geometry(32) from vtb_org_normal_18.geo_32_col)")
 
+        self.check_virtual_table_create(15, 2)
+
         # 3.1.3 org table is child table and normal table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb2` ("
                       "ts timestamp, "
@@ -438,6 +480,8 @@ class TDTestCase(TBase):
                       "varbinary_32_col varbinary(32) from vtb_org_child_16.varbinary_32_col,"
                       "geo_16_col geometry(16),"
                       "geo_32_col geometry(32) from vtb_org_child_18.geo_32_col)")
+
+        self.check_virtual_table_create(15, 3)
 
         # 3.2 specify all columns of vtable
         # 3.2.1 org table is child table
@@ -463,6 +507,8 @@ class TDTestCase(TBase):
                       "geo_16_col geometry(16) from vtb_org_child_17.geo_16_col,"
                       "geo_32_col geometry(32) from vtb_org_child_18.geo_32_col)")
 
+        self.check_virtual_table_create(15, 4)
+
         # 3.2.2 org table is normal table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb4` ("
                       "ts timestamp, "
@@ -485,6 +531,8 @@ class TDTestCase(TBase):
                       "varbinary_32_col varbinary(32) from vtb_org_normal_16.varbinary_32_col,"
                       "geo_16_col geometry(16) from vtb_org_normal_17.geo_16_col,"
                       "geo_32_col geometry(32) from vtb_org_normal_18.geo_32_col)")
+
+        self.check_virtual_table_create(15, 5)
 
         # 3.2.3 org table is child table and normal table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb5` ("
@@ -509,6 +557,8 @@ class TDTestCase(TBase):
                       "geo_16_col geometry(16) from vtb_org_normal_17.geo_16_col,"
                       "geo_32_col geometry(32) from vtb_org_child_18.geo_32_col)")
 
+        self.check_virtual_table_create(15, 6)
+
     def test_error_cases(self):
         # 1. create virtual child table using non-virtual super table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb0`("
@@ -519,12 +569,7 @@ class TDTestCase(TBase):
                     "vtb_org_child_4.tinyint_col) USING vtb_org_stb TAGS (0, false, 0, 0, 'vchild0', 'vchild0')")
 
         # 2. create child table using virtual super table
-        tdSql.error("CREATE TABLE `error_vtb_virtual_ctb1`("
-                    "vtb_org_child_0.u_tinyint_col, "
-                    "vtb_org_child_1.u_smallint_col, "
-                    "vtb_org_child_2.u_int_col, "
-                    "vtb_org_child_3.u_bigint_col,"
-                    "vtb_org_child_4.tinyint_col) USING vtb_virtual_stb TAGS (1, false, 1, 1, 'vchild1', 'vchild1')")
+        tdSql.error("CREATE TABLE `error_vtb_virtual_ctb1` USING vtb_virtual_stb TAGS (1, false, 1, 1, 'vchild1', 'vchild1')")
 
         # 3. create virtual child table using non-exist super table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb2`("

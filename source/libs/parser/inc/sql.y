@@ -436,10 +436,6 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::=
   full_table_name(B) ALTER COLUMN column_name(C) SET NULL(D).                     { A = createAlterTableRemoveColRef(pCxt, B, TSDB_ALTER_TABLE_REMOVE_COLUMN_REF, &C, &D); }
 
-alter_table_clause(A) ::=
-  full_table_name(B) ADD COLUMN column_name(C) type_name(D) SET table_name(E) NK_DOT column_name(F).
-                                                                                  { A = createAlterTableAddColWithRef(pCxt, B, TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF, &C, D, &E, &F); }
-
 %type column_tag_value_list                                                          { SNodeList* }
 %destructor column_tag_value_list                                                    { nodesDestroyList($$); }
 column_tag_value(A) ::= column_name(C) NK_EQ tags_literal(D).                        { A = createAlterSingleTagColumnNode(pCxt, &C, D); }
