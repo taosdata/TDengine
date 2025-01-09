@@ -2854,6 +2854,8 @@ async fn consume_flat_record(
                         metrics,
                         notifier,
                         cancel,
+                        task_id,
+                        parser.global(),
                     )
                     .in_current_span()
                     .await
@@ -2868,6 +2870,8 @@ async fn consume_flat_record(
                         metrics,
                         notifier,
                         cancel,
+                        task_id,
+                        parser.global(),
                     )
                     .in_current_span()
                     .await
@@ -2927,6 +2931,8 @@ async fn consume_flat_record(
                                     metrics,
                                     notifier,
                                     cancel,
+                                    task_id,
+                                    parser.global(),
                                 )
                                 .in_current_span()
                                 .await
@@ -2941,6 +2947,8 @@ async fn consume_flat_record(
                                     metrics,
                                     notifier,
                                     cancel,
+                                    task_id,
+                                    parser.global(),
                                 )
                                 .in_current_span()
                                 .await

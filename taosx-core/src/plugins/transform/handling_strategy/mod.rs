@@ -295,6 +295,15 @@ pub struct ProcessOnAbnormal {
     #[serde(default)]
     pub connection_timeout_in_second: u64,
 
+    #[serde(default)]
+    pub database_not_exist: HandlingStrategy,
+    #[serde(default)]
+    pub stable_not_exist: HandlingStrategy,
+    #[serde(default)]
+    pub table_not_exist: HandlingStrategy,
+    #[serde(default)]
+    pub database_connection_error: HandlingStrategy,
+
     /// Cache configuration, when the database reports a resource shortage error
     #[serde(default)]
     pub cache: Cache,
@@ -322,6 +331,10 @@ impl Default for ProcessOnAbnormal {
             field_length_overflow: HandlingDataOverflow::default(),
             ingesting_error: HandlingStrategy::default(),
             connection_timeout_in_second: 0,
+            database_not_exist: HandlingStrategy::default(),
+            stable_not_exist: HandlingStrategy::default(),
+            table_not_exist: HandlingStrategy::default(),
+            database_connection_error: HandlingStrategy::default(),
             cache: Cache::default(),
             archive: Archive::default(),
         }

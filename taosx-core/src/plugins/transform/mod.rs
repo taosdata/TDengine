@@ -1723,7 +1723,7 @@ fn generate_table_name(
 /// - task_id: the id of task
 /// - location: the location of parquet file
 /// - batch: the record batch
-fn archive_records(
+pub fn archive_records(
     task_id: i64,
     location: &String,
     batch: &RecordBatch,
@@ -2266,7 +2266,7 @@ pub struct TableOptions {
     /// How to process on abnormal.
     #[serde(default)]
     #[serde(flatten)]
-    process_on_abnormal: ProcessOnAbnormal,
+    pub process_on_abnormal: ProcessOnAbnormal,
 }
 
 impl Default for TableOptions {
