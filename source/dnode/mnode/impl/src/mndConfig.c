@@ -308,28 +308,27 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   }
 
   // encode mnd config version
-  SConfigObj *versionObj = mndInitConfigVersion();
-  if ((code = mndSetCreateConfigCommitLogs(pTrans, versionObj)) != 0) {
+  SConfigObj versionObj = mndInitConfigVersion();
+  if ((code = mndSetCreateConfigCommitLogs(pTrans, &versionObj)) != 0) {
     mError("failed to init mnd config version, since %s", tstrerror(code));
-    tFreeSConfigObj(versionObj);
+    tFreeSConfigObj(&versionObj);
     goto _OVER;
   }
-  tFreeSConfigObj(versionObj);
+  tFreeSConfigObj(&versionObj);
   sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
 
   for (int i = 0; i < sz; ++i) {
     SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
-    SConfigObj  *pObj = mndInitConfigObj(item);
-    if (pObj == NULL) {
-      code = terrno;
+    SConfigObj   pObj;
+    if ((code = mndInitConfigObj(item, &pObj)) != 0) {
       goto _OVER;
     }
-    if ((code = mndSetCreateConfigCommitLogs(pTrans, pObj)) != 0) {
+    if ((code = mndSetCreateConfigCommitLogs(pTrans, &pObj)) != 0) {
       mError("failed to init mnd config:%s, since %s", item->name, tstrerror(code));
-      tFreeSConfigObj(pObj);
+      tFreeSConfigObj(&pObj);
       goto _OVER;
     }
-    tFreeSConfigObj(pObj);
+    tFreeSConfigObj(&pObj);
   }
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
@@ -386,12 +385,9 @@ static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
       SConfigObj  *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
       if (obj == NULL) {
         mInfo("config:%s, not exist in sdb, try to add it", item->name);
-        SConfigObj *newObj = mndInitConfigObj(item);
-        if (newObj == NULL) {
-          code = terrno;
-          goto _exit;
-        }
-        if (NULL == taosArrayPush(addArray, newObj)) {
+        SConfigObj newObj;
+        if ((code = mndInitConfigObj(item, &newObj)) != 0) goto _exit;
+        if (NULL == taosArrayPush(addArray, &newObj)) {
           code = terrno;
           goto _exit;
         }
