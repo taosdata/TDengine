@@ -68,7 +68,8 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 ```bash
 sudo apt-get udpate
-sudo apt-get install -y gcc cmake build-essential git libjansson-dev libsnappy-dev liblzma-dev zlib1g-dev pkg-config
+sudo apt-get install -y gcc cmake build-essential git libjansson-dev \
+  libsnappy-dev liblzma-dev zlib1g-dev pkg-config
 ```
 
 ### For CentOS 8
@@ -92,7 +93,8 @@ To build the [taosTools](https://github.com/taosdata/taos-tools) on Fedora or Ro
 ```bash
 sudo dnf install -y dnf-plugins-core
 sudo dnf config-manager --set-enabled powertools
-sudo dnf install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static
+sudo dnf install -y zlib-devel zlib-static xz-devel snappy-devel jansson \
+  jansson-devel pkgconfig libatomic libatomic-static libstdc++-static
 ```
 
 ## 3.2 On macOS
@@ -144,8 +146,7 @@ You can run the bash script `build.sh` to build both TDengine and taosTools incl
 It equals to execute following commands:
 
 ```bash
-mkdir debug
-cd debug
+mkdir debug && cd debug
 cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
 make
 ```
@@ -156,10 +157,8 @@ You can use Jemalloc as memory allocator instead of glibc:
 cmake .. -DJEMALLOC_ENABLED=true
 ```
 
-TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 platform.
-You can also specify CPUTYPE option like aarch64 too if the detection result is not correct:
-
-aarch64:
+TDengine build script can auto-detect the host machine's architecture on x86, x86-64, arm64 platform.
+You can also specify architecture manually by CPUTYPE option:
 
 ```bash
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
@@ -223,15 +222,13 @@ nmake
 
 ## 5.1 Install on Linux
 
-After building successfully, TDengine can be installed by
+After building successfully, TDengine can be installed by:
 
 ```bash
 sudo make install
 ```
 
-Users can find more information about directories installed on the system in the [directory and files](https://docs.tdengine.com/reference/directory/) section.
-
-Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
+Installing from source code will also configure service management for TDengine. Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
 
 ## 5.2 Install on macOS
 
@@ -279,11 +276,11 @@ In another terminal, use the TDengine CLI to connect the server:
 ./build/bin/taos -c test/cfg
 ```
 
-option "-c test/cfg" specifies the system configuration file directory.
+Option `-c test/cfg` specifies the system configuration file directory.
 
 ## 6.2 Run TDengine on Windows
 
-You can start TDengine server on windows platform with below commands:
+You can start TDengine server on Windows platform with below commands:
 
 ```cmd
 .\build\bin\taosd.exe -c test\cfg
