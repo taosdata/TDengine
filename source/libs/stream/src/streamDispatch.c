@@ -1842,6 +1842,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
+  stDebug("s-task:%s lastMsgId:%"PRId64 " for upstream taskId:0x%x(vgId:%d)", id, pInfo->lastMsgId, pReq->upstreamTaskId,
+          pReq->upstreamNodeId);
+
   if (pMeta->role == NODE_ROLE_FOLLOWER) {
     stError("s-task:%s task on follower received dispatch msgs, dispatch msg rejected", id);
     status = TASK_INPUT_STATUS__REFUSED;
@@ -1866,7 +1869,14 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
           stDebug("s-task:%s recv trans-state msgId:%d from upstream:0x%x", id, pReq->msgId, pReq->upstreamTaskId);
         }
 
-        status = streamTaskAppendInputBlocks(pTask, pReq);
+        if (pReq->msgId > pInfo->lastMsgId) {
+          status = streamTaskAppendInputBlocks(pTask, pReq);
+          pInfo->lastMsgId = pReq->msgId;
+        } else {
+          stWarn("s-task:%s duplicate msgId:%d from upstream:0x%x, from vgId:%d already recv msgId:%" PRId64, id,
+                 pReq->msgId, pReq->upstreamTaskId, pReq->srcVgId, pInfo->lastMsgId);
+          status = TASK_INPUT_STATUS__NORMAL;  // still return success
+        }
       }
     }
   }
