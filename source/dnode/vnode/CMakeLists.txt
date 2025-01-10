@@ -84,6 +84,13 @@ list(
     ${TSDB_SOURCE_FILES}
 )
 
+aux_source_directory("src/bse/" TSDB_SOURCE_FILES)
+list(
+    APPEND
+    VNODE_SOURCE_FILES
+    ${TSDB_SOURCE_FILES}
+)
+
 target_sources(
     vnode
     PRIVATE
