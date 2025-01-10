@@ -2392,7 +2392,7 @@ impl Activity {
             id,
             at: Utc::now(),
             level: LevelFilter::Info,
-            activity: "stop".to_string(),
+            activity: "Task stopping".to_string(),
             status: "stopping".to_string(),
             context: None,
         }
