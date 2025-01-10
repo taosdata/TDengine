@@ -1323,13 +1323,13 @@ bool setReportThreadWait() {
 bool setReportThreadRunning() {
   CrashStatus status =
       atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_WAIT, CRASH_LOG_WRITER_RUNNING);
-  if (status == CRASH_LOG_WRITER_RUNNING) {
+  if (status == CRASH_LOG_WRITER_WAIT) {
     return true;
   } else {
     return false;
   }
 }
-static void writeCrashLogToFileInNewThead() {
+static void checkWriteCrashLogToFileInNewThead() {
   if (setReportThreadRunning()) {
     char       *pMsg = NULL;
     const char *flags = "UTL FATAL ";
@@ -1351,7 +1351,7 @@ static void writeCrashLogToFileInNewThead() {
 }
 
 void checkAndPrepareCrashInfo() {
-  return writeCrashLogToFileInNewThead();
+  return checkWriteCrashLogToFileInNewThead();
 }
 
 int32_t initCrashLogWriter() {
