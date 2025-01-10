@@ -321,10 +321,10 @@ function build_TDengine() {
     echo "versionType $versionType"
     if [ "$versionType" != "community" ];then
         echo "build enterprise or industry version"
-        BUILD_KEEPER="tdinternal"
+        BUILD_KEEPER="internal"
         mkdir -p ${internalDir}/debug
         cd ${internalDir}/debug
-        cmd="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue} -DTD_PRODUCT_NAME=\"TDengine Enterprise Edition\" -DBUILD_KEEPER=${BUILD_KEEPER} "
+        cmd="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue} -DTD_PRODUCT_NAME=\"TDengine Enterprise Edition\" -DBUILD_KEEPER=${BUILD_KEEPER} -DBUILD_SANITIZER=0 "
         if [ "$versionType" == "enterprise" ]; then
             echo "build TDengine enterprise version"
             echo $cmd
@@ -345,7 +345,7 @@ function build_TDengine() {
         echo "cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true  -DBUILD_KEEPER=${BUILD_KEEPER}"
         cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type}          \
             -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE="${build_time}" -DGITINFO=${gitinfo}        \
-            -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_KEEPER=${BUILD_KEEPER}
+            -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_KEEPER=${BUILD_KEEPER} 
 
         binPath="${communityDir}/debug/build/bin"
         repoDir="${communityDir}"
