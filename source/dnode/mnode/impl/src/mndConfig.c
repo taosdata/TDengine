@@ -308,32 +308,27 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   }
 
   // encode mnd config version
-  SConfigObj *versionObj = mndInitConfigVersion();
-  if ((code = mndSetCreateConfigCommitLogs(pTrans, versionObj)) != 0) {
+  SConfigObj versionObj = mndInitConfigVersion();
+  if ((code = mndSetCreateConfigCommitLogs(pTrans, &versionObj)) != 0) {
     mError("failed to init mnd config version, since %s", tstrerror(code));
-    tFreeSConfigObj(versionObj);
-    taosMemoryFree(versionObj);
+    tFreeSConfigObj(&versionObj);
     goto _OVER;
   }
-  tFreeSConfigObj(versionObj);
-  taosMemoryFree(versionObj);
+  tFreeSConfigObj(&versionObj);
   sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
 
   for (int i = 0; i < sz; ++i) {
     SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
-    SConfigObj  *obj = mndInitConfigObj(item);
-    if (obj == NULL) {
-      code = terrno;
+    SConfigObj   obj;
+    if ((code = mndInitConfigObj(item, &obj)) != 0) {
       goto _OVER;
     }
-    if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
+    if ((code = mndSetCreateConfigCommitLogs(pTrans, &obj)) != 0) {
       mError("failed to init mnd config:%s, since %s", item->name, tstrerror(code));
-      tFreeSConfigObj(obj);
-      taosMemoryFree(obj);
+      tFreeSConfigObj(&obj);
       goto _OVER;
     }
-    tFreeSConfigObj(obj);
-    taosMemoryFree(obj);
+    tFreeSConfigObj(&obj);
   }
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
@@ -372,11 +367,11 @@ static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
   if (!mndIsLeader(pMnode)) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t   code = 0;
-  int32_t   sz = -1;
-  STrans   *pTrans = NULL;
-  SAcctObj *vObj = NULL, *obj = NULL;
-  SArray   *addArray = NULL;
+  int32_t     code = 0;
+  int32_t     sz = -1;
+  STrans     *pTrans = NULL;
+  SConfigObj *vObj = NULL;
+  SArray     *addArray = NULL;
 
   vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
@@ -387,14 +382,12 @@ static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
     addArray = taosArrayInit(4, sizeof(SConfigObj));
     for (int i = 0; i < sz; ++i) {
       SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
-      obj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
+      SConfigObj  *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
       if (obj == NULL) {
-        SConfigObj *newObj = mndInitConfigObj(item);
-        if (newObj == NULL) {
-          code = terrno;
-          goto _exit;
-        }
-        if (NULL == taosArrayPush(addArray, newObj)) {
+        mInfo("config:%s, not exist in sdb, try to add it", item->name);
+        SConfigObj newObj;
+        if ((code = mndInitConfigObj(item, &newObj)) != 0) goto _exit;
+        if (NULL == taosArrayPush(addArray, &newObj)) {
           code = terrno;
           goto _exit;
         }
@@ -422,7 +415,6 @@ _exit:
     mError("failed to try rebuild config in sdb, since %s", tstrerror(code));
   }
   sdbRelease(pMnode->pSdb, vObj);
-  sdbRelease(pMnode->pSdb, obj);
   cfgObjArrayCleanUp(addArray);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
