@@ -41,9 +41,10 @@ void extractWideInteger(__int128 a) {
   printArray<38 / DIGIT_NUM>(segments);
 }
 
-void printDecimal128(const Decimal128* pDec, int8_t precision, int8_t scale) {
+void printDecimal(const DecimalType* pDec, uint8_t type, uint8_t prec, uint8_t scale) {
   char buf[64] = {0};
-  decimalToStr(pDec->words, TSDB_DATA_TYPE_DECIMAL, precision, scale, buf, 64);
+  int32_t code = decimalToStr(pDec, type, prec, scale, buf, 64);
+  ASSERT_EQ(code, 0);
   cout << buf;
 }
 
@@ -54,6 +55,16 @@ __int128 generate_big_int128(uint32_t digitNum) {
     a += (i % 10);
   }
   return a;
+}
+
+void checkDecimal(const DecimalType* pDec, uint8_t t, uint8_t prec, uint8_t scale, const char* valExpect) {
+  ASSERT_TRUE(t == prec > 18 ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64);
+  ASSERT_TRUE(scale <= prec);
+  char buf[64] = {0};
+  int32_t code = decimalToStr(pDec, t, prec, scale, buf, 64);
+  ASSERT_EQ(code, 0);
+  ASSERT_STREQ(buf, valExpect);
+  cout << "decimal" << (prec > 18 ? 128 : 64) << " " << (int32_t)prec << ":" << (int32_t)scale << " -> " << buf << endl;
 }
 
 TEST(decimal, a) {
@@ -93,17 +104,17 @@ TEST(decimal128, divide) {
   int8_t     out_scale = 25;
   int8_t     out_precision = std::min(precision1 - scale1 + scale2 + out_scale, 38);
   int8_t     delta_scale = out_scale + scale2 - scale1;
-  printDecimal128(&d, precision1, scale1);
+  printDecimal(&d, TSDB_DATA_TYPE_DECIMAL, precision1, scale1);
   __int128 a = 1;
   while (delta_scale-- > 0) a *= 10;
   Decimal128 multiplier = {0};
   makeDecimal128(&multiplier, a >> 64, a);
   ops->multiply(d.words, multiplier.words, 2);
   cout << " / ";
-  printDecimal128(&d2, precision2, scale2);
+  printDecimal(&d2, TSDB_DATA_TYPE_DECIMAL, precision2, scale2);
   cout << " = ";
   ops->divide(d.words, d2.words, 2, remainder.words);
-  printDecimal128(&d, out_precision, out_scale);
+  printDecimal(&d, TSDB_DATA_TYPE_DECIMAL, out_precision, out_scale);
 }
 
 TEST(decimal, cpi_taos_fetch_rows) {
@@ -158,12 +169,6 @@ TEST(decimal, cpi_taos_fetch_rows) {
   taos_cleanup();
 }
 
-void printDecimal(const char* pDecStr, uint8_t type, uint8_t prec, uint8_t scale) {
-  ASSERT_TRUE(type == prec > 18 ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64);
-  ASSERT_TRUE(scale <= prec);
-
-  cout << "decimal" << (prec > 18 ? 128 : 64) << " " << (int32_t)prec << ":" << (int32_t)scale << " -> " << pDecStr << endl;
-}
 
 TEST(decimal, conversion) {
   // convert uint8 to decimal
@@ -175,11 +180,8 @@ TEST(decimal, conversion) {
   Decimal64 dec64 = {0};
   int32_t   code = convertToDecimal(&i8, &inputType, &dec64, &decType);
   ASSERT_TRUE(code == 0);
-  code = decimalToStr(&dec64, TSDB_DATA_TYPE_DECIMAL64, prec, scale, buf, 64);
-  ASSERT_EQ(code, 0);
-  cout << "convert uint8: " << (int32_t)i8 << " to decimal64 " << (uint32_t)prec << ":" << (uint32_t)scale << "-> "
-       << buf << endl;
-  ASSERT_STREQ(buf, "22.00");
+  cout << "convert uint8: " << (int32_t)i8 << " to ";
+  checkDecimal(&dec64, TSDB_DATA_TYPE_DECIMAL64, prec, scale, "22.00");
 
   Decimal128 dec128 = {0};
   decType.type = TSDB_DATA_TYPE_DECIMAL;
@@ -188,31 +190,20 @@ TEST(decimal, conversion) {
   decType.bytes = 16;
   code = convertToDecimal(&i8, &inputType, &dec128, &decType);
   ASSERT_TRUE(code == 0);
-  code = decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, decType.precision, decType.scale, buf, 64);
-  ASSERT_EQ(code, 0);
   cout << "convert uint8: " << (int32_t)i8 << " to ";
-  printDecimal(buf, TSDB_DATA_TYPE_DECIMAL, decType.precision, decType.scale);
-  const char* expect = "22.0000000000";
-  ASSERT_STREQ(buf, expect);
+  checkDecimal(&dec128, TSDB_DATA_TYPE_DECIMAL, decType.precision, decType.scale, "22.0000000000");
 
   char inputBuf[64] = "123.000000000000000000000000000000001";
   code = decimal128FromStr(inputBuf, strlen(inputBuf), 38, 35, &dec128);
   ASSERT_EQ(code, 0);
-  code = decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 35, buf, 64);
-  ASSERT_EQ(code, 0);
-  printDecimal(buf, TSDB_DATA_TYPE_DECIMAL, 38, 35);
-  expect = "123.00000000000000000000000000000000100";
-  ASSERT_STREQ(expect, buf);
+  checkDecimal(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 35, "123.00000000000000000000000000000000100");
 
   inputType.type = TSDB_DATA_TYPE_DECIMAL64;
   inputType.precision = prec;
   inputType.scale = scale;
   code = convertToDecimal(&dec64, &inputType, &dec128, &decType);
   ASSERT_EQ(code, 0);
-  decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 10, buf, 64);
-  expect = "22.0000000000";
-  ASSERT_STREQ(expect, buf);
-  printDecimal(buf, TSDB_DATA_TYPE_DECIMAL, 38, 10);
+  checkDecimal(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 10, "22.0000000000");
 }
 
 static constexpr uint64_t k1E16 = 10000000000000000LL;
@@ -317,10 +308,23 @@ TEST(decimal, op) {
   code = decimalOp(op, &ta, &tb, &tc, &a, &b, &res);
   ASSERT_EQ(code, 0);
 
-  char buf[64] = {0};
-  code = decimalToStr(&res, TSDB_DATA_TYPE_DECIMAL64, tc.precision, tc.scale, buf, 64);
+  checkDecimal(&res, TSDB_DATA_TYPE_DECIMAL64, tc.precision, tc.scale, "580.11");
+
+  a = {1234567890};
+  b = {9876543210};
+  ta = getDecimalType(18, 5);
+  tb = getDecimalType(15, 3);
+  code = decimalGetRetType(&ta, &tb, op, &tc);
   ASSERT_EQ(code, 0);
-  ASSERT_STREQ(buf, "580.11");
+  tExpect.precision = 19;
+  tExpect.scale = 5;
+  tExpect.type = TSDB_DATA_TYPE_DECIMAL;
+  tExpect.bytes = sizeof(Decimal128);
+  ASSERT_EQ(tExpect, tc);
+  Decimal128 res128 = {0};
+  code = decimalOp(op, &ta, &tb, &tc, &a, &b, &res128);
+  ASSERT_EQ(code, 0);
+  checkDecimal(&res128, 0, tExpect.precision, tExpect.scale, "9888888.88890");
 }
 
 int main(int argc, char** argv) {
