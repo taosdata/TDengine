@@ -64,7 +64,8 @@ database_option: {
 - DURATION：数据文件存储数据的时间跨度。可以使用加单位的表示形式，如 DURATION 100h、DURATION 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。不加时间单位时默认单位为天，如 DURATION 50 表示 50 天。
 - MAXROWS：文件块中记录的最大条数，默认为 4096 条。
 - MINROWS：文件块中记录的最小条数，默认为 100 条。
-- KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 3 倍的 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持[多级存储](https://docs.taosdata.com/tdinternal/arch/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。了解更多，请点击 [关于主键时间戳](https://docs.taosdata.com/reference/taos-sql/insert/)
+- KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 3 倍的 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持[多级存储](../../operation/planning/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。了解更多，请点击 [关于主键时间戳](https://docs.taosdata.com/reference/taos-sql/insert/)
+
 - KEEP_TIME_OFFSET：自 3.2.0.0 版本生效。删除或迁移保存时间超过 KEEP 值的数据的延迟执行时间，默认值为 0 (小时)。在数据文件保存时间超过 KEEP 后，删除或迁移操作不会立即执行，而会额外等待本参数指定的时间间隔，以实现与业务高峰期错开的目的。
 - STT_TRIGGER：表示落盘文件触发文件合并的个数。开源版本固定为 1，企业版本可设置范围为 1 到 16。对于少表高频写入场景，此参数建议使用默认配置；而对于多表低频写入场景，此参数建议配置较大的值。
 - SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
@@ -135,11 +136,11 @@ alter_database_option: {
 
 1. 如何查看 cachesize?
 
-通过 select * from information_schema.ins_databases; 可以查看这些 cachesize 的具体值。
+通过 select * from information_schema.ins_databases; 可以查看这些 cachesize 的具体值（单位为 MB）。。
 
 2. 如何查看 cacheload?
 
-通过 show \<db_name>.vgroups; 可以查看 cacheload
+通过 show \<db_name>.vgroups; 可以查看 cacheload（单位为字节）。
 
 3. 判断 cachesize 是否够用
 
@@ -231,7 +232,4 @@ SHOW db_name.disk_info;
 查看数据库 db_name 的数据压缩压缩率和数据在磁盘上所占用的大小
 
 该命令本质上等同于 `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`
-
-
-
 

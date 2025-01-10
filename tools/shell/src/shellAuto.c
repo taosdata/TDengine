@@ -453,7 +453,7 @@ SMatch*    lastMatch = NULL;  // save last match result
 int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
-void printfIntroduction(bool community) {
+void printfIntroduction(EVersionType type) {
   printf("  *********************************  Tab Completion  *************************************\n");
   char secondLine[160] = "\0";
   sprintf(secondLine, "  *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
@@ -473,11 +473,11 @@ void printfIntroduction(bool community) {
   printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                    *\n");
   printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                          *\n");
   printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                         *\n");
-  if(community) {
-  printf("  * ------------------------------------------------------------------------------------ *\n");
-  printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
-  printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
-  printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                 *\n");
+  if (type == TSDB_VERSION_OSS) {
+    printf("  * ------------------------------------------------------------------------------------ *\n");
+    printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
+    printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
+    printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                   *\n");
   }
   printf("  ****************************************************************************************\n\n");
 }

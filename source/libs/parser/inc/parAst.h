@@ -70,6 +70,9 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_KEEP_TIME_OFFSET,
   DB_OPTION_ENCRYPT_ALGORITHM,
   DB_OPTION_DNODES,
+  DB_OPTION_COMPACT_INTERVAL,
+  DB_OPTION_COMPACT_TIME_RANGE,
+  DB_OPTION_COMPACT_TIME_OFFSET,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -200,6 +203,8 @@ SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t maxSpeed);
 SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd);
+SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
+                                SNode* pEnd);
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
@@ -296,6 +301,7 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken
 SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName);
 SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName);
 SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, bool ignoreUntreated, SToken* pStreamName);
+SNode* createResetStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName);
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
@@ -315,6 +321,7 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
 SNode* createDropViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pView);
 SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactIdNode);
 SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
+SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode);
 
 SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                             SNode* pRealTable, SNode* pInterval);

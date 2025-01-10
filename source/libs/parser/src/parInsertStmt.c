@@ -368,7 +368,7 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
     // }
   }
 
-  code = tRowBuildFromBind(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols);
+  code = tRowBuildFromBind(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered, &pDataBlock->duplicateTs);
 
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
@@ -509,6 +509,9 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   STag* pTag = NULL;
 
   for (int c = 0; c < tags->numOfBound; ++c) {
+    if (bind == NULL) {
+      break;
+    }
     if (bind[c].is_null && bind[c].is_null[0]) {
       continue;
     }
@@ -606,6 +609,13 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       code = terrno;
       goto end;
     }
+  } else {
+    SVCreateTbReq* tmp = pDataBlock->pData->pCreateTbReq;
+    taosMemoryFreeClear(tmp->name);
+    taosMemoryFreeClear(tmp->ctb.pTag);
+    taosMemoryFreeClear(tmp->ctb.stbName);
+    taosArrayDestroy(tmp->ctb.tagName);
+    tmp->ctb.tagName = NULL;
   }
 
   code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
@@ -738,7 +748,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
     pBindInfos[c].bytes = pColSchema->bytes;
   }
 
-  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols);
+  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered, &pDataBlock->duplicateTs);
 
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
@@ -938,13 +948,17 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_STB** fields,
+int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_ALL** fields,
                             STableMeta* pMeta, void* boundTags, bool preCtbname) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
-  int32_t numOfBound = boundColsInfo.numOfBound + (tags->mixTagsCols ? 0 : tags->numOfBound) + (preCtbname ? 1 : 0);
+  bool           hastag = tags != NULL;
+  int32_t        numOfBound = boundColsInfo.numOfBound + (preCtbname ? 1 : 0);
+  if (hastag) {
+    numOfBound += tags->mixTagsCols ? 0 : tags->numOfBound;
+  }
   int32_t idx = 0;
   if (fields != NULL) {
-    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_STB));
+    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_ALL));
     if (NULL == *fields) {
       return terrno;
     }
@@ -957,7 +971,7 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
       idx++;
     }
 
-    if (tags->numOfBound > 0 && !tags->mixTagsCols) {
+    if (hastag && tags->numOfBound > 0 && !tags->mixTagsCols) {
       SSchema* tagSchema = getTableTagSchema(pMeta);
 
       for (int32_t i = 0; i < tags->numOfBound; ++i) {
@@ -1017,11 +1031,11 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   if (NULL == tags) {
     return TSDB_CODE_APP_ERROR;
   }
-  /*
+
   if (pDataBlock->pMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pMeta->tableType != TSDB_CHILD_TABLE) {
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
-  */
+
   SSchema* pSchema = getTableTagSchema(pDataBlock->pMeta);
   if (tags->numOfBound <= 0) {
     *fieldNum = 0;
@@ -1054,7 +1068,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
 }
 
 int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool preCtbname, int32_t* fieldNum,
-                               TAOS_FIELD_STB** fields) {
+                               TAOS_FIELD_ALL** fields) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
   if (pDataBlock->boundColsInfo.numOfBound <= 0) {

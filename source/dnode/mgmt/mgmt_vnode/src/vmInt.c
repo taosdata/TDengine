@@ -94,7 +94,7 @@ static void vmUnRegisterCreatingState(SVnodeMgmt *pMgmt, int32_t vgId) {
   dTrace("vgId:%d, remove from creating Hash", vgId);
   r = taosHashRemove(pMgmt->creatingHash, &vgId, sizeof(int32_t));
   if (r != 0) {
-    dError("vgId:%d, failed to remove vnode from hash", vgId);
+    dError("vgId:%d, failed to remove vnode from creatingHash", vgId);
   }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
 
@@ -896,7 +896,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("vnode-sync", "initialized");
 
-  if ((code = vnodeInit(tsNumOfCommitThreads, pInput->stopDnodeFp)) != 0) {
+  if ((code = vnodeInit(pInput->stopDnodeFp)) != 0) {
     dError("failed to init vnode since %s", tstrerror(code));
     goto _OVER;
   }

@@ -83,7 +83,7 @@ Parsing is the process of parsing unstructured strings into structured data. The
 
 JSON parsing supports JSONObject or JSONArray. The following JSON sample data can automatically parse fields: `groupid`, `voltage`, `current`, `ts`, `inuse`, `location`.
 
-``` json
+```json
 {"groupid": 170001, "voltage": "221V", "current": 12.3, "ts": "2023-12-18T22:12:00", "inuse": true, "location": "beijing.chaoyang.datun"}
 {"groupid": 170001, "voltage": "220V", "current": 12.2, "ts": "2023-12-18T22:12:02", "inuse": true, "location": "beijing.chaoyang.datun"}
 {"groupid": 170001, "voltage": "216V", "current": 12.5, "ts": "2023-12-18T22:12:04", "inuse": false, "location": "beijing.chaoyang.datun"}
@@ -91,7 +91,7 @@ JSON parsing supports JSONObject or JSONArray. The following JSON sample data ca
 
 Or
 
-``` json
+```json
 [{"groupid": 170001, "voltage": "221V", "current": 12.3, "ts": "2023-12-18T22:12:00", "inuse": true, "location": "beijing.chaoyang.datun"},
 {"groupid": 170001, "voltage": "220V", "current": 12.2, "ts": "2023-12-18T22:12:02", "inuse": true, "location": "beijing.chaoyang.datun"},
 {"groupid": 170001, "voltage": "216V", "current": 12.5, "ts": "2023-12-18T22:12:04", "inuse": false, "location": "beijing.chaoyang.datun"}]
@@ -101,7 +101,7 @@ Subsequent examples will only explain using JSONObject.
 
 The following nested JSON data can automatically parse fields `groupid`, `data_voltage`, `data_current`, `ts`, `inuse`, `location_0_province`, `location_0_city`, `location_0_datun`, and you can also choose which fields to parse and set aliases for the parsed fields.
 
-``` json
+```json
 {"groupid": 170001, "data": { "voltage": "221V", "current": 12.3 }, "ts": "2023-12-18T22:12:00", "inuse": true, "location": [{"province": "beijing", "city":"chaoyang", "street": "datun"}]}
 ```
 
@@ -114,7 +114,7 @@ The following nested JSON data can automatically parse fields `groupid`, `data_v
 
 You can use **named capture groups** in regular expressions to extract multiple fields from any string (text) field. As shown in the figure, extract fields such as access IP, timestamp, and accessed URL from nginx logs.
 
-``` re
+```regex
 (?<ip>\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)\s-\s-\s\[(?<ts>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s\+\d{4})\]\s"(?<method>[A-Z]+)\s(?<url>[^\s"]+).*(?<status>\d{3})\s(?<length>\d+)
 ```
 
@@ -133,7 +133,7 @@ Custom rhai syntax scripts for parsing input data (refer to `https://rhai.rs/boo
 
 For example, for data reporting three-phase voltage values, which are entered into three subtables respectively, such data needs to be parsed
 
-``` json
+```json
 {
     "ts": "2024-06-27 18:00:00", 
     "voltage": "220.1,220.3,221.1", 
@@ -164,7 +164,7 @@ The final parsing result is shown below:
 
 The parsed data may still not meet the data requirements of the target table. For example, the original data collected by a smart meter is as follows (in json format):
 
-``` json
+```json
 {"groupid": 170001, "voltage": "221V", "current": 12.3, "ts": "2023-12-18T22:12:00", "inuse": true, "location": "beijing.chaoyang.datun"}
 {"groupid": 170001, "voltage": "220V", "current": 12.2, "ts": "2023-12-18T22:12:02", "inuse": true, "location": "beijing.chaoyang.datun"}
 {"groupid": 170001, "voltage": "216V", "current": 12.5, "ts": "2023-12-18T22:12:04", "inuse": false, "location": "beijing.chaoyang.datun"}

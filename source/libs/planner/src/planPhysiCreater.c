@@ -90,11 +90,12 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
           *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
           return code;
         }
-        *ppKey = taosMemoryCalloc(1, strlen(pVal->literal) + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+        int32_t literalLen = strlen(pVal->literal);
+        *ppKey = taosMemoryCalloc(1, literalLen + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
         if (!*ppKey) {
           return terrno;
         }
-        TAOS_STRNCAT(*ppKey, pVal->literal, strlen(pVal->literal));
+        TAOS_STRNCAT(*ppKey, pVal->literal, literalLen);
         TAOS_STRNCAT(*ppKey, ".", 2);
         TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
         *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
@@ -810,7 +811,8 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS) ||
-      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_DISK_USAGE)) {
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_DISK_USAGE) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_FILESETS)) {
     if (pScanLogicNode->pVgroupList) {
       vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     }
@@ -2049,6 +2051,23 @@ static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
   }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
   return DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder ? true : false;
+}
+
+bool projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject) {
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+  if (DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder) {
+    return false;
+  }
+  if (GROUP_ACTION_KEEP == pProject->node.groupAction) {
+    return false;
+  }
+  if (DATA_ORDER_LEVEL_NONE == pProject->node.resultDataOrder) {
+    return true;
+  }
+  if (1 != LIST_LENGTH(pProject->node.pChildren)) {
+    return true;
+  }
+  return false;
 }
 
 static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,

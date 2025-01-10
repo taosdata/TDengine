@@ -26,6 +26,7 @@
 #endif
 #include "dmUtil.h"
 #include "tcs.h"
+#include "qworker.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -130,8 +131,7 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   if (taosIgnSignal(SIGSEGV) != 0) {
     dWarn("failed to ignore signal SIGABRT");
   }
-
-  taosGenCrashJsonMsg(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
+  writeCrashLogToFile(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
 
 #ifdef _TD_DARWIN_64
   exit(signum);
@@ -159,11 +159,23 @@ static void dmSetSignalHandle() {
   if (taosSetSignal(SIGBREAK, dmStopDnode) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
+  if (taosSetSignal(SIGABRT, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGFPE, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGSEGV, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #ifndef WINDOWS
   if (taosSetSignal(SIGTSTP, dmStopDnode) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
   if (taosSetSignal(SIGQUIT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGBUS, dmLogCrash) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
 #endif
@@ -262,7 +274,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
           printf("ERROR: Encrypt key overflow, it should be at most %d characters\n", ENCRYPT_KEY_LEN);
           return TSDB_CODE_INVALID_CFG;
         }
-        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
+        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN + 1);
       } else {
         printf("'-y' requires a parameter\n");
         return TSDB_CODE_INVALID_CFG;
@@ -456,6 +468,13 @@ int mainWindows(int argc, char **argv) {
 
   if ((code = taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
     dError("failed to start since read config error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
+  
+  if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
+    dError("failed to init memPool, error:0x%x", code);
     taosCloseLog();
     taosCleanupArgs();
     return code;

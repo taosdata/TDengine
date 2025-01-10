@@ -175,7 +175,7 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 
 用户可以为每个 partition 对应的子表生成自定义的 TAG 值，如下创建流的语句，
 ```sql
-CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varchar(100)) as select _wstart, count(*) from power.meters partition by concat("tag-", tbname) as alias_tag interval(10s));
+CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varchar(100)) as select _wstart, count(*) from power.meters partition by concat("tag-", tbname) as alias_tag interval(10s);
 ```
 
 在 PARTITION 子句中，为 concat（"tag-"， tbname）定义了一个别名 alias_tag， 对应超级表 output_tag_s 的自定义 TAG 的名字。在上述示例中，流新创建的子表的 TAG 将以前缀 'tag-' 连接原表名作为 TAG 的值。会对 TAG 信息进行如下检查。

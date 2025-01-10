@@ -112,14 +112,14 @@ typedef struct TAOS_FIELD_E {
   int32_t bytes;
 } TAOS_FIELD_E;
 
-typedef struct TAOS_FIELD_STB {
+typedef struct TAOS_FIELD_ALL {
   char         name[65];
   int8_t       type;
   uint8_t      precision;
   uint8_t      scale;
   int32_t      bytes;
   uint8_t      field_type;
-} TAOS_FIELD_STB;
+} TAOS_FIELD_ALL;
 
 #ifdef WINDOWS
 #define DLL_EXPORT __declspec(dllexport)

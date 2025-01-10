@@ -111,6 +111,7 @@ extern "C" {
 #include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
+#include "osMemPool.h"
 #include "osRand.h"
 #include "osSemaphore.h"
 #include "osSignal.h"

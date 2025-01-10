@@ -39,6 +39,7 @@ sql explain analyze verbose true select a.ts from sta a join sta b on a.col1 = b
 sql explain analyze verbose true select a.ts from sta a join sta b where a.ts=b.ts;
 sql_error explain analyze verbose true select a.ts from sta a ,sta b on a.ts=b.ts;
 sql explain analyze verbose true select a.ts from sta a ,sta b where a.ts=b.ts;
+sql explain analyze verbose true select a.ts from sta a ,sta b where a.t1 = b.t1 and a.ts=b.ts;
 sql explain analyze verbose true select a.ts from sta a ,sta b where a.ts=b.ts and a.col1 + 1 = b.col1;
 sql explain analyze verbose true select b.col1 from sta a ,sta b where a.ts=b.ts and a.col1 + 1 = b.col1 order by a.ts;
 sql explain analyze verbose true select b.col1 from sta a join sta b join sta c where a.ts=b.ts and b.ts = c.ts order by a.ts;

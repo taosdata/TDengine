@@ -103,9 +103,11 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
         }
 
         code = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
-        if (code && code != TSDB_CODE_TIMEOUT_ERROR) {
-          TSDB_CHECK_CODE(code, lino, _exit);
+        // ignore timeout error and retry
+        if (code == TSDB_CODE_TIMEOUT_ERROR) {
+          code = TSDB_CODE_SUCCESS;
         }
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }
@@ -387,8 +389,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // schedule the task
-  code =
-      vnodeAsync(&pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommit, vnodeCommitCancel, pInfo, &pVnode->commitTask);
+  code = vnodeAsync(COMMIT_TASK_ASYNC, EVA_PRIORITY_HIGH, vnodeCommit, vnodeCommitCancel, pInfo, &pVnode->commitTask);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

@@ -126,6 +126,10 @@ void fetchCallback(void* param, void* res, int32_t numOfRow) {
 void queryCallback(void* param, void* res, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     (void)printf("failed to execute, reason:%s\n", taos_errstr(res));
+    taos_free_result(res);
+    tsem_t *sem = (tsem_t *)param;
+    tsem_post(sem);
+    return;
   }
   (void)printf("start to fetch data\n");
   taos_fetch_raw_block_a(res, fetchCallback, param);
@@ -300,7 +304,13 @@ void* doConsumeData(void* param) {
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   if (argc > 1) {
-    numOfThreads = atoi(argv[1]);
+    //numOfThreads = atoi(argv[1]);
+    int32_t code = taosStr2int32(argv[1], &numOfThreads);
+    if (code != 0) {
+      return code;
+    }
+     
+    
   }
 
   numOfThreads = TMAX(numOfThreads, 1);
@@ -782,12 +792,20 @@ TEST(clientCase, insert_test) {
 }
 
 TEST(clientCase, projection_query_tables) {
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/first/cfg");
+
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
   TAOS_RES* pRes = NULL;
 
   pRes= taos_query(pConn, "use abc1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "select forecast(k,'algo=arima,wncheck=0') from t1 where ts<='2024-11-15 1:7:44'");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+  }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table tu using st2 tags(2)");

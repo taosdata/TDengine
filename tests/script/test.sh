@@ -43,9 +43,9 @@ CODE_DIR=`pwd`
 
 IN_TDINTERNAL="community"
 if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  cd ../../..
+  pushd ../../..
 else
-  cd ../../
+  pushd ../../
 fi
 
 TOP_DIR=`pwd`
@@ -111,12 +111,15 @@ echo "wal                0"                       >> $TAOS_CFG
 echo "asyncLog           0"                       >> $TAOS_CFG
 echo "locale             en_US.UTF-8"             >> $TAOS_CFG
 echo "enableCoreFile     1"                       >> $TAOS_CFG
+echo "minReservedMemorySize     1024"             >> $TAOS_CFG
 echo " "                                          >> $TAOS_CFG
 
 ulimit -n 600000
 ulimit -c unlimited
 
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
+
+popd
 
 if [ -n "$FILE_NAME" ]; then
   echo "------------------------------------------------------------------------"

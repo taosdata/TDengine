@@ -26,3 +26,14 @@ select log(min(voltage) + 1) from ts_4893.meters
 select groupid, min(voltage) from ts_4893.meters group by groupid order by groupid
 select location, min(current) from ts_4893.meters group by location order by location
 select location, min(id) from ts_4893.meters group by location order by location
+select min(1)
+select min(cast(1 as tinyint))
+select min(cast(100 as smallint))
+select min(cast(100000 as int))
+select min(cast(10000000000 as bigint))
+select min(cast(1 as tinyint unsigned))
+select min(cast(100 as smallint unsigned))
+select min(cast(100000 as int unsigned))
+select min(cast(10000000000 as bigint unsigned))
+select min(cast(1.1 as float))
+select min(cast(1.1 as double))

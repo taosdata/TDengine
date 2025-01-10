@@ -17,6 +17,7 @@ verType=$7
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/rpmworkroom"
+taosx_dir="$(readlink -f ${script_dir}/../../../../taosx)"
 spec_file="${script_dir}/tdengine.spec"
 
 #echo "curr_dir: ${curr_dir}"
@@ -56,28 +57,27 @@ fi
 ${csudo}mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-# download taoskeeper and build
-if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
-  arch=amd64
-elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
-  arch=386
-elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
-  arch=arm
-elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
-  arch=arm64
-else
-  arch=$cpuType
-fi
+# # download taoskeeper and build
+# if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
+#   arch=amd64
+# elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
+#   arch=386
+# elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
+#   arch=arm
+# elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
+#   arch=arm64
+# else
+#   arch=$cpuType
+# fi
 
-cd ${top_dir}
-echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper -t ver-${tdengine_ver}"
-taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper -t ver-${tdengine_ver}`
-echo "taoskeeper_binary: ${taoskeeper_binary}"
-cd ${package_dir}
+# cd ${top_dir}
+# echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper -t ver-${tdengine_ver}"
+# taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper -t ver-${tdengine_ver}`
+# echo "taoskeeper_binary: ${taoskeeper_binary}"
 
 ${csudo}mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
-${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" -bb ${spec_file}
+${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" --define="_taosxdir ${taosx_dir}"   -bb ${spec_file}
 
 # copy rpm package to output_dir, and modify package name, then clean temp dir
 #${csudo}cp -rf RPMS/* ${output_dir}
@@ -106,4 +106,4 @@ mv ${output_dir}/TDengine-${tdengine_ver}.rpm ${output_dir}/${rpmname}
 
 cd ..
 ${csudo}rm -rf ${pkg_dir}
-rm -rf ${top_dir}/build-taoskeeper
+# rm -rf ${top_dir}/build-taoskeeper

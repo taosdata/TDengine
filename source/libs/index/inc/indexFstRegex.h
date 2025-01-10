@@ -28,7 +28,7 @@
 extern "C" {
 #endif
 
-typedef enum { MATCH, JUMP, SPLIT, RANGE } InstType;
+typedef enum { INS_MATCH, INS_JUMP, INS_SPLIT, INS_RANGE } InstType;
 
 typedef struct MatchValue {
 #ifdef WINDOWS

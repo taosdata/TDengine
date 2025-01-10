@@ -31,7 +31,7 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGBUS);
 #endif
 
-  taosGenCrashJsonMsg(signum, sigInfo, "shell", 0, 0);
+  tscWriteCrashInfo(signum, sigInfo, context);
 
 #ifdef _TD_DARWIN_64
   exit(signum);
@@ -41,6 +41,13 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 }
 
 int main(int argc, char *argv[]) {
+#if !defined(WINDOWS)
+  taosSetSignal(SIGBUS, shellCrashHandler);
+#endif
+  taosSetSignal(SIGABRT, shellCrashHandler);
+  taosSetSignal(SIGFPE, shellCrashHandler);
+  taosSetSignal(SIGSEGV, shellCrashHandler);
+
   if (shellCheckIntSize() != 0) {
     return -1;
   }

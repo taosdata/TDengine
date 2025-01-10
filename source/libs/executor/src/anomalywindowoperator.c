@@ -61,9 +61,13 @@ static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock*
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                         SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  size_t      keyBufSize = 0;
+  int32_t     num = 0;
+  SExprInfo*  pExprInfo = NULL;
+  const char* id = GET_TASKID(pTaskInfo);
 
-  int32_t                     code = TSDB_CODE_SUCCESS;
-  int32_t                     lino = 0;
   SAnomalyWindowOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAnomalyWindowOperatorInfo));
   SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SAnomalyWindowPhysiNode*    pAnomalyNode = (SAnomalyWindowPhysiNode*)physiNode;
@@ -74,13 +78,13 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   }
 
   if (!taosAnalGetOptStr(pAnomalyNode->anomalyOpt, "algo", pInfo->algoName, sizeof(pInfo->algoName))) {
-    qError("failed to get anomaly_window algorithm name from %s", pAnomalyNode->anomalyOpt);
+    qError("%s failed to get anomaly_window algorithm name from %s", id, pAnomalyNode->anomalyOpt);
     code = TSDB_CODE_ANA_ALGO_NOT_FOUND;
     goto _error;
   }
 
   if (taosAnalGetAlgoUrl(pInfo->algoName, ANAL_ALGO_TYPE_ANOMALY_DETECT, pInfo->algoUrl, sizeof(pInfo->algoUrl)) != 0) {
-    qError("failed to get anomaly_window algorithm url from %s", pInfo->algoName);
+    qError("%s failed to get anomaly_window algorithm url from %s", id, pInfo->algoName);
     code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
     goto _error;
   }
@@ -94,20 +98,18 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     SExprInfo* pScalarExprInfo = NULL;
     code = createExprInfo(pAnomalyNode->window.pExprs, NULL, &pScalarExprInfo, &numOfScalarExpr);
     QUERY_CHECK_CODE(code, lino, _error);
+
     code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  size_t     keyBufSize = 0;
-  int32_t    num = 0;
-  SExprInfo* pExprInfo = NULL;
   code = createExprInfo(pAnomalyNode->window.pFuncs, NULL, &pExprInfo, &num);
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, id, pTaskInfo->streamInfo.pState,
+                    &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAnomalyNode->window.node.pOutputDataBlockDesc);
@@ -124,20 +126,19 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   pInfo->anomalyCol = extractColumnFromColumnNode(pColNode);
   pInfo->anomalyKey.type = pInfo->anomalyCol.type;
   pInfo->anomalyKey.bytes = pInfo->anomalyCol.bytes;
+
   pInfo->anomalyKey.pData = taosMemoryCalloc(1, pInfo->anomalyCol.bytes);
-  if (pInfo->anomalyKey.pData == NULL) {
-    goto _error;
-  }
+  QUERY_CHECK_NULL(pInfo->anomalyKey.pData, code, lino, _error, terrno)
 
   int32_t itemSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize + pInfo->anomalyKey.bytes;
   pInfo->anomalySup.pResultRow = taosMemoryCalloc(1, itemSize);
-  pInfo->anomalySup.blocks = taosArrayInit(16, sizeof(SSDataBlock*));
-  pInfo->anomalySup.windows = taosArrayInit(16, sizeof(STimeWindow));
+  QUERY_CHECK_NULL(pInfo->anomalySup.pResultRow, code, lino, _error, terrno)
 
-  if (pInfo->anomalySup.windows == NULL || pInfo->anomalySup.blocks == NULL || pInfo->anomalySup.pResultRow == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _error;
-  }
+  pInfo->anomalySup.blocks = taosArrayInit(16, sizeof(SSDataBlock*));
+  QUERY_CHECK_NULL(pInfo->anomalySup.blocks, code, lino, _error, terrno)
+
+  pInfo->anomalySup.windows = taosArrayInit(16, sizeof(STimeWindow));
+  QUERY_CHECK_NULL(pInfo->anomalySup.windows, code, lino, _error, terrno)
 
   code = filterInitFromNode((SNode*)pAnomalyNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -155,18 +156,21 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   *pOptrInfo = pOperator;
 
-  qDebug("anomaly_window operator is created, algo:%s url:%s opt:%s", pInfo->algoName, pInfo->algoUrl,
+  qDebug("%s anomaly_window operator is created, algo:%s url:%s opt:%s", id, pInfo->algoName, pInfo->algoUrl,
          pInfo->anomalyOpt);
   return TSDB_CODE_SUCCESS;
 
 _error:
+  qError("%s failed to create anomaly_window operator, line:%d algo:%s code:%s", id, lino, pAnomalyNode->anomalyOpt,
+         tstrerror(code));
+
   if (pInfo != NULL) {
     anomalyDestroyOperatorInfo(pInfo);
   }
 
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
-  qError("failed to create anomaly_window operator, algo:%s code:0x%x", pInfo->algoName, code);
+
   return code;
 }
 
@@ -269,8 +273,8 @@ static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock*
   int32_t      code = createOneDataBlock(pSrc, true, &pDst);
 
   if (code != 0) return code;
-  if (pDst == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  if (taosArrayPush(pInfo->anomalySup.blocks, &pDst) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pDst == NULL) return code;
+  if (taosArrayPush(pInfo->anomalySup.blocks, &pDst) == NULL) return terrno;
 
   return 0;
 }

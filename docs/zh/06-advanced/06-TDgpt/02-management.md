@@ -4,11 +4,10 @@ sidebar_label: "安装部署"
 ---
 
 ### 环境准备
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 可以运行在 Linux/Windows/MacOS 等平台上，同时需要 3.10 或以上版本的 Python 环境支持。
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 运行在 Linux 平台上，并需要 3.10 或以上版本的 Python 环境支持。
 > 部署 Anode 需要 TDengine Enterprise 3.3.4.3 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
 
 ### 安装及卸载
-不同操作系统上安装及部署 Anode 有一些差异，主要是卸载操作、安装路径、服务启停等方面。本文以 Linux 系统为例，说明安装部署的流程。
 使用 Linux 环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 Anode 的安装部署工作，命令如下：
 
 ```bash
@@ -37,7 +36,7 @@ systemctl status taosanoded
 |/usr/local/taos/taosanode/bin|可执行文件目录|
 |/usr/local/taos/taosanode/resource|资源文件目录，链接到文件夹 /var/lib/taos/taosanode/resource/|
 |/usr/local/taos/taosanode/lib|库文件目录|
-|/var/lib/taos/taosanode/model/|模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
+|/usr/local/taos/taosanode/model/|模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
 |/var/log/taos/taosanode/|日志文件目录|
 |/etc/taos/taosanode.ini|配置文件|
 
@@ -64,17 +63,17 @@ pidfile = /usr/local/taos/taosanode/taosanode.pid
 # conflict with systemctl, so do NOT uncomment this
 # daemonize = /var/log/taos/taosanode/taosanode.log
 
-# log directory
+# uWSGI log files
 logto = /var/log/taos/taosanode/taosanode.log
 
-# wWSGI monitor port
+# uWSGI monitor port
 stats = 127.0.0.1:8387
 
 # python virtual environment directory, used by Anode
 virtualenv = /usr/local/taos/taosanode/venv/
 
 [taosanode]
-# default app log file
+# default taosanode log file
 app-log = /var/log/taos/taosanode/taosanode.app.log
 
 # model storage directory
@@ -87,7 +86,7 @@ log-level = DEBUG
 
 **提示**
 请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而导致 Anode 无法正常启动。
-上面的示例配置文件 `taosanode.ini` 只包含了使用 Anode 提供服务的基础配置参数，对于 uWSGI 的其他配置参数的设置及其说明请参考 [uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+上面的示例配置文件 `taosanode.ini` 只包含了使用 Anode 提供服务的基础配置参数，对于 uWSGI 的其他配置参数的设置及其说明请参考 [uWSGI 官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
 
 Anode 运行配置主要是以下：
 - app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
@@ -111,7 +110,7 @@ SHOW ANODES;
 taos> show anodes;
      id      |              url               |    status    |       create_time       |       update_time       |
 ==================================================================================================================
-           1 | 192.168.0.1:6090             | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
+           1 | 192.168.0.1:6090               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
 Query OK, 1 row(s) in set (0.037205s)
 
 ```

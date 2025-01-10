@@ -6,11 +6,11 @@ slug: /tdengine-reference/components/taosadapter
 
 import Image from '@theme/IdealImage';
 import imgAdapter from '../../assets/taosadapter-01.png';
-import Prometheus from "../../10-third-party/01-collection/_prometheus.mdx"
-import CollectD from "../../10-third-party/01-collection/_collectd.mdx"
-import StatsD from "../../10-third-party/01-collection/_statsd.mdx"
-import Icinga2 from "../../10-third-party/01-collection/_icinga2.mdx"
-import TCollector from "../../10-third-party/01-collection/_tcollector.mdx"
+import Prometheus from "../../assets/resources/_prometheus.mdx"
+import CollectD from "../../assets/resources/_collectd.mdx"
+import StatsD from "../../assets/resources/_statsd.mdx"
+import Icinga2 from "../../assets/resources/_icinga2.mdx"
+import TCollector from "../../assets/resources/_tcollector.mdx"
 
 taosAdapter is a companion tool for TDengine, serving as a bridge and adapter between the TDengine cluster and applications. It provides an easy and efficient way to ingest data directly from data collection agents (such as Telegraf, StatsD, collectd, etc.). It also offers InfluxDB/OpenTSDB compatible data ingestion interfaces, allowing InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine.
 
@@ -268,7 +268,22 @@ An exporter used by Prometheus that exposes hardware and operating system metric
 
 ### Getting the VGroup ID of a table
 
-You can access the HTTP interface `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get the VGroup ID of a table.
+You can send a POST request to the HTTP interface `http://<fqdn>:<port>/rest/sql/<db>/vgid` to get the VGroup ID of a table. 
+The body should be a JSON array of multiple table names. 
+
+Example: Get the VGroup ID for the database power and tables d_bind_1 and d_bind_2.
+
+```shell
+curl --location 'http://127.0.0.1:6041/rest/sql/power/vgid' \
+--user 'root:taosdata' \
+--data '["d_bind_1","d_bind_2"]'
+```
+
+response:
+
+```json
+{"code":0,"vgIDs":[153,152]}
+```
 
 ## Memory Usage Optimization Methods
 

@@ -265,7 +265,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -292,7 +292,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -303,7 +303,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif

@@ -66,9 +66,9 @@ int32_t s3Begin() {
 void s3End() { S3_deinitialize(); }
 
 int32_t s3Init() { TAOS_RETURN(TSDB_CODE_SUCCESS); /*s3Begin();*/ }
-
+#if 0
 static int32_t s3ListBucket(char const *bucketname);
-
+#endif
 static void s3DumpCfgByEp(int8_t epIndex) {
   // clang-format off
   (void)fprintf(stdout,
@@ -261,7 +261,7 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
       for (int i = 0; i < error->extraDetailsCount; i++) {
         if (elen - len > 0) {
           len += tsnprintf(&(cbd->err_msg[len]), elen - len, "    %s: %s\n", error->extraDetails[i].name,
-                          error->extraDetails[i].value);
+                           error->extraDetails[i].value);
         }
       }
     }
@@ -291,7 +291,7 @@ static int32_t s3ListBucketByEp(char const *bucketname, int8_t epIndex) {
 
   TAOS_RETURN(code);
 }
-
+#if 0
 static int32_t s3ListBucket(char const *bucketname) {
   int32_t code = 0;
 
@@ -312,7 +312,7 @@ static int32_t s3ListBucket(char const *bucketname) {
 
   TAOS_RETURN(code);
 }
-
+#endif
 typedef struct growbuffer {
   // The total number of bytes, and the start byte
   int size;
@@ -742,9 +742,9 @@ upload:
       TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(EIO), &lino, _exit);
     }
     n = tsnprintf(buf, sizeof(buf),
-                 "<Part><PartNumber>%d</PartNumber>"
-                 "<ETag>%s</ETag></Part>",
-                 i + 1, manager.etags[i]);
+                  "<Part><PartNumber>%d</PartNumber>"
+                  "<ETag>%s</ETag></Part>",
+                  i + 1, manager.etags[i]);
     size += growbuffer_append(&(manager.gb), buf, n);
   }
   size += growbuffer_append(&(manager.gb), "</CompleteMultipartUpload>", strlen("</CompleteMultipartUpload>"));
@@ -908,10 +908,10 @@ upload:
   int  n;
   for (int i = 0; i < cp.part_num; ++i) {
     n = tsnprintf(buf, sizeof(buf),
-                 "<Part><PartNumber>%d</PartNumber>"
-                 "<ETag>%s</ETag></Part>",
-                 // i + 1, manager.etags[i]);
-                 cp.parts[i].index + 1, cp.parts[i].etag);
+                  "<Part><PartNumber>%d</PartNumber>"
+                  "<ETag>%s</ETag></Part>",
+                  // i + 1, manager.etags[i]);
+                  cp.parts[i].index + 1, cp.parts[i].etag);
     size += growbuffer_append(&(manager.gb), buf, n);
   }
   size += growbuffer_append(&(manager.gb), "</CompleteMultipartUpload>", strlen("</CompleteMultipartUpload>"));
@@ -1916,7 +1916,8 @@ void s3EvictCache(const char *path, long object_size) {
 }
 
 long s3Size(const char *object_name) {
-  long size = 0;
+  int32_t code = 0;
+  long    size = 0;
 
   cos_pool_t            *p = NULL;
   int                    is_cname = 0;
@@ -1941,7 +1942,10 @@ long s3Size(const char *object_name) {
   if (cos_status_is_ok(s)) {
     char *content_length_str = (char *)apr_table_get(resp_headers, COS_CONTENT_LENGTH);
     if (content_length_str != NULL) {
-      size = atol(content_length_str);
+      code = taosStr2Int64(content_length_str, &size);
+      if (code != 0) {
+        cos_warn_log("parse content length failed since %s\n", tstrerror(code));
+      }
     }
     cos_warn_log("head object succeeded: %ld\n", size);
   } else {

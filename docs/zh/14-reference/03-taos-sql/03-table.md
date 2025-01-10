@@ -6,7 +6,7 @@ description: 对表的各种管理操作
 
 ## 创建表
 
-`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表。
+`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表（也可以通过指定 TAGS 字段创建超级表）。
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
@@ -171,7 +171,7 @@ ALTER TABLE [db_name.]tb_name alter_table_clause
 
 alter_table_clause: {
     alter_table_options
-  | SET TAG tag_name = new_tag_value,tag_name2=new_tag2_value...
+  | SET TAG tag_name = new_tag_value, tag_name2=new_tag2_value ...
 }
 
 alter_table_options:
@@ -195,7 +195,7 @@ alter_table_option: {
 ### 修改子表标签值
 
 ```
-ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1,tag_name2=new_tag_value2...;
+ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
 ### 修改表生命周期
@@ -218,7 +218,7 @@ ALTER TABLE tb_name COMMENT 'string_value'
 DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
 ```
 
-**注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动或用户手动进行数据重整时。
+**注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动（建库参数 keep 生效）或用户手动进行数据重整时（企业版功能 compact）。
 
 ## 查看表的信息
 

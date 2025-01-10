@@ -231,7 +231,7 @@ class TDTestCase:
         """
         self.prepare_data()
         username = "view_test"
-        password = "test"
+        password = "test123@#$"
         self.create_user(username, password)
         # grant all db permission to user
         tdSql.execute("grant all on view_db.* to view_test;")
@@ -271,7 +271,7 @@ class TDTestCase:
         """This test case is used to verify the view permission with db write and view all
         """
         username = "view_test"
-        password = "test"
+        password = "test123@#$"
         self.create_user(username, password)
         conn = taos.connect(user=username, password=password)
         self.prepare_data(conn)
@@ -302,7 +302,7 @@ class TDTestCase:
         """This test case is used to verify the view permission with db write and view read
         """
         username = "view_test"
-        password = "test"
+        password = "test123@#$"
         self.create_user(username, password)
         conn = taos.connect(user=username, password=password)
         self.prepare_data()
@@ -338,7 +338,7 @@ class TDTestCase:
         """This test case is used to verify the view permission with db write and view alter
         """
         username = "view_test"
-        password = "test"
+        password = "test123@#$"
         self.create_user(username, password)
         conn = taos.connect(user=username, password=password)
         self.prepare_data()
@@ -362,7 +362,7 @@ class TDTestCase:
         """This test case is used to verify the view permission with db read and view all
         """
         username = "view_test"
-        password = "test"
+        password = "test123@#$"
         self.create_user(username, password)
         conn = taos.connect(user=username, password=password)
         self.prepare_data()
@@ -388,7 +388,7 @@ class TDTestCase:
         """This test case is used to verify the view permission with db read and view alter
         """
         username = "view_test"
-        password = "test"
+        password = "test123@#$"
         self.create_user(username, password)
         conn = taos.connect(user=username, password=password)
         self.prepare_data()
@@ -413,7 +413,7 @@ class TDTestCase:
         """This test case is used to verify the view permission with db read and view read
         """
         username = "view_test"
-        password = "test"
+        password = "test123@#$"
         self.create_user(username, password)
         conn = taos.connect(user=username, password=password)
         self.prepare_data()
@@ -566,8 +566,18 @@ class TDTestCase:
         tdSql.execute(f"drop database {paraDict['dbName']}")
         tdSql.execute("drop database cdb;")
         tdLog.debug("Finish test case 'test_tmq_from_view'")
+    def test_TD_33390(self):
+        tdSql.execute('create database test')
+        tdSql.execute('create table test.nt(ts timestamp, c1 int)')
+        for i in range(0, 200):
+            tdSql.execute(f'create view test.view{i} as select * from test.nt')
+        tdSql.query("show test.views")
+
+        for i in range(0, 200):
+            tdSql.execute(f'drop view test.view{i}')
 
     def run(self):
+        self.test_TD_33390()
         self.test_create_view_from_one_database()
         self.test_create_view_from_multi_database()
         self.test_create_view_name_params()

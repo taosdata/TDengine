@@ -60,7 +60,8 @@ int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
 
 // metaTable ==================
-int metaHandleEntry(SMeta* pMeta, const SMetaEntry* pME);
+int32_t metaHandleEntry2(SMeta* pMeta, const SMetaEntry* pEntry);
+void    metaHandleSyncEntry(SMeta* pMeta, const SMetaEntry* pEntry);
 
 // metaCache ==================
 int32_t metaCacheOpen(SMeta* pMeta);

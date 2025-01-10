@@ -601,8 +601,10 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     // write data
     sRInfo(pReceiver, "snapshot receiver write about to finish, blockLen:%d seq:%d", pMsg->dataLen, pMsg->seq);
     if (pMsg->dataLen > 0) {
+      (void)taosThreadMutexLock(&pReceiver->writerMutex);
       code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, pMsg->data,
                                                            pMsg->dataLen);
+      (void)taosThreadMutexUnlock(&pReceiver->writerMutex);
       if (code != 0) {
         sRError(pReceiver, "failed to finish snapshot receiver write since %s", tstrerror(code));
         TAOS_RETURN(code);

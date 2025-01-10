@@ -823,6 +823,8 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
 int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
   int32_t code;
 
+  pool->exit = false;
+
   (void)taosThreadMutexInit(&pool->poolLock, NULL);
   (void)taosThreadMutexInit(&pool->backupLock, NULL);
   (void)taosThreadMutexInit(&pool->waitingAfterBlockLock, NULL);

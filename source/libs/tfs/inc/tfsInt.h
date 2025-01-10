@@ -16,6 +16,10 @@
 #ifndef _TD_TFS_INT_H_
 #define _TD_TFS_INT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "os.h"
 
 #include "taosdef.h"
@@ -74,6 +78,7 @@ typedef struct STfs {
   SHashObj        *hash;  // name to did map
 } STfs;
 
+int32_t   tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg);
 int32_t   tfsNewDisk(int32_t level, int32_t id, int8_t disable, const char *dir, STfsDisk **ppDisk);
 STfsDisk *tfsFreeDisk(STfsDisk *pDisk);
 int32_t   tfsUpdateDiskSize(STfsDisk *pDisk);

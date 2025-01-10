@@ -72,7 +72,6 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   int32_t     nKey = 0;
   int32_t     nData = 0;
   STbDbKey    key;
-  SMetaInfo   info;
 
   *ppData = NULL;
   for (;;) {
@@ -85,8 +84,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
       goto _exit;
     }
 
-    if (key.version < pReader->sver  //
-        || metaGetInfo(pReader->pMeta, key.uid, &info, NULL) == TSDB_CODE_NOT_FOUND) {
+    if (key.version < pReader->sver) {
       if (tdbTbcMoveToNext(pReader->pTbc) != 0) {
         metaTrace("vgId:%d, vnode snapshot meta read data done", TD_VID(pReader->pMeta->pVnode));
       }
@@ -199,8 +197,7 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   code = metaDecodeEntry(pDecoder, &metaEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = metaHandleEntry(pMeta, &metaEntry);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  metaHandleSyncEntry(pMeta, &metaEntry);
 
 _exit:
   if (code) {
@@ -327,7 +324,6 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   ctx->suidInfo = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->suidInfo == NULL) {
     return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
-    ;
   }
   taosHashSetFreeFp(ctx->suidInfo, destroySTableInfoForChildTable);
 
