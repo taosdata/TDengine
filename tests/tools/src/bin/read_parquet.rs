@@ -20,34 +20,27 @@
 /// # Panics
 /// The program will panic if it is unable to open the input or output files, or if it encounters an error while reading the Parquet file.
 ///
-use arrow_array::RecordBatch;
+use arrow::array::RecordBatch;
 use arrow_schema::ArrowError;
+use clap::Parser;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::io::Write;
 
+#[derive(Debug, clap::Parser)]
+struct Args {
+    #[clap()]
+    input_file: String,
+    #[clap(short = 'o', long)]
+    output_file: Option<String>,
+}
+
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let args = Args::parse();
 
-    if args.contains(&String::from("--help")) || args.contains(&String::from("-h")) {
-        print_help();
-        return;
-    }
-
-    let file_source;
-    let mut file_target = None;
-
-    // check the number of arguments
-    if args.len() == 2 {
-        file_source = &args[1];
-    } else if args.len() == 4 && args[2] == "-o" {
-        file_source = &args[1];
-        file_target = Some(&args[3]);
-    } else {
-        eprintln!("Invalid arguments. Use --help for usage.");
-        return;
-    }
+    let file_source = &args.input_file;
+    let file_target = &args.output_file;
 
     let mut batches = Vec::new();
     // open the file
@@ -108,15 +101,6 @@ fn main() {
     } else {
         println!("{:?}", batches);
     }
-}
-
-fn print_help() {
-    println!("Usage: read-parquet <input_file> [-o <output_file>]");
-    println!("Options:");
-    println!("  --help, -h    Print this help message");
-    println!();
-    println!("Example:");
-    println!("  read-parquet input.parquet -o output.json");
 }
 
 fn transform_bytes_to_record(bytes: Vec<u8>) -> Result<Vec<RecordBatch>, ArrowError> {

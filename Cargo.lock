@@ -8625,7 +8625,7 @@ name = "taosx-tools"
 version = "1.9.0"
 dependencies = [
  "anyhow",
- "arrow-array",
+ "arrow",
  "arrow-schema",
  "bytes",
  "chrono",
