@@ -20,6 +20,7 @@
 #define FILL_HISTORY_OPERATOR      BIT_FLAG_MASK(1)
 #define RECALCULATE_OPERATOR       BIT_FLAG_MASK(2)
 #define SEMI_OPERATOR              BIT_FLAG_MASK(3)
+#define FINAL_OPERATOR             BIT_FLAG_MASK(4)
 
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type) {
   if (type != STREAM_GET_ALL && type != STREAM_CHECKPOINT) {
@@ -58,6 +59,14 @@ void setSemiOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
 
 bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo) {
   return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
+}
+
+void setFinalOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
+}
+
+bool isFinalOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
 }
 
 bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo) {

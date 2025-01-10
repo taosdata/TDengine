@@ -78,7 +78,7 @@ int32_t buildIntervalSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
 
   (*ppRes) = NULL;
 
-  if (pOperator->operatorType = OP_RES_TO_RETURN) {
+  if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteResultImpl(&pInfo->streamAggSup.stateStore, pTaskInfo->streamInfo.pState, pInfo->pDelWins,
                             &pInfo->delIndex, pInfo->pDelRes);
     if (pInfo->pDelRes->info.rows != 0) {
@@ -658,7 +658,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->numOfKeep = ceil(pInfo->interval.interval / pInfo->interval.sliding);
   pInfo->tsOfKeep = INT64_MAX;
 
-  setOperatorInfo(pOperator, "StreamIntervalSliceOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL, true, OP_NOT_OPENED,
+  setOperatorInfo(pOperator, "StreamIntervalSliceOperator", pPhyNode->type, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   initStreamBasicInfo(&pInfo->basic);
   if (pIntervalPhyNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {

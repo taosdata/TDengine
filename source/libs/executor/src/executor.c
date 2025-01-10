@@ -1148,9 +1148,7 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
 
       pSup->calTriggerSaved = pSup->calTrigger;
       pSup->deleteMarkSaved = pSup->deleteMark;
-      if (pSup->calTrigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-        pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
-      }
+      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
       pSup->deleteMark = INT64_MAX;
       pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
       pInfo->ignoreExpiredData = false;

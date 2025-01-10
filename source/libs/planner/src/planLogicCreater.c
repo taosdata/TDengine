@@ -1172,7 +1172,15 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
-  pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
+  if (pCxt->pPlanCxt->streamQuery) {
+    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      pWindow->windowAlgo = INTERVAL_ALGO_STREAM_CONTINUE_SINGLE;
+    } else {
+      pWindow->windowAlgo = INTERVAL_ALGO_STREAM_SINGLE;
+    }
+  } else {
+    pWindow->windowAlgo = INTERVAL_ALGO_HASH;
+  }
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
   pWindow->node.requireDataOrder =
       pCxt->pPlanCxt->streamQuery

@@ -358,7 +358,10 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pInfo->twAggSup.minTs!= INT64_MAX) {
     pInfo->tsOfKeep = pInfo->twAggSup.minTs;
   }
-  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep, pInfo->tsOfKeep);
+
+  if (!isFillHistoryOperator(&pInfo->basic) || !isFinalOperator(&pInfo->basic)) {
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep, pInfo->tsOfKeep);
+  }
   pInfo->twAggSup.minTs = INT64_MAX;
   setStreamOperatorCompleted(pOperator);
   (*ppRes) = NULL;
@@ -392,10 +395,6 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     return code;
   }
 
-  if (pOperator->status == OP_RES_TO_RETURN) {
-    return buildOtherResult(pOperator, ppRes);
-  }
-
   if (isFillHistoryOperator(&pInfo->basic) && isSemiOperator(&pInfo->basic)) {
     code = buildIntervalHistoryResult(pOperator);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -405,6 +404,10 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       return code;
     }
     pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep, pInfo->tsOfKeep);
+  }
+
+  if (pOperator->status == OP_RES_TO_RETURN) {
+    return buildOtherResult(pOperator, ppRes);
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -456,8 +459,8 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
           QUERY_CHECK_CODE(code, lino, _end);
           continue;
         } else {
-          (*ppRes) = pBlock;
           continue; //todo(liuyao) for debug
+          (*ppRes) = pBlock;
           return code;
         }
       } break;
@@ -475,7 +478,6 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     QUERY_CHECK_CODE(code, lino, _end);
 
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
-    pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.ekey);
     code = pInfo->pIntervalAggFn(pOperator, pBlock);
     if (code == TSDB_CODE_STREAM_INTERNAL_ERROR) {
       pOperator->status = OP_RES_TO_RETURN;
@@ -486,7 +488,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     if (pAggSup->pScanBlock->info.rows > 0) {
       //todo(liuyao) debug
       // (*ppRes) = pAggSup->pScanBlock;
-      // printDataBlock(pAggSup->pScanBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      printDataBlock(pAggSup->pScanBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       // return code;
     }
 
@@ -613,12 +615,13 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
   if (pAggSup->pScanBlock->info.rows > 0) {
     blockDataCleanup(pAggSup->pScanBlock);
   }
+  pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.ekey);
 
   blockDataEnsureCapacity(pAggSup->pScanBlock, pBlock->info.rows);
   TSKEY       ts = getStartTsKey(&pBlock->info.window, tsCols);
   STimeWindow curWin = getFinalTimeWindow(ts, &pInfo->interval);
   while (startPos >= 0) {
-    if (isDataDeletedStreamWindow(pInfo, &curWin, groupId)) {
+    if (!isFillHistoryOperator(&pInfo->basic) && isDataDeletedStreamWindow(pInfo, &curWin, groupId)) {
       uint64_t uid = 0;
       code = appendDataToSpecialBlock(pAggSup->pScanBlock, &curWin.skey, &curWin.ekey, &uid, &groupId, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -684,6 +687,7 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   if (pHandle->fillHistory) {
     setFillHistoryOperatorFlag(&pInfo->basic);
   }
+  setFinalOperatorFlag(&pInfo->basic);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

@@ -1337,12 +1337,10 @@ void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY mi
     int32_t arraySize = TARRAY_SIZE(pWinStates);
     if (minTs != INT64_MAX && arraySize > numOfKeep) {
       SWinKey key = {.ts = minTs};
-      key.groupId = *(int64_t*) tSimpleHashGetKey(pIte, NULL);
+      key.groupId = *(int64_t*)tSimpleHashGetKey(pIte, NULL);
       int32_t index = binarySearch(pWinStates, arraySize, &key, fillStateKeyCompare);
-      if (index > 0 && (arraySize - index) > numOfKeep) {
-        numOfKeep = TMIN(arraySize - index, NUM_OF_CACHE_WIN);
-        qTrace("modify numOfKeep, numOfKeep:%d. %s at line %d", numOfKeep, __func__, __LINE__);
-      }
+      numOfKeep = TMAX(arraySize - index, NUM_OF_CACHE_WIN);
+      qDebug("modify numOfKeep, numOfKeep:%d. %s at line %d", numOfKeep, __func__, __LINE__);
     }
 
     int32_t size = arraySize - numOfKeep;
