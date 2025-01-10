@@ -355,6 +355,8 @@ static SKeyword keywordTable[] = {
     {"FORCE_WINDOW_CLOSE",   TK_FORCE_WINDOW_CLOSE},
     {"DISK_INFO",            TK_DISK_INFO},
     {"AUTO",                 TK_AUTO},
+    {"MEDIUMBLOB",           TK_MEDIUMBLOB},
+    {"BLOB",                 TK_BLOB},
 };
 // clang-format on
 
