@@ -27,7 +27,7 @@ Unit test script is the smallest testable part and developed for some function, 
 the script with below command:
 
 ```bash
-cd tests/unit-test/
+cd tests/unit-test/ -e 0
 bash test.sh
 ```
 

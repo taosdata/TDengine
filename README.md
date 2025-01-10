@@ -77,7 +77,7 @@ sudo apt-get install -y gcc cmake build-essential git libjansson-dev libsnappy-d
 sudo yum update
 yum install -y epel-release gcc gcc-c++ make cmake git perl dnf-plugins-core 
 yum config-manager --set-enabled powertools
-yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig
+yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig libatomic-static libstdc++-static 
 ```
 
 ### For Fedora or Rocky Linux
@@ -342,7 +342,8 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 # on main branch and run cases in longtimeruning_cases.task 
 # for more infomation about options please refer to ./run_local_coverage.sh -h
 ```
-Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
+> [!NOTE]
+> Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
 
 # 11. Contributing
 
