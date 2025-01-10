@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 
-#include "syncPipeline.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
+#include "syncPipeline.h"
 #include "syncRaftCfg.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
@@ -787,6 +787,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   bool            inBuf = false;
   SSyncRaftEntry* pNextEntry = NULL;
   bool            nextInBuf = false;
+  bool            restoreFinishAtThisCommit = false;
 
   if (commitIndex <= pBuf->commitIndex) {
     sDebug("vgId:%d, stale commit index. current:%" PRId64 ", notified:%" PRId64 "", vgId, pBuf->commitIndex,
@@ -907,6 +908,7 @@ _out:
       currentTerm <= pEntry->term) {
     pNode->pFsm->FpRestoreFinishCb(pNode->pFsm, pBuf->commitIndex);
     pNode->restoreFinish = true;
+    restoreFinishAtThisCommit = true;
     sInfo("vgId:%d, restore finished. term:%" PRId64 ", log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
           pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   }
@@ -920,6 +922,12 @@ _out:
     pNextEntry = NULL;
   }
   (void)taosThreadMutexUnlock(&pBuf->mutex);
+
+  if (restoreFinishAtThisCommit && pNode->pFsm->FpAfterRestoredCb != NULL) {
+    pNode->pFsm->FpAfterRestoredCb(pNode->pFsm, pBuf->commitIndex);
+    sInfo("vgId:%d, after restore finished callback executed)", pNode->vgId);
+  }
+
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   TAOS_RETURN(code);
 }
