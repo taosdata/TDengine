@@ -25,7 +25,7 @@
     <p v-if="!isOEM">
       <img
         src="./assets/gds/gds_data_source.webp"
-        alt="Data Studio Data Source Selection"
+        alt="Looker Studio Data Source Selection"
       />
     </p>
     <h2 id="connector-configuration">{{ $t("docs.virtual.gds.step2") }}</h2>
