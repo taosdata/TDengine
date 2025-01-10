@@ -43,6 +43,8 @@ int32_t simEntry(int32_t argc, char **argv) {
     }
   }
 
+  taos_options(TSDB_OPTION_DRIVER, "internal");
+
   simInfo("simulator is running ...");
 
   simSystemInit();

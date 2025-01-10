@@ -65,13 +65,10 @@ DLL_EXPORT int         taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV 
 DLL_EXPORT int         taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int         taos_stmt2_close(TAOS_STMT2 *stmt);
 DLL_EXPORT int         taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);
-DLL_EXPORT TAOS_RES   *taos_stmt2_result(TAOS_STMT2 *stmt);
-DLL_EXPORT char       *taos_stmt2_error(TAOS_STMT2 *stmt);
-
-DLL_EXPORT int  taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields);
-DLL_EXPORT int  taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields);
-DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields);
-DLL_EXPORT void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields);
+DLL_EXPORT int  taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields);
+DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields);
+DLL_EXPORT TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt);
+DLL_EXPORT char     *taos_stmt2_error(TAOS_STMT2 *stmt);
 
 /* ------------------------------ WHITELIST INTERFACE -------------------------------*/
 
