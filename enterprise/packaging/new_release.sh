@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#set -e
+set -e
 
 baseDir=/data/release
 branch=main
@@ -104,16 +104,18 @@ fi
 internalDir="${baseDir}/${branch}/TDinternal"
 communityDir="${internalDir}/community"
 connectorDir="${baseDir}/${branch}/connector"
-exampleDir="${communityDir}/examples"
+exampleDir="${communityDir}/docs/examples"
+old_exampleDir="${communityDir}/examples"
+
 taosxDir="${baseDir}/${branch}/taosx"
-explorerDir="${baseDir}/${branch}/explorer"
+explorerDir="${baseDir}/${branch}/taosx/explorer"
 install_dir="${baseDir}/${branch}/install_dir"
 
 if [ "$versionType" == "community" ]; then
     serverPackageName="${productName}-server-${version}"
     clientPackageName="${productName}-client-${version}"
     debugDir="${communityDir}/debug"
-    keeperDir="${baseDir}/${branch}/taoskeeper"
+    # keeperDir="${baseDir}/${branch}/taoskeeper"
     archiveDir="/nas/TDengine/v${version}/community"
     cfg_dir="${communityDir}/packaging/cfg"
 else
@@ -125,7 +127,7 @@ else
         clientPackageName="${productName}-${industryName}-client-${version}"
     fi
     debugDir="${internalDir}/debug"    
-    keeperDir="${baseDir}/${branch}/taoskeeperinternal"
+    # keeperDir="${baseDir}/${branch}/taoskeeperinternal"
     archiveDir="/nas/TDengine/v${version}/enterprise"
     cfg_dir="${internalDir}/enterprise/packaging/cfg"
 fi
@@ -178,9 +180,6 @@ function git_pull() {
         git reset --hard HEAD
         echo "$1: reset to HEAD done"
 
-        git remote prune origin
-        echo "$1: git remote prune origin done"  
-
         git checkout $2 || :
         echo "$1: checkout branch $2 done"
 
@@ -216,12 +215,12 @@ function git_pull() {
 function industry_options() {
     local options=""
     TD_INDUSTRY_NAME="TDengine ${industryName} Edition"
-    if [[ "$industryName" == "Power" && "$versionType" == "industry" ]]; then        
+    if [[ "$industryName" == "Powerlite" && "$versionType" == "industry" ]]; then        
         options="-DTD_INDUSTRY=true \
             -DTD_PRODUCT_NAME=\"${TD_INDUSTRY_NAME}\" \
             -DTD_FUNC_STREAM=false \
             -DTD_FUNC_SUBSCRIPTION=false \
-            -DTD_FUNC_AUDIT=false \            
+            -DTD_FUNC_AUDIT=false \
             -DTD_FUNC_VIEW=false \
             -DTD_FUNC_MULTI_TIER_STORAGE=false \
             -DTD_FUNC_DATA_BAK_RESTORE=false \
@@ -246,6 +245,36 @@ function industry_options() {
             -DTD_DATAIN_MSSQL=false \
             -DTD_DATAIN_MONGODB=false \
             -DTD_DATAIN_CSV=false"
+    elif [[ "$industryName" == "Powerfull" && "$versionType" == "industry" ]]; then     
+        options="-DTD_INDUSTRY=true \
+            -DTD_PRODUCT_NAME=\"${TD_INDUSTRY_NAME}\" \
+            -DTD_FUNC_STREAM=true \
+            -DTD_FUNC_SUBSCRIPTION=true \
+            -DTD_FUNC_AUDIT=true \
+            -DTD_FUNC_VIEW=true \
+            -DTD_FUNC_MULTI_TIER_STORAGE=true \
+            -DTD_FUNC_DATA_BAK_RESTORE=true \
+            -DTD_FUNC_OBJECT_STORAGE=true \
+            -DTD_FUNC_ACTIVE_ACTIVE=true \
+            -DTD_FUNC_DUAL_REPLICA_HA=true \
+            -DTD_FUNC_DB_ENCRYPTION=true \
+            -DTD_FUNC_DATA_SYNC=true \
+            -DTD_DATAIN_OPC_DA=true \
+            -DTD_DATAIN_OPC_UA=true \
+            -DTD_DATAIN_PI=true \
+            -DTD_DATAIN_KAFKA=true \
+            -DTD_DATAIN_INFLUXDB=true \
+            -DTD_DATAIN_MQTT=true \
+            -DTD_DATAIN_AVEVAHISTORIAN=true \
+            -DTD_DATAIN_OPENTSDB=true \
+            -DTD_DATAIN_TDENGINE_2_6=true \
+            -DTD_DATAIN_TDENGINE_3_0=true \
+            -DTD_DATAIN_MYSQL=true \
+            -DTD_DATAIN_POSTGRES=true \
+            -DTD_DATAIN_ORACLE=true \
+            -DTD_DATAIN_MSSQL=true \
+            -DTD_DATAIN_MONGODB=true \
+            -DTD_DATAIN_CSV=true"    
     fi
     echo $options
 }
@@ -288,11 +317,14 @@ function build_TDengine() {
 
     binPath=""
     repoDir=""
+    echo "start to cmake tdengine"
+    echo "versionType $versionType"
     if [ "$versionType" != "community" ];then
         echo "build enterprise or industry version"
+        BUILD_KEEPER="internal"
         mkdir -p ${internalDir}/debug
         cd ${internalDir}/debug
-        cmd="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue}"
+        cmd="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue} -DTD_PRODUCT_NAME=\"TDengine Enterprise Edition\" -DBUILD_KEEPER=${BUILD_KEEPER} -DBUILD_SANITIZER=0 "
         if [ "$versionType" == "enterprise" ]; then
             echo "build TDengine enterprise version"
             echo $cmd
@@ -309,10 +341,12 @@ function build_TDengine() {
         echo "build TDengine community version"
         mkdir -p ${communityDir}/debug
         cd ${communityDir}/debug
-        echo "cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true"
+        BUILD_KEEPER=true
+        echo "cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true  -DBUILD_KEEPER=${BUILD_KEEPER}"
         cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type}          \
             -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE="${build_time}" -DGITINFO=${gitinfo}        \
-            -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true
+            -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_KEEPER=${BUILD_KEEPER} 
+
         binPath="${communityDir}/debug/build/bin"
         repoDir="${communityDir}"
     fi
@@ -362,7 +396,7 @@ function build_taosx() {
         verify_commit_id "$taosxDir/release/taosx/bin"  "taos-explorer"  "$taosxDir"
     else
         echo "build explorer community version"
-        rm -rf ${explorerDir}/target/release/taos-explorer || :
+        rm -rf ${taosxDir}/target/release/taos-explorer || :
         rm -rf ${explorerDir}/public/docs ${explorerDir}/public/docs-en || true
         # pull explorer
         git_pull "${explorerDir}" "main" "ver-$version"
@@ -370,51 +404,51 @@ function build_taosx() {
         export VUE_APP_COMMUNITY=community
         yarn
         VER_NUMBER=$version yarn build:bin
-        if [ -f "${explorerDir}/target/release/${prefix}-explorer" ]; then
+        if [ -f "${taosxDir}/target/release/taos-explorer" ]; then
             echo "build explorer community version done"
         else
             echo "build explorer community version failed"
             exit 1
         fi
 
-        verify_commit_id $explorerDir/target/release taos-explorer $explorerDir
+        verify_commit_id ${taosxDir}/target/release taos-explorer $taosxDir
     fi
 }
 
-function build_taoskeeper() {
-    echo "build taoskeeper"
+# function build_taoskeeper() {
+#     echo "build taoskeeper"
 
-    # skip build taoskeeper for enterprise version on Mac
-    if [ "${os_type}" == "Darwin" ] && [ "$versionType" == "enterprise" ]; then
-        return
-    fi
+#     # skip build taoskeeper for enterprise version on Mac
+#     if [ "${os_type}" == "Darwin" ] && [ "$versionType" == "enterprise" ]; then
+#         return
+#     fi
     
-    platform="${os_type}-${os_arch}"
-    dateinfo=`date +"%F %T %:z"`
-    buildinfo="${platform} ${dateinfo}"    
+#     platform="${os_type}-${os_arch}"
+#     dateinfo=`date +"%F %T %:z"`
+#     buildinfo="${platform} ${dateinfo}"    
 
-    if [ "$versionType" != "community" ];then
-        keeper_url="github.com/taosdata/taoskeeperinternal"
-    else
-        keeper_url="github.com/taosdata/taoskeeper"
-    fi
+#     if [ "$versionType" != "community" ];then
+#         keeper_url="github.com/taosdata/taoskeeperinternal"
+#     else
+#         keeper_url="github.com/taosdata/taoskeeper"
+#     fi
     
-    cd $keeperDir
-    rm -rf taoskeeper || :
-    git_pull $keeperDir ${branch} ver-${version}
-    gitinfo=`git rev-parse HEAD`
+#     cd $keeperDir
+#     rm -rf taoskeeper || :
+#     git_pull $keeperDir ${branch} ver-${version}
+#     gitinfo=`git rev-parse HEAD`
 
-    go build -ldflags="-s -w -X '${keeper_url}/version.Version=$version' -X '${keeper_url}/version.Gitinfo=$gitinfo' -X '${keeper_url}/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
+#     go build -ldflags="-s -w -X '${keeper_url}/version.Version=$version' -X '${keeper_url}/version.Gitinfo=$gitinfo' -X '${keeper_url}/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
     
-    if [ -f taoskeeper ]; then
-        echo "build taoskeeper success"
-    else
-        echo "build taoskeeper failed"
-        exit 1
-    fi
+#     if [ -f taoskeeper ]; then
+#         echo "build taoskeeper success"
+#     else
+#         echo "build taoskeeper failed"
+#         exit 1
+#     fi
 
-    verify_commit_id $keeperDir taoskeeper $keeperDir
-}
+#     verify_commit_id $keeperDir taoskeeper $keeperDir
+# }
 
 function update_connectors() {
 
@@ -448,7 +482,7 @@ function preparepkg() {
     mkdir -p ${install_dir}/bin ${install_dir}/cfg ${install_dir}/inc ${install_dir}/init.d
 
     # copy bin files
-    serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}Benchmark ${prefix}dump udfd)
+    serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}keeper ${prefix}Benchmark ${prefix}dump udfd)
 
     for bin in "${serverBin[@]}"; do
         if [ -f "${debugDir}/build/bin/${bin}" ]; then
@@ -471,7 +505,7 @@ function preparepkg() {
     [ -f "${communityDir}/packaging/tools/quick_deploy.sh" ] && cp ${communityDir}/packaging/tools/quick_deploy.sh ${install_dir}/bin || :
     [ -f "${communityDir}/packaging/tools/taosd-dump-cfg.gdb" ] && cp ${communityDir}/packaging/tools/taosd-dump-cfg.gdb ${install_dir}/bin/${prefix}d-dump-cfg.gdb || :
     
-    [ -f "${keeperDir}/taoskeeper" ] && cp ${keeperDir}/taoskeeper ${install_dir}/bin || :
+    # [ -f "${keeperDir}/taoskeeper" ] && cp ${keeperDir}/taoskeeper ${install_dir}/bin || :
     chmod a+x ${install_dir}/bin/*
 
     # copy cfg files
@@ -488,12 +522,12 @@ function preparepkg() {
         cp ${debugDir}/test/cfg/${prefix}adapter.service ${install_dir}/cfg || :
     fi
 
-    if [ -f "${keeperDir}/config/${prefix}keeper.toml" ]; then
-        cp ${keeperDir}/config/${prefix}keeper.toml ${install_dir}/cfg || :
+    if [ -f "${debugDir}/test/cfg/${prefix}keeper.toml" ]; then
+        cp ${debugDir}/test/cfg/${prefix}keeper.toml ${install_dir}/cfg || :
     fi
 
-    if [ -f "${keeperDir}/${prefix}keeper.service" ]; then
-        cp ${keeperDir}/${prefix}keeper.service ${install_dir}/cfg || :
+    if [ -f "${debugDir}/test/cfg/${prefix}keeper.service" ]; then
+        cp ${debugDir}/test/cfg/${prefix}keeper.service ${install_dir}/cfg || :
     fi
 
     # copy inc files
@@ -514,15 +548,10 @@ function preparepkg() {
     # copy examples
     echo "mkdir -p ${install_dir}/examples"
     mkdir -p ${install_dir}/examples
-    cp -r ${exampleDir}/c ${install_dir}/examples || :
-    cp -r ${exampleDir}/JDBC ${install_dir}/examples || :
-    cp -r ${exampleDir}/matlab ${install_dir}/examples || :
-    cp -r ${exampleDir}/python ${install_dir}/examples || :
-    cp -r ${exampleDir}/R ${install_dir}/examples || :
-    cp -r ${exampleDir}/go ${install_dir}/examples || :
-    cp -r ${exampleDir}/nodejs ${install_dir}/examples || :
-    cp -r ${exampleDir}/C# ${install_dir}/examples || :
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${exampleDir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json || :
+    cp -r ${exampleDir}/* ${install_dir}/examples || :
+    cp -r ${old_exampleDir}/matlab ${install_dir}/examples || :
+
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${old_exampleDir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json || :
 
     # copy connectors
     mkdir -p ${install_dir}/connector
@@ -543,8 +572,8 @@ function preparepkg() {
         sed -i "s/uninstall.sh/uninstall_taosx.sh/g" ${install_dir}/taosx/uninstall_taosx.sh
     else
         # copy explorer
-        cp ${explorerDir}/target/release/${prefix}-explorer ${install_dir}/bin || :
-        cp ${explorerDir}/target/${prefix}-explorer.service ${install_dir}/cfg || :
+        cp ${taosxDir}/target/release/${prefix}-explorer ${install_dir}/bin || :
+        cp ${explorerDir}/server/examples/explorer.service ${install_dir}/cfg/taos-explorer.service || :
         cp ${explorerDir}/server/examples/explorer.toml ${install_dir}/cfg || :
     fi
     
@@ -625,7 +654,7 @@ function make_linux_pkg() {
         tar -zcv -f package.tar.gz * --remove-files ||:
 
         cd ${install_dir}
-        cp -r connector/ driver/ examples/ share/ ${serverPackageName}/ || :
+        cp -r connector/ driver/ examples/ ${serverPackageName}/ || :
         if [ "${versionType}" != "community" ]; then
             cp -r taosx/ ${serverPackageName}/
         fi
@@ -784,13 +813,13 @@ function make_mac_pkg() {
 
     if [ "${versionType}" == "community" ]; then        
                 
-        sudo cp -f ${keeperDir}/taoskeeper /opt/tdengine/bin/
-        sudo cp -f ${keeperDir}/taoskeeper.service /opt/tdengine/cfg/
-        sudo cp -f ${keeperDir}/config/taoskeeper.toml /opt/tdengine/cfg/
+        # sudo cp -f ${keeperDir}/taoskeeper /opt/tdengine/bin/
+        # sudo cp -f ${keeperDir}/taoskeeper.service /opt/tdengine/cfg/
+        # sudo cp -f ${keeperDir}/config/taoskeeper.toml /opt/tdengine/cfg/
         
-        sudo cp -f ${explorerDir}/target/release/taos-explorer /opt/tdengine/bin/
-        sudo cp -f ${explorerDir}/target/taos-explorer.service /opt/tdengine/cfg/
-        sudo cp -f ${explorerDir}/server/examples/explorer.toml /opt/tdengine/cfg/
+        sudo cp -f ${taosxDir}/target/release/taos-explorer /opt/tdengine/bin/
+        sudo cp -f ${explorerDir}/server/examples/explorer.service /opt/tdengine/cfg/taos-explorer.service
+        sudo cp -f ${explorerDir}/server/examples/explorer.toml /opt/tdengine/cfg
 
         sudo cp -f ${internalDir}/enterprise/packaging/start-all.sh /opt/tdengine/bin
         sudo cp -f ${internalDir}/enterprise/packaging/stop-all.sh /opt/tdengine/bin
@@ -905,8 +934,6 @@ build_TDengine &
 pid1=$!
 build_taosx &
 pid2=$!
-build_taoskeeper &
-pid3=$!
 update_connectors &
 pid4=$!
 
