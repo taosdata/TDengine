@@ -55,10 +55,8 @@ int (*fp_taos_stmt2_bind_param)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32
 int (*fp_taos_stmt2_exec)(TAOS_STMT2 *stmt, int *affected_rows) = NULL;
 int (*fp_taos_stmt2_close)(TAOS_STMT2 *stmt) = NULL;
 int (*fp_taos_stmt2_is_insert)(TAOS_STMT2 *stmt, int *insert) = NULL;
-int (*fp_taos_stmt2_get_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) = NULL;
-int (*fp_taos_stmt2_get_stb_fields)(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields) = NULL;
-void (*fp_taos_stmt2_free_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) = NULL;
-void (*fp_taos_stmt2_free_stb_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) = NULL;
+int (*fp_taos_stmt2_get_fields)(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) = NULL;
+void (*fp_taos_stmt2_free_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) = NULL;
 TAOS_RES *(*fp_taos_stmt2_result)(TAOS_STMT2 *stmt) = NULL;
 char *(*fp_taos_stmt2_error)(TAOS_STMT2 *stmt) = NULL;
 TAOS_RES *(*fp_taos_query)(TAOS *taos, const char *sql) = NULL;
@@ -104,6 +102,7 @@ int (*fp_taos_get_tables_vgId)(TAOS *taos, const char *db, const char *table[], 
 int (*fp_taos_load_table_info)(TAOS *taos, const char *tableNameList) = NULL;
 void (*fp_taos_set_hb_quit)(int8_t quitByKill) = NULL;
 int (*fp_taos_set_notify_cb)(TAOS *taos, __taos_notify_fn_t fp, void *param, int type) = NULL;
+void (*fp_taos_write_crashinfo)(int signum, void *sigInfo, void *context) = NULL;
 void (*fp_taos_fetch_whitelist_a)(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) = NULL;
 int (*fp_taos_set_conn_mode)(TAOS *taos, int mode, int value) = NULL;
 TAOS_RES *(*fp_taos_schemaless_insert)(TAOS *taos, char *lines[], int numLines, int protocol, int precision) = NULL;

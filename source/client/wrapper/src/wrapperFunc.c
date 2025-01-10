@@ -327,24 +327,14 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
   return (*fp_taos_stmt2_is_insert)(stmt, insert);
 }
 
-int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
+int taos_stmt2_get_field(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
   CHECK_INT(fp_taos_stmt2_get_fields);
-  return (*fp_taos_stmt2_get_fields)(stmt, field_type, count, fields);
+  return (*fp_taos_stmt2_get_fields)(stmt, count, fields);
 }
 
-int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields) {
-  CHECK_INT(fp_taos_stmt2_get_stb_fields);
-  return (*fp_taos_stmt2_get_stb_fields)(stmt, count, fields);
-}
-
-void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
+void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {
   CHECK_VOID(fp_taos_stmt2_free_fields);
   (*fp_taos_stmt2_free_fields)(stmt, fields);
-}
-
-void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) {
-  CHECK_VOID(fp_taos_stmt2_free_stb_fields);
-  (*fp_taos_stmt2_free_stb_fields)(stmt, fields);
 }
 
 TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
@@ -578,9 +568,10 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
   return (*fp_taos_set_notify_cb)(taos, fp, param, type);
 }
 
-void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) {
-  CHECK_VOID(fp_taos_fetch_whitelist_a);
-  (*fp_taos_fetch_whitelist_a)(taos, fp, param);
+void taos_write_crashinfo(int signum, void *sigInfo, void *context) {
+  if (fp_taos_write_crashinfo) {
+    (*fp_taos_write_crashinfo)(signum, sigInfo, context);
+  }
 }
 
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {

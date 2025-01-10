@@ -102,12 +102,6 @@ SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_INTERNAL_LIB taosinternal)
 SET(TAOS_INTERNAL_LIB_STATIC taosinternal_static)
 
-IF(${TD_WINDOWS})
-    SET(TAOS_INTERNAL_LIB_PLATFORM_SPEC taosinternal_static)
-ELSE()
-    SET(TAOS_INTERNAL_LIB_PLATFORM_SPEC taosinternal)
-ENDIF()
-
 # build TSZ by default
 IF("${TSZ_ENABLED}" MATCHES "false")
     set(VAR_TSZ "" CACHE INTERNAL "global variant empty")

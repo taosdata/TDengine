@@ -123,9 +123,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_stmt2_close, "taos_stmt2_close");
   LOAD_FUNC(fp_taos_stmt2_is_insert, "taos_stmt2_is_insert");
   LOAD_FUNC(fp_taos_stmt2_get_fields, "taos_stmt2_get_fields");
-  LOAD_FUNC(fp_taos_stmt2_get_stb_fields, "taos_stmt2_get_stb_fields");
   LOAD_FUNC(fp_taos_stmt2_free_fields, "taos_stmt2_free_fields");
-  LOAD_FUNC(fp_taos_stmt2_free_stb_fields, "taos_stmt2_free_stb_fields");
   LOAD_FUNC(fp_taos_stmt2_result, "taos_stmt2_result");
   LOAD_FUNC(fp_taos_stmt2_error, "taos_stmt2_error");
   LOAD_FUNC(fp_taos_query, "taos_query");
@@ -170,7 +168,6 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_load_table_info, "taos_load_table_info");
   LOAD_FUNC(fp_taos_set_hb_quit, "taos_set_hb_quit");
   LOAD_FUNC(fp_taos_set_notify_cb, "taos_set_notify_cb");
-  LOAD_FUNC(fp_taos_fetch_whitelist_a, "taos_fetch_whitelist_a");
   LOAD_FUNC(fp_taos_set_conn_mode, "taos_set_conn_mode");
   LOAD_FUNC(fp_taos_schemaless_insert, "taos_schemaless_insert");
   LOAD_FUNC(fp_taos_schemaless_insert_with_reqid, "taos_schemaless_insert_with_reqid");

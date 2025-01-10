@@ -31,7 +31,7 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGBUS);
 #endif
 
-  tscWriteCrashInfo(signum, sigInfo, context);
+  taos_write_crashinfo(signum, sigInfo, context);
 
 #ifdef _TD_DARWIN_64
   exit(signum);

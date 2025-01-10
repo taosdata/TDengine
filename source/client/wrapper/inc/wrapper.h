@@ -79,10 +79,8 @@ extern int (*fp_taos_stmt2_bind_param)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv
 extern int (*fp_taos_stmt2_exec)(TAOS_STMT2 *stmt, int *affected_rows);
 extern int (*fp_taos_stmt2_close)(TAOS_STMT2 *stmt);
 extern int (*fp_taos_stmt2_is_insert)(TAOS_STMT2 *stmt, int *insert);
-extern int (*fp_taos_stmt2_get_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields);
-extern int (*fp_taos_stmt2_get_stb_fields)(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields);
-extern void (*fp_taos_stmt2_free_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields);
-extern void (*fp_taos_stmt2_free_stb_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields);
+extern int (*fp_taos_stmt2_get_fields)(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields);
+extern void (*fp_taos_stmt2_free_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields);
 extern TAOS_RES *(*fp_taos_stmt2_result)(TAOS_STMT2 *stmt);
 extern char *(*fp_taos_stmt2_error)(TAOS_STMT2 *stmt);
 
@@ -138,8 +136,7 @@ extern int (*fp_taos_load_table_info)(TAOS *taos, const char *tableNameList);
 extern void (*fp_taos_set_hb_quit)(int8_t quitByKill);
 
 extern int (*fp_taos_set_notify_cb)(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
-
-extern void (*fp_taos_fetch_whitelist_a)(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param);
+extern void (*fp_taos_write_crashinfo)(int signum, void *sigInfo, void *context);
 
 extern int (*fp_taos_set_conn_mode)(TAOS *taos, int mode, int value);
 
