@@ -174,6 +174,7 @@ help() {
     echo "  config_qemu_guest_agent     - Configure QEMU guest agent"
     echo "  deploy_docker               - Deploy Docker"
     echo "  deploy_docker_compose       - Deploy Docker Compose"
+    echo "  install_trivy               - Install Trivy"
     echo "  clone_enterprise            - Clone the enterprise repository"
     echo "  clone_community             - Clone the community repository"
     echo "  clone_taosx                 - Clone TaosX repository"
@@ -1731,6 +1732,32 @@ deploy_docker_compose() {
     fi
 }
 
+# Instal trivy
+install_trivy() {
+    # Install jq
+    install_package jq
+    # Get latest version
+    LATEST_VERSION=$(curl -s https://api.github.com/repos/aquasecurity/trivy/releases/latest | jq -r .tag_name)
+    # Download
+    if [ -f /etc/debian_version ]; then
+        wget https://github.com/aquasecurity/trivy/releases/download/"${LATEST_VERSION}"/trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb
+        # Install
+        dpkg -i trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb
+
+    elif [ -f /etc/redhat-release ]; then
+        wget https://github.com/aquasecurity/trivy/releases/download/"${LATEST_VERSION}"/trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
+        # Install
+        rpm -ivh trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
+    else
+        echo "Unsupported Linux distribution."
+        exit 1
+    fi
+    # Check
+    trivy --version
+    check_status "Failed to install Trivy" "Trivy installed successfully." $?
+    rm -rf trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
+}
+
 # Reconfigure cloud-init
 reconfig_cloud_init() {
     echo "Reconfiguring cloud-init..."
@@ -2004,6 +2031,7 @@ deploy_dev() {
     install_nginx
     deploy_docker
     deploy_docker_compose
+    install_trivy
     check_status "Failed to deploy some tools" "Deploy all tools successfully" $?
 }
 
@@ -2158,6 +2186,9 @@ main() {
                 ;;
             deploy_docker_compose)
                 deploy_docker_compose
+                ;;
+            install_trivy)
+                install_trivy
                 ;;
             clone_enterprise)
                 clone_enterprise
