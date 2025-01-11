@@ -381,10 +381,13 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
-- **mixed_query** : 查询模式，取值 “yes” 为`混合查询`， "no" 为`正常查询` , 默认值为 “no”  
-  `混合查询`：`sqls` 中所有 sql 按 `threads` 线程数分组，每个线程执行一组， 线程中每个 sql 都需执行 `query_times` 次查询  
-  `正常查询`：`sqls` 中每个 sql 启动 `threads` 个线程，每个线程执行完 `query_times` 次后退出，下个 sql 需等待上个 sql 线程全部执行完退出后方可执行  
-  不管 `正常查询` 还是 `混合查询` ，执行查询总次数是相同的 ，查询总次数 = `sqls` 个数 * `threads` * `query_times`， 区别是 `正常查询` 每个 sql 都会启动 `threads` 个线程，而 `混合查询` 只启动一次 `threads` 个线程执行完所有 SQL, 两者启动线程次数不一样。
+- **mixed_query** : 查询模式，取值 “yes” 为`混合查询`， "no"(默认值) 为`普通查询` 
+  `普通查询`：`sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 每个执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后才可执行下一 sql  
+  `混合查询`：`sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组， 每个 sql 都需执行 `query_times` 次查询  
+
+   `普通查询` 执行 `查询总次数` = `sqls` 个数 * `query_times` * `threads`   
+   `混合查询` 执行 `查询总次数` = `sqls` 个数 * `query_times`  
+   
 
 - **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 

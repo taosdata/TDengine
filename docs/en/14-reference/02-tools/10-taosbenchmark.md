@@ -465,10 +465,12 @@ For other common parameters, see Common Configuration Parameters.
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.
 
 - **mixed_query**  "yes": `Mixed Query`  "no": `Normal Query`,  default is "no"  
-`Mixed Query`: All SQL statements in `sqls` are grouped by the number of threads, with each thread executing one group. Each SQL statement in a thread needs to perform `query_times` queries.  
-`Normal Query `: Each SQL in `sqls` starts `threads` and exits after executing `query_times` times. The next SQL can only be executed after all previous SQL threads have finished executing and exited.  
-Regardless of whether it is a `Normal Query` or `Mixed Query`, the total number of query executions is the same. The total number of queries = `sqls` * `threads` * `query_times`. The difference is that `Normal Query` starts  `threads` for each SQL query, while ` Mixed Query` only starts  `threads` once to complete all SQL queries. The number of thread startups for the two is different.  
+`General Query`: Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.  
+`Mixed Query`  : All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
 
+The total number of queries(`General Query`) = the number of `sqls` * `query_times` * `threads`  
+The total number of queries(`Mixed Query`)   = the number of `sqls` * `query_times`  
+ß
 - **query_interval** : Query interval, in seconds, default is 0.
 
 - **threads** : Number of threads executing the SQL query, default is 1.
