@@ -1077,7 +1077,7 @@ deploy_go() {
     #     echo "Go is already installed. Skipping installation."
     #     return
     # fi
-    if check_installed "gp"; then
+    if check_installed "go"; then
         return
     fi
     # Fetch the latest version number of Go
