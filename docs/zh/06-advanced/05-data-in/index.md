@@ -94,6 +94,8 @@ JSON 解析支持 JSONObject 或者 JSONArray。 如下 JSON 示例数据，可�
 
 ![JSON 解析](./pic/transform-02.png)
 
+> 注意：JSON 属性名称中不能含有`.`；如果含有，则必须使用名称 alias 将名称转义。
+
 ##### Regex 正则表达式<a name="regex"></a>
 
 可以使用正则表达式的**命名捕获组**从任何字符串（文本）字段中提取多个字段。如图所示，从 nginx 日志中提取访问ip、时间戳、访问的url等字段。
@@ -166,7 +168,7 @@ let v3 = data["voltage"].split(",");
 ```
 between_time_range(ts, t1, t2)
 
-// 如果时间范围为最近7点内的才能入库，则过滤条件为：
+// 例如：如果时间范围为最近 7 天内的才能入库，则过滤条件为：
 between_time_range(ts, -604800, 0)
 ```
 
