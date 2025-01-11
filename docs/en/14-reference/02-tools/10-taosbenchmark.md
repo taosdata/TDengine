@@ -470,7 +470,7 @@ Configuration parameters for querying specified tables (can specify supertables,
 
 The total number of queries(`General Query`) = the number of `sqls` * `query_times` * `threads`  
 The total number of queries(`Mixed Query`)   = the number of `sqls` * `query_times`  
-ß
+
 - **query_interval** : Query interval, in seconds, default is 0.
 
 - **threads** : Number of threads executing the SQL query, default is 1.
