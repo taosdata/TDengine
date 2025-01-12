@@ -14,7 +14,7 @@ TARGET_LINK_LIBRARIES(
 ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
 TARGET_LINK_LIBRARIES(
         connectOptionsTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler gtest ${TAOS_INTERNAL_LIB_STATIC} qcom executor function
 )
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
@@ -44,13 +44,13 @@ TARGET_LINK_LIBRARIES(
 ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
 TARGET_LINK_LIBRARIES(
         stmt2Test
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler gtest ${TAOS_INTERNAL_LIB_STATIC} qcom executor function
 )
 
 ADD_EXECUTABLE(stmtTest stmtTest.cpp)
 TARGET_LINK_LIBRARIES(
         stmtTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler gtest ${TAOS_INTERNAL_LIB_STATIC} qcom executor function
 )
 
 TARGET_INCLUDE_DIRECTORIES(

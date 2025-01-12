@@ -23,7 +23,6 @@ extern "C" {
 #endif
 
 /* ------------------------------ JNI INTERFACE -----------------------------------*/
-
 #define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
   SET_CONF_RET_CODE retCode;
@@ -33,7 +32,6 @@ typedef struct setConfRet {
 DLL_EXPORT setConfRet taos_set_config(const char *config);
 
 /* ------------------------------ STMT2 INTERFACE ---------------------------------*/
-
 typedef void TAOS_STMT2;
 
 typedef struct TAOS_STMT2_OPTION {
@@ -65,13 +63,12 @@ DLL_EXPORT int         taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV 
 DLL_EXPORT int         taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int         taos_stmt2_close(TAOS_STMT2 *stmt);
 DLL_EXPORT int         taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);
-DLL_EXPORT int  taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields);
-DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields);
-DLL_EXPORT TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt);
-DLL_EXPORT char     *taos_stmt2_error(TAOS_STMT2 *stmt);
+DLL_EXPORT int         taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields);
+DLL_EXPORT void        taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields);
+DLL_EXPORT TAOS_RES   *taos_stmt2_result(TAOS_STMT2 *stmt);
+DLL_EXPORT char       *taos_stmt2_error(TAOS_STMT2 *stmt);
 
 /* ------------------------------ WHITELIST INTERFACE -------------------------------*/
-
 typedef void (*__taos_async_whitelist_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists,
                                             uint64_t *pWhiteLists);
 DLL_EXPORT void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param);
@@ -100,7 +97,6 @@ DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
 /* ---------------------------- TAOSX END -------------------------------- */
 
 /* ---------------------------- INTERNAL INTERFACE ------------------------ */
-
 typedef enum {
   TSDB_SRV_STATUS_UNAVAILABLE = 0,
   TSDB_SRV_STATUS_NETWORK_OK = 1,
