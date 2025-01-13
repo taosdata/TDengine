@@ -66,28 +66,28 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
     code = createLogicPlan(pCxt, &pLogicSubplan);
   }
   qInfo("After logic plan");
-  printPlanNode(pLogicSubplan->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = optimizeLogicPlan(pCxt, pLogicSubplan);
   }
   qInfo("After optimize plan");
-  printPlanNode(pLogicSubplan->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = splitLogicPlan(pCxt, pLogicSubplan);
   }
   qInfo("After split plan");
-  printPlanNode(pLogicSubplan->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
   }
   qInfo("After scale out plan");
-  printPlanNode(pLogicSubplan->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
   }
   qInfo("After physic plan");
-  printPlanNode(pLogicSubplan->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = validateQueryPlan(pCxt, *pPlan);
   }
   if (TSDB_CODE_SUCCESS == code) {

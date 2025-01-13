@@ -164,6 +164,7 @@ static const SSysDbTableSchema userStbsSchema[] = {
     {.name = "max_delay", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "rollup", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "isvirtual", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = false},
 };
 
 static const SSysDbTableSchema streamSchema[] = {
