@@ -142,7 +142,7 @@ SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState);
 void streamStateLastStateCurNext(SStreamStateCur* pCur);
 void streamStateOneStateCurNext(SStreamStateCur* pCur);
 int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** ppVal);
-int32_t streamStateGetOneStateKVByCur(SStreamStateCur* pCur, void** ppVal);
+int32_t streamStateNLastStateGetKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
 

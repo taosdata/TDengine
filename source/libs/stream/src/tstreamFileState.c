@@ -1840,21 +1840,40 @@ int32_t getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal) {
   return code;
 }
 
-int32_t getOneStateKVByCur(SStreamStateCur* pCur, void** ppVal) {
+int32_t getNLastStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pCur->pHashData == NULL) {
     return TSDB_CODE_FAILED;
   }
   SArray*  pWinStates = *((void**)pCur->pHashData);
-  if (taosArrayGetSize(pWinStates) == 0) {
+  int32_t size = taosArrayGetSize(pWinStates);
+  if (size == 0) {
     return TSDB_CODE_FAILED;
   }
-  SWinKey* pKey = taosArrayGet(pWinStates, pCur->buffIndex);
-  int32_t  len = 0;
-  int32_t  winCode = TSDB_CODE_SUCCESS;
-  int32_t  code = addRowBuffIfNotExist(pCur->pStreamFileState, (void*)pKey, sizeof(SWinKey), ppVal, &len, &winCode);
-  if (winCode != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since window not exist. ts:%" PRId64 ",groupId:%" PRIu64, __func__, __LINE__, pKey->ts,
-           pKey->groupId);
+
+  int32_t i = TMAX(size - num, 0);
+
+  for ( ; i < size; i++) {
+    SWinKey* pKey = taosArrayGet(pWinStates, i);
+    int32_t  len = 0;
+    void*    pVal = NULL;
+    int32_t  winCode = TSDB_CODE_SUCCESS;
+    code = addRowBuffIfNotExist(pCur->pStreamFileState, (void*)pKey, sizeof(SWinKey), &pVal, &len, &winCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (winCode != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since window not exist. ts:%" PRId64 ",groupId:%" PRIu64, __func__, __LINE__,
+             pKey->ts, pKey->groupId);
+    }
+
+    void* pTempRes = taosArrayPush(pRes, &pVal);
+    QUERY_CHECK_NULL(pTempRes, code, lino, _end, terrno);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }

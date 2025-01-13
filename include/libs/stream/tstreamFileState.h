@@ -171,7 +171,7 @@ SStreamStateCur* getLastStateCur(SStreamFileState* pFileState);
 void moveLastStateCurNext(SStreamStateCur* pCur);
 void moveOneStateCurNext(SStreamStateCur* pCur);
 int32_t getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal);
-int32_t getOneStateKVByCur(SStreamStateCur* pCur, void** ppVal);
+int32_t getNLastStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
 int32_t reloadTsDataState(STableTsDataState* pTsDataState);
 
 #ifdef __cplusplus

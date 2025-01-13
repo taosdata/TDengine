@@ -29,7 +29,7 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
                                              SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
 int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                              SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
-int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, SArray* pUpdated, int32_t capacity);
+int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, int32_t numOfState, SArray* pUpdated, int32_t capacity);
 
 #ifdef __cplusplus
 }

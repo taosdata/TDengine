@@ -714,8 +714,8 @@ int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** ppVal) {
   return getLastStateKVByCur(pCur, ppVal);
 }
 
-int32_t streamStateGetOneStateKVByCur(SStreamStateCur* pCur, void** ppVal) {
-  return getOneStateKVByCur(pCur, ppVal);
+int32_t streamStateNLastStateGetKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {
+  return getNLastStateKVByCur(pCur, num, pRes);
 }
 
 int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) {
