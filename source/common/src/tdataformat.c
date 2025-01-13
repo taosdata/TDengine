@@ -256,7 +256,7 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     sinfo->kvIndices[i].offset += sinfo->kvIndexSize;
     sinfo->kvPKSize += tPutPrimaryKeyIndex(NULL, sinfo->kvIndices + i);
   }
-  sinfo->kvRowSize = sizeof(SRow)             // SRow
+ sinfo->kvRowSize = sizeof(SRow)             // SRow
                      + sinfo->kvPKSize        // primary keys
                      + sinfo->kvIndexSize     // index array
                      + sinfo->kvPayloadSize;  // payload
