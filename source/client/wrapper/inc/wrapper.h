@@ -35,6 +35,8 @@ extern void       *tsDriver;
 extern int32_t taosDriverInit(EDriverType driverType);
 extern void    taosDriverCleanup();
 
+extern setConfRet (*fp_taos_set_config)(const char *config);
+
 extern int (*fp_taos_init)(void);
 extern void (*fp_taos_cleanup)(void);
 extern int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...);

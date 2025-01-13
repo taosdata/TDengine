@@ -15,6 +15,8 @@
 
 #include "wrapper.h"
 
+setConfRet (*fp_taos_set_config)(const char *config) = NULL;
+
 int (*fp_taos_init)(void) = NULL;
 void (*fp_taos_cleanup)(void) = NULL;
 int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...) = NULL;

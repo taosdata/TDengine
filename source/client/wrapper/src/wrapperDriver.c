@@ -81,6 +81,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   }
 
   // printf("load driver from %s\r\n", driverPath);
+  LOAD_FUNC(fp_taos_set_config, "taos_set_config");
 
   LOAD_FUNC(fp_taos_init, "taos_init");
   LOAD_FUNC(fp_taos_cleanup, "taos_cleanup");

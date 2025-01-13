@@ -35,6 +35,11 @@ volatile int32_t    tsDriverOnceRet = 0;
   terrno = code;       \
   return false;
 
+#define ERR_CONFRET(code)           \
+  terrno = code;                    \
+  setConfRet ret = {.retCode = -1}; \
+  return ret;
+
 #define CHECK_VOID(fp)               \
   if (tsDriver == NULL) {            \
     ERR_VOID(TSDB_CODE_DLL_NOT_LOAD) \
@@ -67,10 +72,21 @@ volatile int32_t    tsDriverOnceRet = 0;
     ERR_BOOL(TSDB_CODE_DLL_NOT_LOAD) \
   }
 
+#define CHECK_CONFRET(fp)               \
+  if (tsDriver == NULL) {               \
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
+  }                                     \
+  if (fp == NULL) {                     \
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
+  }
+
 setConfRet taos_set_config(const char *config) {
-  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-  setConfRet ret = {.retCode = TSDB_CODE_OPS_NOT_SUPPORT};
-  return ret;
+  if (taos_init() != 0) {
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD)
+  }
+
+  CHECK_CONFRET(fp_taos_set_config);
+  return (*fp_taos_set_config)(config);
 }
 
 static void taos_init_wrapper(void) {
@@ -116,7 +132,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 }
 
 int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...) {
-  CHECK_PTR(fp_taos_options_connection);
+  CHECK_INT(fp_taos_options_connection);
   return (*fp_taos_options_connection)(taos, option, (const char *)arg);
 }
 
