@@ -16,7 +16,7 @@
 #ifndef _TD_COMMON_TAOS_DEF_H_
 #define _TD_COMMON_TAOS_DEF_H_
 
-#include "taosinternal.h"
+#include "taosnative.h"
 #include "tdef.h"
 
 #ifdef __cplusplus

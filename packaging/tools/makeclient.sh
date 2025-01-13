@@ -79,16 +79,16 @@ if [ "$osType" != "Darwin" ]; then
         ${script_dir}/get_client.sh"
   fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
-  internallib_files="${build_dir}/lib/libtaosinternal.so.${version}"
+  nativelib_files="${build_dir}/lib/libtaosnative.so.${version}"
   wslib_files="${build_dir}/lib/libtaosws.so"
 else
   bin_files="${build_dir}/bin/${clientName} ${script_dir}/remove_client.sh"
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
-  internallib_files="${build_dir}/lib/libtaosinternal.${version}.dylib"
+  nativelib_files="${build_dir}/lib/libtaosnative.${version}.dylib"
   wslib_files="${build_dir}/lib/libtaosws.dylib"
 fi
 
-header_files="${code_dir}/include/client/taos.h ${code_dir}/include/client/taosinternal.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
+header_files="${code_dir}/include/client/taos.h ${code_dir}/include/client/taosnative.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
 wsheader_files="${build_dir}/include/taosws.h"
 
 if [ "$dbName" != "taos" ]; then
@@ -226,7 +226,7 @@ fi
 # Copy driver
 mkdir -p ${install_dir}/driver
 cp ${lib_files} ${install_dir}/driver
-cp ${internallib_files} ${install_dir}/driver
+cp ${nativelib_files} ${install_dir}/driver
 
 # Copy connector
 connector_dir="${code_dir}/connector"

@@ -1284,7 +1284,7 @@ void *shellThreadLoop(void *arg) {
 }
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, shell.info.cusName, shell.args.is_internal ? "Internal" : "WebSocket",
+  printf(shell.info.clientVersion, shell.info.cusName, shell.args.is_native ? "Native" : "WebSocket",
          taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 

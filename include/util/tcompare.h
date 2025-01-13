@@ -17,7 +17,7 @@
 #define _TD_UTIL_COMPARE_H_
 
 #include "os.h"
-#include "taosinternal.h"
+#include "taosnative.h"
 
 #ifdef __cplusplus
 extern "C" {

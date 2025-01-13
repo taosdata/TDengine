@@ -17,14 +17,14 @@
 #define TDENGINE_WRAPPER_H
 
 #include "os.h"
-#include "taosinternal.h"
+#include "taosnative.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef enum {
-  DRIVER_INTERNAL = 0,
+  DRIVER_NATIVE = 0,
   DRIVER_WEBSOCKET = 1,
   DRIVER_MAX = 2,
 } EDriverType;

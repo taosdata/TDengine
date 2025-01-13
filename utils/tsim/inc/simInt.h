@@ -23,7 +23,7 @@ extern "C" {
 #include "os.h"
 
 #include "cJSON.h"
-#include "taosinternal.h"
+#include "taosnative.h"
 #include "taoserror.h"
 #include "tconfig.h"
 #include "tglobal.h"

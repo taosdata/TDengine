@@ -42,27 +42,27 @@ IF(TD_LINUX)
   )
 
   target_link_libraries(tmq
-    ${TAOS_INTERNAL_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(stream_demo
-    ${TAOS_INTERNAL_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(schemaless
-    ${TAOS_INTERNAL_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(prepare
-    ${TAOS_INTERNAL_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(demo
-    ${TAOS_INTERNAL_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(asyncdemo
-    ${TAOS_INTERNAL_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   SET_TARGET_PROPERTIES(tmq PROPERTIES OUTPUT_NAME tmq)

@@ -177,11 +177,11 @@ remove_bin() {
 function clean_lib() {
   # Remove link
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  [ -f ${lib_link_dir}/libtaosinternal.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosinternal.* || :
+  [ -f ${lib_link_dir}/libtaosnative.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosnative.* || :
   [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
 
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  [ -f ${lib64_link_dir}/libtaosinternal.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosinternal.* || :
+  [ -f ${lib64_link_dir}/libtaosnative.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
   [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
@@ -189,7 +189,7 @@ function clean_lib() {
 function clean_header() {
   # Remove link
   ${csudo}rm -f ${inc_link_dir}/taos.h || :
-  ${csudo}rm -f ${inc_link_dir}/taosinternal.h || :
+  ${csudo}rm -f ${inc_link_dir}/taosnative.h || :
   ${csudo}rm -f ${inc_link_dir}/taosdef.h || :
   ${csudo}rm -f ${inc_link_dir}/taoserror.h || :
   ${csudo}rm -f ${inc_link_dir}/tdef.h || :

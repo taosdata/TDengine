@@ -16,13 +16,13 @@
 #include "wrapper.h"
 
 #ifdef WINDOWS
-#define DRIVER_INTERNAL_NAME  "taosinternal.dll"
+#define DRIVER_NATIVE_NAME    "taosnative.dll"
 #define DRIVER_WSBSOCKET_NAME "taosws.dll"
 #elif defined(DARWIN)
-#define DRIVER_INTERNAL_NAME  "libtaosinternal.dylib"
+#define DRIVER_NATIVE_NAME    "libtaosnative.dylib"
 #define DRIVER_WSBSOCKET_NAME "libtaosws.dylib"
 #else
-#define DRIVER_INTERNAL_NAME  "libtaosinternal.so"
+#define DRIVER_NATIVE_NAME    "libtaosnative.so"
 #define DRIVER_WSBSOCKET_NAME "libtaosws.so"
 #endif
 
@@ -32,9 +32,9 @@
   if (fptr == NULL) goto _OVER;
 
 #ifdef WEBSOCKET
-EDriverType tsDriverType = DRIVER_WEBSOCKET;
+EDriverType tsDriverType = DRIVER_NATIVE; // todo simon
 #else
-EDriverType tsDriverType = DRIVER_INTERNAL;
+EDriverType tsDriverType = DRIVER_NATIVE;
 #endif
 
 void *tsDriver = NULL;
@@ -61,8 +61,8 @@ int32_t taosDriverInit(EDriverType driverType) {
   const char *driverName = NULL;
   const char *funcName = NULL;
 
-  if (driverType == DRIVER_INTERNAL) {
-    driverName = DRIVER_INTERNAL_NAME;
+  if (driverType == DRIVER_NATIVE) {
+    driverName = DRIVER_NATIVE_NAME;
   } else {
     driverName = DRIVER_WSBSOCKET_NAME;
   }

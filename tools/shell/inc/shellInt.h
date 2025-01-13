@@ -19,7 +19,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "taosinternal.h"
+#include "taosnative.h"
 #include "tcommon.h"
 #include "tconfig.h"
 #include "tglobal.h"
@@ -73,7 +73,7 @@ typedef struct {
   bool        is_dump_config;
   bool        is_check;
   bool        is_startup;
-  bool        is_internal;
+  bool        is_native;
   bool        is_help;
   int32_t     port;
   int32_t     pktLen;

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TAOS_INTERNAL_H
-#define TDENGINE_TAOS_INTERNAL_H
+#ifndef TDENGINE_TAOS_NATIVE_H
+#define TDENGINE_TAOS_NATIVE_H
 
 #include "taos.h"
 

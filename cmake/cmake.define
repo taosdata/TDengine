@@ -99,8 +99,8 @@ ENDIF()
 
 SET(TAOS_LIB taos) 
 SET(TAOS_LIB_STATIC taos_static)
-SET(TAOS_INTERNAL_LIB taosinternal)
-SET(TAOS_INTERNAL_LIB_STATIC taosinternal_static)
+SET(TAOS_NATIVE_LIB taosnative)
+SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 
 # build TSZ by default
 IF("${TSZ_ENABLED}" MATCHES "false")

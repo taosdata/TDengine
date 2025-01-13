@@ -19,7 +19,7 @@
 #include "os.h"
 
 #include "index.h"
-#include "taosinternal.h"
+#include "taosnative.h"
 #include "tarray.h"
 #include "tchecksum.h"
 #include "thash.h"

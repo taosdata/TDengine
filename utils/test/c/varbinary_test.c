@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "taosinternal.h"
+#include "taosnative.h"
 #include "types.h"
 #include "tlog.h"
 

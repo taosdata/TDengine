@@ -88,8 +88,8 @@ void taos_cleanup(void) {
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
   if (option == TSDB_OPTION_DRIVER) {
     if (tsDriver == NULL) {
-      if (strcasecmp((const char *)arg, "internal") == 0 || strcasecmp((const char *)arg, "native") == 0) {
-        tsDriverType = DRIVER_INTERNAL;
+      if (strcasecmp((const char *)arg, "native") == 0) {
+        tsDriverType = DRIVER_NATIVE;
         return 0;
       }
       if (strcasecmp((const char *)arg, "websocket") == 0) {

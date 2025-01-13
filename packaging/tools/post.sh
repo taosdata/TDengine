@@ -135,11 +135,11 @@ function kill_taosd() {
 function install_include() {
     log_print "start install include from ${inc_dir} to ${inc_link_dir}"
     ${csudo}mkdir -p ${inc_link_dir}
-    ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosinternal.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
+    ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosnative.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
     [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
 
     ${csudo}ln -s ${inc_dir}/taos.h ${inc_link_dir}/taos.h
-    ${csudo}ln -s ${inc_dir}/taosinternal.h ${inc_link_dir}/taosinternal.h
+    ${csudo}ln -s ${inc_dir}/taosnative.h ${inc_link_dir}/taosnative.h
     ${csudo}ln -s ${inc_dir}/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo}ln -s ${inc_dir}/taoserror.h ${inc_link_dir}/taoserror.h
     ${csudo}ln -s ${inc_dir}/tdef.h ${inc_link_dir}/tdef.h
@@ -206,24 +206,24 @@ function install_lib() {
     log_print "start install lib from ${lib_dir} to ${lib_link_dir}"
     ${csudo}rm -f ${lib_link_dir}/libtaos* || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos* || :
-    ${csudo}rm -f ${lib_link_dir}/libtaosinternal* || :
-    ${csudo}rm -f ${lib64_link_dir}/libtaosinternal* || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosnative* || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosnative* || :
 
     [ -f ${lib_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
     [ -f ${lib64_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
 
     ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_link_dir}/libtaos.${lib_file_ext_1} ${lib_link_dir}/libtaos.${lib_file_ext} 2>>${install_log_path} || return 1
-    ${csudo}ln -s ${lib_dir}/libtaosinternal.* ${lib_link_dir}/libtaosinternal.${lib_file_ext_1} 2>>${install_log_path} || return 1
-    ${csudo}ln -s ${lib_link_dir}/libtaosinternal.${lib_file_ext_1} ${lib_link_dir}/libtaosinternal.${lib_file_ext} 2>>${install_log_path} || return 1
+    ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
+    ${csudo}ln -s ${lib_link_dir}/libtaosnative.${lib_file_ext_1} ${lib_link_dir}/libtaosnative.${lib_file_ext} 2>>${install_log_path} || return 1
 
     [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
 
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.${lib_file_ext} ]]; then
       ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
       ${csudo}ln -s ${lib64_link_dir}/libtaos.${lib_file_ext_1} ${lib64_link_dir}/libtaos.${lib_file_ext}  2>>${install_log_path} || return 1
-      ${csudo}ln -s ${lib_dir}/libtaosinternal.* ${lib64_link_dir}/libtaosinternal.${lib_file_ext_1} 2>>${install_log_path} || return 1
-      ${csudo}ln -s ${lib64_link_dir}/libtaosinternal.${lib_file_ext_1} ${lib64_link_dir}/libtaosinternal.${lib_file_ext}  2>>${install_log_path} || return 1
+      ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
+      ${csudo}ln -s ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} ${lib64_link_dir}/libtaosnative.${lib_file_ext}  2>>${install_log_path} || return 1
 
       [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
     fi

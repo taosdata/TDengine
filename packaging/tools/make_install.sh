@@ -313,11 +313,11 @@ function install_avro() {
 function install_lib() {
   # Remove links
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  ${csudo}rm -f ${lib_link_dir}/libtaosinternal.* || :
+  ${csudo}rm -f ${lib_link_dir}/libtaosnative.* || :
   [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so || :
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-    ${csudo}rm -f ${lib64_link_dir}/libtaosinternal.* || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
     [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
   fi
 
@@ -326,9 +326,9 @@ function install_lib() {
       ${install_main_dir}/driver &&
       ${csudo}chmod 777 ${install_main_dir}/driver/libtaos.so.${verNumber}
 
-    ${csudo}cp ${binary_dir}/build/lib/libtaosinternal.so.${verNumber} \
+    ${csudo}cp ${binary_dir}/build/lib/libtaosnative.so.${verNumber} \
       ${install_main_dir}/driver &&
-      ${csudo}chmod 777 ${install_main_dir}/driver/libtaosinternal.so.${verNumber}  
+      ${csudo}chmod 777 ${install_main_dir}/driver/libtaosnative.so.${verNumber}  
 
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1 > /dev/null 2>&1
     ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so > /dev/null 2>&1
@@ -337,11 +337,11 @@ function install_lib() {
         ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so > /dev/null 2>&1
     fi
 
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaosinternal.* ${lib_link_dir}/libtaosinternal.so.1 > /dev/null 2>&1
-     ${csudo}ln -sf ${lib_link_dir}/libtaosinternal.so.1 ${lib_link_dir}/libtaosinternal.so > /dev/null 2>&1
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1 > /dev/null 2>&1
+     ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so > /dev/null 2>&1
     if [ -d "${lib64_link_dir}" ]; then
-        ${csudo}ln -sf ${install_main_dir}/driver/libtaosinternal.* ${lib64_link_dir}/libtaosinternal.so.1 > /dev/null 2>&1
-        ${csudo}ln -sf ${lib64_link_dir}/libtaosinternal.so.1 ${lib64_link_dir}/libtaosinternal.so > /dev/null 2>&1
+        ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 > /dev/null 2>&1
+        ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so > /dev/null 2>&1
     fi
 
     if [ -f ${binary_dir}/build/lib/libtaosws.so ]; then
@@ -355,18 +355,18 @@ function install_lib() {
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib \
       ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
-    ${csudo}cp -Rf ${binary_dir}/build/lib/libtaosinternal.${verNumber}.dylib \
+    ${csudo}cp -Rf ${binary_dir}/build/lib/libtaosnative.${verNumber}.dylib \
       ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib \
       ${lib_link_dir}/libtaos.1.dylib > /dev/null 2>&1 || :
 
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaosinternal.${verNumber}.dylib \
-      ${lib_link_dir}/libtaosinternal.1.dylib > /dev/null 2>&1 || :  
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.${verNumber}.dylib \
+      ${lib_link_dir}/libtaosnative.1.dylib > /dev/null 2>&1 || :  
 
     ${csudo}ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib > /dev/null 2>&1 || :
 
-    ${csudo}ln -sf ${lib_link_dir}/libtaosinternal.1.dylib ${lib_link_dir}/libtaosinternal.dylib > /dev/null 2>&1 || :
+    ${csudo}ln -sf ${lib_link_dir}/libtaosnative.1.dylib ${lib_link_dir}/libtaosnative.dylib > /dev/null 2>&1 || :
 
     if [ -f ${binary_dir}/build/lib/libtaosws.dylib ]; then
         ${csudo}cp ${binary_dir}/build/lib/libtaosws.dylib \
@@ -388,9 +388,9 @@ function install_lib() {
 
 function install_header() {
   ${csudo}mkdir -p ${inc_link_dir}
-  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosinternal.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
+  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosnative.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
   [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
-  ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/client/taosinternal.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/util/tdef.h ${source_dir}/include/libs/function/taosudf.h \
+  ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/client/taosnative.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/util/tdef.h ${source_dir}/include/libs/function/taosudf.h \
     ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
 
   if [ -f ${binary_dir}/build/include/taosws.h ]; then
@@ -399,7 +399,7 @@ function install_header() {
   fi
 
   ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h > /dev/null 2>&1
-  ${csudo}ln -s ${install_main_dir}/include/taosinternal.h ${inc_link_dir}/taosinternal.h > /dev/null 2>&1
+  ${csudo}ln -s ${install_main_dir}/include/taosnative.h ${inc_link_dir}/taosnative.h > /dev/null 2>&1
   ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h > /dev/null 2>&1
   ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h > /dev/null 2>&1
   ${csudo}ln -s ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h > /dev/null 2>&1

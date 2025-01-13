@@ -152,21 +152,21 @@ function check_lib_path() {
     # check all links
     check_link ${lib_link_dir}/libtaos.so
     check_link ${lib_link_dir}/libtaos.so.1
-    check_link ${lib_link_dir}/libtaosinternal.so
-    check_link ${lib_link_dir}/libtaosinternal.so.1
+    check_link ${lib_link_dir}/libtaosnative.so
+    check_link ${lib_link_dir}/libtaosnative.so.1
 
     if [[ -d ${lib64_link_dir}  ]]; then
         check_link ${lib64_link_dir}/libtaos.so
         check_link ${lib64_link_dir}/libtaos.so.1
-        check_link ${lib64_link_dir}/libtaosinternal.so
-        check_link ${lib64_link_dir}/libtaosinternal.so.1
+        check_link ${lib64_link_dir}/libtaosnative.so
+        check_link ${lib64_link_dir}/libtaosnative.so.1
     fi
     echo -e "Check lib  path:\033[32mOK\033[0m!"
 }
 
 function check_header_path() {
 	# check all header
-	header_dir=("taos.h" "taosinternal.h" "taosdef.h" "taoserror.h" "taosudf.h")
+	header_dir=("taos.h" "taosnative.h" "taosdef.h" "taoserror.h" "taosudf.h")
     for i in "${header_dir[@]}";do
         check_link ${inc_link_dir}/$i
     done
