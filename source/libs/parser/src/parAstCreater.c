@@ -2955,6 +2955,12 @@ SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, S
   } else {
     pDbName = createIdentifierValueNode(pCxt, &option.dbName);
   }
+
+  if (option.kind != SHOW_KIND_TABLES_NORMAL && option.kind != SHOW_KIND_TABLES_CHILD && option.kind != SHOW_KIND_ALL) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    return NULL;
+  }
+
   SNode* pStmt = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLES_STMT, pDbName, pTbName, tableCondType);
   CHECK_PARSER_STATUS(pCxt);
   (void)setShowKind(pCxt, pStmt, option.kind);
@@ -2973,7 +2979,37 @@ SNode* createShowVTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, 
   } else {
     pDbName = createIdentifierValueNode(pCxt, &option.dbName);
   }
+
+  if (option.kind != SHOW_KIND_TABLES_NORMAL && option.kind != SHOW_KIND_TABLES_CHILD && option.kind != SHOW_KIND_ALL) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    return NULL;
+  }
+
   SNode* pStmt = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_VTABLES_STMT, pDbName, pTbName, tableCondType);
+  CHECK_PARSER_STATUS(pCxt);
+  (void)setShowKind(pCxt, pStmt, option.kind);
+  return pStmt;
+_err:
+  nodesDestroyNode(pTbName);
+  return NULL;
+}
+
+SNode* createShowSTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
+                             EOperatorType tableCondType) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNode* pDbName = NULL;
+  if (option.dbName.type == TK_NK_NIL) {
+    pDbName = createDefaultDatabaseCondValue(pCxt);
+  } else {
+    pDbName = createIdentifierValueNode(pCxt, &option.dbName);
+  }
+
+  if (option.kind != SHOW_KIND_TABLES_NORMAL && option.kind != SHOW_KIND_TABLES_VIRTUAL && option.kind != SHOW_KIND_ALL) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    return NULL;
+  }
+
+  SNode* pStmt = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_STABLES_STMT, pDbName, pTbName, tableCondType);
   CHECK_PARSER_STATUS(pCxt);
   (void)setShowKind(pCxt, pStmt, option.kind);
   return pStmt;
