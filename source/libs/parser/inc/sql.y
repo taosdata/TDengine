@@ -599,7 +599,9 @@ cmd ::= SHOW table_kind_db_name_cond_opt(A) TABLES like_pattern_opt(B).         
 cmd ::= SHOW table_kind_db_name_cond_opt(A) VTABLES like_pattern_opt(B).          {
                                                                                     pCxt->pRootNode = createShowVTablesStmt(pCxt, A, B, OP_TYPE_LIKE);
                                                                                   }
-cmd ::= SHOW db_name_cond_opt(A) STABLES like_pattern_opt(B).                     { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_STABLES_STMT, A, B, OP_TYPE_LIKE); }
+cmd ::= SHOW table_kind_db_name_cond_opt(A) STABLES like_pattern_opt(B).          {
+                                                                                    pCxt->pRootNode = createShowSTablesStmt(pCxt, A, B, OP_TYPE_LIKE);
+                                                                                  }
 cmd ::= SHOW db_name_cond_opt(A) VGROUPS.                                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_VGROUPS_STMT, A, NULL, OP_TYPE_LIKE); }
 cmd ::= SHOW MNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MNODES_STMT); }
 //cmd ::= SHOW MODULES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MODULES_STMT); }
@@ -666,6 +668,7 @@ table_kind_db_name_cond_opt(A) ::= table_kind(B) db_name(C) NK_DOT.             
 %destructor table_kind                                                            { }
 table_kind(A) ::= NORMAL.                                                         { A = SHOW_KIND_TABLES_NORMAL; }
 table_kind(A) ::= CHILD.                                                          { A = SHOW_KIND_TABLES_CHILD; }
+table_kind(A) ::= VIRTUAL.                                                        { A = SHOW_KIND_TABLES_VIRTUAL; }
 
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createIdentifierValueNode(pCxt, &B); }

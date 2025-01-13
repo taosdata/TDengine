@@ -713,6 +713,16 @@ _return:
   return code;
 }
 
+static int32_t checkColRefType(const SSchema* vtbSchema, const SSchema* refSchema) {
+  if (vtbSchema->type != refSchema->type || vtbSchema->bytes != refSchema->bytes) {
+    qError("virtual table column:%s type mismatch, virtual table column type:%d, bytes:%d, "
+        "ref table column:%s, type:%d, bytes:%d",
+        vtbSchema->name, vtbSchema->type, vtbSchema->bytes, refSchema->name, refSchema->type, refSchema->bytes);
+    return TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable,
                               SVirtualScanLogicNode *pVtableScan, SNode* pRefTable,
                               SLogicNode* pRefScan, int32_t index) {
@@ -722,6 +732,7 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
   PLAN_ERR_JRET(findRefTableNode(pVirtualTable->refTables, pColRef->refTableName, &pRefTable));
   PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId));
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)pRefTable, &pRefScan));
+  PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[index], &((SRealTableNode*)pRefTable)->pMeta->schema[colId - 1]));
   PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->pMeta->schema[index], colId));
   PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)pRefScan));
 
