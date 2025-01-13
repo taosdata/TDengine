@@ -19,8 +19,11 @@ When inserting data using parameter binding, it can avoid the resource consumpti
    We only recommend using the following two forms of SQL for parameter binding data insertion:
 
     ```sql
-    1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
-    2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+    a. Subtables already exists:
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
+    b. Automatic table creation on insert:
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
+       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
     ```
 
    :::

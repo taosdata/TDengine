@@ -19,8 +19,11 @@ import TabItem from "@theme/TabItem";
    我们只推荐使用下面两种形式的 SQL 进行参数绑定写入：
 
     ```sql
-    1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
-    2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+    一、确定子表存在：
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)  
+    二、自动建表：
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
+       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
     ```
 
    :::
