@@ -127,6 +127,11 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
     return -1;
   }
 
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    return -1;
+  }
+
   CHECK_INT(fp_taos_options);
   return (*fp_taos_options)(option, arg);
 }
