@@ -338,7 +338,7 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
   SExecTaskInfo*                    pTaskInfo = pOperator->pTaskInfo;
-  if (isFillHistoryOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
+  if (isHistoryOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
     code = buildIntervalHistoryResult(pOperator);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pInfo->binfo.pRes->info.rows != 0) {
@@ -359,7 +359,7 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     pInfo->tsOfKeep = pInfo->twAggSup.minTs;
   }
 
-  if (!isFillHistoryOperator(&pInfo->basic) || !isFinalOperator(&pInfo->basic)) {
+  if (!isHistoryOperator(&pInfo->basic) || !isFinalOperator(&pInfo->basic)) {
     pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep, pInfo->tsOfKeep);
   }
   pInfo->twAggSup.minTs = INT64_MAX;
@@ -424,7 +424,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     return code;
   }
 
-  if (isFillHistoryOperator(&pInfo->basic) && isSemiOperator(&pInfo->basic)) {
+  if (isHistoryOperator(&pInfo->basic) && isSemiOperator(&pInfo->basic)) {
     pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep, pInfo->tsOfKeep);
   }
 
@@ -514,7 +514,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       // return code;
     }
 
-    if (!isSemiOperator(&pInfo->basic) && taosArrayGetSize(pInfo->pUpdated) > 0) {
+    if (taosArrayGetSize(pInfo->pUpdated) > 0) {
       break;
     }
   }
@@ -524,7 +524,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pOperator->status == OP_RES_TO_RETURN && isFillHistoryOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
+  if (pOperator->status == OP_RES_TO_RETURN && isHistoryOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
     code = getHistoryRemainResultInfo(pAggSup, pInfo->pUpdated, pOperator->resultInfo.capacity);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -617,6 +617,11 @@ int32_t doStreamSemiIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBloc
       break;
     }
     curTs = tsCols[startPos];
+  }
+
+  if (isHistoryOperator(&pInfo->basic)) {
+    code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, winPosCmprImpl);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
@@ -715,7 +720,7 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
   TSKEY       ts = getStartTsKey(&pBlock->info.window, tsCols);
   STimeWindow curWin = getFinalTimeWindow(ts, &pInfo->interval);
   while (startPos >= 0) {
-    if (!isFillHistoryOperator(&pInfo->basic) && isDataDeletedStreamWindow(pInfo, &curWin, groupId)) {
+    if (!isHistoryOperator(&pInfo->basic) && isDataDeletedStreamWindow(pInfo, &curWin, groupId)) {
       uint64_t uid = 0;
       code = appendDataToSpecialBlock(pAggSup->pScanBlock, &curWin.skey, &curWin.ekey, &uid, &groupId, NULL);
       QUERY_CHECK_CODE(code, lino, _end);

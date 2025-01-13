@@ -45,7 +45,7 @@ void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
   BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR);
 }
 
-bool isFillHistoryOperator(SSteamOpBasicInfo* pBasicInfo) {
+bool isHistoryOperator(SSteamOpBasicInfo* pBasicInfo) {
   return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR);
 }
 

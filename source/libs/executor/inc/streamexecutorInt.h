@@ -71,7 +71,7 @@ bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
 void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
 void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
-bool isFillHistoryOperator(SSteamOpBasicInfo* pBasicInfo);
+bool isHistoryOperator(SSteamOpBasicInfo* pBasicInfo);
 void setFinalOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isFinalOperator(SSteamOpBasicInfo* pBasicInfo);
 bool needBuildAllResult(SSteamOpBasicInfo* pBasicInfo);
