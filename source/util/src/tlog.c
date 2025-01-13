@@ -21,6 +21,7 @@
 #include "tjson.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "tcommon.h"
 
 #define LOG_MAX_LINE_SIZE              (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
@@ -1264,6 +1265,8 @@ _return:
 
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
+// print the stack trace
+#if 0
 #ifdef _TD_DARWIN_64
   taosPrintTrace(flags, level, dflag, 4);
 #elif !defined(WINDOWS)
@@ -1273,8 +1276,107 @@ _return:
 #else
   taosPrintTrace(flags, level, dflag, 8);
 #endif
-
+#endif
   taosMemoryFree(pMsg);
+}
+
+typedef enum {
+  CRASH_LOG_WRITER_UNKNOWN = 0,
+  CRASH_LOG_WRITER_INIT = 1,
+  CRASH_LOG_WRITER_WAIT,
+  CRASH_LOG_WRITER_RUNNING,
+  CRASH_LOG_WRITER_QUIT
+} CrashStatus;
+typedef struct crashBasicInfo {
+  int8_t  status;
+  int64_t clusterId;
+  int64_t startTime;
+  char   *nodeType;
+  int     signum;
+  void   *sigInfo;
+  tsem_t  sem;
+  int64_t reportThread;
+} crashBasicInfo;
+
+crashBasicInfo gCrashBasicInfo = {0};
+
+void setCrashWriterStatus(int8_t status) { atomic_store_8(&gCrashBasicInfo.status, status); }
+bool reportThreadSetQuit() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_INIT, CRASH_LOG_WRITER_QUIT);
+  if (status == CRASH_LOG_WRITER_INIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool setReportThreadWait() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_INIT, CRASH_LOG_WRITER_WAIT);
+  if (status == CRASH_LOG_WRITER_INIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+bool setReportThreadRunning() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_WAIT, CRASH_LOG_WRITER_RUNNING);
+  if (status == CRASH_LOG_WRITER_WAIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+static void checkWriteCrashLogToFileInNewThead() {
+  if (setReportThreadRunning()) {
+    char       *pMsg = NULL;
+    const char *flags = "UTL FATAL ";
+    ELogLevel   level = DEBUG_FATAL;
+    int32_t     dflag = 255;
+    int64_t     msgLen = -1;
+
+    if (tsEnableCrashReport) {
+      if (taosGenCrashJsonMsg(gCrashBasicInfo.signum, &pMsg, gCrashBasicInfo.clusterId, gCrashBasicInfo.startTime)) {
+        taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+      } else {
+        msgLen = strlen(pMsg);
+      }
+    }
+    taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
+    setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
+    tsem_post(&gCrashBasicInfo.sem);
+  }
+}
+
+void checkAndPrepareCrashInfo() {
+  return checkWriteCrashLogToFileInNewThead();
+}
+
+int32_t initCrashLogWriter() {
+  int32_t code = tsem_init(&gCrashBasicInfo.sem, 0, 0);
+  if (code != 0) {
+    uError("failed to init sem for crashLogWriter, code:%d", code);
+    return code;
+  }
+  gCrashBasicInfo.reportThread = taosGetSelfPthreadId();
+  setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
+  return code;
+}
+
+void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime) {
+  if (gCrashBasicInfo.reportThread == taosGetSelfPthreadId()) {
+    return;
+  }
+  if (setReportThreadWait()) {
+    gCrashBasicInfo.clusterId = clusterId;
+    gCrashBasicInfo.startTime = startTime;
+    gCrashBasicInfo.nodeType = nodeType;
+    gCrashBasicInfo.signum = signum;
+    gCrashBasicInfo.sigInfo = sigInfo;
+    tsem_wait(&gCrashBasicInfo.sem);
+  }
 }
 
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd) {

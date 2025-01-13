@@ -730,11 +730,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   return (void *)buf;
 }
 
-SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
-  SConfigObj *pObj = taosMemoryCalloc(1, sizeof(SConfigObj));
-  if (pObj == NULL) {
-    return NULL;
-  }
+int32_t mndInitConfigObj(SConfigItem *pItem, SConfigObj *pObj) {
   tstrncpy(pObj->name, pItem->name, CFG_NAME_MAX_LEN);
   pObj->dtype = pItem->dtype;
   switch (pItem->dtype) {
@@ -761,11 +757,11 @@ SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
       pObj->str = taosStrdup(pItem->str);
       if (pObj->str == NULL) {
         taosMemoryFree(pObj);
-        return NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
       break;
   }
-  return pObj;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mndUpdateObj(SConfigObj *pObjNew, const char *name, char *value) {
@@ -822,15 +818,14 @@ int32_t mndUpdateObj(SConfigObj *pObjNew, const char *name, char *value) {
   return code;
 }
 
-SConfigObj *mndInitConfigVersion() {
-  SConfigObj *pObj = taosMemoryCalloc(1, sizeof(SConfigObj));
-  if (pObj == NULL) {
-    return NULL;
-  }
-  tstrncpy(pObj->name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
-  pObj->dtype = CFG_DTYPE_INT32;
-  pObj->i32 = 0;
-  return pObj;
+SConfigObj mndInitConfigVersion() {
+  SConfigObj obj;
+  memset(&obj, 0, sizeof(SConfigObj));
+
+  tstrncpy(obj.name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
+  obj.dtype = CFG_DTYPE_INT32;
+  obj.i32 = 0;
+  return obj;
 }
 
 int32_t tEncodeSConfigObj(SEncoder *pEncoder, const SConfigObj *pObj) {
