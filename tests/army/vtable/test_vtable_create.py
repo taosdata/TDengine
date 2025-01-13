@@ -118,9 +118,9 @@ class TDTestCase(TBase):
         tdSql.execute("use test_vtable_create;")
         tdSql.execute("select database();")
 
-        # 1.create virtual child table and don't use 'FROM' to specify the org table
+        # 1.create virtual child table and don't use 'FROM' to specify the origin table
         # 1.1 specify part of columns of vtable
-        # 1.1.1 org table is child table
+        # 1.1.1 origin table is child table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb0`("
                       "vtb_org_child_0.u_tinyint_col, "
                       "vtb_org_child_1.u_smallint_col, "
@@ -130,7 +130,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(1, 0)
 
-        # 1.1.2 org table is normal table
+        # 1.1.2 origin table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb1`("
                       "vtb_org_normal_0.u_tinyint_col, "
                       "vtb_org_normal_1.u_smallint_col, "
@@ -140,7 +140,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(2, 0)
 
-        # 1.1.3 org table is child table and normal table
+        # 1.1.3 origin table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb2`("
                       "vtb_org_child_0.u_tinyint_col, "
                       "vtb_org_normal_1.u_smallint_col, "
@@ -151,7 +151,7 @@ class TDTestCase(TBase):
         self.check_virtual_table_create(3, 0)
 
         # 1.2 specify all columns of vtable
-        # 1.2.1 org table is child table
+        # 1.2.1 origin table is child table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb3`("
                       "vtb_org_child_0.u_tinyint_col, "
                       "vtb_org_child_1.u_smallint_col, "
@@ -175,7 +175,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(4, 0)
 
-        # 1.2.2 org table is normal table
+        # 1.2.2 origin table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb4`("
                       "vtb_org_normal_0.u_tinyint_col, "
                       "vtb_org_normal_1.u_smallint_col, "
@@ -199,7 +199,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(5, 0)
 
-        # 1.2.3 org table is child table and normal table
+        # 1.2.3 origin table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb5`("
                       "vtb_org_child_0.u_tinyint_col, "
                       "vtb_org_normal_1.u_smallint_col, "
@@ -223,9 +223,9 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(6, 0)
 
-        # 2.create virtual child table and use 'FROM' to specify the org table
+        # 2.create virtual child table and use 'FROM' to specify the origin table
         # 2.1 specify part of columns of vtable
-        # 2.1.1 org table is child table
+        # 2.1.1 origin table is child table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb6`("
                       "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
                       "u_bigint_col FROM vtb_org_child_3.u_bigint_col,"
@@ -236,7 +236,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(7, 0)
 
-        # 2.1.2 org table is normal table
+        # 2.1.2 origin table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb7`("
                       "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
                       "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
@@ -247,7 +247,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(8, 0)
 
-        # 2.1.3 org table is child table and normal table
+        # 2.1.3 origin table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb8`("
                       "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
                       "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
@@ -259,7 +259,7 @@ class TDTestCase(TBase):
         self.check_virtual_table_create(9, 0)
 
         # 2.2 specify all columns of vtable
-        # 2.2.1 org table is child table
+        # 2.2.1 origin table is child table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb9`("
                       "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
                       "u_smallint_col FROM vtb_org_child_1.u_smallint_col, "
@@ -283,7 +283,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(10, 0)
 
-        # 2.2.2 org table is normal table
+        # 2.2.2 origin table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb10`("
                       "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
                       "u_smallint_col FROM vtb_org_normal_1.u_smallint_col, "
@@ -307,7 +307,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(11, 0)
 
-        # 2.2.3 org table is child table and normal table
+        # 2.2.3 origin table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb11`("
                       "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
                       "u_smallint_col FROM vtb_org_normal_1.u_smallint_col, "
@@ -332,7 +332,7 @@ class TDTestCase(TBase):
         self.check_virtual_table_create(12, 0)
 
         # 2.3 specify all columns in random order of vtable
-        # 2.3.1 org table is child table
+        # 2.3.1 origin table is child table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb12`("
                       "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
                       "u_bigint_col FROM vtb_org_child_3.u_bigint_col,"
@@ -355,7 +355,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(13, 0)
 
-        # 2.3.2 org table is normal table
+        # 2.3.2 origin table is normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb13`("
                       "u_tinyint_col FROM vtb_org_normal_0.u_tinyint_col, "
                       "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
@@ -378,7 +378,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(14, 0)
 
-        # 2.3.3 org table is child table and normal table
+        # 2.3.3 origin table is child table and normal table
         tdSql.execute("CREATE VTABLE `vtb_virtual_ctb14`("
                       "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
                       "u_bigint_col FROM vtb_org_normal_3.u_bigint_col,"
@@ -408,7 +408,7 @@ class TDTestCase(TBase):
         tdSql.execute("select database();")
         # 3. create virtual normal table
         # 3.1 specify part of columns of vtable
-        # 3.1.1 org table is child table
+        # 3.1.1 origin table is child table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb0` ("
                       "ts timestamp, "
                       "u_tinyint_col tinyint unsigned from vtb_org_child_0.u_tinyint_col, "
@@ -433,7 +433,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(15, 1)
 
-        # 3.1.2 org table is normal table
+        # 3.1.2 origin table is normal table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb1` ("
                       "ts timestamp, "
                       "u_tinyint_col tinyint unsigned from vtb_org_normal_0.u_tinyint_col, "
@@ -458,7 +458,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(15, 2)
 
-        # 3.1.3 org table is child table and normal table
+        # 3.1.3 origin table is child table and normal table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb2` ("
                       "ts timestamp, "
                       "u_tinyint_col tinyint unsigned from vtb_org_child_0.u_tinyint_col, "
@@ -484,7 +484,7 @@ class TDTestCase(TBase):
         self.check_virtual_table_create(15, 3)
 
         # 3.2 specify all columns of vtable
-        # 3.2.1 org table is child table
+        # 3.2.1 origin table is child table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb3` ("
                       "ts timestamp, "
                       "u_tinyint_col tinyint unsigned from vtb_org_child_0.u_tinyint_col, "
@@ -509,7 +509,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(15, 4)
 
-        # 3.2.2 org table is normal table
+        # 3.2.2 origin table is normal table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb4` ("
                       "ts timestamp, "
                       "u_tinyint_col tinyint unsigned from vtb_org_normal_0.u_tinyint_col, "
@@ -534,7 +534,7 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_create(15, 5)
 
-        # 3.2.3 org table is child table and normal table
+        # 3.2.3 origin table is child table and normal table
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ntb5` ("
                       "ts timestamp, "
                       "u_tinyint_col tinyint unsigned from vtb_org_child_0.u_tinyint_col, "
@@ -581,12 +581,12 @@ class TDTestCase(TBase):
 
         # 4. column definition different from referenced column
         # 4.1 child table
-        # 4.1.1 child table use from to specify the org table
+        # 4.1.1 child table use from to specify the origin table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb3`("
                     "u_tinyint_col FROM vtb_org_child_0.tinyint_col"
                     ") USING vtb_virtual_stb TAGS (3, false, 3, 3, 'vchild3', 'vchild3')")
 
-        # 4.1.2 child table do not use from to specify the org table
+        # 4.1.2 child table do not use from to specify the origin table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb4`("
                     "vtb_org_child_0.tinyint_col"
                     ") USING vtb_virtual_stb TAGS (4, false, 4, 4, 'vchild4', 'vchild4')")
@@ -616,12 +616,12 @@ class TDTestCase(TBase):
 
         # 6. data source column does not exist
         # 6.1 child table
-        # 6.1.1 child table use from to specify the org table
+        # 6.1.1 child table use from to specify the origin table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb6`("
                     "u_tinyint_col FROM vtb_org_child_0.not_exists_col"
                     ") USING vtb_virtual_stb TAGS (6, false, 6, 6, 'vchild6', 'vchild6')")
 
-        # 6.1.2 child table do not use from to specify the org table
+        # 6.1.2 child table do not use from to specify the origin table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb7`("
                     "vtb_org_child_0.not_exists_col"
                     ") USING vtb_virtual_stb TAGS (7, false, 7, 7, 'vchild7', 'vchild7')")
@@ -633,12 +633,12 @@ class TDTestCase(TBase):
 
         # 7. data source table does not exist
         # 7.1 child table
-        # 7.1.1 child table use from to specify the org table
+        # 7.1.1 child table use from to specify the origin table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb8`("
                     "u_tinyint_col FROM not_exists_table.u_tinyint_col"
                     ") USING vtb_virtual_stb TAGS (8, false, 8, 8, 'vchild8', 'vchild8')")
 
-        # 7.1.2 child table do not use from to specify the org table
+        # 7.1.2 child table do not use from to specify the origin table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb9`("
                     "not_exists_table.u_tinyint_col"
                     ") USING vtb_virtual_stb TAGS (9, false, 9, 9, 'vchild9', 'vchild9')")
@@ -650,13 +650,13 @@ class TDTestCase(TBase):
 
         # 8. data source table has composite primary key
         # 8.1 child table
-        # 8.1.1 child table use from to specify the org table
+        # 8.1.1 child table use from to specify the origin table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb10`("
                     "u_tinyint_col FROM vtb_org_child_0.u_tinyint_col, "
                     "u_smallint_col FROM vtb_org_normal_pk.u_smallint_col"
                     ") USING vtb_virtual_stb TAGS (10, false, 10, 10, 'vchild10', 'vchild10')")
 
-        # 8.1.2 child table do not use from to specify the org table
+        # 8.1.2 child table do not use from to specify the origin table
         tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb11`("
                     "vtb_org_child_0.u_tinyint_col, "
                     "vtb_org_normal_pk.u_smallint_col"
