@@ -14792,39 +14792,72 @@ _return:
   return code;
 }
 
+static int32_t addShowVirtualSuperTablesCond(SSelectStmt* pSelect, bool equal) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SNode*      pTypeCond = NULL;
+  SValueNode* pValNode1 = NULL;
+  PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pValNode1));
+
+  PAR_ERR_JRET(createOperatorNode(equal ? OP_TYPE_EQUAL : OP_TYPE_NOT_EQUAL, "isvirtual", (SNode*)pValNode1, &pTypeCond));
+
+  PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pTypeCond));
+
+_return:
+  nodesDestroyNode((SNode*)pValNode1);
+  nodesDestroyNode(pTypeCond);
+  return code;
+}
+
+
 static int32_t addShowKindCond(const SShowStmt* pShow, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pShow->type != QUERY_NODE_SHOW_DATABASES_STMT && pShow->type != QUERY_NODE_SHOW_TABLES_STMT &&
-          pShow->type != QUERY_NODE_SHOW_VTABLES_STMT) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (pShow->type == QUERY_NODE_SHOW_DATABASES_STMT) {
-    if (pShow->showKind == SHOW_KIND_DATABASES_USER) {
-      PAR_ERR_RET(addShowUserDatabasesCond(pSelect));
-    } else if (pShow->showKind == SHOW_KIND_DATABASES_SYSTEM) {
-      PAR_ERR_RET(addShowSystemDatabasesCond(pSelect));
-    } else {
+  switch (pShow->type) {
+    case QUERY_NODE_SHOW_DATABASES_STMT: {
+      if (pShow->showKind == SHOW_KIND_DATABASES_USER) {
+        PAR_ERR_RET(addShowUserDatabasesCond(pSelect));
+      } else if (pShow->showKind == SHOW_KIND_DATABASES_SYSTEM) {
+        PAR_ERR_RET(addShowSystemDatabasesCond(pSelect));
+      } else {
+        PAR_RET(TSDB_CODE_SUCCESS);
+      }
+      break;
+    }
+    case QUERY_NODE_SHOW_TABLES_STMT: {
+      if (pShow->showKind == SHOW_KIND_TABLES_NORMAL) {
+        PAR_ERR_RET(addShowNormalTablesCond(pSelect, true));
+      } else if (pShow->showKind == SHOW_KIND_TABLES_CHILD) {
+        PAR_ERR_RET(addShowChildTablesCond(pSelect, true));
+      } else {
+        PAR_ERR_RET(addShowVirtualNormalTablesCond(pSelect, false));
+        PAR_ERR_RET(addShowVirtualChildTablesCond(pSelect, false));
+      }
+      break;
+    }
+    case QUERY_NODE_SHOW_VTABLES_STMT: {
+      if (pShow->showKind == SHOW_KIND_TABLES_NORMAL) {
+        PAR_ERR_RET(addShowVirtualNormalTablesCond(pSelect, true));
+      } else if (pShow->showKind == SHOW_KIND_TABLES_CHILD) {
+        PAR_ERR_RET(addShowVirtualChildTablesCond(pSelect, true));
+      } else {
+        PAR_ERR_RET(addShowNormalTablesCond(pSelect, false));
+        PAR_ERR_RET(addShowChildTablesCond(pSelect, false));
+      }
+      break;
+    }
+    case QUERY_NODE_SHOW_STABLES_STMT: {
+      if (pShow->showKind == SHOW_KIND_TABLES_NORMAL) {
+        PAR_ERR_RET(addShowVirtualSuperTablesCond(pSelect, false));
+      } else if (pShow->showKind == SHOW_KIND_TABLES_VIRTUAL) {
+        PAR_ERR_RET(addShowVirtualSuperTablesCond(pSelect, true));
+      } else {
+        PAR_RET(TSDB_CODE_SUCCESS);
+      }
+      break;
+    }
+    default:
       PAR_RET(TSDB_CODE_SUCCESS);
-    }
-  } else if (pShow->type == QUERY_NODE_SHOW_TABLES_STMT) {
-    if (pShow->showKind == SHOW_KIND_TABLES_NORMAL) {
-      PAR_ERR_RET(addShowNormalTablesCond(pSelect, true));
-    } else if (pShow->showKind == SHOW_KIND_TABLES_CHILD) {
-      PAR_ERR_RET(addShowChildTablesCond(pSelect, true));
-    } else {
-      PAR_ERR_RET(addShowVirtualNormalTablesCond(pSelect, false));
-      PAR_ERR_RET(addShowVirtualChildTablesCond(pSelect, false));
-    }
-  } else if (pShow->type == QUERY_NODE_SHOW_VTABLES_STMT) {
-    if (pShow->showKind == SHOW_KIND_TABLES_NORMAL) {
-      PAR_ERR_RET(addShowVirtualNormalTablesCond(pSelect, true));
-    } else if (pShow->showKind == SHOW_KIND_TABLES_CHILD) {
-      PAR_ERR_RET(addShowVirtualChildTablesCond(pSelect, true));
-    } else {
-      PAR_ERR_RET(addShowNormalTablesCond(pSelect, false));
-      PAR_ERR_RET(addShowChildTablesCond(pSelect, false));
-    }
   }
+
   return code;
 }
 
