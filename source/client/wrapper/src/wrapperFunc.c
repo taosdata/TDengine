@@ -336,7 +336,7 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
   return (*fp_taos_stmt2_is_insert)(stmt, insert);
 }
 
-int taos_stmt2_get_field(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
+int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
   CHECK_INT(fp_taos_stmt2_get_fields);
   return (*fp_taos_stmt2_get_fields)(stmt, count, fields);
 }
