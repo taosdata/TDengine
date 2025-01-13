@@ -116,7 +116,6 @@ cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driv
 cp %{_compiledir}/build/lib/${nativelibfile}        %{buildroot}%{homepath}/driver
 [ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/client/taosnative.h    %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/tdef.h            %{buildroot}%{homepath}/include
@@ -243,7 +242,6 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark       || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
-    ${csudo}rm -f ${inc_link_dir}/taosnative.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :
     ${csudo}rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo}rm -f ${inc_link_dir}/tdef.h     || :

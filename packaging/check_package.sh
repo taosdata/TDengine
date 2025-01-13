@@ -166,7 +166,7 @@ function check_lib_path() {
 
 function check_header_path() {
 	# check all header
-	header_dir=("taos.h" "taosnative.h" "taosdef.h" "taoserror.h" "taosudf.h")
+	header_dir=("taos.h" "taosdef.h" "taoserror.h" "taosudf.h")
     for i in "${header_dir[@]}";do
         check_link ${inc_link_dir}/$i
     done

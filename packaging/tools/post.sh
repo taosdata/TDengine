@@ -135,11 +135,10 @@ function kill_taosd() {
 function install_include() {
     log_print "start install include from ${inc_dir} to ${inc_link_dir}"
     ${csudo}mkdir -p ${inc_link_dir}
-    ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosnative.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
+    ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
     [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
 
     ${csudo}ln -s ${inc_dir}/taos.h ${inc_link_dir}/taos.h
-    ${csudo}ln -s ${inc_dir}/taosnative.h ${inc_link_dir}/taosnative.h
     ${csudo}ln -s ${inc_dir}/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo}ln -s ${inc_dir}/taoserror.h ${inc_link_dir}/taoserror.h
     ${csudo}ln -s ${inc_dir}/tdef.h ${inc_link_dir}/tdef.h

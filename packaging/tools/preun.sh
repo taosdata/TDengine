@@ -161,7 +161,6 @@ ${csudo}rm -f ${bin_link_dir}/start-all.sh  || :
 ${csudo}rm -f ${bin_link_dir}/stop-all.sh  || :
 ${csudo}rm -f ${cfg_link_dir}/*.new      || :
 ${csudo}rm -f ${inc_link_dir}/taos.h     || :
-${csudo}rm -f ${inc_link_dir}/taosnative.h     || :
 ${csudo}rm -f ${inc_link_dir}/taosdef.h  || :
 ${csudo}rm -f ${inc_link_dir}/taoserror.h || :
 ${csudo}rm -f ${inc_link_dir}/tdef.h || :
