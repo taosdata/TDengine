@@ -20,17 +20,44 @@ tdDnodes1 = TDDnodes()
 tdDnodes2 = TDDnodes()
 
 if __name__ == "__main__":
+    args = sys.argv[1:]
+    
+    insertData = False
+    if len(sys.argv[1:]) == 1:
+        insertData = True
+
+    if not os.path.isdir("taosx-perf"):
+        os.system("mkdir taosx-perf")
+        os.system("git clone https://github.com/brendangregg/FlameGraph.git taosx-perf")
+    os.chdir("taosx-perf")
+    print(os.getcwd())
+
     tdDnodes1.stopAll()
-    updatecfgDict1 = {'debugFlag': 135, 'serverPort': 6030}
+    updatecfgDict1 = {'debugFlag': 131, 'serverPort': 6030}
     tdDnodes1.init("./dnode1")
     tdDnodes1.deploy(1,updatecfgDict1)
     tdDnodes1.start(1)
 
-    updatecfgDict2 = {'debugFlag': 135, 'serverPort': 7030}
+    updatecfgDict2 = {'debugFlag': 131, 'serverPort': 7030}
     tdDnodes2.init("./dnode2")
     tdDnodes2.deploy(1,updatecfgDict2)
     tdDnodes2.start(1)
 
-    os.system("taosBenchmark -f taosx-performance.json")
+    if insertData :
+        os.system("taosBenchmark -f ../taosx-performance.json")
+
+    print("create test in dst")
+
+    os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"drop database if exists test\"")
+    os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"create database test vgroups 8\"")
+
+    print("start to run taosx")
+    os.system("taosx run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout=50s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\" > /dev/null 2>&1 &")
+    time.sleep(10)
+
+    print("start to run perf")
+    #os.system("perf record -a -g -F 99 -p `pidof taosx` sleep 60")
+
+    #os.system("perf script | ./FlameGraph/stackcollapse-perf.pl| ./FlameGraph/flamegraph.pl > flame.svg")
 
     tdLog.info("Procedures for tdengine deployed in")

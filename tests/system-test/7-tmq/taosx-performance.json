@@ -21,7 +21,7 @@
       "dbinfo": {
         "name": "test",
         "drop": "yes",
-        "vgroups": 32,
+        "vgroups": 8,
         "precision": "ms",
         "WAL_RETENTION_PERIOD": 864000
       },
