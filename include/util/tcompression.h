@@ -17,7 +17,7 @@
 #define _TD_UTIL_COMPRESSION_H_
 
 #include "os.h"
-#include "taosnative.h"
+#include "taos.h"
 #include "tutil.h"
 
 #ifdef __cplusplus

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "wrapper.h"
 #include "version.h"
+#include "wrapper.h"
 
 static TdThreadOnce tsDriverOnce = PTHREAD_ONCE_INIT;
 volatile int32_t    tsDriverOnceRet = 0;
@@ -34,11 +34,6 @@ volatile int32_t    tsDriverOnceRet = 0;
 #define ERR_BOOL(code) \
   terrno = code;       \
   return false;
-
-#define ERR_CONFRET(code)           \
-  terrno = code;                    \
-  setConfRet ret = {.retCode = -1}; \
-  return ret;
 
 #define CHECK_VOID(fp)               \
   if (tsDriver == NULL) {            \
@@ -72,13 +67,28 @@ volatile int32_t    tsDriverOnceRet = 0;
     ERR_BOOL(TSDB_CODE_DLL_NOT_LOAD) \
   }
 
-#define CHECK_CONFRET(fp)               \
-  if (tsDriver == NULL) {               \
-    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
-  }                                     \
-  if (fp == NULL) {                     \
-    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
+setConfRet taos_set_config(const char *config) {
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+  setConfRet ret = {.retCode = TSDB_CODE_OPS_NOT_SUPPORT};
+  return ret;
+}
+
+static void taos_init_wrapper(void) {
+  tsDriverOnceRet = taosDriverInit(tsDriverType);
+  if (tsDriverOnceRet != 0) return;
+
+  if (fp_taos_init == NULL) {
+    terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
+    tsDriverOnceRet = -1;
+  } else {
+    tsDriverOnceRet = (*fp_taos_init)();
   }
+}
+
+int taos_init(void) {
+  (void)taosThreadOnce(&tsDriverOnce, taos_init_wrapper);
+  return tsDriverOnceRet;
+}
 
 void taos_cleanup(void) {
   CHECK_VOID(fp_taos_cleanup);
@@ -105,23 +115,9 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   return (*fp_taos_options)(option, arg);
 }
 
-set
-
-static void taos_init_wrapper(void) {
-  tsDriverOnceRet = taosDriverInit(tsDriverType);
-  if (tsDriverOnceRet != 0) return;
-
-  if (fp_taos_init == NULL) {
-    terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
-    tsDriverOnceRet = -1;
-  } else {
-    tsDriverOnceRet = (*fp_taos_init)();
-  }
-}
-
-int taos_init(void) {
-  (void)taosThreadOnce(&tsDriverOnce, taos_init_wrapper);
-  return tsDriverOnceRet;
+int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...) {
+  CHECK_PTR(fp_taos_options_connection);
+  return (*fp_taos_options_connection)(taos, option, (const char *)arg);
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
@@ -144,6 +140,11 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
   return (*fp_taos_connect_auth)(ip, user, auth, db, port);
 }
 
+void taos_close(TAOS *taos) {
+  CHECK_VOID(fp_taos_close);
+  (*fp_taos_close)(taos);
+}
+
 TAOS *taos_connect_dsn(const char *dsn, const char *user, const char *pass, const char *db) {
   if (taos_init() != 0) {
     terrno = TSDB_CODE_DLL_NOT_LOAD;
@@ -162,11 +163,6 @@ TAOS *taos_connect_dsn_auth(const char *dsn, const char *user, const char *auth,
 
   CHECK_PTR(fp_taos_connect_dsn_auth);
   return (*fp_taos_connect_dsn_auth)(dsn, user, auth, db);
-}
-
-void taos_close(TAOS *taos) {
-  CHECK_VOID(fp_taos_close);
-  (*fp_taos_close)(taos);
 }
 
 const char *taos_data_type(int type) {
@@ -292,6 +288,56 @@ int taos_stmt_affected_rows(TAOS_STMT *stmt) {
 int taos_stmt_affected_rows_once(TAOS_STMT *stmt) {
   CHECK_INT(fp_taos_stmt_affected_rows_once);
   return (*fp_taos_stmt_affected_rows_once)(stmt);
+}
+
+TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
+  CHECK_PTR(fp_taos_stmt2_init);
+  return (*fp_taos_stmt2_init)(taos, option);
+}
+
+int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) {
+  CHECK_INT(fp_taos_stmt2_prepare);
+  return (*fp_taos_stmt2_prepare)(stmt, sql, length);
+}
+
+int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) {
+  CHECK_INT(fp_taos_stmt2_bind_param);
+  return (*fp_taos_stmt2_bind_param)(stmt, bindv, col_idx);
+}
+
+int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
+  CHECK_INT(fp_taos_stmt2_exec);
+  return (*fp_taos_stmt2_exec)(stmt, affected_rows);
+}
+
+int taos_stmt2_close(TAOS_STMT2 *stmt) {
+  CHECK_INT(fp_taos_stmt2_close);
+  return (*fp_taos_stmt2_close)(stmt);
+}
+
+int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
+  CHECK_INT(fp_taos_stmt2_is_insert);
+  return (*fp_taos_stmt2_is_insert)(stmt, insert);
+}
+
+int taos_stmt2_get_field(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
+  CHECK_INT(fp_taos_stmt2_get_fields);
+  return (*fp_taos_stmt2_get_fields)(stmt, count, fields);
+}
+
+void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {
+  CHECK_VOID(fp_taos_stmt2_free_fields);
+  (*fp_taos_stmt2_free_fields)(stmt, fields);
+}
+
+TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
+  CHECK_PTR(fp_taos_stmt2_result);
+  return (*fp_taos_stmt2_result)(stmt);
+}
+
+char *taos_stmt2_error(TAOS_STMT2 *stmt) {
+  CHECK_PTR(fp_taos_stmt2_error);
+  return (*fp_taos_stmt2_error)(stmt);
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
@@ -515,10 +561,9 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
   return (*fp_taos_set_notify_cb)(taos, fp, param, type);
 }
 
-void taos_write_crashinfo(int signum, void *sigInfo, void *context) {
-  if (fp_taos_write_crashinfo) {
-    (*fp_taos_write_crashinfo)(signum, sigInfo, context);
-  }
+void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) {
+  CHECK_VOID(fp_taos_fetch_whitelist_a);
+  return (*fp_taos_fetch_whitelist_a)(taos, fp, param);
 }
 
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {
@@ -750,9 +795,61 @@ const char *tmq_err2str(int32_t code) {
   return (*fp_tmq_err2str)(code);
 }
 
+int32_t tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw) {
+  CHECK_INT(fp_tmq_get_raw);
+  return (*fp_tmq_get_raw)(res, raw);
+}
+
+int32_t tmq_write_raw(TAOS *taos, tmq_raw_data raw) {
+  CHECK_INT(fp_tmq_write_raw);
+  return (*fp_tmq_write_raw)(taos, raw);
+}
+
+int taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname) {
+  CHECK_INT(fp_taos_write_raw_block);
+  return (*fp_taos_write_raw_block)(taos, numOfRows, pData, tbname);
+}
+
+int taos_write_raw_block_with_reqid(TAOS *taos, int numOfRows, char *pData, const char *tbname, int64_t reqid) {
+  CHECK_INT(fp_taos_write_raw_block_with_reqid);
+  return (*fp_taos_write_raw_block_with_reqid)(taos, numOfRows, pData, tbname, reqid);
+}
+
+int taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const char *tbname, TAOS_FIELD *fields,
+                                     int numFields) {
+  CHECK_INT(fp_taos_write_raw_block_with_fields);
+  return (*fp_taos_write_raw_block_with_fields)(taos, rows, pData, tbname, fields, numFields);
+}
+
+int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
+                                                TAOS_FIELD *fields, int numFields, int64_t reqid) {
+  CHECK_INT(fp_taos_write_raw_block_with_fields_with_reqid);
+  return (*fp_taos_write_raw_block_with_fields_with_reqid)(taos, rows, pData, tbname, fields, numFields, reqid);
+}
+
+void tmq_free_raw(tmq_raw_data raw) {
+  CHECK_VOID(fp_tmq_free_raw);
+  (*fp_tmq_free_raw)(raw);
+}
+
+char *tmq_get_json_meta(TAOS_RES *res) {
+  CHECK_PTR(fp_tmq_get_json_meta);
+  return (*fp_tmq_get_json_meta)(res);
+}
+
+void tmq_free_json_meta(char *jsonMeta) {
+  CHECK_VOID(fp_tmq_free_json_meta);
+  return (*fp_tmq_free_json_meta)(jsonMeta);
+}
+
 TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen) {
   CHECK_INT(fp_taos_check_server_status);
   return (*fp_taos_check_server_status)(fqdn, port, details, maxlen);
+}
+
+void taos_write_crashinfo(int signum, void *sigInfo, void *context) {
+  CHECK_VOID(fp_taos_write_crashinfo);
+  (*fp_taos_write_crashinfo)(signum, sigInfo, context);
 }
 
 char *getBuildInfo() {

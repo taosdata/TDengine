@@ -22,7 +22,7 @@ extern "C" {
 #include "clientInt.h"
 #include "osThread.h"
 #include "query.h"
-#include "taosnative.h"
+#include "taos.h"
 #include "taoserror.h"
 #include "tcommon.h"
 #include "tdef.h"

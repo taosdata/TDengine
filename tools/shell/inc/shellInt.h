@@ -19,7 +19,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "taosnative.h"
+#include "taos.h"
 #include "tcommon.h"
 #include "tconfig.h"
 #include "tglobal.h"

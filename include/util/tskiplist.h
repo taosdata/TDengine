@@ -17,7 +17,7 @@
 #define _TD_UTIL_SKILIST_H
 
 #include "os.h"
-#include "taosnative.h"
+#include "taos.h"
 #include "tarray.h"
 
 #ifdef __cplusplus
