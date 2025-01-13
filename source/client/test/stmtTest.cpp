@@ -52,6 +52,11 @@ void do_query(TAOS *taos, const char *sql) {
   TAOS_RES *result = taos_query(taos, sql);
   // printf("sql: %s\n", sql);
   int code = taos_errno(result);
+  while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+    taosMsleep(2000);
+    result = taos_query(taos, sql);
+    code = taos_errno(result);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     printf("query failen  sql : %s\n  errstr : %s\n", sql, taos_errstr(result));
     ASSERT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
