@@ -34,10 +34,10 @@ tokio-util = "0.7.12"
 toml = "0.8.19"
 zstd = "0.13.2"
 
-arrow-schema = "54.0.0"
-arrow-array = "54.0.0"
-parquet = "54.0.0"
-bytes = "1.1"
+arrow = { workspace = true }
+arrow-schema = { workspace = true }
+parquet = { workspace = true }
+bytes = { workspace = true }
 
 [lints]
 workspace = true
