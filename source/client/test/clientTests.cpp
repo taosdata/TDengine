@@ -532,6 +532,10 @@ TEST(clientCase, create_stable_Test) {
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "use abc1");
+  while (taos_errno(pRes) == TSDB_CODE_MND_DB_IN_CREATING || taos_errno(pRes) == TSDB_CODE_MND_DB_IN_DROPPING) {
+    taosMsleep(2000);
+    pRes = taos_query(pConn, "use abc1");
+  }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table if not exists abc1.st1(ts timestamp, k int) tags(a int)");
@@ -664,6 +668,10 @@ TEST(clientCase, create_multiple_tables) {
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "use abc1");
+  while (taos_errno(pRes) == TSDB_CODE_MND_DB_IN_CREATING || taos_errno(pRes) == TSDB_CODE_MND_DB_IN_DROPPING) {
+    taosMsleep(2000);
+    pRes = taos_query(pConn, "use abc1");
+  }
   if (taos_errno(pRes) != 0) {
     (void)printf("failed to use db, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -1524,6 +1532,10 @@ TEST(clientCase, timezone_Test) {
     taos_free_result(pRes);
 
     pRes = taos_query(pConn, "create table db1.t1 (ts timestamp, v int)");
+    while (taos_errno(pRes) == TSDB_CODE_MND_DB_IN_CREATING || taos_errno(pRes) == TSDB_CODE_MND_DB_IN_DROPPING) {
+      taosMsleep(2000);
+      pRes = taos_query(pConn, "create table db1.t1 (ts timestamp, v int)");
+    }
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
 
