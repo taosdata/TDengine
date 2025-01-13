@@ -54,12 +54,12 @@
   "combined with logDir and the relative directory."
 
 #ifdef WEBSOCKET
-#define SHELL_DRIVER_DEFAULT "1." // todo simon -> 0
+#define SHELL_DRIVER_DEFAULT "0." // todo simon -> 1
 #else
-#define SHELL_DRIVER_DEFAULT "1."
+#define SHELL_DRIVER_DEFAULT "0."
 #endif
 #define SHELL_DRIVER \
-  "How to access the database, 0|websocket for WebSocket, 1|native for Native, default is " SHELL_DRIVER_DEFAULT
+  "How to access the database, 0|native for Native, 1|websocket for WebSocket, default is " SHELL_DRIVER_DEFAULT
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
@@ -241,9 +241,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->timeout = atoi(arg);
       break;
     case 'v':
-      if (strcasecmp(arg, "native") == 0 || strcasecmp(arg, "1") == 0) {
+      if (strcasecmp(arg, "native") == 0 || strcasecmp(arg, "0") == 0) {
         pArgs->is_native = true;
-      } else if (strcasecmp(arg, "websocket") == 0 || strcasecmp(arg, "0") == 0) {
+      } else if (strcasecmp(arg, "websocket") == 0 || strcasecmp(arg, "1") == 0) {
         pArgs->is_native = false;
       } else {
         fprintf(stderr, "invalid input %s for option %c\r\n", arg, key);
@@ -350,7 +350,7 @@ static void shellInitArgs(int argc, char *argv[]) {
   pArgs->displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
   pArgs->timeout = SHELL_WS_TIMEOUT;
 #ifdef WEBSOCKET
-  pArgs->is_native = true;  // todo simon -> 1
+  pArgs->is_native = true;  // todo simon -> false
 #else
   pArgs->is_native = true;
 #endif
