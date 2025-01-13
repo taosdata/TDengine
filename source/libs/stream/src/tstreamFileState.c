@@ -33,6 +33,7 @@
 #define MAX_GROUP_ID_NUM               200000
 #define NUM_OF_CACHE_WIN               64
 #define MAX_NUM_OF_CACHE_WIN           128
+#define MIN_NUM_OF_SORT_CACHE_WIN      128
 
 #define DEFAULT_STATE_MAP_CAPACITY 10240
 #define MAX_STATE_MAP_SIZE         10240000
@@ -854,9 +855,11 @@ bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, int32_t keyLe
     void** ppBuff = (void**)tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
     if (ppBuff != NULL) {
       SArray* pWinStates = (SArray*)(*ppBuff);
-      if (taosArrayGetSize(pWinStates) <= NUM_OF_CACHE_WIN) {
+      if (taosArrayGetSize(pWinStates) <= MIN_NUM_OF_SORT_CACHE_WIN) {
         return true;
       }
+      SWinKey* fistKey = (SWinKey*) taosArrayGet(pWinStates, 0);
+      qInfo("===stream===check window state. buff min ts:%" PRId64 ",groupId:%" PRIu64".key ts:%" PRId64 ",groupId:%" PRIu64, fistKey->ts, fistKey->groupId, pKey->ts, pKey->groupId);
     } else {
       return true;
     }
@@ -1339,7 +1342,7 @@ void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY mi
       SWinKey key = {.ts = minTs};
       key.groupId = *(int64_t*)tSimpleHashGetKey(pIte, NULL);
       int32_t index = binarySearch(pWinStates, arraySize, &key, fillStateKeyCompare);
-      numOfKeep = TMAX(arraySize - index, NUM_OF_CACHE_WIN);
+      numOfKeep = TMAX(arraySize - index, MIN_NUM_OF_SORT_CACHE_WIN);
       qDebug("modify numOfKeep, numOfKeep:%d. %s at line %d", numOfKeep, __func__, __LINE__);
     }
 

@@ -651,7 +651,20 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
   return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);
 }
 
-void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs) { clearExpiredState(pState->pFileState, numOfKeep, minTs); }
+void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs) {
+  if (numOfKeep == 0) {
+    streamFileStateClear(pState->pFileState);
+    SSHashObj* pSearchBuff = getSearchBuff(pState->pFileState);
+    void*      pIte = NULL;
+    int32_t    iter = 0;
+    while ((pIte = tSimpleHashIterate(pSearchBuff, pIte, &iter)) != NULL) {
+      SArray* pWinStates = *((void**)pIte);
+      taosArrayClear(pWinStates);
+    }
+    return;
+  }
+  clearExpiredState(pState->pFileState, numOfKeep, minTs);
+}
 
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {

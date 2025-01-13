@@ -254,7 +254,7 @@ sql use test4;
 sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams4 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt4 as select  _wstart, count(*) c1, max(a) c2  from st partition by tbname interval(10s) sliding(5s) ;
+sql create stream streams4 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt4 as select  _wstart, count(*) c1, max(a) c2  from st interval(10s) sliding(5s) ;
 
 run tsim/stream/checkTaskStatus.sim
 

@@ -338,7 +338,7 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
   SExecTaskInfo*                    pTaskInfo = pOperator->pTaskInfo;
-  if (needBuildAllResult(&pInfo->basic)) {
+  if (isFillHistoryOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
     code = buildIntervalHistoryResult(pOperator);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pInfo->binfo.pRes->info.rows != 0) {
@@ -373,6 +373,35 @@ _end:
   return code;
 }
 
+int32_t copyNewResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(*ppWinUpdated, pIte, &iter)) != NULL) {
+    void* tmp = taosArrayPush(pUpdated, pIte);
+    if (!tmp) {
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+  taosArraySort(pUpdated, compar);
+  if (tSimpleHashGetSize(*ppWinUpdated) < 4096) {
+    tSimpleHashClear(*ppWinUpdated);
+  } else {
+    tSimpleHashClear(*ppWinUpdated);
+    tSimpleHashCleanup(*ppWinUpdated);
+    _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+    (*ppWinUpdated) = tSimpleHashInit(1024, hashFn);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                           code = TSDB_CODE_SUCCESS;
   int32_t                           lino = 0;
@@ -396,13 +425,6 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
   }
 
   if (isFillHistoryOperator(&pInfo->basic) && isSemiOperator(&pInfo->basic)) {
-    code = buildIntervalHistoryResult(pOperator);
-    QUERY_CHECK_CODE(code, lino, _end);
-    if (pInfo->binfo.pRes->info.rows != 0) {
-      printDataBlock(pInfo->binfo.pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-      (*ppRes) = pInfo->binfo.pRes;
-      return code;
-    }
     pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep, pInfo->tsOfKeep);
   }
 
@@ -492,12 +514,17 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       // return code;
     }
 
-    if (taosArrayGetSize(pInfo->pUpdated) > 0) {
+    if (!isSemiOperator(&pInfo->basic) && taosArrayGetSize(pInfo->pUpdated) > 0) {
       break;
     }
   }
 
-  if (pOperator->status == OP_RES_TO_RETURN && needBuildAllResult(&pInfo->basic)) {
+  if (isSemiOperator(&pInfo->basic)) {
+    code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, winPosCmprImpl);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (pOperator->status == OP_RES_TO_RETURN && isFillHistoryOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
     code = getHistoryRemainResultInfo(pAggSup, pInfo->pUpdated, pOperator->resultInfo.capacity);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -533,6 +560,72 @@ _end:
   return code;
 }
 
+int32_t doStreamSemiIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  int32_t                           code = TSDB_CODE_SUCCESS;
+  int32_t                           lino = 0;
+  SStreamIntervalSliceOperatorInfo* pInfo = (SStreamIntervalSliceOperatorInfo*)pOperator->info;
+  SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
+  SResultRowInfo*                   pResultRowInfo = &(pInfo->binfo.resultRowInfo);
+  SExecTaskInfo*                    pTaskInfo = pOperator->pTaskInfo;
+  SExprSupp*                        pSup = &pOperator->exprSupp;
+  int32_t                           numOfOutput = pSup->numOfExprs;
+  TSKEY*                            tsCols = NULL;
+  int64_t                           groupId = pBlock->info.id.groupId;
+  SResultRow*                       pResult = NULL;
+  int32_t                           forwardRows = 0;
+
+  SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+  tsCols = (int64_t*)pColDataInfo->pData;
+
+  int32_t            startPos = 0;
+  TSKEY              curTs = getStartTsKey(&pBlock->info.window, tsCols);
+  SInervalSlicePoint curPoint = {0};
+  SInervalSlicePoint prevPoint = {0};
+  STimeWindow        curWin = getActiveTimeWindow(NULL, pResultRowInfo, curTs, &pInfo->interval, TSDB_ORDER_ASC);
+  while (1) {
+    int32_t winCode = TSDB_CODE_SUCCESS;
+    code = getIntervalSliceCurStateBuf(&pInfo->streamAggSup, &pInfo->interval, pInfo->hasInterpoFunc, &curWin, groupId,
+                                       &curPoint, &prevPoint, &winCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    curPoint.pResPos->beUpdated = true;
+    SWinKey key = {.ts = curPoint.winKey.win.skey, .groupId = groupId};
+    code = tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SWinKey), &curPoint.pResPos, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code =
+        setIntervalSliceOutputBuf(&pInfo->streamAggSup, &curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, curWin.ekey, binarySearchForKey, NULL,
+                                           TSDB_ORDER_ASC);
+    int32_t prevEndPos = (forwardRows - 1) + startPos;
+
+    updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &curPoint.winKey.win, 1);
+    code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos,
+                                           forwardRows, pBlock->info.rows, numOfOutput);
+    QUERY_CHECK_CODE(code, lino, _end);
+    curPoint.pResPos->beUpdated = true;
+
+    if (curPoint.pLastRow->key == curPoint.winKey.win.ekey) {
+      setInterpoWindowFinished(&curPoint);
+    }
+    releaseOutputBuf(pInfo->streamAggSup.pState, curPoint.pResPos, &pInfo->streamAggSup.stateStore);
+
+    startPos = getNextQualifiedWindow(&pInfo->interval, &curWin, &pBlock->info, tsCols, prevEndPos, TSDB_ORDER_ASC);
+    if (startPos < 0) {
+      break;
+    }
+    curTs = tsCols[startPos];
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
 int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                             SReadHandle* pHandle, SOperatorInfo** ppOptInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -542,6 +635,7 @@ int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNod
 
   SStreamIntervalSliceOperatorInfo* pInfo = (SStreamIntervalSliceOperatorInfo*)(*ppOptInfo)->info;
   pInfo->numOfKeep = 0;
+  pInfo->pIntervalAggFn = doStreamSemiIntervalNonblockAggImpl;
   setSemiOperatorFlag(&pInfo->basic);
   if (pHandle->fillHistory) {
     setFillHistoryOperatorFlag(&pInfo->basic);
