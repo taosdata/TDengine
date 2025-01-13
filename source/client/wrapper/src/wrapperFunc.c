@@ -105,10 +105,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   return (*fp_taos_options)(option, arg);
 }
 
-setConfRet taos_set_config(const char *config) {
-  CHECK_CONFRET(fp_taos_set_config);
-  return (*fp_taos_set_config)(config);
-}
+set
 
 static void taos_init_wrapper(void) {
   tsDriverOnceRet = taosDriverInit(tsDriverType);
@@ -295,56 +292,6 @@ int taos_stmt_affected_rows(TAOS_STMT *stmt) {
 int taos_stmt_affected_rows_once(TAOS_STMT *stmt) {
   CHECK_INT(fp_taos_stmt_affected_rows_once);
   return (*fp_taos_stmt_affected_rows_once)(stmt);
-}
-
-TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
-  CHECK_PTR(fp_taos_stmt2_init);
-  return (*fp_taos_stmt2_init)(taos, option);
-}
-
-int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) {
-  CHECK_INT(fp_taos_stmt2_prepare);
-  return (*fp_taos_stmt2_prepare)(stmt, sql, length);
-}
-
-int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) {
-  CHECK_INT(fp_taos_stmt2_bind_param);
-  return (*fp_taos_stmt2_bind_param)(stmt, bindv, col_idx);
-}
-
-int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
-  CHECK_INT(fp_taos_stmt2_exec);
-  return (*fp_taos_stmt2_exec)(stmt, affected_rows);
-}
-
-int taos_stmt2_close(TAOS_STMT2 *stmt) {
-  CHECK_INT(fp_taos_stmt2_close);
-  return (*fp_taos_stmt2_close)(stmt);
-}
-
-int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
-  CHECK_INT(fp_taos_stmt2_is_insert);
-  return (*fp_taos_stmt2_is_insert)(stmt, insert);
-}
-
-int taos_stmt2_get_field(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
-  CHECK_INT(fp_taos_stmt2_get_fields);
-  return (*fp_taos_stmt2_get_fields)(stmt, count, fields);
-}
-
-void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {
-  CHECK_VOID(fp_taos_stmt2_free_fields);
-  (*fp_taos_stmt2_free_fields)(stmt, fields);
-}
-
-TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
-  CHECK_PTR(fp_taos_stmt2_result);
-  return (*fp_taos_stmt2_result)(stmt);
-}
-
-char *taos_stmt2_error(TAOS_STMT2 *stmt) {
-  CHECK_PTR(fp_taos_stmt2_error);
-  return (*fp_taos_stmt2_error)(stmt);
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
@@ -801,53 +748,6 @@ int64_t tmq_get_vgroup_offset(TAOS_RES *res) {
 const char *tmq_err2str(int32_t code) {
   CHECK_PTR(fp_tmq_err2str);
   return (*fp_tmq_err2str)(code);
-}
-
-int32_t tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw) {
-  CHECK_INT(fp_tmq_get_raw);
-  return (*fp_tmq_get_raw)(res, raw);
-}
-
-int32_t tmq_write_raw(TAOS *taos, tmq_raw_data raw) {
-  CHECK_INT(fp_tmq_write_raw);
-  return (*fp_tmq_write_raw)(taos, raw);
-}
-
-int taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname) {
-  CHECK_INT(fp_taos_write_raw_block);
-  return (*fp_taos_write_raw_block)(taos, numOfRows, pData, tbname);
-}
-
-int taos_write_raw_block_with_reqid(TAOS *taos, int numOfRows, char *pData, const char *tbname, int64_t reqid) {
-  CHECK_INT(fp_taos_write_raw_block_with_reqid);
-  return (*fp_taos_write_raw_block_with_reqid)(taos, numOfRows, pData, tbname, reqid);
-}
-
-int taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const char *tbname, TAOS_FIELD *fields,
-                                     int numFields) {
-  CHECK_INT(fp_taos_write_raw_block_with_fields);
-  return (*fp_taos_write_raw_block_with_fields)(taos, rows, pData, tbname, fields, numFields);
-}
-
-int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
-                                                TAOS_FIELD *fields, int numFields, int64_t reqid) {
-  CHECK_INT(fp_taos_write_raw_block_with_fields_with_reqid);
-  return (*fp_taos_write_raw_block_with_fields_with_reqid)(taos, rows, pData, tbname, fields, numFields, reqid);
-}
-
-void tmq_free_raw(tmq_raw_data raw) {
-  CHECK_VOID(fp_tmq_free_raw);
-  (*fp_tmq_free_raw)(raw);
-}
-
-char *tmq_get_json_meta(TAOS_RES *res) {
-  CHECK_PTR(fp_tmq_get_json_meta);
-  return (*fp_tmq_get_json_meta)(res);
-}
-
-void tmq_free_json_meta(char *jsonMeta) {
-  CHECK_VOID(fp_tmq_free_json_meta);
-  return (*fp_tmq_free_json_meta)(jsonMeta);
 }
 
 TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen) {

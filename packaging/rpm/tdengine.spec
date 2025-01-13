@@ -113,10 +113,10 @@ if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
-cp %{_compiledir}/build/lib/${nativelibfile}      %{buildroot}%{homepath}/driver
+cp %{_compiledir}/build/lib/${nativelibfile}        %{buildroot}%{homepath}/driver
 [ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/client/taosnative.h  %{buildroot}%{homepath}/include
+cp %{_compiledir}/../include/client/taosnative.h    %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/tdef.h            %{buildroot}%{homepath}/include

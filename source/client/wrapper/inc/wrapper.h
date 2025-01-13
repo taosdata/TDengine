@@ -35,10 +35,10 @@ extern void       *tsDriver;
 extern int32_t taosDriverInit(EDriverType driverType);
 extern void    taosDriverCleanup();
 
+extern int (*fp_taos_init)(void);
 extern void (*fp_taos_cleanup)(void);
 extern int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...);
-extern setConfRet (*fp_taos_set_config)(const char *config);
-extern int (*fp_taos_init)(void);
+extern int (*fp_taos_options_connection)(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 extern TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_dsn)(const char *dsn, const char *user, const char *pass, const char *db);
@@ -72,17 +72,6 @@ extern int (*fp_taos_stmt_close)(TAOS_STMT *stmt);
 extern char *(*fp_taos_stmt_errstr)(TAOS_STMT *stmt);
 extern int (*fp_taos_stmt_affected_rows)(TAOS_STMT *stmt);
 extern int (*fp_taos_stmt_affected_rows_once)(TAOS_STMT *stmt);
-
-extern TAOS_STMT2 *(*fp_taos_stmt2_init)(TAOS *taos, TAOS_STMT2_OPTION *option);
-extern int (*fp_taos_stmt2_prepare)(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
-extern int (*fp_taos_stmt2_bind_param)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
-extern int (*fp_taos_stmt2_exec)(TAOS_STMT2 *stmt, int *affected_rows);
-extern int (*fp_taos_stmt2_close)(TAOS_STMT2 *stmt);
-extern int (*fp_taos_stmt2_is_insert)(TAOS_STMT2 *stmt, int *insert);
-extern int (*fp_taos_stmt2_get_fields)(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields);
-extern void (*fp_taos_stmt2_free_fields)(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields);
-extern TAOS_RES *(*fp_taos_stmt2_result)(TAOS_STMT2 *stmt);
-extern char *(*fp_taos_stmt2_error)(TAOS_STMT2 *stmt);
 
 extern TAOS_RES *(*fp_taos_query)(TAOS *taos, const char *sql);
 extern TAOS_RES *(*fp_taos_query_with_reqid)(TAOS *taos, const char *sql, int64_t reqId);
@@ -134,7 +123,6 @@ extern int (*fp_taos_get_tables_vgId)(TAOS *taos, const char *db, const char *ta
 extern int (*fp_taos_load_table_info)(TAOS *taos, const char *tableNameList);
 
 extern void (*fp_taos_set_hb_quit)(int8_t quitByKill);
-
 extern int (*fp_taos_set_notify_cb)(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
 extern void (*fp_taos_write_crashinfo)(int signum, void *sigInfo, void *context);
 
@@ -186,17 +174,6 @@ extern const char *(*fp_tmq_get_db_name)(TAOS_RES *res);
 extern int32_t (*fp_tmq_get_vgroup_id)(TAOS_RES *res);
 extern int64_t (*fp_tmq_get_vgroup_offset)(TAOS_RES *res);
 extern const char *(*fp_tmq_err2str)(int32_t code);
-
-extern int32_t (*fp_tmq_get_raw)(TAOS_RES *res, tmq_raw_data *raw);
-extern int32_t (*fp_tmq_write_raw)(TAOS *taos, tmq_raw_data raw);
-extern int (*fp_taos_write_raw_block)(TAOS *taos, int numOfRows, char *pData, const char *tbname);
-extern int (*fp_taos_write_raw_block_with_reqid)(TAOS *taos, int numOfRows, char *pData, const char *tbname, int64_t reqid);
-extern int (*fp_taos_write_raw_block_with_fields)(TAOS *taos, int rows, char *pData, const char *tbname, TAOS_FIELD *fields, int numFields);
-extern int (*fp_taos_write_raw_block_with_fields_with_reqid)(TAOS *taos, int rows, char *pData, const char *tbname, TAOS_FIELD *fields, int numFields, int64_t reqid);
-extern void (*fp_tmq_free_raw)(tmq_raw_data raw);
-
-extern char *(*fp_tmq_get_json_meta)(TAOS_RES *res);
-extern void (*fp_tmq_free_json_meta)(char *jsonMeta);
 
 extern TSDB_SERVER_STATUS (*fp_taos_check_server_status)(const char *fqdn, int port, char *details, int maxlen);
 extern char *(*fp_getBuildInfo)();

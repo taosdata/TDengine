@@ -96,18 +96,6 @@ DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);
 DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
 /* ---------------------------- TAOSX END -------------------------------- */
 
-/* ---------------------------- INTERNAL INTERFACE ------------------------ */
-typedef enum {
-  TSDB_SRV_STATUS_UNAVAILABLE = 0,
-  TSDB_SRV_STATUS_NETWORK_OK = 1,
-  TSDB_SRV_STATUS_SERVICE_OK = 2,
-  TSDB_SRV_STATUS_SERVICE_DEGRADED = 3,
-  TSDB_SRV_STATUS_EXTING = 4,
-} TSDB_SERVER_STATUS;
-
-DLL_EXPORT TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen);
-DLL_EXPORT char              *getBuildInfo();
-
 #ifdef __cplusplus
 }
 #endif
