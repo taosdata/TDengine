@@ -655,7 +655,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->pOperator = pOperator;
   pInfo->hasFill = false;
   pInfo->hasInterpoFunc = windowinterpNeeded(pExpSup->pCtx, numOfExprs);
-  pInfo->numOfKeep = ceil(pInfo->interval.interval / pInfo->interval.sliding);
+  pInfo->numOfKeep = ceil(((double)pInfo->interval.interval) / pInfo->interval.sliding);
   pInfo->tsOfKeep = INT64_MAX;
 
   setOperatorInfo(pOperator, "StreamIntervalSliceOperator", pPhyNode->type, true, OP_NOT_OPENED,

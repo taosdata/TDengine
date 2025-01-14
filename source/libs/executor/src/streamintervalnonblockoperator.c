@@ -422,7 +422,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     return code;
   }
 
-  if (isHistoryOperator(&pInfo->basic) && isSemiOperator(&pInfo->basic)) {
+  if (isHistoryOperator(&pInfo->basic) && !isFinalOperator(&pInfo->basic)) {
     pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep, pInfo->tsOfKeep);
   }
 

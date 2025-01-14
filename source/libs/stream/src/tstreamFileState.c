@@ -471,7 +471,7 @@ int32_t popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, 
     }
   }
 
-  qInfo("stream state flush %d rows to disk. is used:%d", listNEles(pFlushList), used);
+  qInfo("%s stream state flush %d rows to disk. is used:%d", pFileState->id, listNEles(pFlushList), used);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1517,10 +1517,6 @@ int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SW
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
-  if (size >= MAX_NUM_OF_CACHE_WIN) {
-    int32_t num = size - NUM_OF_CACHE_WIN;
-    taosArrayRemoveBatch(pWinStates, 0, num, NULL);
-  }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
