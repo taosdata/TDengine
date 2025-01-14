@@ -377,7 +377,6 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_CHECK_GOTO(code, &line, _err);
   }
-  
 
   *len = pValueInfo->size;
 _err:
