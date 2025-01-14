@@ -14,6 +14,7 @@
  */
 
 #include "os.h"
+#include "tchecksum.h"
 #include "tlog.h"
 #include "tmsg.h"
 
@@ -62,11 +63,12 @@ typedef struct {
 
 typedef struct {
   uint32_t head[4];
-  int8_t   type;
+  int8_t   bType;  // block type
+  int8_t   type;   // content data
   uint32_t id;
   uint32_t len;
   uint32_t cap;
-  char    *data;
+  uint8_t *data;
 } SBlkData;
 
 typedef struct {
@@ -403,10 +405,41 @@ _err:
   }
   return code;
 }
+
+typedef struct {
+  uint8_t  head[4];
+  uint32_t id;
+  uint32_t len;
+  uint8_t  data[0];
+} SBlkData2;
+
 int32_t tableFlush(STableBuilder *pTable) {
   /// do write to file
   // Do CRC and write to table
-  return taosWriteFile(pTable->pDataFile, pTable->data.data, pTable->data.len);
+  int32_t code = 0;
+  int32_t line = 0;
+
+  SBlkData2 *pBlk = &(SBlkData2){0};
+  uint8_t   *pData = (uint8_t *)&pBlk;
+  uint32_t   len = sizeof(SBlkData2) + pBlk->len + sizeof(TSCKSUM);
+
+  code = taosCalcChecksum(0, pData, len);
+  TAOS_CHECK_GOTO(code, &line, _err);
+  if (len <= kBlockCap) {
+    // file is not full
+    memset(pData, 0, kBlockCap - len);
+  }
+  int64_t nwrite = taosWriteFile(pTable->pDataFile, pData, (int64_t)kBlockCap);
+  if (nwrite != kBlockCap) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &line, _err);
+  }
+  return code;
+_err:
+  if (code != 0) {
+    bseError("file %s failed to flush table since %s", pTable->name, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t tableCommit(STableBuilder *pTable) {
@@ -415,7 +448,6 @@ int32_t tableCommit(STableBuilder *pTable) {
   SBlkData *pBlk = &(SBlkData){0};
   pBlk->type = BSE_META_TYPE;
   pBlk->id = pTable->data.id;
-
   pBlk->len = taosHashGetSize(pTable->pCache);
 
   return code;
