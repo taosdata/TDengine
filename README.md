@@ -30,13 +30,14 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 1. [Documentation](#2-documentation)
 1. [Prerequisites](#3-prerequisites)
 1. [Building](#4-building)
-1. [Installation](#5-installation)
-1. [Running](#6-running)
-1. [Testing](#7-testing)
-1. [Releasing](#8-releasing)
-1. [CI/CD](#9-cicd)
-1. [Coverage](#10-coverage)
-1. [Contributing](#11-contributing)
+1. [Packaging](#5-packaging)
+1. [Installation](#6-installation)
+1. [Running](#7-running)
+1. [Testing](#8-testing)
+1. [Releasing](#9-releasing)
+1. [CI/CD](#10-cicd)
+1. [Coverage](#11-coverage)
+1. [Contributing](#12-contributing)
 
 # 1. Introduction
 
@@ -218,9 +219,17 @@ nmake
 ```
 </details>
 
-# 5. Installation
+# 5. Packaging
 
-## 5.1 Install on Linux
+TDengine packaging scripts depends on some private repositries currently, you can refer the link for detail steps. [Packaging](https://github.com/taosdata/TDinternal/tree/main?tab=readme-ov-file#5-packaging)
+
+# 6. Installation
+
+## 6.1 Install on Linux
+
+<details>
+
+<summary>Detailed steps to install on Linux</summary>
 
 After building successfully, TDengine can be installed by:
 
@@ -230,7 +239,13 @@ sudo make install
 
 Installing from source code will also configure service management for TDengine. Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
 
-## 5.2 Install on macOS
+</details>
+
+## 6.2 Install on macOS
+
+<details>
+
+<summary>Detailed steps to install on macOS</summary>
 
 After building successfully, TDengine can be installed by:
 
@@ -238,7 +253,13 @@ After building successfully, TDengine can be installed by:
 sudo make install
 ```
 
-## 5.3 Install on Windows
+</details>
+
+## 6.3 Install on Windows
+
+<details>
+
+<summary>Detailed steps to install on windows</summary>
 
 After building successfully, TDengine can be installed by:
 
@@ -246,9 +267,15 @@ After building successfully, TDengine can be installed by:
 nmake install
 ```
 
-# 6. Running
+</details>
 
-## 6.1 Run TDengine on Linux
+# 7. Running
+
+## 7.1 Run TDengine on Linux
+
+<details>
+
+<summary>Detailed steps to run on Linux</summary>
 
 To start the service after installation on linux, in a terminal, use:
 
@@ -278,7 +305,13 @@ In another terminal, use the TDengine CLI to connect the server:
 
 Option `-c test/cfg` specifies the system configuration file directory.
 
-## 6.2 Run TDengine on Windows
+</details>
+
+## 7.2 Run TDengine on Windows
+
+<details>
+
+<summary>Detailed steps to run on windows</summary>
 
 You can start TDengine server on Windows platform with below commands:
 
@@ -294,7 +327,13 @@ In another terminal, use the TDengine CLI to connect the server:
 
 option "-c test/cfg" specifies the system configuration file directory.
 
-## 6.3 Run TDengine on macOS
+</details>
+
+## 7.3 Run TDengine on macOS
+
+<details>
+
+<summary>Detailed steps to run on macOS</summary>
 
 To start the service after installation on macOS, double-click the /applications/TDengine to start the program, or in a terminal, use:
 
@@ -310,15 +349,17 @@ taos
 
 If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
-# 7. Testing
+</details>
+
+# 8. Testing
 
 For how to run different types of tests on TDengine, please see [Testing TDengine](./tests/README.md).
 
-# 8. Releasing
+# 9. Releasing
 
 For the complete list of TDengine Releases, please see [Releases](https://github.com/taosdata/TDengine/releases).
 
-# 9. CI/CD
+# 10. CI/CD
 
 Now, Jenkins is mainly used to build CI/CD pipeline for TDengine. To run the tests in the CI/CD pipeline, please run following commands:
 
@@ -329,7 +370,7 @@ cd tests
 
 TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml).
 
-# 10. Coverage
+# 11. Coverage
 
 Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). To create the test coverage report (in HTML format) locally, please run following commands:
 
@@ -342,6 +383,6 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 > [!NOTE]
 > Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
 
-# 11. Contributing
+# 12. Contributing
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to TDengine.

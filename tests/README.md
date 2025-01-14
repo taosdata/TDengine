@@ -43,7 +43,7 @@ bash test.sh -e 0
 ## System Test
 
 Python test script includes almost all of the functions of TDengine, so some test case maybe fail cause the function only
-work for TDengine enterprise version, you can run the script with below command:
+work for TDengine Enterprise Edition, you can run the script with below command:
 
 ```bash
 cd tests/system-test
@@ -69,5 +69,15 @@ cd tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
 
+## TSBS Test
 
+Time Series Benchmark Suite (TSBS) is an open-source performance benchmarking platform specifically designed for time-series data processing systems, such as databases. It provides a standardized approach to evaluating the performance of various databases by simulating typical use cases such as IoT and DevOps.
 
+TSBS Test is based on the TDengine Enterprise Edition and need private repositry privilege, you can refer the link for detail steps. [TSBS Test](https://github.com/taosdata/TDinternal/tree/main?tab=readme-ov-file#85-tsbs-test)
+
+## TestNG Test
+
+TestNG Test is another test framwork which developed by python, functionally speaking, it's a supplement for system test, and
+also run longer time than system test for stability testing purposes. 
+
+TestNG Test is based on the TDengine Enterprise Edition and need private repositry privilege, you can refer the link for detail steps. [TestNG Test](https://github.com/taosdata/TDinternal/tree/main?tab=readme-ov-file#87-testng-test)
