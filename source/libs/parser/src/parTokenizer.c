@@ -194,6 +194,7 @@ static SKeyword keywordTable[] = {
     {"ORDER",                TK_ORDER},
     {"OUTER",                TK_OUTER},
     {"OUTPUTTYPE",           TK_OUTPUTTYPE},
+    {"OVER",                 TK_OVER},
     {"PAGES",                TK_PAGES},
     {"PAGESIZE",             TK_PAGESIZE},
     {"PARA_TABLES_SORT",     TK_PARA_TABLES_SORT},

@@ -448,6 +448,13 @@ static int32_t windowOffsetCopy(const SWindowOffsetNode* pSrc, SWindowOffsetNode
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t overNodeCopy(const SOverNode* pSrc, SOverNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  CLONE_NODE_FIELD(pFunc);
+  CLONE_NODE_LIST_FIELD(pPartitionList);
+  CLONE_NODE_LIST_FIELD(pOrderList);
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
@@ -1044,6 +1051,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_WINDOW_OFFSET:
       code = windowOffsetCopy((const SWindowOffsetNode*)pNode, (SWindowOffsetNode*)pDst);
+      break;
+    case QUERY_NODE_OVER:
+      code = overNodeCopy((const SOverNode*)pNode, (SOverNode*)pDst);
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);

@@ -473,6 +473,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_RANGE_AROUND:
       code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
       break;
+    case QUERY_NODE_OVER:
+      code = makeNode(type, sizeof(SOverNode), &pNode);
+      break;
     case QUERY_NODE_SELECT_STMT:
       code = makeNode(type, sizeof(SSelectStmt), &pNode);
       break;
@@ -1265,6 +1268,13 @@ void nodesDestroyNode(SNode* pNode) {
       SRangeAroundNode* pAround = (SRangeAroundNode*)pNode;
       nodesDestroyNode(pAround->pInterval);
       nodesDestroyNode(pAround->pTimepoint);
+      break;
+    }
+    case QUERY_NODE_OVER: {
+      SOverNode* pOver = (SOverNode*)pNode;
+      nodesDestroyNode(pOver->pFunc);
+      nodesDestroyList(pOver->pPartitionList);
+      nodesDestroyList(pOver->pOrderList);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {

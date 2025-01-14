@@ -1536,6 +1536,22 @@ _err:
   return NULL;
 }
 
+SNode* createOverNode(SAstCreateContext* pCxt, SNode* pFunc, SNodeList* pPartitionList, SNodeList* pOrderList) {
+  CHECK_PARSER_STATUS(pCxt);
+  SOverNode* pOver = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_OVER, (SNode**)&pOver);
+  CHECK_MAKE_NODE(pOver);
+  pOver->pFunc = pFunc;
+  pOver->pPartitionList = pPartitionList;
+  pOver->pOrderList = pOrderList;
+  return (SNode*)pOver;
+_err:
+  nodesDestroyNode(pFunc);
+  nodesDestroyList(pPartitionList);
+  nodesDestroyList(pOrderList);
+  return NULL;
+}
+
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
   trimEscape(pAlias);

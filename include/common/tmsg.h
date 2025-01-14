@@ -269,6 +269,7 @@ typedef enum ENodeType {
   QUERY_NODE_TSMA_OPTIONS,
   QUERY_NODE_ANOMALY_WINDOW,
   QUERY_NODE_RANGE_AROUND,
+  QUERY_NODE_OVER,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,

@@ -424,6 +424,14 @@ typedef struct SRangeAroundNode {
   SNode*    pInterval;
 } SRangeAroundNode;
 
+typedef struct SOverNode {
+  SExprNode  node;  // QUERY_NODE_OVER
+  SNode*     pFunc;
+  SNodeList* pPartitionList;
+  SNodeList* pOrderList;
+} SOverNode;
+
+
 typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
   bool          isDistinct;

@@ -170,6 +170,7 @@ SNode*     createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SN
 SNode*     createWhenThenNode(SAstCreateContext* pCxt, SNode* pWhen, SNode* pThen);
 SNode*     createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhenThenList, SNode* pElse);
 SNode*     createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* token, SNode* pVal);
+SNode*     createOverNode(SAstCreateContext* pCxt, SNode* pFunc, SNodeList* pPartitionList, SNodeList* pOrderList);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);
